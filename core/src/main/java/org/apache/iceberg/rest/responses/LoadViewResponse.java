@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest.responses;
 
 import java.util.Map;
+import org.apache.iceberg.Labels;
 import org.apache.iceberg.rest.RESTResponse;
 import org.apache.iceberg.view.ViewMetadata;
 import org.immutables.value.Value;
@@ -30,6 +31,11 @@ public interface LoadViewResponse extends RESTResponse {
   ViewMetadata metadata();
 
   Map<String, String> config();
+
+  @Value.Default
+  default Labels labels() {
+    return Labels.EMPTY;
+  }
 
   @Override
   default void validate() {

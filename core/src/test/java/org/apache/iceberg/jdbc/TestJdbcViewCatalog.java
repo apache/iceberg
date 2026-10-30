@@ -21,8 +21,12 @@ package org.apache.iceberg.jdbc;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.times;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.sql.SQLException;
 import java.util.Map;
 import java.util.UUID;
@@ -33,10 +37,13 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.ViewCatalogTests;
 import org.apache.iceberg.view.ViewMetadata;
+import org.apache.iceberg.view.ViewMetadataParser;
 import org.apache.iceberg.view.ViewOperations;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,6 +59,10 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
 
   @BeforeEach
   public void before() {
+    catalog = initCatalog(ImmutableMap.of());
+  }
+
+  private JdbcCatalog initCatalog(Map<String, String> additionalProperties) {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(
         CatalogProperties.URI,
@@ -65,10 +76,12 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
     properties.put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key3", "catalog-default-key3");
     properties.put(CatalogProperties.VIEW_OVERRIDE_PREFIX + "key3", "catalog-override-key3");
     properties.put(CatalogProperties.VIEW_OVERRIDE_PREFIX + "key4", "catalog-override-key4");
+    properties.putAll(additionalProperties);
 
-    catalog = new JdbcCatalog();
-    catalog.setConf(new Configuration());
-    catalog.initialize("testCatalog", properties);
+    JdbcCatalog jdbcCatalog = new JdbcCatalog();
+    jdbcCatalog.setConf(new Configuration());
+    jdbcCatalog.initialize("testCatalog", properties);
+    return jdbcCatalog;
   }
 
   @Override
@@ -89,6 +102,34 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
   @Override
   protected boolean supportsEmptyNamespace() {
     return true;
+  }
+
+  @Test
+  public void testMetadataRefreshMaxRetries() {
+    try (JdbcCatalog jdbcCatalog =
+        initCatalog(ImmutableMap.of(JdbcUtil.METADATA_REFRESH_MAX_RETRIES_PROPERTY, "0"))) {
+      TableIdentifier identifier = TableIdentifier.of("namespace1", "view");
+      jdbcCatalog.createNamespace(identifier.namespace());
+      jdbcCatalog
+          .buildView(identifier)
+          .withQuery("spark", "select * from tbl")
+          .withSchema(SCHEMA)
+          .withDefaultNamespace(identifier.namespace())
+          .create();
+
+      try (MockedStatic<ViewMetadataParser> mockedStatic =
+          Mockito.mockStatic(ViewMetadataParser.class)) {
+        mockedStatic
+            .when(() -> ViewMetadataParser.read(any(FileIO.class), anyString()))
+            .thenThrow(new UncheckedIOException(new IOException("Read timed out")));
+
+        assertThatThrownBy(() -> jdbcCatalog.loadView(identifier))
+            .isInstanceOf(UncheckedIOException.class)
+            .hasMessageContaining("Read timed out");
+        mockedStatic.verify(
+            () -> ViewMetadataParser.read(any(FileIO.class), anyString()), times(1));
+      }
+    }
   }
 
   @Test

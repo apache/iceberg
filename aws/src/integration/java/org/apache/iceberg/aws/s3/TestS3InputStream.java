@@ -29,7 +29,7 @@ import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.MinIOContainer;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -41,10 +41,12 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @Testcontainers
 public class TestS3InputStream {
-  @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
+  @Container
+  private static final GenericContainer<?> OBJECT_STORE = ObjectStoreUtil.createContainer();
+
   private static final int EOF = -1;
 
-  private final S3Client s3 = MinioUtil.createS3Client(MINIO);
+  private final S3Client s3 = ObjectStoreUtil.createS3Client(OBJECT_STORE);
   private final Random random = new Random(1);
 
   @BeforeEach
@@ -153,6 +155,35 @@ public class TestS3InputStream {
   @Test
   public void testRangeRead() throws Exception {
     testRangeRead(s3);
+  }
+
+  @Test
+  void zeroLengthReadTailSucceedsForNonEmptyObject() throws Exception {
+    S3URI uri = new S3URI("s3://bucket/path/to/zero-tail-nonempty.dat");
+    writeS3Data(uri, new byte[] {1});
+
+    try (RangeReadable in = newInputStream(s3, uri)) {
+      assertThat(in.readTail(new byte[0], 0, 0)).isZero();
+    }
+  }
+
+  @Test
+  void zeroLengthReadTailSucceedsForEmptyObject() throws Exception {
+    S3URI uri = new S3URI("s3://bucket/path/to/zero-tail-empty.dat");
+    writeS3Data(uri, new byte[0]);
+
+    try (RangeReadable in = newInputStream(s3, uri)) {
+      assertThat(in.readTail(new byte[0], 0, 0)).isZero();
+    }
+  }
+
+  @Test
+  void zeroLengthReadTailSucceedsForMissingObject() throws Exception {
+    S3URI uri = new S3URI("s3://bucket/path/to/missing-read-tail.dat");
+
+    try (RangeReadable in = newInputStream(s3, uri)) {
+      assertThat(in.readTail(new byte[0], 0, 0)).isZero();
+    }
   }
 
   protected void testRangeRead(S3Client s3Client) throws Exception {

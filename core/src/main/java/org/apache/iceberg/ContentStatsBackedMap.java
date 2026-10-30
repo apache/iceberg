@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
@@ -37,7 +38,7 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
     NAN_VALUE_COUNT,
     LOWER_BOUND,
     UPPER_BOUND,
-    AVG_VALUE_SIZE
+    TOTAL_BYTES
   }
 
   /** Per-column value counts, or null if no column tracks the value count. */
@@ -65,9 +66,9 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
     return viewOrNull(stats, Kind.UPPER_BOUND);
   }
 
-  /** Per-column average non-null value sizes, or null if no column tracks the average size. */
-  static <V> Map<Integer, V> avgValueSizes(ContentStats stats) {
-    return viewOrNull(stats, Kind.AVG_VALUE_SIZE);
+  /** Per-column total uncompressed size of non-null values, or null if no column tracks it. */
+  static <V> Map<Integer, V> totalBytes(ContentStats stats) {
+    return viewOrNull(stats, Kind.TOTAL_BYTES);
   }
 
   private final ContentStats stats;
@@ -150,7 +151,7 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
       case NAN_VALUE_COUNT -> fieldStats.hasNanValueCount();
       case LOWER_BOUND -> fieldStats.lowerBound() != null;
       case UPPER_BOUND -> fieldStats.upperBound() != null;
-      case AVG_VALUE_SIZE -> fieldStats.avgValueSizeInBytes() != null;
+      case TOTAL_BYTES -> fieldStats.hasTotalBytes();
     };
   }
 
@@ -167,13 +168,46 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
           (V) bound(fieldStats, fieldStats.lowerBound(), StatsUtil.LOWER_BOUND_NAME);
       case UPPER_BOUND ->
           (V) bound(fieldStats, fieldStats.upperBound(), StatsUtil.UPPER_BOUND_NAME);
-      case AVG_VALUE_SIZE -> (V) fieldStats.avgValueSizeInBytes();
+      case TOTAL_BYTES ->
+          fieldStats.hasTotalBytes() ? (V) Long.valueOf(fieldStats.totalBytes()) : null;
     };
   }
 
   private static ByteBuffer bound(FieldStats<?> fieldStats, Object bound, String boundFieldName) {
     Type boundType = fieldStats.type().fieldType(boundFieldName);
+    if (boundType == null) {
+      return null;
+    }
+
+    if (boundType.isStructType()) {
+      // geo bounds are bounding-box structs; convert to the spec's single-point encoding
+      return geoBound((StructLike) bound);
+    }
+
     // toByteBuffer returns null for a null bound
-    return boundType == null ? null : Conversions.toByteBuffer(boundType, bound);
+    return Conversions.toByteBuffer(boundType, bound);
+  }
+
+  /** Encodes a geo bounding-box struct (x, y, z, m) as the spec's single-point bound. */
+  private static ByteBuffer geoBound(StructLike bound) {
+    if (bound == null) {
+      return null;
+    }
+
+    // field order is fixed by the stats schema: x, y, z, m
+    double coordX = bound.get(0, Double.class);
+    double coordY = bound.get(1, Double.class);
+    Double coordZ = bound.get(2, Double.class);
+    Double coordM = bound.get(3, Double.class);
+
+    if (coordZ != null && coordM != null) {
+      return GeospatialBound.createXYZM(coordX, coordY, coordZ, coordM).toByteBuffer();
+    } else if (coordZ != null) {
+      return GeospatialBound.createXYZ(coordX, coordY, coordZ).toByteBuffer();
+    } else if (coordM != null) {
+      return GeospatialBound.createXYM(coordX, coordY, coordM).toByteBuffer();
+    } else {
+      return GeospatialBound.createXY(coordX, coordY).toByteBuffer();
+    }
   }
 }

@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
  *
  * <ul>
  *   <li>Adding new columns
- *   <li>Widening the type of existing columsn
+ *   <li>Widening the type of existing columns
  *   <li>Reordering columns
  *   <li>Dropping columns (when dropUnusedColumns is enabled)
  * </ul>
@@ -194,6 +194,11 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
     return partnerId == null;
   }
 
+  @Override
+  public Boolean variant(Types.VariantType variant, Integer partnerId) {
+    return partnerId == null;
+  }
+
   private Type findFieldType(int fieldId) {
     if (fieldId == -1) {
       return existingSchema.asStruct();
@@ -209,6 +214,14 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
 
   private void updateColumn(Types.NestedField existingField, Types.NestedField targetField) {
     String existingColumnName = this.existingSchema.findColumnName(existingField.fieldId());
+
+    // A column cannot be promoted to variant; fail instead of silently skipping the update
+    Preconditions.checkArgument(
+        !targetField.type().isVariantType() || existingField.type().isVariantType(),
+        "Cannot change column type: %s: %s -> %s",
+        existingColumnName,
+        existingField.type(),
+        targetField.type());
 
     boolean needsOptionalUpdate = targetField.isOptional() && existingField.isRequired();
     boolean handledByDataConversion =

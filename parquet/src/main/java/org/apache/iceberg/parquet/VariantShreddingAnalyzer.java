@@ -447,11 +447,9 @@ public abstract class VariantShreddingAnalyzer<T, S> {
       typeCounts[type.ordinal()]++;
 
       // Track max precision and scale for decimal types
-      if (DECIMAL_TYPES.contains(type)) {
-        if (value.asPrimitive().get() instanceof BigDecimal bd) {
-          maxDecimalIntegerDigits = Math.max(maxDecimalIntegerDigits, bd.precision() - bd.scale());
-          maxDecimalScale = Math.max(maxDecimalScale, bd.scale());
-        }
+      if (DECIMAL_TYPES.contains(type) && value.asPrimitive().get() instanceof BigDecimal bd) {
+        maxDecimalIntegerDigits = Math.max(maxDecimalIntegerDigits, bd.precision() - bd.scale());
+        maxDecimalScale = Math.max(maxDecimalScale, bd.scale());
       }
     }
 

@@ -88,7 +88,43 @@ class TestHTTPRequest {
                 // absolute path with trailing slash: should be preserved
                 .path("http://authserver.com/token/")
                 .build(),
-            URI.create("http://authserver.com/token/")));
+            URI.create("http://authserver.com/token/")),
+        Arguments.of(
+            ImmutableHTTPRequest.builder()
+                .baseUri(URI.create("http://localhost:8080"))
+                .method(HTTPRequest.HTTPMethod.GET)
+                // percent-encoded path segments must survive URIBuilder unchanged:
+                // %20 must not become %2520, %7C must not become %257C
+                .path("v1/main%7Cwarehouse/namespaces/sales%20report/tables")
+                .build(),
+            URI.create(
+                "http://localhost:8080/v1/main%7Cwarehouse/namespaces/sales%20report/tables")),
+        Arguments.of(
+            ImmutableHTTPRequest.builder()
+                .baseUri(URI.create("http://localhost:8080"))
+                .method(HTTPRequest.HTTPMethod.GET)
+                .path("v1/namespaces/ns/tables/tbl")
+                .putQueryParameter("snapshots", "all")
+                // pre-encoded: appended verbatim, and the whole chain is one parameter
+                .putQueryParameter(
+                    RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER,
+                    "outer_ns%1Fouter_view,inner_ns%1Finner_view")
+                .build(),
+            URI.create(
+                "http://localhost:8080/v1/namespaces/ns/tables/tbl?snapshots=all"
+                    + "&referenced-by=outer_ns%1Fouter_view,inner_ns%1Finner_view")),
+        Arguments.of(
+            ImmutableHTTPRequest.builder()
+                .baseUri(URI.create("http://localhost:8080"))
+                .method(HTTPRequest.HTTPMethod.GET)
+                .path("v1/namespaces/ns/tables/tbl")
+                // pre-encoded parameter alone still opens the query string
+                .putQueryParameter(
+                    RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, "ns%1Fouter_view")
+                .build(),
+            URI.create(
+                "http://localhost:8080/v1/namespaces/ns/tables/tbl"
+                    + "?referenced-by=ns%1Fouter_view")));
   }
 
   @Test

@@ -61,7 +61,12 @@ The full set of changes are listed in [Appendix E](#version-3).
 
 Version 4 of the Iceberg spec restructures metadata for improved performance and new capabilities:
 
+* Support for an [adaptive metadata tree](#manifests), enabling efficient small commits, column updates, and columnar statistics representation
+* Data files and their corresponding deletion vector are stored in a combined entry, removing the need for two-phase planning
 * Support for [relative locations](#file-locations-in-metadata) in metadata fields
+* Writing new [equality deletes](#equality-delete-files) is no longer allowed
+* New data type: `file`
+* Support for table [constraints](#constraints)
 
 The full set of changes are listed in [Appendix E](#version-4).
 
@@ -83,9 +88,9 @@ This table format tracks individual data files in a table instead of directories
 
 Table state is maintained in metadata files. All changes to table state create a new metadata file and replace the old metadata with an atomic swap. The table metadata file tracks the table schema, partitioning config, custom properties, and snapshots of the table contents. A snapshot represents the state of a table at some time and is used to access the complete set of data files in the table.
 
-Data files in snapshots are tracked by one or more manifest files that contain a row for each data file in the table, the file's partition data, and its metrics. The data in a snapshot is the union of all live files in its manifests; each live file may only appear once (see [Content file uniqueness](#content-file-uniqueness)). Manifest files are reused across snapshots to avoid rewriting metadata that is slow-changing. Manifests can track data files with any subset of a table and are not associated with partitions.
+Data files in snapshots are tracked by one or more manifest files that contain a row for each data file in the table, the file's partition data, an optional colocated deletion vector (v4), and its metrics. The data in a snapshot is the union of all live files in its manifests; each live file may only appear once (see [Content file uniqueness](#content-file-uniqueness)). Manifest files are reused across snapshots to avoid rewriting metadata that is slow-changing. Manifests can track data files with any subset of a table and are not associated with partitions.
 
-The manifests that make up a snapshot are stored in a manifest list file. Each manifest list stores metadata about manifests, including partition stats and data file counts. These stats are used to avoid reading manifests that are not required for an operation.
+In v1-v3, the manifests that make up a snapshot are stored in a manifest list file. Each manifest list stores metadata about manifests, including partition stats and data file counts. These stats are used to avoid reading manifests that are not required for an operation. Starting in v4, manifest lists are replaced by a single root manifest per snapshot, which can contain references to data files, data manifests, and delete manifests in a unified structure.
 
 ### Optimistic Concurrency
 
@@ -113,7 +118,7 @@ There are two types of row-level deletes:
 
 * **Position deletes** -- Mark a row deleted by data file path and the row position in the data file. Position deletes are encoded in a [_position delete file_](#position-delete-files) (V2) or [_deletion vector_](#deletion-vectors) (V3 or above).
 
-* **Equality deletes** -- Mark a row deleted by one or more column values, like id = 5. Equality deletes are encoded in [_equality delete file_](#equality-delete-files).
+* **Equality deletes** -- Mark a row deleted by one or more column values, like id = 5. Equality deletes are encoded in [_equality delete file_](#equality-delete-files) (may be created in v2 and v3 tables only).
 
 Like data files, delete files are tracked by partition. In general, a delete file must be applied to older data files with the same partition; see [Scan Planning](#scan-planning) for details. Column metrics can be used to determine whether a delete file's rows overlap the contents of a data file or a scan range.
 
@@ -144,8 +149,12 @@ Version 4 of the Iceberg spec adds support for relative locations in metadata, e
 * **Schema** -- Names and types of fields in a table.
 * **Partition spec** -- A definition of how partition values are derived from data fields.
 * **Snapshot** -- The state of a table at some point in time, including the set of all data files.
-* **Manifest list** -- A file that lists manifest files; one per snapshot.
-* **Manifest** -- A file that lists data or delete files; a subset of a snapshot.
+* **Snapshot root file** -- The per-snapshot file that tracks a snapshot's manifests; a manifest list (v1-v3) or a root manifest (v4+).
+* **Manifest list** -- (v1-v3 only) A file that lists manifest files; one per snapshot.
+* **Root manifest** -- (v4+) A manifest that can reference data files, data manifests, or delete manifests; one per snapshot.
+* **Leaf manifest** -- A data or delete manifest.
+* **Data manifest** -- A file that lists data files and, in v4, their deletion vectors and column files; a subset of a snapshot.
+* **Delete manifest** -- A file that lists delete files to be associated with data files at planning time.
 * **Data file** -- A file that contains rows of a table.
 * **Delete file** -- A file that encodes rows of a table that are deleted by position or data values.
 * **Absolute path** -- A path string that includes a [URI](https://datatracker.ietf.org/doc/html/rfc3986#section-3.1) scheme and can be used directly.
@@ -228,7 +237,7 @@ When the `location` field is present in table metadata, it is used directly as t
 
 ### Schemas and Data Types
 
-A table's **schema** is a list of named columns. Data types are primitive, nested, or semi-structured. Nested types are maps, lists, or structs. A table schema is also a struct type.
+A table's **schema** is a list of named columns. Data types are primitive, nested, or semi-structured. Nested types are maps, lists, structs, or files. A table schema is also a struct type.
 
 For the representations of these types in Avro, ORC, and Parquet file formats, see Appendix A.
 
@@ -239,6 +248,8 @@ A **`struct`** is a tuple of typed values. Each field in the tuple is named and 
 A **`list`** is a collection of values with some element type. The element field has an integer id that is unique in the table schema. Elements can be either optional or required. Element types may be any type.
 
 A **`map`** is a collection of key-value pairs with a key type and a value type. Both the key field and value field each have an integer id that is unique in the table schema. Map keys are required and map values can be either optional or required. Both map keys and map values may be any type, including nested types.
+
+A **`file`** stores a binary value, either inline or as a reference to an external file. The structure of this type is a fixed set of [nested fields](#file-type). These fields are referenced by offset from the field ID assigned to the encoding type, not represented directly in the schema.
 
 #### Semi-structured Types
 
@@ -321,6 +332,35 @@ For `geography` types, an additional parameter A specifies an algorithm for inte
 * `andoyer`: Thomas, Paul D. Mathematical models for navigation systems. US Naval Oceanographic Office, 1965.
 * `karney`: [Karney, Charles FF. "Algorithms for geodesics." Journal of Geodesy 87 (2013): 43-55](https://link.springer.com/content/pdf/10.1007/s00190-012-0578-z.pdf), and [GeographicLib](https://geographiclib.sourceforge.io/)
 
+#### File Type
+
+A **`file`** represents a range of bytes that may be stored inline as a value or as a reference to an external file. The `file` type and its value semantics are defined by the `FILE` logical type in the [Parquet project](https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#file).
+
+A `file` value has a fixed set of sub-fields. The sub-fields are implicit: they are not represented in the Iceberg schema and cannot be added, removed, reordered, or promoted. Their names, types, and field ID offsets are:
+
+| Sub-field      | ID offset | Type     |
+|----------------|-----------|----------|
+| `uri`          | 1         | `string` |
+| `offset`       | 2         | `long`   |
+| `size`         | 3         | `long`   |
+| `content_type` | 4         | `string` |
+| `checksum`     | 5         | `string` |
+| `inline`       | 6         | `binary` |
+
+A `file` field reserves the root field's ID plus six consecutive IDs for its sub-fields, assigned by the offsets above. Adding a `file` field must advance `last-column-id` to account for all 7 IDs.
+
+The `uri` field may contain absolute or relative references. Implementations that receive a relative path should resolve the path against the table location (see [Path Resolution](#path-resolution)).
+
+Statistics for `file` are tracked using separate field stats for each sub-field. Writers should produce statistics for `uri`, `content_type`, and `inline` fields; other fields may be omitted.
+
+A `file` column is subject to the following restrictions:
+
+* Equality, ordering, and hashing are not defined for `file` objects
+* A `file` column's `field-id` cannot be referenced as an identifier field or a source for partition or sort transforms.
+* A `file` is not interchangeable with a `struct`; a `struct` with the same sub-fields is not equivalent to a `file`.
+* A `file` column cannot be promoted from `struct` with the same sub-fields.
+* A `file` entry that references a `uri` does not guarantee its existence.
+
 #### Default values
 
 Default values can be tracked for struct fields (both nested structs and the top-level schema's struct). There can be two defaults with a field:
@@ -332,7 +372,7 @@ The `initial-default` is set only when a field is added to an existing schema. T
 
 The `initial-default` and `write-default` produce SQL default value behavior, without rewriting data files. SQL default value behavior when a field is added handles all existing rows as though the rows were written with the new field's default value. Default value changes may only affect future records and all known fields are written into data files. Omitting a known field when writing a data file is never allowed. The write default for a field must be written if a field is not supplied to a write. If the write default for a required field is not set, the writer must fail.
 
-All columns of `unknown`, `variant`, `geometry`, and `geography` types must default to null. Non-null values for `initial-default` or `write-default` are invalid.
+All columns of `unknown`, `variant`, `geometry`, `geography`, and `file` types must default to null. Non-null values for `initial-default` or `write-default` are invalid.
 
 Default values for the fields of a struct are tracked as `initial-default` and `write-default` at the field level. Default values for fields that are nested structs must not contain default values for the struct's fields (sub-fields). Sub-field defaults are tracked in sub-field's metadata. As a result, the default stored for a nested struct may be either null or a non-null struct with no field values. The effective default value is produced by setting each fields' default in a new struct.
 
@@ -380,6 +420,8 @@ Iceberg's Avro manifest format does not store the type of lower and upper bounds
 Type promotion is not allowed for a field that is referenced by `source-id` or `source-ids` of a partition field if the partition transform would produce a different value after promoting the type. For example, `bucket[N]` produces different hash values for `34` and `"34"` (2017239379 != -427558391) but the same value for `34` and `34L`; when an `int` field is the source for a bucket partition field, it may be promoted to `long` but not to `string`. This may happen for the following type promotion cases:
 
 * `date` to `timestamp` or `timestamp_ns`
+
+The fields referenced by a [constraint](#constraints) are the field IDs in the `expression` of a `check` constraint, or the `field-ids` of a `unique` or `primary-key` constraint. Every referenced field must exist in the table's current schema. A schema change that removes a constraint-referenced field must be rejected unless the constraint is removed in the same change. A constraint-referenced field may apply type promotion. For a `unique` or `primary-key` constraint, the promotion must preserve distinctness.
 
 Any struct, including a top-level schema, can evolve through deleting fields, adding new fields, renaming existing fields, reordering existing fields, or promoting a primitive using the valid type promotions. Adding a new field assigns a new ID for that field and for any nested fields. Renaming an existing field must change the name, but not the field ID. Deleting a field removes it from the current schema. Field deletion cannot be rolled back unless the field was nullable or if the current snapshot has not changed.
 
@@ -435,6 +477,8 @@ Two rows are the "same"---that is, the rows represent the same entity---if the i
 
 Identifier fields may be nested in structs but cannot be nested within maps or lists. Float, double, and optional fields cannot be used as identifier fields and a nested field cannot be used as an identifier field if it is nested in an optional struct, to avoid null values in identifiers.
 
+Identifier field IDs are replaced by a [`primary-key` constraint](#constraints) in v4 and must not be set in a v4 table schema.
+
 #### Reserved Field IDs
 
 Iceberg tables must not use field ids greater than 2147483447 (`Integer.MAX_VALUE - 200`). This id range is reserved for metadata columns that can be used in user data schemas, like the `_file` column that holds the file path in which a row was stored.
@@ -476,7 +520,7 @@ A data file with only new rows for the table may omit the `_last_updated_sequenc
 
 On read, if `_last_updated_sequence_number` is `null` it is assigned the `sequence_number` of the data file's manifest entry. The data sequence number of a data file is documented in [Sequence Number Inheritance](#sequence-number-inheritance).
 
-When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `first_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `first_row_id` is assigned when writing the manifest list for a snapshot and is documented in [First Row ID Assignment](#first-row-id-assignment). A snapshot's `first-row-id` is set to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
+When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `first_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `first_row_id` is assigned when writing the snapshot root file and is documented in [Snapshot Root File First Row ID Assignment](#snapshot-root-file-first-row-id-assignment). Starting in v4, a data file in the root manifest is assigned a `first_row_id` in the same way. A snapshot's `first-row-id` is set to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
 
 When an existing row is moved to a different data file for any reason, writers should write `_row_id` and `_last_updated_sequence_number` according to the following rules:
 
@@ -546,7 +590,7 @@ Note that:
 
 ### Partitioning
 
-Data files are stored in manifests with a tuple of partition values that are used in scans to filter out files that cannot contain records that match the scan’s filter predicate. Partition values for a data file must be the same for all records stored in the data file. (Manifests store data files from any partition, as long as the partition spec is the same for the data files.)
+Data files are stored in manifests with a tuple of partition values that are used in scans to filter out files that cannot contain records that match the scan’s filter predicate. Partition values for a data file must be the same for all records stored in the data file. Manifests store data files from any partition. Manifests in v3 and earlier store files for a single spec. Starting in v4, manifests may store files from any spec. A manifest is considered partitioned by a spec if every entry in the manifest is partitioned by that spec.
 
 Tables are configured with a **partition spec** that defines how to produce a tuple of partition values from a record. A partition spec has a list of fields that consist of:
 
@@ -654,17 +698,122 @@ Sorting floating-point numbers should produce the following behavior: `-NaN` < `
 
 A data or delete file is associated with a sort order by the sort order's id within [a manifest](#manifests). Therefore, the table must declare all the sort orders for lookup. A table could also be configured with a default sort order id, indicating how the new data should be sorted by default. Writers should use this default sort order to sort the data on write, but are not required to if the default order is prohibitively expensive, as it would be for streaming writes.
 
+### Constraints
+
+Constraints are added in v4 and are not supported in v3 or earlier.
+
+A **constraint** declares a condition that a table's live rows are expected to satisfy. Its definition is stored in table metadata. Each snapshot contains the writer-reported status of each constraint that existed when the snapshot was created; see [Constraint Status](#constraint-status).
+
+Three constraint types are defined:
+
+* `check` -- every row must satisfy a predicate
+* `unique` -- the values of a set of fields must be distinct across the rows in which every field in the set is non-null; a row in which any field in the set is null is not compared, so more than one such row may exist
+* `primary-key` -- the values of a set of fields must be distinct across all rows and must not be null
+
+A constraint is stored separately from the table schema and must refer to fields by field ID. Constraints may evolve independently from the schema, being added, modified, or removed.
+
+#### Constraint Fields
+
+A constraint consists of the following fields:
+
+| Requirement | Field name                | Type      | Description |
+|-------------|---------------------------|-----------|-------------|
+| _required_ | **`constraint-id`**       | `int`     | ID of the constraint; unique within the table |
+| _required_ | **`type`**                | `string`  | The constraint type: `check`, `unique`, or `primary-key` |
+| _required_ | **`name`**                | `string`  | A name for the constraint that is unique within the table. Names are for human consumption and must not be used to identify a constraint in metadata |
+| _required_ | **`enforced`**            | `boolean` | Whether writers must only add or modify rows so that they satisfy the constraint |
+| _required_ | **`timestamp-ms`**        | `long`    | Timestamp in milliseconds from the unix epoch when the constraint was created or last modified. The timestamp is informational and must not be used to determine whether a constraint applies to a snapshot or whether the constraint holds for the snapshot |
+| _optional_ | **`expression`**          | `expression` | The predicate that every row must satisfy, using ID references, see [Check Constraint Expressions](#check-constraint-expressions). Required for a `check` constraint and must not be set for other types |
+| _optional_ | **`field-ids`**           | `list<int>`  | The set of field IDs that the constraint applies to. Must contain at least one field ID and no duplicates. Required for a `unique` or `primary-key` constraint and must not be set for a `check` constraint |
+
+The `field-ids` of a `unique` or `primary-key` constraint:
+
+* Must only reference primitive fields
+* Must not reference fields within a `list` or a `map`
+* Must not reference fields of type `float` or `double`
+* Must not reference fields of type `geometry` or `geography`, because Iceberg does not define equality for them
+* Must not reference fields of type `unknown`, because their values are always null
+* Must not reference fields of type `file` or their sub-fields
+
+A table may have at most one `primary-key` constraint. The fields of a `primary-key` constraint must be `required` and must not be nested in an optional struct, so that the schema rejects null keys even when the constraint is not enforced. The fields of a `unique` constraint may be optional or nested in optional structs, because a row in which any field is null is not compared.
+
+When a constraint is `enforced`, writers must ensure that written data conform to the constraint, and a write that would violate the constraint must fail. When a constraint is not enforced, writers are not required to ensure that written data conform to the constraint.
+
+When a table is upgraded to v4, the `identifier-field-ids` of the table's current schema are rewritten as a single `primary-key` constraint that is not enforced. The constraint is assigned a `constraint-id` from `last-constraint-id` in the same way as any other constraint, and its `timestamp-ms` is the time of the upgrade. If any of those fields cannot be used in a `primary-key` constraint, such as a `geometry` or `geography` field, no constraint is created and the upgrade continues without it. Writers must not set `identifier-field-ids` in a v4 table schema, and readers must ignore `identifier-field-ids` in a v4 table.
+
+Constraint IDs are assigned from the table's `last-constraint-id`, which is treated as 0 when it is not present. Writers must assign a new constraint an ID that is higher than the table's current `last-constraint-id` and must update `last-constraint-id` to the highest assigned ID. Readers must not assume that every `constraint-id` referenced by a snapshot is present in `constraints`.
+
+#### Check Constraint Expressions
+
+The `expression` of a `check` constraint is a [predicate](expressions-spec.md#predicates), not a value expression, and is serialized as described in the [Iceberg expressions spec](expressions-spec.md). It must use ID references so that it remains bound to the same fields when columns are renamed.
+
+A `check` expression is evaluated for each row and may only reference the fields of that row by ID.
+
+A `check` expression must be pure. Its result must depend only on the values of the fields it references in the row, and evaluating it must have no side effects.
+
+A [user-defined function](udf-spec.md) used in a `check` expression must declare `deterministic` as true and is expected to preserve its behavior across definition versions. Readers and writers are not required to detect behavioral changes or recompute `constraint-statuses` if such a change occurs.
+
+#### Constraint Evolution
+
+Once a constraint is created, its `expression` must always produce the same validation result for table rows, and its `field-ids` must not change. A change to the meaning of a constraint must be made by removing the constraint and adding a new one with a new `constraint-id`, so that statuses recorded for the old definition are not applied to the new one. `timestamp-ms` must be updated when a constraint is updated.
+
+#### Constraint Status
+
+The validation status of each constraint is tracked within snapshot metadata in the `constraint-statuses` field.
+
+The status of a constraint for a snapshot is one of:
+
+| Status        | Description |
+|---------------|-------------|
+| `validated`   | The constraint was checked and holds for all rows in the snapshot |
+| `valid`       | The writer has ensured that additions and modifications do not violate the constraint, and the constraint was `valid` or `validated` for the parent snapshot |
+| `invalid`     | At least one row in the snapshot is known to violate the constraint |
+| `unvalidated` | Whether the constraint holds for all rows in the snapshot is not known |
+
+A snapshot's `constraint-statuses` records, for each status, the IDs of the constraints that have that status for the snapshot:
+
+| Requirement | Field name        | Type        | Description |
+|-------------|-------------------|-------------|-------------|
+| _optional_ | **`validated`**   | `list<int>` | IDs of constraints that are `validated` for the snapshot |
+| _optional_ | **`valid`**       | `list<int>` | IDs of constraints that are `valid` for the snapshot |
+| _optional_ | **`invalid`**     | `list<int>` | IDs of constraints that are `invalid` for the snapshot |
+| _optional_ | **`unvalidated`** | `list<int>` | IDs of constraints that are `unvalidated` for the snapshot |
+
+Each list contains the `constraint-id` of every constraint that has that status for the snapshot. Every constraint that exists when the snapshot is created must be listed in exactly one of the four lists. A list with no constraints may be omitted. A constraint whose ID is not present in any list must be treated as `unvalidated` for the snapshot.
+
+A `constraint-id` listed in a snapshot that is not in the table's `constraints` must be ignored.
+
+A commit that does not add or modify rows cannot introduce a violation. Such a commit, for example a delete or a compaction operation, may record `valid` for a constraint that was `validated` or `valid` for the parent snapshot, without checking rows again.
+
+A snapshot's `constraint-statuses` must not be modified after the snapshot is created. A `constraint-statuses` update requires a new snapshot. A snapshot that only changes constraint statuses must use the `replace` operation, as it does not change table data.
+
+When a commit is retried against a new parent snapshot, every enforced constraint, including any that a concurrent commit added or changed to enforced, must hold for the rows that the commit adds or modifies in the snapshot that results from applying the commit to the new parent. `constraint-statuses` must be recomputed from the new parent.
+
+A constraint may be enforced while it is `invalid` or `unvalidated`, and writers may commit to such a table. An enforced constraint requires that a writer not add or modify rows so that they violate the constraint; it does not require a writer to repair existing violations.
+
 ### Manifests
 
-A manifest is an immutable Avro file that lists data files or delete files, along with each file’s partition data tuple, metrics, and tracking information. One or more manifest files are used to store a [snapshot](#snapshots), which tracks all of the files in a table at some point in time. Manifests are tracked by a [manifest list](#manifest-lists) for each table snapshot.
+A table's metadata tree is composed of manifests. A manifest is an immutable file that tracks a subset of a table metadata for a given [snapshot](#snapshots). Leaf manifests are the lowest level of the metadata tree and track data or delete files, along with each file's partition data, metrics, and tracking information. The snapshot root file tracks leaf manifests; in v4 and later the root is also a manifest and can also track data files.
 
 A manifest is a valid Iceberg data file: files must use valid Iceberg formats, schemas, and column projection.
 
-A manifest may store either data files or delete files, but not both because manifests that contain delete files are scanned first during job planning. Whether a manifest is a data manifest or a delete manifest is stored in manifest metadata.
+Each manifest type contains the following content:
 
-A manifest stores files for a single partition spec. When a table’s partition spec changes, old files remain in the older manifest and newer files are written to a new manifest. This is required because a manifest file’s schema is based on its partition spec (see below). The partition spec of each manifest is also used to transform predicates on the table's data rows into predicates on partition values that are used during job planning to select files from a manifest.
+| Version | Manifest type   | Contents                                        | File format |
+|---------|-----------------|-------------------------------------------------|-------------|
+| v1-v3   | Data manifest   | Data files                                      | Avro |
+| v2-v3   | Delete manifest | Delete files                                    | Avro |
+| v4      | Root manifest   | Leaf manifests, data files, or v1-v3 manifests  | Parquet |
+| v4      | Leaf manifest   | Data files and their colocated deletion vectors | Parquet |
 
-A manifest file must store the partition spec and other metadata as properties in the Avro file's key-value metadata:
+- v1-v3: All entries in a manifest use the same partition spec, because the manifest's partition struct schema is derived from that spec.
+- v4: A manifest may store files written with different partition specs.
+
+The partition spec used when writing each data file is used to transform predicates on the table's data rows into predicates on partition values during job planning.
+
+#### Manifest File Format
+
+A manifest file must store metadata as properties in the file's key-value metadata:
 
 === "v1 - v3"
     | v1         | v2 and v3  | Key                 | Value                                                                                                                                       |
@@ -676,15 +825,26 @@ A manifest file must store the partition spec and other metadata as properties i
     | _optional_ | _required_ | `format-version`    | Table format version number of the manifest as a string                                                                                     |
     |            | _required_ | `content`           | Type of content files tracked by the manifest: "data" or "deletes"                                                                          |
 
+=== "v4"
+    | Requirement | Key                 | Value |
+    |-------------|---------------------|-------|
+    | _required_  | `schema-id`         | ID of the schema used to write the manifest as a string |
+    | _required_  | `format-version`    | Table format version number of the manifest as a string |
+
 #### Content file uniqueness
 
 Within a snapshot, each content file must be referenced by at most one live manifest entry across all manifests; otherwise, the snapshot has undefined behavior. Writers should not produce multiple manifest entries for the same content file in a snapshot (for example, both ADDED and DELETED entries for the same file). Writers are not required to validate uniqueness at commit time.
 
-#### Manifest Entry Fields
+#### Manifest Schema
 
-The schema of a manifest file is defined by the `manifest_entry` struct, which consists of the following fields:
+Starting in v4, manifests store `tracked_file` records that describe data or manifest files and contain a `tracking` struct with metadata such as `status`. In v1-v3 manifests, this relationship is inverted: each `manifest_entry` contains tracking metadata and a `data_file` struct describing the file. The v4 manifest schema is not compatible with the v1-v3 manifest schema.
+
+The contents of a file are part of a snapshot if its tracking `status` is **live**: ADDED, EXISTING, or MODIFIED. Changes in a snapshot are tracked using the additional DELETED and REPLACED statuses.
 
 === "v1 - v3"
+    <a id="manifest-entry-fields"></a>
+    The v1-v3 `manifest_entry` struct has the following fields:
+
     | v1         | v2 and v3  | Field id, name                | Type                                                      | Description |
     | ---------- | ---------- |-------------------------------|-----------------------------------------------------------|-------------|
     | _required_ | _required_ | **`0  status`**               | `int` with meaning: `0: EXISTING` `1: ADDED` `2: DELETED` | Used to track additions and deletions. Deletes are informational only and not used in scans. |
@@ -693,27 +853,15 @@ The schema of a manifest file is defined by the `manifest_entry` struct, which c
     |            | _optional_ | **`4  file_sequence_number`** | `long`                                                    | File sequence number indicating when the file was added. Inherited when null and status is 1 (added). |
     | _required_ | _required_ | **`2  data_file`**            | `data_file` `struct` (see below)                          | File path, partition tuple, metrics, ... |
 
-The manifest entry fields are used to keep track of the snapshot in which files were added or logically deleted. The `data_file` struct, defined below, is nested inside the manifest entry so that it can be easily passed to job planning without the manifest entry fields.
+    The manifest entry fields are used to keep track of the snapshot in which files were added or logically deleted. The `data_file` struct, defined below, is nested inside the manifest entry so that it can be easily passed to job planning without the manifest entry fields.
 
-When a file is added to the dataset, its manifest entry should store the snapshot ID in which the file was added and set status to 1 (added).
+    When a file is added to the dataset, its manifest entry should store the snapshot ID in which the file was added and set status to 1 (added).
 
-When a file is replaced or deleted from the dataset, its manifest entry fields store the snapshot ID in which the file was deleted and status 2 (deleted). The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected [1].
+    When a file is replaced or deleted from the dataset, its manifest entry fields store the snapshot ID in which the file was deleted and status 2 (deleted).
 
-Iceberg v2 adds data and file sequence numbers to the entry and makes the snapshot ID optional. Values for these fields are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the manifest list.
-The `sequence_number` field represents the data sequence number and must never change after a file is added to the dataset. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
-The `file_sequence_number` field represents the sequence number of the snapshot that added the file and must also remain unchanged upon assigning at commit. The file sequence number can't be used for pruning delete files as the data within the file may have an older data sequence number.
-The data and file sequence numbers are inherited only if the entry status is 1 (added). If the entry status is 0 (existing) or 2 (deleted), the entry must include both sequence numbers explicitly.
+    <a id="data-file-fields"></a>
+    The `data_file` struct consists of the following fields:
 
-Notes:
-
-1. Technically, data files can be deleted when the last snapshot that contains the file as “live” data is garbage collected. But this is harder to detect and requires finding the diff of multiple snapshots. It is easier to track what files are deleted in a snapshot and delete them when that snapshot expires.  It is not recommended to add a deleted file back to a table. Adding a deleted file can lead to edge cases where incremental deletes can break table snapshots.
-2. Manifest list files are required in v2, so that the `sequence_number` and `snapshot_id` to inherit are always available.
-
-##### Data File Fields
-
-The `data_file` struct consists of the following fields:
-
-=== "v1 - v3"
     | v1         | v2         | v3         | Field id, name                    | Type                                                                        | Description |
     | ---------- |------------|------------|-----------------------------------|-----------------------------------------------------------------------------|-------------|
     |            | _required_ | _required_ | **`134  content`**                | `int` with meaning: `0: DATA`, `1: POSITION DELETES`, `2: EQUALITY DELETES` | Type of content stored by the data file: data, equality deletes, or position deletes (all v1 files are data files) |
@@ -722,7 +870,6 @@ The `data_file` struct consists of the following fields:
     | _required_ | _required_ | _required_ | **`102  partition`**              | `struct<...>`                                                               | Partition data tuple, schema based on the partition spec output using partition field ids for the struct field ids |
     | _required_ | _required_ | _required_ | **`103  record_count`**           | `long`                                                                      | Number of records in this file, or the cardinality of a deletion vector |
     | _required_ | _required_ | _required_ | **`104  file_size_in_bytes`**     | `long`                                                                      | Total file size in bytes |
-    |            |            |            | **`146  content_stats`**          | `content_stats` `struct`                                                    | Container struct for per-field metrics structs. See [Content Stats](#content-stats) |
     | _required_ |            |            | ~~**`105 block_size_in_bytes`**~~ | `long`                                                                      | **Deprecated. Always write a default in v1. Do not write in v2 or v3.** |
     | _optional_ |            |            | ~~**`106  file_ordinal`**~~       | `int`                                                                       | **Deprecated. Do not write.** |
     | _optional_ |            |            | ~~**`107  sort_columns`**~~       | `list<112: int>`                                                            | **Deprecated. Do not write.** |
@@ -731,41 +878,152 @@ The `data_file` struct consists of the following fields:
     | _optional_ | _optional_ | _optional_ | **`110  null_value_counts`**      | `map<121: int, 122: long>`                                                  | Map from column id to number of null values in the column |
     | _optional_ | _optional_ | _optional_ | **`137  nan_value_counts`**       | `map<138: int, 139: long>`                                                  | Map from column id to number of NaN values in the column |
     | _optional_ | _optional_ |            | ~~**`111  distinct_counts`**~~    | `map<123: int, 124: long>`                                                  | **Deprecated. Do not write.** |
-    | _optional_ | _optional_ | _optional_ | **`125  lower_bounds`**           | `map<126: int, 127: binary>`                                                | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2] |
-    | _optional_ | _optional_ | _optional_ | **`128  upper_bounds`**           | `map<129: int, 130: binary>`                                                | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file [2] |
+    | _optional_ | _optional_ | _optional_ | **`125  lower_bounds`**           | `map<126: int, 127: binary>`                                                | Map from column id to lower bound in the column serialized as binary. Each value must be less than or equal to all non-null, non-NaN values in the column for the file. See [Field-level Metrics and Statistics](#field-level-metrics-and-statistics) |
+    | _optional_ | _optional_ | _optional_ | **`128  upper_bounds`**           | `map<129: int, 130: binary>`                                                | Map from column id to upper bound in the column serialized as binary. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file. See [Field-level Metrics and Statistics](#field-level-metrics-and-statistics) |
     | _optional_ | _optional_ | _optional_ | **`131  key_metadata`**           | `binary`                                                                    | Implementation-specific key metadata for encryption |
     | _optional_ | _optional_ | _optional_ | **`132  split_offsets`**          | `list<133: long>`                                                           | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending |
     |            | _optional_ | _optional_ | **`135  equality_ids`**           | `list<136: int>`                                                            | Field ids used to determine row equality in equality delete files. Required when `content=2` and should be null otherwise. Fields with ids listed in this column must be present in the delete file |
-    | _optional_ | _optional_ | _optional_ | **`140  sort_order_id`**          | `int`                                                                       | ID representing sort order for this file [3]. |
+    | _optional_ | _optional_ | _optional_ | **`140  sort_order_id`**          | `int`                                                                       | ID representing sort order for this file [1]. |
     |            |            | _optional_ | **`142  first_row_id`**           | `long`                                                                      | The `_row_id` for the first row in the data file. See [First Row ID Inheritance](#first-row-id-inheritance) |
-    |            | _optional_ | _optional_ | **`143  referenced_data_file`**   | `string`                                                                    | Fully qualified location (URI with FS scheme) of a data file that all deletes reference [4] |
-    |            |            | _optional_ | **`144  content_offset`**         | `long`                                                                      | The offset in the file where the content starts [5] |
-    |            |            | _optional_ | **`145  content_size_in_bytes`**  | `long`                                                                      | The length of a referenced content stored in the file; required if `content_offset` is present [5] |
+    |            | _optional_ | _optional_ | **`143  referenced_data_file`**   | `string`                                                                    | Fully qualified location (URI with FS scheme) of a data file that all deletes reference [2] |
+    |            |            | _optional_ | **`144  content_offset`**         | `long`                                                                      | The offset in the file where the content starts [3] |
+    |            |            | _optional_ | **`145  content_size_in_bytes`**  | `long`                                                                      | The length of a referenced content stored in the file; required if `content_offset` is present [3] |
 
-The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
+    The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
-The v4 `content_stats` container struct stores field-level metrics. Unlike the metrics maps, the type of `content_stats` is based on table metadata, like schema. Similar to the `partition` struct, the same type is used for all files tracked in a manifest.
+    Notes:
 
-Notes:
+    1. If sort order ID is missing or unknown, then the order is assumed to be unsorted. Only data files and equality delete files should be written with a non-null order id. [Position deletes](#position-delete-files) are required to be sorted by file and position, not a table order, and should set sort order id to null. Readers must ignore sort order id for position delete files.
+    2. Position delete metadata can use `referenced_data_file` when all deletes tracked by the entry are in a single data file. Setting the referenced file is required for deletion vectors.
+    3. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
+    4. The following field ids are reserved on `data_file`: 141.
 
-1. Single-value serialization for lower and upper bounds is detailed in Appendix D.
-2. For `float` and `double`, the value `-0.0` must precede `+0.0`, as in the IEEE 754 `totalOrder` predicate. NaNs are not permitted as lower or upper bounds.
-3. If sort order ID is missing or unknown, then the order is assumed to be unsorted. Only data files and equality delete files should be written with a non-null order id. [Position deletes](#position-delete-files) are required to be sorted by file and position, not a table order, and should set sort order id to null. Readers must ignore sort order id for position delete files.
-4. Position delete metadata can use `referenced_data_file` when all deletes tracked by the entry are in a single data file. Setting the referenced file is required for deletion vectors.
-5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
-6. The following field ids are reserved on `data_file`: 141.
+=== "v4"
+    The `tracked_file` struct has the following fields:
+
+    | On write   | Field id | Name                     | Type                                                  | Description |
+    |------------|----------|--------------------------|-------------------------------------------------------|-------------|
+    | _required_ | 134      | **`content_type`**       | `int` (0: DATA, 3: DATA_MANIFEST, 4: DELETE_MANIFEST) | Type of content stored in the entry. |
+    | _required_ | 147      | **`tracking`**           | `tracking` struct                                     | Tracking metadata like status, snapshot ID, and sequence number. See [Tracking](#tracking-fields). |
+    | _required_ | 100      | **`location`**           | `string`                                              | Location of the file. |
+    | _required_ | 101      | **`file_format`**        | `string`                                              | String file format name: `avro`, `orc`, or `parquet` |
+    | _required_ | 104      | **`file_size_in_bytes`** | `long`                                                | Total file size in bytes. |
+    | _required_ | 103      | **`record_count`**       | `long`                                                | Number of records in this file. |
+    | _optional_ | 131      | **`key_metadata`**       | `binary`                                              | Key metadata for encryption; specific to the encryption scheme. |
+    | _optional_ | 132      | **`split_offsets`**      | `list<133: long>`                                     | Split offsets for the data file. Must be sorted ascending. |
+    | _optional_ | 141      | **`spec_id`**            | `int`                                                 | ID of the partition spec used to partition the file; null if unpartitioned |
+    | _optional_ | 102      | **`partition`**          | `struct<...>`                                         | Partition data tuple for the file; null if unpartitioned. |
+    | _optional_ | 140      | **`sort_order_id`**      | `int`                                                 | ID representing sort order for this file. If missing or unknown, the order is assumed to be unsorted. |
+    | _optional_ | 146      | **`content_stats`**      | `content_stats` struct                                | Field-level stats. See [Content Stats](#content-stats). |
+    | _optional_ | 151      | **`tight_stats`**        | `boolean`                                             | When true, the file's `content_stats` are tight. See [Stats Tightness](#stats-tightness). |
+    | _optional_ | 150      | **`manifest_info`**      | `manifest_info` struct                                | Manifest-specific stats. See [Manifest Info](#manifest-info-fields). |
+    | _optional_ | 148      | **`deletion_vector`**    | `deletion_vector` struct                              | Row-level deletion vector for a data file. See [Deletion Vector](#deletion-vector-fields). |
+    | _optional_ | 158      | **`column_files`**       | `list<159: column_file>`                              | Column files associated with this file. See [Column File](#column-file-fields). |
+
+    <a id="tracking-fields"></a>
+    The `tracking` struct has the following fields:
+
+    | On write   | Field id | Name                          | Type                                                                | Description |
+    |------------|----------|-------------------------------|---------------------------------------------------------------------|-------------|
+    | _required_ | 0        | **`status`**                  | `int` (0: EXISTING, 1: ADDED, 2: DELETED, 3: REPLACED, 4: MODIFIED) | Used to track additions, deletions, replacements, and modifications. |
+    | _optional_ | 1        | **`snapshot_id`**             | `long`                                                              | Snapshot ID where the file was added, replaced, or deleted. Inherited when null. |
+    | _optional_ | 5        | **`modified_snapshot_id`**    | `long`                                                              | Snapshot ID where the file was last modified. |
+    | _optional_ | 3        | **`sequence_number`**         | `long`                                                              | Data sequence number of the file. Inherited when null. See [Sequence Number Inheritance](#sequence-number-inheritance). |
+    | _optional_ | 4        | **`file_sequence_number`**    | `long`                                                              | File sequence number indicating when the file was added. Inherited when null. See [Sequence Number Inheritance](#sequence-number-inheritance). |
+    | _optional_ | 142      | **`first_row_id`**            | `long`                                                              | Base row ID for assigning `_row_id` values. See [First Row ID Inheritance](#first-row-id-inheritance). |
+    | _optional_ | 6        | **`deleted_positions`**       | `binary`                                                            | Positions deleted via manifest DV in the `modified_snapshot_id` snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
+    | _optional_ | 7        | **`replaced_positions`**      | `binary`                                                            | Positions replaced via manifest DV in the `modified_snapshot_id` snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
+
+    <a id="deletion-vector-fields"></a>
+    The `deletion_vector` struct has the following fields:
+
+    | On write   | Field id | Name                | Type     | Description |
+    |------------|----------|---------------------|----------|-------------|
+    | _required_ | 155      | **`location`**      | `string` | Location of the file that stores the DV. |
+    | _required_ | 144      | **`offset`**        | `long`   | Offset in the file where the content starts. |
+    | _required_ | 145      | **`size_in_bytes`** | `long`   | Length of the referenced content stored in the file. |
+    | _required_ | 156      | **`cardinality`**   | `long`   | Number of set bits (deleted rows) in the deletion vector. |
+    | _optional_ | 149      | **`key_metadata`**  | `binary` | Key metadata for encryption; specific to the encryption scheme. |
+
+    <a id="manifest-info-fields"></a>
+    The `manifest_info` struct has the following fields:
+
+    | On write   | Field id | Name                       | Type                     | Description |
+    |------------|----------|----------------------------|--------------------------|-------------|
+    | _required_ | 521      | **`format_version`**       | `int` (0: PRE-V4, 4: V4) | Format version used to write the manifest. |
+    | _optional_ | 522      | **`dv`**                   | `binary`                 | Positions in the referenced leaf manifest that are not live. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
+    | _required_ | 504      | **`added_files_count`**    | `int`                    | Count of entries with status ADDED in the manifest. |
+    | _required_ | 505      | **`existing_files_count`** | `int`                    | Count of entries with status EXISTING in the manifest. |
+    | _required_ | 525      | **`modified_files_count`** | `int`                    | Count of entries with status MODIFIED in the manifest. |
+    | _required_ | 506      | **`deleted_files_count`**  | `int`                    | Count of entries with status DELETED in the manifest. |
+    | _required_ | 523      | **`replaced_files_count`** | `int`                    | Count of entries with status REPLACED in the manifest. |
+    | _required_ | 512      | **`added_rows_count`**     | `long`                   | Total number of rows in ADDED entries. |
+    | _required_ | 513      | **`existing_rows_count`**  | `long`                   | Total number of rows in EXISTING entries. |
+    | _required_ | 526      | **`modified_rows_count`**  | `long`                   | Total number of rows in MODIFIED entries. |
+    | _required_ | 514      | **`deleted_rows_count`**   | `long`                   | Total number of rows in DELETED entries. |
+    | _required_ | 524      | **`replaced_rows_count`**  | `long`                   | Total number of rows in REPLACED entries. |
+    | _required_ | 516      | **`min_sequence_number`**  | `long`                   | Minimum data sequence number of all live entries in the manifest. |
+
+    <a id="column-file-fields"></a>
+    The `column_file` struct has the following fields:
+
+    | On write   | Field id | Name                     | Type             | Description |
+    |------------|----------|--------------------------|------------------|-------------|
+    | _required_ | 160      | **`location`**           | `string`         | Location of the column file. |
+    | _required_ | 161      | **`field_ids`**          | `list<162: int>` | Live field IDs stored in this column file. |
+    | _required_ | 163      | **`file_format`**        | `string`         | String file format name: `avro`, `orc`, or `parquet`. |
+    | _required_ | 164      | **`file_size_in_bytes`** | `long`           | Total column file size in bytes. |
+    | _optional_ | 165      | **`key_metadata`**       | `binary`         | Key metadata for encryption; specific to the encryption scheme. |
+
+    <a id="tracked-file-requirements"></a>
+    Tracked files must meet the following requirements:
+
+    - Manifest contents:
+        - A leaf manifest written in v4 may only contain data files.
+        - A root manifest may contain manifests from any format version, but only v4 leaf manifests may be created by writers.
+        - Delete files from pre-v4 tables are valid in upgraded tables and are tracked in delete manifests written before the upgrade.
+    - `tracking`:
+        - `tracking.snapshot_id`, `tracking.sequence_number`, and `tracking.file_sequence_number` are required for all tracked files in the root manifest. `tracking.first_row_id` is also required for data files, data manifests, and v4 leaf manifests in the root manifest.
+        - Writers should not write a null `tracking.snapshot_id`.
+        - `tracking.deleted_positions` and `tracking.replaced_positions` may only be set if the tracked file is a manifest.
+    - `spec_id`:
+        - For manifests, `spec_id` must be set to the `spec_id` of the manifest's entries if all entries have the same `spec_id`, and must be null otherwise.
+    - `manifest_info`:
+        - `manifest_info` must be set if and only if the tracked file is a manifest.
+        - `manifest_info.format_version` must be V4 for manifests written in v4 and PRE-V4 for manifests written by earlier versions.
+        - For manifests, `manifest_info.added_files_count`, `existing_files_count`, `deleted_files_count`, `replaced_files_count`, and `modified_files_count` must sum to `record_count`.
+    - `deletion_vector`:
+        - `deletion_vector` may only be set if the tracked file is a data file.
+        - Row-level deletes may only be written in v4 as deletion vectors in the data file's `deletion_vector`.
+        - `deletion_vector.offset` and `deletion_vector.size_in_bytes` must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
+    - `column_files`:
+        - `column_files` may only be set if the tracked file is a data file or a v4 leaf manifest.
+        - A field ID may appear in `field_ids` of at most one column file in a tracked file's `column_files`.
+
+    <a id="updating-tracking-metadata"></a>
+    When a file is added to the dataset, its tracked file must set status to ADDED and store the snapshot ID in which the file was added.
+
+    When a data file's deletion vector or column files are updated, the writer must produce two entries: a MODIFIED entry for the updated live version and a REPLACED entry with the previous metadata (for change detection). The MODIFIED entry's `modified_snapshot_id` must record the snapshot ID in which the change occurred. The REPLACED entry can be produced in place by setting its position in the leaf manifest's [`manifest_info.dv`](#manifest-deletion-vectors) (to remove it from planning) and `tracking.replaced_positions` (for change detection). The REPLACED entry's `snapshot_id` must record the snapshot where the entry was replaced. For an entry replaced using `tracking.replaced_positions`, the snapshot where it was replaced is the leaf manifest's `modified_snapshot_id`. When writing an existing file to a new manifest or marking an existing file as deleted, its `modified_snapshot_id` must be preserved.
+
+    When a file is deleted from the dataset, the deletion must be recorded in the snapshot that deletes the file with a DELETED entry that sets `snapshot_id` to the snapshot in which the file was deleted. The DELETED entry can be produced by setting its position in the leaf manifest's `tracking.deleted_positions` and [`manifest_info.dv`](#manifest-deletion-vectors) and updating the leaf manifest's `tracking.modified_snapshot_id` to the new snapshot ID.
+
+    A leaf manifest whose `manifest_info.dv` changed must have status MODIFIED and record the snapshot in its `modified_snapshot_id`. When new positions are set in `manifest_info.dv`, those positions must be set in either `tracking.deleted_positions` or `tracking.replaced_positions` to record what the entry's state changed to in the snapshot identified by `modified_snapshot_id`. Deleted and replaced bitmaps may be removed when the manifest metadata is copied to a new root.
 
 ##### Field-level Metrics and Statistics
 
 Field statistics (or, interchangeably, metrics) are used when filtering to select data and delete files.
 
-In v3 and earlier, metrics are stored in maps keyed by field id: `value_counts`, `null_value_counts`, `nan_value_counts`, `lower_bounds` and `upper_bounds`.
+In v3 and earlier, metrics are stored in maps keyed by field id: `value_counts`, `null_value_counts`, `nan_value_counts`, `lower_bounds` and `upper_bounds`. Bounds in these maps use the single-value serialization detailed in [Appendix D](#appendix-d-single-value-serialization).
 
 In v4, metrics are stored as typed values in the `content_stats` struct, documented in the [Content Stats](#content-stats) section.
 
 Both representations store equivalent information. If a map or id in a map is missing in v3, it is equivalent to a `null` value or missing field struct in v4. Lower bounds must be less than or equal to all non-null and non-NaN values and upper bounds must be greater than or equal to all non-null and non-NaN values.
 
 For delete files, metrics must store bounds and counts for all deleted rows, or must be omitted. Storing metrics for deleted rows ensures that the values can be used during job planning to find delete files that must be merged during a scan.
+
+###### Bounds for Float and Double
+
+For `float` and `double`, the value `-0.0` must precede `+0.0`, as in the IEEE 754 `totalOrder` predicate. NaNs are not permitted as lower or upper bounds.
 
 ###### Bounds for Geometry and Geography
 
@@ -822,11 +1080,10 @@ Each stats struct holds statistics for one table field. It may contain the follo
 |-------------|--------|---------------------------|---------------------------|-----------------------------------------------|-------------|
 | _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type, or `geo_lower` for geo types |
 | _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type, or `geo_upper` for geo types |
-| _optional_  | 3      | `tight_bounds`            | `boolean`                 | all primitives except for `geometry` and `geography` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
-| _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
-| _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
-| _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
-| _optional_  | 7      | `avg_value_size_in_bytes` | `int`                     | `string`, `binary`, `variant`, `geometry`, `geography` | Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption |
+| _optional_  | 3      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
+| _optional_  | 4      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
+| _optional_  | 5      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
+| _optional_  | 6      | `total_bytes`             | `long`                    | `string`, `binary`, `variant`, `geometry`, `geography` | Estimated uncompressed bytes in memory of non-null values. The estimate depends on the in-memory representation |
 
 For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
 
@@ -834,12 +1091,11 @@ For example, stats for a `required` `int` field named `id` with field-id `2` are
 10_400: optional struct id (default null) {
   10_401: optional int lower_bound; // type matches the field type (int)
   10_402: optional int upper_bound; // type matches the field type (int)
-  10_403: optional boolean tight_bounds;
-  10_404: optional long value_count;
+  10_403: optional long value_count;
 
   // null_value_count is only used for optional fields
   // nan_value_count is only used for float and double
-  // avg_value_size_in_bytes is only used for variable length types
+  // total_bytes is only used for variable length types
 }
 ```
 
@@ -881,14 +1137,31 @@ For example, stats for an optional `geometry` field named `location` with field-
     10_816: optional double z;
     10_817: optional double m;
   }
-  10_804: optional long value_count;
-  10_805: optional long null_value_count;
-  10_807: optional int avg_value_size_in_bytes;
-  // tight_bounds and nan_value_count are omitted for geo types
+  10_803: optional long value_count;
+  10_804: optional long null_value_count;
+  10_806: optional long total_bytes;
+  // nan_value_count is omitted for geo types
 }
 ```
 
 For `variant`, both bounds are unshredded `variant` that store variant field bounds by normalized JSON paths as field names. See [Bounds for Variant](#bounds-for-variant) for details on producing these bounds.
+
+A `variant` value is null only when the variant itself is null; a non-null variant that encodes a variant null is not counted as a null value.
+
+###### Stats Tightness
+
+Statistics are _tight_ when the bounds, `value_count`, `null_value_count`, and `nan_value_count` are exact for the live rows of a file:
+
+* `lower_bound` and `upper_bound` for fixed-length types are equal to the minimum and maximum of the live values.
+* `value_count`, `null_value_count`, and `nan_value_count` are the counts across the live rows.
+
+Regardless of `tight_stats`, bounds for `string` and `binary` are never tight because they may be truncated when written, and bounds for `geometry` and `geography` are never tight because they are a bounding box rather than exact minimum and maximum values.
+
+For `variant`, `lower_bound` and `upper_bound` hold one bound per normalized JSON path. A path may be omitted, which means that path has no bound. Whether a present bound is tight follows the same rules as above for that path's value type.
+
+Statistics other than the bounds, `value_count`, `null_value_count`, and `nan_value_count` are not part of tightness.
+
+When `tight_stats` is absent, readers must assume stats are not tight. Stats may be recomputed to restore tightness without rewriting the data file.
 
 ###### Content Stats in Manifests
 
@@ -902,18 +1175,16 @@ For example, stats for a table with a required int, `id`, and an optional string
   10_400: optional struct id (default null) {
     10_401: optional int lower_bound;
     10_402: optional int upper_bound;
-    10_403: optional boolean tight_bounds;
-    10_404: optional long value_count;
+    10_403: optional long value_count;
   }
 
   // stats struct for table field 3: optional string data
   10_600: optional struct data (default null) {
     10_601: optional string lower_bound;
     10_602: optional string upper_bound;
-    10_603: optional boolean tight_bounds;
-    10_604: optional long value_count;
-    10_605: optional long null_value_count;
-    10_607: optional int avg_value_size_in_bytes;
+    10_603: optional long value_count;
+    10_604: optional long null_value_count;
+    10_606: optional long total_bytes;
   }
 }
 ```
@@ -924,26 +1195,33 @@ Fields with stats tracked in `content_stats` change based on updates like schema
 
 A simple (and recommended) way for writers to adapt existing metadata for table changes is to read manifests with the implementation's current `content_stats` type and apply schema evolution rules, such as reading `int` as `long` for promoted fields.
 
-#### Sequence Number Inheritance
+#### Inheritance
+
+Values for `snapshot_id`, `sequence_number`, and `file_sequence_number` are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the snapshot root file.
+
+##### Sequence Number Inheritance
 
 Manifests track the sequence number when a data or delete file was added to the table.
 
-When adding a new file, its data and file sequence numbers are set to `null` because the snapshot's sequence number is not assigned until the snapshot is successfully committed. When reading, sequence numbers are inherited by replacing `null` with the manifest's sequence number from the manifest list.
+The `sequence_number` field represents the data sequence number. It is set when a file is added to the dataset and must not change unless a column file is added. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
+The `file_sequence_number` field represents the sequence number of the snapshot that added the file and must also remain unchanged upon assigning at commit. The file sequence number can't be used for pruning delete files as the data within the file may have an older data sequence number.
+
+When adding a new file to a leaf manifest, its data and file sequence numbers are set to `null` because the snapshot's sequence number is not assigned until the snapshot is successfully committed. When reading, sequence numbers are inherited by replacing `null` with the manifest's sequence number from the snapshot root file.
 It is also possible to add a new file with data that logically belongs to an older sequence number. In that case, the data sequence number must be provided explicitly and not inherited. However, the file sequence number must be always assigned when the snapshot is successfully committed.
 
-When writing an existing file to a new manifest or marking an existing file as deleted, the data and file sequence numbers must be non-null and set to the original values that were either inherited or provided at the commit time.
+The data sequence number is inherited only if the entry status is ADDED, or MODIFIED by adding a column file. The file sequence number is inherited only if the entry status is ADDED. When writing an existing file to a new manifest or marking an existing file as deleted, the data and file sequence numbers must be non-null and set to the original values that were either inherited or provided at the commit time.
 
-Inheriting sequence numbers through the metadata tree allows writing a new manifest without a known sequence number, so that a manifest can be written once and reused in commit retries. To change a sequence number for a retry, only the manifest list must be rewritten.
+Inheriting sequence numbers through the metadata tree allows writing a new manifest without a known sequence number, so that a manifest can be written once and reused in commit retries. To change a sequence number for a retry, only the snapshot root file must be rewritten.
 
-When reading v1 manifests with no sequence number column, sequence numbers for all files must default to 0.
+Inheritance does not apply to v1, which does not have inherited fields like sequence number. When reading v1 manifests with no sequence number column, sequence numbers for all files must default to 0.
 
-#### First Row ID Inheritance
+##### First Row ID Inheritance
 
-When adding a new data file, its `first_row_id` field is set to `null` because it is not assigned until the snapshot is successfully committed.
+When adding a new data file to a leaf manifest, its `first_row_id` field is set to `null` because it is not assigned until the snapshot is successfully committed.
 
 When reading, the `first_row_id` is assigned by replacing `null` with the manifest's `first_row_id` plus the sum of `record_count` for all data files that preceded the file in the manifest that also had a null `first_row_id`.
 
-The inherited value of `first_row_id` must be written into data file metadata when creating existing and deleted entries. The value of `first_row_id` for delete files is always `null`.
+The inherited value of `first_row_id` must be written into data file metadata for all entries with a status other than `ADDED`. The value of `first_row_id` for delete files is always `null`.
 
 Any null (unassigned) `first_row_id` must be assigned via inheritance, even if the data file is existing. This ensures that row IDs are assigned to existing data files in upgraded tables in the first commit after upgrading to v3.
 
@@ -965,6 +1243,23 @@ A snapshot consists of the following fields:
     |            |            | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
     |            |            | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the manifest list key metadata |
 
+=== "v4"
+    | v4         | Field                        | Description |
+    | ---------- |------------------------------|-------------|
+    | _required_ | **`snapshot-id`**            | A unique long ID |
+    | _optional_ | **`parent-snapshot-id`**     | The snapshot ID of the snapshot's parent. Omitted for any snapshot with no parent |
+    | _required_ | **`sequence-number`**        | A monotonically increasing long that tracks the order of changes to a table |
+    | _required_ | **`timestamp-ms`**           | A timestamp when the snapshot was created, used for garbage collection and table inspection |
+    | _required_ | **`root-manifest`**          | The location of the root manifest for this snapshot |
+    | _required_ | **`summary`**                | A string map that summarizes the snapshot changes, including `operation` as a _required_ field (see below) |
+    | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created |
+    | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
+    | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
+    | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the root manifest key metadata |
+    | _optional_ | **`constraint-statuses`**    | A struct that records the status of the table's constraints for the snapshot, see [Constraint Status](#constraint-status) |
+
+When committed while the table is at version 4 or higher, a snapshot's `timestamp-ms` must be strictly greater than its parent snapshot's `timestamp-ms` on the same branch. Snapshots with no parent, and snapshots that were committed before a table was upgraded to v4 or higher, do not have this requirement.
+
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
 * `append` -- Only data files were added and no files were removed.
@@ -977,10 +1272,10 @@ For other optional snapshot summary fields, see [Appendix F](#optional-snapshot-
 Data and delete files for a snapshot can be stored in more than one manifest. This enables:
 
 * Appends can add a new manifest to minimize the amount of data written, instead of adding new records by rewriting and appending to an existing manifest. (This is called a “fast append”.)
-* Tables can use multiple partition specs. A table’s partition configuration can evolve if, for example, its data volume changes. Each manifest uses a single partition spec, and queries do not need to change because partition filters are derived from data predicates.
+* Tables can use multiple partition specs. A table’s partition configuration can evolve if, for example, its data volume changes. Partition predicates for a partition spec are derived from data predicates and can be applied to filter files written using that spec. Prior to v4, a manifest stored files partitioned by a single spec.
 * Large tables can be split across multiple manifests so that implementations can parallelize job planning or reduce the cost of rewriting a manifest.
 
-Manifests for a snapshot are tracked by a manifest list.
+Manifests for a snapshot are tracked by the snapshot root file and are not allowed in leaf manifest files.
 
 Valid snapshots are stored as a list in table metadata. For serialization, see Appendix C.
 
@@ -988,16 +1283,28 @@ Valid snapshots are stored as a list in table metadata. For serialization, see A
 
 A snapshot's `first-row-id` is assigned to the table's current `next-row-id` on each commit attempt. If a commit is retried, the `first-row-id` must be reassigned based on the table's current `next-row-id`. The `first-row-id` field is required even if a commit does not assign any ID space.
 
-The snapshot's `first-row-id` is the starting `first_row_id` assigned to manifests in the snapshot's manifest list.
+The snapshot's `first-row-id` is the starting `first_row_id` assigned to manifests in the snapshot root file. In v4, this includes data files in the root manifest.
 
 The snapshot's `added-rows` captures the upper bound of the number of rows with assigned row IDs.
 It can be used safely to increment the table's `next-row-id` during a commit.
 It can be more than the number of rows added in this snapshot and include some existing rows,
 see [Row Lineage Example](#row-lineage-example).
 
+<a id="first-row-id-assignment"></a>
+#### Snapshot Root File First Row ID Assignment
+
+The `first_row_id` for existing manifests must be preserved when writing a new snapshot root file. The value of `first_row_id` for delete manifests is always `null`. The `first_row_id` is only assigned for data manifests that do not have a `first_row_id`. Assignment must account for data files that will be assigned `first_row_id` values when the manifest is read. Data files in the root manifest (v4+) must also have a `first_row_id`: existing values must be preserved and `first_row_id` is assigned when a data file is ADDED.
+
+The first file in the snapshot root file without a `first_row_id` is assigned a value that is greater than or equal to the `first_row_id` of the snapshot. Subsequent files without a `first_row_id` are assigned one based on the previous file to be assigned a `first_row_id`. Each assigned `first_row_id` must be greater than or equal to the last assigned `first_row_id` plus the row count of the last assigned file, where the row count is:
+
+* For a manifest, the sum of `record_count` for its data files with a null `first_row_id`.
+* For a data file, its `record_count`.
+
+A simple and valid approach is to estimate the number of rows in data files that will be assigned a `first_row_id` using the manifest's `added_rows_count` and `existing_rows_count`: `first_row_id = last_assigned.first_row_id + last_assigned.added_rows_count + last_assigned.existing_rows_count`.
+
 ### Manifest Lists
 
-Snapshots are embedded in table metadata, but the list of manifests for a snapshot are stored in a separate manifest list file.
+Snapshots are embedded in table metadata, but the manifests for a snapshot are tracked in a separate snapshot root file. Manifest lists are the snapshot root file used by v1-v3; v4 uses a [root manifest](#manifests).
 
 A new manifest list is written for each attempt to commit a snapshot because the list of manifests always changes to produce a new snapshot. When a manifest list is written, the (optimistic) sequence number of the snapshot is written for all new manifest files tracked by the list.
 
@@ -1025,7 +1332,7 @@ Manifest list files store `manifest_file`, a struct with the following fields:
     | _optional_ | _required_ | _required_ | **`514 deleted_rows_count`**        | `long`                                      | Number of rows in all of files in the manifest that have status `DELETED`, when `null` this is assumed to be non-zero |
     | _optional_ | _optional_ | _optional_ | **`507 partitions`**                | `list<508: field_summary>` **(see below)**  | A list of field summaries for each partition field in the spec. Each field in the list corresponds to a field in the manifest file’s partition spec. |
     | _optional_ | _optional_ | _optional_ | **`519 key_metadata`**              | `binary`                                    | Implementation-specific key metadata for encryption |
-    |            |            | _optional_ | **`520 first_row_id`**              | `long`                                      | The starting `_row_id` to assign to rows added by `ADDED` data files [First Row ID Assignment](#first-row-id-assignment) |
+    |            |            | _optional_ | **`520 first_row_id`**              | `long`                                      | The starting `_row_id` to assign to rows added by `ADDED` data files [Snapshot Root File First Row ID Assignment](#snapshot-root-file-first-row-id-assignment) |
 
 `field_summary` is a struct with the following fields:
 === "v1 - v3"
@@ -1041,29 +1348,23 @@ Notes:
 1. Lower and upper bounds are serialized to bytes using the single-object serialization in Appendix D. The type of used to encode the value is the type of the partition field data.
 2. If -0.0 is a value of the partition field, the `lower_bound` must not be +0.0, and if +0.0 is a value of the partition field, the `upper_bound` must not be -0.0.
 
-#### First Row ID Assignment
-
-The `first_row_id` for existing manifests must be preserved when writing a new manifest list. The value of `first_row_id` for delete manifests is always `null`. The `first_row_id` is only assigned for data manifests that do not have a `first_row_id`. Assignment must account for data files that will be assigned `first_row_id` values when the manifest is read.
-
-The first manifest without a `first_row_id` is assigned a value that is greater than or equal to the `first_row_id` of the snapshot. Subsequent manifests without a `first_row_id` are assigned one based on the previous manifest to be assigned a `first_row_id`. Each assigned `first_row_id` must increase by the row count of all files that will be assigned a `first_row_id` via inheritance in the last assigned manifest. That is, each `first_row_id` must be greater than or equal to the last assigned `first_row_id` plus the total record count of data files with a null `first_row_id` in the last assigned manifest.
-
-A simple and valid approach is to estimate the number of rows in data files that will be assigned a `first_row_id` using the manifest's `added_rows_count` and `existing_rows_count`: `first_row_id = last_assigned.first_row_id + last_assigned.added_rows_count + last_assigned.existing_rows_count`.
-
 ### Scan Planning
 
-Scans are planned by reading the manifest files for the current snapshot. Deleted entries in data and delete manifests (those marked with status "DELETED") are not used in a scan.
+A reader plans a scan by producing live data files from the snapshot root file and any live leaf manifests referenced by the root.
 
-Manifests that contain no matching files, determined using either file counts or partition summaries, may be skipped.
+A scan uses only [live](#manifest-schema) entries.
 
-For each manifest, scan predicates, which filter data rows, are converted to partition predicates, which filter partition tuples. These partition predicates are used to select relevant data files, delete files, and deletion vector metadata. Conversion uses the partition spec that was used to write the manifest file regardless of the current partition spec.
+Manifests that contain no matching files, determined using file counts, partition summaries, or column stats, may be skipped.
 
-Scan predicates are converted to partition predicates using an _inclusive projection_: if a scan predicate matches a row, then the partition predicate must match that row’s partition. This is called _inclusive_ [1] because rows that do not match the scan predicate may be included in the scan by the partition predicate.
+Using content stats, a manifest is filtered by evaluating scan predicates against the column bounds and counts of each tracked file. The same filter logic can be used for both data and delete files because both store metrics of the rows either inserted or deleted. If metrics show that a delete file has no rows that match a scan predicate, it may be ignored just as a data file would be ignored [1].
+
+v1-v3 manifests are filtered using scan predicates converted to partition predicates, which filter partition tuples. These partition predicates are used to select relevant data files, delete files, and deletion vector metadata. Conversion uses the partition spec that was used to write the manifest file regardless of the current partition spec. Column bounds and counts stored by field id in metrics maps are used in the same way as content stats.
+
+Scan predicates are converted to partition predicates using an _inclusive projection_: if a scan predicate matches a row, then the partition predicate must match that row’s partition. This is called _inclusive_ [2] because rows that do not match the scan predicate may be included in the scan by the partition predicate.
 
 For example, an `events` table with a timestamp column named `ts` that is partitioned by `ts_day=day(ts)` is queried by users with ranges over the timestamp column: `ts > X`. The inclusive projection is `ts_day >= day(X)`, which is used to select files that may have matching rows. Note that, in most cases, timestamps just before `X` will be included in the scan because the file contains rows that match the predicate and rows that do not match the predicate.
 
 The inclusive projection for an unknown partition transform is _true_ because the partition field is ignored and not used in filtering.
-
-Scan predicates are also used to filter data and delete files using column bounds and counts that are stored by field id in manifests. The same filter logic can be used for both data and delete files because both store metrics of the rows either inserted or deleted. If metrics show that a delete file has no rows that match a scan predicate, it may be ignored just as a data file would be ignored [2].
 
 Data files that match the query filter must be read by the scan.
 
@@ -1071,7 +1372,8 @@ Duplicate live manifest entries for the same content file violate [content file 
 
 Delete files and deletion vector metadata that match the filters must be applied to data files at read time, limited by the following scope rules.
 
-* A deletion vector must be applied to a data file when all of the following are true:
+* A colocated deletion vector must be applied to the data file tracked by the same entry. No path, sequence number, or partition comparison applies because the vector is colocated with the data file.
+* A deletion vector tracked in a delete manifest must be applied to a data file when all of the following are true:
     - The data file's `file_path` is equal to the deletion vector's `referenced_data_file`
     - The data file's data sequence number is _less than or equal to_ the deletion vector's data sequence number
     - The data file's partition (both spec and partition values) is equal [4] to the deletion vector's partition
@@ -1091,8 +1393,8 @@ In general, deletes are applied only to data files that are older and in the sam
 
 Notes:
 
-1. An alternative, *strict projection*, creates a partition predicate that will match a file if all of the rows in the file must match the scan predicate. These projections are used to calculate the residual predicates for each file in a scan.
-2. For example, if `file_a` has rows with `id` between 1 and 10 and a delete file contains rows with `id` between 1 and 4, a scan for `id = 9` may ignore the delete file because none of the deletes can match a row that will be selected.
+1. For example, if `file_a` has rows with `id` between 1 and 10 and a delete file contains rows with `id` between 1 and 4, a scan for `id = 9` may ignore the delete file because none of the deletes can match a row that will be selected.
+2. An alternative, *strict projection*, creates a partition predicate that will match a file if all of the rows in the file must match the scan predicate. These projections are used to calculate the residual predicates for each file in a scan.
 3. Floating point partition values are considered equal if their IEEE 754 floating-point "single format" bit layout are equal with NaNs normalized to have only the most significant mantissa bit set (the equivalent of calling `Float.floatToIntBits` or `Double.doubleToLongBits` in Java). The Avro specification requires all floating point values to be encoded in this format.
 4. Unknown partition transforms do not affect partition equality. Although partition fields with unknown transforms are ignored for filtering, the result of an unknown transform is still used when testing whether partition values are equal.
 
@@ -1129,6 +1431,14 @@ When expiring snapshots, retention policies in table and snapshot references are
     1. The snapshot is older than `max-snapshot-age-ms`, AND
     2. The snapshot is not one of the first `min-snapshots-to-keep` in the branch (including the branch's referenced snapshot)
 5. Expire any snapshot not in the set of snapshots to retain.
+
+#### Deleting Files
+
+A file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that the file is not live in any remaining snapshot [1].
+
+Notes:
+
+1. Technically, data files can be deleted when the last snapshot that contains the file as "live" data is garbage collected. But this is harder to detect and requires finding the diff of multiple snapshots. When all snapshots are ancestors of a single branch, it is easier to track what files are deleted in a snapshot and delete them when that snapshot expires.  It is not recommended to add a deleted file back to a table. Adding a deleted file can lead to edge cases where incremental deletes can break table snapshots.
 
 ### Table Metadata
 
@@ -1168,6 +1478,7 @@ Table metadata consists of the following fields:
     | _optional_ | _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
     |            |            | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot’s `first-row-id`. See [Row Lineage](#row-lineage). |
     |            |            | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
+
 === "v4"
     | v4         | Field                       | Description |
     |------------|-----------------------------|-------------|
@@ -1196,6 +1507,8 @@ Table metadata consists of the following fields:
     | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
     | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot's `first-row-id`. See [Row Lineage](#row-lineage). |
     | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
+    | _optional_ | **`last-constraint-id`**    | An integer; the highest assigned constraint ID for the table. This is used to ensure constraints are always assigned an unused ID. See [Constraints](#constraints). |
+    | _optional_ | **`constraints`**           | A list of [constraints](#constraints) for the table. |
 
 For serialization details, see Appendix C.
 
@@ -1269,7 +1582,7 @@ The schema of the partition statistics file is as follows:
     |            |            | _required_ | **`13 dv_count`**                        | `int`        | Count of deletion vectors |
     | _optional_ | _optional_ | _required_ | **`8 equality_delete_record_count`**     | `long`       | Count of records in equality delete files |
     | _optional_ | _optional_ | _required_ | **`9 equality_delete_file_count`**       | `int`        | Count of equality delete files |
-    | _optional_ | _optional_ | _optional_ | **`10 total_record_count`**              | `long`       | Accurate count of records in a partition after applying deletes if any |
+    | _optional_ | _optional_ | _optional_ | **`10 total_record_count`**              | `long`       | Total number of records in data files, after applying position deletes, equality deletes, or deletion vectors |
     | _optional_ | _optional_ | _optional_ | **`11 last_updated_at`**                 | `long`       | Timestamp in milliseconds from the unix epoch when the partition was last updated |
     | _optional_ | _optional_ | _optional_ | **`12 last_updated_snapshot_id`**        | `long`       | ID of snapshot that last updated this partition |
 
@@ -1312,10 +1625,11 @@ Notes:
 
 When two commits happen at the same time and are based on the same version, only one commit will succeed. In most cases, the failed commit can be applied to the new current version of table metadata and retried. Updates verify the conditions under which they can be applied to a new version and retry if those conditions are met.
 
-* Append operations have no requirements and can always be applied.
+* Append operations have no requirements and can always be applied, other than the constraint requirements below.
 * Replace operations must verify that the files that will be deleted are still in the table. Examples of replace operations include format changes (replace an Avro file with a Parquet file) and compactions (several files are replaced with a single file that contains the same rows).
 * Delete operations must verify that specific files to delete are still in the table. Delete operations based on expressions can always be applied (e.g., where timestamp < X).
 * Table schema updates and partition spec changes must validate that the schema has not changed between the base version and the current version.
+* For a table with constraints, every operation must also follow the retry requirements in [Constraints](#constraints), including recomputing `constraint-statuses` from the new version.
 
 #### File System Tables
 
@@ -1354,22 +1668,24 @@ Notes:
 
 ### Delete Formats
 
-This section details how to encode row-level deletes in Iceberg delete files. Row-level deletes are added by v2 and are not supported in v1. Deletion vectors are added in v3 and are not supported in v2 or earlier. Position delete files must not be added to v3 tables, but existing position delete files are valid.
+This section details how to encode row-level deletes in Iceberg delete files. Row-level deletes are added by v2 and are not supported in v1. Deletion vectors are added in v3 and are not supported in v2 or earlier. Position delete files must not be added to v3 tables, but existing position delete files are valid. Equality delete files must not be added to v4 tables, but existing equality delete files are valid.
 
 There are different formats for encoding row-level deletes:
 
 * Deletion vectors (DVs) identify deleted rows within a single referenced data file by position in a bitmap
-* Position delete files identify deleted rows by file location and row position (**deprecated** in v3)
-* Equality delete files identify deleted rows by the value of one or more columns
+* Position delete files identify deleted rows by file location and row position (**prohibited** in v3)
+* Equality delete files identify deleted rows by the value of one or more columns (**prohibited** in v4)
 
 Deletion vectors are a binary representation of deletes for a single data file that is more efficient at execution time than position delete files. Unlike equality or position delete files, there can be at most one deletion vector for a given data file in a snapshot. Writers must ensure that there is at most one deletion vector per data file and must merge new deletes with existing vectors or position delete files.
 When removing a data file, writers must also remove any deletion vector that applies to that data file from delete manifests. Writers are not required to rewrite Puffin files that contain the removed deletion vectors.
 
 Row-level delete files (both equality and position delete files) are valid Iceberg data files: files must use valid Iceberg formats, schemas, and column projection. It is recommended that these delete files are written using the table's default file format.
 
-Row-level delete files and deletion vectors are tracked by manifests. A separate set of manifests is used for delete files and DVs, but the same manifest schema is used for both data and delete manifests. Deletion vectors are tracked individually by file location, offset, and length within the containing file. Deletion vector metadata must include the referenced data file.
-
 Both position and equality delete files allow encoding deleted row values with a delete. This can be used to reconstruct a stream of changes to a table.
+
+Row-level delete files and deletion vectors are tracked by manifests. Delete manifests (v2-v3) track delete files and DVs separately from data manifests, using the same manifest schema. Deletion vectors in delete manifests are tracked individually by file location, offset, and length within the containing file, and their metadata must include the referenced data file.
+
+Starting in v4, writers must colocate new deletion vectors with their data file using the [`deletion_vector`](#deletion-vector-fields) field. Deletion vectors in delete manifests written before an upgrade to v4 remain valid.
 
 #### Deletion Vectors
 
@@ -1385,7 +1701,21 @@ Delete manifests track deletion vectors individually by the containing file loca
 
 At most one deletion vector is allowed per data file in a snapshot. If a DV is written for a data file, it must replace all previously written position delete files so that when a DV is present, readers can safely ignore matching position delete files.
 
-[puffin-spec]: https://iceberg.apache.org/puffin-spec/
+[puffin-spec]: puffin-spec.md
+
+#### Manifest Deletion Vectors
+
+Manifest deletion vectors identify entries of a leaf manifest that are no longer live by encoding their positions in a bitmap. A set bit at position P indicates that the entry at position P in the leaf manifest was either deleted or replaced.
+
+Manifest deletion vectors are encoded using the [Mumbling bitmap spec][mumbling-spec] and stored inline on the root manifest entry that references the leaf manifest. The snapshot in which the vector last changed is recorded in `tracking.modified_snapshot_id`; the three bitmaps are:
+
+* `manifest_info.dv`: every position in the leaf manifest that is not live.
+* `tracking.deleted_positions`: the positions deleted in the `modified_snapshot_id` snapshot.
+* `tracking.replaced_positions`: the positions replaced in the `modified_snapshot_id` snapshot.
+
+`deleted_positions` and `replaced_positions` are disjoint.
+
+[mumbling-spec]: https://iceberg.apache.org/mumbling-spec/
 
 #### Position Delete Files
 
@@ -1417,6 +1747,8 @@ The rows in the delete file must be sorted by `file_path` then `pos` to optimize
 #### Equality Delete Files
 
 Equality delete files identify deleted rows in a collection of data files by one or more column values, and may optionally contain additional columns of the deleted row.
+
+Equality delete files must not be added to v4 tables. Equality deletes cannot be added as an entry to a v4 manifest. Equality delete files referenced by v2 or v3 delete manifests must still be applied in a v4 table.
 
 Equality delete files store any subset of a table's columns and use the table's field ids. The _delete columns_ are the columns of the delete file used to match data rows. Delete columns are identified by id in the delete file [metadata column `equality_ids`](#manifests). The column restrictions for columns used in equality delete files are the same as those for [identifier fields](#identifier-field-ids) with the exception that optional columns and columns nested under optional structs are allowed (if a parent struct column is null it implies the leaf column is null).
 
@@ -1508,6 +1840,7 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`variant`**|`record` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names. |Shredding is not supported in Avro.|
 |**`geometry`**|`bytes`|WKB format, see [Appendix G](#appendix-g-geospatial-notes)|
 |**`geography`**|`bytes`|WKB format, see [Appendix G](#appendix-g-geospatial-notes)|
+|**`file`**|`record` with the `file` sub-fields. Sub-fields must be assigned field IDs. |See [File Type](#file-type). Avro has no `FILE` logical type; type identity comes from the Iceberg schema.|
 
 Notes:
 
@@ -1563,6 +1896,7 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`variant`**      | `group` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names. | `VARIANT`                                   | See Parquet docs for [Variant encoding](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md) and [Variant shredding encoding](https://github.com/apache/parquet-format/blob/master/VariantShredding.md). |
 | **`geometry`**     | `binary`                                                                                                                                     | `GEOMETRY`                                  | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                             |
 | **`geography`**    | `binary`                                                                                                                                     | `GEOGRAPHY`                                 | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                             |
+| **`file`**         | `group` with the `file` sub-fields. Sub-fields must be assigned field IDs.                                                                   | `FILE`                                      | See Parquet docs for the [`FILE` type](https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#file) and [File Type](#file-type). |
 
 When reading an `unknown` column, any corresponding column must be ignored and replaced with `null` values.
 
@@ -1595,10 +1929,11 @@ When reading an `unknown` column, any corresponding column must be ignored and r
 | **`variant`**      | `struct` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs. |  `iceberg.struct-type`=`VARIANT`   | Shredding is not supported in ORC.                                                 |
 | **`geometry`**     | `binary`            | `iceberg.binary-type`=`GEOMETRY`                     | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                                                      |
 | **`geography`**    | `binary`            | `iceberg.binary-type`=`GEOGRAPHY`                     | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                                                      |
+| **`file`**         | `struct` with the `file` sub-fields. Sub-fields must be assigned and accessed by field IDs.| `iceberg.struct-type`=`FILE`| See [File Type](#file-type). |
 
 Notes:
 
-1. ORC's [TimestampColumnVector](https://orc.apache.org/api/hive-storage-api/org/apache/hadoop/hive/ql/exec/vector/TimestampColumnVector.html) consists of a time field (milliseconds since epoch) and a nanos field (nanoseconds within the second). Hence the milliseconds within the second are reported twice; once in the time field and again in the nanos field. The read adapter should only use milliseconds within the second from one of these fields. The write adapter should also report milliseconds within the second twice; once in the time field and again in the nanos field. ORC writer is expected to correctly consider millis information from one of the fields. More details at https://issues.apache.org/jira/browse/ORC-546
+1. ORC's [TimestampColumnVector](https://javadoc.io/doc/org.apache.hive/hive-storage-api/2.8.1/org/apache/hadoop/hive/ql/exec/vector/TimestampColumnVector.html) consists of a time field (milliseconds since epoch) and a nanos field (nanoseconds within the second). Hence the milliseconds within the second are reported twice; once in the time field and again in the nanos field. The read adapter should only use milliseconds within the second from one of these fields. The write adapter should also report milliseconds within the second twice; once in the time field and again in the nanos field. ORC writer is expected to correctly consider millis information from one of the fields. More details at https://issues.apache.org/jira/browse/ORC-546
 2. ORC `timestamp` and `timestamp_instant` values store nanosecond precision. Iceberg ORC writers for Iceberg types `timestamp` and `timestamptz` **must** truncate nanoseconds to microseconds. `iceberg.timestamp-unit` is assumed to be `MICROS` if not present.
 
 One of the interesting challenges with this is how to map Iceberg’s schema evolution (id based) on to ORC’s (name based). In theory, we could use Iceberg’s column ids as the column and field names, but that would be inconvenient.
@@ -1659,10 +1994,12 @@ Hash results are not dependent on decimal scale, which is part of the type, not 
 
 Schemas are serialized as a JSON object with the same fields as a struct in the table below, and the following additional fields:
 
-| v1         | v2         |Field|JSON representation|Example|
-| ---------- | ---------- |--- |--- |--- |
-| _optional_ | _required_ |**`schema-id`**|`JSON int`|`0`|
-| _optional_ | _optional_ |**`identifier-field-ids`**|`JSON list of ints`|`[1, 2]`|
+| v1         | v2 and v3  | v4         |Field|JSON representation|Example|
+| ---------- | ---------- | ---------- |--- |--- |--- |
+| _optional_ | _required_ | _required_ |**`schema-id`**|`JSON int`|`0`|
+| _optional_ | _optional_ |            |**`identifier-field-ids`**|`JSON list of ints`|`[1, 2]`|
+
+In v4, [`primary-key` constraint](#constraints) replaces `identifier-field-ids`.
 
 Types are serialized according to this table:
 
@@ -1684,13 +2021,14 @@ Types are serialized according to this table:
 |**`uuid`**|`JSON string: "uuid"`|`"uuid"`|
 |**`fixed(L)`**|`JSON string: "fixed[<L>]"`|`"fixed[16]"`|
 |**`binary`**|`JSON string: "binary"`|`"binary"`|
-|**`decimal(P, S)`**|`JSON string: "decimal(<P>,<S>)"`|`"decimal(9,2)"`,<br />`"decimal(9, 2)"`|
+|**`decimal(P, S)`**|`JSON string: "decimal(<P>, <S>)"`|`"decimal(9, 2)"`|
 |**`struct`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": <field id int>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": <boolean>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": <type JSON>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"doc": <comment string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": <JSON encoding of default value>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": <JSON encoding of default value>`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}, ...`<br />&nbsp;&nbsp;`] }`|`{`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 1,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "id",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": true,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": "uuid",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": "0db3e2a8-9d1d-42b9-aa7b-74ebe558dceb",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": "ec5911be-b0a7-458c-8438-c9a3e53cffae"`<br />&nbsp;&nbsp;`}, {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 2,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "data",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": false,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`} ]`<br />`}`|
 |**`list`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": <id int>,`<br />&nbsp;&nbsp;`"element-required": <bool>`<br />&nbsp;&nbsp;`"element": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": 3,`<br />&nbsp;&nbsp;`"element-required": true,`<br />&nbsp;&nbsp;`"element": "string"`<br />`}`|
 |**`map`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": <key id int>,`<br />&nbsp;&nbsp;`"key": <type JSON>,`<br />&nbsp;&nbsp;`"value-id": <val id int>,`<br />&nbsp;&nbsp;`"value-required": <bool>`<br />&nbsp;&nbsp;`"value": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": 4,`<br />&nbsp;&nbsp;`"key": "string",`<br />&nbsp;&nbsp;`"value-id": 5,`<br />&nbsp;&nbsp;`"value-required": false,`<br />&nbsp;&nbsp;`"value": "double"`<br />`}`|
 | **`variant`**| `JSON string: "variant"`|`"variant"`|
 | **`geometry(C)`** |`JSON string: "geometry(<C>)"`|`"geometry(srid:4326)"`|
 | **`geography(C, A)`** |`JSON string: "geography(<C>, <A>)"`|`"geography(srid:4326, spherical)"`|
+| **`file`**| `JSON string: "file"`|`"file"`|
 
 The schema JSON type strings in this table are the canonical serialized forms. Readers should accept optional whitespace around parameters and separators in parameterized type strings.
 
@@ -1791,13 +2129,15 @@ A metadata JSON file may be compressed with [GZIP](https://datatracker.ietf.org/
 |**`last-partition-id`**|`JSON int`|`1000`|
 |**`properties`**|`JSON object: {`<br />&nbsp;&nbsp;`"<key>": "<val>",`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"write.format.default": "avro",`<br />&nbsp;&nbsp;`"commit.retry.num-retries": "4"`<br />`}`|
 |**`current-snapshot-id`**|`JSON long`|`3051729675574597004`|
-|**`snapshots`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": <operation>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... },`<br />&nbsp;&nbsp;`"manifest-list": "<location>",`<br />&nbsp;&nbsp;`"schema-id": "<id>"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 3051729675574597004,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": "append"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`"manifest-list": "s3://b/wh/.../s1.avro"`<br />&nbsp;&nbsp;`"schema-id": 0`<br />`} ]`|
+|**`snapshots`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": <operation>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... },`<br />&nbsp;&nbsp;`"manifest-list": "<location>",`<br />&nbsp;&nbsp;`"schema-id": "<id>",`<br />&nbsp;&nbsp;`"constraint-statuses": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"validated": [ ... ],`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... }`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 3051729675574597004,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": "append"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`"manifest-list": "s3://b/wh/.../s1.avro",`<br />&nbsp;&nbsp;`"schema-id": 0,`<br />&nbsp;&nbsp;`"constraint-statuses": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"validated": [1],`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"unvalidated": [2]`<br />&nbsp;&nbsp;`}`<br />`} ]`|
 |**`snapshot-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"snapshot-id": ,`<br />&nbsp;&nbsp;`"timestamp-ms":`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 30517296...,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]`|
 |**`metadata-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"metadata-file": ,`<br />&nbsp;&nbsp;`"timestamp-ms":`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"metadata-file": "s3://bucket/.../v1.json",`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]` |
 |**`sort-orders`**|`JSON sort orders (list of sort field object)`|`See above`|
 |**`default-sort-order-id`**|`JSON int`|`0`|
 |**`refs`**|`JSON map with string key and object value:`<br />`{`<br />&nbsp;&nbsp;`"<name>": {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"type": <type>,`<br />&nbsp;&nbsp;`"max-ref-age-ms": <long>,`<br />&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"test": {`<br />&nbsp;&nbsp;`"snapshot-id": 123456789000,`<br />&nbsp;&nbsp;`"type": "tag",`<br />&nbsp;&nbsp;`"max-ref-age-ms": 10000000`<br />&nbsp;&nbsp;`}`<br />`}`|
 |**`encryption-keys`**|`JSON list of encryption key objects`|`[ {"key-id": "5f819b", "key-metadata": "aWNlYmVyZwo="} ]`|
+|**`last-constraint-id`**|`JSON int`|`2`|
+|**`constraints`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"constraint-id": <id>,`<br />&nbsp;&nbsp;`"type": "check",`<br />&nbsp;&nbsp;`"name": "<name>",`<br />&nbsp;&nbsp;`"enforced": <boolean>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"expression": { ... }`<br />`}, {`<br />&nbsp;&nbsp;`"constraint-id": <id>,`<br />&nbsp;&nbsp;`"type": "primary-key",`<br />&nbsp;&nbsp;`"name": "<name>",`<br />&nbsp;&nbsp;`"enforced": <boolean>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"field-ids": [ ... ]`<br />`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"constraint-id": 1,`<br />&nbsp;&nbsp;`"type": "check",`<br />&nbsp;&nbsp;`"name": "chk_amount",`<br />&nbsp;&nbsp;`"enforced": true,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"expression": { ... }`<br />`}, {`<br />&nbsp;&nbsp;`"constraint-id": 2,`<br />&nbsp;&nbsp;`"type": "primary-key",`<br />&nbsp;&nbsp;`"name": "pk_sales",`<br />&nbsp;&nbsp;`"enforced": false,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"field-ids": [1]`<br />`} ]`|
 
 ### Name Mapping Serialization
 
@@ -1850,6 +2190,7 @@ This serialization scheme is for storing single values as individual binary valu
 | **`variant`**                | Not supported                                                                                                |
 | **`geometry`**               | WKB format, see [Appendix G](#appendix-g-geospatial-notes)                                                   |
 | **`geography`**              | WKB format, see [Appendix G](#appendix-g-geospatial-notes)                                                   |
+| **`file`**                   | Not supported                                                                                                |
 
 ### Bound serialization
 
@@ -1893,6 +2234,8 @@ The binary single-value serialization can be used to store the lower and upper b
 
 ### Version 4
 
+The `file` type is added in v4.
+
 Relative path support is added in v4.
 
 Reading v3 or prior metadata for v4:
@@ -1914,6 +2257,23 @@ Reading v4 metadata:
 * Readers must check whether location fields contain a URI scheme to determine if a path is absolute or relative
 * Relative paths must be resolved against the table location before use (see [Path Resolution](#path-resolution))
 * When `location` is omitted, the table location must be provided (see [Table Location Specification](#table-location-specification))
+
+Snapshot timestamp changes:
+
+* When committed while the table is at version 4 or higher, a snapshot's `timestamp-ms` must be strictly greater than its parent snapshot's `timestamp-ms` on the same branch.
+* Snapshots with no parent and snapshots that existed before a table was upgraded to v4 are not constrained.
+
+Equality deletes are prohibited in v4.
+
+* Writers must not add equality delete files to v4 tables; equality deletes cannot be added as an entry to a v4 manifest
+* Upgrading a v2 or v3 table to v4 does not require rewriting data or delete files
+* Readers must continue to apply equality deletes for v2 and v3 tables and for equality deletes carried over into upgraded v4 tables
+
+Constraints are added in v4:
+
+* Table metadata may contain `constraints` and `last-constraint-id`
+* Snapshots may contain `constraint-statuses`
+* Upgrading a v2 or v3 table to v4 rewrites the table's `identifier-field-ids` as a `primary-key` constraint that is not enforced, unless a field cannot be used in a `primary-key` constraint
 
 ### Version 3
 
@@ -2076,38 +2436,38 @@ Snapshot summary can include metrics fields to track numeric stats of the snapsh
 
 #### Metrics
 
-| Field                               | Description                                                                                      |
-|-------------------------------------|--------------------------------------------------------------------------------------------------|
-| **`added-data-files`**              | Number of data files added in the snapshot                                                       |
-| **`deleted-data-files`**            | Number of data files deleted in the snapshot                                                     |
-| **`total-data-files`**              | Total number of live data files in the snapshot                                                  |
-| **`added-delete-files`**            | Number of positional/equality delete files and deletion vectors added in the snapshot            |
-| **`added-equality-delete-files`**   | Number of equality delete files added in the snapshot                                            |
-| **`removed-equality-delete-files`** | Number of equality delete files removed in the snapshot                                          |
-| **`added-position-delete-files`**   | Number of position delete files added in the snapshot                                            |
-| **`removed-position-delete-files`** | Number of position delete files removed in the snapshot                                          |
-| **`added-dvs`**                     | Number of deletion vectors added in the snapshot                                                 |
-| **`removed-dvs`**                   | Number of deletion vectors removed in the snapshot                                               |
-| **`removed-delete-files`**          | Number of positional/equality delete files and deletion vectors removed in the snapshot          |
-| **`total-delete-files`**            | Total number of live positional/equality delete files and deletion vectors in the snapshot       |
-| **`added-records`**                 | Number of records added in the snapshot                                                          |
-| **`deleted-records`**               | Number of records deleted in the snapshot                                                        |
-| **`total-records`**                 | Total number of records in the snapshot                                                          |
-| **`added-files-size`**              | The size of files added in the snapshot                                                          |
-| **`removed-files-size`**            | The size of files removed in the snapshot                                                        |
-| **`total-files-size`**              | Total size of live files in the snapshot                                                         |
-| **`added-position-deletes`**        | Number of position delete records added in the snapshot                                          |
-| **`removed-position-deletes`**      | Number of position delete records removed in the snapshot                                        |
-| **`total-position-deletes`**        | Total number of position delete records in the snapshot                                          |
-| **`added-equality-deletes`**        | Number of equality delete records added in the snapshot                                          |
-| **`removed-equality-deletes`**      | Number of equality delete records removed in the snapshot                                        |
-| **`total-equality-deletes`**        | Total number of equality delete records in the snapshot                                          |
-| **`deleted-duplicate-files`**       | Number of duplicate files deleted (duplicates are files recorded more than once in the manifest) |
-| **`changed-partition-count`**       | Number of partitions with files added or removed in the snapshot                                 |
-| **`manifests-created`**             | Number of manifest files created in the snapshot                                                 |
-| **`manifests-kept`**                | Number of manifest files kept in the snapshot                                                    |
-| **`manifests-replaced`**            | Number of manifest files replaced in the snapshot                                                |
-| **`entries-processed`**             | Number of manifest entries processed in the snapshot                                             |
+| Field                               | Description                                                                                                                         |
+|-------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| **`added-data-files`**              | Number of data files added in the snapshot                                                                                          |
+| **`deleted-data-files`**            | Number of data files deleted in the snapshot                                                                                        |
+| **`total-data-files`**              | Total number of live data files in the snapshot                                                                                     |
+| **`added-delete-files`**            | Number of positional/equality delete files and deletion vectors added in the snapshot                                               |
+| **`added-equality-delete-files`**   | Number of equality delete files added in the snapshot                                                                               |
+| **`removed-equality-delete-files`** | Number of equality delete files removed in the snapshot                                                                             |
+| **`added-position-delete-files`**   | Number of position delete files added in the snapshot                                                                               |
+| **`removed-position-delete-files`** | Number of position delete files removed in the snapshot                                                                             |
+| **`added-dvs`**                     | Number of deletion vectors added in the snapshot                                                                                    |
+| **`removed-dvs`**                   | Number of deletion vectors removed in the snapshot                                                                                  |
+| **`removed-delete-files`**          | Number of positional/equality delete files and deletion vectors removed in the snapshot                                             |
+| **`total-delete-files`**            | Total number of live positional/equality delete files and deletion vectors in the snapshot                                          |
+| **`added-records`**                 | Number of records added in the snapshot                                                                                             |
+| **`deleted-records`**               | Number of records deleted in the snapshot                                                                                           |
+| **`total-records`**                 | Total number of records in live data files in the snapshot, before applying position deletes, equality deletes, or deletion vectors |
+| **`added-files-size`**              | The size of files added in the snapshot                                                                                             |
+| **`removed-files-size`**            | The size of files removed in the snapshot                                                                                           |
+| **`total-files-size`**              | Total size of live files in the snapshot                                                                                            |
+| **`added-position-deletes`**        | Number of position delete records added in the snapshot                                                                             |
+| **`removed-position-deletes`**      | Number of position delete records removed in the snapshot                                                                           |
+| **`total-position-deletes`**        | Total number of position delete records in the snapshot                                                                             |
+| **`added-equality-deletes`**        | Number of equality delete records added in the snapshot                                                                             |
+| **`removed-equality-deletes`**      | Number of equality delete records removed in the snapshot                                                                           |
+| **`total-equality-deletes`**        | Total number of equality delete records in the snapshot                                                                             |
+| **`deleted-duplicate-files`**       | Number of duplicate files deleted (duplicates are files recorded more than once in the manifest)                                    |
+| **`changed-partition-count`**       | Number of partitions with files added or removed in the snapshot                                                                    |
+| **`manifests-created`**             | Number of manifest files created in the snapshot                                                                                    |
+| **`manifests-kept`**                | Number of manifest files kept in the snapshot                                                                                       |
+| **`manifests-replaced`**            | Number of manifest files replaced in the snapshot                                                                                   |
+| **`entries-processed`**             | Number of manifest entries processed in the snapshot                                                                                |
 
 #### Other Fields
 
