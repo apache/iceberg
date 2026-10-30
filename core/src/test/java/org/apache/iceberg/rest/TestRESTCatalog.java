@@ -84,6 +84,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RESTException;
@@ -2832,6 +2833,71 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                             .isTrue();
                       });
             });
+  }
+
+  private RESTCatalog catalogWithViewRequestsForbidden() {
+    RESTCatalogAdapter adapter =
+        new RESTCatalogAdapter(backendCatalog) {
+          @Override
+          protected <T extends RESTResponse> T execute(
+              HTTPRequest request,
+              Class<T> responseType,
+              Consumer<ErrorResponse> errorHandler,
+              Consumer<Map<String, String>> responseHeaders) {
+            if (request.path().equals(RESOURCE_PATHS.view(TABLE))) {
+              errorHandler.accept(
+                  ErrorResponse.builder().responseCode(403).withMessage("Forbidden").build());
+              throw new IllegalStateException("Error handler should have thrown");
+            }
+
+            return super.execute(request, responseType, errorHandler, responseHeaders);
+          }
+        };
+
+    RESTCatalog catalog = catalog(adapter);
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    return catalog;
+  }
+
+  @Test
+  public void replaceTransactionWithoutViewPermissions() {
+    RESTCatalog catalog = catalogWithViewRequestsForbidden();
+    catalog.buildTable(TABLE, OTHER_SCHEMA).create();
+
+    catalog.buildTable(TABLE, SCHEMA).replaceTransaction().commitTransaction();
+
+    assertThat(catalog.loadTable(TABLE).schema().asStruct()).isEqualTo(REPLACE_SCHEMA.asStruct());
+  }
+
+  @Test
+  public void createOrReplaceTransactionWithoutViewPermissions() {
+    RESTCatalog catalog = catalogWithViewRequestsForbidden();
+    catalog.buildTable(TABLE, OTHER_SCHEMA).create();
+
+    catalog.buildTable(TABLE, SCHEMA).createOrReplaceTransaction().commitTransaction();
+
+    assertThat(catalog.loadTable(TABLE).schema().asStruct()).isEqualTo(REPLACE_SCHEMA.asStruct());
+  }
+
+  @Test
+  public void createOrReplaceTransactionForNewTableWithoutViewPermissions() {
+    RESTCatalog catalog = catalogWithViewRequestsForbidden();
+
+    catalog.buildTable(TABLE, SCHEMA).createOrReplaceTransaction().commitTransaction();
+
+    assertThat(catalog.tableExists(TABLE)).isTrue();
+  }
+
+  @Test
+  public void replaceTransactionForMissingTableWithoutViewPermissions() {
+    RESTCatalog catalog = catalogWithViewRequestsForbidden();
+
+    assertThatThrownBy(() -> catalog.buildTable(TABLE, SCHEMA).replaceTransaction())
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageStartingWith("Table does not exist: %s", TABLE);
   }
 
   @Test
