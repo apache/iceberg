@@ -42,9 +42,11 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.awscore.AwsClient;
+import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.retries.internal.DefaultAdaptiveRetryStrategy;
+import software.amazon.awssdk.s3accessgrants.plugin.S3AccessGrantsIdentityProvider;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.GetTableRequest;
@@ -297,6 +299,28 @@ public class TestAwsClientFactories {
   }
 
   @Test
+  void assumeRoleS3ClientAppliesS3AccessGrants() {
+    AwsClientFactory factory =
+        assumeRoleFactory(S3FileIOProperties.S3_ACCESS_GRANTS_ENABLED, "true");
+
+    assertThat(factory.s3().serviceClientConfiguration().credentialsProvider())
+        .isInstanceOf(S3AccessGrantsIdentityProvider.class);
+  }
+
+  @Test
+  void assumeRoleS3ClientAppliesUserAgent() {
+    AwsClientFactory factory = assumeRoleFactory();
+
+    assertThat(
+            factory
+                .s3()
+                .serviceClientConfiguration()
+                .overrideConfiguration()
+                .advancedOption(SdkAdvancedClientOption.USER_AGENT_PREFIX))
+        .hasValueSatisfying(userAgent -> assertThat(userAgent).startsWith("s3fileio/"));
+  }
+
+  @Test
   void lakeFormationKmsClientAppliesEndpointOverride() {
     String endpoint = "https://kms.example.com";
     Map<String, String> properties = Maps.newHashMap();
@@ -315,6 +339,17 @@ public class TestAwsClientFactories {
 
     assertThat(factory.kms().serviceClientConfiguration().endpointOverride())
         .contains(URI.create(endpoint));
+  }
+
+  private static AwsClientFactory assumeRoleFactory() {
+    return AwsClientFactories.from(
+        ImmutableMap.of(
+            AwsProperties.CLIENT_FACTORY,
+            AssumeRoleAwsClientFactory.class.getName(),
+            AwsProperties.CLIENT_ASSUME_ROLE_ARN,
+            "arn::test",
+            AwsProperties.CLIENT_ASSUME_ROLE_REGION,
+            "us-east-1"));
   }
 
   private static AwsClientFactory assumeRoleFactory(String property, String value) {
