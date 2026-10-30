@@ -41,6 +41,7 @@ import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
@@ -78,6 +79,11 @@ enum Route {
       LoadTableResponse.class),
   TABLE_EXISTS(HTTPRequest.HTTPMethod.HEAD, ResourcePaths.V1_TABLE),
   LOAD_TABLE(HTTPRequest.HTTPMethod.GET, ResourcePaths.V1_TABLE, null, LoadTableResponse.class),
+  LOAD_CREDENTIALS(
+      HTTPRequest.HTTPMethod.GET,
+      ResourcePaths.V1_TABLE_CREDENTIALS,
+      null,
+      LoadCredentialsResponse.class),
   REGISTER_TABLE(
       HTTPRequest.HTTPMethod.POST,
       ResourcePaths.V1_TABLE_REGISTER,
