@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -173,15 +174,47 @@ public class ParquetUtil {
   }
 
   /**
-   * Method to read timestamp (parquet Int96) from bytebuffer. Read 12 bytes in byteBuffer: 8 bytes
-   * (time of day nanos) + 4 bytes(julianDay)
+   * Reads 12 INT96 bytes in the buffer's byte order as microseconds since the Unix epoch.
+   *
+   * <p>Submicrosecond precision is truncated.
+   *
+   * @throws ArithmeticException if the timestamp overflows a long
    */
   public static long extractTimestampInt96(ByteBuffer buffer) {
-    // 8 bytes (time of day nanos)
     long timeOfDayNanos = buffer.getLong();
-    // 4 bytes(julianDay)
     int julianDay = buffer.getInt();
-    return TimeUnit.DAYS.toMicros(julianDay - UNIX_EPOCH_JULIAN)
-        + TimeUnit.NANOSECONDS.toMicros(timeOfDayNanos);
+    return timestampInt96(julianDay, timeOfDayNanos, TimeUnit.MICROSECONDS);
+  }
+
+  /**
+   * Reads 12 INT96 bytes in the buffer's byte order as nanoseconds since the Unix epoch.
+   *
+   * @throws ArithmeticException if the timestamp overflows a long
+   */
+  public static long extractTimestampInt96Nanos(ByteBuffer buffer) {
+    long timeOfDayNanos = buffer.getLong();
+    int julianDay = buffer.getInt();
+    return timestampInt96(julianDay, timeOfDayNanos, TimeUnit.NANOSECONDS);
+  }
+
+  private static long timestampInt96(int julianDay, long timeOfDayNanos, TimeUnit unit) {
+    long days = julianDay - UNIX_EPOCH_JULIAN;
+    long timeOfDay = unit.convert(timeOfDayNanos, TimeUnit.NANOSECONDS);
+    long ticksPerDay = unit.convert(1, TimeUnit.DAYS);
+    try {
+      // Shift negative days towards the epoch to keep the lower long boundary representable.
+      return days < 0
+          ? Math.addExact(
+              Math.multiplyExact(days + 1, ticksPerDay), Math.subtractExact(timeOfDay, ticksPerDay))
+          : Math.addExact(Math.multiplyExact(days, ticksPerDay), timeOfDay);
+    } catch (ArithmeticException e) {
+      ArithmeticException overflow =
+          new ArithmeticException(
+              String.format(
+                  "INT96 timestamp (Julian day %s, nanoseconds of day %s) is out of range for %s (%s)",
+                  julianDay, timeOfDayNanos, unit.name().toLowerCase(Locale.ROOT), e.getMessage()));
+      overflow.initCause(e);
+      throw overflow;
+    }
   }
 }
