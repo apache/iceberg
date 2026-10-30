@@ -28,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -227,6 +228,28 @@ public class TestGCSFileIO {
     assertThatThrownBy(() -> io.deleteFiles(deletes))
         .isInstanceOf(BulkDeletionFailureException.class)
         .hasMessage("Failed to delete 1 files");
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testDeleteFilesThrowsWhenBatchSubmitFails() {
+    doAnswer(
+            batchInvoke -> {
+              StorageBatch batch = mock(StorageBatch.class);
+              when(batch.delete(any(BlobId.class))).thenReturn(mock(StorageBatchResult.class));
+              doThrow(new StorageException(503, "unavailable")).when(batch).submit();
+              return batch;
+            })
+        .when(storage)
+        .batch();
+
+    Iterable<String> deletes =
+        () ->
+            ImmutableList.of(gsUri("down/data1.dat"), gsUri("down/data2.dat")).stream().iterator();
+
+    assertThatThrownBy(() -> io.deleteFiles(deletes))
+        .isInstanceOf(BulkDeletionFailureException.class)
+        .hasMessage("Failed to delete 2 files");
   }
 
   @Test

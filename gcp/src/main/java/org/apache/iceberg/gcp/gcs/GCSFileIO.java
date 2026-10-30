@@ -353,7 +353,8 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
    *
    * <p>GCS reports a missing object as {@code false} (HTTP 404) rather than an error, so we let
    * those pass: a retried cleanup often re-deletes files a previous attempt already removed. Only a
-   * {@link StorageException} such as HTTP 403 (access denied) is a genuine failure.
+   * {@link StorageException} such as HTTP 403 (access denied) is a genuine failure. If the batch
+   * request itself fails, every object in it is reported as failed.
    *
    * @return the URIs of the objects that failed to delete, empty if all succeeded
    */
@@ -361,14 +362,20 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
     StorageBatch batch = storage.batch();
     Map<BlobId, StorageBatchResult<Boolean>> results = new LinkedHashMap<>();
     blobIds.forEach(blobId -> results.put(blobId, batch.delete(blobId)));
-    batch.submit();
+
+    try {
+      batch.submit();
+    } catch (StorageException e) {
+      LOG.warn("Failed to submit batch delete of {} objects", blobIds.size(), e);
+      return blobIds.stream().map(BlobId::toGsUtilUri).toList();
+    }
 
     List<String> failures = Lists.newArrayList();
     results.forEach(
         (blobId, result) -> {
           try {
             result.get();
-          } catch (StorageException e) {
+          } catch (StorageException | IllegalStateException e) {
             LOG.warn("Failed to delete object at path {}", blobId.toGsUtilUri(), e);
             failures.add(blobId.toGsUtilUri());
           }
