@@ -157,6 +157,29 @@ public class TestJsonUtil {
   }
 
   @Test
+  public void getDurationStringOrNull() throws JsonProcessingException {
+    assertThat(JsonUtil.getDurationStringOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
+    assertThat(JsonUtil.getDurationStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}")))
+        .isNull();
+    assertThat(
+            JsonUtil.getDurationStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"PT30M\"}")))
+        .isEqualTo("PT30M");
+
+    assertThatThrownBy(
+            () ->
+                JsonUtil.getDurationStringOrNull(
+                    "x", JsonUtil.mapper().readTree("{\"x\": \"30M\"}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to a duration string value: x: \"30M\"");
+
+    assertThatThrownBy(
+            () ->
+                JsonUtil.getDurationStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"\"}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to a duration string value: x: \"\"");
+  }
+
+  @Test
   public void getByteBufferOrNull() throws JsonProcessingException {
     assertThat(JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
     assertThat(JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}")))
@@ -405,6 +428,53 @@ public class TestJsonUtil {
     assertThat(
             JsonUtil.getLongSetOrNull("items", JsonUtil.mapper().readTree("{\"items\": [23, 45]}")))
         .containsExactlyElementsOf(Arrays.asList(23L, 45L));
+  }
+
+  @Test
+  public void getStringArray() throws JsonProcessingException {
+    assertThatThrownBy(() -> JsonUtil.getStringArray(JsonUtil.mapper().readTree("null")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse string array from non-array: null");
+
+    assertThatThrownBy(() -> JsonUtil.getStringArray(JsonUtil.mapper().readTree("23")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse string array from non-array: 23");
+
+    assertThatThrownBy(() -> JsonUtil.getStringArray(JsonUtil.mapper().readTree("[\"23\", 45]")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse string from non-text value: 45");
+
+    assertThat(JsonUtil.getStringArray(JsonUtil.mapper().readTree("[\"23\", \"45\"]")))
+        .containsExactly("23", "45");
+
+    assertThat(JsonUtil.getStringArray(JsonUtil.mapper().readTree("[]"))).isEmpty();
+  }
+
+  @Test
+  public void getStringArrayWithProperty() throws JsonProcessingException {
+    assertThatThrownBy(() -> JsonUtil.getStringArray("items", JsonUtil.mapper().readTree("{}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing list: items");
+
+    assertThatThrownBy(
+            () -> JsonUtil.getStringArray("items", JsonUtil.mapper().readTree("{\"items\": null}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse JSON array from non-array value: items: null");
+
+    assertThatThrownBy(
+            () ->
+                JsonUtil.getStringArray(
+                    "items", JsonUtil.mapper().readTree("{\"items\": [\"23\", 45]}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse string from non-text value in items: 45");
+
+    assertThat(
+            JsonUtil.getStringArray(
+                "items", JsonUtil.mapper().readTree("{\"items\": [\"23\", \"45\"]}")))
+        .containsExactly("23", "45");
+
+    assertThat(JsonUtil.getStringArray("items", JsonUtil.mapper().readTree("{\"items\": []}")))
+        .isEmpty();
   }
 
   @Test

@@ -88,7 +88,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
-import org.testcontainers.containers.MinIOContainer;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import software.amazon.awssdk.awscore.AwsServiceClientConfiguration;
@@ -115,10 +115,10 @@ import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
 @Testcontainers
 public class TestS3FileIO {
-  @Container private final MinIOContainer minio = createMinIOContainer();
+  @Container private final GenericContainer<?> objectStore = startObjectStore();
 
   private final SerializableSupplier<S3Client> s3 =
-      () -> MinioUtil.createS3Client(minio, legacyMd5PluginEnabled());
+      () -> ObjectStoreUtil.createS3Client(objectStore);
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3.get()));
   private final Random random = new Random(1);
   private final int numBucketsForBatchDeletion = 3;
@@ -136,14 +136,10 @@ public class TestS3FileIO {
           "s3.delete.batch-size",
           Integer.toString(batchDeletionSize));
 
-  protected MinIOContainer createMinIOContainer() {
-    MinIOContainer container = MinioUtil.createContainer();
+  private static GenericContainer<?> startObjectStore() {
+    GenericContainer<?> container = ObjectStoreUtil.createContainer();
     container.start();
     return container;
-  }
-
-  protected boolean legacyMd5PluginEnabled() {
-    return false;
   }
 
   @BeforeEach
@@ -985,5 +981,61 @@ public class TestS3FileIO {
     } catch (BucketAlreadyExistsException | BucketAlreadyOwnedByYouException e) {
       // do nothing
     }
+  }
+
+  @Test
+  public void setCredentialsRefreshesClients() {
+    StorageCredential initialCredential =
+        StorageCredential.create(
+            "s3://custom-uri",
+            ImmutableMap.of(
+                "s3.access-key-id",
+                "initialKeyId",
+                "s3.secret-access-key",
+                "initialSecretKey",
+                "s3.session-token",
+                "initialSessionToken"));
+
+    S3FileIO fileIO = new S3FileIO();
+    fileIO.setCredentials(ImmutableList.of(initialCredential));
+    fileIO.initialize(ImmutableMap.of(AwsClientProperties.CLIENT_REGION, "us-east-1"));
+
+    S3Client initialClient = fileIO.client("s3://custom-uri/table1");
+    assertThat(initialClient.serviceClientConfiguration())
+        .extracting(AwsServiceClientConfiguration::credentialsProvider)
+        .extracting(IdentityProvider::resolveIdentity)
+        .satisfies(
+            future -> {
+              AwsSessionCredentialsIdentity identity = (AwsSessionCredentialsIdentity) future.get();
+              assertThat(identity.accessKeyId()).isEqualTo("initialKeyId");
+              assertThat(identity.secretAccessKey()).isEqualTo("initialSecretKey");
+              assertThat(identity.sessionToken()).isEqualTo("initialSessionToken");
+            });
+
+    StorageCredential refreshedCredential =
+        StorageCredential.create(
+            "s3://custom-uri",
+            ImmutableMap.of(
+                "s3.access-key-id",
+                "refreshedKeyId",
+                "s3.secret-access-key",
+                "refreshedSecretKey",
+                "s3.session-token",
+                "refreshedSessionToken"));
+
+    fileIO.setCredentials(ImmutableList.of(refreshedCredential));
+
+    S3Client refreshedClient = fileIO.client("s3://custom-uri/table1");
+    assertThat(refreshedClient).isNotSameAs(initialClient);
+    assertThat(refreshedClient.serviceClientConfiguration())
+        .extracting(AwsServiceClientConfiguration::credentialsProvider)
+        .extracting(IdentityProvider::resolveIdentity)
+        .satisfies(
+            x -> {
+              AwsSessionCredentialsIdentity identity = (AwsSessionCredentialsIdentity) x.get();
+              assertThat(identity.accessKeyId()).isEqualTo("refreshedKeyId");
+              assertThat(identity.secretAccessKey()).isEqualTo("refreshedSecretKey");
+              assertThat(identity.sessionToken()).isEqualTo("refreshedSessionToken");
+            });
   }
 }

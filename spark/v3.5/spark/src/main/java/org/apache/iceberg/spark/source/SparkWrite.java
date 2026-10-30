@@ -101,6 +101,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final StructType dsSchema;
   private final Map<String, String> extraSnapshotMetadata;
   private final boolean useFanoutWriter;
+  private final boolean useMergeAppendForStreaming;
   private final SparkWriteRequirements writeRequirements;
   private final Map<String, String> writeProperties;
 
@@ -129,6 +130,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.dsSchema = dsSchema;
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.useFanoutWriter = writeConf.useFanoutWriter(writeRequirements);
+    this.useMergeAppendForStreaming = writeConf.useMergeAppendForStreaming();
     this.writeRequirements = writeRequirements;
     this.outputSpecId = writeConf.outputSpecId();
     this.writeProperties = writeConf.writeProperties();
@@ -193,6 +195,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     // broadcast the table metadata as the writer factory will be sent to executors
     Broadcast<Table> tableBroadcast =
         sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
+    int sortOrderId = writeConf.outputSortOrderId(writeRequirements);
     return new WriterFactory(
         tableBroadcast,
         queryId,
@@ -202,7 +205,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         writeSchema,
         dsSchema,
         useFanoutWriter,
-        writeProperties);
+        writeProperties,
+        sortOrderId);
   }
 
   private void commitOperation(SnapshotUpdate<?> operation, String description) {
@@ -596,7 +600,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     @Override
     protected void doCommit(long epochId, WriterCommitMessage[] messages) {
-      AppendFiles append = table.newFastAppend();
+      AppendFiles append = useMergeAppendForStreaming ? table.newAppend() : table.newFastAppend();
       int numFiles = 0;
       for (DataFile file : files(messages)) {
         append.appendFile(file);
@@ -672,6 +676,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     private final boolean useFanoutWriter;
     private final String queryId;
     private final Map<String, String> writeProperties;
+    private final int sortOrderId;
 
     protected WriterFactory(
         Broadcast<Table> tableBroadcast,
@@ -682,7 +687,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         Schema writeSchema,
         StructType dsSchema,
         boolean useFanoutWriter,
-        Map<String, String> writeProperties) {
+        Map<String, String> writeProperties,
+        int sortOrderId) {
       this.tableBroadcast = tableBroadcast;
       this.format = format;
       this.outputSpecId = outputSpecId;
@@ -692,6 +698,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       this.useFanoutWriter = useFanoutWriter;
       this.queryId = queryId;
       this.writeProperties = writeProperties;
+      this.sortOrderId = sortOrderId;
     }
 
     @Override
@@ -716,6 +723,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
               .dataSchema(writeSchema)
               .dataSparkType(dsSchema)
               .writeProperties(writeProperties)
+              .dataSortOrder(table.sortOrders().get(sortOrderId))
               .build();
 
       if (spec.isUnpartitioned()) {

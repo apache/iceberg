@@ -24,6 +24,7 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Random;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
@@ -97,5 +98,12 @@ public class TestPrimitiveWrapper {
 
     VariantTestUtil.assertEqual(expectedVariant.metadata(), readValue.metadata());
     VariantTestUtil.assertEqual(expectedVariant.value(), readValue.value());
+  }
+
+  @ParameterizedTest
+  @FieldSource("PRIMITIVES")
+  public void testSerialization(VariantPrimitive<?> primitive) throws Exception {
+    VariantTestUtil.assertEqual(primitive, TestHelpers.roundTripSerialize(primitive));
+    VariantTestUtil.assertEqual(primitive, TestHelpers.KryoHelpers.roundTripSerialize(primitive));
   }
 }

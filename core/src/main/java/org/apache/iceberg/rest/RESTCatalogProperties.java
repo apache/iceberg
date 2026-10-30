@@ -18,12 +18,21 @@
  */
 package org.apache.iceberg.rest;
 
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
 public final class RESTCatalogProperties {
 
   private RESTCatalogProperties() {}
 
   public static final String SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
-  public static final String SNAPSHOT_LOADING_MODE_DEFAULT = SnapshotMode.ALL.name();
+  public static final SnapshotMode SNAPSHOT_LOADING_MODE_DEFAULT = SnapshotMode.ALL;
+  public static final String SNAPSHOTS_QUERY_PARAMETER = "snapshots";
+
+  public static final String REFERENCED_BY_QUERY_PARAMETER = "referenced-by";
+  public static final String PLAN_ID_QUERY_PARAMETER = "planId";
 
   public static final String METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
   public static final boolean METRICS_REPORTING_ENABLED_DEFAULT = true;
@@ -35,8 +44,89 @@ public final class RESTCatalogProperties {
 
   public static final String PAGE_SIZE = "rest-page-size";
 
+  public static final String NAMESPACE_SEPARATOR = "namespace-separator";
+  public static final String NAMESPACE_SEPARATOR_DEFAULT =
+      RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
+
+  // Configure scan planning mode
+  // Can be set by server in LoadTableResponse.config() for table-level override
+  public static final String SCAN_PLANNING_MODE = "scan-planning-mode";
+  public static final ScanPlanningMode SCAN_PLANNING_MODE_DEFAULT = ScanPlanningMode.CLIENT;
+
+  public static final String REST_SCAN_PLAN_ID = "rest-scan-plan-id";
+
+  public static final String REST_REFERENCED_BY = "rest-referenced-by";
+
+  public static final String REST_SCAN_PLANNING_POLL_TIMEOUT_MS =
+      "rest-scan-planning.poll-timeout-ms";
+  public static final long REST_SCAN_PLANNING_POLL_TIMEOUT_MS_DEFAULT =
+      TimeUnit.MINUTES.toMillis(5);
+
+  // Extra poll attempts after the first fetch of a submitted plan. Must be >= 0; 0 means a single
+  // fetch attempt with no retries.
+  public static final String REST_SCAN_PLANNING_POLL_NUM_RETRIES =
+      "rest-scan-planning.poll-num-retries";
+  public static final int REST_SCAN_PLANNING_POLL_NUM_RETRIES_DEFAULT = 10;
+
+  // Properties that control the behaviour of the table cache used for freshness-aware table
+  // loading.
+  public static final String TABLE_CACHE_EXPIRE_AFTER_WRITE_MS =
+      "rest-table-cache.expire-after-write-ms";
+  public static final long TABLE_CACHE_EXPIRE_AFTER_WRITE_MS_DEFAULT = TimeUnit.MINUTES.toMillis(5);
+
+  public static final String TABLE_CACHE_MAX_ENTRIES = "rest-table-cache.max-entries";
+  public static final int TABLE_CACHE_MAX_ENTRIES_DEFAULT = 100;
+
   public enum SnapshotMode {
     ALL,
     REFS
   }
+
+  public enum ScanPlanningMode {
+    CLIENT,
+    SERVER;
+
+    public String modeName() {
+      return name().toLowerCase(Locale.ROOT);
+    }
+
+    public static ScanPlanningMode fromString(String mode) {
+      for (ScanPlanningMode planningMode : values()) {
+        if (planningMode.modeName().equalsIgnoreCase(mode)) {
+          return planningMode;
+        }
+      }
+
+      throw new IllegalArgumentException(
+          String.format(
+              "Invalid scan planning mode: %s. Valid values are: %s",
+              mode,
+              Arrays.stream(values())
+                  .map(ScanPlanningMode::modeName)
+                  .collect(Collectors.joining(", "))));
+    }
+  }
+
+  /**
+   * The remote signing endpoint path, as computed by {@link
+   * ResourcePaths#remoteSign(org.apache.iceberg.catalog.TableIdentifier)}.
+   *
+   * <p>This property is automatically set by the REST catalog client when creating table-scoped
+   * FileIO instances, and is intended for consumption by remote request signers.
+   *
+   * <p>Even if it's public, this field is not intended for user-facing configuration, and may be
+   * removed or changed in future releases without notice.
+   */
+  public static final String REMOTE_SIGNING_ENDPOINT = "rest.remote-signing.endpoint";
+
+  /**
+   * The {@link RemoteSigningConfig}, JSON-encoded.
+   *
+   * <p>This property is automatically set by the REST catalog client when creating table-scoped
+   * FileIO instances, and is intended for consumption by remote request signers.
+   *
+   * <p>Even if it's public, this field is not intended for user-facing configuration, and may be
+   * removed or changed in future releases without notice.
+   */
+  public static final String REMOTE_SIGNING_CONFIG = "rest.remote-signing.config";
 }

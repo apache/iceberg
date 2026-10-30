@@ -41,6 +41,7 @@ class DynamicWriteResultSerializer implements SimpleVersionedSerializer<DynamicW
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     DataOutputViewStreamWrapper view = new DataOutputViewStreamWrapper(out);
     writeResult.key().serializeTo(view);
+    view.writeInt(writeResult.specId());
     byte[] result = WRITE_RESULT_SERIALIZER.serialize(writeResult.writeResult());
     view.write(result);
     return out.toByteArray();
@@ -50,11 +51,12 @@ class DynamicWriteResultSerializer implements SimpleVersionedSerializer<DynamicW
   public DynamicWriteResult deserialize(int version, byte[] serialized) throws IOException {
     if (version == 1) {
       DataInputDeserializer view = new DataInputDeserializer(serialized);
-      WriteTarget key = WriteTarget.deserializeFrom(view);
+      TableKey key = TableKey.deserializeFrom(view);
+      int specId = view.readInt();
       byte[] resultBuf = new byte[view.available()];
       view.read(resultBuf);
       WriteResult writeResult = WRITE_RESULT_SERIALIZER.deserialize(version, resultBuf);
-      return new DynamicWriteResult(key, writeResult);
+      return new DynamicWriteResult(key, specId, writeResult);
     }
 
     throw new IOException("Unrecognized version or corrupt state: " + version);

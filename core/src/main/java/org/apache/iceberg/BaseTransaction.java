@@ -39,20 +39,16 @@ import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
-import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -357,8 +353,6 @@ public class BaseTransaction implements Transaction {
       return;
     }
 
-    Set<Long> startingSnapshots =
-        base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
     try {
       Tasks.foreach(ops)
           .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
@@ -379,11 +373,11 @@ public class BaseTransaction implements Transaction {
       throw e;
 
     } catch (PendingUpdateFailedException e) {
-      cleanUpOnCommitFailure();
+      cleanUp();
       throw e.wrapped();
     } catch (RuntimeException e) {
       if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
-        cleanUpOnCommitFailure();
+        cleanUp();
       }
 
       throw e;
@@ -396,31 +390,30 @@ public class BaseTransaction implements Transaction {
       // committed manifests to ensure that no committed manifest is deleted.
       // A manifest could be deleted in one successful operation commit, but reused in another
       // successful commit of that operation if the whole transaction is retried.
-      Set<Long> newSnapshots = Sets.newHashSet();
+      // only snapshots added on top of the committed base can reference this transaction's files
+      Set<Long> startingSnapshots =
+          base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+      Set<Snapshot> newSnapshots = Sets.newHashSet();
       for (Snapshot snapshot : current.snapshots()) {
         if (!startingSnapshots.contains(snapshot.snapshotId())) {
-          newSnapshots.add(snapshot.snapshotId());
+          newSnapshots.add(snapshot);
         }
       }
 
-      Set<String> committedFiles = committedFiles(ops, newSnapshots);
-      if (committedFiles != null) {
-        // delete all the files that were deleted in the most recent set of operation commits
-        Set<String> uncommittedFiles =
-            deletedFiles.stream()
-                .filter(f -> !committedFiles.contains(f))
-                .collect(Collectors.toSet());
-        deleteUncommittedFiles(uncommittedFiles);
-      } else {
-        LOG.warn("Failed to load metadata for a committed snapshot, skipping clean-up");
-      }
+      Set<String> committedFiles = committedFiles(ops.io(), newSnapshots);
+      // delete all the files that were deleted in the most recent set of operation commits
+      Set<String> uncommittedFiles =
+          deletedFiles.stream()
+              .filter(f -> !committedFiles.contains(f))
+              .collect(Collectors.toSet());
+      deleteUncommittedFiles(uncommittedFiles);
 
     } catch (RuntimeException e) {
       LOG.warn("Failed to load committed metadata, skipping clean-up", e);
     }
   }
 
-  private void cleanUpOnCommitFailure() {
+  protected void cleanUp() {
     // the commit failed and no files were committed. clean up each update.
     cleanAllUpdates();
 
@@ -440,22 +433,7 @@ public class BaseTransaction implements Transaction {
   }
 
   private void deleteUncommittedFiles(Iterable<String> paths) {
-    if (ops.io() instanceof SupportsBulkOperations) {
-      try {
-        ((SupportsBulkOperations) ops.io()).deleteFiles(paths);
-      } catch (BulkDeletionFailureException e) {
-        LOG.warn(
-            "Failed to delete {} uncommitted files using bulk deletes", e.numberFailedObjects(), e);
-      } catch (RuntimeException e) {
-        LOG.warn("Failed to delete uncommitted files using bulk deletes", e);
-      }
-    } else {
-      Tasks.foreach(paths)
-          .executeWith(ThreadPools.getWorkerPool())
-          .suppressFailureWhenFinished()
-          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-          .run(ops.io()::deleteFile);
-    }
+    CatalogUtil.deleteFiles(ops.io(), paths, "uncommitted");
   }
 
   private void applyUpdates(TableOperations underlyingOps) {
@@ -476,23 +454,13 @@ public class BaseTransaction implements Transaction {
     }
   }
 
-  // committedFiles returns null whenever the set of committed files
-  // cannot be determined from the provided snapshots
-  private static Set<String> committedFiles(TableOperations ops, Set<Long> snapshotIds) {
-    if (snapshotIds.isEmpty()) {
-      return ImmutableSet.of();
-    }
-
+  // returns the manifest lists and manifests referenced by the given committed snapshots
+  private static Set<String> committedFiles(FileIO io, Set<Snapshot> snapshots) {
     Set<String> committedFiles = Sets.newHashSet();
 
-    for (long snapshotId : snapshotIds) {
-      Snapshot snap = ops.current().snapshot(snapshotId);
-      if (snap != null) {
-        committedFiles.add(snap.manifestListLocation());
-        snap.allManifests(ops.io()).forEach(manifest -> committedFiles.add(manifest.path()));
-      } else {
-        return null;
-      }
+    for (Snapshot snap : snapshots) {
+      committedFiles.add(snap.manifestListLocation());
+      snap.allManifests(io).forEach(manifest -> committedFiles.add(manifest.path()));
     }
 
     return committedFiles;

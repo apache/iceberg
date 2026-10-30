@@ -25,9 +25,8 @@ import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.data.binary.BinaryRowData;
-import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.data.RandomGenericData;
@@ -59,63 +58,66 @@ public class TestFlinkParquetWriter extends DataTestBase {
     return true;
   }
 
-  private void writeAndValidate(Iterable<RowData> iterable, Schema schema) throws IOException {
+  @Override
+  protected boolean supportsDefaultValues() {
+    return true;
+  }
+
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema, List<Record> data)
+      throws IOException {
     OutputFile outputFile = new InMemoryOutputFile();
 
-    LogicalType logicalType = FlinkSchemaUtil.convert(schema);
-
+    LogicalType logicalType = FlinkSchemaUtil.convert(writeSchema);
     try (FileAppender<RowData> writer =
         Parquet.write(outputFile)
-            .schema(schema)
+            .schema(writeSchema)
             .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(logicalType, msgType))
             .build()) {
-      writer.addAll(iterable);
+      writer.addAll(RandomRowData.convert(writeSchema, data));
     }
 
     try (CloseableIterable<Record> reader =
         Parquet.read(outputFile.toInputFile())
-            .project(schema)
-            .createReaderFunc(msgType -> GenericParquetReaders.buildReader(schema, msgType))
+            .project(expectedSchema)
+            .createReaderFunc(
+                fileSchema -> GenericParquetReaders.buildReader(expectedSchema, fileSchema))
             .build()) {
-      Iterator<RowData> expected = iterable.iterator();
       Iterator<Record> actual = reader.iterator();
-      LogicalType rowType = FlinkSchemaUtil.convert(schema);
-      for (int i = 0; i < NUM_RECORDS; i += 1) {
+      RowType rowType = FlinkSchemaUtil.convert(expectedSchema);
+      for (Record expected : data) {
         assertThat(actual).hasNext();
-        TestHelpers.assertRowData(schema.asStruct(), rowType, actual.next(), expected.next());
+        RowData actualRowData = RowDataConverter.convert(expectedSchema, actual.next());
+        TestHelpers.assertRowData(expectedSchema.asStruct(), rowType, expected, actualRowData);
       }
+
       assertThat(actual).isExhausted();
     }
   }
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    writeAndValidate(RandomRowData.generate(schema, NUM_RECORDS, 19981), schema);
+    writeAndValidate(schema, RandomGenericData.generate(schema, NUM_RECORDS, 19981));
 
     writeAndValidate(
-        RandomRowData.convert(
-            schema,
-            RandomGenericData.generateDictionaryEncodableRecords(schema, NUM_RECORDS, 21124)),
-        schema);
+        schema,
+        Lists.newArrayList(
+            RandomGenericData.generateDictionaryEncodableRecords(schema, NUM_RECORDS, 21124)));
 
     writeAndValidate(
-        RandomRowData.convert(
-            schema,
+        schema,
+        Lists.newArrayList(
             RandomGenericData.generateFallbackRecords(
-                schema, NUM_RECORDS, 21124, NUM_RECORDS / 20)),
-        schema);
+                schema, NUM_RECORDS, 21124, NUM_RECORDS / 20)));
   }
 
   @Override
-  protected void writeAndValidate(Schema schema, List<Record> expectedData) throws IOException {
-    RowDataSerializer rowDataSerializer = new RowDataSerializer(FlinkSchemaUtil.convert(schema));
-    List<RowData> binaryRowList = Lists.newArrayList();
-    for (Record record : expectedData) {
-      RowData rowData = RowDataConverter.convert(schema, record);
-      BinaryRowData binaryRow = rowDataSerializer.toBinaryRow(rowData);
-      binaryRowList.add(binaryRow);
-    }
+  protected void writeAndValidate(Schema schema, List<Record> data) throws IOException {
+    writeAndValidate(schema, schema, data);
+  }
 
-    writeAndValidate(binaryRowList, schema);
+  @Override
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
+    List<Record> data = RandomGenericData.generate(writeSchema, NUM_RECORDS, 1991L);
+    writeAndValidate(writeSchema, expectedSchema, data);
   }
 }

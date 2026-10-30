@@ -20,11 +20,11 @@ package org.apache.iceberg.jdbc;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.SQLNonTransientConnectionException;
 import java.sql.SQLTimeoutException;
 import java.sql.SQLTransientConnectionException;
@@ -39,9 +39,12 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StaticTableOperations;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
@@ -49,6 +52,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -88,6 +92,8 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   private Object conf;
   private JdbcClientPool connections;
   private Map<String, String> catalogProperties;
+  private boolean uniqueTableLocation;
+  private int metadataRefreshMaxRetries;
   private final Function<Map<String, String>, FileIO> ioBuilder;
   private final Function<Map<String, String>, JdbcClientPool> clientPoolBuilder;
   private boolean initializeCatalogTables;
@@ -120,6 +126,12 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
 
     this.warehouseLocation = LocationUtil.stripTrailingSlash(inputWarehouseLocation);
     this.catalogProperties = ImmutableMap.copyOf(properties);
+    this.uniqueTableLocation =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            CatalogProperties.UNIQUE_TABLE_LOCATION,
+            CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT);
+    this.metadataRefreshMaxRetries = JdbcUtil.metadataRefreshMaxRetries(properties);
 
     if (name != null) {
       this.catalogName = name;
@@ -166,13 +178,12 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
           // check the existence of a table name
           Predicate<String> tableTest =
               name -> {
-                try {
-                  ResultSet result =
-                      dbMeta.getTables(
-                          null /* catalog name */,
-                          null /* schemaPattern */,
-                          name /* tableNamePattern */,
-                          null /* types */);
+                try (ResultSet result =
+                    dbMeta.getTables(
+                        null /* catalog name */,
+                        null /* schemaPattern */,
+                        name /* tableNamePattern */,
+                        null /* types */)) {
                   return result.next();
                 } catch (SQLException e) {
                   return false;
@@ -188,8 +199,8 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
           }
 
           LOG.debug("Creating table {} {}", tableName, reason);
-          try {
-            conn.prepareStatement(sqlCommand).execute();
+          try (PreparedStatement stmt = conn.prepareStatement(sqlCommand)) {
+            stmt.execute();
             return true;
           } catch (SQLException e) {
             // see if table was created by another thread or process.
@@ -230,25 +241,27 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
       connections.run(
           conn -> {
             DatabaseMetaData dbMeta = conn.getMetaData();
-            ResultSet typeColumn =
+            try (ResultSet typeColumn =
                 dbMeta.getColumns(
-                    null, null, JdbcUtil.CATALOG_TABLE_VIEW_NAME, JdbcUtil.RECORD_TYPE);
-            if (typeColumn.next()) {
-              LOG.debug("{} already supports views", JdbcUtil.CATALOG_TABLE_VIEW_NAME);
-              schemaVersion = JdbcUtil.SchemaVersion.V1;
-              return true;
-            } else {
-              if (PropertyUtil.propertyAsString(
-                      catalogProperties,
-                      JdbcUtil.SCHEMA_VERSION_PROPERTY,
-                      JdbcUtil.SchemaVersion.V0.name())
-                  .equalsIgnoreCase(JdbcUtil.SchemaVersion.V1.name())) {
-                LOG.debug("{} is being updated to support views", JdbcUtil.CATALOG_TABLE_VIEW_NAME);
+                    null, null, JdbcUtil.CATALOG_TABLE_VIEW_NAME, JdbcUtil.RECORD_TYPE)) {
+              if (typeColumn.next()) {
+                LOG.debug("{} already supports views", JdbcUtil.CATALOG_TABLE_VIEW_NAME);
                 schemaVersion = JdbcUtil.SchemaVersion.V1;
-                return conn.prepareStatement(JdbcUtil.V1_UPDATE_CATALOG_SQL).execute();
-              } else {
-                LOG.warn(VIEW_WARNING_LOG_MESSAGE);
                 return true;
+              } else {
+                if (PropertyUtil.propertyAsString(
+                        catalogProperties,
+                        JdbcUtil.SCHEMA_VERSION_PROPERTY,
+                        JdbcUtil.SchemaVersion.V0.name())
+                    .equalsIgnoreCase(JdbcUtil.SchemaVersion.V1.name())) {
+                  LOG.debug(
+                      "{} is being updated to support views", JdbcUtil.CATALOG_TABLE_VIEW_NAME);
+                  schemaVersion = JdbcUtil.SchemaVersion.V1;
+                  return executeV1CatalogUpdate(conn);
+                } else {
+                  LOG.warn(VIEW_WARNING_LOG_MESSAGE);
+                  return true;
+                }
               }
             }
           });
@@ -264,10 +277,22 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     }
   }
 
+  private static boolean executeV1CatalogUpdate(Connection conn) throws SQLException {
+    try (PreparedStatement stmt = conn.prepareStatement(JdbcUtil.V1_UPDATE_CATALOG_SQL)) {
+      return stmt.execute();
+    }
+  }
+
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     return new JdbcTableOperations(
-        connections, io, catalogName, tableIdentifier, catalogProperties, schemaVersion);
+        connections,
+        io,
+        catalogName,
+        tableIdentifier,
+        catalogProperties,
+        schemaVersion,
+        metadataRefreshMaxRetries);
   }
 
   @Override
@@ -275,12 +300,48 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     if (schemaVersion != JdbcUtil.SchemaVersion.V1) {
       throw new UnsupportedOperationException(VIEW_WARNING_LOG_MESSAGE);
     }
-    return new JdbcViewOperations(connections, io, catalogName, viewIdentifier, catalogProperties);
+    return new JdbcViewOperations(
+        connections, io, catalogName, viewIdentifier, catalogProperties, metadataRefreshMaxRetries);
   }
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier table) {
-    return SLASH.join(defaultNamespaceLocation(table.namespace()), table.name());
+    String tableLocation = LocationUtil.tableLocation(table, uniqueTableLocation);
+    return SLASH.join(defaultNamespaceLocation(table.namespace()), tableLocation);
+  }
+
+  @Override
+  public Table unregisterTable(TableIdentifier identifier) {
+    Preconditions.checkArgument(
+        identifier != null && isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
+    TableOperations ops = newTableOps(identifier);
+    TableMetadata metadata = ops.current();
+
+    if (metadata == null) {
+      throw new NoSuchTableException("Table does not exist: %s", identifier);
+    }
+
+    if (!dropTableIfMetadataMatches(identifier, metadata.metadataFileLocation())) {
+      throw new CommitFailedException(
+          "Cannot unregister table %s: metadata location has changed or table was dropped",
+          identifier);
+    }
+
+    StaticTableOperations staticOps =
+        new StaticTableOperations(metadata, ops.io(), ops.locationProvider());
+    return new BaseTable(staticOps, identifier.name(), metricsReporter());
+  }
+
+  private boolean dropTableIfMetadataMatches(TableIdentifier identifier, String metadataLocation) {
+    return execute(
+            (schemaVersion == JdbcUtil.SchemaVersion.V1)
+                ? JdbcUtil.V1_UNREGISTER_TABLE_SQL
+                : JdbcUtil.V0_UNREGISTER_TABLE_SQL,
+            catalogName,
+            JdbcUtil.namespaceToString(identifier.namespace()),
+            identifier.name(),
+            metadataLocation)
+        == 1;
   }
 
   @Override
@@ -337,7 +398,6 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
         JdbcUtil.namespaceToString(namespace));
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     if (from.equals(to)) {
@@ -363,9 +423,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     int updatedRecords =
         execute(
             err -> {
-              // SQLite doesn't set SQLState or throw SQLIntegrityConstraintViolationException
-              if (err instanceof SQLIntegrityConstraintViolationException
-                  || (err.getMessage() != null && err.getMessage().contains("constraint failed"))) {
+              if (JdbcUtil.isConstraintViolation(err)) {
                 throw new AlreadyExistsException("Table already exists: %s", to);
               }
             },
@@ -530,6 +588,13 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
     if (!namespaceExists(namespace)) {
       return false;
+    }
+
+    List<Namespace> childNamespaces = listNamespaces(namespace);
+    if (childNamespaces != null && !childNamespaces.isEmpty()) {
+      throw new NamespaceNotEmptyException(
+          "Namespace %s is not empty. Contains %d child namespace(s).",
+          namespace, childNamespaces.size());
     }
 
     List<TableIdentifier> tableIdentifiers = listTables(namespace);
@@ -713,9 +778,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     int updatedRecords =
         execute(
             err -> {
-              // SQLite doesn't set SQLState or throw SQLIntegrityConstraintViolationException
-              if (err instanceof SQLIntegrityConstraintViolationException
-                  || (err.getMessage() != null && err.getMessage().contains("constraint failed"))) {
+              if (JdbcUtil.isConstraintViolation(err)) {
                 throw new AlreadyExistsException(
                     "Cannot rename %s to %s. View already exists", from, to);
               }

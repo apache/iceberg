@@ -22,7 +22,7 @@ import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
 public class EqualityDeleteFiles extends CustomSumMetric {
 
-  static final String NAME = "equalityDeleteFiles";
+  public static final String NAME = "equalityDeleteFiles";
 
   @Override
   public String name() {

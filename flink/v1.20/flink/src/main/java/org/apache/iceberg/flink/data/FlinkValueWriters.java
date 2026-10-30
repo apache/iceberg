@@ -55,6 +55,10 @@ public class FlinkValueWriters {
     return TimestampNanosWriter.INSTANCE;
   }
 
+  static ValueWriter<byte[]> uuids() {
+    return UUIDWriter.INSTANCE;
+  }
+
   static ValueWriter<DecimalData> decimal(int precision, int scale) {
     return new DecimalWriter(precision, scale);
   }
@@ -142,6 +146,15 @@ public class FlinkValueWriters {
       long nanos =
           timestampData.getMillisecond() * 1_000_000 + timestampData.getNanoOfMillisecond();
       encoder.writeLong(nanos);
+    }
+  }
+
+  private static class UUIDWriter implements ValueWriter<byte[]> {
+    private static final UUIDWriter INSTANCE = new UUIDWriter();
+
+    @Override
+    public void write(byte[] bytes, Encoder encoder) throws IOException {
+      encoder.writeFixed(bytes);
     }
   }
 

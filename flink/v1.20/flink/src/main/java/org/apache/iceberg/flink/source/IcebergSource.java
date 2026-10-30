@@ -292,7 +292,10 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private RowDataConverter<T> converter;
     private ReadableConfig flinkConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
+
+    @SuppressWarnings("deprecation")
     private TableSchema projectedTableSchema;
+
     private ResolvedSchema projectedFlinkSchema;
     private Boolean exposeLocality;
 

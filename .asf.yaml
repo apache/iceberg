@@ -18,7 +18,7 @@
 #
 
 # The format of this file is documented at
-# https://cwiki.apache.org/confluence/display/INFRA/Git+-+.asf.yaml+features
+# https://github.com/apache/infrastructure-asfyaml/blob/main/README.md
 
 github:
   description: "Apache Iceberg"
@@ -31,7 +31,12 @@ github:
   enabled_merge_buttons:
     merge: false
     squash: true
+    squash_commit_message: PR_TITLE_AND_COMMIT_DETAILS
     rebase: true
+
+  pull_requests:
+    # auto-delete head branches after being merged
+    del_branch_on_merge: true
 
   protected_branches:
     main:
@@ -39,16 +44,12 @@ github:
         required_approving_review_count: 1
 
       required_linear_history: true
-
-  del_branch_on_merge: true
   
   features:
     wiki: true
     issues: true
     projects: true
   collaborators:  # Note: the number of collaborators is limited to 10
-    - chenjunjiedada
-    - jun-he
     - marton-bod
     - samarthjain
     - SreeramGarlapati
@@ -57,6 +58,8 @@ github:
     - ajantha-bhat
     - jbonofre
     - manuzhang
+    - anuragmantri
+    - nssalian
   ghp_branch: gh-pages
   ghp_path: /
 
@@ -64,6 +67,7 @@ notifications:
     commits:      commits@iceberg.apache.org
     issues:       issues@iceberg.apache.org
     pullrequests: issues@iceberg.apache.org
+    jobs:         ci-jobs@iceberg.apache.org
     jira_options: link label link label
 
 publish:

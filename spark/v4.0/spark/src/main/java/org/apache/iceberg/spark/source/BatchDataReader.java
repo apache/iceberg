@@ -26,6 +26,7 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.OrcBatchReadConf;
@@ -53,6 +54,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
       OrcBatchReadConf orcBatchReadConf) {
     this(
         partition.table(),
+        partition.io(),
         partition.taskGroup(),
         SnapshotUtil.schemaFor(partition.table(), partition.branch()),
         partition.expectedSchema(),
@@ -64,6 +66,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
 
   BatchDataReader(
       Table table,
+      FileIO fileIO,
       ScanTaskGroup<FileScanTask> taskGroup,
       Schema tableSchema,
       Schema expectedSchema,
@@ -73,6 +76,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
       boolean cacheDeleteFilesOnExecutors) {
     super(
         table,
+        fileIO,
         taskGroup,
         tableSchema,
         expectedSchema,
@@ -105,15 +109,13 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(filePath, task.start(), task.length());
 
-    Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema());
-
     InputFile inputFile = getInputFile(filePath);
     Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with FileScanTask");
 
     SparkDeleteFilter deleteFilter =
-        task.deletes().isEmpty()
-            ? null
-            : new SparkDeleteFilter(filePath, task.deletes(), counter(), false);
+        new SparkDeleteFilter(filePath, task.deletes(), counter(), true);
+
+    Map<Integer, ?> idToConstant = constantsMap(task, deleteFilter.requiredSchema());
 
     return newBatchIterable(
             inputFile,

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.optimizer
 
 import org.apache.iceberg.MetadataColumns
@@ -35,20 +34,19 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 object RemoveRowLineageOutputFromOriginalTable extends Rule[LogicalPlan] {
   override def apply(plan: LogicalPlan): LogicalPlan = {
     plan.transform {
-      case writeDelta@WriteDelta(_, _, _, originalTable, _, _) =>
+      case writeDelta @ WriteDelta(_, _, _, originalTable, _, _) =>
         writeDelta.copy(originalTable = removeRowLineageOutput(originalTable))
-      case replaceData@ReplaceData(_, _, _, originalTable, _, _) =>
+      case replaceData @ ReplaceData(_, _, _, originalTable, _, _) =>
         replaceData.copy(originalTable = removeRowLineageOutput(originalTable))
     }
   }
 
   private def removeRowLineageOutput(table: NamedRelation): DataSourceV2Relation = {
     table match {
-      case dsv2Relation@DataSourceV2Relation(_, _, _, _, _) =>
-        dsv2Relation.copy(output = dsv2Relation.output.filterNot(
-          attr => attr.name == MetadataColumns.ROW_ID.name() ||
+      case dsv2Relation @ DataSourceV2Relation(_, _, _, _, _) =>
+        dsv2Relation.copy(output = dsv2Relation.output.filterNot(attr =>
+          attr.name == MetadataColumns.ROW_ID.name() ||
             attr.name == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()))
     }
   }
 }
-

@@ -26,6 +26,8 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.IntStream;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
@@ -34,6 +36,7 @@ import org.apache.iceberg.parquet.ParquetValueWriters.RepeatedKeyValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.RepeatedWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
 import org.apache.iceberg.util.UUIDUtil;
@@ -53,6 +56,7 @@ import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.NullType;
 import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
@@ -61,10 +65,18 @@ import org.apache.spark.unsafe.types.UTF8String;
 public class SparkParquetWriters {
   private SparkParquetWriters() {}
 
-  @SuppressWarnings("unchecked")
   public static <T> ParquetValueWriter<T> buildWriter(StructType dfSchema, MessageType type) {
+    return buildWriter(null, type, dfSchema);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T> ParquetValueWriter<T> buildWriter(
+      Schema icebergSchema, MessageType type, StructType dfSchema) {
     return (ParquetValueWriter<T>)
-        ParquetWithSparkSchemaVisitor.visit(dfSchema, type, new WriteBuilder(type));
+        ParquetWithSparkSchemaVisitor.visit(
+            dfSchema != null ? dfSchema : SparkSchemaUtil.convert(icebergSchema),
+            type,
+            new WriteBuilder(type));
   }
 
   private static class WriteBuilder extends ParquetWithSparkSchemaVisitor<ParquetValueWriter<?>> {
@@ -84,14 +96,18 @@ public class SparkParquetWriters {
     public ParquetValueWriter<?> struct(
         StructType sStruct, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
-      StructField[] sparkFields = sStruct.fields();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
-      List<DataType> sparkTypes = Lists.newArrayList();
       for (int i = 0; i < fields.size(); i += 1) {
         writers.add(newOption(struct.getType(i), fieldWriters.get(i)));
-        sparkTypes.add(sparkFields[i].dataType());
       }
-      return new InternalRowWriter(writers, sparkTypes);
+
+      StructField[] sFields = sStruct.fields();
+      DataType[] types = new DataType[sFields.length];
+      for (int i = 0; i < sFields.length; i += 1) {
+        types[i] = sFields[i].dataType();
+      }
+
+      return new InternalRowWriter(writers, types);
     }
 
     @Override
@@ -555,14 +571,33 @@ public class SparkParquetWriters {
   private static class InternalRowWriter extends ParquetValueWriters.StructWriter<InternalRow> {
     private final DataType[] types;
 
-    private InternalRowWriter(List<ParquetValueWriter<?>> writers, List<DataType> types) {
-      super(writers);
-      this.types = types.toArray(new DataType[0]);
+    private InternalRowWriter(List<ParquetValueWriter<?>> writers, DataType[] types) {
+      super(writerToFieldIndex(types, writers.size()), writers);
+      this.types = types;
     }
 
     @Override
     protected Object get(InternalRow struct, int index) {
       return struct.get(index, types[index]);
+    }
+
+    /** Returns a mapping from writer index to field index, skipping Unknown columns. */
+    private static int[] writerToFieldIndex(DataType[] types, int numWriters) {
+      if (null == types) {
+        return IntStream.rangeClosed(0, numWriters).toArray();
+      }
+
+      // value writer index to record field index
+      int[] indexes = new int[numWriters];
+      int writerIndex = 0;
+      for (int pos = 0; pos < types.length; pos += 1) {
+        if (!(types[pos] instanceof NullType)) {
+          indexes[writerIndex] = pos;
+          writerIndex += 1;
+        }
+      }
+
+      return indexes;
     }
   }
 }

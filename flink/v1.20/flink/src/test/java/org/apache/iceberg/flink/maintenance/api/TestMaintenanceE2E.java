@@ -24,8 +24,11 @@ import java.io.IOException;
 import java.time.Duration;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.operator.OperatorTestBase;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -65,6 +68,75 @@ class TestMaintenanceE2E extends OperatorTestBase {
                 .deleteFileThreshold(10)
                 .rewriteAll(false)
                 .maxFileGroupSizeBytes(1000L))
+        .append();
+
+    JobClient jobClient = null;
+    try {
+      jobClient = env.executeAsync();
+
+      // Just make sure that we are able to instantiate the flow
+      assertThat(jobClient).isNotNull();
+    } finally {
+      closeJobClient(jobClient);
+    }
+  }
+
+  @Test
+  void testE2eUseCoordinator() throws Exception {
+    TableMaintenance.forTable(env, tableLoader())
+        .uidSuffix("E2eTestUID")
+        .rateLimit(Duration.ofMinutes(10))
+        .lockCheckDelay(Duration.ofSeconds(10))
+        .add(
+            ExpireSnapshots.builder()
+                .scheduleOnCommitCount(10)
+                .maxSnapshotAge(Duration.ofMinutes(10))
+                .retainLast(5)
+                .deleteBatchSize(5)
+                .parallelism(8))
+        .add(
+            RewriteDataFiles.builder()
+                .scheduleOnDataFileCount(10)
+                .partialProgressEnabled(true)
+                .partialProgressMaxCommits(10)
+                .maxRewriteBytes(1000L)
+                .targetFileSizeBytes(1000L)
+                .minFileSizeBytes(1000L)
+                .maxFileSizeBytes(1000L)
+                .minInputFiles(10)
+                .deleteFileThreshold(10)
+                .rewriteAll(false)
+                .maxFileGroupSizeBytes(1000L))
+        .append();
+
+    JobClient jobClient = null;
+    try {
+      jobClient = env.executeAsync();
+
+      // Just make sure that we are able to instantiate the flow
+      assertThat(jobClient).isNotNull();
+    } finally {
+      closeJobClient(jobClient);
+    }
+  }
+
+  @Test
+  void testE2eConvertEqualityDeletes() throws Exception {
+    // Converter requires V3 (DV support); replace the V2 table created in @BeforeEach.
+    dropTable();
+    createTable(3, FileFormat.PARQUET);
+
+    TableMaintenance.forTable(env, tableLoader(), LOCK_FACTORY)
+        .uidSuffix("E2eConvertEqualityDeletesUID")
+        .rateLimit(Duration.ofMinutes(10))
+        .lockCheckDelay(Duration.ofSeconds(10))
+        .add(
+            ConvertEqualityDeletes.builder()
+                .scheduleOnEqDeleteFileCount(1)
+                .stagingBranch("staging")
+                .targetBranch(SnapshotRef.MAIN_BRANCH)
+                .equalityFieldColumns(ImmutableList.of("id"))
+                .parallelism(2))
         .append();
 
     JobClient jobClient = null;

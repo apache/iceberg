@@ -24,19 +24,27 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.rest.PlanStatus;
+import org.apache.iceberg.rest.credentials.Credential;
 
 public class FetchPlanningResultResponse extends BaseScanTaskResponse {
   private final PlanStatus planStatus;
+  private final ErrorResponse errorResponse;
+  private final List<Credential> credentials;
 
   private FetchPlanningResultResponse(
       PlanStatus planStatus,
+      ErrorResponse errorResponse,
       List<String> planTasks,
       List<FileScanTask> fileScanTasks,
       List<DeleteFile> deleteFiles,
-      Map<Integer, PartitionSpec> specsById) {
+      Map<Integer, PartitionSpec> specsById,
+      List<Credential> credentials) {
     super(planTasks, fileScanTasks, deleteFiles, specsById);
     this.planStatus = planStatus;
+    this.errorResponse = errorResponse;
+    this.credentials = credentials;
     validate();
   }
 
@@ -44,8 +52,39 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
     return planStatus;
   }
 
+  public ErrorResponse errorResponse() {
+    return errorResponse;
+  }
+
+  public List<Credential> credentials() {
+    return credentials != null ? credentials : ImmutableList.of();
+  }
+
   public static Builder builder() {
     return new Builder();
+  }
+
+  /**
+   * Returns a new builder pre-populated with the given partition specs map. Required for server
+   * responses that serialize {@code fileScanTasks} or {@code deleteFiles}; the specs are used only
+   * to serialize partition data and are never written to the response payload.
+   */
+  public static Builder builder(Map<Integer, PartitionSpec> specsById) {
+    return new Builder().withSpecsById(specsById);
+  }
+
+  /**
+   * Returns a builder pre-populated with this response's fields, suitable for producing a copy with
+   * one or more fields modified.
+   */
+  public Builder toBuilder() {
+    return new Builder()
+        .withPlanStatus(planStatus)
+        .withErrorResponse(errorResponse)
+        .withPlanTasks(planTasks())
+        .withFileScanTasks(fileScanTasks())
+        .withCredentials(credentials())
+        .withSpecsById(specsById());
   }
 
   @Override
@@ -54,6 +93,9 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
     Preconditions.checkArgument(
         planStatus() == PlanStatus.COMPLETED || (planTasks() == null && fileScanTasks() == null),
         "Invalid response: tasks can only be returned in a 'completed' status");
+    Preconditions.checkArgument(
+        planStatus() == PlanStatus.FAILED || errorResponse() == null,
+        "Invalid response: error can only be returned in a 'failed' status");
     if (fileScanTasks() == null || fileScanTasks().isEmpty()) {
       Preconditions.checkArgument(
           (deleteFiles() == null || deleteFiles().isEmpty()),
@@ -66,16 +108,36 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
     private Builder() {}
 
     private PlanStatus planStatus;
+    private ErrorResponse errorResponse;
+    private List<Credential> credentials = ImmutableList.of();
 
     public Builder withPlanStatus(PlanStatus status) {
       this.planStatus = status;
       return this;
     }
 
+    public Builder withErrorResponse(ErrorResponse response) {
+      this.errorResponse = response;
+      return this;
+    }
+
+    public Builder withCredentials(List<Credential> newCredentials) {
+      Preconditions.checkArgument(null != newCredentials, "Invalid credentials: null");
+      Preconditions.checkArgument(!newCredentials.contains(null), "Invalid credential: null");
+      this.credentials = ImmutableList.copyOf(newCredentials);
+      return this;
+    }
+
     @Override
     public FetchPlanningResultResponse build() {
       return new FetchPlanningResultResponse(
-          planStatus, planTasks(), fileScanTasks(), deleteFiles(), specsById());
+          planStatus,
+          errorResponse,
+          planTasks(),
+          fileScanTasks(),
+          deleteFiles(),
+          specsById(),
+          credentials);
     }
   }
 }

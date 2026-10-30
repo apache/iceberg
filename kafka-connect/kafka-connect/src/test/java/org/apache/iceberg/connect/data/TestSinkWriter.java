@@ -26,6 +26,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
@@ -38,16 +39,21 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.TableSinkConfig;
+import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
+import org.apache.kafka.connect.data.SchemaBuilder;
+import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestSinkWriter {
 
@@ -91,7 +97,7 @@ public class TestSinkWriter {
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
     assertThat(writerResults).hasSize(1);
     IcebergWriterResult writerResult = writerResults.get(0);
-    assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
+    assertThat(writerResult.tableReference().identifier()).isEqualTo(TABLE_IDENTIFIER);
   }
 
   @Test
@@ -119,7 +125,7 @@ public class TestSinkWriter {
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
     assertThat(writerResults).hasSize(1);
     IcebergWriterResult writerResult = writerResults.get(0);
-    assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
+    assertThat(writerResult.tableReference().identifier()).isEqualTo(TABLE_IDENTIFIER);
   }
 
   @Test
@@ -137,6 +143,51 @@ public class TestSinkWriter {
     assertThat(writerResults).hasSize(0);
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testStaticRouteReplaceNullWithDefault(boolean replaceNullWithDefault) {
+    TableSinkConfig tableConfig = mock(TableSinkConfig.class);
+    when(tableConfig.routeRegex()).thenReturn(Pattern.compile("val"));
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.tableConfig(any())).thenReturn(tableConfig);
+    when(config.tablesRouteField()).thenReturn(ROUTE_FIELD);
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    org.apache.kafka.connect.data.Schema valueSchema =
+        SchemaBuilder.struct()
+            .field("id", org.apache.kafka.connect.data.Schema.OPTIONAL_INT64_SCHEMA)
+            .field(ROUTE_FIELD, SchemaBuilder.string().optional().defaultValue("val").build())
+            .build();
+    Struct value = new Struct(valueSchema).put("id", 123L).put(ROUTE_FIELD, null);
+
+    SinkWriter sinkWriter = new SinkWriter(catalog, config);
+    SinkRecord rec =
+        new SinkRecord(
+            "topic",
+            1,
+            null,
+            "key",
+            valueSchema,
+            value,
+            100L,
+            Instant.now().toEpochMilli(),
+            TimestampType.LOG_APPEND_TIME);
+    sinkWriter.save(ImmutableList.of(rec));
+    SinkWriterResult result = sinkWriter.completeWrite();
+
+    if (replaceNullWithDefault) {
+      // the schema default is used as the route value
+      assertThat(result.writerResults()).hasSize(1);
+      assertThat(result.writerResults().get(0).tableReference().identifier())
+          .isEqualTo(TABLE_IDENTIFIER);
+    } else {
+      // an explicitly-null route field is skipped like any other null route value
+      assertThat(result.writerResults()).isEmpty();
+    }
+  }
+
   @Test
   public void testDynamicRoute() {
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
@@ -150,7 +201,136 @@ public class TestSinkWriter {
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
     assertThat(writerResults).hasSize(1);
     IcebergWriterResult writerResult = writerResults.get(0);
-    assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
+    assertThat(writerResult.tableReference().identifier()).isEqualTo(TABLE_IDENTIFIER);
+  }
+
+  @Test
+  void dynamicRouteNestedField() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.dynamicTablesEnabled()).thenReturn(true);
+    when(config.tablesRouteField()).thenReturn("route.table");
+
+    Map<String, Object> value =
+        ImmutableMap.of("route", ImmutableMap.of("table", TABLE_IDENTIFIER.toString()));
+
+    List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
+    assertThat(writerResults).hasSize(1);
+    assertThat(writerResults.get(0).tableReference().identifier()).isEqualTo(TABLE_IDENTIFIER);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testDynamicRouteReplaceNullWithDefault(boolean replaceNullWithDefault) {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.dynamicTablesEnabled()).thenReturn(true);
+    when(config.tablesRouteField()).thenReturn(ROUTE_FIELD);
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    org.apache.kafka.connect.data.Schema valueSchema =
+        SchemaBuilder.struct()
+            .field("id", org.apache.kafka.connect.data.Schema.OPTIONAL_INT64_SCHEMA)
+            .field(
+                ROUTE_FIELD,
+                SchemaBuilder.string().optional().defaultValue(TABLE_IDENTIFIER.toString()).build())
+            .build();
+    Struct value = new Struct(valueSchema).put("id", 123L).put(ROUTE_FIELD, null);
+
+    SinkWriter sinkWriter = new SinkWriter(catalog, config);
+    SinkRecord rec =
+        new SinkRecord(
+            "topic",
+            1,
+            null,
+            "key",
+            valueSchema,
+            value,
+            100L,
+            Instant.now().toEpochMilli(),
+            TimestampType.LOG_APPEND_TIME);
+    sinkWriter.save(ImmutableList.of(rec));
+    SinkWriterResult result = sinkWriter.completeWrite();
+
+    if (replaceNullWithDefault) {
+      // the schema default is used as the route value
+      assertThat(result.writerResults()).hasSize(1);
+      assertThat(result.writerResults().get(0).tableReference().identifier())
+          .isEqualTo(TABLE_IDENTIFIER);
+    } else {
+      // an explicitly-null route field is skipped like any other null route value
+      assertThat(result.writerResults()).isEmpty();
+    }
+  }
+
+  @Test
+  public void testOffsetTrackedByOriginalTopicPartition() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.dynamicTablesEnabled()).thenReturn(true);
+    when(config.tablesRouteField()).thenReturn(ROUTE_FIELD);
+
+    IcebergWriterResult writeResult =
+        new IcebergWriterResult(
+            TableReference.of("unknown", TableIdentifier.parse(TABLE_NAME), null),
+            ImmutableList.of(mock(DataFile.class)),
+            ImmutableList.of(),
+            Types.StructType.of());
+    IcebergWriter writer = mock(IcebergWriter.class);
+    when(writer.complete()).thenReturn(ImmutableList.of(writeResult));
+
+    IcebergWriterFactory writerFactory = mock(IcebergWriterFactory.class);
+    when(writerFactory.createWriter(any(), any(), anyBoolean())).thenReturn(writer);
+
+    SinkWriter sinkWriter = new SinkWriter(catalog, config);
+
+    // simulate a record that has been transformed by RegexRouter (topic changed)
+    String originalTopic = "orders";
+    int originalPartition = 0;
+    long originalOffset = 42L;
+    Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+
+    SinkRecord original =
+        new SinkRecord(
+            originalTopic,
+            originalPartition,
+            null,
+            "key",
+            null,
+            ImmutableMap.of(ROUTE_FIELD, TABLE_IDENTIFIER.toString()),
+            originalOffset,
+            now.toEpochMilli(),
+            TimestampType.LOG_APPEND_TIME);
+
+    // RegexRouter changes the topic via newRecord
+    String transformedTopic = "tmp.dynamic_orders";
+    SinkRecord transformed =
+        original.newRecord(
+            transformedTopic,
+            originalPartition,
+            original.keySchema(),
+            original.key(),
+            original.valueSchema(),
+            original.value(),
+            original.timestamp());
+
+    sinkWriter.save(ImmutableList.of(transformed));
+    SinkWriterResult result = sinkWriter.completeWrite();
+
+    // offsets must be keyed by the ORIGINAL topic, not the transformed one
+    Offset offset =
+        result.sourceOffsets().get(new TopicPartition(originalTopic, originalPartition));
+    assertThat(offset).isNotNull();
+    assertThat(offset.offset()).isEqualTo(originalOffset + 1);
+    assertThat(offset.timestamp()).isEqualTo(now.atOffset(ZoneOffset.UTC));
+
+    // the transformed topic key should NOT be present
+    Offset wrongOffset =
+        result.sourceOffsets().get(new TopicPartition(transformedTopic, originalPartition));
+    assertThat(wrongOffset).isNull();
   }
 
   @Test
@@ -167,11 +347,52 @@ public class TestSinkWriter {
     assertThat(writerResults).hasSize(0);
   }
 
+  @Test
+  public void testEvolveAddsFractionalDecimalColumn() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.evolveSchemaEnabled()).thenReturn(true);
+
+    // a new column whose value is a fractional decimal < 1: BigDecimal("0.001") has precision 1
+    // and scale 3. DecimalType.of validates only precision <= 38, so before the fix the column
+    // evolved to a malformed decimal(1, 3) without error and the write below failed in the
+    // Parquet writer; after the fix it evolves to decimal(3, 3) and the record is written.
+    Map<String, Object> value = ImmutableMap.of("amount", new BigDecimal("0.001"));
+
+    List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
+    assertThat(writerResults).isNotEmpty();
+
+    // the column evolved to a valid decimal that can hold 0.001 (scale <= precision)
+    Types.NestedField added = catalog.loadTable(TABLE_IDENTIFIER).schema().findField("amount");
+    assertThat(added).isNotNull();
+    assertThat(added.type()).isEqualTo(Types.DecimalType.of(3, 3));
+  }
+
+  @Test
+  public void testEvolveAddsExponentialDecimalColumn() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.evolveSchemaEnabled()).thenReturn(true);
+
+    // BigDecimal("1E+2") has a negative scale (-2), which is normalized to decimal(3, 0), the
+    // same type inferred for new BigDecimal("100"); the value is rescaled when it is written
+    Map<String, Object> value = ImmutableMap.of("amount", new BigDecimal("1E+2"));
+
+    List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
+    assertThat(writerResults).isNotEmpty();
+
+    Types.NestedField added = catalog.loadTable(TABLE_IDENTIFIER).schema().findField("amount");
+    assertThat(added).isNotNull();
+    assertThat(added.type()).isEqualTo(Types.DecimalType.of(3, 0));
+  }
+
   private List<IcebergWriterResult> sinkWriterTest(
       Map<String, Object> value, IcebergSinkConfig config) {
     IcebergWriterResult writeResult =
         new IcebergWriterResult(
-            TableIdentifier.parse(TABLE_NAME),
+            TableReference.of("unknown", TableIdentifier.parse(TABLE_NAME), null),
             ImmutableList.of(mock(DataFile.class)),
             ImmutableList.of(),
             Types.StructType.of());

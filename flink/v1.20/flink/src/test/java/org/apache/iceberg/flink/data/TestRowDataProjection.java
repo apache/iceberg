@@ -211,6 +211,29 @@ public class TestRowDataProjection {
   }
 
   @Test
+  void nestedRowIsNotMutatedByNextWrap() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.optional(
+                3,
+                "location",
+                Types.StructType.of(
+                    Types.NestedField.required(1, "lat", Types.FloatType.get()),
+                    Types.NestedField.required(2, "long", Types.FloatType.get()))));
+    RowDataProjection projection = RowDataProjection.create(schema, schema.select("location"));
+
+    RowData first =
+        projection.wrap(GenericRowData.of(1L, GenericRowData.of(1.0f, 1.0f))).getRow(0, 2);
+    RowData second =
+        projection.wrap(GenericRowData.of(2L, GenericRowData.of(9.0f, 9.0f))).getRow(0, 2);
+
+    assertThat(first).isNotSameAs(second);
+    assertThat(first.getFloat(0)).isEqualTo(1.0f);
+    assertThat(second.getFloat(0)).isEqualTo(9.0f);
+  }
+
+  @Test
   public void testPrimitivesFullProjection() {
     DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema schema = dataGenerator.icebergSchema();
@@ -271,18 +294,19 @@ public class TestRowDataProjection {
         GenericRowData.of(
             StringData.fromString("row_id_value"),
             new GenericMapData(
-                ImmutableMap.of(StringData.fromString("foo"), 1, StringData.fromString("bar"), 2)));
+                ImmutableMap.of(StringData.fromString("foo"), 1, StringData.fromString("bar"), 2)),
+            null);
     testEqualsAndHashCode(schema, idOnly, rowData, copyRowData, otherRowData, true);
     testEqualsAndHashCode(schema, mapOnly, rowData, copyRowData, otherRowData);
     testEqualsAndHashCode(schema, schema, rowData, copyRowData, otherRowData);
 
     GenericRowData rowDataNullOptionalFields =
-        GenericRowData.of(StringData.fromString("row_id_value"), null);
+        GenericRowData.of(StringData.fromString("row_id_value"), null, null);
     GenericRowData copyRowDataNullOptionalFields =
-        GenericRowData.of(StringData.fromString("row_id_value"), null);
+        GenericRowData.of(StringData.fromString("row_id_value"), null, null);
     // modify the map field value
     GenericRowData otherRowDataNullOptionalFields =
-        GenericRowData.of(StringData.fromString("other_row_id_value"), null);
+        GenericRowData.of(StringData.fromString("other_row_id_value"), null, null);
     testEqualsAndHashCode(
         schema,
         idOnly,
@@ -432,7 +456,8 @@ public class TestRowDataProjection {
     GenericRowData otherRowData =
         GenericRowData.of(
             StringData.fromString("other_row_id_value"),
-            new GenericArrayData(new Integer[] {4, 5, 6}));
+            new GenericArrayData(new Integer[] {4, 5, 6}),
+            null);
     testEqualsAndHashCode(schema, idOnly, rowData, copyRowData, otherRowData);
     testEqualsAndHashCode(schema, arrayOnly, rowData, copyRowData, otherRowData);
     testEqualsAndHashCode(schema, schema, rowData, copyRowData, otherRowData);
@@ -440,16 +465,19 @@ public class TestRowDataProjection {
     GenericRowData rowDataNullOptionalFields =
         GenericRowData.of(
             StringData.fromString("row_id_value"),
-            new GenericArrayData(new Integer[] {1, null, 3}));
+            new GenericArrayData(new Integer[] {1, null, 3}),
+            null);
     GenericRowData copyRowDataNullOptionalFields =
         GenericRowData.of(
             StringData.fromString("row_id_value"),
-            new GenericArrayData(new Integer[] {1, null, 3}));
+            new GenericArrayData(new Integer[] {1, null, 3}),
+            null);
     // modify the map field value
     GenericRowData otherRowDataNullOptionalFields =
         GenericRowData.of(
             StringData.fromString("other_row_id_value"),
-            new GenericArrayData(new Integer[] {4, null, 6}));
+            new GenericArrayData(new Integer[] {4, null, 6}),
+            null);
     testEqualsAndHashCode(
         schema,
         idOnly,

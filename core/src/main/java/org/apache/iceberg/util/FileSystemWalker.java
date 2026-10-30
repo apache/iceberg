@@ -160,18 +160,21 @@ public class FileSystemWalker {
    * @return {@code true} if the path is hidden, {@code false} otherwise
    */
   private static boolean isHiddenPath(String baseDir, Path path, PathFilter pathFilter) {
-    boolean isHiddenPath = false;
     Path currentPath = path;
-    while (currentPath.getParent().toString().contains(baseDir)) {
+    Path parent = currentPath.getParent();
+    // Walk up the path hierarchy while the parent directory is still within baseDir.
+    // Null-check the parent to avoid NPE when the walk reaches the storage root
+    // (e.g., an S3 bucket root such as "s3://bucket/"), whose getParent() returns null.
+    while (parent != null && parent.toString().contains(baseDir)) {
       if (!pathFilter.accept(currentPath)) {
-        isHiddenPath = true;
-        break;
+        return true;
       }
 
-      currentPath = currentPath.getParent();
+      currentPath = parent;
+      parent = currentPath.getParent();
     }
 
-    return isHiddenPath;
+    return false;
   }
 
   /**

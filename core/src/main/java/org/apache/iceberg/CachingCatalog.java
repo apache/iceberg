@@ -97,10 +97,9 @@ public class CachingCatalog implements Catalog, Closeable {
     @Override
     public void onRemoval(TableIdentifier tableIdentifier, Table table, RemovalCause cause) {
       LOG.debug("Evicted {} from the table cache ({})", tableIdentifier, cause);
-      if (RemovalCause.EXPIRED.equals(cause)) {
-        if (!MetadataTableUtils.hasMetadataTableName(tableIdentifier)) {
-          tableCache.invalidateAll(metadataTableIdentifiers(tableIdentifier));
-        }
+      if (RemovalCause.EXPIRED.equals(cause)
+          && !MetadataTableUtils.hasMetadataTableName(tableIdentifier)) {
+        tableCache.invalidateAll(metadataTableIdentifiers(tableIdentifier));
       }
     }
   }
@@ -199,6 +198,21 @@ public class CachingCatalog implements Catalog, Closeable {
     return table;
   }
 
+  @Override
+  public Table registerTable(
+      TableIdentifier identifier, String metadataFileLocation, boolean overwrite) {
+    Table table = catalog.registerTable(identifier, metadataFileLocation, overwrite);
+    invalidateTable(identifier);
+    return table;
+  }
+
+  @Override
+  public Table unregisterTable(TableIdentifier identifier) {
+    Table table = catalog.unregisterTable(identifier);
+    invalidateTable(identifier);
+    return table;
+  }
+
   private Iterable<TableIdentifier> metadataTableIdentifiers(TableIdentifier ident) {
     ImmutableList.Builder<TableIdentifier> builder = ImmutableList.builder();
 
@@ -216,8 +230,15 @@ public class CachingCatalog implements Catalog, Closeable {
     return new CachingTableBuilder(identifier, schema);
   }
 
+  /**
+   * Invalidates the table cache and closes the wrapped catalog if it is {@link Closeable}.
+   *
+   * <p>The wrapped catalog is owned by this wrapper, so do not close the wrapper while the wrapped
+   * catalog is still in use elsewhere.
+   */
   @Override
   public void close() throws IOException {
+    tableCache.invalidateAll();
     if (catalog instanceof Closeable) {
       ((Closeable) catalog).close();
     }

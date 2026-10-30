@@ -21,6 +21,7 @@ package org.apache.iceberg.nessie;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TestCatalogUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -32,7 +33,7 @@ import org.projectnessie.client.api.NessieApi;
 public class TestCustomNessieClient extends BaseTestIceberg {
 
   public TestCustomNessieClient() {
-    super("main");
+    super(SnapshotRef.MAIN_BRANCH);
   }
 
   @Test
@@ -120,6 +121,23 @@ public class TestCustomNessieClient extends BaseTestIceberg {
     assertThatThrownBy(() -> catalog.initialize("nessie", client, fileIO, null))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("catalogOptions must be non-null");
+  }
+
+  @Test
+  void initializeWithoutWarehouse() {
+    NessieCatalog catalog = new NessieCatalog();
+    NessieIcebergClient client = new NessieIcebergClient(null, null, null, null);
+    FileIO fileIO = new TestCatalogUtil.TestFileIONoArg();
+
+    assertThatThrownBy(
+            () ->
+                catalog.initialize(
+                    "nessie",
+                    client,
+                    fileIO,
+                    ImmutableMap.of("nessie.authentication.token", "secret-token")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Parameter 'warehouse' not set, Nessie can't store data.");
   }
 
   @SuppressWarnings("rawtypes")

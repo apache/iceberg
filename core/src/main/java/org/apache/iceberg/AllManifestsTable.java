@@ -38,6 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.StructProjection;
 
 /**
@@ -76,7 +77,8 @@ public class AllManifestsTable extends BaseMetadataTable {
                       Types.NestedField.required(11, "contains_nan", Types.BooleanType.get()),
                       Types.NestedField.optional(12, "lower_bound", Types.StringType.get()),
                       Types.NestedField.optional(13, "upper_bound", Types.StringType.get())))),
-          REF_SNAPSHOT_ID);
+          REF_SNAPSHOT_ID,
+          Types.NestedField.optional(19, "key_metadata", Types.BinaryType.get()));
 
   AllManifestsTable(Table table) {
     this(table, table.name() + ".all_manifests");
@@ -121,12 +123,14 @@ public class AllManifestsTable extends BaseMetadataTable {
       FileIO io = table().io();
       Map<Integer, PartitionSpec> specs = Maps.newHashMap(table().specs());
       Schema dataTableSchema = table().schema();
-      Expression filter = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
+      Expression rowFilter = filter();
 
       SnapshotEvaluator snapshotEvaluator =
-          new SnapshotEvaluator(filter, MANIFEST_FILE_SCHEMA.asStruct(), isCaseSensitive());
+          new SnapshotEvaluator(rowFilter, MANIFEST_FILE_SCHEMA.asStruct(), isCaseSensitive());
       Iterable<Snapshot> filteredSnapshots =
           Iterables.filter(table().snapshots(), snapshotEvaluator::eval);
+
+      Expression residual = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : rowFilter;
 
       return CloseableIterable.withNoopClose(
           Iterables.transform(
@@ -138,8 +142,8 @@ public class AllManifestsTable extends BaseMetadataTable {
                       io,
                       schema(),
                       specs,
-                      snap.manifestListLocation(),
-                      filter,
+                      new BaseManifestListFile(snap.manifestListLocation(), snap.keyId()),
+                      residual,
                       snap.snapshotId());
                 } else {
                   return StaticDataTask.of(
@@ -161,7 +165,7 @@ public class AllManifestsTable extends BaseMetadataTable {
     private final FileIO io;
     private final Schema schema;
     private final Map<Integer, PartitionSpec> specs;
-    private final String manifestListLocation;
+    private final ManifestListFile manifestList;
     private final Expression residual;
     private final long referenceSnapshotId;
     private DataFile lazyDataFile = null;
@@ -171,14 +175,14 @@ public class AllManifestsTable extends BaseMetadataTable {
         FileIO io,
         Schema schema,
         Map<Integer, PartitionSpec> specs,
-        String manifestListLocation,
+        ManifestListFile manifestList,
         Expression residual,
         long referenceSnapshotId) {
       this.dataTableSchema = dataTableSchema;
       this.io = io;
       this.schema = schema;
       this.specs = specs;
-      this.manifestListLocation = manifestListLocation;
+      this.manifestList = manifestList;
       this.residual = residual;
       this.referenceSnapshotId = referenceSnapshotId;
     }
@@ -191,7 +195,7 @@ public class AllManifestsTable extends BaseMetadataTable {
     @Override
     public CloseableIterable<StructLike> rows() {
       try (CloseableIterable<ManifestFile> manifests =
-          InternalData.read(FileFormat.AVRO, io.newInputFile(manifestListLocation))
+          InternalData.read(FileFormat.AVRO, io.newInputFile(manifestList))
               .setRootType(GenericManifestFile.class)
               .setCustomType(
                   ManifestFile.PARTITION_SUMMARIES_ELEMENT_ID, GenericPartitionFieldSummary.class)
@@ -209,7 +213,8 @@ public class AllManifestsTable extends BaseMetadataTable {
         return CloseableIterable.transform(rowIterable, projection::wrap);
 
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Cannot read manifest list file: %s", manifestListLocation);
+        throw new RuntimeIOException(
+            e, "Cannot read manifest list file: %s", manifestList.location());
       }
     }
 
@@ -218,7 +223,7 @@ public class AllManifestsTable extends BaseMetadataTable {
       if (lazyDataFile == null) {
         this.lazyDataFile =
             DataFiles.builder(PartitionSpec.unpartitioned())
-                .withInputFile(io.newInputFile(manifestListLocation))
+                .withInputFile(io.newInputFile(manifestList))
                 .withRecordCount(1)
                 .withFormat(FileFormat.AVRO)
                 .build();
@@ -271,8 +276,8 @@ public class AllManifestsTable extends BaseMetadataTable {
       return specs;
     }
 
-    String manifestListLocation() {
-      return manifestListLocation;
+    ManifestListFile manifestList() {
+      return manifestList;
     }
 
     long referenceSnapshotId() {
@@ -295,7 +300,8 @@ public class AllManifestsTable extends BaseMetadataTable {
         manifest.content() == ManifestContent.DELETES ? manifest.existingFilesCount() : 0,
         manifest.content() == ManifestContent.DELETES ? manifest.deletedFilesCount() : 0,
         ManifestsTable.partitionSummariesToRows(spec, manifest.partitions()),
-        referenceSnapshotId);
+        referenceSnapshotId,
+        manifest.keyMetadata() == null ? null : ByteBuffers.toByteArray(manifest.keyMetadata()));
   }
 
   private static class SnapshotEvaluator {
@@ -303,7 +309,7 @@ public class AllManifestsTable extends BaseMetadataTable {
     private final Expression boundExpr;
 
     private SnapshotEvaluator(Expression expr, Types.StructType structType, boolean caseSensitive) {
-      this.boundExpr = Binder.bind(structType, expr, caseSensitive);
+      this.boundExpr = Binder.bind(structType, Expressions.rewriteNot(expr), caseSensitive);
     }
 
     private boolean eval(Snapshot snapshot) {
@@ -329,11 +335,6 @@ public class AllManifestsTable extends BaseMetadataTable {
       @Override
       public Boolean alwaysFalse() {
         return ROWS_CANNOT_MATCH;
-      }
-
-      @Override
-      public Boolean not(Boolean result) {
-        return !result;
       }
 
       @Override
@@ -406,20 +407,16 @@ public class AllManifestsTable extends BaseMetadataTable {
 
       @Override
       public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
-        if (isSnapshotRef(ref)) {
-          if (!literalSet.contains(snapshotId)) {
-            return ROWS_CANNOT_MATCH;
-          }
+        if (isSnapshotRef(ref) && !literalSet.contains(snapshotId)) {
+          return ROWS_CANNOT_MATCH;
         }
         return ROWS_MIGHT_MATCH;
       }
 
       @Override
       public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
-        if (isSnapshotRef(ref)) {
-          if (literalSet.contains(snapshotId)) {
-            return ROWS_CANNOT_MATCH;
-          }
+        if (isSnapshotRef(ref) && literalSet.contains(snapshotId)) {
+          return ROWS_CANNOT_MATCH;
         }
         return ROWS_MIGHT_MATCH;
       }

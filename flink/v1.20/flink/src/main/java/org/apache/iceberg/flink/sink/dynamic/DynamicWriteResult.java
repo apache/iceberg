@@ -19,22 +19,37 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 class DynamicWriteResult {
-
-  private final WriteTarget key;
+  private final TableKey key;
+  private final int specId;
   private final WriteResult writeResult;
 
-  DynamicWriteResult(WriteTarget key, WriteResult writeResult) {
+  DynamicWriteResult(TableKey key, int specId, WriteResult writeResult) {
     this.key = key;
+    this.specId = specId;
     this.writeResult = writeResult;
   }
 
-  WriteTarget key() {
+  TableKey key() {
     return key;
+  }
+
+  public int specId() {
+    return specId;
   }
 
   WriteResult writeResult() {
     return writeResult;
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("key", key)
+        .add("specId", specId)
+        .add("writeResult", writeResult)
+        .toString();
   }
 }

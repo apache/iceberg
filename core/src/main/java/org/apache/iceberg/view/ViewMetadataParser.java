@@ -33,6 +33,7 @@ import java.util.zip.GZIPOutputStream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.TableMetadataParser.Codec;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -169,6 +170,10 @@ public class ViewMetadataParser {
     internalWrite(metadata, outputFile, false);
   }
 
+  public static ViewMetadata read(FileIO io, String path) {
+    return read(io.newInputFile(path));
+  }
+
   public static ViewMetadata read(InputFile file) {
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is =
@@ -185,9 +190,9 @@ public class ViewMetadataParser {
     boolean isGzip = Codec.fromFileName(outputFile.location()) == Codec.GZIP;
     OutputStream stream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
     try (OutputStreamWriter writer =
-        new OutputStreamWriter(
-            isGzip ? new GZIPOutputStream(stream) : stream, StandardCharsets.UTF_8)) {
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+            new OutputStreamWriter(
+                isGzip ? new GZIPOutputStream(stream) : stream, StandardCharsets.UTF_8);
+        JsonGenerator generator = JsonUtil.factory().createGenerator(writer)) {
       toJson(metadata, generator);
       generator.flush();
     } catch (IOException e) {

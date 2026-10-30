@@ -29,6 +29,7 @@ import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -36,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -258,6 +260,50 @@ public abstract class TestMetrics {
   }
 
   @TestTemplate
+  public void testMetricsForGeospatialTypes() throws IOException {
+    // Geometry and geography are only written by the Parquet path; other formats do not support
+    // the geo types yet.
+    assumeThat(fileFormat()).isEqualTo(FileFormat.PARQUET);
+
+    Schema schema =
+        new Schema(
+            required(1, "id", LongType.get()),
+            optional(2, "geom", Types.GeometryType.crs84()),
+            optional(3, "geog", Types.GeographyType.crs84()));
+
+    Record first = GenericRecord.create(schema);
+    ByteBuffer geom = wkbPoint(30, 10);
+    ByteBuffer geog = wkbPoint(-5, 40);
+    first.setField("id", 1L);
+    first.setField("geom", geom);
+    first.setField("geog", geog);
+    Record second = GenericRecord.create(schema);
+    second.setField("id", 2L);
+    second.setField("geom", wkbPoint(-5, 40));
+    // geog on the second row is left null
+
+    Metrics metrics = getMetrics(schema, first, second);
+    assertThat(metrics.recordCount()).isEqualTo(2L);
+
+    // geometry bounds are the XY bounding box of all values: min corner (-5, 10), max corner
+    // (30, 40). The null geography row leaves geography with value/null counts but no bounds
+    // (geography bounds are a separate follow-up).
+    assertCounts(2, 2L, 0L, metrics);
+    assertBounds(
+        2,
+        Types.GeometryType.crs84(),
+        GeospatialBound.createXY(-5, 10),
+        GeospatialBound.createXY(30, 40),
+        metrics);
+    assertCounts(3, 2L, 1L, metrics);
+    assertBounds(3, Types.GeographyType.crs84(), null, null, metrics);
+    assertThat(metrics.avgValueSizes())
+        .containsOnly(Map.entry(2, geom.remaining()), Map.entry(3, geog.remaining()));
+    assertThat(metrics.totalBytes())
+        .containsOnly(Map.entry(2, 2L * geom.remaining()), Map.entry(3, (long) geog.remaining()));
+  }
+
+  @TestTemplate
   public void testMetricsForDecimals() throws IOException {
     Schema schema =
         new Schema(
@@ -309,7 +355,7 @@ public abstract class TestMetrics {
             MetricsModes.None.get().toString(),
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "nestedStructCol.longCol",
             MetricsModes.Full.get().toString());
-    MetricsConfig config = MetricsConfig.fromProperties(properties);
+    MetricsConfig config = MetricsTestUtil.from(properties, NESTED_SCHEMA);
 
     Metrics metrics = getMetrics(NESTED_SCHEMA, config, buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
@@ -551,7 +597,8 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             NESTED_SCHEMA,
-            MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "none")),
+            MetricsTestUtil.from(
+                ImmutableMap.of("write.metadata.metrics.default", "none"), NESTED_SCHEMA),
             buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).isEmpty();
@@ -572,8 +619,8 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             NESTED_SCHEMA,
-            MetricsConfig.fromProperties(
-                ImmutableMap.of("write.metadata.metrics.default", "counts")),
+            MetricsTestUtil.from(
+                ImmutableMap.of("write.metadata.metrics.default", "counts"), NESTED_SCHEMA),
             buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).doesNotContainValue(null);
@@ -595,7 +642,8 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             NESTED_SCHEMA,
-            MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "full")),
+            MetricsTestUtil.from(
+                ImmutableMap.of("write.metadata.metrics.default", "full"), NESTED_SCHEMA),
             buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).doesNotContainValue(null);
@@ -629,8 +677,9 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             singleStringColSchema,
-            MetricsConfig.fromProperties(
-                ImmutableMap.of("write.metadata.metrics.default", "truncate(10)")),
+            MetricsTestUtil.from(
+                ImmutableMap.of("write.metadata.metrics.default", "truncate(10)"),
+                singleStringColSchema),
             record);
 
     CharBuffer expectedMinBound = CharBuffer.wrap("Lorem ipsu");
@@ -654,8 +703,9 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             singleBinaryColSchema,
-            MetricsConfig.fromProperties(
-                ImmutableMap.of("write.metadata.metrics.default", "truncate(5)")),
+            MetricsTestUtil.from(
+                ImmutableMap.of("write.metadata.metrics.default", "truncate(5)"),
+                singleBinaryColSchema),
             record);
 
     ByteBuffer expectedMinBounds = ByteBuffer.wrap(new byte[] {0x1, 0x2, 0x3, 0x4, 0x5});
@@ -753,6 +803,18 @@ public abstract class TestMetrics {
 
     assertBounds(3, LongType.get(), Long.MAX_VALUE, Long.MAX_VALUE, metrics);
     assertBounds(5, LongType.get(), Long.MAX_VALUE, Long.MAX_VALUE, metrics);
+  }
+
+  private static ByteBuffer wkbPoint(double xCoord, double yCoord) {
+    // little-endian WKB encoding of a point
+    return ByteBuffer.wrap(
+        ByteBuffer.allocate(21)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .put((byte) 1) // byte order: little endian
+            .putInt(1) // WKB geometry type: Point
+            .putDouble(xCoord)
+            .putDouble(yCoord)
+            .array());
   }
 
   protected void assertCounts(int fieldId, Long valueCount, Long nullValueCount, Metrics metrics) {

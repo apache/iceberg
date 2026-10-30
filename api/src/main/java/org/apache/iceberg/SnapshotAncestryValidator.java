@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg;
 
-import java.util.function.Function;
 import javax.annotation.Nonnull;
 
 /**
@@ -28,7 +27,7 @@ import javax.annotation.Nonnull;
  * table state.
  */
 @FunctionalInterface
-public interface SnapshotAncestryValidator extends Function<Iterable<Snapshot>, Boolean> {
+public interface SnapshotAncestryValidator {
 
   SnapshotAncestryValidator NON_VALIDATING = baseSnapshots -> true;
 
@@ -38,8 +37,7 @@ public interface SnapshotAncestryValidator extends Function<Iterable<Snapshot>, 
    * @param baseSnapshots ancestry of the base table metadata snapshots
    * @return boolean for whether the update is valid
    */
-  @Override
-  Boolean apply(Iterable<Snapshot> baseSnapshots);
+  boolean validate(Iterable<Snapshot> baseSnapshots);
 
   /**
    * Validation message that will be included when throwing {@link

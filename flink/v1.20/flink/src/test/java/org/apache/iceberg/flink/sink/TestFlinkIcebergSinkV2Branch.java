@@ -55,11 +55,25 @@ public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
   public static Object[][] parameters() {
     return new Object[][] {
       // Remove after the deprecation of TableSchema - BEGIN
-      {FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, true, "main"},
+      {
+        FileFormat.AVRO,
+        1,
+        false,
+        TableProperties.WRITE_DISTRIBUTION_MODE_NONE,
+        true,
+        SnapshotRef.MAIN_BRANCH
+      },
       {FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, true, "testBranch"},
       // Remove after the deprecation of TableSchema - END
 
-      {FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, false, "main"},
+      {
+        FileFormat.AVRO,
+        1,
+        false,
+        TableProperties.WRITE_DISTRIBUTION_MODE_NONE,
+        false,
+        SnapshotRef.MAIN_BRANCH
+      },
       {
         FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, false, "testBranch"
       },

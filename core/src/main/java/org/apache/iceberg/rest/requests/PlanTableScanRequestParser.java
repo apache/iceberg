@@ -36,6 +36,7 @@ public class PlanTableScanRequestParser {
   private static final String START_SNAPSHOT_ID = "start-snapshot-id";
   private static final String END_SNAPSHOT_ID = "end-snapshot-id";
   private static final String STATS_FIELDS = "stats-fields";
+  private static final String MIN_ROWS_REQUESTED = "min-rows-requested";
 
   private PlanTableScanRequestParser() {}
 
@@ -78,7 +79,8 @@ public class PlanTableScanRequestParser {
     }
 
     if (request.filter() != null) {
-      gen.writeStringField(FILTER, ExpressionParser.toJson(request.filter()));
+      gen.writeFieldName(FILTER);
+      ExpressionParser.toJson(request.filter(), gen);
     }
 
     gen.writeBooleanField(CASE_SENSITIVE, request.caseSensitive());
@@ -86,6 +88,10 @@ public class PlanTableScanRequestParser {
 
     if (request.statsFields() != null && !request.statsFields().isEmpty()) {
       JsonUtil.writeStringArray(STATS_FIELDS, request.statsFields(), gen);
+    }
+
+    if (null != request.minRowsRequested()) {
+      gen.writeNumberField(MIN_ROWS_REQUESTED, request.minRowsRequested());
     }
 
     gen.writeEndObject();
@@ -101,21 +107,24 @@ public class PlanTableScanRequestParser {
     Long snapshotId = JsonUtil.getLongOrNull(SNAPSHOT_ID, json);
     Long startSnapshotId = JsonUtil.getLongOrNull(START_SNAPSHOT_ID, json);
     Long endSnapshotId = JsonUtil.getLongOrNull(END_SNAPSHOT_ID, json);
-
+    Long minRowsRequested = JsonUtil.getLongOrNull(MIN_ROWS_REQUESTED, json);
     List<String> select = JsonUtil.getStringListOrNull(SELECT, json);
 
     Expression filter = null;
+    // Unlike the optional fields above, an explicit null filter is intentionally rejected to stay
+    // aligned with the OpenAPI spec, where filter is a non-nullable expression: has() + fromJson
+    // throws rather than treating null as "no filter" and silently widening the scan.
     if (json.has(FILTER)) {
-      filter = ExpressionParser.fromJson(json.get(FILTER).textValue());
+      filter = ExpressionParser.fromJson(json.get(FILTER));
     }
 
     boolean caseSensitive = true;
-    if (json.has(CASE_SENSITIVE)) {
+    if (json.hasNonNull(CASE_SENSITIVE)) {
       caseSensitive = JsonUtil.getBool(CASE_SENSITIVE, json);
     }
 
     boolean useSnapshotSchema = false;
-    if (json.has(USE_SNAPSHOT_SCHEMA)) {
+    if (json.hasNonNull(USE_SNAPSHOT_SCHEMA)) {
       useSnapshotSchema = JsonUtil.getBool(USE_SNAPSHOT_SCHEMA, json);
     }
 
@@ -130,6 +139,7 @@ public class PlanTableScanRequestParser {
         .withStartSnapshotId(startSnapshotId)
         .withEndSnapshotId(endSnapshotId)
         .withStatsFields(statsFields)
+        .withMinRowsRequested(minRowsRequested)
         .build();
   }
 }

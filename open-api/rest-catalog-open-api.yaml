@@ -27,7 +27,7 @@ info:
   version: 0.0.1
   description:
     Defines the specification for the first version of the REST Catalog API.
-    Implementations should ideally support both Iceberg table specs v1 and v2, with priority given to v2.
+    Implementations should ideally support all Iceberg table spec versions.
 servers:
   - url: "{scheme}://{host}/{basePath}"
     description: Server URL when the port can be inferred from the scheme
@@ -99,7 +99,7 @@ paths:
 
 
         Common catalog configuration settings are documented at
-        https://iceberg.apache.org/docs/latest/configuration/#catalog-properties
+        https://iceberg.apache.org/docs/latest/catalog-properties
 
 
         The catalog configuration also holds an optional `endpoints` field that contains information about the endpoints
@@ -141,26 +141,36 @@ paths:
               schema:
                 $ref: '#/components/schemas/CatalogConfig'
               example: {
-                  "overrides": {
-                    "warehouse": "s3://bucket/warehouse/"
-                  },
-                  "defaults": {
-                    "clients": "4"
-                  },
-                  "endpoints": [
-                    "GET /v1/{prefix}/namespaces/{namespace}",
-                    "GET /v1/{prefix}/namespaces",
-                    "POST /v1/{prefix}/namespaces",
-                    "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
-                    "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
-                  ]
-                }
+                "overrides": {
+                  "warehouse": "s3://bucket/warehouse/"
+                },
+                "defaults": {
+                  "clients": "4"
+                },
+                "idempotency-key-lifetime": "PT30M",
+                "endpoints": [
+                  "GET /v1/{prefix}/namespaces/{namespace}",
+                  "GET /v1/{prefix}/namespaces",
+                  "POST /v1/{prefix}/namespaces",
+                  "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
+                  "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
+                ]
+              }
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
           $ref: '#/components/responses/UnauthorizedResponse'
         403:
           $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - Warehouse provided in the `warehouse` query parameter is not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchWarehouseExample:
+                  $ref: '#/components/examples/NoSuchWarehouseError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -262,7 +272,10 @@ paths:
             An optional namespace, underneath which to list namespaces.
             If not provided, all top-level namespaces should be listed.
             For backward compatibility, empty string is treated as absent for now.
-            If parent is a multipart namespace, the parts must be separated by the unit separator (`0x1F`) byte.
+            If parent is a multipart namespace, the parts must be separated by the namespace separator as
+            indicated via the /config override `namespace-separator`, which defaults to the unit separator `0x1F` byte (url encoded `%1F`).
+            To be compatible with older clients, servers must use both the advertised separator and `0x1F` as valid separators when decoding namespaces.
+            The `namespace-separator` should be provided in a url encoded form.
           required: false
           schema:
             type: string
@@ -296,6 +309,8 @@ paths:
       tags:
         - Catalog API
       summary: Create a namespace
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Create a namespace, with an optional set of properties.
         The server might also add properties, such as `last_modified_time` etc.
@@ -406,6 +421,8 @@ paths:
         - Catalog API
       summary: Drop a namespace from the catalog. Namespace must be empty.
       operationId: dropNamespace
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       responses:
         204:
           description: Success, no content
@@ -450,6 +467,8 @@ paths:
         - Catalog API
       summary: Set or remove properties on a namespace
       operationId: updateProperties
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Set and/or remove properties on a namespace.
         The request body specifies a list of properties to remove and a map
@@ -562,6 +581,7 @@ paths:
       operationId: createTable
       parameters:
         - $ref: '#/components/parameters/data-access'
+        - $ref: '#/components/parameters/idempotency-key'
       requestBody:
         required: true
         content:
@@ -587,7 +607,7 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The table already exists
+          description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
               schema:
@@ -602,11 +622,94 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/namespaces/{namespace}/functions:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+
+    get:
+      tags:
+        - Catalog API
+      summary: List all functions underneath a given namespace
+      description: Return all function identifiers under this namespace
+      operationId: listFunctions
+      parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
+      responses:
+        200:
+          $ref: '#/components/responses/ListFunctionsResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The namespace specified does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NamespaceNotFound:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/functions/{function}:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/function'
+
+    get:
+      tags:
+        - Catalog API
+      summary: Load a function from the catalog
+      description:
+        Load a function from the catalog.
+
+        All overloaded definitions are included in a single response.
+
+      operationId: loadFunction
+      responses:
+        200:
+          $ref: '#/components/responses/LoadFunctionResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - Function or namespace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NamespaceNotFound:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+                FunctionNotFound:
+                  $ref: '#/components/examples/NoSuchFunctionError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
   /v1/{prefix}/namespaces/{namespace}/tables/{table}/plan:
     parameters:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/table'
+      - $ref: '#/components/parameters/data-access'
     post:
       tags:
         - Catalog API
@@ -624,7 +727,7 @@ paths:
         point-in-time scan of the latest snapshot in the table's main branch.
 
 
-        Responses must include a valid status listed below. A "cancelled" status is considered invalid for this endpoint.  
+        Responses must include a valid status listed below. A "cancelled" status is considered invalid for this endpoint.
 
         - When "completed" the planning operation has produced plan tasks and
           file scan tasks that must be returned in the response (not fetched
@@ -651,6 +754,8 @@ paths:
           needed by calling cancelPlanning. Cancellation is not necessary after
           fetchScanTasks has been used to fetch scan tasks for each plan task.
       operationId: planTableScan
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       requestBody:
         content:
           application/json:
@@ -694,6 +799,7 @@ paths:
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/table'
       - $ref: '#/components/parameters/plan-id'
+      - $ref: '#/components/parameters/data-access'
 
     get:
       tags:
@@ -758,6 +864,8 @@ paths:
         - Catalog API
       summary: Cancels scan planning for a plan-id
       operationId: cancelPlanning
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description: >
         Cancels scan planning for a plan-id.
 
@@ -786,6 +894,7 @@ paths:
         404:
           description:
             Not Found
+            - NoSuchPlanIdException, the plan-id does not exist
             - NoSuchTableException, the table does not exist
             - NoSuchNamespaceException, the namespace does not exist
           content:
@@ -793,6 +902,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
+                PlanIdDoesNotExist:
+                  $ref: '#/components/examples/NoSuchPlanIdError'
                 TableDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
                 NamespaceDoesNotExist:
@@ -816,6 +927,8 @@ paths:
         - Catalog API
       summary: Fetches result tasks for a plan task
       operationId: fetchScanTasks
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description: Fetches result tasks for a plan task.
       requestBody:
         content:
@@ -855,8 +968,6 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-
-
   /v1/{prefix}/namespaces/{namespace}/register:
     parameters:
       - $ref: '#/components/parameters/prefix'
@@ -866,6 +977,9 @@ paths:
       tags:
         - Catalog API
       summary: Register a table in the given namespace using given metadata file location
+      parameters:
+        - $ref: '#/components/parameters/data-access'
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Register a table using given metadata file location.
 
@@ -895,7 +1009,7 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The table already exists
+          description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
               schema:
@@ -937,29 +1051,40 @@ paths:
         table. The configuration key "token" is used to pass an access token to be used as a bearer token
         for table requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
         key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
+
+
+        The response may include a read-restrictions field. A reader that supports read
+        restrictions must fail any read against the loaded table that cannot apply a returned
+        restriction in full. This includes unrecognized action or expression types, and actions
+        whose definition cannot be loaded, parsed, or evaluated. These restrictions apply to every
+        read performed using this response (including subsequent planTableScan and fetchScanTasks
+        calls), but subsequent requests or requests made from a different authentication scope
+        may have different restrictions. The response should not be cached outside of the
+        authenticated scope.
       parameters:
         - $ref: '#/components/parameters/data-access'
         - name: If-None-Match
           in: header
           description:
             An optional header that allows the server to return 304 (Not Modified) if the metadata
-            is current. The content is the value of the ETag received in a CreateTableResponse or
-            LoadTableResponse.
+            is current. The content is the value of the ETag received in a CreateTableResponse,
+            LoadTableResponse or CommitTableResponse.
           required: false
           schema:
             type: string
         - in: query
           name: snapshots
           description:
-            The snapshots to return in the body of the metadata. Setting the value to `all` would
-            return the full set of snapshots currently valid for the table. Setting the value to
-            `refs` would load all snapshots referenced by branches or tags.
-            
+            The snapshots to return in the body of the metadata via the `snapshots` field. Setting
+            the value to `all` would return the full set of snapshots currently valid for the table.
+            Setting the value to `refs` would load all snapshots referenced by branches or tags.
+
             Default if no param is provided is `all`.
           required: false
           schema:
             type: string
             enum: [ all, refs ]
+        - $ref: '#/components/parameters/referenced-by'
       responses:
         200:
           $ref: '#/components/responses/LoadTableResponse'
@@ -995,6 +1120,8 @@ paths:
         - Catalog API
       summary: Commit updates to a table
       operationId: updateTable
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Commit updates to a table.
 
@@ -1057,12 +1184,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                  "error": {
-                    "message": "Internal Server Error",
-                    "type": "CommitStateUnknownException",
-                    "code": 500
-                  }
+                "error": {
+                  "message": "Internal Server Error",
+                  "type": "CommitStateUnknownException",
+                  "code": 500
                 }
+              }
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         502:
@@ -1073,12 +1200,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                  "error": {
-                    "message": "Invalid response from the upstream server",
-                    "type": "CommitStateUnknownException",
-                    "code": 502
-                  }
+                "error": {
+                  "message": "Invalid response from the upstream server",
+                  "type": "CommitStateUnknownException",
+                  "code": 502
                 }
+              }
         504:
           description:
             A server-side gateway timeout occurred; the commit state is unknown.
@@ -1087,12 +1214,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                  "error": {
-                    "message": "Gateway timed out during commit",
-                    "type": "CommitStateUnknownException",
-                    "code": 504
-                  }
+                "error": {
+                  "message": "Gateway timed out during commit",
+                  "type": "CommitStateUnknownException",
+                  "code": 504
                 }
+              }
         5XX:
           description:
             A server-side problem that might not be addressable on the client.
@@ -1101,12 +1228,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                  "error": {
-                    "message": "Bad Gateway",
-                    "type": "InternalServerError",
-                    "code": 502
-                  }
+                "error": {
+                  "message": "Bad Gateway",
+                  "type": "InternalServerError",
+                  "code": 502
                 }
+              }
 
     delete:
       tags:
@@ -1115,6 +1242,7 @@ paths:
       operationId: dropTable
       description: Remove a table from the catalog
       parameters:
+        - $ref: '#/components/parameters/idempotency-key'
         - name: purgeRequested
           in: query
           required: false
@@ -1181,6 +1309,56 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/unregister:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Unregister a table without removing its data or metadata files
+      operationId: unregisterTable
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
+      description:
+        Unregister a table from the catalog. This is the opposite of
+        `registerTable`. The table no longer exists in the catalog, but the
+        underlying data and metadata files are left in place so that the table
+        can be registered in another catalog.
+
+
+        On success, this returns the table's last metadata location and the
+        corresponding table metadata. This table metadata must include all
+        commits that happened before the unregister operation. All attempted
+        commits after the unregister operation in this catalog must fail.
+      responses:
+        200:
+          $ref: '#/components/responses/UnregisterTableResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchTableException, table to unregister does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableToUnregisterDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
   /v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials:
     parameters:
       - $ref: '#/components/parameters/prefix'
@@ -1192,6 +1370,14 @@ paths:
         - Catalog API
       summary: Load vended credentials for a table from the catalog
       operationId: loadCredentials
+      parameters:
+        - name: planId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: The plan ID that has been used for server-side scan planning
+        - $ref: '#/components/parameters/referenced-by'
       description: Load vended credentials for a table from the catalog.
       responses:
         200:
@@ -1219,6 +1405,40 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/sign:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Remotely signs requests to object storage
+      operationId: signRequest
+      requestBody:
+        description: The request to be signed
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoteSignRequest'
+        required: true
+      responses:
+        200:
+          $ref: '#/components/responses/RemoteSignResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
   /v1/{prefix}/tables/rename:
     parameters:
       - $ref: '#/components/parameters/prefix'
@@ -1227,6 +1447,8 @@ paths:
       tags:
         - Catalog API
       summary: Rename a table from its current name to a new name
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Rename a table from one identifier to another. It's valid to move a table
         across namespaces, but the server implementation is not required to support it.
@@ -1334,6 +1556,8 @@ paths:
         - Catalog API
       summary: Commit updates to multiple tables in an atomic operation
       operationId: commitTransaction
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       requestBody:
         description:
           Commit updates to multiple tables in an atomic operation
@@ -1389,12 +1613,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                  "error": {
-                    "message": "Internal Server Error",
-                    "type": "CommitStateUnknownException",
-                    "code": 500
-                  }
+                "error": {
+                  "message": "Internal Server Error",
+                  "type": "CommitStateUnknownException",
+                  "code": 500
                 }
+              }
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         502:
@@ -1405,12 +1629,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                  "error": {
-                    "message": "Invalid response from the upstream server",
-                    "type": "CommitStateUnknownException",
-                    "code": 502
-                  }
+                "error": {
+                  "message": "Invalid response from the upstream server",
+                  "type": "CommitStateUnknownException",
+                  "code": 502
                 }
+              }
         504:
           description:
             A server-side gateway timeout occurred; the commit state is unknown.
@@ -1419,12 +1643,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                  "error": {
-                    "message": "Gateway timed out during commit",
-                    "type": "CommitStateUnknownException",
-                    "code": 504
-                  }
+                "error": {
+                  "message": "Gateway timed out during commit",
+                  "type": "CommitStateUnknownException",
+                  "code": 504
                 }
+              }
         5XX:
           description:
             A server-side problem that might not be addressable on the client.
@@ -1433,12 +1657,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                  "error": {
-                    "message": "Bad Gateway",
-                    "type": "InternalServerError",
-                    "code": 502
-                  }
+                "error": {
+                  "message": "Bad Gateway",
+                  "type": "InternalServerError",
+                  "code": 502
                 }
+              }
 
   /v1/{prefix}/namespaces/{namespace}/views:
     parameters:
@@ -1511,7 +1735,7 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The view already exists
+          description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
               schema:
@@ -1552,6 +1776,8 @@ paths:
         view. The configuration key "token" is used to pass an access token to be used as a bearer token
         for view requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
         key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
+      parameters:
+        - $ref: '#/components/parameters/referenced-by'
       responses:
         200:
           $ref: '#/components/responses/LoadViewResponse'
@@ -1583,6 +1809,8 @@ paths:
         - Catalog API
       summary: Replace a view
       operationId: replaceView
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Commit updates to a view.
       requestBody:
@@ -1627,12 +1855,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
               example: {
-                  "error": {
-                    "message": "Internal Server Error",
-                    "type": "CommitStateUnknownException",
-                    "code": 500
-                  }
+                "error": {
+                  "message": "Internal Server Error",
+                  "type": "CommitStateUnknownException",
+                  "code": 500
                 }
+              }
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         502:
@@ -1643,12 +1871,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
               example: {
-                  "error": {
-                    "message": "Invalid response from the upstream server",
-                    "type": "CommitStateUnknownException",
-                    "code": 502
-                  }
+                "error": {
+                  "message": "Invalid response from the upstream server",
+                  "type": "CommitStateUnknownException",
+                  "code": 502
                 }
+              }
         504:
           description:
             A server-side gateway timeout occurred; the commit state is unknown.
@@ -1657,12 +1885,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
               example: {
-                  "error": {
-                    "message": "Gateway timed out during commit",
-                    "type": "CommitStateUnknownException",
-                    "code": 504
-                  }
+                "error": {
+                  "message": "Gateway timed out during commit",
+                  "type": "CommitStateUnknownException",
+                  "code": 504
                 }
+              }
         5XX:
           description:
             A server-side problem that might not be addressable on the client.
@@ -1671,12 +1899,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
               example: {
-                  "error": {
-                    "message": "Bad Gateway",
-                    "type": "InternalServerError",
-                    "code": 502
-                  }
+                "error": {
+                  "message": "Bad Gateway",
+                  "type": "InternalServerError",
+                  "code": 502
                 }
+              }
 
     delete:
       tags:
@@ -1684,6 +1912,8 @@ paths:
       summary: Drop a view from the catalog
       operationId: dropView
       description: Remove a view from the catalog
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       responses:
         204:
           description: Success, no content
@@ -1745,6 +1975,8 @@ paths:
         Rename a view from one identifier to another. It's valid to move a view
         across namespaces, but the server implementation is not required to support it.
       operationId: renameView
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       requestBody:
         description: Current view identifier to rename and new view identifier to rename to
         content:
@@ -1795,6 +2027,60 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/namespaces/{namespace}/register-view:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Register a view in the catalog
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
+      description:
+        Register a view in the given namespace using given metadata file location.
+
+      operationId: registerView
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterViewRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/LoadViewResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The namespace specified does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NamespaceNotFound:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        409:
+          description: Conflict - The identifier already exists as a table or view
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                ViewAlreadyExists:
+                  $ref: '#/components/examples/ViewAlreadyExistsError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
 
 components:
   #######################################################
@@ -1807,7 +2093,10 @@ components:
       required: true
       description:
         A namespace identifier as a single string.
-        Multipart namespace parts should be separated by the unit separator (`0x1F`) byte.
+        Multipart namespace parts must be separated by the namespace separator as
+        indicated via the /config override `namespace-separator`, which defaults to the unit separator `0x1F` byte (url encoded `%1F`).
+        To be compatible with older clients, servers must use both the advertised separator and `0x1F` as valid separators when decoding namespaces.
+        The `namespace-separator` should be provided in a url encoded form.
       schema:
         type: string
       examples:
@@ -1833,6 +2122,15 @@ components:
         type: string
       example: "sales"
 
+    function:
+      name: function
+      in: path
+      description: A function name
+      required: true
+      schema:
+        type: string
+      example: "add_one"
+
     plan-id:
       name: plan-id
       in: path
@@ -1857,21 +2155,19 @@ components:
         Optional signal to the server that the client supports delegated access
         via a comma-separated list of access mechanisms.  The server may choose
         to supply access via any or none of the requested mechanisms.
-        
-        
-        Specific properties and handling for `vended-credentials` is documented
-        in the `LoadTableResult` schema section of this spec document.
-        
-        
-        The protocol and specification for `remote-signing` is documented in 
-        the `s3-signer-open-api.yaml` OpenApi spec in the `aws` module.
+
+
+        Specific properties and handling for `vended-credentials` and `remote-signing`
+        are documented in the `LoadTableResult` schema section of this spec document.
 
       required: false
       schema:
-        type: string
-        enum:
-          - vended-credentials
-          - remote-signing
+        type: array
+        items:
+          type: string
+          enum:
+            - vended-credentials
+            - remote-signing
       style: simple
       explode: false
       example: "vended-credentials,remote-signing"
@@ -1887,7 +2183,7 @@ components:
       name: pageSize
       in: query
       description:
-        For servers that support pagination, this signals an upper bound of the number of results that a client will receive. 
+        For servers that support pagination, this signals an upper bound of the number of results that a client will receive.
         For servers that do not support pagination, clients may receive results larger than the indicated `pageSize`.
       required: false
       schema:
@@ -1897,10 +2193,71 @@ components:
     etag:
       name: ETag
       in: header
-      description: Identifies a unique version of the table metadata.
+      description:
+        Identifies a unique version of the table metadata.
+
+        Implementations that support ETags should produce unique tags for responses that return
+        different metadata content but represent the same version of table metadata.  For example,
+        the `snapshots` query parameter may result in different metadata representations depending
+        on whether `refs` or `all` is provided, therefore should have distinct ETags.
       required: false
       schema:
         type: string
+
+    referenced-by:
+      name: referenced-by
+      in: query
+      description:
+        A comma-separated list of fully qualified view names (namespace and view name) representing the view
+        reference chain when an entity (table or view) is loaded via a view. The list should be ordered with the outermost view
+        first, followed by any intermediate views it references, down to the view that directly references the entity.
+        For a simple case where a view directly references the entity, the list contains a single view identifier.
+        For nested views (a view referencing another view which references the entity), the list contains multiple
+        view identifiers representing the complete dependency chain.
+
+        The view identifier is a composite string of the format {namespace}{separator}{viewName}.
+        The namespace-separator (defined in /config) acts as the delimiter.
+        When parsing, the last occurrence of this separator identifies the boundary between the namespace and the view name.
+        Multipart namespaces must follow the encoding rules of the parent parameter in the list namespaces endpoint.
+
+        Multiple view identifiers are separated by commas. Servers should split the parameter value on comma characters
+        to parse individual view identifiers. If view names contain commas, they must be url-encoded as %2C.
+
+        Example with multiple views (where prod%1Fanalytics is a nested namespace which has a quarterly_view which references to monthly_view
+        which then references the entity being loaded) - prod%1Fanalytics%1Fquarterly_view,prod%1Fanalytics%1Fmonthly_view
+      required: false
+      schema:
+        type: string
+
+    idempotency-key:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+        example: "017F22E2-79B0-7CC3-98C4-DC0C0C07398F"
+      description: |
+        Optional client-provided idempotency key for safe request retries.
+
+        When present, the server ensures no additional effects for requests that carry the same
+        Idempotency-Key. If a prior request with this key has been finalized, the server returns
+        an equivalent final response without re-running the operation. The response body may
+        reflect a newer state of the catalog than existed at the time of the commit.
+
+        Finalization rules:
+        - Finalize & replay: 200, 201, 204, and deterministic terminal 4xx (including 409
+          such as AlreadyExists, NamespaceNotEmpty, etc.)
+        - Do not finalize (not stored/replayed): 5xx
+
+        Key Requirements:
+        - Key format: UUIDv7 in string form (RFC 9562).
+        - The idempotency key must be globally unique (no reuse across different operations).
+        - Catalogs SHOULD NOT expire keys before the end of the advertised token lifetime.
+        - If Idempotency-Key is used, clients MUST reuse the same key when retrying the same
+          logical operation and MUST generate a new key for a different operation.
 
   ##############################
   # Application Schema Objects #
@@ -1959,12 +2316,24 @@ components:
           description: A list of endpoints that the server supports. The format of each endpoint must be "<HTTP verb> <resource path from OpenAPI REST spec>".
             The HTTP verb and the resource path must be separated by a space character.
           example: [
-              "GET /v1/{prefix}/namespaces/{namespace}",
-              "GET /v1/{prefix}/namespaces",
-              "POST /v1/{prefix}/namespaces",
-              "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
-              "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
-            ]
+            "GET /v1/{prefix}/namespaces/{namespace}",
+            "GET /v1/{prefix}/namespaces",
+            "POST /v1/{prefix}/namespaces",
+            "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
+            "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
+          ]
+        idempotency-key-lifetime:
+          type: string
+          format: duration
+          description:
+            Client reuse window for an Idempotency-Key (ISO-8601 duration, e.g., PT30M, PT24H).
+            Interpreted as the maximum time from the first submission using a key to the last retry
+            during which a client may reuse that key. Servers SHOULD accept retries for at least this
+            duration and MAY include a grace period to account for delays/clock skew. Clients SHOULD NOT
+            reuse an Idempotency-Key after this window elapses; they SHOULD generate a new key for any
+            subsequent attempt. Presence of this field indicates the server supports Idempotency-Key
+            semantics for mutation endpoints. If absent, clients MUST assume idempotency is not supported.
+          example: PT30M
 
     CreateNamespaceRequest:
       type: object
@@ -2019,20 +2388,20 @@ components:
         An opaque token that allows clients to make use of pagination for list APIs
         (e.g. ListTables). Clients may initiate the first paginated request by sending an empty
         query parameter `pageToken` to the server.
-        
+
         Servers that support pagination should identify the `pageToken` parameter and return a
         `next-page-token` in the response if there are more results available.  After the initial
         request, the value of `next-page-token` from each response must be used as the `pageToken`
         parameter value for the next request. The server must return `null` value for the
         `next-page-token` in the last response.
-        
+
         Servers that support pagination must return all results in a single response with the value
         of `next-page-token` set to `null` if the query parameter `pageToken` is not set in the
         request.
-        
+
         Servers that do not support pagination should ignore the `pageToken` parameter and return
         all results in a single response. The `next-page-token` must be omitted from the response.
-    
+
         Clients must interpret either `null` or missing response value of `next-page-token` as
         the end of the listing results.
 
@@ -2051,6 +2420,17 @@ components:
           type: string
           nullable: false
 
+    CatalogObjectIdentifier:
+      description:
+        Reference to a catalog object (for example, table, view, or namespace) as
+        an ordered list of hierarchical levels.
+        The object kind is determined by context (e.g. the endpoint or a
+        companion type discriminator), not by the identifier structure alone.
+      type: array
+      items:
+        type: string
+      example: [ "accounting", "tax", "paid" ]
+
     PrimitiveType:
       type: string
       example:
@@ -2058,6 +2438,10 @@ components:
         - "string"
         - "fixed[16]"
         - "decimal(10,2)"
+
+    VariantType:
+      type: string
+      const: "variant"
 
     StructField:
       type: object
@@ -2139,7 +2523,9 @@ components:
           type: boolean
 
     Type:
+      # Keep VariantType first, or the generated client resolves `variant` as PrimitiveType.
       oneOf:
+        - $ref: '#/components/schemas/VariantType'
         - $ref: '#/components/schemas/PrimitiveType'
         - $ref: '#/components/schemas/StructType'
         - $ref: '#/components/schemas/ListType'
@@ -2158,15 +2544,16 @@ components:
               items:
                 type: integer
 
-    Expression:
+    Predicate:
       oneOf:
+        - type: boolean
         - $ref: '#/components/schemas/TrueExpression'
         - $ref: '#/components/schemas/FalseExpression'
-        - $ref: '#/components/schemas/AndOrExpression'
-        - $ref: '#/components/schemas/NotExpression'
-        - $ref: '#/components/schemas/SetExpression'
-        - $ref: '#/components/schemas/LiteralExpression'
-        - $ref: '#/components/schemas/UnaryExpression'
+        - $ref: '#/components/schemas/AndOrPredicate'
+        - $ref: '#/components/schemas/NotPredicate'
+        - $ref: '#/components/schemas/UnaryPredicate'
+        - $ref: '#/components/schemas/ComparisonPredicate'
+        - $ref: '#/components/schemas/SetPredicate'
 
     ExpressionType:
       type: string
@@ -2191,7 +2578,18 @@ components:
         - "is-nan"
         - "not-nan"
 
+    ValueExpression:
+      description: >
+        A value expression: a literal, a field reference, or a function application.
+      oneOf:
+        - $ref: '#/components/schemas/Literal'
+        - $ref: '#/components/schemas/Reference'
+        - $ref: '#/components/schemas/Apply'
+
     TrueExpression:
+      deprecated: true
+      description: >
+        Deprecated. Use the bare boolean literal `true` as a predicate instead.
       type: object
       required:
         - type
@@ -2201,6 +2599,9 @@ components:
           const: "true"
 
     FalseExpression:
+      deprecated: true
+      description: >
+        Deprecated. Use the bare boolean literal `false` as a predicate instead.
       type: object
       required:
         - type
@@ -2209,7 +2610,7 @@ components:
           $ref: '#/components/schemas/ExpressionType'
           const: "false"
 
-    AndOrExpression:
+    AndOrPredicate:
       type: object
       required:
         - type
@@ -2220,11 +2621,11 @@ components:
           $ref: '#/components/schemas/ExpressionType'
           enum: ["and", "or"]
         left:
-          $ref: '#/components/schemas/Expression'
+          $ref: '#/components/schemas/Predicate'
         right:
-          $ref: '#/components/schemas/Expression'
+          $ref: '#/components/schemas/Predicate'
 
-    NotExpression:
+    NotPredicate:
       type: object
       required:
         - type
@@ -2234,66 +2635,216 @@ components:
           $ref: '#/components/schemas/ExpressionType'
           const: "not"
         child:
-          $ref: '#/components/schemas/Expression'
+          $ref: '#/components/schemas/Predicate'
 
-    UnaryExpression:
+    UnaryPredicate:
+      description: >
+        A predicate that tests a single value expression. Accepts either
+        'child' (preferred) or 'term' (deprecated) to identify the operand.
       type: object
+      additionalProperties: false
       required:
         - type
-        - term
-        - value
       properties:
         type:
           $ref: '#/components/schemas/ExpressionType'
           enum: ["is-null", "not-null", "is-nan", "not-nan"]
+        child:
+          $ref: '#/components/schemas/ValueExpression'
         term:
+          deprecated: true
+          description: "Deprecated. Use 'child' instead."
           $ref: '#/components/schemas/Term'
-        value:
-          type: object
 
-    LiteralExpression:
+    ComparisonPredicate:
+      description: >
+        A predicate that compares two value expressions. Accepts either
+        'left'/'right' (preferred) or 'term'/'value' (deprecated).
       type: object
+      additionalProperties: false
       required:
         - type
-        - term
-        - value
       properties:
         type:
           $ref: '#/components/schemas/ExpressionType'
           enum: ["lt", "lt-eq", "gt", "gt-eq", "eq", "not-eq", "starts-with", "not-starts-with"]
+        left:
+          $ref: '#/components/schemas/ValueExpression'
+        right:
+          $ref: '#/components/schemas/ValueExpression'
         term:
+          deprecated: true
+          description: "Deprecated. Use 'left' instead."
           $ref: '#/components/schemas/Term'
         value:
-          type: object
+          deprecated: true
+          description: "Deprecated. Use 'right' instead."
+          $ref: '#/components/schemas/Literal'
 
-    SetExpression:
+    SetPredicate:
+      description: >
+        A predicate that tests whether a value is in a set of literals. Accepts
+        either 'child' (preferred) or 'term' (deprecated) to identify the operand.
       type: object
+      additionalProperties: false
       required:
         - type
-        - term
         - values
       properties:
         type:
           $ref: '#/components/schemas/ExpressionType'
           enum: ["in", "not-in"]
+        child:
+          $ref: '#/components/schemas/ValueExpression'
         term:
+          deprecated: true
+          description: "Deprecated. Use 'child' instead."
           $ref: '#/components/schemas/Term'
         values:
-          type: array
-          items:
-            type: object
+          $ref: '#/components/schemas/Literals'
 
-    Term:
+    Literal:
+      description: >
+        A literal is either a bare value, an untyped literal object, or a
+        typed literal object.
       oneOf:
-        - $ref: '#/components/schemas/Reference'
-        - $ref: '#/components/schemas/TransformTerm'
+        - $ref: '#/components/schemas/PrimitiveTypeValue'
+        - type: object
+          additionalProperties: false
+          required:
+            - type
+            - value
+          properties:
+            type:
+              type: string
+              const: "literal"
+            value:
+              $ref: '#/components/schemas/PrimitiveTypeValue'
+            data-type:
+              $ref: '#/components/schemas/PrimitiveType'
+
+    Literals:
+      description: >
+        Literals is either a bare array of literals or a typed object with
+        an explicit data-type applied to all values.
+      oneOf:
+        - type: array
+          items:
+            $ref: '#/components/schemas/Literal'
+        - type: object
+          additionalProperties: false
+          required:
+            - type
+            - values
+            - data-type
+          properties:
+            type:
+              type: string
+              const: "literals"
+            values:
+              type: array
+              items:
+                $ref: '#/components/schemas/PrimitiveTypeValue'
+            data-type:
+              $ref: '#/components/schemas/PrimitiveType'
 
     Reference:
+      description: >
+        A reference to a field. Either a bound reference (by field ID) or
+        an unbound reference (by name). The context in which an expression
+        is used determines which form is valid.
+      oneOf:
+        - $ref: '#/components/schemas/IdReference'
+        - $ref: '#/components/schemas/NamedReference'
+
+    IdReference:
+      description: A bound reference to a field by field ID.
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - id
+      properties:
+        type:
+          type: string
+          const: "reference"
+        id:
+          type: integer
+
+    NamedReference:
+      description: An unbound reference to a field by name.
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - name
+      properties:
+        type:
+          type: string
+          const: "reference"
+        name:
+          type: string
+
+    Apply:
+      description: >
+        A function application on zero or more value expressions or predicates.
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - function
+        - arguments
+      properties:
+        type:
+          type: string
+          const: "apply"
+        function:
+          oneOf:
+            - type: string
+              minLength: 1
+            - $ref: '#/components/schemas/CatalogObjectIdentifier'
+            - type: object
+              additionalProperties: false
+              required:
+                - identifier
+              properties:
+                catalog:
+                  type: string
+                identifier:
+                  $ref: '#/components/schemas/CatalogObjectIdentifier'
+        arguments:
+          type: array
+          items:
+            $ref: '#/components/schemas/FunctionArgument'
+
+    FunctionArgument:
+      anyOf:
+        - $ref: '#/components/schemas/ValueExpression'
+        - $ref: '#/components/schemas/Predicate'
+
+    Term:
+      deprecated: true
+      description: >
+        Deprecated. Legacy term form used by older REST predicates.
+        Use Reference or Apply instead.
+      oneOf:
+        - $ref: '#/components/schemas/TermReference'
+        - $ref: '#/components/schemas/TransformTerm'
+
+    TermReference:
+      deprecated: true
+      description: >
+        Deprecated string-form field reference used in older REST predicates.
+        Use Reference (IdReference or NamedReference) instead.
       type: string
       example:
         - "column-name"
 
     TransformTerm:
+      deprecated: true
+      description: >
+        Deprecated. Legacy transform-applied-to-a-term form.
+        Use Apply with a Reference argument instead.
       type: object
       required:
         - type
@@ -2306,7 +2857,7 @@ components:
         transform:
           $ref: '#/components/schemas/Transform'
         term:
-          $ref: '#/components/schemas/Reference'
+          $ref: '#/components/schemas/TermReference'
 
     Transform:
       type: string
@@ -2397,7 +2948,7 @@ components:
           type: string
         encrypted-key-metadata:
           type: string
-          format: byte # for compatibility
+          format: byte  # for compatibility
           contentEncoding: base64
         encrypted-by-id:
           type: string
@@ -2728,6 +3279,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - uuid
       properties:
         action:
@@ -2740,6 +3292,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - format-version
       properties:
         action:
@@ -2752,6 +3305,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - schema
       properties:
         action:
@@ -2773,6 +3327,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - schema-id
       properties:
         action:
@@ -2786,6 +3341,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - spec
       properties:
         action:
@@ -2798,6 +3354,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - spec-id
       properties:
         action:
@@ -2811,6 +3368,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - sort-order
       properties:
         action:
@@ -2823,6 +3381,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - sort-order-id
       properties:
         action:
@@ -2836,6 +3395,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - snapshot
       properties:
         action:
@@ -2849,6 +3409,7 @@ components:
         - $ref: '#/components/schemas/BaseUpdate'
         - $ref: '#/components/schemas/SnapshotReference'
       required:
+        - action
         - ref-name
       properties:
         action:
@@ -2861,6 +3422,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - snapshot-ids
       properties:
         action:
@@ -2876,6 +3438,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - ref-name
       properties:
         action:
@@ -2888,6 +3451,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - location
       properties:
         action:
@@ -2900,6 +3464,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - updates
       properties:
         action:
@@ -2914,6 +3479,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - removals
       properties:
         action:
@@ -2928,6 +3494,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - view-version
       properties:
         action:
@@ -2940,6 +3507,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - view-version-id
       properties:
         action:
@@ -2953,6 +3521,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - statistics
       properties:
         action:
@@ -2972,6 +3541,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - snapshot-id
       properties:
         action:
@@ -2985,6 +3555,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - partition-statistics
       properties:
         action:
@@ -2997,6 +3568,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - snapshot-id
       properties:
         action:
@@ -3010,6 +3582,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - spec-ids
       properties:
         action:
@@ -3024,6 +3597,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - schema-ids
       properties:
         action:
@@ -3038,6 +3612,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - encryption-key
       properties:
         action:
@@ -3050,6 +3625,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - key-id
       properties:
         action:
@@ -3077,6 +3653,8 @@ components:
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
         - $ref: '#/components/schemas/SetStatisticsUpdate'
         - $ref: '#/components/schemas/RemoveStatisticsUpdate'
+        - $ref: '#/components/schemas/SetPartitionStatisticsUpdate'
+        - $ref: '#/components/schemas/RemovePartitionStatisticsUpdate'
         - $ref: '#/components/schemas/RemovePartitionSpecsUpdate'
         - $ref: '#/components/schemas/RemoveSchemasUpdate'
         - $ref: '#/components/schemas/AddEncryptionKeyUpdate'
@@ -3146,6 +3724,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - ref
         - snapshot-id
       properties:
@@ -3165,6 +3744,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - last-assigned-field-id
       properties:
         type:
@@ -3179,6 +3759,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - current-schema-id
       properties:
         type:
@@ -3193,6 +3774,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - last-assigned-partition-id
       properties:
         type:
@@ -3207,6 +3789,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - default-spec-id
       properties:
         type:
@@ -3221,6 +3804,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - default-sort-order-id
       properties:
         type:
@@ -3239,6 +3823,7 @@ components:
         - $ref: '#/components/schemas/AssertViewUUID'
 
     AssertViewUUID:
+      type: object
       description: The view UUID must match the requirement's `uuid`
       required:
         - type
@@ -3265,6 +3850,317 @@ components:
           additionalProperties:
             type: string
 
+    ReadRestrictions:
+      type: object
+      description: >
+          Read restrictions for a table.
+
+          A reader evaluates the row filter against original, untransformed column
+          values, then applies required-column-projections to the surviving rows.
+          Each action must produce a value of the same type as the input column.
+          If a reader that supports read-restrictions cannot apply any returned
+          restriction (a filter expression or an action), it must fail the query
+          and must not silently return raw, partial, or empty results.
+
+          A missing or empty ReadRestrictions object (no required-column-projections and no
+          required-row-filter) imposes no restrictions.
+      example:
+        required-column-projections:
+          - field-id: 4
+            action: show-last-4
+          - field-id: 6
+            action: replace-with-null
+          - field-id: 8
+            action: truncate-to-year
+          - field-id: 10
+            action: sha-256-global
+          - field-id: 12
+            action: mask-alphanum
+        required-row-filter:
+          type: eq
+          left:
+            type: reference
+            id: 14
+          right:
+            type: literal
+            value: "US"
+      properties:
+        required-column-projections:
+          description: >
+            A list of columns that require specific actions to be applied when reading.
+            A server must not return an action for a column whose type is not listed in
+            that action's "Applicable to" set. If absent or empty, no required actions
+            apply; columns not listed are not subject to any required action.
+
+            1. For each column listed, the reader must apply the specified action before
+              returning values for that column.
+
+            2. The reader must replace all output references to the column with the result
+              of the action, presenting the result under the original field-id. For
+              example, if the action for field-id `9` is mask-alphanum, the reader must
+              return the masked value as field-id `9` in the query output.
+
+            3. A server must not return more than one projection for the same field-id
+              in required-column-projections. If a duplicate field-id appears, the reader
+              must fail the query.
+
+            4. A server must not return a projection that targets a map's key field-id;
+              a reader that receives one must fail the query. Applying an action to keys
+              can produce duplicate or null keys, which readers silently coalesce or
+              reject, causing data loss.
+
+            5. A reader must enforce projections on the columns it is actually reading.
+              Projections referencing columns that are not being read do not apply.
+
+            6. A server must not return projections on both a nested-typed field
+              (struct, list, or map) and any field-id nested within it at any depth.
+              A reader that receives such a response must fail the query.
+          type: array
+          items:
+            $ref: '#/components/schemas/Action'
+        required-row-filter:
+          description: >
+            An expression that limits which rows the reader may return.
+
+            1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg predicates
+              never produce NULL). A reader must discard any row for which the filter
+              evaluates to FALSE, and no information derived from discarded rows may be
+              included in the query result.
+
+            2. If this property is absent, null, or always true then no mandatory filtering is required.
+
+            3. Column references within the expression must use field IDs (IdReference),
+              not column names. This ensures the filter remains valid across column renames,
+              consistent with required-column-projections which also reference columns by field-id.
+          allOf:
+            - $ref: '#/components/schemas/Predicate'
+
+    Action:
+      discriminator:
+        propertyName: action
+        mapping:
+          mask-alphanum: '#/components/schemas/MaskAlphanum'
+          mask-to-fixed-value: '#/components/schemas/MaskToFixedValue'
+          replace-with-null: '#/components/schemas/ReplaceWithNull'
+          show-first-4: '#/components/schemas/ShowFirst4'
+          show-last-4: '#/components/schemas/ShowLast4'
+          truncate-to-year: '#/components/schemas/TruncateToYear'
+          truncate-to-month: '#/components/schemas/TruncateToMonth'
+          sha-256-global: '#/components/schemas/Sha256Global'
+          sha-256-query-local: '#/components/schemas/Sha256QueryLocal'
+      type: object
+      required:
+        - action
+        - field-id
+      properties:
+        action:
+          type: string
+        field-id:
+          type: integer
+          description: Field ID of the column being projected.
+
+    MaskAlphanum:
+      description: >
+        Redacts the column value using the following rules to transform Unicode code points:
+
+        - Digits (U+0030–U+0039, 0-9) are replaced with 'n'
+        - The following punctuation characters are kept as-is:
+            U+0028 '('  LEFT PARENTHESIS
+            U+0029 ')'  RIGHT PARENTHESIS
+            U+002C ','  COMMA
+            U+002E '.'  FULL STOP
+            U+002D '-'  HYPHEN-MINUS
+            U+0040 '@'  COMMERCIAL AT
+        - All other Unicode characters (including letters, whitespace, and any punctuation
+          not listed above) are replaced with 'x'
+
+        For example: "iceberg16112018@apache.org" -> "xxxxxxxnnnnnnnn@xxxxxx.xxx"
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: string
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "mask-alphanum"
+
+    MaskToFixedValue:
+      description: >
+        Replaces the column value with a type-specific fixed value.
+        Readers must use exactly the values listed below to ensure consistency
+        across implementations.
+
+        Fixed values by type:
+        - boolean: false
+        - int: 0
+        - long: 0
+        - float: 0.0
+        - double: 0.0
+        - decimal(p, s): 0 (the unscaled value is 0)
+        - string: "XXXXXXXX"
+        - date: 1970-01-01
+        - time: 00:00:00
+        - timestamp: 1970-01-01T00:00:00
+        - timestamptz: 1970-01-01T00:00:00+00:00
+        - timestamp_ns: 1970-01-01T00:00:00.000000000
+        - timestamptz_ns: 1970-01-01T00:00:00.000000000+00:00
+        - uuid: 00000000-0000-0000-0000-000000000000
+        - fixed(n): n zero bytes
+        - binary: empty byte sequence
+        - variant: an empty variant object
+        - list: empty list []
+        - map: empty map {}
+        - struct: struct with each field set to its type-specific default (applied recursively)
+
+        NULL input is also replaced with the type-specific fixed value; NULL is not preserved.
+
+        Applicable to: the types with a fixed value defined above. A server must not
+        return mask-to-fixed-value for any other type.
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "mask-to-fixed-value"
+
+    ReplaceWithNull:
+      description: >
+        Replaces the column value with NULL. NULL input is preserved (NULL -> NULL).
+
+        Applicable to: all optional types. A server must not return replace-with-null for
+        a required (non-nullable) field; a reader that receives one must fail the query.
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "replace-with-null"
+
+    ShowFirst4:
+      description: >
+        Preserves the first 4 Unicode code points of the column value and redacts the remainder
+        using mask-alphanum rules (see MaskAlphanum for the exact character rules).
+        Values with 4 or fewer Unicode code points are returned unchanged.
+
+        For example: "iceberg16112018@apache.org" -> "icebxxxnnnnnnnn@xxxxxx.xxx"
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: string
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "show-first-4"
+
+    ShowLast4:
+      description: >
+        Redacts all Unicode code points except the last 4 using mask-alphanum rules
+        (see MaskAlphanum for the exact character rules).
+        Values with 4 or fewer Unicode code points are returned unchanged.
+
+        For example: "4111-1111-1111-4444" -> "nnnn-nnnn-nnnn-4444"
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: string
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "show-last-4"
+
+    TruncateToYear:
+      description: >
+        Truncates the column value to year precision, setting month, day, and time components
+        to their minimum values. The output type matches the input type.
+
+        For example: 2024-07-15 -> 2024-01-01
+        For timestamptz and timestamptz_ns, truncation is performed in UTC.
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "truncate-to-year"
+
+    TruncateToMonth:
+      description: >
+        Truncates the column value to year and month precision, setting day and time components
+        to their minimum values. The output type matches the input type.
+
+        For example: 2024-07-15 -> 2024-07-01
+        For timestamptz and timestamptz_ns, truncation is performed in UTC.
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "truncate-to-month"
+
+    Sha256Global:
+      description: |
+        Applies SHA-256. Deterministic across all queries
+        and readers: the same input always produces the same output.
+
+        Input-to-bytes encoding by type:
+        - string: UTF-8 encoded bytes
+        - int: 4 bytes, little-endian
+        - long: 8 bytes, little-endian
+        - binary: raw bytes as-is
+
+        Output encoding by type:
+        - string: 64-character lowercase hexadecimal string
+        - int: first 4 bytes of the digest, read as a little-endian int
+        - long: first 8 bytes of the digest, read as a little-endian long
+        - binary: the full 32-byte raw SHA-256 digest
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: string, int, long, binary
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "sha-256-global"
+
+    Sha256QueryLocal:
+      description: |
+        Applies SHA-256 with a per-query random salt, making the output non-deterministic
+        across queries while remaining consistent within a single query. The definition
+        of a query is left to the implementation.
+
+        The reader must generate a cryptographically random salt of at least 16 bytes for each query.
+
+        For each column value, the reader must encode the value to bytes using
+        sha-256-global's input rules, prepend the per-query salt, and compute
+        SHA-256 over the result.
+
+        Output encoding follows the same rules as sha-256-global.
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: string, int, long, binary
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "sha-256-query-local"
+
     LoadCredentialsResponse:
       type: object
       required:
@@ -3274,6 +4170,48 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StorageCredential'
+
+    CatalogObjectLabels:
+      type: object
+      description: Flat key-value labels attached to the object (table, view, ...) as a whole.
+      additionalProperties:
+        type: string
+
+    FieldLabels:
+      type: object
+      description: Labels attached to a single field, identified by field-id.
+      required:
+        - field-id
+        - labels
+      properties:
+        field-id:
+          type: integer
+          description: Field ID from the schema of the table or view
+        labels:
+          type: object
+          description: Flat key-value labels for this field
+          additionalProperties:
+            type: string
+
+    Labels:
+      type: object
+      description: |
+        Catalog-provided metadata enrichment (for example ownership,
+        classification, or cost attribution) returned with a table or view.
+        Labels are catalog-provided and optional; clients may ignore them, and
+        may cache them following the response ETag.
+        The spec does not require how a catalog produces or stores labels, nor
+        whether they are persisted or versioned. `object-labels` carries
+        labels for the object as a whole; `fields` carries per-field labels,
+        each identified by field-id.
+      properties:
+        object-labels:
+          $ref: '#/components/schemas/CatalogObjectLabels'
+        fields:
+          type: array
+          description: Field-level labels. Each entry identifies its field by field-id.
+          items:
+            $ref: '#/components/schemas/FieldLabels'
 
     LoadTableResult:
       description: |
@@ -3285,28 +4223,44 @@ components:
 
 
         The `config` map returns table-specific configuration for the table's resources, including its HTTP client and FileIO. For example, config may contain a specific FileIO implementation class for the table depending on its underlying storage.
-      
-      
+
+
         The following configurations should be respected by clients:
-        
+
         ## General Configurations
-        
-        - `token`: Authorization bearer token to use for table requests if OAuth2 security is enabled 
-        
+
+        - `token`: Authorization bearer token to use for table requests if OAuth2 security is enabled
+        - `scan-planning-mode`: Communicates to clients the supported planning mode. Clients should use this value to fail fast if the supported scanning mode is not available on the client. Valid values:
+          - `client`: Clients MUST use client-side scan planning
+          - `server`: Clients MUST use server-side scan planning via the `planTableScan` endpoint
+
         ## AWS Configurations
-        
+
         The following configurations should be respected when working with tables stored in AWS S3
          - `client.region`: region to configure client for making requests to AWS
          - `s3.access-key-id`: id for credentials that provide access to the data in S3
-         - `s3.secret-access-key`: secret for credentials that provide access to data in S3 
-         - `s3.session-token`: if present, this value should be used for as the session token 
-         - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `s3-signer-open-api.yaml` specification
+         - `s3.secret-access-key`: secret for credentials that provide access to data in S3
+         - `s3.session-token`: if present, this value should be used for as the session token
+         - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `RemoteSignRequest` schema section of this spec document.
          - `s3.cross-region-access-enabled`: if `true`, S3 Cross-Region bucket access is enabled
 
         ## Storage Credentials
 
         Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
         Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
+
+        ## Remote Signing
+
+        If remote signing for a specific storage provider is enabled, the server SHOULD use the `remote-signing-config`
+        field to communicate all signer client settings. When the `remote-signing-config` field is present, clients
+        SHOULD respect the provided configuration.
+
+        For backward compatibility, the following `config` properties are still supported but **DEPRECATED** and SHOULD NOT be used by clients able to consume the remote signing configuration:
+         - `signer.endpoint` **DEPRECATED**.: the remote signer endpoint. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
+         - `signer.uri` **DEPRECATED**.: the base URI to resolve `signer.endpoint` against. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
+        If any of these properties is present, clients SHOULD use them to compute the actual remote signing endpoint URI to contact.
+        If none of these properties is present, clients SHOULD contact the default remote signing endpoint using the catalog's base URI.
+
       type: object
       required:
         - metadata
@@ -3325,6 +4279,12 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StorageCredential'
+        remote-signing-config:
+          $ref: '#/components/schemas/RemoteSigningConfig'
+        read-restrictions:
+          $ref: '#/components/schemas/ReadRestrictions'
+        labels:
+          $ref: '#/components/schemas/Labels'
 
     ScanTasks:
       type: object
@@ -3372,12 +4332,24 @@ components:
             status:
               $ref: '#/components/schemas/PlanStatus'
               const: "completed"
+            storage-credentials:
+              type: array
+              description:
+                Storage credentials for accessing the files returned in the scan result.
+
+                If the server returns storage credentials as part of the completed scan
+                planning response, the expectation is for the client to use these credentials
+                to read the files returned in the FileScanTasks as part of the scan result.
+              items:
+                $ref: '#/components/schemas/StorageCredential'
 
     CompletedPlanningWithIDResult:
       type: object
       allOf:
         - $ref: '#/components/schemas/CompletedPlanningResult'
         - type: object
+          required:
+            - plan-id
           properties:
             plan-id:
               description: ID used to track a planning request
@@ -3400,6 +4372,7 @@ components:
       type: object
       required:
         - status
+        - plan-id
       properties:
         status:
           $ref: '#/components/schemas/PlanStatus'
@@ -3544,6 +4517,23 @@ components:
           type: boolean
           default: false
 
+    UnregisterTableResult:
+      description:
+        Last metadata location and the corresponding table metadata for the
+        table that was successfully unregistered and is no longer tracked by
+        the catalog.
+      type: object
+      required:
+        - metadata-location
+        - metadata
+      properties:
+        metadata-location:
+          type: string
+          description:
+            The last metadata location for the table at the time it was unregistered.
+        metadata:
+          $ref: '#/components/schemas/TableMetadata'
+
     CreateViewRequest:
       type: object
       required:
@@ -3594,6 +4584,19 @@ components:
           type: object
           additionalProperties:
             type: string
+        labels:
+          $ref: '#/components/schemas/Labels'
+
+    RegisterViewRequest:
+      type: object
+      required:
+        - name
+        - metadata-location
+      properties:
+        name:
+          type: string
+        metadata-location:
+          type: string
 
     TokenType:
       type: string
@@ -3612,7 +4615,7 @@ components:
 
     OAuthClientCredentialsRequest:
       deprecated: true
-      description: 
+      description:
         The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this
         spec, see description of the endpoint.
 
@@ -3733,46 +4736,46 @@ components:
       additionalProperties:
         $ref: '#/components/schemas/MetricResult'
       example: {
-          "metrics": {
-            "total-planning-duration": {
-              "count": 1,
-              "time-unit": "nanoseconds",
-              "total-duration": 2644235116
-            },
-            "result-data-files": {
-              "unit": "count",
-              "value": 1,
-            },
-            "result-delete-files": {
-              "unit": "count",
-              "value": 0,
-            },
-            "total-data-manifests": {
-              "unit": "count",
-              "value": 1,
-            },
-            "total-delete-manifests": {
-              "unit": "count",
-              "value": 0,
-            },
-            "scanned-data-manifests": {
-              "unit": "count",
-              "value": 1,
-            },
-            "skipped-data-manifests": {
-              "unit": "count",
-              "value": 0,
-            },
-            "total-file-size-bytes": {
-              "unit": "bytes",
-              "value": 10,
-            },
-            "total-delete-file-size-bytes": {
-              "unit": "bytes",
-              "value": 0,
-            }
+        "metrics": {
+          "total-planning-duration": {
+            "count": 1,
+            "time-unit": "nanoseconds",
+            "total-duration": 2644235116
+          },
+          "result-data-files": {
+            "unit": "count",
+            "value": 1,
+          },
+          "result-delete-files": {
+            "unit": "count",
+            "value": 0,
+          },
+          "total-data-manifests": {
+            "unit": "count",
+            "value": 1,
+          },
+          "total-delete-manifests": {
+            "unit": "count",
+            "value": 0,
+          },
+          "scanned-data-manifests": {
+            "unit": "count",
+            "value": 1,
+          },
+          "skipped-data-manifests": {
+            "unit": "count",
+            "value": 0,
+          },
+          "total-file-size-bytes": {
+            "unit": "bytes",
+            "value": 10,
+          },
+          "total-delete-file-size-bytes": {
+            "unit": "bytes",
+            "value": 0,
           }
         }
+      }
 
     ReportMetricsRequest:
       anyOf:
@@ -3801,7 +4804,7 @@ components:
           type: integer
           format: int64
         filter:
-          $ref: '#/components/schemas/Expression'
+          $ref: '#/components/schemas/Predicate'
         schema-id:
           type: integer
         projected-field-ids:
@@ -3970,6 +4973,17 @@ components:
           items:
             $ref: '#/components/schemas/TableIdentifier'
 
+    ListFunctionsResponse:
+      type: object
+      properties:
+        next-page-token:
+          $ref: '#/components/schemas/PageToken'
+        identifiers:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/CatalogObjectIdentifier'
+
     ListNamespacesResponse:
       type: object
       properties:
@@ -3980,6 +4994,282 @@ components:
           uniqueItems: true
           items:
             $ref: '#/components/schemas/Namespace'
+
+    LoadFunctionResult:
+      description: |
+        Result returned when a function is loaded from the catalog.
+
+
+        The function metadata JSON is returned in the `metadata` field. The location of the metadata
+        file is returned in the `metadata-location` field, if available.
+      type: object
+      required:
+        - metadata
+      properties:
+        metadata-location:
+          type: string
+        metadata:
+          $ref: '#/components/schemas/FunctionMetadata'
+
+    FunctionMetadata:
+      description: |
+        Portable UDF metadata format.
+
+
+        Each function is represented by a self-contained metadata file. The `format-version` field
+        identifies the UDF metadata format.
+      type: object
+      required:
+        - function-uuid
+        - format-version
+        - definitions
+        - definition-log
+      properties:
+        function-uuid:
+          type: string
+          format: uuid
+          description: A UUID that identifies this UDF, generated once at creation.
+        format-version:
+          type: integer
+          description: UDF specification format version (must be 1).
+          minimum: 1
+          maximum: 1
+        definitions:
+          type: array
+          description: List of function definition entities.
+          items:
+            $ref: '#/components/schemas/FunctionDefinition'
+        definition-log:
+          type: array
+          description: History of versions within the function's definitions.
+          items:
+            $ref: '#/components/schemas/FunctionDefinitionLogEntry'
+        location:
+          type: string
+          description: The function's base location. This is used to store function metadata files.
+        properties:
+          type: object
+          description: A string-to-string map of properties.
+          additionalProperties:
+            type: string
+        secure:
+          type: boolean
+          description: Whether it is a secure function.
+          default: false
+        doc:
+          type: string
+          description: Documentation string.
+
+    FunctionDefinition:
+      type: object
+      required:
+        - definition-id
+        - parameters
+        - return-type
+        - versions
+        - current-version-id
+        - function-type
+      properties:
+        definition-id:
+          type: string
+          description: A canonical string derived from the parameter types, formatted as a comma-separated list with no spaces.
+        specific-name:
+          type: string
+          description: A user-assignable name for this definition that must be unique among all definitions within the UDF metadata.
+        parameters:
+          type: array
+          description: Ordered list of function parameters. Invocation order must match this list.
+          items:
+            $ref: '#/components/schemas/FunctionParameter'
+        return-type:
+          $ref: '#/components/schemas/FunctionDataType'
+        return-nullable:
+          type: boolean
+          description: A hint to indicate whether the return value is nullable or not.
+          default: true
+        versions:
+          type: array
+          description: Versioned implementations of this definition.
+          items:
+            $ref: '#/components/schemas/FunctionDefinitionVersion'
+        current-version-id:
+          type: integer
+          description: Identifier of the current version for this definition.
+        function-type:
+          type: string
+          description: Function type. When set to "udtf", "return-type" must be a struct describing the output schema.
+          enum: ["udf", "udtf"]
+        doc:
+          type: string
+          description: Documentation string.
+
+    FunctionParameter:
+      type: object
+      required:
+        - type
+        - name
+      properties:
+        type:
+          $ref: '#/components/schemas/FunctionDataType'
+        name:
+          type: string
+        doc:
+          type: string
+          description: Parameter documentation.
+
+    FunctionDataType:
+      description: >
+        A type for function parameters or return value. It is encoded either as a type string
+        or as a JSON object for nested types (struct, list, map) following the UDF spec Types section.
+
+
+        Primitive and semi-structured type strings are encoded based on the Iceberg type JSON
+        representation (e.g., "int", "string", "timestamp", "decimal(9,2)", "variant"). Type
+        strings must contain no spaces or quote characters.
+
+
+        Nested types are based on the Iceberg type JSON representation, but the UDF spec only
+        requires a subset of fields (e.g., list requires `type` and `element`; map requires `type`,
+        `key`, and `value`; struct requires `type` and `fields`). Any other fields must be ignored.
+      oneOf:
+        - type: string
+        - $ref: '#/components/schemas/FunctionListType'
+        - $ref: '#/components/schemas/FunctionMapType'
+        - $ref: '#/components/schemas/FunctionStructType'
+
+    FunctionListType:
+      description: UDF list type object.
+      type: object
+      required:
+        - type
+        - element
+      properties:
+        type:
+          type: string
+          const: "list"
+        element:
+          $ref: '#/components/schemas/FunctionDataType'
+
+    FunctionMapType:
+      description: UDF map type object.
+      type: object
+      required:
+        - type
+        - key
+        - value
+      properties:
+        type:
+          type: string
+          const: "map"
+        key:
+          $ref: '#/components/schemas/FunctionDataType'
+        value:
+          $ref: '#/components/schemas/FunctionDataType'
+
+    FunctionStructType:
+      description: UDF struct type object.
+      type: object
+      required:
+        - type
+        - fields
+      properties:
+        type:
+          type: string
+          const: "struct"
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/FunctionStructField'
+
+    FunctionStructField:
+      description: UDF struct field.
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/FunctionDataType'
+
+    FunctionDefinitionVersion:
+      type: object
+      required:
+        - version-id
+        - representations
+        - timestamp-ms
+      properties:
+        version-id:
+          type: integer
+          description: Monotonically increasing identifier of the definition version.
+        representations:
+          type: array
+          description: UDF implementations.
+          items:
+            $ref: '#/components/schemas/FunctionRepresentation'
+        deterministic:
+          type: boolean
+          description: Whether the function is deterministic.
+          default: false
+        on-null-input:
+          type: string
+          description: Defines how the UDF behaves when any input parameter is NULL.
+          enum: ["return-null", "call"]
+          default: "call"
+        timestamp-ms:
+          type: integer
+          format: int64
+          description: Creation timestamp of this version (unix epoch millis).
+
+    FunctionRepresentation:
+      description: UDF implementation representation.
+      oneOf:
+        - $ref: '#/components/schemas/FunctionSQLRepresentation'
+
+    FunctionSQLRepresentation:
+      type: object
+      required:
+        - type
+        - dialect
+        - sql
+      properties:
+        type:
+          type: string
+          const: "sql"
+        dialect:
+          type: string
+          description: SQL dialect identifier (e.g., "spark", "trino").
+        sql:
+          type: string
+          description: SQL expression text.
+
+    FunctionDefinitionLogEntry:
+      type: object
+      required:
+        - timestamp-ms
+        - definition-versions
+      properties:
+        timestamp-ms:
+          type: integer
+          format: int64
+          description: Timestamp when the function was updated to use the definition versions.
+        definition-versions:
+          type: array
+          description: Mapping of each definition to its selected version at this time.
+          items:
+            $ref: '#/components/schemas/FunctionDefinitionVersionRef'
+
+    FunctionDefinitionVersionRef:
+      type: object
+      required:
+        - definition-id
+        - version-id
+      properties:
+        definition-id:
+          type: string
+        version-id:
+          type: integer
 
     UpdateNamespacePropertiesResponse:
       type: object
@@ -4111,9 +5401,9 @@ components:
     DecimalTypeValue:
       type: string
       description:
-        "Decimal type values are serialized as strings. Decimals with a positive scale serialize as numeric plain 
-        text, while decimals with a negative scale use scientific notation and the exponent will be equal to the 
-        negated scale. For instance, a decimal with a positive scale is '123.4500', with zero scale is '2', 
+        "Decimal type values are serialized as strings. Decimals with a positive scale serialize as numeric plain
+        text, while decimals with a negative scale use scientific notation and the exponent will be equal to the
+        negated scale. For instance, a decimal with a positive scale is '123.4500', with zero scale is '2',
         and with a negative scale is '2E+20'"
       example: "123.4500"
 
@@ -4128,7 +5418,7 @@ components:
       maxLength: 36
       minLength: 36
       description:
-        "UUID type values are serialized as a 36-character lowercase string in standard UUID format as specified 
+        "UUID type values are serialized as a 36-character lowercase string in standard UUID format as specified
         by RFC-4122"
       example: "eb26bdb1-a1d8-4aa6-990e-da940875492c"
 
@@ -4154,7 +5444,7 @@ components:
     TimestampTzTypeValue:
       type: string
       description:
-        "TimestampTz type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss+00:00' ISO-8601 format with microsecond precision, 
+        "TimestampTz type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss+00:00' ISO-8601 format with microsecond precision,
         and a timezone offset (+00:00 for UTC)"
       example: "2007-12-03T10:15:30.123456+00:00"
 
@@ -4167,14 +5457,14 @@ components:
     TimestampTzNanoTypeValue:
       type: string
       description:
-        "Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss+00:00' ISO-8601 format with nanosecond 
+        "Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss+00:00' ISO-8601 format with nanosecond
         precision, and a timezone offset (+00:00 for UTC)"
       example: "2007-12-03T10:15:30.123456789+00:00"
 
     FixedTypeValue:
       type: string
       description:
-        "Fixed length type values are stored and serialized as an uppercase hexadecimal string 
+        "Fixed length type values are stored and serialized as an uppercase hexadecimal string
         preserving the fixed length"
       example: "78797A"
 
@@ -4200,7 +5490,21 @@ components:
       example:
         {
           "keys": [ 1, 2 ],
-          "values": [ 100,200 ]
+          "values": [ 100, 200 ]
+        }
+
+    FieldStatistics:
+      type: object
+      properties:
+        total-bytes:
+          type: integer
+          format: int64
+          description:
+            Estimated uncompressed bytes in memory of non-null values. The
+            estimate depends on the in-memory representation
+      example:
+        {
+          "total-bytes": 8
         }
 
     ValueMap:
@@ -4218,8 +5522,8 @@ components:
           description: "List of primitive type values, matched to 'keys' by index"
       example:
         {
-            "keys": [ 1, 2 ],
-            "values": [ 100, "test" ]
+          "keys": [ 1, 2 ],
+          "values": [ 100, "test" ]
         }
 
     PrimitiveTypeValue:
@@ -4302,6 +5606,11 @@ components:
           description: "List of splittable offsets"
         sort-order-id:
           type: integer
+        content-stats:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/FieldStatistics'
+          description: Container struct for per-field metrics structs
 
     DataFile:
       allOf:
@@ -4400,8 +5709,16 @@ components:
             $ref: '#/components/schemas/FieldName'
         filter:
           description:
-            Expression used to filter the table data
-          $ref: '#/components/schemas/Expression'
+            Predicate used to filter the table data
+          $ref: '#/components/schemas/Predicate'
+        min-rows-requested:
+          description:
+            The minimum number of rows requested for the scan. This is used as a hint
+            to the server to not have to return more rows than necessary. It is not required
+            for the server to return that many rows since the scan may not produce that
+            many rows. The server can also return more rows than requested.
+          type: integer
+          format: int64
         case-sensitive:
           description: Enables case sensitive field matching for filter and select
           type: boolean
@@ -4460,7 +5777,7 @@ components:
     PlanTask:
       description:
         An opaque string provided by the REST server that represents a
-        unit of work to produce file scan tasks for scan planning. This allows 
+        unit of work to produce file scan tasks for scan planning. This allows
         clients to fetch tasks across multiple requests to accommodate large result sets.
       type: string
 
@@ -4483,7 +5800,78 @@ components:
             If the residual is not present, the client must produce the
             residual or use the original filter.
           allOf:
-            - $ref: '#/components/schemas/Expression'
+            - $ref: '#/components/schemas/Predicate'
+
+    MultiValuedMap:
+      description: A map of string keys where each key can map to multiple string values.
+      type: object
+      additionalProperties:
+        type: array
+        items:
+          type: string
+
+    RemoteSignRequest:
+      description: The request to be signed remotely.
+      type: object
+      required:
+        - region
+        - uri
+        - method
+        - headers
+      properties:
+        region:
+          type: string
+        uri:
+          type: string
+        method:
+          type: string
+          enum: ["PUT", "GET", "HEAD", "POST", "DELETE", "PATCH", "OPTIONS"]
+        headers:
+          $ref: '#/components/schemas/MultiValuedMap'
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+        body:
+          type: string
+          description: Optional body of the request to send to the signing API. This should only be populated
+            for requests where the body of the message contains content which must be validated before a request is
+            signed, such as the S3 DeleteObjects call.
+        provider:
+          type: string
+          description: The storage provider for which the request is to be signed. The provider should correspond to
+            the scheme used for a storage native URI. For example `s3` for AWS S3 paths. For backwards compatibility,
+            if this is not specified, the provider is assumed to be `s3`.
+
+    RemoteSignResult:
+      description: The result of a remote request signing operation.
+      type: object
+      required:
+        - uri
+        - headers
+      properties:
+        uri:
+          type: string
+        headers:
+          $ref: '#/components/schemas/MultiValuedMap'
+
+    RemoteSigningConfig:
+      description: Configuration for the remote signer client.
+      type: object
+      properties:
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+          description: >
+            Static key-value pairs the signer client MUST pass through unchanged in the `properties`
+            field of every `RemoteSignRequest` sent to the signing endpoint.
+        headers:
+          allOf:
+            - $ref: '#/components/schemas/MultiValuedMap'
+          description: >
+            Static headers the signer client MUST include unchanged in every request to the signing
+            endpoint.
 
   #############################
   # Reusable Response Objects #
@@ -4515,12 +5903,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-              "error": {
-                "message": "Malformed request",
-                "type": "BadRequestException",
-                "code": 400
-              }
+            "error": {
+              "message": "Malformed request",
+              "type": "BadRequestException",
+              "code": 400
             }
+          }
 
     #  Note that this is a representative example response for use as a shorthand in the spec.
     #  The fields `message` and `type` as indicated here are not presently prescriptive.
@@ -4534,12 +5922,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-              "error": {
-                "message": "Not authorized to make this request",
-                "type": "NotAuthorizedException",
-                "code": 401
-              }
+            "error": {
+              "message": "Not authorized to make this request",
+              "type": "NotAuthorizedException",
+              "code": 401
             }
+          }
 
     #  Note that this is a representative example response for use as a shorthand in the spec.
     #  The fields `message` and `type` as indicated here are not presently prescriptive.
@@ -4550,12 +5938,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-              "error": {
-                "message": "Not authorized to make this request",
-                "type": "NotAuthorizedException",
-                "code": 403
-              }
+            "error": {
+              "message": "Not authorized to make this request",
+              "type": "NotAuthorizedException",
+              "code": 403
             }
+          }
 
     #  Note that this is a representative example response for use as a shorthand in the spec.
     #  The fields `message` and `type` as indicated here are not presently prescriptive.
@@ -4566,12 +5954,12 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorModel'
           example: {
-              "error": {
-                "message": "The server does not support this operation",
-                "type": "UnsupportedOperationException",
-                "code": 406
-              }
+            "error": {
+              "message": "The server does not support this operation",
+              "type": "UnsupportedOperationException",
+              "code": 406
             }
+          }
 
     IcebergErrorResponse:
       description: JSON wrapper for all error responses (non-2xx)
@@ -4597,9 +5985,9 @@ components:
           schema:
             $ref: '#/components/schemas/CreateNamespaceResponse'
           example: {
-              "namespace": ["accounting", "tax"],
-              "properties": { "owner": "Ralph", "created_at": "1452120468" }
-            }
+            "namespace": ["accounting", "tax"],
+            "properties": { "owner": "Ralph", "created_at": "1452120468" }
+          }
 
     GetNamespaceResponse:
       description:
@@ -4621,6 +6009,18 @@ components:
               $ref: '#/components/examples/ListTablesNonEmptyExample'
             ListTablesResponseEmpty:
               $ref: '#/components/examples/ListTablesEmptyExample'
+
+    ListFunctionsResponse:
+      description: A list of function identifiers
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ListFunctionsResponse'
+          examples:
+            ListFunctionsResponseNonEmpty:
+              $ref: '#/components/examples/ListFunctionsNonEmptyExample'
+            ListFunctionsResponseEmpty:
+              $ref: '#/components/examples/ListFunctionsEmptyExample'
 
     ListNamespacesResponse:
       description: A list of namespaces
@@ -4644,12 +6044,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-              "error": {
-                "message": "Credentials have timed out",
-                "type": "AuthenticationTimeoutException",
-                "code": 419
-              }
+            "error": {
+              "message": "Credentials have timed out",
+              "type": "AuthenticationTimeoutException",
+              "code": 419
             }
+          }
 
     ServiceUnavailableResponse:
       description:
@@ -4662,12 +6062,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-              "error": {
-                "message": "Slow down",
-                "type": "SlowDownException",
-                "code": 503
-              }
+            "error": {
+              "message": "Slow down",
+              "type": "SlowDownException",
+              "code": 503
             }
+          }
 
     ServerErrorResponse:
       description:
@@ -4679,12 +6079,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-              "error": {
-                "message": "Internal Server Error",
-                "type": "InternalServerError",
-                "code": 500
-              }
+            "error": {
+              "message": "Internal Server Error",
+              "type": "InternalServerError",
+              "code": 500
             }
+          }
 
     UpdateNamespacePropertiesResponse:
       description: JSON data response for a synchronous update properties request.
@@ -4693,10 +6093,10 @@ components:
           schema:
             $ref: '#/components/schemas/UpdateNamespacePropertiesResponse'
           example: {
-              "updated": [ "owner" ],
-              "removed": [ "foo" ],
-              "missing": [ "bar" ]
-            }
+            "updated": [ "owner" ],
+            "removed": [ "foo" ],
+            "missing": [ "bar" ]
+          }
 
     CreateTableResponse:
       description: Table metadata result after creating a table
@@ -4739,6 +6139,20 @@ components:
         etag:
           $ref: '#/components/parameters/etag'
 
+    UnregisterTableResponse:
+      description: Response when a table is successfully unregistered.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UnregisterTableResult'
+
+    LoadFunctionResponse:
+      description: Function metadata result when loading a function
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LoadFunctionResult'
+
     LoadViewResponse:
       description: View metadata result when loading a view
       content:
@@ -4755,6 +6169,9 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/CommitTableResponse'
+      headers:
+        etag:
+          $ref: '#/components/parameters/etag'
 
     LoadCredentialsResponse:
       description: Table credentials result when loading credentials for a table
@@ -4762,6 +6179,15 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/LoadCredentialsResponse'
+
+    RemoteSignResponse:
+      description: The response containing signed & unsigned headers. The server will also send
+        a Cache-Control header, indicating whether the response can be cached (Cache-Control = ["private"])
+        or not (Cache-Control = ["no-cache"]).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RemoteSignResult'
 
   #######################################
   # Common examples of different values #
@@ -4771,32 +6197,47 @@ components:
     ListTablesEmptyExample:
       summary: An empty list for a namespace with no tables
       value: {
-          "identifiers": [ ]
-        }
+        "identifiers": [ ]
+      }
 
     ListNamespacesEmptyExample:
       summary: An empty list of namespaces
       value: {
-          "namespaces": [ ]
-        }
+        "namespaces": [ ]
+      }
 
     ListNamespacesNonEmptyExample:
       summary: A non-empty list of namespaces
       value: {
-          "namespaces": [
-            ["accounting", "tax"],
-            ["accounting", "credits"]
-          ]
-        }
+        "namespaces": [
+          ["accounting", "tax"],
+          ["accounting", "credits"]
+        ]
+      }
 
     ListTablesNonEmptyExample:
       summary: A non-empty list of table identifiers
       value: {
-          "identifiers": [
-            { "namespace": ["accounting", "tax"], "name": "paid" },
-            { "namespace": ["accounting", "tax"], "name": "owed" }
-          ]
-        }
+        "identifiers": [
+          { "namespace": ["accounting", "tax"], "name": "paid" },
+          { "namespace": ["accounting", "tax"], "name": "owed" }
+        ]
+      }
+
+    ListFunctionsEmptyExample:
+      summary: An empty list for a namespace with no functions
+      value: {
+        "identifiers": [ ]
+      }
+
+    ListFunctionsNonEmptyExample:
+      summary: A non-empty list of function identifiers
+      value: {
+        "identifiers": [
+          ["analytics", "add_one"],
+          ["analytics", "to_celsius"]
+        ]
+      }
 
     MultipartNamespaceAsPathVariable:
       summary: A multi-part namespace, as represented in a path parameter
@@ -4809,62 +6250,82 @@ components:
     NamespaceAlreadyExistsError:
       summary: The requested namespace already exists
       value: {
-          "error": {
-            "message": "The given namespace already exists",
-            "type": "AlreadyExistsException",
-            "code": 409
-          }
+        "error": {
+          "message": "The given namespace already exists",
+          "type": "AlreadyExistsException",
+          "code": 409
         }
+      }
 
     NoSuchPlanIdError:
       summary: The plan id does not exist
       value: {
-          "error": {
-            "message": "The plan id does not exist",
-            "type": "NoSuchPlanIdException",
-            "code": 404
-          }
+        "error": {
+          "message": "The plan id does not exist",
+          "type": "NoSuchPlanIdException",
+          "code": 404
         }
+      }
 
     NoSuchPlanTaskError:
       summary: The plan task does not exist
       value: {
-          "error": {
-            "message": "The plan task does not exist",
-            "type": "NoSuchPlanTaskException",
-            "code": 404
-          }
+        "error": {
+          "message": "The plan task does not exist",
+          "type": "NoSuchPlanTaskException",
+          "code": 404
         }
+      }
 
     NoSuchTableError:
       summary: The requested table does not exist
       value: {
-          "error": {
-            "message": "The given table does not exist",
-            "type": "NoSuchTableException",
-            "code": 404
-          }
+        "error": {
+          "message": "The given table does not exist",
+          "type": "NoSuchTableException",
+          "code": 404
         }
+      }
 
     NoSuchViewError:
       summary: The requested view does not exist
       value: {
-          "error": {
-            "message": "The given view does not exist",
-            "type": "NoSuchViewException",
-            "code": 404
-          }
+        "error": {
+          "message": "The given view does not exist",
+          "type": "NoSuchViewException",
+          "code": 404
         }
+      }
+
+    NoSuchWarehouseError:
+      summary: The requested warehouse does not exist
+      value: {
+        "error": {
+          "message": "The given warehouse does not exist",
+          "type": "NoSuchWarehouseException",
+          "code": 404
+        }
+      }
+
+    NoSuchFunctionError:
+      summary: The requested function does not exist
+      value: {
+        "error": {
+          "message": "The requested function does not exist",
+          "type": "NoSuchFunctionException",
+          "code": 404
+        }
+      }
 
     NoSuchNamespaceError:
       summary: The requested namespace does not exist
       value: {
-          "error": {
-            "message": "The given namespace does not exist",
-            "type": "NoSuchNamespaceException",
-            "code": 404
-          }
+        "error": {
+          "message": "The given namespace does not exist",
+          "type": "NoSuchNamespaceException",
+          "code": 404
         }
+      }
 
     NamespaceNotEmptyError:
       summary: The requested namespace is not empty
@@ -4879,36 +6340,36 @@ components:
     RenameTableSameNamespace:
       summary: Rename a table in the same namespace
       value: {
-          "source": { "namespace": ["accounting", "tax"], "name": "paid" },
-          "destination": { "namespace": ["accounting", "tax"], "name": "owed" }
-        }
+        "source": { "namespace": ["accounting", "tax"], "name": "paid" },
+        "destination": { "namespace": ["accounting", "tax"], "name": "owed" }
+      }
 
     RenameViewSameNamespace:
       summary: Rename a view in the same namespace
       value: {
-          "source": { "namespace": [ "accounting", "tax" ], "name": "paid-view" },
-          "destination": { "namespace": [ "accounting", "tax" ], "name": "owed-view" }
-        }
+        "source": { "namespace": [ "accounting", "tax" ], "name": "paid-view" },
+        "destination": { "namespace": [ "accounting", "tax" ], "name": "owed-view" }
+      }
 
     TableAlreadyExistsError:
       summary: The requested table identifier already exists
       value: {
-          "error": {
-            "message": "The given table already exists",
-            "type": "AlreadyExistsException",
-            "code": 409
-          }
+        "error": {
+          "message": "The requested table identifier already exists",
+          "type": "AlreadyExistsException",
+          "code": 409
         }
+      }
 
     ViewAlreadyExistsError:
       summary: The requested view identifier already exists
       value: {
-          "error": {
-            "message": "The given view already exists",
-            "type": "AlreadyExistsException",
-            "code": 409
-          }
+        "error": {
+          "message": "The requested view identifier already exists",
+          "type": "AlreadyExistsException",
+          "code": 409
         }
+      }
 
     # This is an example response and is not meant to be prescriptive regarding the message or type.
     UnprocessableEntityDuplicateKey:
@@ -4916,19 +6377,19 @@ components:
         The request body either has the same key multiple times in what should be a map with unique keys
         or the request body has keys in two or more fields which should be disjoint sets.
       value: {
-          "error": {
-            "message": "The request cannot be processed as there is a key present multiple times",
-            "type": "UnprocessableEntityException",
-            "code": 422
-          }
+        "error": {
+          "message": "The request cannot be processed as there is a key present multiple times",
+          "type": "UnprocessableEntityException",
+          "code": 422
         }
+      }
 
     UpdateAndRemoveNamespacePropertiesRequest:
       summary: An update namespace properties request with both properties to remove and properties to upsert.
       value: {
-          "removals": [ "foo", "bar" ],
-          "updates": { "owner": "Raoul" }
-        }
+        "removals": [ "foo", "bar" ],
+        "updates": { "owner": "Raoul" }
+      }
 
   securitySchemes:
     OAuth2:
@@ -4941,8 +6402,8 @@ components:
         403 response. Implementations must not return altered success (200)
         responses when a request is unauthenticated or unauthorized.
 
-        If a separate authorization server is used, substitute the tokenUrl with 
-        the full token path of the external authorization server, and use the 
+        If a separate authorization server is used, substitute the tokenUrl with
+        the full token path of the external authorization server, and use the
         resulting token to access the resources defined in the spec.
       flows:
         clientCredentials:

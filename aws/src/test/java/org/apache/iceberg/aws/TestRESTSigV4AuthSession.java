@@ -35,7 +35,10 @@ import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.signer.Aws4Signer;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.utils.SdkAutoCloseable;
 
 class TestRESTSigV4AuthSession {
 
@@ -305,5 +308,44 @@ class TestRESTSigV4AuthSession {
     RESTSigV4AuthSession session = new RESTSigV4AuthSession(signer, delegate, awsProperties);
     session.close();
     Mockito.verify(delegate).close();
+  }
+
+  @Test
+  void closeWithCloseableCredentialsProvider() {
+    AuthSession delegate = Mockito.mock(AuthSession.class);
+    CloseableAwsCredentialsProvider credentialsProvider =
+        Mockito.mock(CloseableAwsCredentialsProvider.class);
+    closeWithCloseableCredentialsProvider(delegate, credentialsProvider);
+  }
+
+  @Test
+  void closeSuppressesFailure() {
+    AuthSession delegate = Mockito.mock(AuthSession.class);
+    Mockito.doThrow(new RuntimeException("delegate close failed")).when(delegate).close();
+    CloseableAwsCredentialsProvider credentialsProvider =
+        Mockito.mock(CloseableAwsCredentialsProvider.class);
+    Mockito.doThrow(new RuntimeException("credentials provider close failed"))
+        .when(credentialsProvider)
+        .close();
+    closeWithCloseableCredentialsProvider(delegate, credentialsProvider);
+  }
+
+  private void closeWithCloseableCredentialsProvider(
+      AuthSession delegate, CloseableAwsCredentialsProvider credentialsProvider) {
+    AwsProperties properties = Mockito.mock(AwsProperties.class);
+    when(properties.restSigningRegion()).thenReturn(Region.US_WEST_2);
+    when(properties.restSigningName()).thenReturn("execute-api");
+    when(properties.restCredentialsProvider()).thenReturn(credentialsProvider);
+
+    RESTSigV4AuthSession session = new RESTSigV4AuthSession(signer, delegate, properties);
+    session.close();
+
+    Mockito.verify(delegate).close();
+    Mockito.verify(credentialsProvider).close();
+  }
+
+  interface CloseableAwsCredentialsProvider extends AwsCredentialsProvider, SdkAutoCloseable {
+    @Override
+    void close();
   }
 }

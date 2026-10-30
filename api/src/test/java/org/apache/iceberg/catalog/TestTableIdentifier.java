@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
+import org.junitpioneer.jupiter.DefaultLocale;
 
 public class TestTableIdentifier {
 
@@ -50,6 +51,13 @@ public class TestTableIdentifier {
         .isEqualTo(TableIdentifier.of("dB", "TBL").toLowerCase());
     assertThat(TableIdentifier.of("catalog", "db", "tbl"))
         .isEqualTo(TableIdentifier.of("Catalog", "dB", "TBL").toLowerCase());
+  }
+
+  @Test
+  @DefaultLocale(language = "tr")
+  public void testToLowerCaseIsLocaleIndependent() {
+    assertThat(TableIdentifier.of("information", "db", "tbl"))
+        .isEqualTo(TableIdentifier.of("INFORMATION", "DB", "TBL").toLowerCase());
   }
 
   @Test

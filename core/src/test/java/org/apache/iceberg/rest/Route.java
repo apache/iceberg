@@ -29,6 +29,7 @@ import org.apache.iceberg.rest.requests.CreateViewRequest;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
+import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
@@ -44,6 +45,7 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
+import org.apache.iceberg.rest.responses.UnregisterTableResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
 
@@ -81,6 +83,11 @@ enum Route {
       ResourcePaths.V1_TABLE_REGISTER,
       RegisterTableRequest.class,
       LoadTableResponse.class),
+  UNREGISTER_TABLE(
+      HTTPRequest.HTTPMethod.POST,
+      ResourcePaths.V1_TABLE_UNREGISTER,
+      null,
+      UnregisterTableResponse.class),
   UPDATE_TABLE(
       HTTPRequest.HTTPMethod.POST,
       ResourcePaths.V1_TABLE,
@@ -115,6 +122,11 @@ enum Route {
   RENAME_VIEW(
       HTTPRequest.HTTPMethod.POST, ResourcePaths.V1_VIEW_RENAME, RenameTableRequest.class, null),
   DROP_VIEW(HTTPRequest.HTTPMethod.DELETE, ResourcePaths.V1_VIEW),
+  REGISTER_VIEW(
+      HTTPRequest.HTTPMethod.POST,
+      ResourcePaths.V1_VIEW_REGISTER,
+      RegisterViewRequest.class,
+      LoadViewResponse.class),
   PLAN_TABLE_SCAN(
       HTTPRequest.HTTPMethod.POST,
       ResourcePaths.V1_TABLE_SCAN_PLAN_SUBMIT,

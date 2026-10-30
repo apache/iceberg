@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.metrics;
 
+import javax.annotation.Nullable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class InMemoryMetricsReporter implements MetricsReporter {
@@ -34,5 +35,14 @@ public class InMemoryMetricsReporter implements MetricsReporter {
         metricsReport == null || metricsReport instanceof ScanReport,
         "Metrics report is not a scan report");
     return (ScanReport) metricsReport;
+  }
+
+  @Nullable
+  public CommitReport commitReport() {
+    if (metricsReport != null && metricsReport instanceof CommitReport) {
+      return (CommitReport) metricsReport;
+    } else {
+      return null;
+    }
   }
 }

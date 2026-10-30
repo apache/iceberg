@@ -39,6 +39,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
@@ -250,7 +251,7 @@ public abstract class BaseTestIceberg {
 
   void createBranch(String name, String hash)
       throws NessieNotFoundException, NessieConflictException {
-    createBranch(name, hash, "main");
+    createBranch(name, hash, SnapshotRef.MAIN_BRANCH);
   }
 
   void createBranch(String name, String hash, String sourceRef)

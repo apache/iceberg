@@ -28,28 +28,35 @@ Community discussions happen across various mailing lists, on the apache-iceberg
 
 ### Mailing Lists
 
-Iceberg has four mailing lists:
+Most community discussions, design proposals, and votes happen on the dev list, `dev@iceberg.apache.org`.
 
-* **Developers**: <dev@iceberg.apache.org> -- used for community discussions
-    - [Subscribe](mailto:dev-subscribe@iceberg.apache.org)
-    - [Unsubscribe](mailto:dev-unsubscribe@iceberg.apache.org)
-    - [Archive](https://lists.apache.org/list.html?dev@iceberg.apache.org)
-* **Commits**: <commits@iceberg.apache.org> -- distributes commit notifications
-    - [Subscribe](mailto:commits-subscribe@iceberg.apache.org)
-    - [Unsubscribe](mailto:commits-unsubscribe@iceberg.apache.org)
-    - [Archive](https://lists.apache.org/list.html?commits@iceberg.apache.org)
-* **Issues**: <issues@iceberg.apache.org> -- Github issue tracking
-    - [Subscribe](mailto:issues-subscribe@iceberg.apache.org)
-    - [Unsubscribe](mailto:issues-unsubscribe@iceberg.apache.org)
-    - [Archive](https://lists.apache.org/list.html?issues@iceberg.apache.org)
-* **Private**: <private@iceberg.apache.org> -- private list for the PMC to discuss sensitive issues related to the health of the project
-    - [Archive](https://lists.apache.org/list.html?private@iceberg.apache.org)
+* To **subscribe** to a list, send an empty email (no subject or body needed) to its subscribe address below, then reply to the confirmation email you receive.
+* To **unsubscribe**, send an empty email to the list's unsubscribe address (for example, `dev-unsubscribe@iceberg.apache.org`).
+* See the [ASF guide to subscribing](https://www.apache.org/foundation/mailinglists.html#subscribing) for details.
+
+| List | Description | Subscribe | Archive |
+|------|-------------|-----------|---------|
+| `dev` | Community discussions | [dev-subscribe@iceberg.apache.org](mailto:dev-subscribe@iceberg.apache.org) | [Archive](https://lists.apache.org/list.html?dev@iceberg.apache.org) |
+| `commits` | GitHub commit notifications | [commits-subscribe@iceberg.apache.org](mailto:commits-subscribe@iceberg.apache.org) | [Archive](https://lists.apache.org/list.html?commits@iceberg.apache.org) |
+| `issues` | GitHub issue tracking | [issues-subscribe@iceberg.apache.org](mailto:issues-subscribe@iceberg.apache.org) | [Archive](https://lists.apache.org/list.html?issues@iceberg.apache.org) |
+| `ci-jobs` | GitHub Actions notifications | [ci-jobs-subscribe@iceberg.apache.org](mailto:ci-jobs-subscribe@iceberg.apache.org) | [Archive](https://lists.apache.org/list.html?ci-jobs@iceberg.apache.org) |
+| `private` | Private PMC discussions | PMC only | [Archive](https://lists.apache.org/list.html?private@iceberg.apache.org) |
 
 ### Slack
 
-We use the [Apache Iceberg workspace](https://apache-iceberg.slack.com/) on Slack. To be invited, follow [this invite link](https://join.slack.com/t/apache-iceberg/shared_invite/zt-287g3akar-K9Oe_En5j1UL7Y_Ikpai3A).
+We use the [Apache Iceberg workspace](https://apache-iceberg.slack.com/) on Slack. To be invited, follow [this invite link]({{ slackInviteUrl }}).
 
 Please note that this link may occasionally break when Slack does an upgrade. If you encounter problems using it, please let us know by sending an email to <dev@iceberg.apache.org>.
+
+#### Requesting Slack Integrations
+
+To request a new app or integration for the Apache Iceberg Slack workspace, send an email to the [dev mailing list](#mailing-lists) with the following information:
+
+* **What you want to add** — The name and description of the app or integration
+* **Why you want to add it** — The benefit it provides to the community
+* **What permissions does it need** — The access levels and permissions required by the app
+
+This allows the community to do a quick consensus check before the app is installed.
 
 ### Issues
 
@@ -87,6 +94,15 @@ Hosts are required to ensure that:
 3. Each meetup should have at least two talks with speakers representing different companies/organizations
 4. Planned meetups ought to be brought to the attention of the [dev list](#mailing-lists)
 5. All [Community Guidelines](#community-guidelines) must be respected
+
+Meetups *must* be small events under the [ASF branding guidelines](https://www.apache.org/foundation/marks/events.html#dates) and are typically small, informal gatherings. If you're unsure whether an event is a meetup, meetups usually:
+
+* Rely on a curated selection of talks, where organizers work with the community to include a diverse representation of speakers, topics, and companies. Due to the small number of submissions, meetups might use, but don't require, a CfP.
+* Are single-tracked and accommodate only a handful of sessions.
+* Have at most 2-3 hours of content, plus networking time.
+* Are sponsored by 1-3 companies providing food, drinks, or meeting space; not by selling booth space or marketing opportunities. They don't require substantial financial support.
+
+If you don't know whether an event qualifies as a meetup, please ask the PMC through the private mailing list! (Be sure to do this *before* using the Apache Iceberg brand or trademark.)
 
 ## Community Guidelines
 

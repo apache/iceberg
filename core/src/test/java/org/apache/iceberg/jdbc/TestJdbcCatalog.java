@@ -24,9 +24,12 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.times;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -54,6 +57,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
@@ -65,6 +69,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -113,6 +118,11 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Override
+  protected boolean supportsUnregister() {
+    return true;
+  }
+
+  @Override
   protected boolean supportsNamesWithDot() {
     // namespaces with a dot are not supported
     return false;
@@ -130,7 +140,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     return Stream.of(new File(location).listFiles())
         .filter(file -> !file.isDirectory())
         .map(File::getName)
-        .filter(fileName -> fileName.endsWith(".avro"))
+        .filter(fileName -> !fileName.startsWith(".") && !fileName.endsWith("metadata.json"))
         .collect(Collectors.toList());
   }
 
@@ -852,11 +862,11 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     assertThatThrownBy(() -> catalog.dropNamespace(tbl2.namespace()))
         .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessage("Namespace db.ns1 is not empty. Contains 1 table(s).");
+        .hasMessage("Namespace db.ns1 is not empty. Contains 1 child namespace(s).");
 
     assertThatThrownBy(() -> catalog.dropNamespace(tbl4.namespace()))
         .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessage("Namespace db is not empty. Contains 1 table(s).");
+        .hasMessage("Namespace db is not empty. Contains 2 child namespace(s).");
   }
 
   @Test
@@ -1063,6 +1073,41 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Test
+  public void testMetadataRefreshMaxRetries() {
+    try (JdbcCatalog jdbcCatalog =
+        initCatalog(
+            "test_jdbc_catalog_refresh_retries",
+            ImmutableMap.of(JdbcUtil.METADATA_REFRESH_MAX_RETRIES_PROPERTY, "1"))) {
+      TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
+      jdbcCatalog.buildTable(tableIdent, SCHEMA).create();
+
+      try (MockedStatic<TableMetadataParser> mockedStatic =
+          Mockito.mockStatic(TableMetadataParser.class)) {
+        mockedStatic
+            .when(() -> TableMetadataParser.read(any(FileIO.class), anyString()))
+            .thenThrow(new UncheckedIOException(new IOException("Read timed out")));
+
+        assertThatThrownBy(() -> jdbcCatalog.loadTable(tableIdent))
+            .isInstanceOf(UncheckedIOException.class)
+            .hasMessageContaining("Read timed out");
+        mockedStatic.verify(
+            () -> TableMetadataParser.read(any(FileIO.class), anyString()), times(2));
+      }
+    }
+  }
+
+  @Test
+  public void testInvalidMetadataRefreshMaxRetries() {
+    assertThatThrownBy(
+            () ->
+                initCatalog(
+                    "test_jdbc_catalog_invalid_refresh_retries",
+                    ImmutableMap.of(JdbcUtil.METADATA_REFRESH_MAX_RETRIES_PROPERTY, "-1")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid jdbc.metadata-refresh-max-retries: -1 (must be >= 0)");
+  }
+
+  @Test
   public void testConversions() {
     Namespace ns = Namespace.of("db", "db2", "ns2");
     String nsString = JdbcUtil.namespaceToString(ns);
@@ -1083,6 +1128,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
       mockedStatic
           .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
           .thenThrow(new SQLException());
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
       assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
           .isInstanceOf(UncheckedSQLException.class)
           .hasMessageStartingWith("Unknown failure");
@@ -1103,9 +1149,73 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
       mockedStatic
           .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
           .thenThrow(new SQLException("constraint failed"));
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
       assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
-          .isInstanceOf(AlreadyExistsException.class)
+          .isInstanceOf(UncheckedSQLException.class)
           .hasMessageStartingWith("Table already exists: " + tableIdent);
+    }
+  }
+
+  @Test
+  public void testCommitExceptionWithPostgresUniqueViolation() {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
+    BaseTable table = (BaseTable) catalog.buildTable(tableIdent, SCHEMA).create();
+    TableOperations ops = table.operations();
+    TableMetadata metadataV1 = ops.current();
+
+    table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
+    ops.refresh();
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
+          .thenThrow(new SQLException("unique violation", "23505"));
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
+      assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
+          .isInstanceOf(UncheckedSQLException.class)
+          .hasMessageStartingWith("Table already exists: " + tableIdent);
+    }
+  }
+
+  @Test
+  public void testCreateTableConstraintExceptionWithMessage() {
+    TableIdentifier existingIdent = TableIdentifier.of("db", "existing_tbl");
+    BaseTable existing = (BaseTable) catalog.buildTable(existingIdent, SCHEMA).create();
+    TableMetadata metadata = existing.operations().current();
+
+    TableIdentifier newIdent = TableIdentifier.of("db", "new_tbl");
+    TableOperations ops = catalog.newTableOps(newIdent);
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
+          .thenReturn(Maps.newHashMap())
+          .thenThrow(new SQLException("constraint failed"));
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
+      assertThatThrownBy(() -> ops.commit(null, metadata))
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessageStartingWith("Table already exists: " + newIdent);
+    }
+  }
+
+  @Test
+  public void testCreateTableConstraintExceptionWithPostgresUniqueViolation() {
+    TableIdentifier existingIdent = TableIdentifier.of("db", "existing_tbl2");
+    BaseTable existing = (BaseTable) catalog.buildTable(existingIdent, SCHEMA).create();
+    TableMetadata metadata = existing.operations().current();
+
+    TableIdentifier newIdent = TableIdentifier.of("db", "new_tbl2");
+    TableOperations ops = catalog.newTableOps(newIdent);
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
+          .thenReturn(Maps.newHashMap())
+          .thenThrow(new SQLException("unique violation", "23505"));
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
+      assertThatThrownBy(() -> ops.commit(null, metadata))
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessageStartingWith("Table already exists: " + newIdent);
     }
   }
 

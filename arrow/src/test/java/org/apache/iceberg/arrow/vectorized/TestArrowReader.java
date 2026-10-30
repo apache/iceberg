@@ -19,11 +19,14 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import static org.apache.iceberg.Files.localInput;
+import static org.apache.parquet.schema.Types.primitive;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -40,6 +43,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
@@ -61,6 +65,8 @@ import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -81,6 +87,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -88,9 +95,24 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.parquet.example.data.Group;
+import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.ParquetWriter;
+import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.util.HadoopInputFile;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
+import org.apache.parquet.schema.Type;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Test cases for {@link ArrowReader}.
@@ -290,6 +312,570 @@ public class TestArrowReader {
     // Call hasNext() 2 extra times.
     readAndCheckHasNextIsIdempotent(
         scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, 2, ALL_COLUMNS);
+  }
+
+  /**
+   * Tests that VectorizedArrowReader correctly reads Parquet files with TIMESTAMP_MILLIS logical
+   * type. The test writes a Parquet file with millisecond-precision timestamps using the low-level
+   * Parquet API, then reads it via VectorizedArrowReader.
+   */
+  @Test
+  public void testTimestampMillisAreReadCorrectly() throws Exception {
+    tables = new HadoopTables();
+    Schema schema =
+        new Schema(Types.NestedField.required(1, "ts_millis", Types.TimestampType.withZone()));
+
+    Table table = tables.create(schema, tableLocation);
+
+    File testFile = new File(tempDir, "timestamp-millis-test.parquet");
+    List<Long> millisValues = Lists.newArrayList(1609459200000L, 1640995200000L, 1672531200000L);
+
+    MessageType parquetSchema =
+        new MessageType(
+            "test",
+            primitive(PrimitiveType.PrimitiveTypeName.INT64, Type.Repetition.REQUIRED)
+                .as(
+                    LogicalTypeAnnotation.timestampType(
+                        true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+                .id(1)
+                .named("ts_millis"));
+
+    try (ParquetWriter<Group> writer =
+        ExampleParquetWriter.builder(new Path(testFile.toURI())).withType(parquetSchema).build()) {
+
+      SimpleGroupFactory factory = new SimpleGroupFactory(parquetSchema);
+
+      for (Long millis : millisValues) {
+        Group group = factory.newGroup();
+        group.add("ts_millis", millis);
+        writer.write(group);
+      }
+    }
+
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(testFile.getAbsolutePath())
+            .withFileSizeInBytes(testFile.length())
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(millisValues.size())
+            .build();
+
+    table.newAppend().appendFile(dataFile).commit();
+
+    int totalRowsRead = 0;
+    int rowIndex = 0;
+    try (VectorizedTableScanIterable vectorizedReader =
+        new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
+      for (ColumnarBatch batch : vectorizedReader) {
+        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
+
+        FieldVector tsVector = root.getVector("ts_millis");
+        assertThat(tsVector)
+            .as("TIMESTAMP_MILLIS should be read as BigIntVector")
+            .isInstanceOf(BigIntVector.class);
+
+        BigIntVector bigIntVector = (BigIntVector) tsVector;
+
+        for (int i = 0; i < root.getRowCount(); i++) {
+          long actualMicros = bigIntVector.get(i);
+          long expectedMicros = millisValues.get(rowIndex) * 1000L;
+
+          assertThat(actualMicros)
+              .as("Row %d: timestamp should be converted to microseconds", rowIndex)
+              .isEqualTo(expectedMicros);
+
+          rowIndex++;
+        }
+
+        totalRowsRead += root.getRowCount();
+        root.close();
+      }
+    }
+
+    assertThat(totalRowsRead).as("Should read all rows").isEqualTo(millisValues.size());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testDictionaryEncodedTimestampMillisAreReadCorrectly(boolean adjustToUTC)
+      throws Exception {
+    tables = new HadoopTables();
+    Types.TimestampType timestampType =
+        adjustToUTC ? Types.TimestampType.withZone() : Types.TimestampType.withoutZone();
+    Table table =
+        tables.create(
+            new Schema(Types.NestedField.required(1, "ts_millis", timestampType)), tableLocation);
+
+    File testFile = new File(tempDir, "timestamp-millis-dictionary.parquet");
+    MessageType parquetSchema =
+        new MessageType(
+            "test",
+            primitive(PrimitiveType.PrimitiveTypeName.INT64, Type.Repetition.REQUIRED)
+                .as(
+                    LogicalTypeAnnotation.timestampType(
+                        adjustToUTC, LogicalTypeAnnotation.TimeUnit.MILLIS))
+                .id(1)
+                .named("ts_millis"));
+
+    // repeating a few values keeps every page dictionary-encoded
+    List<Long> millisValues = Lists.newArrayList(1609459200000L, 1640995200000L);
+    int rowCount = 1000;
+    List<Long> expectedMicros = Lists.newArrayList();
+    try (ParquetWriter<Group> writer =
+        ExampleParquetWriter.builder(new Path(testFile.toURI()))
+            .withType(parquetSchema)
+            .withDictionaryEncoding(true)
+            .build()) {
+      SimpleGroupFactory factory = new SimpleGroupFactory(parquetSchema);
+      for (int i = 0; i < rowCount; i += 1) {
+        long millis = millisValues.get(i % millisValues.size());
+        Group group = factory.newGroup();
+        group.add("ts_millis", millis);
+        writer.write(group);
+        expectedMicros.add(millis * 1000L);
+      }
+    }
+
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(
+            HadoopInputFile.fromPath(new Path(testFile.toURI()), new Configuration()))) {
+      assertThat(reader.getFooter().getBlocks())
+          .flatExtracting(BlockMetaData::getColumns)
+          .noneMatch(ParquetUtil::hasNonDictionaryPages);
+    }
+
+    table
+        .newAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath(testFile.getAbsolutePath())
+                .withFileSizeInBytes(testFile.length())
+                .withFormat(FileFormat.PARQUET)
+                .withRecordCount(rowCount)
+                .build())
+        .commit();
+
+    List<Long> actualMicros = Lists.newArrayList();
+    try (VectorizedTableScanIterable vectorizedReader =
+        new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
+      for (ColumnarBatch batch : vectorizedReader) {
+        for (int i = 0; i < batch.numRows(); i += 1) {
+          actualMicros.add(batch.column(0).getLong(i));
+        }
+      }
+    }
+
+    assertThat(actualMicros).isEqualTo(expectedMicros);
+  }
+
+  /**
+   * Reads a decimal(38, 0) column whose values exceed Long.MAX_VALUE. Decimals with precision &gt;=
+   * 19 are stored as a FIXED_LEN_BYTE_ARRAY, and reading them must not narrow the unscaled value
+   * through {@code BigInteger.longValue()}. This reproduces a bug where the binary-backed decimal
+   * accessor silently truncated such values.
+   */
+  @Test
+  public void testHighPrecisionDecimalIsReadCorrectly() throws Exception {
+    tables = new HadoopTables();
+    int precision = 38;
+    int scale = 0;
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "decimal", Types.DecimalType.of(precision, scale)));
+    Table table = tables.create(schema, tableLocation);
+
+    // Both values have an unscaled magnitude well beyond Long.MAX_VALUE (~9.2e18).
+    List<BigDecimal> values =
+        Lists.newArrayList(
+            new BigDecimal(new BigInteger("12345678901234567890"), scale),
+            new BigDecimal(new BigInteger("99999999999999999999999999999999999999"), scale));
+
+    List<GenericRecord> records = Lists.newArrayListWithCapacity(values.size());
+    for (BigDecimal value : values) {
+      GenericRecord record = GenericRecord.create(schema);
+      record.setField("decimal", value);
+      records.add(record);
+    }
+
+    File parquetFile = File.createTempFile("decimal", ".parquet", tempDir);
+    assertThat(parquetFile.delete()).isTrue();
+    FileAppender<GenericRecord> appender =
+        Parquet.write(Files.localOutput(parquetFile))
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build();
+    try {
+      appender.addAll(records);
+    } finally {
+      appender.close();
+    }
+
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withInputFile(localInput(parquetFile))
+            .withMetrics(appender.metrics())
+            .withFormat(FileFormat.PARQUET)
+            .build();
+    table.newAppend().appendFile(dataFile).commit();
+
+    int rowIndex = 0;
+    try (VectorizedTableScanIterable vectorizedReader =
+        new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
+      for (ColumnarBatch batch : vectorizedReader) {
+        for (int i = 0; i < batch.numRows(); i++) {
+          assertThat(batch.column(0).getDecimal(i, precision, scale))
+              .as("decimal(%d, %d) value at row %d must not be truncated", precision, scale, i)
+              .isEqualTo(values.get(rowIndex));
+          rowIndex++;
+        }
+      }
+    }
+
+    assertThat(rowIndex).isEqualTo(values.size());
+  }
+
+  @ParameterizedTest
+  @MethodSource("rejectedUnsignedIntegerCases")
+  public void testUnsignedIntegerColumnThrowsException(
+      int unsignedBitWidth,
+      PrimitiveType.PrimitiveTypeName physicalType,
+      Schema schema,
+      String expectedMessage)
+      throws Exception {
+    Table table = createSingleRowUnsignedIntTable(schema, physicalType, unsignedBitWidth, 100L);
+
+    assertThatThrownBy(
+            () -> {
+              try (VectorizedTableScanIterable vectorizedReader =
+                  new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
+                for (ColumnarBatch batch : vectorizedReader) {
+                  batch.createVectorSchemaRootFromVectors().close();
+                }
+              }
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(expectedMessage);
+  }
+
+  @ParameterizedTest
+  @MethodSource("acceptedUnsignedSmallIntegerCases")
+  public void testUnsignedSmallIntegerColumnRoundtrips(int unsignedBitWidth, int value)
+      throws Exception {
+    Schema schema = new Schema(Types.NestedField.optional(1, "col", Types.IntegerType.get()));
+    Table table =
+        createSingleRowUnsignedIntTable(
+            schema, PrimitiveType.PrimitiveTypeName.INT32, unsignedBitWidth, value);
+
+    int totalRows = 0;
+    try (VectorizedTableScanIterable vectorizedReader =
+        new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
+      for (ColumnarBatch batch : vectorizedReader) {
+        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
+        assertThat(((IntVector) root.getVector("col")).get(0))
+            .as("UINT%d value should round-trip through int", unsignedBitWidth)
+            .isEqualTo(value);
+        totalRows += root.getRowCount();
+        root.close();
+      }
+    }
+
+    assertThat(totalRows).isEqualTo(1);
+  }
+
+  /**
+   * Tests that the vectorized reader correctly handles int-to-long type promotion when the Parquet
+   * file has an INT(32, true) logical type annotation. This reproduces a bug where reading a file
+   * written with INT(32) logical type after an ALTER TABLE promoting the column from int to long
+   * causes a ClassCastException (BigIntVector cannot be cast to IntVector).
+   *
+   * <p>The vector remains an IntVector (matching the physical storage), and the accessor handles
+   * widening to long on read.
+   */
+  @Test
+  public void testIntToLongPromotionWithLogicalType() throws Exception {
+    tables = new HadoopTables();
+    Schema schema = new Schema(Types.NestedField.required(1, "col", Types.IntegerType.get()));
+    Table table = tables.create(schema, tempDir.toURI() + "/int-promotion-logical");
+
+    // Write a Parquet file with INT(32, signed) logical type annotation.
+    // This is what non-Iceberg writers (PyArrow, Spark native, etc.) typically produce.
+    MessageType parquetSchema =
+        new MessageType(
+            "test",
+            primitive(PrimitiveType.PrimitiveTypeName.INT32, Type.Repetition.REQUIRED)
+                .as(LogicalTypeAnnotation.intType(32, true))
+                .id(1)
+                .named("col"));
+
+    File testFile = new File(tempDir, "int-logical-type-promotion.parquet");
+    List<Integer> values = ImmutableList.of(1, 2, 3, Integer.MAX_VALUE);
+    try (ParquetWriter<Group> writer =
+        ExampleParquetWriter.builder(new Path(testFile.toURI())).withType(parquetSchema).build()) {
+      SimpleGroupFactory factory = new SimpleGroupFactory(parquetSchema);
+      for (int val : values) {
+        Group group = factory.newGroup();
+        group.add("col", val);
+        writer.write(group);
+      }
+    }
+
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(testFile.getAbsolutePath())
+            .withFileSizeInBytes(testFile.length())
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(values.size())
+            .build();
+    table.newAppend().appendFile(dataFile).commit();
+
+    // Promote the column type from int to long (simulates ALTER TABLE)
+    table.updateSchema().updateColumn("col", Types.LongType.get()).commit();
+    table = tables.load(tempDir.toURI() + "/int-promotion-logical");
+
+    // Read with the vectorized reader — the underlying vector is IntVector (physical type),
+    // but the accessor correctly widens to long when getLong() is called.
+    try (VectorizedTableScanIterable vectorizedReader =
+        new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
+      for (ColumnarBatch batch : vectorizedReader) {
+        assertThat(batch.numRows()).isEqualTo(values.size());
+
+        FieldVector vector = batch.column(0).getArrowVector();
+        assertThat(vector)
+            .as("Vector should be IntVector matching the physical Parquet type")
+            .isInstanceOf(IntVector.class);
+
+        for (int i = 0; i < batch.numRows(); i++) {
+          assertThat(batch.column(0).getLong(i))
+              .as("Accessor should widen int to long for row %d", i)
+              .isEqualTo((long) values.get(i));
+        }
+      }
+    }
+  }
+
+  /**
+   * Tests that the vectorized reader correctly handles int-to-long type promotion when the Parquet
+   * file has a bare INT32 without any logical type annotation.
+   *
+   * <p>The vector remains an IntVector (matching the physical storage), and the accessor handles
+   * widening to long on read.
+   */
+  @Test
+  public void testIntToLongPromotionWithoutLogicalType() throws Exception {
+    tables = new HadoopTables();
+    Schema schema = new Schema(Types.NestedField.required(1, "col", Types.IntegerType.get()));
+    Table table = tables.create(schema, tempDir.toURI() + "/int-promotion-no-logical");
+
+    // Write via Iceberg's writer which produces bare INT32 (no logical type annotation)
+    List<GenericRecord> records = Lists.newArrayList();
+    int[] values = new int[] {1, 2, 3, Integer.MAX_VALUE};
+    for (int val : values) {
+      GenericRecord rec = GenericRecord.create(schema);
+      rec.setField("col", val);
+      records.add(rec);
+    }
+
+    File testFile = new File(tempDir, "int-no-logical-type-promotion.parquet");
+    FileAppender<GenericRecord> appender =
+        Parquet.write(Files.localOutput(testFile))
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build();
+    try {
+      appender.addAll(records);
+    } finally {
+      appender.close();
+    }
+
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(testFile.getAbsolutePath())
+            .withFileSizeInBytes(testFile.length())
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(records.size())
+            .build();
+    table.newAppend().appendFile(dataFile).commit();
+
+    // Promote the column type from int to long
+    table.updateSchema().updateColumn("col", Types.LongType.get()).commit();
+    table = tables.load(tempDir.toURI() + "/int-promotion-no-logical");
+
+    // Read with the vectorized reader — the underlying vector is IntVector (physical type),
+    // but the accessor correctly widens to long when getLong() is called.
+    try (VectorizedTableScanIterable vectorizedReader =
+        new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
+      for (ColumnarBatch batch : vectorizedReader) {
+        assertThat(batch.numRows()).isEqualTo(values.length);
+
+        FieldVector vector = batch.column(0).getArrowVector();
+        assertThat(vector)
+            .as("Vector should be IntVector matching the physical Parquet type")
+            .isInstanceOf(IntVector.class);
+
+        for (int i = 0; i < batch.numRows(); i++) {
+          assertThat(batch.column(0).getLong(i))
+              .as("Accessor should widen int to long for row %d", i)
+              .isEqualTo((long) values[i]);
+        }
+      }
+    }
+  }
+
+  /**
+   * Tests that int-to-long promotion works correctly when values larger than Integer.MAX_VALUE are
+   * written after the promotion and reuseContainers is true. This verifies that reading a mix of
+   * pre-promotion (int-range) and post-promotion (long-range) files works correctly.
+   */
+  @Test
+  public void testIntToLongPromotionWithLargeValuesAndReuseContainers() throws Exception {
+    tables = new HadoopTables();
+    Schema schema = new Schema(Types.NestedField.required(1, "col", Types.IntegerType.get()));
+    Table table = tables.create(schema, tempDir.toURI() + "/int-promotion-large-values");
+
+    // Write a Parquet file with INT(32, signed) logical type (pre-promotion data)
+    MessageType parquetSchema =
+        new MessageType(
+            "test",
+            primitive(PrimitiveType.PrimitiveTypeName.INT32, Type.Repetition.REQUIRED)
+                .as(LogicalTypeAnnotation.intType(32, true))
+                .id(1)
+                .named("col"));
+
+    File prePromotionFile = new File(tempDir, "pre-promotion.parquet");
+    List<Integer> intValues = ImmutableList.of(1, 2, Integer.MAX_VALUE);
+    try (ParquetWriter<Group> writer =
+        ExampleParquetWriter.builder(new Path(prePromotionFile.toURI()))
+            .withType(parquetSchema)
+            .build()) {
+      SimpleGroupFactory factory = new SimpleGroupFactory(parquetSchema);
+      for (int val : intValues) {
+        Group group = factory.newGroup();
+        group.add("col", val);
+        writer.write(group);
+      }
+    }
+
+    DataFile prePromotionDataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(prePromotionFile.getAbsolutePath())
+            .withFileSizeInBytes(prePromotionFile.length())
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(intValues.size())
+            .build();
+    table.newAppend().appendFile(prePromotionDataFile).commit();
+
+    // Promote the column type from int to long
+    table.updateSchema().updateColumn("col", Types.LongType.get()).commit();
+    table = tables.load(tempDir.toURI() + "/int-promotion-large-values");
+
+    // Write a second file with long values > Integer.MAX_VALUE (post-promotion data)
+    List<GenericRecord> longRecords = Lists.newArrayList();
+    long[] longValues = new long[] {(long) Integer.MAX_VALUE + 1L, Long.MAX_VALUE};
+    for (long val : longValues) {
+      GenericRecord rec = GenericRecord.create(table.schema());
+      rec.setField("col", val);
+      longRecords.add(rec);
+    }
+
+    File postPromotionFile = new File(tempDir, "post-promotion.parquet");
+    FileAppender<GenericRecord> appender =
+        Parquet.write(Files.localOutput(postPromotionFile))
+            .schema(table.schema())
+            .createWriterFunc(GenericParquetWriter::create)
+            .build();
+    try {
+      appender.addAll(longRecords);
+    } finally {
+      appender.close();
+    }
+
+    DataFile postPromotionDataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(postPromotionFile.getAbsolutePath())
+            .withFileSizeInBytes(postPromotionFile.length())
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(longRecords.size())
+            .build();
+    table.newAppend().appendFile(postPromotionDataFile).commit();
+    table = tables.load(tempDir.toURI() + "/int-promotion-large-values");
+
+    // Read with reuseContainers=true and validate all values
+    List<Long> allExpectedValues = Lists.newArrayList();
+    for (int v : intValues) {
+      allExpectedValues.add((long) v);
+    }
+    for (long v : longValues) {
+      allExpectedValues.add(v);
+    }
+
+    List<Long> actualValues = Lists.newArrayList();
+    try (VectorizedTableScanIterable vectorizedReader =
+        new VectorizedTableScanIterable(table.newScan(), 1024, true)) {
+      for (ColumnarBatch batch : vectorizedReader) {
+        for (int i = 0; i < batch.numRows(); i++) {
+          actualValues.add(batch.column(0).getLong(i));
+        }
+      }
+    }
+
+    assertThat(actualValues).containsExactlyInAnyOrderElementsOf(allExpectedValues);
+  }
+
+  private static Stream<Arguments> rejectedUnsignedIntegerCases() {
+    return Stream.of(
+        Arguments.of(
+            32,
+            PrimitiveType.PrimitiveTypeName.INT32,
+            new Schema(Types.NestedField.optional(1, "col", Types.IntegerType.get())),
+            "Cannot read UINT32 as an int value"),
+        Arguments.of(
+            64,
+            PrimitiveType.PrimitiveTypeName.INT64,
+            new Schema(Types.NestedField.optional(1, "col", Types.LongType.get())),
+            "Cannot read UINT64 as a long value"));
+  }
+
+  private static Stream<Arguments> acceptedUnsignedSmallIntegerCases() {
+    return Stream.of(Arguments.of(8, 250), Arguments.of(16, 50000));
+  }
+
+  private Table createSingleRowUnsignedIntTable(
+      Schema schema, PrimitiveType.PrimitiveTypeName physicalType, int unsignedBitWidth, long value)
+      throws IOException {
+    tables = new HadoopTables();
+    Table table = tables.create(schema, tempDir.toURI() + "/uint" + unsignedBitWidth);
+
+    MessageType parquetSchema =
+        new MessageType(
+            "test",
+            primitive(physicalType, Type.Repetition.OPTIONAL)
+                .as(LogicalTypeAnnotation.intType(unsignedBitWidth, false))
+                .id(1)
+                .named("col"));
+
+    File testFile =
+        new File(tempDir, "unsigned-int" + unsignedBitWidth + "-" + System.nanoTime() + ".parquet");
+    try (ParquetWriter<Group> writer =
+        ExampleParquetWriter.builder(new Path(testFile.toURI())).withType(parquetSchema).build()) {
+      SimpleGroupFactory factory = new SimpleGroupFactory(parquetSchema);
+      Group group = factory.newGroup();
+      if (physicalType == PrimitiveType.PrimitiveTypeName.INT64) {
+        group.add("col", value);
+      } else {
+        group.add("col", (int) value);
+      }
+      writer.write(group);
+    }
+
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(testFile.getAbsolutePath())
+            .withFileSizeInBytes(testFile.length())
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(1)
+            .build();
+    table.newAppend().appendFile(dataFile).commit();
+    return table;
   }
 
   /**
@@ -797,11 +1383,6 @@ public class TestArrowReader {
       overwrite.addFile(writeParquetFile(table, records));
     }
     overwrite.commit();
-
-    // Perform a type promotion
-    // TODO: The read Arrow vector should of type BigInt (promoted type) but it is Int (old type).
-    Table tableLatest = tables.load(tableLocation);
-    tableLatest.updateSchema().updateColumn("int_promotion", Types.LongType.get()).commit();
   }
 
   private static org.apache.arrow.vector.types.pojo.Schema createExpectedArrowSchema(

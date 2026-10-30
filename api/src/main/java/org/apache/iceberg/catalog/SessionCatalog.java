@@ -162,6 +162,9 @@ public interface SessionCatalog {
   /**
    * Register a table if it does not exist.
    *
+   * <p>For overwrite support, see {@link #registerTable(SessionContext, TableIdentifier, String,
+   * boolean)}.
+   *
    * @param context session context
    * @param ident a table identifier
    * @param metadataFileLocation the location of a metadata file
@@ -169,6 +172,44 @@ public interface SessionCatalog {
    * @throws AlreadyExistsException if the table already exists in the catalog.
    */
   Table registerTable(SessionContext context, TableIdentifier ident, String metadataFileLocation);
+
+  /**
+   * Register a table.
+   *
+   * @param context session context
+   * @param ident a table identifier
+   * @param metadataFileLocation the location of a metadata file
+   * @param overwrite whether to overwrite an existing table registration
+   * @return a Table instance
+   * @throws AlreadyExistsException if {@code overwrite} is false and the table already exists in
+   *     the catalog
+   */
+  default Table registerTable(
+      SessionContext context,
+      TableIdentifier ident,
+      String metadataFileLocation,
+      boolean overwrite) {
+    if (!overwrite) {
+      return registerTable(context, ident, metadataFileLocation);
+    }
+
+    throw new UnsupportedOperationException("Registering tables with overwrite is not supported");
+  }
+
+  /**
+   * Unregister a table without deleting its data or metadata files.
+   *
+   * <p>The returned table is fixed at the last metadata file registered with the catalog and cannot
+   * be modified.
+   *
+   * @param context session context
+   * @param ident a table identifier
+   * @return a read-only table fixed at the metadata current when it was unregistered
+   * @throws NoSuchTableException if the table does not exist
+   */
+  default Table unregisterTable(SessionContext context, TableIdentifier ident) {
+    throw new UnsupportedOperationException("Unregistering tables is not supported");
+  }
 
   /**
    * Check whether table exists.
@@ -195,6 +236,21 @@ public interface SessionCatalog {
    * @throws NoSuchTableException if the table does not exist
    */
   Table loadTable(SessionContext context, TableIdentifier ident);
+
+  /**
+   * Load a table, passing the context it is being loaded with.
+   *
+   * <p>The default implementation ignores the context.
+   *
+   * @param context session context
+   * @param ident a table identifier
+   * @param loadContext context for this load
+   * @return instance of {@link Table} implementation referred by {@code ident}
+   * @throws NoSuchTableException if the table does not exist
+   */
+  default Table loadTable(SessionContext context, TableIdentifier ident, LoadContext loadContext) {
+    return loadTable(context, ident);
+  }
 
   /**
    * Drop a table, without requesting that files are immediately deleted.
@@ -337,6 +393,7 @@ public interface SessionCatalog {
    * @param namespace a {@link Namespace namespace}
    * @param updates properties to set for the namespace
    * @param removals properties to remove from the namespace
+   * @return true if the namespace metadata was successfully updated, false otherwise
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
    * @throws UnsupportedOperationException If namespace properties are not supported
    */

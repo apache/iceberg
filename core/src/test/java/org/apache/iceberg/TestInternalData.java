@@ -19,8 +19,10 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -32,6 +34,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -153,6 +156,39 @@ public class TestInternalData {
         assertThat(customRow.get(1, String.class))
             .isEqualTo(expectedRecord.get(1, String.class)); // inner_name
       }
+    }
+  }
+
+  @Test
+  public void registerToleratesMissingClass() {
+    assertThatNoException().isThrownBy(() -> register("org.apache.iceberg.DoesNotExist"));
+  }
+
+  @Test
+  public void registerToleratesNoClassDefFoundErrorOnInvoke() {
+    assertThatNoException().isThrownBy(() -> register(ThrowsOnInvoke.class.getName()));
+  }
+
+  @Test
+  public void registerToleratesExceptionInInitializerErrorOnInvoke() {
+    assertThatNoException().isThrownBy(() -> register(ThrowsInitErrorOnInvoke.class.getName()));
+  }
+
+  private static void register(String className) throws ReflectiveOperationException {
+    Method register = InternalData.class.getDeclaredMethod("register", String.class);
+    register.setAccessible(true);
+    register.invoke(null, className);
+  }
+
+  public static class ThrowsOnInvoke {
+    public static void register() {
+      throw new NoClassDefFoundError("some/missing/TransitiveDependency");
+    }
+  }
+
+  public static class ThrowsInitErrorOnInvoke {
+    public static void register() {
+      throw new ExceptionInInitializerError(new RuntimeException("lazy init failed"));
     }
   }
 }

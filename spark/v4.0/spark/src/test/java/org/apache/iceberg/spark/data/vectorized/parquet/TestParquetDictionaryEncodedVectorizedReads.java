@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.Types;
@@ -65,6 +66,7 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
         SparkSession.builder()
             .master("local[2]")
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .config(TestBase.DISABLE_UI)
             .getOrCreate();
   }
 
@@ -179,7 +181,7 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
                   .createBatchedReaderFunc(
                       type ->
                           VectorizedSparkParquetReaders.buildReader(
-                              schema, type, ImmutableMap.of(), null, allocator));
+                              schema, type, ImmutableMap.of(), allocator));
 
           try (CloseableIterable<ColumnarBatch> batchReader = readBuilder.build()) {
             Iterator<Row> expectedIter = expected.iterator();

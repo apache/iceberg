@@ -31,7 +31,7 @@ You will need to provide the AWS v2 SDK because that is what Iceberg depends on.
 You can choose to use the [AWS SDK bundle](https://mvnrepository.com/artifact/software.amazon.awssdk/bundle),
 or individual AWS client packages (Glue, S3, DynamoDB, KMS, STS) if you would like to have a minimal dependency footprint.
 
-All the default AWS clients use the [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client)
+All the default AWS clients use the [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache5-client)
 for HTTP connection management.
 This dependency is not part of the AWS SDK bundle and needs to be added separately.
 To choose a different HTTP client library such as [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client),
@@ -43,11 +43,11 @@ Here are some examples.
 
 ### Spark
 
-For example, to use AWS features with Spark 3.4 (with scala 2.12) and AWS clients (which is packaged in the `iceberg-aws-bundle`), you can start the Spark SQL shell with:
+For example, to use AWS features with Spark 3.5 (with scala 2.12) and AWS clients (which is packaged in the `iceberg-aws-bundle`), you can start the Spark SQL shell with:
 
 ```sh
 # start Spark SQL client shell
-spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:{{ icebergVersion }},org.apache.iceberg:iceberg-aws-bundle:{{ icebergVersion }} \
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }},org.apache.iceberg:iceberg-aws-bundle:{{ icebergVersion }} \
     --conf spark.sql.defaultCatalog=my_catalog \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
@@ -67,13 +67,13 @@ ICEBERG_VERSION={{ icebergVersion }}
 MAVEN_URL=https://repo1.maven.org/maven2
 ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
 
-wget $ICEBERG_MAVEN_URL/iceberg-flink-runtime/$ICEBERG_VERSION/iceberg-flink-runtime-$ICEBERG_VERSION.jar
+wget $ICEBERG_MAVEN_URL/iceberg-flink-runtime-{{ flinkVersionMajor }}/$ICEBERG_VERSION/iceberg-flink-runtime-{{ flinkVersionMajor }}-$ICEBERG_VERSION.jar
 
 wget $ICEBERG_MAVEN_URL/iceberg-aws-bundle/$ICEBERG_VERSION/iceberg-aws-bundle-$ICEBERG_VERSION.jar
 
 # start Flink SQL client shell
 /path/to/bin/sql-client.sh embedded \
-    -j iceberg-flink-runtime-$ICEBERG_VERSION.jar \
+    -j iceberg-flink-runtime-{{ flinkVersionMajor }}-$ICEBERG_VERSION.jar \
     -j iceberg-aws-bundle-$ICEBERG_VERSION.jar \
     shell
 ```
@@ -139,7 +139,7 @@ and every Iceberg table version is stored as a [Glue TableVersion](https://docs.
 You can start using Glue catalog by specifying the `catalog-impl` as `org.apache.iceberg.aws.glue.GlueCatalog`
 or by setting `catalog-type` as `glue`,
 just like what is shown in the [enabling AWS integration](#enabling-aws-integration) section above.
-More details about loading the catalog can be found in individual engine pages, such as [Spark](spark-configuration.md#loading-a-custom-catalog) and [Flink](flink.md#creating-catalogs-and-using-catalogs).
+More details about loading the catalog can be found in individual engine pages, such as [Spark](spark-configuration.md#loading-a-custom-catalog) and [Flink](flink.md#adding-catalogs).
 
 #### Glue Catalog ID
 
@@ -270,9 +270,9 @@ Read [this AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserG
 With all the available options, we offer the following guidelines when choosing the right catalog to use for your application:
 
 1. if your organization has an existing Glue metastore or plans to use the AWS analytics ecosystem including Glue, [Athena](https://aws.amazon.com/athena), [EMR](https://aws.amazon.com/emr), [Redshift](https://aws.amazon.com/redshift) and [LakeFormation](https://aws.amazon.com/lake-formation), Glue catalog provides the easiest integration.
-2. if your application requires frequent updates to table or high read and write throughput (e.g. streaming write), Glue and DynamoDB catalog provides the best performance through optimistic locking.
+2. if your application requires frequent updates to table or high read and write throughput (e.g. streaming write), Glue and DynamoDB catalogs provide the best performance through optimistic locking.
 3. if you would like to enforce access control for tables in a catalog, Glue tables can be managed as an [IAM resource](https://docs.aws.amazon.com/service-authorization/latest/reference/list_awsglue.html), whereas DynamoDB catalog tables can only be managed through [item-level permission](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/specifying-conditions.html) which is much more complicated.
-4. if you would like to query tables based on table property information without the need to scan the entire catalog, DynamoDB catalog allows you to build secondary indexes for any arbitrary property field and provide efficient query performance.
+4. if you would like to query tables based on table property information without the need to scan the entire catalog, DynamoDB catalog allows you to build secondary indexes for any arbitrary property field and provides efficient query performance.
 5. if you would like to have the benefit of DynamoDB catalog while also connect to Glue, you can enable [DynamoDB stream with Lambda trigger](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.Lambda.Tutorial.html) to asynchronously update your Glue metastore with table information in the DynamoDB catalog.
 6. if your organization already maintains an existing relational database in RDS or uses [serverless Aurora](https://aws.amazon.com/rds/aurora/serverless/) to manage tables, the JDBC catalog provides the easiest integration.
 
@@ -288,7 +288,7 @@ This feature requires the following lock related catalog properties:
 2. Set `lock.table` as the DynamoDB table name you would like to use. If the lock table with the given name does not exist in DynamoDB, a new table is created with billing mode set as [pay-per-request](https://aws.amazon.com/blogs/aws/amazon-dynamodb-on-demand-no-capacity-planning-and-pay-per-request-pricing).
 
 Other lock related catalog properties can also be used to adjust locking behaviors such as heartbeat interval.
-For more details, please refer to [Lock catalog properties](configuration.md#lock-catalog-properties).
+For more details, please refer to [Lock catalog properties](catalog-properties.md#lock-catalog-properties).
 
 ## S3 FileIO
 
@@ -416,9 +416,11 @@ There is no redundant consistency wait and check which might negatively impact p
 
 ### Hadoop S3A FileSystem
 
+!!! important
+    **S3FileIO is recommended** for S3 use cases rather than the `S3A FileSystem` (`HadoopFileIO`).
+
 Before `S3FileIO` was introduced, many Iceberg users choose to use `HadoopFileIO` to write data to S3 through the [S3A FileSystem](https://github.com/apache/hadoop/blob/trunk/hadoop-tools/hadoop-aws/src/main/java/org/apache/hadoop/fs/s3a/S3AFileSystem.java).
-As introduced in the previous sections, `S3FileIO` adopts the latest AWS clients and S3 features for optimized security and performance
- and is thus recommended for S3 use cases rather than the S3A FileSystem.
+As introduced in the previous sections, `S3FileIO` adopts the latest AWS clients and S3 features for optimized security and performance.
 
 `S3FileIO` writes data with `s3://` URI scheme, but it is also compatible with schemes written by the S3A FileSystem.
 This means for any table manifests containing `s3a://` or `s3n://` file paths, `S3FileIO` is still able to read them.
@@ -481,7 +483,7 @@ sh spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkC
     --conf spark.sql.catalog.my_catalog.s3.write.table-tag-enabled=true \
     --conf spark.sql.catalog.my_catalog.s3.write.namespace-tag-enabled=true
 ```
-For more details on tag restrictions, please refer [User-Defined Tag Restrictions](https://docs.aws.amazon.com/AmazonS3/latest/userguide/tagging-managing.html).
+For more details on tag restrictions, please refer to [User-Defined Tag Restrictions](https://docs.aws.amazon.com/AmazonS3/latest/userguide/tagging-managing.html).
 
 ### S3 Access Points
 
@@ -505,7 +507,7 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
 For the above example, the objects in S3 on `my-bucket1` and `my-bucket2` buckets will use `arn:aws:s3::<ACCOUNT_ID>:accesspoint/<MRAP_ALIAS>`
 access-point for all S3 operations.
 
-For more details on using access-points, please refer [Using access points with compatible Amazon S3 operations](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-points-usage-examples.html), [Sample notebook](https://github.com/aws-samples/quant-research/tree/main) .
+For more details on using access-points, please refer to [Using access points with compatible Amazon S3 operations](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-points-usage-examples.html), [Sample notebook](https://github.com/aws-samples/quant-research/tree/main) .
 
 ### S3 Access Grants
 
@@ -655,7 +657,7 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
     --conf spark.sql.catalog.my_catalog.s3.dualstack-enabled=true
 ```
 
-For more details on using S3 Dual-stack, please refer [Using dual-stack endpoints from the AWS CLI and the AWS SDKs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html#dual-stack-endpoints-cli)
+For more details on using S3 Dual-stack, please refer to [Using dual-stack endpoints from the AWS CLI and the AWS SDKs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html#dual-stack-endpoints-cli)
 
 ## AWS Client Customization
 
@@ -683,7 +685,7 @@ The Glue, S3 and DynamoDB clients are then initialized with the assume-role cred
 Here is an example to start Spark shell with this client factory:
 
 ```shell
-spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:{{ icebergVersion }},org.apache.iceberg:iceberg-aws-bundle:{{ icebergVersion }} \
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }},org.apache.iceberg:iceberg-aws-bundle:{{ icebergVersion }} \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \    
     --conf spark.sql.catalog.my_catalog.type=glue \
@@ -692,9 +694,11 @@ spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:{{ iceber
     --conf spark.sql.catalog.my_catalog.client.assume-role.region=ap-northeast-1
 ```
 
+When assume-role credential configurations are provided, [REST catalogs configured with the `sigv4` authentication mechanism](rest-catalog.md#sigv4-auth-properties) will also assume the role to sign REST Catalog requests.
+
 ### HTTP Client Configurations
 AWS clients support two types of HTTP Client, [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client)
-and [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client).
+and [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache5-client).
 By default, AWS clients use **Apache** HTTP Client to communicate with the service.
 This HTTP client supports various functionalities and customized settings, such as expect-continue handshake and TCP KeepAlive, at the cost of extra dependency and additional startup latency.
 In contrast, URL Connection HTTP Client optimizes for minimum dependencies and startup latency but supports less functionality than other implementations.
@@ -703,10 +707,12 @@ For more details of configuration, see sections [URL Connection HTTP Client Conf
 
 Configurations for the HTTP client can be set via catalog properties. Below is an overview of available configurations:
 
-| Property                   | Default | Description                                                                                                |
-|----------------------------|---------|------------------------------------------------------------------------------------------------------------|
-| http-client.type           | apache  | Types of HTTP Client. <br/> `urlconnection`: URL Connection HTTP Client <br/> `apache`: Apache HTTP Client |
-| http-client.proxy-endpoint | null    | An optional proxy endpoint to use for the HTTP client.                                                     |
+| Property                                          | Default | Description                                                                                                                                                                                                                                                          |
+|---------------------------------------------------|---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| http-client.type                                  | apache  | Types of HTTP Client. <br/> `urlconnection`: URL Connection HTTP Client <br/> `apache`: Apache HTTP Client                                                                                                                                                          |
+| http-client.proxy-endpoint                        | null    | An optional proxy endpoint to use for the HTTP client.                                                                                                                                                                                                               |
+| http-client.proxy-use-system-property-values      | null, enabled by default | An optional `true/false` setting that controls whether proxy configuration is read from Java system properties (`http.proxyHost`, `http.proxyPort`, `http.nonProxyHosts`, etc.).                                                               |
+| http-client.proxy-use-environment-variable-values | null, enabled by default | An optional `true/false` setting that controls whether proxy configuration is read from environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, etc.).                                                                                |
 
 #### URL Connection HTTP Client Configurations
 
@@ -728,15 +734,15 @@ Apache HTTP Client has the following configurable properties:
 
 | Property                                              | Default                   | Description                                                                                                                                                                                                                                 |
 |-------------------------------------------------------|---------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| http-client.apache.socket-timeout-ms                  | null                      | An optional [socket timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#socketTimeout(java.time.Duration)) in milliseconds |
-| http-client.apache.connection-timeout-ms              | null                      | An optional [connection timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionTimeout(java.time.Duration)) in milliseconds |
-| http-client.apache.connection-acquisition-timeout-ms  | null                      | An optional [connection acquisition timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionAcquisitionTimeout(java.time.Duration)) in milliseconds |
-| http-client.apache.connection-max-idle-time-ms        | null                      | An optional [connection max idle timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionMaxIdleTime(java.time.Duration)) in milliseconds |
-| http-client.apache.connection-time-to-live-ms         | null                      | An optional [connection time to live](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionTimeToLive(java.time.Duration)) in milliseconds |
-| http-client.apache.expect-continue-enabled            | null, disabled by default | An optional `true/false` setting that controls whether [expect continue](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#expectContinueEnabled(java.lang.Boolean)) is enabled |
-| http-client.apache.max-connections                    | null                      | An optional [max connections](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#maxConnections(java.lang.Integer))  in integer       |
-| http-client.apache.tcp-keep-alive-enabled             | null, disabled by default | An optional `true/false` setting that controls whether [tcp keep alive](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#tcpKeepAlive(java.lang.Boolean)) is enabled |
-| http-client.apache.use-idle-connection-reaper-enabled | null, enabled by default  | An optional `true/false` setting that controls whether [use idle connection reaper](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#useIdleConnectionReaper(java.lang.Boolean)) is used |
+| http-client.apache.socket-timeout-ms                  | null                      | An optional [socket timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html#socketTimeout(java.time.Duration)) in milliseconds |
+| http-client.apache.connection-timeout-ms              | null                      | An optional [connection timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html#connectionTimeout(java.time.Duration)) in milliseconds |
+| http-client.apache.connection-acquisition-timeout-ms  | null                      | An optional [connection acquisition timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html#connectionAcquisitionTimeout(java.time.Duration)) in milliseconds |
+| http-client.apache.connection-max-idle-time-ms        | null                      | An optional [connection max idle timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html#connectionMaxIdleTime(java.time.Duration)) in milliseconds |
+| http-client.apache.connection-time-to-live-ms         | null                      | An optional [connection time to live](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html#connectionTimeToLive(java.time.Duration)) in milliseconds |
+| http-client.apache.expect-continue-enabled            | null, disabled by default | An optional `true/false` setting that controls whether [expect continue](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html#expectContinueEnabled(java.lang.Boolean)) is enabled |
+| http-client.apache.max-connections                    | null                      | An optional [max connections](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html#maxConnections(java.lang.Integer))  in integer       |
+| http-client.apache.tcp-keep-alive-enabled             | null, disabled by default | An optional `true/false` setting that controls whether [tcp keep alive](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html#tcpKeepAlive(java.lang.Boolean)) is enabled |
+| http-client.apache.use-idle-connection-reaper-enabled | null, enabled by default  | An optional `true/false` setting that controls whether [use idle connection reaper](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html#useIdleConnectionReaper(java.lang.Boolean)) is used |
 
 Users can use catalog properties to override the defaults. For example, to configure the max connections for Apache HTTP Client when starting a spark shell, one can add:
 ```shell
@@ -773,7 +779,7 @@ LIB_PATH=/usr/share/aws/aws-java-sdk/
 
 ICEBERG_PACKAGES=(
   "iceberg-spark-runtime-3.5_2.12"
-  "iceberg-flink-runtime"
+  "iceberg-flink-runtime-{{ flinkVersionMajor }}"
   "iceberg-aws-bundle"
 )
 

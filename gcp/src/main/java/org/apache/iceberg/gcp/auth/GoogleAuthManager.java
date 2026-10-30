@@ -19,9 +19,12 @@
 package org.apache.iceberg.gcp.auth;
 
 import com.google.auth.oauth2.GoogleCredentials;
+import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.SessionCatalog;
@@ -43,8 +46,12 @@ import org.slf4j.LoggerFactory;
  * <p>This manager can be configured with properties such as:
  *
  * <ul>
- *   <li>{@code gcp.auth.credentials-path}: Path to a service account JSON key file. If not set,
- *       Application Default Credentials will be used.
+ *   <li>{@code gcp.auth.credentials-path}: Path to a service account JSON key file. If neither this
+ *       property nor {@code gcp.auth.credentials-json} is set, Application Default Credentials will
+ *       be used.
+ *   <li>{@code gcp.auth.credentials-json}: JSON string of a service account credential. If neither
+ *       this property nor {@code gcp.auth.credentials-path} is set, Application Default Credentials
+ *       will be used.
  *   <li>{@code gcp.auth.scopes}: Comma-separated list of OAuth scopes to request. Defaults to
  *       "https://www.googleapis.com/auth/cloud-platform".
  * </ul>
@@ -54,6 +61,7 @@ public class GoogleAuthManager implements AuthManager {
   private static final Splitter SPLITTER = Splitter.on(',').trimResults().omitEmptyStrings();
   public static final String DEFAULT_SCOPES = "https://www.googleapis.com/auth/cloud-platform";
   public static final String GCP_CREDENTIALS_PATH_PROPERTY = "gcp.auth.credentials-path";
+  public static final String GCP_CREDENTIALS_JSON_PROPERTY = "gcp.auth.credentials-json";
   public static final String GCP_SCOPES_PROPERTY = "gcp.auth.scopes";
   private final String name;
 
@@ -74,6 +82,16 @@ public class GoogleAuthManager implements AuthManager {
     }
 
     String credentialsPath = properties.get(GCP_CREDENTIALS_PATH_PROPERTY);
+    String credentialsJson = properties.get(GCP_CREDENTIALS_JSON_PROPERTY);
+    boolean useCredentialsPath = credentialsPath != null && !credentialsPath.isEmpty();
+    boolean useCredentialsJson = credentialsJson != null && !credentialsJson.isEmpty();
+    if (useCredentialsPath && useCredentialsJson) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot specify both %s and %s",
+              GCP_CREDENTIALS_PATH_PROPERTY, GCP_CREDENTIALS_JSON_PROPERTY));
+    }
+
     String scopesString = properties.getOrDefault(GCP_SCOPES_PROPERTY, DEFAULT_SCOPES);
     List<String> scopes =
         Strings.isNullOrEmpty(scopesString)
@@ -81,9 +99,15 @@ public class GoogleAuthManager implements AuthManager {
             : ImmutableList.copyOf(SPLITTER.splitToList(scopesString));
 
     try {
-      if (credentialsPath != null && !credentialsPath.isEmpty()) {
+      if (useCredentialsPath) {
         LOG.info("Using Google credentials from path: {}", credentialsPath);
         try (FileInputStream credentialsStream = new FileInputStream(credentialsPath)) {
+          this.credentials = GoogleCredentials.fromStream(credentialsStream).createScoped(scopes);
+        }
+      } else if (useCredentialsJson) {
+        LOG.info("Using Google credentials from json");
+        try (InputStream credentialsStream =
+            new ByteArrayInputStream(credentialsJson.getBytes(StandardCharsets.UTF_8))) {
           this.credentials = GoogleCredentials.fromStream(credentialsStream).createScoped(scopes);
         }
       } else {

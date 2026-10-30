@@ -89,6 +89,12 @@
         <property name="message" value="Preconditions.checkArgument does not support %d. use %s instead"/>
     </module>
     <module name="RegexpMultiline">
+        <property name="fileExtensions" value="java"/>
+        <property name="matchAcrossLines" value="true"/>
+        <property name="format" value="Preconditions\.checkState\([^;]+%d[^;]+\);"/>
+        <property name="message" value="Preconditions.checkState does not support %d. use %s instead"/>
+    </module>
+    <module name="RegexpMultiline">
         <property name="format" value="^\s*import\s+static\s+(?!\Qorg.assertj.core.api.Assertions.\E).*\.assertThatThrownBy;"/>
         <property name="message" value="assertThatThrownBy() should be statically imported from org.assertj.core.api.Assertions"/>
     </module>
@@ -358,6 +364,12 @@
             <property name="format" value="findAndRegisterModules"/>
             <property name="message" value="Use ObjectMapper#registerModule(&lt;yourModule&gt;) explicitly. ObjectMapper#findAndRegisterModules() is dangerous because it will change behaviour depending on which modules are on your classpath (including transitive dependencies)."/>
         </module>
+        <module name="RegexpSinglelineJava">
+            <property name="id" value="LiteralStringReplaceAll"/>
+            <property name="ignoreComments" value="true"/>
+            <property name="format" value="\.replaceAll\(\s*&quot;([^&quot;\\\\.*+?^$()\[\]{}|]*)&quot;"/>
+            <property name="message" value="Use String.replace for literal replacements; replaceAll compiles a regex on every call."/>
+        </module>
         <module name="RegexpSinglelineJava"> <!-- Java Coding Guidelines: Avoid Generics clutter where possible -->
             <property name="format" value="ImmutableList\.Builder.*new ImmutableList\.Builder"/>
             <property name="message" value="Use ImmutableList.builder() for variable assignment."/>
@@ -449,6 +461,11 @@
             <property name="id" value="TestClassNamingConvention"/>
             <property name="format" value="^\s*(public\s+)?(abstract\s+)?class\s+[A-Za-z0-9]*Test(\s|&lt;)"/>
             <property name="message" value="Test class names should start with 'Test' prefix, not end with 'Test' suffix. Example: 'TestNewFeature' instead of 'NewFeatureTest'"/>
+        </module>
+        <module name="RegexpSinglelineJava">
+            <property name="ignoreComments" value="true"/>
+            <property name="format" value="String::to(Lower|Upper)Case"/>
+            <property name="message" value="Use toLowerCase(Locale)/toUpperCase(Locale) instead of no-arg versions or method references. Prefer Locale.ROOT for locale-insensitive operations."/>
         </module>
         <module name="IllegalToken">
             <property name="tokens" value="LITERAL_ASSERT"/>

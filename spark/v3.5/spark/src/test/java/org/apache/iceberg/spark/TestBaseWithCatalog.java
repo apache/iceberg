@@ -69,7 +69,11 @@ public abstract class TestBaseWithCatalog extends TestBase {
               // status even belonging to the same catalog. Reference:
               // https://www.sqlite.org/inmemorydb.html
               CatalogProperties.CLIENT_POOL_SIZE,
-              "1"));
+              "1",
+              "include-credentials",
+              "true",
+              "gcs.oauth2.token",
+              "dummyToken"));
 
   protected static RESTCatalog restCatalog;
 

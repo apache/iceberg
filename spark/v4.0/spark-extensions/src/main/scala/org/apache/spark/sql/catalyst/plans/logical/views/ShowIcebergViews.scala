@@ -16,8 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-
 package org.apache.spark.sql.catalyst.plans.logical.views
 
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -26,9 +24,10 @@ import org.apache.spark.sql.catalyst.plans.logical.ShowViews
 import org.apache.spark.sql.catalyst.plans.logical.UnaryCommand
 
 case class ShowIcebergViews(
-  namespace: LogicalPlan,
-  pattern: Option[String],
-  override val output: Seq[Attribute] = ShowViews.getOutputAttrs) extends UnaryCommand {
+    namespace: LogicalPlan,
+    pattern: Option[String],
+    override val output: Seq[Attribute] = ShowViews.getOutputAttrs)
+    extends UnaryCommand {
   override def child: LogicalPlan = namespace
 
   override protected def withNewChildInternal(newChild: LogicalPlan): ShowIcebergViews =

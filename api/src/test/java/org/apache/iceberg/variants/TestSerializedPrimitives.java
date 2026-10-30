@@ -25,8 +25,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import org.apache.iceberg.TestHelpers.RoundTripSerializer;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestSerializedPrimitives {
   @Test
@@ -616,5 +619,26 @@ public class TestSerializedPrimitives {
 
   private static byte primitiveHeader(int primitiveType) {
     return (byte) (primitiveType << 2);
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testPrimitiveSerialization(RoundTripSerializer<SerializedPrimitive> serializer)
+      throws Exception {
+    // date value
+    SerializedPrimitive primitive =
+        SerializedPrimitive.from(new byte[] {primitiveHeader(11), (byte) 0xF4, 0x43, 0x00, 0x00});
+
+    VariantTestUtil.assertEqual(primitive, serializer.apply(primitive));
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testShortStringSerialization(RoundTripSerializer<SerializedShortString> serializer)
+      throws Exception {
+    SerializedShortString string =
+        SerializedShortString.from(new byte[] {0b11101, 'i', 'c', 'e', 'b', 'e', 'r', 'g'});
+
+    VariantTestUtil.assertEqual(string, serializer.apply(string));
   }
 }

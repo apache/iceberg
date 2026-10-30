@@ -32,20 +32,26 @@ on:
       - '.github/workflows/open-api.yml'
       - 'open-api/**'
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   openapi-spec-validator:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          python-version: 3.9
-      - name: Install
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: false
+      - name: Install dependencies
         working-directory: ./open-api
         run: make install
       - name: Validate REST catalog spec
@@ -57,6 +63,3 @@ jobs:
       - name: Check if code is up to date
         working-directory: ./open-api
         run: git diff --exit-code
-      - name: Validate S3 REST Signer spec
-        working-directory: ./aws/src/main/resources
-        run: openapi-spec-validator s3-signer-open-api.yaml

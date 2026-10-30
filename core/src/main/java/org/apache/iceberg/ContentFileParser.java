@@ -22,9 +22,13 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 
 public class ContentFileParser {
@@ -41,6 +45,8 @@ public class ContentFileParser {
   private static final String NAN_VALUE_COUNTS = "nan-value-counts";
   private static final String LOWER_BOUNDS = "lower-bounds";
   private static final String UPPER_BOUNDS = "upper-bounds";
+  private static final String CONTENT_STATS = "content-stats";
+  private static final String TOTAL_BYTES = "total-bytes";
   private static final String KEY_METADATA = "key-metadata";
   private static final String SPLIT_OFFSETS = "split-offsets";
   private static final String EQUALITY_IDS = "equality-ids";
@@ -49,6 +55,9 @@ public class ContentFileParser {
   private static final String REFERENCED_DATA_FILE = "referenced-data-file";
   private static final String CONTENT_OFFSET = "content-offset";
   private static final String CONTENT_SIZE = "content-size-in-bytes";
+  private static final String CONTENT_DATA = "data";
+  private static final String CONTENT_POSITION_DELETES = "position-deletes";
+  private static final String CONTENT_EQUALITY_DELETES = "equality-deletes";
 
   private ContentFileParser() {}
 
@@ -83,13 +92,16 @@ public class ContentFileParser {
     // as it isn't used and BaseFile constructor doesn't support it.
 
     generator.writeNumberField(SPEC_ID, contentFile.specId());
-    generator.writeStringField(CONTENT, contentFile.content().name());
+    // Since 1.11, we serialize content as lowercase kebab-case values like "equality-deletes"
+    generator.writeStringField(
+        CONTENT, contentFile.content().name().toLowerCase(Locale.ROOT).replace('_', '-'));
     generator.writeStringField(FILE_PATH, contentFile.location());
-    generator.writeStringField(FILE_FORMAT, contentFile.format().name());
+    // Since 1.11, we serialize format as lower-case strings like "parquet"
+    generator.writeStringField(FILE_FORMAT, contentFile.format().name().toLowerCase(Locale.ROOT));
 
     if (contentFile.partition() != null) {
       generator.writeFieldName(PARTITION);
-      SingleValueParser.toJson(spec.partitionType(), contentFile.partition(), generator);
+      partitionToJson(spec.partitionType(), contentFile.partition(), generator);
     }
 
     generator.writeNumberField(FILE_SIZE, contentFile.fileSizeInBytes());
@@ -146,24 +158,13 @@ public class ContentFileParser {
     int specId = JsonUtil.getInt(SPEC_ID, jsonNode);
     PartitionSpec spec = specsById.get(specId);
     Preconditions.checkArgument(spec != null, "Invalid partition specId: %s", specId);
-    FileContent fileContent = FileContent.valueOf(JsonUtil.getString(CONTENT, jsonNode));
+    FileContent fileContent = fileContentFromJson(JsonUtil.getString(CONTENT, jsonNode));
     String filePath = JsonUtil.getString(FILE_PATH, jsonNode);
     FileFormat fileFormat = FileFormat.fromString(JsonUtil.getString(FILE_FORMAT, jsonNode));
 
     PartitionData partitionData = null;
     if (jsonNode.has(PARTITION)) {
-      partitionData = new PartitionData(spec.partitionType());
-      StructLike structLike =
-          (StructLike) SingleValueParser.fromJson(spec.partitionType(), jsonNode.get(PARTITION));
-      Preconditions.checkState(
-          partitionData.size() == structLike.size(),
-          "Invalid partition data size: expected = %s, actual = %s",
-          partitionData.size(),
-          structLike.size());
-      for (int pos = 0; pos < partitionData.size(); ++pos) {
-        Class<?> javaClass = spec.partitionType().fields().get(pos).type().typeId().javaClass();
-        partitionData.set(pos, structLike.get(pos, javaClass));
-      }
+      partitionData = partitionFromJson(spec.partitionType(), jsonNode.get(PARTITION));
     }
 
     long fileSizeInBytes = JsonUtil.getLong(FILE_SIZE, jsonNode);
@@ -228,7 +229,7 @@ public class ContentFileParser {
           DataFile.NULL_VALUE_COUNTS.type(), contentFile.nullValueCounts(), generator);
     }
 
-    if (contentFile.nullValueCounts() != null) {
+    if (contentFile.nanValueCounts() != null) {
       generator.writeFieldName(NAN_VALUE_COUNTS);
       SingleValueParser.toJson(
           DataFile.NAN_VALUE_COUNTS.type(), contentFile.nanValueCounts(), generator);
@@ -242,6 +243,18 @@ public class ContentFileParser {
     if (contentFile.upperBounds() != null) {
       generator.writeFieldName(UPPER_BOUNDS);
       SingleValueParser.toJson(DataFile.UPPER_BOUNDS.type(), contentFile.upperBounds(), generator);
+    }
+
+    if (contentFile.totalBytes() != null) {
+      generator.writeFieldName(CONTENT_STATS);
+      generator.writeStartObject();
+      for (Map.Entry<Integer, Long> entry : contentFile.totalBytes().entrySet()) {
+        generator.writeObjectFieldStart(String.valueOf(entry.getKey()));
+        generator.writeNumberField(TOTAL_BYTES, entry.getValue());
+        generator.writeEndObject();
+      }
+
+      generator.writeEndObject();
     }
   }
 
@@ -292,6 +305,11 @@ public class ContentFileParser {
               SingleValueParser.fromJson(DataFile.UPPER_BOUNDS.type(), jsonNode.get(UPPER_BOUNDS));
     }
 
+    Map<Integer, Long> totalBytes = null;
+    if (jsonNode.hasNonNull(CONTENT_STATS)) {
+      totalBytes = totalBytesFromJson(jsonNode.get(CONTENT_STATS));
+    }
+
     return new Metrics(
         recordCount,
         columnSizes,
@@ -299,6 +317,115 @@ public class ContentFileParser {
         nullValueCounts,
         nanValueCounts,
         lowerBounds,
-        upperBounds);
+        upperBounds,
+        totalBytes,
+        null /* originalTypes */);
+  }
+
+  private static Map<Integer, Long> totalBytesFromJson(JsonNode contentStats) {
+    Preconditions.checkArgument(
+        contentStats.isObject(),
+        "Invalid JSON node for content stats: non-object (%s)",
+        contentStats);
+
+    Map<Integer, Long> fieldIdToTotalBytes = Maps.newHashMap();
+    Iterator<String> fieldIds = contentStats.fieldNames();
+    while (fieldIds.hasNext()) {
+      String fieldId = fieldIds.next();
+      JsonNode fieldStats = contentStats.get(fieldId);
+      Preconditions.checkArgument(
+          fieldStats != null && fieldStats.isObject(),
+          "Cannot parse content stats for field %s from non-object: %s",
+          fieldId,
+          fieldStats);
+      Long totalBytes = JsonUtil.getLongOrNull(TOTAL_BYTES, fieldStats);
+      if (totalBytes != null) {
+        fieldIdToTotalBytes.put(parseFieldId(fieldId), totalBytes);
+      }
+    }
+
+    return fieldIdToTotalBytes.isEmpty() ? null : fieldIdToTotalBytes;
+  }
+
+  private static int parseFieldId(String fieldId) {
+    try {
+      return Integer.parseInt(fieldId);
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException(
+          String.format("Invalid field ID for content stats: %s", fieldId), e);
+    }
+  }
+
+  private static void partitionToJson(
+      Types.StructType partitionType, StructLike partitionData, JsonGenerator generator)
+      throws IOException {
+    generator.writeStartArray();
+    List<Types.NestedField> fields = partitionType.fields();
+    for (int pos = 0; pos < fields.size(); ++pos) {
+      Types.NestedField field = fields.get(pos);
+      Object partitionValue = partitionData.get(pos, Object.class);
+      SingleValueParser.toJson(field.type(), partitionValue, generator);
+    }
+    generator.writeEndArray();
+  }
+
+  private static PartitionData partitionFromJson(
+      Types.StructType partitionType, JsonNode partitionNode) {
+    List<Types.NestedField> fields = partitionType.fields();
+    PartitionData partitionData = new PartitionData(partitionType);
+
+    if (partitionNode.isArray()) {
+      Preconditions.checkArgument(
+          partitionNode.size() == fields.size(),
+          "Invalid partition data size: expected = %s, actual = %s",
+          fields.size(),
+          partitionNode.size());
+
+      for (int pos = 0; pos < fields.size(); ++pos) {
+        Types.NestedField field = fields.get(pos);
+        Object partitionValue = SingleValueParser.fromJson(field.type(), partitionNode.get(pos));
+        partitionData.set(pos, partitionValue);
+      }
+    } else if (partitionNode.isObject()) {
+      // Handle partition struct object format, which serializes by field ID and skips
+      // null partition values
+      Preconditions.checkState(
+          partitionNode.size() <= fields.size(),
+          "Invalid partition data size: expected <= %s, actual = %s",
+          fields.size(),
+          partitionNode.size());
+
+      StructLike structLike = (StructLike) SingleValueParser.fromJson(partitionType, partitionNode);
+      for (int pos = 0; pos < partitionData.size(); ++pos) {
+        Class<?> javaClass = fields.get(pos).type().typeId().javaClass();
+        partitionData.set(pos, structLike.get(pos, javaClass));
+      }
+    } else {
+      throw new IllegalArgumentException(
+          String.format(
+              "Invalid partition data for content file: expected array or object (%s)",
+              partitionNode));
+    }
+
+    return partitionData;
+  }
+
+  private static FileContent fileContentFromJson(String content) {
+    switch (content) {
+      case CONTENT_DATA:
+        return FileContent.DATA;
+      case CONTENT_POSITION_DELETES:
+        return FileContent.POSITION_DELETES;
+      case CONTENT_EQUALITY_DELETES:
+        return FileContent.EQUALITY_DELETES;
+      default:
+        // In 1.10 and before, file content is serialized as the FileContent enum value
+        try {
+          return FileContent.valueOf(content);
+        } catch (IllegalArgumentException e) {
+          throw new IllegalArgumentException(
+              String.format("Invalid file content value: '%s'", content), e);
+        }
+    }
   }
 }

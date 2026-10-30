@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
@@ -28,14 +29,13 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.spark.ImmutableOrcBatchReadConf;
 import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
-import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkUtil;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -47,6 +47,7 @@ class SparkBatch implements Batch {
 
   private final JavaSparkContext sparkContext;
   private final Table table;
+  private final Supplier<FileIO> fileIO;
   private final String branch;
   private final SparkReadConf readConf;
   private final Types.StructType groupingKeyType;
@@ -61,6 +62,7 @@ class SparkBatch implements Batch {
   SparkBatch(
       JavaSparkContext sparkContext,
       Table table,
+      Supplier<FileIO> fileIO,
       SparkReadConf readConf,
       Types.StructType groupingKeyType,
       List<? extends ScanTaskGroup<?>> taskGroups,
@@ -68,6 +70,7 @@ class SparkBatch implements Batch {
       int scanHashCode) {
     this.sparkContext = sparkContext;
     this.table = table;
+    this.fileIO = fileIO;
     this.branch = readConf.branch();
     this.readConf = readConf;
     this.groupingKeyType = groupingKeyType;
@@ -85,6 +88,8 @@ class SparkBatch implements Batch {
     // broadcast the table metadata as input partitions will be sent to executors
     Broadcast<Table> tableBroadcast =
         sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
+    Broadcast<FileIO> fileIOBroadcast =
+        sparkContext.broadcast(SerializableFileIOWithSize.wrap(fileIO.get()));
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
     String[][] locations = computePreferredLocations();
 
@@ -96,6 +101,7 @@ class SparkBatch implements Batch {
               groupingKeyType,
               taskGroups.get(index),
               tableBroadcast,
+              fileIOBroadcast,
               branch,
               expectedSchemaString,
               caseSensitive,
@@ -108,7 +114,7 @@ class SparkBatch implements Batch {
 
   private String[][] computePreferredLocations() {
     if (localityEnabled) {
-      return SparkPlanningUtil.fetchBlockLocations(table.io(), taskGroups);
+      return SparkPlanningUtil.fetchBlockLocations(fileIO.get(), taskGroups);
 
     } else if (executorCacheLocalityEnabled) {
       List<String> executorLocations = SparkUtil.executorLocations();
@@ -122,11 +128,8 @@ class SparkBatch implements Batch {
 
   @Override
   public PartitionReaderFactory createReaderFactory() {
-    if (useCometBatchReads()) {
-      return new SparkColumnarReaderFactory(parquetBatchReadConf(ParquetReaderType.COMET));
-
-    } else if (useParquetBatchReads()) {
-      return new SparkColumnarReaderFactory(parquetBatchReadConf(ParquetReaderType.ICEBERG));
+    if (useParquetBatchReads()) {
+      return new SparkColumnarReaderFactory(parquetBatchReadConf());
 
     } else if (useOrcBatchReads()) {
       return new SparkColumnarReaderFactory(orcBatchReadConf());
@@ -136,11 +139,8 @@ class SparkBatch implements Batch {
     }
   }
 
-  private ParquetBatchReadConf parquetBatchReadConf(ParquetReaderType readerType) {
-    return ImmutableParquetBatchReadConf.builder()
-        .batchSize(readConf.parquetBatchSize())
-        .readerType(readerType)
-        .build();
+  private ParquetBatchReadConf parquetBatchReadConf() {
+    return ImmutableParquetBatchReadConf.builder().batchSize(readConf.parquetBatchSize()).build();
   }
 
   private OrcBatchReadConf orcBatchReadConf() {
@@ -173,20 +173,6 @@ class SparkBatch implements Batch {
 
   private boolean supportsParquetBatchReads(Types.NestedField field) {
     return field.type().isPrimitiveType() || MetadataColumns.isMetadataColumn(field.fieldId());
-  }
-
-  private boolean useCometBatchReads() {
-    return readConf.parquetVectorizationEnabled()
-        && readConf.parquetReaderType() == ParquetReaderType.COMET
-        && expectedSchema.columns().stream().allMatch(this::supportsCometBatchReads)
-        && taskGroups.stream().allMatch(this::supportsParquetBatchReads);
-  }
-
-  private boolean supportsCometBatchReads(Types.NestedField field) {
-    return field.type().isPrimitiveType()
-        && !field.type().typeId().equals(Type.TypeID.UUID)
-        && field.fieldId() != MetadataColumns.ROW_ID.fieldId()
-        && field.fieldId() != MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId();
   }
 
   // conditions for using ORC batch reads:

@@ -28,14 +28,15 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.data.DataTestHelpers;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -45,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
+import org.apache.parquet.io.LocalOutputFile;
 import org.junit.jupiter.api.Test;
 
 public class TestGenericData extends DataTestBase {
@@ -65,6 +67,11 @@ public class TestGenericData extends DataTestBase {
 
   @Override
   protected boolean supportsRowLineage() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsGeospatial() {
     return true;
   }
 
@@ -142,7 +149,8 @@ public class TestGenericData extends DataTestBase {
     File testFile = temp.resolve("test-file" + System.nanoTime()).toFile();
 
     ParquetWriter<org.apache.avro.generic.GenericRecord> writer =
-        AvroParquetWriter.<org.apache.avro.generic.GenericRecord>builder(new Path(testFile.toURI()))
+        AvroParquetWriter.<org.apache.avro.generic.GenericRecord>builder(
+                new LocalOutputFile(testFile.toPath()))
             .withDataModel(GenericData.get())
             .withSchema(avroSchema)
             .config("parquet.avro.add-list-element-records", "true")
@@ -175,5 +183,75 @@ public class TestGenericData extends DataTestBase {
 
       assertThat(Lists.newArrayList(reader)).hasSize(1);
     }
+  }
+
+  @Test
+  public void testNestedInitialDefaultWhenAncestorStructIsNull() throws IOException {
+    // one row has an inner value, the other has a null nested struct
+    Schema writeSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("nested")
+                .withId(2)
+                .ofType(
+                    Types.StructType.of(
+                        Types.NestedField.required(3, "inner", Types.StringType.get())))
+                .build());
+
+    Record present = GenericRecord.create(writeSchema);
+    present.setField("id", 1L);
+    Record presentNested =
+        GenericRecord.create(writeSchema.findField("nested").type().asStructType());
+    presentNested.setField("inner", "a");
+    present.setField("nested", presentNested);
+
+    Record nullNested = GenericRecord.create(writeSchema);
+    nullNested.setField("id", 2L);
+    nullNested.setField("nested", null);
+
+    OutputFile output = new InMemoryOutputFile();
+    try (FileAppender<Record> appender =
+        Parquet.write(output)
+            .schema(writeSchema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+      appender.add(present);
+      appender.add(nullNested);
+    }
+
+    // project only the added field with the default; inner is not read
+    Schema readSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("nested")
+                .withId(2)
+                .ofType(
+                    Types.StructType.of(
+                        Types.NestedField.optional("added")
+                            .withId(4)
+                            .ofType(Types.StringType.get())
+                            .withInitialDefault(Literal.of("US"))
+                            .build()))
+                .build());
+
+    List<Record> rows;
+    try (CloseableIterable<Record> reader =
+        Parquet.read(output.toInputFile())
+            .project(readSchema)
+            .createReaderFunc(
+                fileSchema -> GenericParquetReaders.buildReader(readSchema, fileSchema))
+            .build()) {
+      rows = Lists.newArrayList(reader);
+    }
+
+    assertThat(rows).hasSize(2);
+
+    // present struct reads the default
+    Record row1Nested = (Record) rows.get(0).getField("nested");
+    assertThat(row1Nested).isNotNull();
+    assertThat(row1Nested.getField("added")).isEqualTo("US");
+
+    // null struct reads as null
+    assertThat(rows.get(1).getField("nested")).isNull();
   }
 }

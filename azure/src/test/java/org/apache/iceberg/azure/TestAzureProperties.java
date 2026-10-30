@@ -26,6 +26,8 @@ import static org.apache.iceberg.azure.AzureProperties.ADLS_SAS_TOKEN_PREFIX;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SHARED_KEY_ACCOUNT_KEY;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SHARED_KEY_ACCOUNT_NAME;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_WRITE_BLOCK_SIZE;
+import static org.apache.iceberg.azure.AzureProperties.AZURE_KEYVAULT_KEY_WRAP_ALGORITHM;
+import static org.apache.iceberg.azure.AzureProperties.AZURE_KEYVAULT_URL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.ArgumentMatchers.any;
@@ -39,6 +41,7 @@ import com.azure.core.credential.AzureSasCredential;
 import com.azure.core.credential.TokenCredential;
 import com.azure.core.credential.TokenRequestContext;
 import com.azure.identity.DefaultAzureCredential;
+import com.azure.security.keyvault.keys.cryptography.models.KeyWrapAlgorithm;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.io.IOException;
@@ -50,6 +53,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.azure.adlsv2.VendedAdlsCredentialProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -73,11 +77,15 @@ public class TestAzureProperties {
                 .put(ADLS_SHARED_KEY_ACCOUNT_KEY, "secret")
                 .put(AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER, "provider")
                 .put(AzureProperties.ADLS_TOKEN_PROVIDER_PREFIX + "client-id", "clientId")
+                .put(AZURE_KEYVAULT_URL, "https://test-key-vault.vault.azure.net")
+                .put(AZURE_KEYVAULT_KEY_WRAP_ALGORITHM, KeyWrapAlgorithm.RSA1_5.getValue())
                 .build());
 
     AzureProperties serdedProps = roundTripSerializer.apply(props);
     assertThat(serdedProps.adlsReadBlockSize()).isEqualTo(props.adlsReadBlockSize());
     assertThat(serdedProps.adlsWriteBlockSize()).isEqualTo(props.adlsWriteBlockSize());
+    assertThat(serdedProps.keyVaultUrl()).isEqualTo(props.keyVaultUrl());
+    assertThat(serdedProps.keyWrapAlgorithm()).isEqualTo(props.keyWrapAlgorithm());
   }
 
   @Test
@@ -289,6 +297,17 @@ public class TestAzureProperties {
 
     verify(clientBuilder, never()).sasToken(any());
     verify(clientBuilder, never()).credential(any(StorageSharedKeyCredential.class));
+  }
+
+  @Test
+  public void nullValuesAreIgnored() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(ADLS_READ_BLOCK_SIZE, null);
+    properties.put(ADLS_WRITE_BLOCK_SIZE, null);
+
+    AzureProperties azureProperties = new AzureProperties(properties);
+    assertThat(azureProperties.adlsReadBlockSize()).isEmpty();
+    assertThat(azureProperties.adlsWriteBlockSize()).isEmpty();
   }
 
   static class DummyTokenCredential implements TokenCredential {

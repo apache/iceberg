@@ -38,8 +38,6 @@ public class TestRoundTrip extends ExtensionsTestBase {
   }
 
   // Run through our Doc's Getting Started Example
-  // TODO Update doc example so that it can actually be run, modifications were required for this
-  // test suite to run
   @TestTemplate
   public void testGettingStarted() throws IOException {
     // Creating a table

@@ -20,6 +20,7 @@ package org.apache.iceberg.azure.adlsv2;
 
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SAS_TOKEN_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
@@ -31,6 +32,7 @@ import static org.mockito.Mockito.when;
 
 import com.azure.core.http.rest.PagedIterable;
 import com.azure.core.http.rest.Response;
+import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
@@ -42,6 +44,7 @@ import java.time.OffsetDateTime;
 import java.util.Iterator;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.azure.AzureProperties;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
@@ -51,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestADLSFileIO extends AzuriteTestBase {
 
@@ -79,6 +83,23 @@ public class TestADLSFileIO extends AzuriteTestBase {
   }
 
   @Test
+  public void readMissingLocation() {
+    String path = "path/to/file";
+    String location = AZURITE_CONTAINER.location(path);
+    ADLSFileIO io = createFileIO();
+    DataLakeFileClient fileClient = AZURITE_CONTAINER.fileClient(path);
+    assertThat(fileClient.exists()).isFalse();
+
+    InputFile inputFile = io.newInputFile(location);
+
+    assertThatThrownBy(inputFile::newStream)
+        .isInstanceOf(NotFoundException.class)
+        .hasCauseInstanceOf(BlobStorageException.class)
+        .hasMessage(
+            "Location does not exist: abfs://container@account.dfs.core.windows.net/path/to/file");
+  }
+
+  @Test
   public void testBulkDeleteFiles() {
     String path1 = "path/to/file1";
     String location1 = AZURITE_CONTAINER.location(path1);
@@ -90,8 +111,10 @@ public class TestADLSFileIO extends AzuriteTestBase {
     AZURITE_CONTAINER.createFile(path2, new byte[] {123});
     assertThat(AZURITE_CONTAINER.fileClient(path2).exists()).isTrue();
 
+    String missingLocation = AZURITE_CONTAINER.location("path/to/missing");
+
     ADLSFileIO io = createFileIO();
-    io.deleteFiles(ImmutableList.of(location1, location2));
+    io.deleteFiles(ImmutableList.of(location1, location2, missingLocation));
 
     assertThat(AZURITE_CONTAINER.fileClient(path1).exists()).isFalse();
     assertThat(AZURITE_CONTAINER.fileClient(path2).exists()).isFalse();
@@ -122,10 +145,14 @@ public class TestADLSFileIO extends AzuriteTestBase {
 
   /** Azurite does not support ADLSv2 directory operations yet so use mocks here. */
   @SuppressWarnings("unchecked")
-  @Test
-  public void testListPrefixOperations() {
-    String prefix = "abfs://container@account.dfs.core.windows.net/dir";
-
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "abfss://container@account.dfs.core.windows.net/dir",
+        "abfs://account.dfs.core.windows.net/dir",
+        "wasbs://container@account.blob.core.windows.net/dir"
+      })
+  public void testListPrefixOperations(String prefix) {
     OffsetDateTime now = OffsetDateTime.now();
     PathItem dir =
         new PathItem("tag", now, 0L, "group", true, "dir", "owner", "permissions", now, null);
@@ -149,7 +176,7 @@ public class TestADLSFileIO extends AzuriteTestBase {
 
     // assert that only files were returned and not directories
     FileInfo fileInfo = result.next();
-    assertThat(fileInfo.location()).isEqualTo("dir/file");
+    assertThat(fileInfo.location()).isEqualTo(prefix + "/file");
     assertThat(fileInfo.size()).isEqualTo(123L);
     assertThat(fileInfo.createdAtMillis()).isEqualTo(now.toInstant().toEpochMilli());
 

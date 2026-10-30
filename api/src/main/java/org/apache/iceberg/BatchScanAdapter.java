@@ -20,22 +20,29 @@ package org.apache.iceberg;
 
 import java.util.Collection;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.MetricsReporter;
 
 /** An adapter that allows using {@link TableScan} as {@link BatchScan}. */
-class BatchScanAdapter implements BatchScan {
+public class BatchScanAdapter implements BatchScan {
 
   private final TableScan scan;
 
-  BatchScanAdapter(TableScan scan) {
+  public BatchScanAdapter(TableScan scan) {
     this.scan = scan;
   }
 
   @Override
   public Table table() {
     return scan.table();
+  }
+
+  @Override
+  public Supplier<FileIO> fileIO() {
+    return scan.fileIO();
   }
 
   @Override
@@ -150,5 +157,10 @@ class BatchScanAdapter implements BatchScan {
   @Override
   public BatchScan metricsReporter(MetricsReporter reporter) {
     return new BatchScanAdapter(scan.metricsReporter(reporter));
+  }
+
+  @Override
+  public BatchScan minRowsRequested(long numRows) {
+    return new BatchScanAdapter(scan.minRowsRequested(numRows));
   }
 }

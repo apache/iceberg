@@ -40,6 +40,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.RewriteFiles;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
@@ -308,7 +309,7 @@ class TestMonitorSource extends OperatorTestBase {
 
     // Create a DataOperations.REPLACE snapshot
     DataFile dataFile =
-        table.snapshots().iterator().next().addedDataFiles(table.io()).iterator().next();
+        SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next();
     RewriteFiles rewrite = tableLoader.loadTable().newRewrite();
     // Replace the file with itself for testing purposes
     rewrite.deleteFile(dataFile);
@@ -320,14 +321,18 @@ class TestMonitorSource extends OperatorTestBase {
   }
 
   private static long firstFileLength(Table table) {
-    return table.currentSnapshot().addedDataFiles(table.io()).iterator().next().fileSizeInBytes();
+    return SnapshotChanges.builderFor(table)
+        .build()
+        .addedDataFiles()
+        .iterator()
+        .next()
+        .fileSizeInBytes();
   }
 
   private static TableChange tableChangeWithLastSnapshot(Table table, TableChange previous) {
-    List<DataFile> dataFiles =
-        Lists.newArrayList(table.currentSnapshot().addedDataFiles(table.io()).iterator());
-    List<DeleteFile> deleteFiles =
-        Lists.newArrayList(table.currentSnapshot().addedDeleteFiles(table.io()).iterator());
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).build();
+    List<DataFile> dataFiles = Lists.newArrayList(changes.addedDataFiles().iterator());
+    List<DeleteFile> deleteFiles = Lists.newArrayList(changes.addedDeleteFiles().iterator());
 
     long dataSize = dataFiles.stream().mapToLong(ContentFile::fileSizeInBytes).sum();
     long deleteRecordCount = deleteFiles.stream().mapToLong(DeleteFile::recordCount).sum();

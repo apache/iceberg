@@ -1,5 +1,5 @@
 ---
-title: "Flink Getting Started"
+title: "Getting Started"
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
@@ -18,7 +18,8 @@ title: "Flink Getting Started"
  - limitations under the License.
  -->
 
-# Flink
+!!!tip
+    For an overview of using Iceberg with Flink, see the [Flink Quickstart](/flink-quickstart)
 
 Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API. See the [Multi-Engine Support](../../multi-engine-support.md#apache-flink) page for the integration of Apache Flink.
 
@@ -28,7 +29,7 @@ Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStr
 | [SQL create database](flink-ddl.md#create-database) | ✔️    |                                                                                        |
 | [SQL create table](flink-ddl.md#create-table)                        | ✔️    |                                                                                        |
 | [SQL create table like](flink-ddl.md#create-table-like)              | ✔️    |                                                                                        |
-| [SQL alter table](flink-ddl.md#alter-table)                          | ✔️    | Only support altering table properties, column and partition changes are not supported |
+| [SQL alter table](flink-ddl.md#alter-table)                          | ✔️    | Support altering table properties and columns (add, drop, rename, modify); partition changes are not supported |
 | [SQL drop_table](flink-ddl.md#drop-table)                            | ✔️    |                                                                                        |
 | [SQL select](flink-queries.md#reading-with-sql)                         | ✔️    | Support both streaming and batch mode                                                  |
 | [SQL insert into](flink-writes.md#insert-into)                          | ✔️ ️  | Support both streaming and batch mode                                                  |
@@ -41,7 +42,7 @@ Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStr
 
 ## Preparation when using Flink SQL Client
 
-To create Iceberg table in Flink, it is recommended to use [Flink SQL Client](https://ci.apache.org/projects/flink/flink-docs-release-{{ flinkVersionMajor }}/dev/table/sqlClient.html) as it's easier for users to understand the concepts.
+To create Iceberg table in Flink, it is recommended to use [Flink SQL Client](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/table/sqlclient/) as it's easier for users to understand the concepts.
 
 Download Flink from the [Apache download page](https://flink.apache.org/downloads.html). Iceberg uses Scala 2.12 when compiling the Apache `iceberg-flink-runtime` jar, so it's recommended to use Flink {{ flinkVersionMajor }} bundled with Scala 2.12.
 
@@ -70,17 +71,17 @@ cd flink-${FLINK_VERSION}/
 ./bin/start-cluster.sh
 ```
 
-Start the Flink SQL client. There is a separate `flink-runtime` module in the Iceberg project to generate a bundled jar, which could be loaded by Flink SQL client directly. To build the `flink-runtime` bundled jar manually, build the `iceberg` project, and it will generate the jar under `<iceberg-root-dir>/flink-runtime/build/libs`. Or download the `flink-runtime` jar from the [Apache repository](https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-flink-runtime-{{ flinkVersionMajor }}/{{ icebergVersion }}/).
+Start the Flink SQL client. There is a separate `flink-runtime` module in the Iceberg project to generate a bundled jar, which could be loaded by Flink SQL client directly. To build the `flink-runtime` bundled jar manually, build the `iceberg` project, and it will generate the jar under `<iceberg-root-dir>/flink/v{{ flinkVersionMajor }}/flink-runtime/build/libs`. Or download the `flink-runtime` jar from the [Apache repository](https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-flink-runtime-{{ flinkVersionMajor }}/{{ icebergVersion }}/).
 
 ```bash
 # HADOOP_HOME is your hadoop root directory after unpack the binary package.
 export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`   
 
-# Below works for 1.15 or less
-./bin/sql-client.sh embedded -j <flink-runtime-directory>/iceberg-flink-runtime-1.15-{{ icebergVersion }}.jar shell
+# Below works for Flink 1.15 or earlier
+./bin/sql-client.sh embedded -j <flink-runtime-directory>/iceberg-flink-runtime-{{ flinkVersionMajor }}-{{ icebergVersion }}.jar shell
 
-# 1.16 or above has a regression in loading external jar via -j option. See FLINK-30035 for details.
-put iceberg-flink-runtime-1.16-{{ icebergVersion }}.jar in flink/lib dir
+# Flink 1.16+ has a regression in loading external jars via -j. See FLINK-30035 for details.
+# put iceberg-flink-runtime-{{ flinkVersionMajor }}-{{ icebergVersion }}.jar in flink/lib dir
 ./bin/sql-client.sh embedded shell
 ```
 
@@ -110,20 +111,20 @@ wget ${FLINK_CONNECTOR_URL}/${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_V
 ## Flink's Python API
 
 !!! info
-    PyFlink 1.6.1 [does not work on OSX with a M1 cpu](https://issues.apache.org/jira/browse/FLINK-28786)
+    PyFlink 1.6.1 has a known issue on macOS with Apple Silicon. See [FLINK-28786](https://issues.apache.org/jira/browse/FLINK-28786).
 
 Install the Apache Flink dependency using `pip`:
 
-```python
+```bash
 pip install apache-flink=={{ flinkVersion }}
 ```
 
-Provide a `file://` path to the `iceberg-flink-runtime` jar, which can be obtained by building the project and looking at `<iceberg-root-dir>/flink-runtime/build/libs`, or downloading it from the [Apache official repository](https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-flink-runtime/). Third-party jars can be added to `pyflink` via:
+Provide a `file://` path to the `iceberg-flink-runtime` jar, which can be obtained by building the project and looking at `<iceberg-root-dir>/flink/v{{ flinkVersionMajor }}/flink-runtime/build/libs`, or downloading it from the [Apache official repository](https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-flink-runtime-{{ flinkVersionMajor }}/). Third-party jars can be added to `pyflink` via:
 
 - `env.add_jars("file:///my/jar/path/connector.jar")`
 - `table_env.get_config().get_configuration().set_string("pipeline.jars", "file:///my/jar/path/connector.jar")`
 
-This is also mentioned in the official [docs](https://ci.apache.org/projects/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/python/dependency_management/). The example below uses `env.add_jars(..)`:
+This is also mentioned in the official [docs](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/python/dependency_management/). The example below uses `env.add_jars(..)`:
 
 ```python
 import os
@@ -172,22 +173,22 @@ Run a query:
 5 rows in set
 ```
 
-For more details, please refer to the [Python Table API](https://ci.apache.org/projects/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/python/table/intro_to_table_api/).
+For more details, please refer to the [Python Table API](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/api/python/user_guide/table/index.html).
 
-## Adding catalogs.
+## Adding catalogs
 
-Flink support to create catalogs by using Flink SQL.
+Flink supports creating catalogs using Flink SQL.
 
 ### Catalog Configuration
 
 A catalog is created and named by executing the following query (replace `<catalog_name>` with your catalog name and
-`<config_key>`=`<config_value>` with catalog implementation config):
+`'<config_key>' = '<config_value>'` with catalog implementation config):
 
 ```sql
 CREATE CATALOG <catalog_name> WITH (
   'type'='iceberg',
-  `<config_key>`=`<config_value>`
-); 
+  '<config_key>' = '<config_value>'
+);
 ```
 
 The following properties can be set globally and are not limited to a specific catalog implementation:
@@ -244,7 +245,7 @@ INSERT INTO `hive_catalog`.`default`.`sample` VALUES (1, 'a');
 INSERT INTO `hive_catalog`.`default`.`sample` SELECT id, data from other_kafka_table;
 ```
 
-To replace data in the table with the result of a query, use `INSERT OVERWRITE` in batch job (flink streaming job does not support `INSERT OVERWRITE`). Overwrites are atomic operations for Iceberg tables.
+To replace data in the table with the result of a query, use `INSERT OVERWRITE` in a batch job (Flink streaming jobs do not support `INSERT OVERWRITE`). Overwrites are atomic operations for Iceberg tables.
 
 Partitions that have rows produced by the SELECT query will be replaced, for example:
 
@@ -252,7 +253,7 @@ Partitions that have rows produced by the SELECT query will be replaced, for exa
 INSERT OVERWRITE `hive_catalog`.`default`.`sample` VALUES (1, 'a');
 ```
 
-Iceberg also support overwriting given partitions by the `select` values:
+Iceberg also supports overwriting given partitions by the `SELECT` values:
 
 ```sql
 INSERT OVERWRITE `hive_catalog`.`default`.`sample` PARTITION(data='a') SELECT 6;
@@ -275,8 +276,10 @@ env.execute("Test Iceberg DataStream");
 ```
 
 ### Branch Writes
-Writing to branches in Iceberg tables is also supported via the `toBranch` API in `FlinkSink`
+Writing to branches in Iceberg tables is also supported via the `toBranch` API in `FlinkSink`.
+
 For more information on branches please refer to [branches](branching.md).
+
 ```java
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
@@ -286,7 +289,7 @@ FlinkSink.forRowData(input)
 
 ## Reading
 
-Submit a Flink __batch__ job using the following sentences:
+Submit a Flink __batch__ job using the following statements:
 
 ```sql
 -- Execute the flink job in batch mode for current session context
@@ -294,7 +297,7 @@ SET execution.runtime-mode = batch;
 SELECT * FROM `hive_catalog`.`default`.`sample`;
 ```
 
-Iceberg supports processing incremental data in flink __streaming__ jobs which starts from a historical snapshot-id:
+Iceberg supports processing incremental data in Flink __streaming__ jobs that start from a historical snapshot ID:
 
 ```sql
 -- Submit the flink job in streaming mode for current session.
@@ -313,10 +316,10 @@ SELECT * FROM `hive_catalog`.`default`.`sample` /*+ OPTIONS('streaming'='true', 
 SQL is also the recommended way to inspect tables. To view all of the snapshots in a table, use the snapshots metadata table:
 
 ```sql
-SELECT * FROM `hive_catalog`.`default`.`sample`.`snapshots`
+SELECT * FROM `hive_catalog`.`default`.`sample$snapshots`;
 ```
 
-Iceberg support streaming or batch read in Java API:
+Iceberg supports streaming or batch reads in the Java API:
 
 ```
 DataStream<RowData> batch = FlinkSource.forRowData()
@@ -346,8 +349,8 @@ Flink types are converted to Iceberg types according to the following table:
 | char                | string                     |               |
 | varchar             | string                     |               |
 | string              | string                     |               |
-| binary              | binary                     |               |
-| varbinary           | fixed                      |               |
+| binary              | fixed                      |               |
+| varbinary           | binary                     |               |
 | decimal             | decimal                    |               |
 | date                | date                       |               |
 | time                | time                       |               |
@@ -357,6 +360,7 @@ Flink types are converted to Iceberg types according to the following table:
 | map                 | map                        |               |
 | multiset            | map                        |               |
 | row                 | struct                     |               |
+| variant             | variant                    | Flink 2.x only |
 | raw                 |                            | Not supported |
 | interval            |                            | Not supported |
 | structured          |                            | Not supported |
@@ -392,7 +396,7 @@ Iceberg types are converted to Flink types according to the following table:
 | nanosecond timestamp       | timestamp(9)          |               |
 | nanosecond timestamp with timezone | timestamp_ltz(9) |            |
 | unknown                    | null                  |               |
-| variant                    |                       | Not supported |
+| variant                    | variant               | Flink 2.x only |
 | geometry                   |                       | Not supported |
 | geography                  |                       | Not supported |
 

@@ -46,6 +46,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
   public static final String TABLE_TYPE_PROP = "table_type";
   public static final String ICEBERG_TABLE_TYPE_VALUE = "iceberg";
   public static final String METADATA_LOCATION_PROP = "metadata_location";
+  public static final String METADATA_HASH_PROP = "metadata_hash";
   public static final String PREVIOUS_METADATA_LOCATION_PROP = "previous_metadata_location";
 
   private static final String METADATA_FOLDER_NAME = "metadata";
@@ -332,6 +333,11 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
    */
   private boolean checkCurrentMetadataLocation(String newMetadataLocation) {
     TableMetadata metadata = refresh();
+    if (metadata == null) {
+      // Table creation may not have registered metadata yet.
+      return false;
+    }
+
     String currentMetadataFileLocation = metadata.metadataFileLocation();
     return currentMetadataFileLocation.equals(newMetadataLocation)
         || metadata.previousFiles().stream()

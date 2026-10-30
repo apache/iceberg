@@ -53,7 +53,8 @@ class TestTables {
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
-    ops.commit(null, TableMetadata.newTableMetadata(schema, spec, temp.toString(), properties));
+    ops.commit(
+        null, TableMetadata.newTableMetadata(schema, spec, temp.toURI().toString(), properties));
     return new TestTable(ops, name);
   }
 
@@ -196,12 +197,13 @@ class TestTables {
 
     @Override
     public OutputFile newOutputFile(String path) {
-      return Files.localOutput(new File(path));
+      return Files.localOutput(path);
     }
 
     @Override
     public void deleteFile(String path) {
-      if (!new File(path).delete()) {
+      String localPath = path.startsWith("file:") ? path.replaceFirst("file:", "") : path;
+      if (!new File(localPath).delete()) {
         throw new RuntimeIOException("Failed to delete file: " + path);
       }
     }

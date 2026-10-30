@@ -90,7 +90,7 @@ public class CreateViewRequestParser {
             .viewVersion(viewVersion)
             .schema(schema);
 
-    if (json.has(PROPERTIES)) {
+    if (json.hasNonNull(PROPERTIES)) {
       builder.properties(JsonUtil.getStringMap(PROPERTIES, json));
     }
 

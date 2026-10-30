@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.spark;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -62,7 +65,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  */
 public class SparkSessionCatalog<
         T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
-    extends BaseCatalog implements CatalogExtension {
+    extends BaseCatalog implements CatalogExtension, Closeable {
   private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
 
   private String catalogName = null;
@@ -375,6 +378,17 @@ public class SparkSessionCatalog<
     return catalogName;
   }
 
+  @Override
+  public void close() {
+    if (icebergCatalog instanceof Closeable) {
+      try {
+        ((Closeable) icebergCatalog).close();
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to close catalog: " + catalogName, e);
+      }
+    }
+  }
+
   private boolean useIceberg(String provider) {
     if (provider == null || "iceberg".equalsIgnoreCase(provider)) {
       return true;
@@ -429,7 +443,7 @@ public class SparkSessionCatalog<
       if (null != asViewCatalog) {
         return asViewCatalog.listViews(namespace);
       } else if (isViewCatalog()) {
-        getSessionCatalog().listViews(namespace);
+        return getSessionCatalog().listViews(namespace);
       }
     } catch (NoSuchNamespaceException e) {
       throw new RuntimeException(e);

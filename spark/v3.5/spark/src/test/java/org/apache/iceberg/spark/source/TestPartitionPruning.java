@@ -59,6 +59,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaRDD;
@@ -118,6 +119,7 @@ public class TestPartitionPruning {
         SparkSession.builder()
             .master("local[2]")
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .config(TestBase.DISABLE_UI)
             .getOrCreate();
     TestPartitionPruning.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
 
@@ -241,14 +243,7 @@ public class TestPartitionPruning {
 
   @TestTemplate
   public void testPartitionPruningHourlyPartition() {
-    String filterCond;
-    if (spark.version().startsWith("2")) {
-      // Looks like from Spark 2 we need to compare timestamp with timestamp to push down the
-      // filter.
-      filterCond = "timestamp >= to_timestamp('2020-02-03T01:00:00')";
-    } else {
-      filterCond = "timestamp >= '2020-02-03T01:00:00'";
-    }
+    String filterCond = "timestamp >= '2020-02-03T01:00:00'";
     Predicate<Row> partCondition =
         (Row r) -> {
           int hourValue = r.getInt(4);

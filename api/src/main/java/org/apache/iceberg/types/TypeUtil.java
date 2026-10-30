@@ -19,6 +19,7 @@
 package org.apache.iceberg.types;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -102,6 +103,19 @@ public class TypeUtil {
     return new Schema(ImmutableList.of(), schema.getAliases());
   }
 
+  /**
+   * Selects fields from a schema by ID and returns them ordered by field ID.
+   *
+   * <p>Unlike {@link #select(Schema, Set)}, which preserves the field ordering of the input schema,
+   * this method always returns columns sorted by field ID.
+   */
+  public static Schema selectInIdOrder(Schema schema, Set<Integer> fieldIds) {
+    Schema selected = select(schema, fieldIds);
+    List<Types.NestedField> sorted = Lists.newArrayList(selected.columns());
+    sorted.sort(Comparator.comparingInt(Types.NestedField::fieldId));
+    return new Schema(sorted);
+  }
+
   public static Types.StructType select(Types.StructType struct, Set<Integer> fieldIds) {
     Preconditions.checkNotNull(struct, "Struct cannot be null");
     Preconditions.checkNotNull(fieldIds, "Field ids cannot be null");
@@ -143,6 +157,24 @@ public class TypeUtil {
     return project(schema, projectedIds);
   }
 
+  /**
+   * Returns a copy of the schema with the type of each field in {@code replacementsById} replaced
+   * by its mapped type. Fields not in the map are unchanged.
+   *
+   * @param schema a schema
+   * @param replacementsById a map from field ID to the type that should replace the field's type
+   * @return a schema with the replaced field types
+   */
+  public static Schema replaceFieldTypes(Schema schema, Map<Integer, Type> replacementsById) {
+    Types.StructType struct = visit(schema, new ReplaceTypeById(replacementsById)).asStructType();
+    if (struct.equals(schema.asStruct())) {
+      return schema;
+    }
+
+    return new Schema(
+        schema.schemaId(), struct.fields(), schema.getAliases(), schema.identifierFieldIds());
+  }
+
   public static Schema join(Schema left, Schema right) {
     List<Types.NestedField> joinedColumns = Lists.newArrayList(left.columns());
     for (Types.NestedField rightColumn : right.columns()) {
@@ -177,6 +209,19 @@ public class TypeUtil {
   public static Map<Integer, String> indexQuotedNameById(
       Types.StructType struct, Function<String, String> quotingFunc) {
     IndexByName indexer = new IndexByName(quotingFunc);
+    visit(struct, indexer);
+    return indexer.byId();
+  }
+
+  /**
+   * Indexes the fields of a struct from ID to a flattened name that can be used for stats struct
+   * field names.
+   *
+   * @param struct a struct type
+   * @return an index from field ID to short names, joined by _
+   */
+  public static Map<Integer, String> indexStatsNames(Types.StructType struct) {
+    IndexByName indexer = new IndexByName("_", Function.identity(), true /* use short names */);
     visit(struct, indexer);
     return indexer.byId();
   }
@@ -599,6 +644,52 @@ public class TypeUtil {
   /** Interface for passing a function that assigns column IDs from the previous Id. */
   public interface GetID {
     int get(int oldId);
+  }
+
+  /**
+   * Creates a function that reassigns specified field IDs.
+   *
+   * <p>This is useful for merging schemas where some field IDs in one schema might conflict with
+   * IDs already in use by another schema. The function will reassign the provided IDs to new unused
+   * IDs, while preserving other IDs.
+   *
+   * @param conflictingIds the set of conflicting field IDs that should be reassigned
+   * @param allUsedIds the set of field IDs that are already in use and cannot be reused
+   * @return a function that reassigns conflicting field IDs while preserving others
+   */
+  public static GetID reassignConflictingIds(Set<Integer> conflictingIds, Set<Integer> allUsedIds) {
+    return new ReassignConflictingIds(conflictingIds, allUsedIds);
+  }
+
+  private static class ReassignConflictingIds implements GetID {
+    private final Set<Integer> conflictingIds;
+    private final Set<Integer> allUsedIds;
+    private final AtomicInteger nextId;
+
+    private ReassignConflictingIds(Set<Integer> conflictingIds, Set<Integer> allUsedIds) {
+      this.conflictingIds = conflictingIds;
+      this.allUsedIds = allUsedIds;
+      this.nextId = new AtomicInteger();
+    }
+
+    @Override
+    public int get(int oldId) {
+      if (conflictingIds.contains(oldId)) {
+        return nextAvailableId();
+      } else {
+        return oldId;
+      }
+    }
+
+    private int nextAvailableId() {
+      int candidateId = nextId.incrementAndGet();
+
+      while (allUsedIds.contains(candidateId)) {
+        candidateId = nextId.incrementAndGet();
+      }
+
+      return candidateId;
+    }
   }
 
   public static class SchemaVisitor<T> {

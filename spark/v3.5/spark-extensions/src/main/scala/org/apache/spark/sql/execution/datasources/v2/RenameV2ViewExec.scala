@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.InternalRow
@@ -24,20 +23,22 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 
-
-case class RenameV2ViewExec(
-  catalog: ViewCatalog,
-  oldIdent: Identifier,
-  newIdent: Identifier) extends LeafV2CommandExec {
+case class RenameV2ViewExec(catalog: ViewCatalog, oldIdent: Identifier, newIdent: Identifier)
+    extends LeafV2CommandExec {
 
   override lazy val output: Seq[Attribute] = Nil
 
   override protected def run(): Seq[InternalRow] = {
-    catalog.renameView(oldIdent, newIdent)
+    val qualifiedNewIdent = if (newIdent.namespace.isEmpty) {
+      Identifier.of(oldIdent.namespace, newIdent.name)
+    } else {
+      newIdent
+    }
+
+    catalog.renameView(oldIdent, qualifiedNewIdent)
 
     Seq.empty
   }
-
 
   override def simpleString(maxFields: Int): String = {
     s"RenameV2View ${oldIdent} to {newIdent}"

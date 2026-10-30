@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions
@@ -28,13 +27,14 @@ import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
 
 case class CreateOrReplaceBranchExec(
-                              catalog: TableCatalog,
-                              ident: Identifier,
-                              branch: String,
-                              branchOptions: BranchOptions,
-                              create: Boolean,
-                              replace: Boolean,
-                              ifNotExists: Boolean) extends LeafV2CommandExec {
+    catalog: TableCatalog,
+    ident: Identifier,
+    branch: String,
+    branchOptions: BranchOptions,
+    create: Boolean,
+    replace: Boolean,
+    ifNotExists: Boolean)
+    extends LeafV2CommandExec {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
@@ -62,8 +62,10 @@ case class CreateOrReplaceBranchExec(
         if (create && replace && !refExists) {
           safeCreateBranch()
         } else if (replace) {
-          Preconditions.checkArgument(snapshotId != null,
-            "Cannot complete replace branch operation on %s, main has no snapshot", ident)
+          Preconditions.checkArgument(
+            snapshotId != null,
+            "Cannot complete replace branch operation on %s, main has no snapshot",
+            ident)
           manageSnapshots.replaceBranch(branch, snapshotId)
         } else {
           if (refExists && ifNotExists) {
@@ -88,7 +90,8 @@ case class CreateOrReplaceBranchExec(
         manageSnapshots.commit()
 
       case table =>
-        throw new UnsupportedOperationException(s"Cannot create or replace branch on non-Iceberg table: $table")
+        throw new UnsupportedOperationException(
+          s"Cannot create or replace branch on non-Iceberg table: $table")
     }
 
     Nil

@@ -33,6 +33,7 @@ The metadata for an Iceberg table tracks the absolute path for data files which 
 The responsibility of reading and writing data files lies with the processing engines and happens during task execution. However, after data files are written, processing engines use FileIO to write new Iceberg metadata files that capture the new state of the table.
 
 Different FileIO implementations are used depending on the type of storage. Iceberg comes with a set of FileIO implementations for popular storage providers.
+
 - Amazon S3
 - Google Cloud Storage
 - Object Service Storage (including https)

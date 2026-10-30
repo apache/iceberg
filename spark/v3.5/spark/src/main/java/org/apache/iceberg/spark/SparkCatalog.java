@@ -23,6 +23,7 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -62,6 +63,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.spark.source.SparkTable;
@@ -92,6 +94,8 @@ import org.apache.spark.sql.connector.catalog.ViewChange;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Spark TableCatalog implementation that wraps an Iceberg {@link Catalog}.
@@ -123,6 +127,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * <p>
  */
 public class SparkCatalog extends BaseCatalog implements Closeable {
+
+  private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
   private static final Joiner COMMA_JOINER = Joiner.on(",");
@@ -139,6 +145,8 @@ public class SparkCatalog extends BaseCatalog implements Closeable {
   private ViewCatalog asViewCatalog = null;
   private String[] defaultNamespace = null;
   private HadoopTables tables;
+  private boolean restCatalogPurge;
+  private boolean isRestCatalog;
 
   /**
    * Build an Iceberg {@link Catalog} to be used by this Spark catalog adapter.
@@ -164,13 +172,6 @@ public class SparkCatalog extends BaseCatalog implements Closeable {
    */
   protected TableIdentifier buildIdentifier(Identifier identifier) {
     return Spark3Util.identifierToTableIdentifier(identifier);
-  }
-
-  @Override
-  public void close() throws IOException {
-    if (icebergCatalog instanceof Closeable) {
-      ((Closeable) icebergCatalog).close();
-    }
   }
 
   @Override
@@ -371,7 +372,7 @@ public class SparkCatalog extends BaseCatalog implements Closeable {
 
   @Override
   public boolean dropTable(Identifier ident) {
-    return dropTableWithoutPurging(ident);
+    return catalogDropTable(ident);
   }
 
   @Override
@@ -384,7 +385,17 @@ public class SparkCatalog extends BaseCatalog implements Closeable {
       String metadataFileLocation =
           ((HasTableOperations) table).operations().current().metadataFileLocation();
 
-      boolean dropped = dropTableWithoutPurging(ident);
+      if (isRestCatalog && !isPathIdentifier(ident)) {
+        if (restCatalogPurge) {
+          return icebergCatalog.dropTable(buildIdentifier(ident), true);
+        } else {
+          LOG.info(
+              "Set '{}' to true to use the REST catalog's capabilities to purge the table.",
+              SparkCatalogProperties.REST_CATALOG_PURGE);
+        }
+      }
+
+      boolean dropped = catalogDropTable(ident);
 
       if (dropped) {
         // check whether the metadata file exists because HadoopCatalog/HadoopTables
@@ -402,7 +413,7 @@ public class SparkCatalog extends BaseCatalog implements Closeable {
     }
   }
 
-  private boolean dropTableWithoutPurging(Identifier ident) {
+  private boolean catalogDropTable(Identifier ident) {
     if (isPathIdentifier(ident)) {
       return tables.dropTable(((PathIdentifier) ident).location(), false /* don't purge data */);
     } else {
@@ -774,6 +785,12 @@ public class SparkCatalog extends BaseCatalog implements Closeable {
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
 
+    this.restCatalogPurge =
+        PropertyUtil.propertyAsBoolean(
+            options,
+            SparkCatalogProperties.REST_CATALOG_PURGE,
+            SparkCatalogProperties.REST_CATALOG_PURGE_DEFAULT);
+
     // An expiration interval of 0ms effectively disables caching.
     // Do not wrap with CachingCatalog.
     if (cacheExpirationIntervalMs == 0) {
@@ -781,6 +798,13 @@ public class SparkCatalog extends BaseCatalog implements Closeable {
     }
 
     Catalog catalog = buildIcebergCatalog(name, options);
+    this.isRestCatalog = catalog instanceof RESTCatalog;
+
+    Preconditions.checkArgument(
+        !restCatalogPurge || isRestCatalog,
+        "Cannot enable '%s': the configured catalog is not a REST catalog: %s",
+        SparkCatalogProperties.REST_CATALOG_PURGE,
+        catalog.getClass().getName());
 
     this.catalogName = name;
     SparkSession sparkSession = SparkSession.active();
@@ -806,11 +830,23 @@ public class SparkCatalog extends BaseCatalog implements Closeable {
     EnvironmentContext.put(
         EnvironmentContext.ENGINE_VERSION, sparkSession.sparkContext().version());
     EnvironmentContext.put(CatalogProperties.APP_ID, sparkSession.sparkContext().applicationId());
+    EnvironmentContext.put(CatalogProperties.APP_NAME, sparkSession.sparkContext().appName());
   }
 
   @Override
   public String name() {
     return catalogName;
+  }
+
+  @Override
+  public void close() {
+    if (icebergCatalog instanceof Closeable) {
+      try {
+        ((Closeable) icebergCatalog).close();
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to close catalog: " + catalogName, e);
+      }
+    }
   }
 
   private static void commitChanges(

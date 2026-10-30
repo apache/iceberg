@@ -38,6 +38,7 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.AvroDataTestBase;
 import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.types.TypeUtil;
@@ -62,6 +63,7 @@ public abstract class ScanTestBase extends AvroDataTestBase {
         SparkSession.builder()
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
             .master("local[2]")
+            .config(TestBase.DISABLE_UI)
             .getOrCreate();
     ScanTestBase.sc = JavaSparkContext.fromSparkContext(spark.sparkContext());
   }

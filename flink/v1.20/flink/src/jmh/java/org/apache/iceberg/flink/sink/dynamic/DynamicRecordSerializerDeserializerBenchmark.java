@@ -32,6 +32,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.CatalogLoader;
@@ -94,7 +95,7 @@ public class DynamicRecordSerializerDeserializerBenchmark {
                 r ->
                     new DynamicRecordInternal(
                         "t",
-                        "main",
+                        SnapshotRef.MAIN_BRANCH,
                         SCHEMA,
                         RowDataConverter.convert(SCHEMA, r),
                         PartitionSpec.unpartitioned(),

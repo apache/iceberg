@@ -54,6 +54,7 @@ public class SparkWriteOptions {
   public static final String REWRITTEN_FILE_SCAN_TASK_SET_ID = "rewritten-file-scan-task-set-id";
 
   public static final String OUTPUT_SPEC_ID = "output-spec-id";
+  public static final String OUTPUT_SORT_ORDER_ID = "output-sort-order-id";
 
   public static final String OVERWRITE_MODE = "overwrite-mode";
 
@@ -85,4 +86,8 @@ public class SparkWriteOptions {
 
   // Overrides the delete granularity
   public static final String DELETE_GRANULARITY = "delete-granularity";
+
+  // Uses the merge append instead of fast append for streaming appends
+  public static final String USE_MERGE_APPEND_FOR_STREAMING = "use-merge-append-for-streaming";
+  public static final boolean USE_MERGE_APPEND_FOR_STREAMING_DEFAULT = true;
 }

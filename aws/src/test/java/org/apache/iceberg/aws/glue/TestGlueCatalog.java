@@ -195,6 +195,28 @@ public class TestGlueCatalog {
   }
 
   @Test
+  public void testDefaultWarehouseLocationUnique() {
+    GlueCatalog catalog = new GlueCatalog();
+    catalog.initialize(
+        CATALOG_NAME,
+        WAREHOUSE_PATH,
+        new AwsProperties(),
+        new S3FileIOProperties(),
+        glue,
+        LockManagers.defaultLockManager(),
+        true /* uniqTableLocation */);
+
+    Mockito.doReturn(
+            GetDatabaseResponse.builder()
+                .database(Database.builder().name("db").locationUri("s3://bucket2/db").build())
+                .build())
+        .when(glue)
+        .getDatabase(Mockito.any(GetDatabaseRequest.class));
+    String location = catalog.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
+    assertThat(location).matches("s3://bucket2/db/table-[a-z0-9]{32}");
+  }
+
+  @Test
   public void testListTables() {
     Mockito.doReturn(
             GetDatabaseResponse.builder().database(Database.builder().name("db1").build()).build())

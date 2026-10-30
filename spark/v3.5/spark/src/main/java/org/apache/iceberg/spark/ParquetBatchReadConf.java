@@ -24,6 +24,4 @@ import org.immutables.value.Value;
 @Value.Immutable
 public interface ParquetBatchReadConf extends Serializable {
   int batchSize();
-
-  ParquetReaderType readerType();
 }

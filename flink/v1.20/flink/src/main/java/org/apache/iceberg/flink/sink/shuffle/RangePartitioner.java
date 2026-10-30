@@ -84,7 +84,7 @@ public class RangePartitioner implements Partitioner<StatisticsOrRecord> {
   /**
    * Util method that handles rescale (write parallelism / numPartitions change).
    *
-   * @param partition partition caculated based on the existing statistics
+   * @param partition partition calculated based on the existing statistics
    * @param numPartitionsStatsCalculation number of partitions when the assignment was calculated
    *     based on
    * @param numPartitions current number of partitions

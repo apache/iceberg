@@ -124,7 +124,7 @@ public class DataFileRewriteRunner
         value.group().setOutputFiles(dataFiles);
         out.collect(
             new ExecutedGroup(
-                value.table().currentSnapshot().snapshotId(),
+                value.table().snapshot(value.branch()).snapshotId(),
                 value.groupsPerCommit(),
                 value.group()));
         if (LOG.isDebugEnabled()) {

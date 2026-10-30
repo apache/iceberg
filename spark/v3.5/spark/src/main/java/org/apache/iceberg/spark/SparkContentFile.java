@@ -35,8 +35,6 @@ import org.apache.spark.sql.types.StructType;
 
 public abstract class SparkContentFile<F> implements ContentFile<F> {
 
-  private static final FileContent[] FILE_CONTENT_VALUES = FileContent.values();
-
   private final int fileContentPosition;
   private final int filePathPosition;
   private final int fileFormatPosition;
@@ -54,6 +52,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
   private final int sortOrderIdPosition;
   private final int fileSpecIdPosition;
   private final int equalityIdsPosition;
+  private final int firstRowIdPosition;
   private final int referencedDataFilePosition;
   private final int contentOffsetPosition;
   private final int contentSizePosition;
@@ -106,6 +105,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
     this.sortOrderIdPosition = positions.get(DataFile.SORT_ORDER_ID.name());
     this.fileSpecIdPosition = positions.get(DataFile.SPEC_ID.name());
     this.equalityIdsPosition = positions.get(DataFile.EQUALITY_IDS.name());
+    this.firstRowIdPosition = positions.get(DataFile.FIRST_ROW_ID.name());
     this.referencedDataFilePosition = positions.get(DataFile.REFERENCED_DATA_FILE.name());
     this.contentOffsetPosition = positions.get(DataFile.CONTENT_OFFSET.name());
     this.contentSizePosition = positions.get(DataFile.CONTENT_SIZE.name());
@@ -139,7 +139,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
     if (wrapped.isNullAt(fileContentPosition)) {
       return null;
     }
-    return FILE_CONTENT_VALUES[wrapped.getInt(fileContentPosition)];
+    return FileContent.fromId(wrapped.getInt(fileContentPosition));
   }
 
   @Override
@@ -256,6 +256,15 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
       return null;
     }
     return wrapped.getLong(contentSizePosition);
+  }
+
+  @Override
+  public Long firstRowId() {
+    if (wrapped.isNullAt(firstRowIdPosition)) {
+      return null;
+    }
+
+    return wrapped.getLong(firstRowIdPosition);
   }
 
   private int fieldPosition(String name, StructType sparkType) {

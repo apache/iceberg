@@ -28,10 +28,12 @@ import static org.mockito.Mockito.times;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,6 +44,7 @@ import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.BulkDeletionFailureException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.puffin.Blob;
@@ -51,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
@@ -67,8 +71,12 @@ public class TestRemoveSnapshots extends TestBase {
     return Arrays.asList(
         new Object[] {1, true},
         new Object[] {2, true},
+        new Object[] {3, true},
+        new Object[] {4, true},
         new Object[] {1, false},
-        new Object[] {2, false});
+        new Object[] {2, false},
+        new Object[] {3, false},
+        new Object[] {4, false});
   }
 
   private long waitUntilAfter(long timestampMillis) {
@@ -413,7 +421,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     long t3 = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
-    assertThat(listManifestFiles(new File(table.location()))).hasSize(3);
+    assertThat(listManifestFiles(new File(URI.create(table.location())))).hasSize(3);
 
     // Retain last 2 snapshots, which means 1 is deleted.
     Transaction tx = table.newTransaction();
@@ -422,7 +430,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     assertThat(table.snapshots()).hasSize(2);
     assertThat(table.snapshot(firstSnapshotId)).isNull();
-    assertThat(listManifestLists(new File(table.location()))).hasSize(2);
+    assertThat(listManifestLists(new File(URI.create(table.location())))).hasSize(2);
   }
 
   @TestTemplate
@@ -793,8 +801,10 @@ public class TestRemoveSnapshots extends TestBase {
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
-    snapshotB
-        .addedDataFiles(table.io())
+    SnapshotChanges.builderFor(table)
+        .snapshot(snapshotB)
+        .build()
+        .addedDataFiles()
         .forEach(
             i -> {
               expectedDeletes.add(i.location());
@@ -883,7 +893,10 @@ public class TestRemoveSnapshots extends TestBase {
     Lists.newArrayList(snapshotB, snapshotC, snapshotD)
         .forEach(
             i -> {
-              i.addedDataFiles(table.io())
+              SnapshotChanges.builderFor(table)
+                  .snapshot(i)
+                  .build()
+                  .addedDataFiles()
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());
@@ -929,7 +942,10 @@ public class TestRemoveSnapshots extends TestBase {
     Lists.newArrayList(snapshotB)
         .forEach(
             i -> {
-              i.addedDataFiles(table.io())
+              SnapshotChanges.builderFor(table)
+                  .snapshot(i)
+                  .build()
+                  .addedDataFiles()
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());
@@ -946,7 +962,10 @@ public class TestRemoveSnapshots extends TestBase {
     Lists.newArrayList(snapshotB, snapshotD)
         .forEach(
             i -> {
-              i.addedDataFiles(table.io())
+              SnapshotChanges.builderFor(table)
+                  .snapshot(i)
+                  .build()
+                  .addedDataFiles()
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());
@@ -1210,8 +1229,8 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should contain only the statistics file of snapshot2")
         .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
 
-    assertThat(new File(statsFileLocation1)).doesNotExist();
-    assertThat(new File(statsFileLocation2)).exists();
+    assertThat(new File(URI.create(statsFileLocation1))).doesNotExist();
+    assertThat(new File(URI.create(statsFileLocation2))).exists();
   }
 
   @TestTemplate
@@ -1248,7 +1267,7 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should contain only the statistics file of snapshot2")
         .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
     // the reused stats file should exist.
-    assertThat(new File(statsFileLocation1)).exists();
+    assertThat(new File(URI.create(statsFileLocation1))).exists();
   }
 
   @TestTemplate
@@ -1279,8 +1298,8 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should contain only the statistics file of snapshot2")
         .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
 
-    assertThat(new File(statsFileLocation1)).doesNotExist();
-    assertThat(new File(statsFileLocation2)).exists();
+    assertThat(new File(URI.create(statsFileLocation1))).doesNotExist();
+    assertThat(new File(URI.create(statsFileLocation2))).exists();
   }
 
   @TestTemplate
@@ -1314,7 +1333,7 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should contain only the statistics file of snapshot2")
         .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
     // the reused stats file should exist.
-    assertThat(new File(statsFileLocation1)).exists();
+    assertThat(new File(URI.create(statsFileLocation1))).exists();
   }
 
   @TestTemplate
@@ -1388,7 +1407,7 @@ public class TestRemoveSnapshots extends TestBase {
     table
         .manageSnapshots()
         .createTag("tag", table.currentSnapshot().snapshotId())
-        .replaceBranch("main", initialSnapshotId)
+        .replaceBranch(SnapshotRef.MAIN_BRANCH, initialSnapshotId)
         .commit();
 
     removeSnapshots(table)
@@ -1426,7 +1445,7 @@ public class TestRemoveSnapshots extends TestBase {
         .manageSnapshots()
         .createBranch("branch", table.currentSnapshot().snapshotId())
         .setMaxSnapshotAgeMs("branch", Long.MAX_VALUE)
-        .replaceBranch("main", initialSnapshotId)
+        .replaceBranch(SnapshotRef.MAIN_BRANCH, initialSnapshotId)
         .commit();
 
     removeSnapshots(table)
@@ -1951,6 +1970,293 @@ public class TestRemoveSnapshots extends TestBase {
     return (RemoveSnapshots) removeSnapshots.withIncrementalCleanup(incrementalCleanup);
   }
 
+  @TestTemplate
+  public void testCleanupLevelAll() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+    table.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    table
+        .expireSnapshots()
+        .cleanupLevel(ExpireSnapshots.CleanupLevel.ALL)
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles)
+        .as("CleanupLevel.ALL should delete both metadata and data files")
+        .containsExactlyInAnyOrder(
+            firstSnapshot.manifestListLocation(),
+            firstSnapshot.allManifests(table.io()).get(0).path(),
+            secondSnapshot.manifestListLocation(),
+            secondSnapshot.allManifests(table.io()).get(0).path(),
+            FILE_A.location());
+  }
+
+  @TestTemplate
+  public void testCleanupLevelMetadataOnly() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+    table.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    table
+        .expireSnapshots()
+        .cleanupLevel(ExpireSnapshots.CleanupLevel.METADATA_ONLY)
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles)
+        .as("CleanupLevel.METADATA_ONLY should delete only metadata files")
+        .containsExactlyInAnyOrder(
+            firstSnapshot.manifestListLocation(),
+            firstSnapshot.allManifests(table.io()).get(0).path(),
+            secondSnapshot.manifestListLocation(),
+            secondSnapshot.allManifests(table.io()).get(0).path());
+  }
+
+  @TestTemplate
+  public void testCleanupLevelNone() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+    table.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    table
+        .expireSnapshots()
+        .cleanupLevel(ExpireSnapshots.CleanupLevel.NONE)
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(table.snapshot(firstSnapshot.snapshotId()))
+        .as("First snapshot metadata should be removed even with CleanupLevel.NONE")
+        .isNull();
+    assertThat(table.snapshot(secondSnapshot.snapshotId()))
+        .as("Second snapshot metadata should be removed even with CleanupLevel.NONE")
+        .isNull();
+
+    assertThat(deletedFiles).as("CleanupLevel.NONE should not delete any files").isEmpty();
+  }
+
+  @TestTemplate
+  public void testCleanExpiredFilesAPI() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    waitUntilAfter(firstSnapshot.timestampMillis());
+
+    table.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    // Use deprecated cleanExpiredFiles(false) - should map to CleanupLevel.NONE
+    table
+        .expireSnapshots()
+        .cleanExpiredFiles(false)
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles)
+        .as("Deprecated cleanExpiredFiles(false) should behave like CleanupLevel.NONE")
+        .isEmpty();
+  }
+
+  @TestTemplate
+  public void testCannotSetCleanExpiredFilesAndCleanupLevelTogether() {
+    // Setting cleanExpiredFiles after cleanupLevel should fail
+    assertThatThrownBy(
+            () ->
+                table
+                    .expireSnapshots()
+                    .cleanupLevel(ExpireSnapshots.CleanupLevel.METADATA_ONLY)
+                    .cleanExpiredFiles(false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot set cleanExpiredFiles when cleanupLevel has already been set");
+
+    // Setting cleanupLevel after cleanExpiredFiles should also fail
+    assertThatThrownBy(
+            () ->
+                table
+                    .expireSnapshots()
+                    .cleanExpiredFiles(false)
+                    .cleanupLevel(ExpireSnapshots.CleanupLevel.METADATA_ONLY))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot set cleanupLevel to %s when cleanExpiredFiles was explicitly set to false",
+            ExpireSnapshots.CleanupLevel.METADATA_ONLY);
+  }
+
+  @TestTemplate
+  public void testCanOverrideCleanExpiredFilesWithCleanupLevel() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+    table.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    // Setting cleanExpiredFiles(true) first, then overriding with cleanupLevel should work
+    // because cleanExpiredFiles(true) doesn't create a conflicting intention
+    table
+        .expireSnapshots()
+        .cleanExpiredFiles(true) // This sets cleanupLevel to ALL
+        .cleanupLevel(
+            ExpireSnapshots.CleanupLevel.METADATA_ONLY) // This should override to METADATA_ONLY
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles)
+        .as("Should only delete metadata files when overridden to METADATA_ONLY")
+        .containsExactlyInAnyOrder(
+            firstSnapshot.manifestListLocation(),
+            firstSnapshot.allManifests(table.io()).get(0).path(),
+            secondSnapshot.manifestListLocation(),
+            secondSnapshot.allManifests(table.io()).get(0).path());
+
+    // FILE_A should NOT be deleted because cleanupLevel was overridden to METADATA_ONLY
+    assertThat(deletedFiles).doesNotContain(FILE_A.location());
+  }
+
+  @TestTemplate
+  public void testCleanupLevelNullValidation() {
+    assertThatThrownBy(() -> table.expireSnapshots().cleanupLevel(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid cleanup level: null");
+  }
+
+  @TestTemplate
+  void expireDoesNotDeletePuffinFileSharedByLiveDeletionVectors() {
+    assumeThat(formatVersion).as("Deletion vectors require V3 or later").isGreaterThanOrEqualTo(3);
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    // one Puffin file with deletion vectors for FILE_A and FILE_B
+    String sharedPuffinPath = "/path/to/shared-dvs-" + UUID.randomUUID() + ".puffin";
+    DeleteFile dvA = deletionVector(sharedPuffinPath, FILE_A, 4L);
+    DeleteFile dvB = deletionVector(sharedPuffinPath, FILE_B, 44L);
+    table.newRowDelta().addDeletes(dvA).addDeletes(dvB).commit();
+
+    // replace FILE_A's deletion vector; FILE_B's stays in the shared Puffin file
+    DeleteFile newDvA =
+        deletionVector("/path/to/new-dv-" + UUID.randomUUID() + ".puffin", FILE_A, 4L);
+    table
+        .newRowDelta()
+        .validateFromSnapshot(table.currentSnapshot().snapshotId())
+        .removeDeletes(dvA)
+        .addDeletes(newDvA)
+        .commit();
+
+    table.newAppend().appendFile(FILE_C).commit();
+
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots(table).expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
+
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(deletedFiles)
+        .as("Puffin file with a live deletion vector must not be deleted")
+        .doesNotContain(sharedPuffinPath);
+  }
+
+  @TestTemplate
+  void expireDeletesPuffinFileWhenAllSharedDeletionVectorsReplaced() {
+    assumeThat(formatVersion).as("Deletion vectors require V3 or later").isGreaterThanOrEqualTo(3);
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    String sharedPuffinPath = "/path/to/shared-dvs-" + UUID.randomUUID() + ".puffin";
+    DeleteFile dvA = deletionVector(sharedPuffinPath, FILE_A, 4L);
+    DeleteFile dvB = deletionVector(sharedPuffinPath, FILE_B, 44L);
+    table.newRowDelta().addDeletes(dvA).addDeletes(dvB).commit();
+
+    DeleteFile newDvA =
+        deletionVector("/path/to/new-dv-a-" + UUID.randomUUID() + ".puffin", FILE_A, 4L);
+    DeleteFile newDvB =
+        deletionVector("/path/to/new-dv-b-" + UUID.randomUUID() + ".puffin", FILE_B, 4L);
+    table
+        .newRowDelta()
+        .validateFromSnapshot(table.currentSnapshot().snapshotId())
+        .removeDeletes(dvA)
+        .removeDeletes(dvB)
+        .addDeletes(newDvA)
+        .addDeletes(newDvB)
+        .commit();
+
+    table.newAppend().appendFile(FILE_C).commit();
+
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots(table).expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
+
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(deletedFiles).contains(sharedPuffinPath);
+  }
+
+  private DeleteFile deletionVector(String puffinPath, DataFile dataFile, long contentOffset) {
+    return FileMetadata.deleteFileBuilder(table.spec())
+        .ofPositionDeletes()
+        .withPath(puffinPath)
+        .withFileSizeInBytes(100L)
+        .withPartition(dataFile.partition())
+        .withRecordCount(1L)
+        .withReferencedDataFile(dataFile.location())
+        .withContentOffset(contentOffset)
+        .withContentSizeInBytes(40L)
+        .build();
+  }
+
+  @TestTemplate
+  void readManifestsProjectsManifestContent() throws IOException {
+    assumeThat(formatVersion)
+        .as("Delete files are only supported in V2 and later")
+        .isGreaterThanOrEqualTo(2);
+
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newRowDelta().addDeletes(fileADeletes()).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    Map<String, ManifestContent> expected =
+        snapshot.allManifests(table.io()).stream()
+            .collect(Collectors.toMap(ManifestFile::path, ManifestFile::content));
+    assertThat(expected).containsValue(ManifestContent.DELETES);
+
+    FileCleanupStrategy cleanup =
+        incrementalCleanup
+            ? new IncrementalFileCleanup(table.io(), null, null, null)
+            : new ReachableFileCleanup(table.io(), null, null, null);
+
+    Map<String, ManifestContent> actual = Maps.newHashMap();
+    try (CloseableIterable<ManifestFile> manifests = cleanup.readManifests(snapshot)) {
+      for (ManifestFile manifest : manifests) {
+        actual.put(manifest.path(), manifest.content());
+      }
+    }
+
+    assertThat(actual).isEqualTo(expected);
+  }
+
   private StatisticsFile writeStatsFile(
       long snapshotId, long snapshotSequenceNumber, String statsLocation, FileIO fileIO)
       throws IOException {
@@ -2021,5 +2327,48 @@ public class TestRemoveSnapshots extends TestBase {
 
   private static void commitPartitionStats(Table table, PartitionStatisticsFile statisticsFile) {
     table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+  }
+
+  @TestTemplate
+  public void testAppendOnlyManifestsNotScannedDuringCleanup() {
+    assumeThat(incrementalCleanup).isTrue();
+
+    TestTables.LocalFileIO spyFileIO = Mockito.spy(new TestTables.LocalFileIO());
+    String tableName = "testAppendOnlyManifests";
+    Table testTable =
+        TestTables.create(
+            tableDir,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, tableDir, spyFileIO));
+
+    testTable.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = testTable.currentSnapshot();
+
+    Set<String> appendOnlyManifestPaths =
+        firstSnapshot.allManifests(testTable.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    waitUntilAfter(firstSnapshot.timestampMillis());
+
+    testTable.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(testTable.currentSnapshot().timestampMillis());
+
+    Mockito.clearInvocations(spyFileIO);
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots(testTable)
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles).containsExactly(firstSnapshot.manifestListLocation());
+
+    appendOnlyManifestPaths.forEach(
+        path -> Mockito.verify(spyFileIO, Mockito.never()).newInputFile(path));
   }
 }

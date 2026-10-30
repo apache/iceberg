@@ -21,12 +21,14 @@ package org.apache.iceberg.aws.s3;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
+import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -36,6 +38,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import software.amazon.awssdk.services.s3.S3Client;
 
 /** Long-running tests to ensure multipart upload logic is resilient */
@@ -141,6 +145,35 @@ public class TestS3MultipartUpload {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testMultipartUploadWithChunkedEncoding(boolean chunkedEncodingEnabled)
+      throws IOException {
+    // Create a new S3FileIO with specified chunked encoding setting
+    try (S3FileIO testIo = new S3FileIO(() -> s3)) {
+      testIo.initialize(
+          ImmutableMap.of(
+              S3FileIOProperties.MULTIPART_SIZE,
+              Integer.toString(S3FileIOProperties.MULTIPART_SIZE_MIN),
+              S3FileIOProperties.CHECKSUM_ENABLED,
+              "true",
+              S3FileIOProperties.CHUNKED_ENCODING_ENABLED,
+              Boolean.toString(chunkedEncodingEnabled)));
+
+      int parts = 10;
+      long partSize = S3FileIOProperties.MULTIPART_SIZE_MIN;
+      String suffix = chunkedEncodingEnabled ? "-chunked-enabled" : "-chunked-disabled";
+
+      String intObjectUri = objectUri + suffix + "-int";
+      writeDistinctPartsWithInts(testIo, intObjectUri, parts, partSize);
+      verifyDistinctPartsWithInts(testIo, intObjectUri, parts, partSize);
+
+      String bytesObjectUri = objectUri + suffix + "-bytes";
+      writeDistinctPartsWithBytes(testIo, bytesObjectUri, parts, partSize);
+      verifyDistinctPartsWithBytes(testIo, bytesObjectUri, parts, partSize);
+    }
+  }
+
   private void writeInts(String fileUri, int parts, Supplier<Integer> writer) {
     writeInts(fileUri, parts, S3FileIOProperties.MULTIPART_SIZE_MIN, writer);
   }
@@ -175,6 +208,63 @@ public class TestS3MultipartUpload {
       }
     } catch (IOException e) {
       throw new RuntimeException(e);
+    }
+  }
+
+  private void writeDistinctPartsWithInts(S3FileIO fileIO, String fileUri, int parts, long partSize)
+      throws IOException {
+    try (PositionOutputStream outputStream = fileIO.newOutputFile(fileUri).create()) {
+      for (int part = 0; part < parts; part++) {
+        int partByte = part + 1;
+        for (long j = 0; j < partSize; j++) {
+          outputStream.write(partByte);
+        }
+      }
+    }
+
+    assertThat(fileIO.newInputFile(fileUri).getLength()).isEqualTo(parts * partSize);
+  }
+
+  private void verifyDistinctPartsWithInts(
+      S3FileIO fileIO, String fileUri, int parts, long partSize) throws IOException {
+    try (SeekableInputStream inputStream = fileIO.newInputFile(fileUri).newStream()) {
+      byte[] readBuffer = new byte[(int) partSize];
+      for (int part = 0; part < parts; part++) {
+        byte expectedByte = (byte) (part + 1);
+        IOUtil.readFully(inputStream, readBuffer, 0, (int) partSize);
+        for (int i = 0; i < (int) partSize; i++) {
+          assertThat(readBuffer[i]).as("part %d, offset %d", part, i).isEqualTo(expectedByte);
+        }
+      }
+      assertThat(inputStream.read()).as("expected end of stream").isEqualTo(-1);
+    }
+  }
+
+  private void writeDistinctPartsWithBytes(
+      S3FileIO fileIO, String fileUri, int parts, long partSize) throws IOException {
+    try (PositionOutputStream outputStream = fileIO.newOutputFile(fileUri).create()) {
+      for (int part = 0; part < parts; part++) {
+        byte[] partBytes = new byte[(int) partSize];
+        Arrays.fill(partBytes, (byte) (part + 1));
+        outputStream.write(partBytes);
+      }
+    }
+
+    assertThat(fileIO.newInputFile(fileUri).getLength()).isEqualTo(parts * partSize);
+  }
+
+  private void verifyDistinctPartsWithBytes(
+      S3FileIO fileIO, String fileUri, int parts, long partSize) throws IOException {
+    try (SeekableInputStream inputStream = fileIO.newInputFile(fileUri).newStream()) {
+      byte[] readBuffer = new byte[(int) partSize];
+      for (int part = 0; part < parts; part++) {
+        byte expectedByte = (byte) (part + 1);
+        IOUtil.readFully(inputStream, readBuffer, 0, (int) partSize);
+        for (int i = 0; i < (int) partSize; i++) {
+          assertThat(readBuffer[i]).as("part %d, offset %d", part, i).isEqualTo(expectedByte);
+        }
+      }
+      assertThat(inputStream.read()).as("expected end of stream").isEqualTo(-1);
     }
   }
 }

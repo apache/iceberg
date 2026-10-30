@@ -29,6 +29,7 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.util.TimeUtils;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkReadConf;
@@ -136,23 +137,26 @@ public class ScanContext implements Serializable {
       if (startingStrategy == StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID) {
         Preconditions.checkArgument(
             startSnapshotId != null,
-            "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: null");
+            "Invalid starting snapshot id for %s strategy: null",
+            startingStrategy);
         Preconditions.checkArgument(
             startSnapshotTimestamp == null,
-            "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_ID strategy: not null");
+            "Invalid starting snapshot timestamp for %s strategy: not null",
+            startingStrategy);
       }
       if (startingStrategy == StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP) {
         Preconditions.checkArgument(
             startSnapshotTimestamp != null,
-            "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_TIMESTAMP strategy: null");
+            "Invalid starting snapshot timestamp for %s strategy: null",
+            startingStrategy);
         Preconditions.checkArgument(
             startSnapshotId == null,
-            "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: not null");
+            "Invalid starting snapshot id for %s strategy: not null",
+            startingStrategy);
       }
 
       Preconditions.checkArgument(
-          tag == null,
-          String.format("Cannot scan table using ref %s configured for streaming reader", tag));
+          tag == null, "Cannot scan table using ref %s configured for streaming reader", tag);
       Preconditions.checkArgument(
           snapshotId == null, "Cannot set snapshot-id option for streaming reader");
       Preconditions.checkArgument(
@@ -366,9 +370,9 @@ public class ScanContext implements Serializable {
     private Long startSnapshotId = FlinkReadOptions.START_SNAPSHOT_ID.defaultValue();
     private Long endSnapshotId = FlinkReadOptions.END_SNAPSHOT_ID.defaultValue();
     private Long asOfTimestamp = FlinkReadOptions.AS_OF_TIMESTAMP.defaultValue();
-    private Long splitSize = FlinkReadOptions.SPLIT_SIZE_OPTION.defaultValue();
-    private Integer splitLookback = FlinkReadOptions.SPLIT_LOOKBACK_OPTION.defaultValue();
-    private Long splitOpenFileCost = FlinkReadOptions.SPLIT_FILE_OPEN_COST_OPTION.defaultValue();
+    private Long splitSize = TableProperties.SPLIT_SIZE_DEFAULT;
+    private Integer splitLookback = TableProperties.SPLIT_LOOKBACK_DEFAULT;
+    private Long splitOpenFileCost = TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT;
     private boolean isStreaming = FlinkReadOptions.STREAMING_OPTION.defaultValue();
     private Duration monitorInterval =
         TimeUtils.parseDuration(FlinkReadOptions.MONITOR_INTERVAL_OPTION.defaultValue());

@@ -18,19 +18,35 @@
  */
 package org.apache.iceberg;
 
-/** Content type stored in a file, one of DATA, POSITION_DELETES, or EQUALITY_DELETES. */
+import java.util.Locale;
+
+/** Content type stored in a file. */
 public enum FileContent {
   DATA(0),
   POSITION_DELETES(1),
-  EQUALITY_DELETES(2);
+  EQUALITY_DELETES(2),
+  DATA_MANIFEST(3),
+  DELETE_MANIFEST(4);
+
+  private static final FileContent[] VALUES = FileContent.values();
 
   private final int id;
+  private final String lowerCaseName;
 
   FileContent(int id) {
     this.id = id;
+    this.lowerCaseName = name().toLowerCase(Locale.ROOT);
   }
 
   public int id() {
     return id;
+  }
+
+  public String lowerCaseName() {
+    return lowerCaseName;
+  }
+
+  public static FileContent fromId(int id) {
+    return VALUES[id];
   }
 }

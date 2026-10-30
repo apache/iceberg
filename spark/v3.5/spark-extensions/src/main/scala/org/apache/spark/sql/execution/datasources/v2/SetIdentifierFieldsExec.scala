@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.iceberg.spark.source.SparkTable
@@ -26,10 +25,8 @@ import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
 import scala.jdk.CollectionConverters._
 
-case class SetIdentifierFieldsExec(
-    catalog: TableCatalog,
-    ident: Identifier,
-    fields: Seq[String]) extends LeafV2CommandExec {
+case class SetIdentifierFieldsExec(catalog: TableCatalog, ident: Identifier, fields: Seq[String])
+    extends LeafV2CommandExec {
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil
@@ -37,11 +34,13 @@ case class SetIdentifierFieldsExec(
   override protected def run(): Seq[InternalRow] = {
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
-        iceberg.table.updateSchema()
+        iceberg.table
+          .updateSchema()
           .setIdentifierFields(fields.asJava)
           .commit();
       case table =>
-        throw new UnsupportedOperationException(s"Cannot set identifier fields in non-Iceberg table: $table")
+        throw new UnsupportedOperationException(
+          s"Cannot set identifier fields in non-Iceberg table: $table")
     }
 
     Nil

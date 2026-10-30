@@ -21,6 +21,7 @@ package org.apache.iceberg.jdbc;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
@@ -33,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 
 final class JdbcUtil {
   // property to control strict-mode (aka check if namespace exists when creating a table)
@@ -42,8 +44,13 @@ final class JdbcUtil {
   // property to control if catalog tables are created during initialization
   static final String INIT_CATALOG_TABLES_PROPERTY =
       JdbcCatalog.PROPERTY_PREFIX + "init-catalog-tables";
+  // property to control how many times reading table or view metadata is retried during a refresh
+  static final String METADATA_REFRESH_MAX_RETRIES_PROPERTY =
+      JdbcCatalog.PROPERTY_PREFIX + "metadata-refresh-max-retries";
+  static final int METADATA_REFRESH_MAX_RETRIES_DEFAULT = 20;
 
   static final String RETRYABLE_STATUS_CODES = "retryable_status_codes";
+  private static final String POSTGRES_UNIQUE_VIOLATION_SQLSTATE = "23505";
 
   enum SchemaVersion {
     V0,
@@ -318,6 +325,8 @@ final class JdbcUtil {
           + " OR "
           + RECORD_TYPE
           + " IS NULL)";
+  static final String V1_UNREGISTER_TABLE_SQL =
+      V1_DROP_TABLE_SQL + " AND " + BaseMetastoreTableOperations.METADATA_LOCATION_PROP + " = ?";
   static final String V0_DROP_TABLE_SQL =
       "DELETE FROM "
           + CATALOG_TABLE_VIEW_NAME
@@ -328,6 +337,8 @@ final class JdbcUtil {
           + "  = ? AND "
           + TABLE_NAME
           + " = ?";
+  static final String V0_UNREGISTER_TABLE_SQL =
+      V0_DROP_TABLE_SQL + " AND " + BaseMetastoreTableOperations.METADATA_LOCATION_PROP + " = ?";
   private static final String GET_NAMESPACE_SQL =
       "SELECT "
           + TABLE_NAMESPACE
@@ -517,14 +528,28 @@ final class JdbcUtil {
 
   static Properties filterAndRemovePrefix(Map<String, String> properties, String prefix) {
     Properties result = new Properties();
-    properties.forEach(
-        (key, value) -> {
-          if (key.startsWith(prefix)) {
-            result.put(key.substring(prefix.length()), value);
-          }
-        });
-
+    result.putAll(PropertyUtil.propertiesWithPrefix(properties, prefix));
     return result;
+  }
+
+  static int metadataRefreshMaxRetries(Map<String, String> properties) {
+    int maxRetries =
+        PropertyUtil.propertyAsInt(
+            properties,
+            METADATA_REFRESH_MAX_RETRIES_PROPERTY,
+            METADATA_REFRESH_MAX_RETRIES_DEFAULT);
+    Preconditions.checkArgument(
+        maxRetries >= 0,
+        "Invalid %s: %s (must be >= 0)",
+        METADATA_REFRESH_MAX_RETRIES_PROPERTY,
+        maxRetries);
+    return maxRetries;
+  }
+
+  static boolean isConstraintViolation(SQLException ex) {
+    return ex instanceof SQLIntegrityConstraintViolationException
+        || POSTGRES_UNIQUE_VIOLATION_SQLSTATE.equals(ex.getSQLState())
+        || (ex.getMessage() != null && ex.getMessage().contains("constraint failed"));
   }
 
   private static int update(
@@ -611,21 +636,19 @@ final class JdbcUtil {
             sql.setString(1, catalogName);
             sql.setString(2, namespaceToString(identifier.namespace()));
             sql.setString(3, identifier.name());
-            ResultSet rs = sql.executeQuery();
-
-            if (rs.next()) {
-              tableOrView.put(CATALOG_NAME, rs.getString(CATALOG_NAME));
-              tableOrView.put(TABLE_NAMESPACE, rs.getString(TABLE_NAMESPACE));
-              tableOrView.put(TABLE_NAME, rs.getString(TABLE_NAME));
-              tableOrView.put(
-                  BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
-                  rs.getString(BaseMetastoreTableOperations.METADATA_LOCATION_PROP));
-              tableOrView.put(
-                  BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP,
-                  rs.getString(BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP));
+            try (ResultSet rs = sql.executeQuery()) {
+              if (rs.next()) {
+                tableOrView.put(CATALOG_NAME, rs.getString(CATALOG_NAME));
+                tableOrView.put(TABLE_NAMESPACE, rs.getString(TABLE_NAMESPACE));
+                tableOrView.put(TABLE_NAME, rs.getString(TABLE_NAME));
+                tableOrView.put(
+                    BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
+                    rs.getString(BaseMetastoreTableOperations.METADATA_LOCATION_PROP));
+                tableOrView.put(
+                    BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP,
+                    rs.getString(BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP));
+              }
             }
-
-            rs.close();
           }
 
           return tableOrView;

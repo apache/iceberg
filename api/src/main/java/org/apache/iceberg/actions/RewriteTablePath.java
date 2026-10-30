@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.actions;
 
+import java.util.concurrent.ExecutorService;
+
 /**
  * An action that rewrites the table's metadata files to a staging directory, replacing all source
  * prefixes in absolute paths with a specified target prefix. There are two modes:
@@ -60,6 +62,11 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
    * metadata log. It is optional, if provided then this action will only rewrite metadata files
    * added after this version.
    *
+   * <p>Manifests added before this version are not rewritten, so snapshots that still reference
+   * them keep the {@code manifest_length} recorded in the source table. That length does not match
+   * the manifest at the target when the source and target prefixes differ in length, and readers
+   * that validate the field will reject those manifest lists.
+   *
    * @param startVersion name of a metadata.json file. For example,
    *     "00001-8893aa9e-f92e-4443-80e7-cfa42238a654.metadata.json".
    * @return this for method chaining
@@ -97,6 +104,18 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
    */
   default RewriteTablePath createFileList(boolean createFileList) {
     return this;
+  }
+
+  /**
+   * Passes an alternative executor service that will be used for version file and manifest list
+   * rewriting. If this method is not called, these operations will be performed sequentially.
+   *
+   * @param executorService an executor service to parallelize metadata rewriting
+   * @return this for method chaining
+   */
+  default RewriteTablePath executeWith(ExecutorService executorService) {
+    throw new UnsupportedOperationException(
+        "This implementation does not support providing an ExecutorService.");
   }
 
   /** The action result that contains a summary of the execution. */

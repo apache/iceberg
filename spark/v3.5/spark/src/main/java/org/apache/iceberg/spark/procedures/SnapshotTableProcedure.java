@@ -44,10 +44,17 @@ class SnapshotTableProcedure extends BaseProcedure {
       ProcedureParameter.optional("properties", STRING_MAP);
   private static final ProcedureParameter PARALLELISM_PARAM =
       ProcedureParameter.optional("parallelism", DataTypes.IntegerType);
+  private static final ProcedureParameter IGNORE_MISSING_FILES_PARAM =
+      ProcedureParameter.optional("ignore_missing_files", DataTypes.BooleanType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        SOURCE_TABLE_PARAM, TABLE_PARAM, LOCATION_PARAM, PROPERTIES_PARAM, PARALLELISM_PARAM
+        SOURCE_TABLE_PARAM,
+        TABLE_PARAM,
+        LOCATION_PARAM,
+        PROPERTIES_PARAM,
+        PARALLELISM_PARAM,
+        IGNORE_MISSING_FILES_PARAM
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -109,6 +116,11 @@ class SnapshotTableProcedure extends BaseProcedure {
       int parallelism = input.asInt(PARALLELISM_PARAM);
       Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
       action = action.executeWith(SparkTableUtil.migrationService(parallelism));
+    }
+
+    boolean ignoreMissingFiles = input.asBoolean(IGNORE_MISSING_FILES_PARAM, false);
+    if (ignoreMissingFiles) {
+      action = action.ignoreMissingFiles();
     }
 
     SnapshotTable.Result result = action.tableProperties(properties).execute();

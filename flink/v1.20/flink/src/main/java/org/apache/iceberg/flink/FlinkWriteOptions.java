@@ -23,6 +23,10 @@ import org.apache.flink.annotation.Experimental;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.flink.maintenance.api.ConvertEqualityDeletesConfig;
+import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFilesConfig;
+import org.apache.iceberg.flink.maintenance.api.ExpireSnapshotsConfig;
+import org.apache.iceberg.flink.maintenance.api.RewriteDataFilesConfig;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
 
 /** Flink sink write options */
@@ -82,7 +86,23 @@ public class FlinkWriteOptions {
       ConfigOptions.key("write-parallelism").intType().noDefaultValue();
 
   public static final ConfigOption<Boolean> COMPACTION_ENABLE =
-      ConfigOptions.key("compaction-enabled").booleanType().defaultValue(false);
+      ConfigOptions.key(RewriteDataFilesConfig.PREFIX + "enabled")
+          .booleanType()
+          .defaultValue(false)
+          .withDeprecatedKeys("compaction-enabled");
+
+  public static final ConfigOption<Boolean> EXPIRE_SNAPSHOTS_ENABLE =
+      ConfigOptions.key(ExpireSnapshotsConfig.PREFIX + "enabled").booleanType().defaultValue(false);
+
+  public static final ConfigOption<Boolean> DELETE_ORPHAN_FILES_ENABLE =
+      ConfigOptions.key(DeleteOrphanFilesConfig.PREFIX + "enabled")
+          .booleanType()
+          .defaultValue(false);
+
+  public static final ConfigOption<Boolean> CONVERT_EQUALITY_DELETES_ENABLE =
+      ConfigOptions.key(ConvertEqualityDeletesConfig.PREFIX + "enabled")
+          .booleanType()
+          .defaultValue(false);
 
   @Experimental
   public static final ConfigOption<Duration> TABLE_REFRESH_INTERVAL =

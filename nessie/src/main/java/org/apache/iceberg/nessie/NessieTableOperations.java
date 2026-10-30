@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.nessie;
 
+import java.io.UncheckedIOException;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
@@ -70,7 +71,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     try {
       client.refresh();
     } catch (NessieNotFoundException e) {
-      throw new RuntimeException(
+      throw new UncheckedIOException(
           String.format(
               "Failed to refresh as ref '%s' is no longer valid.", client.getRef().getName()),
           e);

@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -35,7 +36,6 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,7 +48,8 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
   private final int indexOfSubtask;
   private final Queue<IcebergSourceSplit> splits;
 
-  private CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> currentReader;
+  // volatile because wakeUp() may read currentReader from a different thread than fetch()
+  private volatile CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> currentReader;
   private IcebergSourceSplit currentSplit;
   private String currentSplitId;
 
@@ -61,7 +62,7 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
     this.openSplitFunction = openSplitFunction;
     this.splitComparator = splitComparator;
     this.indexOfSubtask = context.getIndexOfSubtask();
-    this.splits = Queues.newArrayDeque();
+    this.splits = new ArrayDeque<>();
   }
 
   /**
@@ -123,7 +124,15 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
   }
 
   @Override
-  public void wakeUp() {}
+  public void wakeUp() {
+    // Flink calls wakeUp() to unblock a fetcher parked in fetch(). The only place fetch() can block
+    // is in ArrayPoolDataIteratorBatcher waiting for a pool entry (e.g. while the pool is exhausted
+    // during watermark alignment). Relay the signal so that thread can return control and exit
+    // cleanly on shutdown. fetch() stays reentrant: a woken read just returns an empty batch.
+    if (currentReader instanceof WakeableIterator wakeableIterator) {
+      wakeableIterator.wakeUp();
+    }
+  }
 
   @Override
   public void close() throws Exception {
@@ -136,11 +145,13 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
   @Override
   public void pauseOrResumeSplits(
       Collection<IcebergSourceSplit> splitsToPause, Collection<IcebergSourceSplit> splitsToResume) {
-    // IcebergSourceSplitReader only reads splits sequentially. When waiting for watermark alignment
-    // the SourceOperator will stop processing and recycling the fetched batches. This exhausts the
-    // {@link ArrayPoolDataIteratorBatcher#pool} and the `currentReader.next()` call will be
-    // blocked even without split-level watermark alignment. Based on this the
-    // `pauseOrResumeSplits` and the `wakeUp` are left empty.
+    // Left empty intentionally. IcebergSourceSplitReader reads splits sequentially, so the pause
+    // needed for watermark alignment is achieved implicitly: when the SourceOperator stops
+    // processing and recycling the fetched batches, the {@link ArrayPoolDataIteratorBatcher#pool}
+    // exhausts and the `currentReader.next()` call blocks. We therefore do not need to pause/resume
+    // individual splits here. Note this method must not throw, because the SourceOperator can still
+    // invoke it (e.g. for a single split that drifted past the max allowed watermark), and Flink
+    // pairs such calls with wakeUp(); see wakeUp() for how that is handled reentrantly.
   }
 
   private long calculateBytes(IcebergSourceSplit split) {

@@ -40,7 +40,6 @@ import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -273,7 +272,7 @@ public class TestCreateTable extends CatalogTestBase {
     assertThat(table.spec().fields()).as("Should not be partitioned").isEmpty();
     assertThat(table.properties())
         .doesNotContainKey(TableProperties.DEFAULT_FILE_FORMAT)
-        .containsEntry(TableCatalog.PROP_COMMENT, "Table doc");
+        .containsEntry(TableProperties.COMMENT, "Table doc");
   }
 
   @TestTemplate

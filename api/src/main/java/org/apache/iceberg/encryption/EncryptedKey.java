@@ -18,10 +18,11 @@
  */
 package org.apache.iceberg.encryption;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
-public interface EncryptedKey {
+public interface EncryptedKey extends Serializable {
   String keyId();
 
   ByteBuffer encryptedKeyMetadata();

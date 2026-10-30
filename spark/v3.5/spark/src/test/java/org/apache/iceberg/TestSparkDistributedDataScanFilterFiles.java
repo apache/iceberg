@@ -23,6 +23,7 @@ import static org.apache.iceberg.PlanningMode.LOCAL;
 
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterAll;
@@ -61,6 +62,7 @@ public class TestSparkDistributedDataScanFilterFiles
         SparkSession.builder()
             .master("local[2]")
             .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+            .config(TestBase.DISABLE_UI)
             .config(SQLConf.SHUFFLE_PARTITIONS().key(), "4")
             .getOrCreate();
   }

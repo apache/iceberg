@@ -28,6 +28,7 @@ import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStr
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,7 @@ import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -142,6 +144,37 @@ public class TestSparkScan extends TestBaseWithCatalog {
     Statistics stats = scan.estimateStatistics();
 
     assertThat(stats.numRows().getAsLong()).isEqualTo(10000L);
+  }
+
+  @TestTemplate
+  public void testSessionSplitSizeSkipsAdaptiveSplitSizeAdjustment() {
+    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    long splitSize = TableProperties.SPLIT_SIZE_DEFAULT;
+    List<ScanTask> tasks = ImmutableList.of(scanTaskWithSize(16L * 1024 * 1024));
+
+    withSQLConf(
+        ImmutableMap.of(SQLConf.SHUFFLE_PARTITIONS().key(), "200"),
+        () -> {
+          SparkScan scan =
+              (SparkScan)
+                  new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty()).build();
+          assertThat(scan.adjustSplitSize(tasks, splitSize)).isLessThan(splitSize);
+        });
+
+    withSQLConf(
+        ImmutableMap.of(
+            SQLConf.SHUFFLE_PARTITIONS().key(),
+            "200",
+            SparkSQLProperties.READ_SPLIT_SIZE,
+            String.valueOf(splitSize)),
+        () -> {
+          SparkScan scan =
+              (SparkScan)
+                  new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty()).build();
+          assertThat(scan.adjustSplitSize(tasks, splitSize)).isEqualTo(splitSize);
+        });
   }
 
   @TestTemplate
@@ -437,6 +470,57 @@ public class TestSparkScan extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testStatisticsMappedWithSnapshotSchema() throws NoSuchTableException {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    GenericStatisticsFile statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId,
+            "/test/statistics/file.puffin",
+            100,
+            42,
+            ImmutableList.of(
+                new GenericBlobMetadata(
+                    APACHE_DATASKETCHES_THETA_V1,
+                    snapshotId,
+                    1,
+                    ImmutableList.of(1),
+                    ImmutableMap.of("ndv", "4")),
+                // Blob for field ID 2 ('data') which is in the snapshot schema but later dropped
+                // from table
+                new GenericBlobMetadata(
+                    APACHE_DATASKETCHES_THETA_V1,
+                    snapshotId,
+                    1,
+                    ImmutableList.of(2),
+                    ImmutableMap.of("ndv", "2")),
+                // Blob with empty fields (e.g. table-level or non-field blob)
+                new GenericBlobMetadata(
+                    DUMMY_BLOB_TYPE, snapshotId, 1, ImmutableList.of(), ImmutableMap.of())));
+
+    table.updateStatistics().setStatistics(statisticsFile).commit();
+
+    // Drop column 'data' (field ID 2) to simulate real schema evolution
+    table.updateSchema().deleteColumn("data").commit();
+
+    Table updatedTable = validationCatalog.loadTable(tableIdent);
+    SparkScanBuilder scanBuilder =
+        new SparkScanBuilder(spark, updatedTable, CaseInsensitiveStringMap.empty());
+    SparkScan scan = (SparkScan) scanBuilder.build();
+
+    Map<String, String> reportColStatsEnabled =
+        ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
+
+    withSQLConf(
+        reportColStatsEnabled,
+        () -> assertThatCode(scan::estimateStatistics).doesNotThrowAnyException());
+  }
+
+  @TestTemplate
   public void testUnpartitionedYears() throws Exception {
     createUnpartitionedTable(spark, tableName);
 
@@ -461,8 +545,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    // notEq can't be answered using column bounds because they are not exact
-    assertThat(scan.planInputPartitions()).hasSize(10);
+    assertThat(scan.planInputPartitions()).hasSize(5);
   }
 
   @TestTemplate
@@ -771,7 +854,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions()).hasSize(10);
+    assertThat(scan.planInputPartitions()).hasSize(5);
 
     // NOT NotEqual
     builder = scanBuilder();
@@ -990,7 +1073,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions()).hasSize(10);
+    assertThat(scan.planInputPartitions()).hasSize(5);
   }
 
   @TestTemplate
@@ -1021,6 +1104,15 @@ public class TestSparkScan extends TestBaseWithCatalog {
     scan = builder.build().toBatch();
 
     assertThat(scan.planInputPartitions()).hasSize(4);
+  }
+
+  private ScanTask scanTaskWithSize(long sizeBytes) {
+    return new ScanTask() {
+      @Override
+      public long sizeBytes() {
+        return sizeBytes;
+      }
+    };
   }
 
   private SparkScanBuilder scanBuilder() throws Exception {

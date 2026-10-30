@@ -34,6 +34,7 @@ public class TestADLSLocation {
     String p1 = scheme + "://container@account.dfs.core.windows.net/path/to/file";
     ADLSLocation location = new ADLSLocation(p1);
 
+    assertThat(location.scheme()).isEqualTo(scheme);
     assertThat(location.storageAccount()).isEqualTo("account");
     assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("path/to/file");
@@ -45,6 +46,7 @@ public class TestADLSLocation {
     String p1 = scheme + "://container@account.blob.core.windows.net/path/to/file";
     ADLSLocation location = new ADLSLocation(p1);
 
+    assertThat(location.scheme()).isEqualTo(scheme);
     assertThat(location.storageAccount()).isEqualTo("account");
     assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("path/to/file");

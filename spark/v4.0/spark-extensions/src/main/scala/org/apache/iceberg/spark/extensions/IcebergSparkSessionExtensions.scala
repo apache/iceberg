@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions
 
 import org.apache.spark.sql.SparkSessionExtensions

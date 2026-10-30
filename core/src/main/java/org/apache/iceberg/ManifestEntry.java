@@ -30,6 +30,8 @@ interface ManifestEntry<F extends ContentFile<F>> {
     ADDED(1),
     DELETED(2);
 
+    private static final Status[] VALUES = Status.values();
+
     private final int id;
 
     Status(int id) {
@@ -38,6 +40,10 @@ interface ManifestEntry<F extends ContentFile<F>> {
 
     public int id() {
       return id;
+    }
+
+    static Status fromId(int id) {
+      return VALUES[id];
     }
   }
 

@@ -18,10 +18,8 @@
  */
 package org.apache.iceberg.spark.procedures;
 
-import java.util.Optional;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.util.WapUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -92,21 +90,26 @@ class PublishChangesProcedure extends BaseProcedure {
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          Optional<Snapshot> wapSnapshot =
-              Optional.ofNullable(
-                  Iterables.find(
-                      table.snapshots(),
-                      snapshot -> wapId.equals(WapUtil.stagedWapId(snapshot)),
-                      null));
-          if (!wapSnapshot.isPresent()) {
+          Snapshot matchingSnap = null;
+          for (Snapshot snap : table.snapshots()) {
+            if (wapId.equals(WapUtil.stagedWapId(snap))) {
+              if (matchingSnap != null) {
+                throw new ValidationException(
+                    "Cannot apply non-unique WAP ID. Found multiple snapshots with WAP ID '%s'",
+                    wapId);
+              } else {
+                matchingSnap = snap;
+              }
+            }
+          }
+
+          if (matchingSnap == null) {
             throw new ValidationException("Cannot apply unknown WAP ID '%s'", wapId);
           }
 
-          long wapSnapshotId = wapSnapshot.get().snapshotId();
+          long wapSnapshotId = matchingSnap.snapshotId();
           table.manageSnapshots().cherrypick(wapSnapshotId).commit();
-
           Snapshot currentSnapshot = table.currentSnapshot();
-
           InternalRow outputRow = newInternalRow(wapSnapshotId, currentSnapshot.snapshotId());
           return new InternalRow[] {outputRow};
         });

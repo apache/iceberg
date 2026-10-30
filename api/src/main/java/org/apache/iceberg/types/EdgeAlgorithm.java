@@ -47,7 +47,7 @@ public enum EdgeAlgorithm {
   public static EdgeAlgorithm fromName(String algorithmName) {
     Preconditions.checkNotNull(algorithmName, "Invalid edge interpolation algorithm: null");
     try {
-      return EdgeAlgorithm.valueOf(algorithmName.toUpperCase(Locale.ENGLISH));
+      return EdgeAlgorithm.valueOf(algorithmName.toUpperCase(Locale.ROOT));
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(
           String.format("Invalid edge interpolation algorithm: %s", algorithmName), e);
@@ -56,6 +56,6 @@ public enum EdgeAlgorithm {
 
   @Override
   public String toString() {
-    return name().toLowerCase(Locale.ENGLISH);
+    return name().toLowerCase(Locale.ROOT);
   }
 }

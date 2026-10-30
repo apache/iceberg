@@ -20,7 +20,6 @@ package org.apache.iceberg.jdbc;
 
 import java.sql.DataTruncation;
 import java.sql.SQLException;
-import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.SQLNonTransientConnectionException;
 import java.sql.SQLTimeoutException;
 import java.sql.SQLTransientConnectionException;
@@ -50,6 +49,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   private final JdbcClientPool connections;
   private final Map<String, String> catalogProperties;
   private final JdbcUtil.SchemaVersion schemaVersion;
+  private final int metadataRefreshMaxRetries;
 
   protected JdbcTableOperations(
       JdbcClientPool dbConnPool,
@@ -57,13 +57,15 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       String catalogName,
       TableIdentifier tableIdentifier,
       Map<String, String> catalogProperties,
-      JdbcUtil.SchemaVersion schemaVersion) {
+      JdbcUtil.SchemaVersion schemaVersion,
+      int metadataRefreshMaxRetries) {
     this.catalogName = catalogName;
     this.tableIdentifier = tableIdentifier;
     this.fileIO = fileIO;
     this.connections = dbConnPool;
     this.catalogProperties = catalogProperties;
     this.schemaVersion = schemaVersion;
+    this.metadataRefreshMaxRetries = metadataRefreshMaxRetries;
   }
 
   @Override
@@ -97,7 +99,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
         newMetadataLocation != null,
         "Invalid table %s: metadata location is null",
         tableIdentifier);
-    refreshFromMetadataLocation(newMetadataLocation);
+    refreshFromMetadataLocation(newMetadataLocation, metadataRefreshMaxRetries);
   }
 
   @Override
@@ -120,14 +122,6 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
         createTable(newMetadataLocation);
       }
 
-    } catch (SQLIntegrityConstraintViolationException e) {
-
-      if (currentMetadataLocation() == null) {
-        throw new AlreadyExistsException(e, "Table already exists: %s", tableIdentifier);
-      } else {
-        throw new UncheckedSQLException(e, "Table already exists: %s", tableIdentifier);
-      }
-
     } catch (SQLTimeoutException e) {
       throw new UncheckedSQLException(e, "Database Connection timeout");
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
@@ -137,9 +131,12 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     } catch (SQLWarning e) {
       throw new UncheckedSQLException(e, "Database warning");
     } catch (SQLException e) {
-      // SQLite doesn't set SQLState or throw SQLIntegrityConstraintViolationException
-      if (e.getMessage() != null && e.getMessage().contains("constraint failed")) {
-        throw new AlreadyExistsException("Table already exists: %s", tableIdentifier);
+      if (JdbcUtil.isConstraintViolation(e)) {
+        if (currentMetadataLocation() == null) {
+          throw new AlreadyExistsException(e, "Table already exists: %s", tableIdentifier);
+        } else {
+          throw new UncheckedSQLException(e, "Table already exists: %s", tableIdentifier);
+        }
       }
 
       throw new UncheckedSQLException(e, "Unknown failure");

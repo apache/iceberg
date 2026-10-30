@@ -32,6 +32,7 @@ import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.HttpMethod;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
@@ -273,5 +274,46 @@ public class TestOAuth2RefreshCredentialsHandler {
     assertThatThrownBy(handler::refreshAccessToken)
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Invalid GCS Credentials: only one GCS credential should exist");
+  }
+
+  @Test
+  public void planIdQueryParamIsSent() {
+    String planId = "randomPlanId";
+    HttpRequest mockRequest =
+        HttpRequest.request("/v1/credentials")
+            .withMethod(HttpMethod.GET.name())
+            .withQueryStringParameter("planId", planId);
+
+    Credential credential =
+        ImmutableCredential.builder()
+            .prefix("gs")
+            .config(
+                ImmutableMap.of(
+                    GCPProperties.GCS_OAUTH2_TOKEN,
+                    "gcsToken",
+                    GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT,
+                    Long.toString(Instant.now().plus(5, ChronoUnit.MINUTES).toEpochMilli())))
+            .build();
+    HttpResponse mockResponse =
+        HttpResponse.response(
+                LoadCredentialsResponseParser.toJson(
+                    ImmutableLoadCredentialsResponse.builder().addCredentials(credential).build()))
+            .withStatusCode(200);
+    mockServer.when(mockRequest).respond(mockResponse);
+
+    Map<String, String> properties =
+        ImmutableMap.<String, String>builder()
+            .putAll(PROPERTIES)
+            .put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId)
+            .build();
+    OAuth2RefreshCredentialsHandler handler = OAuth2RefreshCredentialsHandler.create(properties);
+
+    AccessToken accessToken = handler.refreshAccessToken();
+
+    // refresh always fetches a new token and sends the planId again
+    AccessToken refreshedToken = handler.refreshAccessToken();
+    assertThat(refreshedToken).isNotSameAs(accessToken);
+
+    mockServer.verify(mockRequest, VerificationTimes.exactly(2));
   }
 }

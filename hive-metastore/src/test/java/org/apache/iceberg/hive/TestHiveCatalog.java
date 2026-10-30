@@ -26,6 +26,7 @@ import static org.apache.iceberg.TableProperties.CURRENT_SNAPSHOT_SUMMARY;
 import static org.apache.iceberg.TableProperties.CURRENT_SNAPSHOT_TIMESTAMP;
 import static org.apache.iceberg.TableProperties.DEFAULT_PARTITION_SPEC;
 import static org.apache.iceberg.TableProperties.DEFAULT_SORT_ORDER;
+import static org.apache.iceberg.TableProperties.ENCRYPTION_TABLE_KEY;
 import static org.apache.iceberg.TableProperties.SNAPSHOT_COUNT;
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -44,9 +45,13 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
+import org.apache.hadoop.hive.metastore.api.SerDeInfo;
+import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -76,6 +81,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
@@ -88,6 +94,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.FieldSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
@@ -168,6 +175,21 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
   @Override
   protected HiveCatalog catalog() {
     return catalog;
+  }
+
+  @Test
+  public void newTableSetsCurrentHmsLastAccessTime() throws TException {
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "create_time_tbl");
+
+    int beforeSeconds = (int) (System.currentTimeMillis() / 1000);
+    catalog.createTable(tableIdent, getTestSchema());
+    int afterSeconds = (int) (System.currentTimeMillis() / 1000);
+
+    org.apache.hadoop.hive.metastore.api.Table hmsTable =
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, tableIdent.name());
+    // HMS overwrites createTime server-side in create_table_core, so only the client-supplied
+    // lastAccessTime reflects the value set by newHmsTable; asserting createTime would test HMS.
+    assertThat(hmsTable.getLastAccessTime()).isBetween(beforeSeconds, afterSeconds);
   }
 
   private Schema getTestSchema() {
@@ -973,6 +995,54 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     }
   }
 
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  void formatVersionInTableParametersOnCreate(int formatVersion) throws Exception {
+    Schema schema = getTestSchema();
+    TableIdentifier tableIdentifier = TableIdentifier.of(DB_NAME, "tbl");
+    String location = temp.resolve("tbl").toUri().toString();
+
+    try {
+      catalog
+          .buildTable(tableIdentifier, schema)
+          .withLocation(location)
+          .withProperty(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
+          .create();
+
+      assertThat(hmsTableParameters())
+          .containsEntry(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    } finally {
+      catalog.dropTable(tableIdentifier);
+    }
+  }
+
+  @Test
+  void formatVersionInTableParametersOnUpgrade() throws Exception {
+    Schema schema = getTestSchema();
+    TableIdentifier tableIdentifier = TableIdentifier.of(DB_NAME, "tbl");
+    String location = temp.resolve("tbl").toString();
+    int upgradedFormatVersion = 3;
+
+    try {
+      catalog
+          .buildTable(tableIdentifier, schema)
+          .withLocation(location)
+          .withProperty(TableProperties.FORMAT_VERSION, "2")
+          .create();
+
+      catalog
+          .loadTable(tableIdentifier)
+          .updateProperties()
+          .set(TableProperties.FORMAT_VERSION, String.valueOf(upgradedFormatVersion))
+          .commit();
+
+      assertThat(hmsTableParameters())
+          .containsEntry(TableProperties.FORMAT_VERSION, String.valueOf(upgradedFormatVersion));
+    } finally {
+      catalog.dropTable(tableIdentifier);
+    }
+  }
+
   @Test
   public void testSnapshotStatsTableProperties() throws Exception {
     Schema schema = getTestSchema();
@@ -1238,5 +1308,97 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
       // Dropping the test database
       HIVE_METASTORE_EXTENSION.metastoreClient().dropDatabase(dbName);
     }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testMetadataHashing(boolean isTableEncrypted) {
+    Map<String, String> hiveTblProperties = Maps.newHashMap();
+    if (isTableEncrypted) {
+      hiveTblProperties.put(ENCRYPTION_TABLE_KEY, "key_id");
+    }
+
+    Schema schema = new Schema(Types.NestedField.required(1, "col1", Types.StringType.get()));
+    TableMetadata tableMetadata =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), "file:///tmp/table", ImmutableMap.of());
+
+    HMSTablePropertyHelper.setMetadataHash(tableMetadata, hiveTblProperties);
+
+    String base64EncodedHash =
+        hiveTblProperties.get(BaseMetastoreTableOperations.METADATA_HASH_PROP);
+    if (isTableEncrypted) {
+      assertThat(base64EncodedHash).isBase64();
+      HMSTablePropertyHelper.verifyMetadataHash(tableMetadata, base64EncodedHash);
+    } else {
+      assertThat(base64EncodedHash).isNull();
+    }
+  }
+
+  @Test
+  public void testListTablesFiltersOutNonIcebergTables() throws TException {
+    Namespace ns = Namespace.of(DB_NAME);
+    TableIdentifier icebergTable = TableIdentifier.of(ns, "iceberg_tbl");
+    TableIdentifier hiveTable = TableIdentifier.of(ns, "hive_tbl");
+
+    catalog.createTable(icebergTable, getTestSchema());
+    HIVE_METASTORE_EXTENSION
+        .metastoreClient()
+        .createTable(createNonIcebergTable(hiveTable.name(), TableType.EXTERNAL_TABLE));
+
+    try {
+      assertThat(catalog.listTables(ns)).containsExactly(icebergTable);
+    } finally {
+      catalog.dropTable(icebergTable);
+      HIVE_METASTORE_EXTENSION.metastoreClient().dropTable(DB_NAME, hiveTable.name());
+    }
+  }
+
+  @Test
+  public void testListTablesByFilterReturnsAllIcebergTables() throws Exception {
+    Namespace ns = Namespace.of(DB_NAME);
+    TableIdentifier t1 = TableIdentifier.of(ns, "t1");
+    TableIdentifier t2 = TableIdentifier.of(ns, "t2");
+
+    catalog.createTable(t1, getTestSchema());
+    catalog.createTable(t2, getTestSchema());
+
+    try {
+      assertThat(catalog.listTables(ns)).containsExactlyInAnyOrder(t1, t2);
+    } finally {
+      catalog.dropTable(t1);
+      catalog.dropTable(t2);
+    }
+  }
+
+  private org.apache.hadoop.hive.metastore.api.Table createNonIcebergTable(
+      String hiveTableName, TableType type) {
+    StorageDescriptor sd =
+        new StorageDescriptor(
+            Lists.newArrayList(),
+            temp.resolve(hiveTableName).toString(),
+            "org.apache.hadoop.mapred.TextInputFormat",
+            "org.apache.hadoop.mapred.TextOutputFormat",
+            false,
+            -1,
+            new SerDeInfo(
+                null, "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe", Maps.newHashMap()),
+            Lists.newArrayList(),
+            Lists.newArrayList(),
+            Maps.newHashMap());
+
+    return new org.apache.hadoop.hive.metastore.api.Table(
+        hiveTableName,
+        DB_NAME,
+        "test_owner",
+        0,
+        0,
+        0,
+        sd,
+        Lists.newArrayList(),
+        Maps.newHashMap(),
+        null,
+        null,
+        type.name());
   }
 }

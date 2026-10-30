@@ -426,6 +426,10 @@ public final class VectorizedParquetDefinitionLevelReader
         for (int i = 0; i < numValues; i++) {
           nextVal(vector, bufferIdx, valuesReader, typeWidth, byteArray);
           nullabilityHolder.setNotNull(bufferIdx);
+          if (setArrowValidityVector) {
+            BitVectorHelper.setBit(vector.getValidityBuffer(), bufferIdx);
+          }
+
           bufferIdx++;
         }
       } else {
@@ -447,6 +451,9 @@ public final class VectorizedParquetDefinitionLevelReader
         if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
           nextVal(vector, bufferIdx, valuesReader, typeWidth, byteArray);
           nullabilityHolder.setNotNull(bufferIdx);
+          if (setArrowValidityVector) {
+            BitVectorHelper.setBit(vector.getValidityBuffer(), bufferIdx);
+          }
         } else {
           setNull(nullabilityHolder, bufferIdx, vector.getValidityBuffer());
         }
@@ -532,7 +539,7 @@ public final class VectorizedParquetDefinitionLevelReader
                   .toByteBuffer()
                   .order(ByteOrder.LITTLE_ENDIAN);
           long timestampInt96 = ParquetUtil.extractTimestampInt96(buffer);
-          vector.getDataBuffer().setLong(idx, timestampInt96);
+          vector.getDataBuffer().setLong((long) idx * typeWidth, timestampInt96);
           break;
         default:
           throw new UnsupportedOperationException(

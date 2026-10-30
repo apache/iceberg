@@ -176,6 +176,13 @@ class SparkZOrderFileRewriteRunner extends SparkShufflingFileRewriteRunner {
     Set<Integer> identityPartitionFieldIds = table.spec().identitySourceIds();
     boolean caseSensitive = SparkUtil.caseSensitive(spark);
 
+    Preconditions.checkArgument(
+        caseSensitive
+            ? schema.findField(Z_COLUMN) == null
+            : schema.caseInsensitiveFindField(Z_COLUMN) == null,
+        "Cannot zorder because the table has a column named '%s', which conflicts with Iceberg's internal Z-order column name",
+        Z_COLUMN);
+
     List<String> validZOrderColNames = Lists.newArrayList();
 
     for (String colName : inputZOrderColNames) {
@@ -191,7 +198,8 @@ class SparkZOrderFileRewriteRunner extends SparkShufflingFileRewriteRunner {
       if (identityPartitionFieldIds.contains(field.fieldId())) {
         LOG.warn("Ignoring '{}' as such values are constant within a partition", colName);
       } else {
-        validZOrderColNames.add(colName);
+        // use the resolved name so a case-insensitive match is not carried through as-is
+        validZOrderColNames.add(schema.findColumnName(field.fieldId()));
       }
     }
 

@@ -89,7 +89,7 @@ public class TestTagDDL extends ExtensionsTestBase {
           .isEqualTo(firstSnapshotId);
       assertThat(ref.maxRefAgeMs().longValue())
           .as("The tag needs to have the correct max ref age.")
-          .isEqualTo(TimeUnit.valueOf(timeUnit.toUpperCase(Locale.ENGLISH)).toMillis(maxRefAge));
+          .isEqualTo(TimeUnit.valueOf(timeUnit.toUpperCase(Locale.ROOT)).toMillis(maxRefAge));
     }
 
     String tagName = "t1";

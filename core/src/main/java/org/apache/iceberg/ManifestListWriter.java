@@ -21,10 +21,11 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
-import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.encryption.StandardEncryptionManager;
+import org.apache.iceberg.encryption.StandardEncryptionManager.FileEncryptionKeys;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -35,19 +36,21 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   private final FileAppender<ManifestFile> writer;
   private final StandardEncryptionManager standardEncryptionManager;
   private final NativeEncryptionKeyMetadata manifestListKeyMetadata;
-  private final OutputFile outputFile;
+  private boolean closed = false;
+  private FileEncryptionKeys encryptionKeys;
 
   private ManifestListWriter(
       OutputFile file, EncryptionManager encryptionManager, Map<String, String> meta) {
+    OutputFile outputFile;
     if (encryptionManager instanceof StandardEncryptionManager) {
       // ability to encrypt the manifest list key is introduced for standard encryption.
       this.standardEncryptionManager = (StandardEncryptionManager) encryptionManager;
-      NativeEncryptionOutputFile encryptedFile = this.standardEncryptionManager.encrypt(file);
-      this.outputFile = encryptedFile.encryptingOutputFile();
-      this.manifestListKeyMetadata = encryptedFile.keyMetadata();
+      EncryptedOutputFile encryptedFile = this.standardEncryptionManager.encrypt(file);
+      outputFile = encryptedFile.encryptingOutputFile();
+      this.manifestListKeyMetadata = (NativeEncryptionKeyMetadata) encryptedFile.keyMetadata();
     } else {
       this.standardEncryptionManager = null;
-      this.outputFile = file;
+      outputFile = file;
       this.manifestListKeyMetadata = null;
     }
 
@@ -82,6 +85,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   @Override
   public void close() throws IOException {
     writer.close();
+    this.closed = true;
   }
 
   @Override
@@ -93,15 +97,17 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     return null;
   }
 
-  public ManifestListFile toManifestListFile() {
-    if (manifestListKeyMetadata != null && manifestListKeyMetadata.encryptionKey() != null) {
-      manifestListKeyMetadata.copyWithLength(writer.length());
-      String manifestListKeyID =
-          standardEncryptionManager.addManifestListKeyMetadata(manifestListKeyMetadata);
-      return new BaseManifestListFile(outputFile.location(), manifestListKeyID);
-    } else {
-      return new BaseManifestListFile(outputFile.location(), null);
+  FileEncryptionKeys encryptionKeys() {
+    Preconditions.checkState(closed, "Cannot build encryption keys, writer is not closed");
+    if (encryptionKeys == null
+        && manifestListKeyMetadata != null
+        && manifestListKeyMetadata.encryptionKey() != null) {
+      this.encryptionKeys =
+          standardEncryptionManager.registerKeyMetadata(
+              manifestListKeyMetadata.copyWithLength(writer.length()));
     }
+
+    return encryptionKeys;
   }
 
   static class V4Writer extends ManifestListWriter {

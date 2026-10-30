@@ -16,15 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical.views
 
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.UnaryCommand
 
-case class DropIcebergView(
-  child: LogicalPlan,
-  ifExists: Boolean) extends UnaryCommand {
+case class DropIcebergView(child: LogicalPlan, ifExists: Boolean) extends UnaryCommand {
   override protected def withNewChildInternal(newChild: LogicalPlan): DropIcebergView =
     copy(child = newChild)
 }

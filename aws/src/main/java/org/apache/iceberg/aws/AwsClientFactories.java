@@ -32,7 +32,7 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
 import software.amazon.awssdk.http.SdkHttpClient;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.http.apache5.Apache5HttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
@@ -148,6 +148,7 @@ public class AwsClientFactories {
           .applyMutation(httpClientProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyGlueEndpointConfigurations)
           .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+          .applyMutation(awsClientProperties::applyRetryConfigurations)
           .build();
     }
 
@@ -169,6 +170,7 @@ public class AwsClientFactories {
           .applyMutation(httpClientProperties::applyHttpClientConfigurations)
           .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
           .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
+          .applyMutation(awsClientProperties::applyRetryConfigurations)
           .build();
     }
 
@@ -198,7 +200,7 @@ public class AwsClientFactories {
       case HttpClientProperties.CLIENT_TYPE_URLCONNECTION:
         return UrlConnectionHttpClient.builder();
       case HttpClientProperties.CLIENT_TYPE_APACHE:
-        return ApacheHttpClient.builder();
+        return Apache5HttpClient.builder();
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
     }

@@ -172,7 +172,7 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
         } else if (unit.equalsIgnoreCase(ORCSchemaUtil.NANOS)) {
           builder.ofType(Types.TimestampNanoType.withoutZone());
         } else {
-          throw new IllegalStateException("Invalid Timestamp type unit: %s" + unit);
+          throw new IllegalStateException(String.format("Invalid Timestamp type unit: %s", unit));
         }
 
         break;
@@ -183,7 +183,7 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
         } else if (tsUnit.equalsIgnoreCase(ORCSchemaUtil.NANOS)) {
           builder.ofType(Types.TimestampNanoType.withZone());
         } else {
-          throw new IllegalStateException("Invalid Timestamp type unit: %s" + tsUnit);
+          throw new IllegalStateException(String.format("Invalid Timestamp type unit: %s", tsUnit));
         }
 
         break;

@@ -488,6 +488,45 @@ public class TestGCSFileIO {
         .isEqualTo(new AccessToken("gcsTokenFromCredential", new Date(2000L)));
   }
 
+  @Test
+  public void setCredentialsRefreshesClients() {
+    StorageCredential initialCredential =
+        StorageCredential.create(
+            "gs://custom-uri",
+            ImmutableMap.of(
+                "gcs.oauth2.token", "initialToken", "gcs.oauth2.token-expires-at", "1000"));
+
+    try (GCSFileIO fileIO = new GCSFileIO()) {
+      fileIO.setCredentials(ImmutableList.of(initialCredential));
+      fileIO.initialize(
+          ImmutableMap.of(
+              GCS_OAUTH2_TOKEN, "gcsTokenFromProperties", GCS_OAUTH2_TOKEN_EXPIRES_AT, "500"));
+
+      Storage initialClient = fileIO.client("gs://custom-uri/table1");
+      assertThat(initialClient.getOptions().getCredentials())
+          .isInstanceOf(OAuth2Credentials.class)
+          .extracting("value")
+          .extracting("temporaryAccess")
+          .isEqualTo(new AccessToken("initialToken", new Date(1000L)));
+
+      StorageCredential refreshedCredential =
+          StorageCredential.create(
+              "gs://custom-uri",
+              ImmutableMap.of(
+                  "gcs.oauth2.token", "refreshedToken", "gcs.oauth2.token-expires-at", "2000"));
+
+      fileIO.setCredentials(ImmutableList.of(refreshedCredential));
+
+      Storage refreshedClient = fileIO.client("gs://custom-uri/table1");
+      assertThat(refreshedClient).isNotSameAs(initialClient);
+      assertThat(refreshedClient.getOptions().getCredentials())
+          .isInstanceOf(OAuth2Credentials.class)
+          .extracting("value")
+          .extracting("temporaryAccess")
+          .isEqualTo(new AccessToken("refreshedToken", new Date(2000L)));
+    }
+  }
+
   @ParameterizedTest
   @MethodSource("org.apache.iceberg.TestHelpers#serializers")
   public void resolvingFileIOLoadWithoutStorageCredentials(

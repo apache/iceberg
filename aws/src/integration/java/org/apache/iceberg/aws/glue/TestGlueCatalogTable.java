@@ -99,7 +99,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
     assertThat(response.table().parameters())
         .containsEntry(
             BaseMetastoreTableOperations.TABLE_TYPE_PROP,
-            BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH))
+            BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ROOT))
         .containsKey(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
     assertThat(response.table().storageDescriptor().columns()).hasSameSizeAs(schema.columns());
     assertThat(response.table().partitionKeys()).hasSameSizeAs(partitionSpec.fields());
@@ -308,6 +308,22 @@ public class TestGlueCatalogTable extends GlueTestBase {
     assertThat(renamedTable.schema()).asString().isEqualTo(table.schema().toString());
     assertThat(renamedTable.spec()).isEqualTo(table.spec());
     assertThat(renamedTable.currentSnapshot()).isEqualTo(table.currentSnapshot());
+  }
+
+  @Test
+  public void testCreateTableInUniqueLocation() {
+    String namespace = createNamespace();
+    String tableName = createTable(namespace);
+    String newTableName = tableName + "_renamed";
+
+    glueCatalogWithUniqueLocation.renameTable(
+        TableIdentifier.of(namespace, tableName), TableIdentifier.of(namespace, newTableName));
+    Table renamedTable =
+        glueCatalogWithUniqueLocation.loadTable(TableIdentifier.of(namespace, newTableName));
+    createTable(namespace, tableName);
+    Table table = glueCatalogWithUniqueLocation.loadTable(TableIdentifier.of(namespace, tableName));
+
+    assertThat(renamedTable.location()).isNotEqualTo(table.location());
   }
 
   @Test
@@ -743,7 +759,8 @@ public class TestGlueCatalogTable extends GlueTestBase {
         new AwsProperties(properties),
         new S3FileIOProperties(properties),
         GLUE,
-        null);
+        null,
+        false /* uniqTableLocation */);
     String namespace = createNamespace();
     String tableName = getRandomName();
     createTable(namespace, tableName);

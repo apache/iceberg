@@ -99,6 +99,7 @@ public interface FileIO extends Serializable, Closeable {
   /**
    * Returns the property map used to configure this FileIO
    *
+   * @return the property map used to configure this FileIO
    * @throws UnsupportedOperationException if this FileIO does not expose its configuration
    *     properties
    */

@@ -30,36 +30,26 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.avro.PlannedDataReader;
-import org.apache.iceberg.data.orc.GenericOrcReader;
-import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.deletes.PositionDeleteIndexUtil;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
+import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.RangeReadable;
-import org.apache.iceberg.io.SeekableInputStream;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.orc.OrcRowReader;
-import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
-import org.apache.orc.TypeDescription;
-import org.apache.parquet.schema.MessageType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -183,8 +173,13 @@ public class BaseDeleteLoader implements DeleteLoader {
     InputFile inputFile = loadInputFile.apply(dv);
     long offset = dv.contentOffset();
     int length = dv.contentSizeInBytes().intValue();
-    byte[] bytes = readBytes(inputFile, offset, length);
-    return PositionDeleteIndex.deserialize(bytes, dv);
+    byte[] bytes = new byte[length];
+    try {
+      IOUtil.readFully(inputFile, offset, bytes, 0, length);
+      return PositionDeleteIndex.deserialize(bytes, dv);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   private PositionDeleteIndex getOrReadPosDeletes(
@@ -229,44 +224,9 @@ public class BaseDeleteLoader implements DeleteLoader {
     LOG.trace("Opening delete file {}", deleteFile.location());
     InputFile inputFile = loadInputFile.apply(deleteFile);
 
-    switch (format) {
-      case AVRO:
-        return Avro.read(inputFile)
-            .project(projection)
-            .reuseContainers()
-            .createResolvingReader(PlannedDataReader::create)
-            .build();
-
-      case PARQUET:
-        return Parquet.read(inputFile)
-            .project(projection)
-            .filter(filter)
-            .reuseContainers()
-            .createReaderFunc(newParquetReaderFunc(projection))
-            .build();
-
-      case ORC:
-        // reusing containers is automatic for ORC, no need to call 'reuseContainers'
-        return ORC.read(inputFile)
-            .project(projection)
-            .filter(filter)
-            .createReaderFunc(newOrcReaderFunc(projection))
-            .build();
-
-      default:
-        throw new UnsupportedOperationException(
-            String.format(
-                "Cannot read deletes, %s is not a supported file format: %s",
-                format.name(), inputFile.location()));
-    }
-  }
-
-  private Function<MessageType, ParquetValueReader<?>> newParquetReaderFunc(Schema projection) {
-    return fileSchema -> GenericParquetReaders.buildReader(projection, fileSchema);
-  }
-
-  private Function<TypeDescription, OrcRowReader<?>> newOrcReaderFunc(Schema projection) {
-    return fileSchema -> GenericOrcReader.buildReader(projection, fileSchema);
+    ReadBuilder<Record, ?> builder =
+        FormatModelRegistry.readBuilder(format, Record.class, inputFile);
+    return builder.project(projection).reuseContainers().filter(filter).build();
   }
 
   private <I, O> Iterable<O> execute(Iterable<I> objects, Function<I, O> func) {
@@ -321,23 +281,5 @@ public class BaseDeleteLoader implements DeleteLoader {
         "DV is expected to reference %s, not %s",
         filePath,
         dv.referencedDataFile());
-  }
-
-  private static byte[] readBytes(InputFile inputFile, long offset, int length) {
-    try (SeekableInputStream stream = inputFile.newStream()) {
-      byte[] bytes = new byte[length];
-
-      if (stream instanceof RangeReadable) {
-        RangeReadable rangeReadable = (RangeReadable) stream;
-        rangeReadable.readFully(offset, bytes);
-      } else {
-        stream.seek(offset);
-        ByteStreams.readFully(stream, bytes);
-      }
-
-      return bytes;
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
   }
 }

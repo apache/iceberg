@@ -20,7 +20,6 @@ package org.apache.iceberg.io;
 
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_PATH;
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_POS;
-import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assumptions.assumeThat;
@@ -29,7 +28,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -52,8 +50,6 @@ import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.SerializationUtil;
@@ -225,9 +221,9 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     // write a position delete file
     List<PositionDelete<T>> deletes =
         ImmutableList.of(
-            positionDelete(dataFile.location(), 0L, null),
-            positionDelete(dataFile.location(), 2L, null),
-            positionDelete(dataFile.location(), 4L, null));
+            positionDelete(dataFile.location(), 0L),
+            positionDelete(dataFile.location(), 2L),
+            positionDelete(dataFile.location(), 4L));
     Pair<DeleteFile, CharSequenceSet> result =
         writePositionDeletes(writerFactory, deletes, table.spec(), partition);
     DeleteFile deleteFile = result.first();
@@ -277,83 +273,6 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
   }
 
   @TestTemplate
-  public void testPositionDeleteWriterWithRow() throws IOException {
-    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), table.schema());
-
-    // write a data file
-    DataFile dataFile = writeData(writerFactory, dataRows, table.spec(), partition);
-
-    // write a position delete file and persist the deleted row
-    List<PositionDelete<T>> deletes =
-        ImmutableList.of(positionDelete(dataFile.location(), 0, dataRows.get(0)));
-    Pair<DeleteFile, CharSequenceSet> result =
-        writePositionDeletes(writerFactory, deletes, table.spec(), partition);
-    DeleteFile deleteFile = result.first();
-    CharSequenceSet referencedDataFiles = result.second();
-
-    if (fileFormat == FileFormat.AVRO) {
-      assertThat(deleteFile.lowerBounds()).isNull();
-      assertThat(deleteFile.upperBounds()).isNull();
-      assertThat(deleteFile.columnSizes()).isNull();
-      assertThat(deleteFile.valueCounts()).isNull();
-      assertThat(deleteFile.nullValueCounts()).isNull();
-      assertThat(deleteFile.nanValueCounts()).isNull();
-    } else {
-      assertThat(referencedDataFiles).hasSize(1);
-      assertThat(deleteFile.lowerBounds())
-          .hasSize(4)
-          .containsKey(DELETE_FILE_PATH.fieldId())
-          .containsKey(DELETE_FILE_POS.fieldId());
-      for (Types.NestedField column : table.schema().columns()) {
-        assertThat(deleteFile.lowerBounds()).containsKey(column.fieldId());
-      }
-      assertThat(deleteFile.upperBounds())
-          .hasSize(4)
-          .containsKey(DELETE_FILE_PATH.fieldId())
-          .containsKey(DELETE_FILE_POS.fieldId());
-      for (Types.NestedField column : table.schema().columns()) {
-        assertThat(deleteFile.upperBounds()).containsKey(column.fieldId());
-      }
-      // ORC also contains metrics for the deleted row struct, not just actual data fields
-      assertThat(deleteFile.columnSizes()).hasSizeGreaterThanOrEqualTo(4);
-      assertThat(deleteFile.valueCounts()).hasSizeGreaterThanOrEqualTo(2);
-      assertThat(deleteFile.nullValueCounts()).hasSizeGreaterThanOrEqualTo(2);
-      assertThat(deleteFile.nanValueCounts()).isNull();
-    }
-
-    // verify the written delete file
-    GenericRecord deletedRow = GenericRecord.create(table.schema());
-    Schema positionDeleteSchema = DeleteSchemaUtil.posDeleteSchema(table.schema());
-    GenericRecord deleteRecord = GenericRecord.create(positionDeleteSchema);
-    Map<String, Object> deleteRecordColumns =
-        ImmutableMap.of(
-            DELETE_FILE_PATH.name(),
-            dataFile.location(),
-            DELETE_FILE_POS.name(),
-            0L,
-            DELETE_FILE_ROW_FIELD_NAME,
-            deletedRow.copy("id", 1, "data", "aaa"));
-    List<Record> expectedDeletes = ImmutableList.of(deleteRecord.copy(deleteRecordColumns));
-    InputFile inputDeleteFile = table.io().newInputFile(deleteFile.location());
-    List<Record> actualDeletes = readFile(positionDeleteSchema, inputDeleteFile);
-    assertThat(actualDeletes).isEqualTo(expectedDeletes);
-
-    // commit the data and delete files
-    table
-        .newRowDelta()
-        .addRows(dataFile)
-        .addDeletes(deleteFile)
-        .validateDataFilesExist(referencedDataFiles)
-        .validateDeletedFiles()
-        .commit();
-
-    // verify the delete file is applied correctly
-    List<T> expectedRows =
-        ImmutableList.of(toRow(2, "aaa"), toRow(3, "aaa"), toRow(4, "aaa"), toRow(5, "aaa"));
-    assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows));
-  }
-
-  @TestTemplate
   public void testPositionDeleteWriterMultipleDataFiles() throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
@@ -364,9 +283,9 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     // write a position delete file referencing both
     List<PositionDelete<T>> deletes =
         ImmutableList.of(
-            positionDelete(dataFile1.location(), 0L, null),
-            positionDelete(dataFile1.location(), 2L, null),
-            positionDelete(dataFile2.location(), 4L, null));
+            positionDelete(dataFile1.location(), 0L),
+            positionDelete(dataFile1.location(), 2L),
+            positionDelete(dataFile2.location(), 4L));
     Pair<DeleteFile, CharSequenceSet> result =
         writePositionDeletes(writerFactory, deletes, table.spec(), partition);
     DeleteFile deleteFile = result.first();
@@ -466,7 +385,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     PositionDelete<T> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<T> closableWriter = writer) {
       for (PositionDelete<T> delete : deletes) {
-        closableWriter.write(posDelete.set(delete.path(), delete.pos(), delete.row()));
+        closableWriter.write(posDelete.set(delete.path(), delete.pos()));
       }
     }
 

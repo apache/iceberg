@@ -43,6 +43,7 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
     this.scheme = scheme;
   }
 
+  @SuppressWarnings("deprecation")
   @Override
   public void initialize(Map<String, String> properties) {
     // FileIO has no specific implementation class, but Hadoop will
@@ -158,6 +159,7 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
     };
   }
 
+  @SuppressWarnings("deprecation")
   private FileSystem.Statistics statistics() {
     if (statistics == null) {
       synchronized (this) {

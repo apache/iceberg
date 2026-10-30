@@ -20,8 +20,12 @@ package org.apache.iceberg.hadoop;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.withSettings;
 
 import com.github.benmanes.caffeine.cache.Cache;
+import java.io.Closeable;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
@@ -34,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -405,6 +410,61 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     catalog.invalidateTable(tableIdent);
     assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
     assertThat(wrappedCatalog.cache().asMap()).doesNotContainKey(tableIdent);
+  }
+
+  @Test
+  public void testRegisterTableWithOverwriteInvalidatesCache() throws Exception {
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier sourceIdent = TableIdentifier.of(namespace, "src");
+    TableIdentifier targetIdent = TableIdentifier.of(namespace, "tgt");
+
+    Table sourceTable =
+        catalog.createTable(sourceIdent, SCHEMA, SPEC, ImmutableMap.of("key", "value"));
+    String metadataLocation =
+        ((HasTableOperations) sourceTable).operations().current().metadataFileLocation();
+
+    Table registered = catalog.registerTable(targetIdent, metadataLocation, false);
+    assertThat(registered).isNotNull();
+
+    // load so the target table is cached
+    catalog.loadTable(targetIdent);
+    assertThat(catalog.cache().asMap()).containsKey(targetIdent);
+
+    // drop and re-register with overwrite=false to verify cache invalidation
+    catalog.dropTable(targetIdent);
+    catalog.registerTable(targetIdent, metadataLocation, false);
+
+    // cache should have been invalidated by registerTable
+    assertThat(catalog.cache().asMap()).doesNotContainKey(targetIdent);
+  }
+
+  @Test
+  void closeInvalidatesCacheOfChainedCachingCatalogs() throws IOException {
+    TestableCachingCatalog wrappedCatalog =
+        TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(wrappedCatalog, EXPIRATION_TTL, ticker);
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
+    assertThat(catalog.cache().asMap()).containsKey(tableIdent);
+    assertThat(wrappedCatalog.cache().asMap()).containsKey(tableIdent);
+
+    catalog.close();
+
+    assertThat(catalog.cache().asMap()).isEmpty();
+    assertThat(wrappedCatalog.cache().asMap()).isEmpty();
+  }
+
+  @Test
+  void closeClosesWrappedCatalog() throws IOException {
+    Catalog wrappedCatalog = mock(Catalog.class, withSettings().extraInterfaces(Closeable.class));
+    CachingCatalog catalog = (CachingCatalog) CachingCatalog.wrap(wrappedCatalog);
+
+    catalog.close();
+
+    verify((Closeable) wrappedCatalog).close();
   }
 
   public static TableIdentifier[] metadataTables(TableIdentifier tableIdent) {
