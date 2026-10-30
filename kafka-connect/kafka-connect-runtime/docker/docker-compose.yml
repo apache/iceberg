@@ -89,7 +89,8 @@ services:
       KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # the broker default; a shorter delay hides consumer group join timing issues
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 3000
       CLUSTER_ID: E-JXLvCaTiaUYDb1LwZ1JQ
 
   connect:
@@ -118,3 +119,30 @@ services:
       CONNECT_PLUGIN_PATH: /test/kafka-connect
       CONNECT_BOOTSTRAP_SERVERS: kafka:9092
       CONNECT_OFFSET_FLUSH_INTERVAL_MS: 500
+
+  # Connect with the default offset.flush.interval.ms (60s), so an idle task gets put() about once a minute
+  connect-default-flush:
+    image: confluentinc/cp-kafka-connect:7.8.1
+    depends_on:
+      - kafka
+    hostname: connect-default-flush
+    ports:
+      - 8084:8083
+    volumes:
+      - ../build/install:/test/kafka-connect
+    environment:
+      CONNECT_REST_ADVERTISED_HOST_NAME: localhost
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: kc-default-flush
+      CONNECT_CONFIG_STORAGE_TOPIC: kc-default-flush-config
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_TOPIC: kc-default-flush-offsets
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_TOPIC: kc-default-flush-storage
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: false
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: false
+      CONNECT_PLUGIN_PATH: /test/kafka-connect
+      CONNECT_BOOTSTRAP_SERVERS: kafka:9092
