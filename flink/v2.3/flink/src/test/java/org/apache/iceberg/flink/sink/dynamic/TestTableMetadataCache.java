@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.Map;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -32,6 +33,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -238,5 +240,162 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
 
     assertThat(cache.schema(tableIdentifier, SCHEMA_MIXEDCASE))
         .isEqualTo(TableMetadataCache.NOT_FOUND);
+  }
+
+  @Test
+  void testSchemaPrefersCurrentSchemaAfterDropAndReAddColumn() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA);
+    table.updateSchema().addColumn("extra", Types.StringType.get()).commit();
+    int retiredFieldId = table.schema().findField("extra").fieldId();
+    table.updateSchema().deleteColumn("extra").commit();
+    table.updateSchema().addColumn("extra", Types.StringType.get()).commit();
+    int currentFieldId = table.schema().findField("extra").fieldId();
+    assertThat(currentFieldId).isNotEqualTo(retiredFieldId);
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema resolved = cache.schema(tableIdentifier, table.schema()).resolvedTableSchema();
+
+    assertThat(resolved.findField("extra").fieldId()).isEqualTo(currentFieldId);
+  }
+
+  @Test
+  void testSchemaStillMatchesHistoricalSchemaWhenDroppedColumnIsNotReAdded() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA);
+    table.updateSchema().addColumn("extra", Types.StringType.get()).commit();
+    Schema withExtra = table.schema();
+    table.updateSchema().deleteColumn("extra").commit();
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema resolved = cache.schema(tableIdentifier, withExtra).resolvedTableSchema();
+
+    assertThat(resolved.findField("extra").fieldId())
+        .isEqualTo(withExtra.findField("extra").fieldId());
+  }
+
+  @Test
+  void testSchemasAreOrderedCurrentFirstThenNewestToOldest() {
+    Map<Integer, Schema> schemas = Maps.newHashMap();
+    for (int id = 0; id < 4; id++) {
+      schemas.put(id, SCHEMA);
+    }
+
+    assertThat(TableMetadataCache.orderSchemas(schemas, 3).keySet()).containsExactly(3, 2, 1, 0);
+
+    // after a rollback the current schema is not the one with the highest id
+    assertThat(TableMetadataCache.orderSchemas(schemas, 1).keySet()).containsExactly(1, 3, 2, 0);
+  }
+
+  @Test
+  void testSchemaPrefersCurrentSchemaWhenColumnIsReAddedAfterAnotherChange() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA);
+    table.updateSchema().addColumn("c", Types.StringType.get()).commit();
+    Schema oldShape = table.schema();
+    int retiredFieldId = oldShape.findField("c").fieldId();
+    table.updateSchema().deleteColumn("c").commit();
+    table.updateSchema().addColumn("d", Types.StringType.get()).commit();
+    table.updateSchema().addColumn("c", Types.StringType.get()).commit();
+    int currentFieldId = table.schema().findField("c").fieldId();
+    assertThat(currentFieldId).isNotEqualTo(retiredFieldId);
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema resolved = cache.schema(tableIdentifier, oldShape).resolvedTableSchema();
+
+    assertThat(resolved.findField("c").fieldId()).isEqualTo(currentFieldId);
+  }
+
+  @Test
+  void testSchemaPrefersCurrentSchemaWhenColumnIsReAddedWithWiderType() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA);
+    table.updateSchema().addColumn("c", Types.IntegerType.get()).commit();
+    Schema oldShape = table.schema();
+    int retiredFieldId = oldShape.findField("c").fieldId();
+    table.updateSchema().deleteColumn("c").commit();
+    table.updateSchema().addColumn("c", Types.LongType.get()).commit();
+    int currentFieldId = table.schema().findField("c").fieldId();
+    assertThat(currentFieldId).isNotEqualTo(retiredFieldId);
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema resolved = cache.schema(tableIdentifier, oldShape).resolvedTableSchema();
+
+    assertThat(resolved.findField("c").fieldId()).isEqualTo(currentFieldId);
+    assertThat(resolved.findField("c").type()).isEqualTo(Types.LongType.get());
+  }
+
+  @Test
+  void testSchemaPrefersCurrentSchemaWhenFieldNameIsReusedAfterRename() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA);
+    int renamedFieldId = table.schema().findField("data").fieldId();
+    table.updateSchema().renameColumn("data", "legacy").commit();
+    table.updateSchema().addColumn("data", Types.StringType.get()).commit();
+    int currentFieldId = table.schema().findField("data").fieldId();
+    assertThat(currentFieldId).isNotEqualTo(renamedFieldId);
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema resolved = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
+
+    assertThat(resolved.findField("data").fieldId()).isEqualTo(currentFieldId);
+  }
+
+  @Test
+  void testSchemaFallsBackToHistoricalSchemaWhenReAddedColumnTypeIsIncompatible() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA);
+    table.updateSchema().addColumn("myfield", Types.StringType.get()).commit();
+    Schema oldShape = table.schema();
+    int retiredFieldId = oldShape.findField("myfield").fieldId();
+    table.updateSchema().deleteColumn("myfield").commit();
+    table.updateSchema().addColumn("myfield", Types.DoubleType.get()).commit();
+    assertThat(table.schema().findField("myfield").fieldId()).isNotEqualTo(retiredFieldId);
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema resolved = cache.schema(tableIdentifier, oldShape).resolvedTableSchema();
+
+    assertThat(resolved.findField("myfield").fieldId()).isEqualTo(retiredFieldId);
+    assertThat(resolved.findField("myfield").type()).isEqualTo(Types.StringType.get());
+  }
+
+  @Test
+  void testSchemaMatchingOfReusedFieldNameHonorsCaseSensitivity() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA);
+    int renamedFieldId = table.schema().findField("data").fieldId();
+    table.updateSchema().renameColumn("data", "legacy").commit();
+    table.updateSchema().addColumn("Data", Types.StringType.get()).commit();
+    int currentFieldId = table.schema().findField("Data").fieldId();
+    assertThat(currentFieldId).isNotEqualTo(renamedFieldId);
+
+    TableMetadataCache caseInsensitive =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_INSENSITIVE, PRESERVE_COLUMNS);
+    Schema resolved = caseInsensitive.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
+    assertThat(resolved.caseInsensitiveFindField("data").fieldId()).isEqualTo(currentFieldId);
+
+    TableMetadataCache caseSensitive =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    resolved = caseSensitive.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
+    assertThat(resolved.findField("data").fieldId()).isEqualTo(renamedFieldId);
   }
 }

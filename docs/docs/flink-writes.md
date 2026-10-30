@@ -524,6 +524,8 @@ The dynamic sink tries to match the schema provided in `DynamicRecord` with the 
 - If there is no direct match, DynamicSink tries to adapt the provided schema such that it matches one of table schemas. For example, if there is an additional optional column in the table schema, a null value will be added to the RowData provided via DynamicRecord.
 - Otherwise, we evolve the table schema to match the input schema, within the constraints described below.
 
+Schemas are matched by column name. The dynamic sink prefers the current table schema: it writes with the current schema whenever the record fits it, converting values if needed (for example `Integer` to `Long`), and falls back to an older table schema only when the record does not fit the current one. Older table schemas which use a column name that belongs to a different column in the current schema (for example after a column was dropped and added again, or renamed and its name reused) are tried last, because data written with them is stored under column IDs which queries on the current schema do not read. Values written with an older table schema may therefore not be visible in columns that have changed since.
+
 The dynamic sink maintains an LRU cache for both table metadata and incoming schemas, with eviction based on size and time constraints. When a DynamicRecord contains a schema that is incompatible with the current table schema, a schema update is triggered. This update can occur either immediately or via a centralized executor, depending on the `immediateTableUpdate` configuration. While centralized updates reduce load on the Catalog, they may introduce backpressure on the sink.
 
 #### Supported schema updates
@@ -540,6 +542,8 @@ technically still possible to write data to that column because Iceberg maintain
 regular queries won't be able to reference the column. If the field was to re-appear as part of a new schema, an
 entirely new column would be added, which apart from the name, has nothing in common with the old column, i.e. queries
 for the new column will never return data of the old column.
+
+Records which still carry the old column are written to the new column when their values can be converted to its type. If they cannot be converted (for example because the column was re-added with an incompatible type), they are still written using the older table schema.
 
 ##### Unsupported schema updates
 
