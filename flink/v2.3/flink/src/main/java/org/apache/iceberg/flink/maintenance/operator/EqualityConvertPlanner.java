@@ -43,6 +43,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
@@ -55,6 +56,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.slf4j.Logger;
@@ -70,8 +72,9 @@ import org.slf4j.LoggerFactory;
  * <ol>
  *   <li>{@link #refreshStagingCursor}: updates {@link #lastStagingSnapshotId} from the most recent
  *       committer marker on the target branch.
- *   <li>{@link #ensureIndexCurrent}: rebuilds the worker index from main unless it reflects the
- *       target branch head, see {@link #indexReflects}.
+ *   <li>{@link #ensureIndexCurrent}: applies the external commits (e.g. compaction) since the
+ *       indexed snapshot to the worker index, or rebuilds it, see {@link
+ *       #externalCommitsSinceIndex} and {@link #deltaReadsMoreThanRebuild}.
  *   <li>{@link #processStagingSnapshot}: resolve the chosen staging snapshot's eq deletes against
  *       the (now-current) index, pass through any DV files, and index the snapshot's new data files
  *       for the next cycle.
@@ -88,8 +91,8 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Assumes a single equality-field set supplied via the builder; staging eq-deletes with a
  * different {@code equalityFieldIds} fail fast in {@link #retrieveStagingFiles}. Concurrent writes
- * on the target branch are handled by {@link #ensureIndexCurrent} reindexing from the new main
- * snapshot; commit-time conflicts are caught by {@code RowDelta.validateFromSnapshot}.
+ * on the target branch are handled by {@link #ensureIndexCurrent} reindexing the new main commits;
+ * commit-time conflicts are caught by {@code RowDelta.validateFromSnapshot}.
  */
 @Internal
 public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
@@ -317,9 +320,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     updateLastStagingSnapshotId(discoverLastCommittedWork(mainSnapshot));
   }
 
-  /**
-   * Rebuilds the worker index unless it reflects {@code mainSnapshot}, see {@link #indexReflects}.
-   */
+  /** Brings the worker index up to date with {@code mainSnapshot} by a delta or a rebuild. */
   private void ensureIndexCurrent(Snapshot mainSnapshot) {
     if (mainSnapshot == null) {
       // The target branch has no rows, so the index must not have any either. A new generation
@@ -331,7 +332,8 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
       return;
     }
 
-    if (!indexReflects(mainSnapshot)) {
+    List<Snapshot> externalCommits = externalCommitsSinceIndex(mainSnapshot);
+    if (externalCommits == null || deltaReadsMoreThanRebuild(mainSnapshot, externalCommits)) {
       boolean bootstrap = indexSnapshotId == null;
       LOG.info(
           "{} worker index from main snapshot {} for field IDs {}.",
@@ -339,6 +341,8 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
           mainSnapshot.snapshotId(),
           eqFieldIds);
       rebuildIndex(mainSnapshot, !bootstrap);
+    } else {
+      emitIncrementalReindex(mainSnapshot, externalCommits);
     }
 
     indexSnapshotId = mainSnapshot.snapshotId();
@@ -347,34 +351,203 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   }
 
   /**
-   * Returns whether the index reflects {@code mainSnapshot}.
+   * Returns the commits after the indexed snapshot that this converter did not make, newest first,
+   * or {@code null} if the index needs a rebuild. The conversion commit of the planned staging
+   * snapshot is not among them, as its cycle already updated the index.
    *
-   * <p>Planning a staging snapshot changes the index before its conversion commit exists: its eq
-   * deletes consume the entries they match and its data files are added. So with a snapshot
-   * planned, the index reflects the head only if that snapshot's conversion commit sits directly on
-   * top of the indexed snapshot. Without one, the head must be the indexed snapshot. Any other head
-   * holds commits the index never saw (external commits, rollbacks, a restore from before a
-   * conversion commit) or follows a cycle that did not commit.
-   *
-   * <p>After a restore, the conversion commit can come from a retry of the planned cycle. A cycle
-   * that only failed to commit leaves the same index as its retry. A rebuild that fails part way
+   * <p>After a restore, the conversion commit can come from a retry that ran on an index rebuilt at
+   * a later head. The restored index plus the delta then also holds the rows the external commits
+   * added and the retry's eq deletes matched. The conversion commit deleted those rows, so
+   * resolving them again only adds a position the DV already holds. A rebuild that fails part way
    * clears {@link #indexSnapshotId}, and the committer does not commit a conversion on a generation
    * whose update failed downstream.
    */
-  private boolean indexReflects(Snapshot mainSnapshot) {
+  private List<Snapshot> externalCommitsSinceIndex(Snapshot mainSnapshot) {
     if (indexSnapshotId == null) {
+      return null;
+    }
+
+    List<Snapshot> externalCommits = Lists.newArrayList();
+    boolean plannedSnapshotCommitted = false;
+    Snapshot current = mainSnapshot;
+    while (current != null && current.snapshotId() != indexSnapshotId) {
+      String committedStaging =
+          current.summary().get(EqualityConvertCommitter.COMMITTED_STAGING_SNAPSHOT_PROPERTY);
+      if (committedStaging == null) {
+        externalCommits.add(current);
+      } else if (pendingStagingSnapshotId != null
+          && Long.parseLong(committedStaging) == pendingStagingSnapshotId) {
+        plannedSnapshotCommitted = true;
+      } else {
+        return null;
+      }
+
+      current = parentOf(current);
+    }
+
+    // A null current means the walk passed the root, or an expired parent, without reaching the
+    // indexed snapshot.
+    if (current == null || (pendingStagingSnapshotId != null && !plannedSnapshotCommitted)) {
+      return null;
+    }
+
+    return externalCommits;
+  }
+
+  private boolean deltaReadsMoreThanRebuild(Snapshot mainSnapshot, List<Snapshot> externalCommits) {
+    // The manifest list counts bound the delta before any manifest is read or any DataFile is held.
+    // A file added and removed within the range counts twice, although the delta skips it.
+    long deltaRows = 0L;
+    for (Snapshot snapshot : externalCommits) {
+      for (ManifestFile manifest : snapshot.dataManifests(table.io())) {
+        if (Objects.equals(manifest.snapshotId(), snapshot.snapshotId())) {
+          if (!hasRowCounts(manifest)) {
+            return true;
+          }
+
+          deltaRows += manifest.addedRowsCount() + manifest.deletedRowsCount();
+        }
+      }
+    }
+
+    if (deltaRows == 0L) {
       return false;
     }
 
-    if (pendingStagingSnapshotId == null) {
-      return mainSnapshot.snapshotId() == indexSnapshotId;
+    long rebuildRows = 0L;
+    for (ManifestFile manifest : mainSnapshot.dataManifests(table.io())) {
+      if (!hasRowCounts(manifest)) {
+        return true;
+      }
+
+      rebuildRows += manifest.addedRowsCount() + manifest.existingRowsCount();
     }
 
-    String committedStaging =
-        mainSnapshot.summary().get(EqualityConvertCommitter.COMMITTED_STAGING_SNAPSHOT_PROPERTY);
-    return committedStaging != null
-        && Long.parseLong(committedStaging) == pendingStagingSnapshotId
-        && Objects.equals(mainSnapshot.parentId(), indexSnapshotId);
+    if (deltaRows <= rebuildRows) {
+      return false;
+    }
+
+    LOG.info(
+        "The external commits since the indexed snapshot change {} rows, more than the {} rows of "
+            + "main snapshot {}. Rebuilding the worker index instead of applying them.",
+        deltaRows,
+        rebuildRows,
+        mainSnapshot.snapshotId());
+    return true;
+  }
+
+  // The row counts are required by the spec, but a writer may leave them out.
+  private static boolean hasRowCounts(ManifestFile manifest) {
+    return manifest.addedRowsCount() != null
+        && manifest.existingRowsCount() != null
+        && manifest.deletedRowsCount() != null;
+  }
+
+  /**
+   * Applies the data-file changes of {@code externalCommits} to the worker index in one phase.
+   *
+   * <p>Clears {@link #indexSnapshotId} before the first command. The caller records the head only
+   * after this returns, so a delta that fails or is emitted in part is not trusted.
+   */
+  private void emitIncrementalReindex(Snapshot mainSnapshot, List<Snapshot> externalCommits) {
+    Map<String, DataFile> added = Maps.newLinkedHashMap();
+    Map<String, DataFile> removed = Maps.newLinkedHashMap();
+    for (Snapshot snapshot : externalCommits) {
+      collectDataFileChanges(snapshot, added, removed);
+    }
+
+    indexSnapshotId = null;
+
+    int removedFileNum = 0;
+    // Removed files are still readable, as the indexed snapshot references them.
+    for (DataFile dataFile : removed.values()) {
+      if (!added.containsKey(dataFile.location())) {
+        output.collect(
+            new StreamRecord<>(
+                ReadCommand.removedDataFile(
+                    reindexTask(dataFile),
+                    mainSnapshot.snapshotId(),
+                    indexGeneration,
+                    dataSequenceNumber(dataFile)),
+                nextPhaseTs));
+        removedFileNum++;
+      }
+    }
+
+    int addedFileNum = 0;
+    for (DataFile dataFile : added.values()) {
+      if (!removed.containsKey(dataFile.location())) {
+        output.collect(
+            new StreamRecord<>(
+                ReadCommand.dataFile(
+                    reindexTask(dataFile),
+                    mainSnapshot.snapshotId(),
+                    indexGeneration,
+                    dataSequenceNumber(dataFile)),
+                nextPhaseTs));
+        addedFileNum++;
+      }
+    }
+
+    if (addedFileNum == 0 && removedFileNum == 0) {
+      return;
+    }
+
+    LOG.info(
+        "Incrementally reindexing worker index to main snapshot {} for field IDs {}: {} added and "
+            + "{} removed data files.",
+        mainSnapshot.snapshotId(),
+        eqFieldIds,
+        addedFileNum,
+        removedFileNum);
+    advancePhase();
+  }
+
+  private void collectDataFileChanges(
+      Snapshot snapshot, Map<String, DataFile> added, Map<String, DataFile> removed) {
+    if (!addsFiles(snapshot) && !removesDataFiles(snapshot)) {
+      // E.g. a manifest rewrite, for which SnapshotChanges would read every manifest to find no
+      // file change.
+      return;
+    }
+
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+    validateTargetDeleteFiles(snapshot, changes);
+    for (DataFile dataFile : changes.addedDataFiles()) {
+      // Column stats dominate a DataFile and the reader needs none of them. SnapshotChanges
+      // already strips them from removed files.
+      added.put(dataFile.location(), dataFile.copyWithoutStats());
+    }
+
+    for (DataFile dataFile : changes.removedDataFiles()) {
+      removed.put(dataFile.location(), dataFile);
+    }
+  }
+
+  // Mirrors the reader's check on the delete files of a rebuild.
+  private void validateTargetDeleteFiles(Snapshot snapshot, SnapshotChanges changes) {
+    if (stagingOnTargetBranch) {
+      // On a shared branch, equality deletes on the target are the converter's input.
+      return;
+    }
+
+    for (DeleteFile deleteFile : changes.addedDeleteFiles()) {
+      Preconditions.checkState(
+          deleteFile.content() != FileContent.EQUALITY_DELETES,
+          "Snapshot %s on target branch '%s' adds an equality delete file %s; the converter "
+              + "expects equality deletes only on the staging branch, converted to DVs on the "
+              + "target.",
+          snapshot.snapshotId(),
+          targetBranch,
+          deleteFile.location());
+    }
+  }
+
+  private FileScanTask reindexTask(DataFile dataFile) {
+    // The task carries no DVs, and a DV added to a retained file is ignored, so the positions these
+    // DVs delete stay indexed. A Flink writer adds such a DV for rows it updates within one
+    // checkpoint. Resolving one only adds a position the DV already holds.
+    return new FlinkAddedRowsScanTask(dataFile, table.specs().get(dataFile.specId()));
   }
 
   /**
@@ -789,6 +962,16 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     }
 
     return false;
+  }
+
+  private boolean addsFiles(Snapshot snapshot) {
+    Map<String, String> summary = snapshot.summary();
+    return summaryCount(summary, SnapshotSummary.ADDED_FILES_PROP) > 0
+        || summaryCount(summary, SnapshotSummary.ADDED_DELETE_FILES_PROP) > 0;
+  }
+
+  private boolean removesDataFiles(Snapshot snapshot) {
+    return summaryCount(snapshot.summary(), SnapshotSummary.DELETED_FILES_PROP) > 0;
   }
 
   private static long summaryCount(Map<String, String> summary, String key) {

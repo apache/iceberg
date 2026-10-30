@@ -19,11 +19,14 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.runtime.state.heap.HeapKeyedStateBackend;
+import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.co.CoBroadcastWithKeyedOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.KeyedBroadcastOperatorTestHarness;
@@ -204,6 +207,11 @@ class TestEqualityConvertPKIndex {
         Arguments.of(List.of(GLOBAL, 0), List.of(0, 1)));
   }
 
+  private static IndexCommand removeRow(String filePath, long position) {
+    return IndexCommand.removeDataRow(
+        MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, filePath, position, 0, EMPTY_PARTITION, DATA_SEQ);
+  }
+
   private static IndexCommand addRow(String filePath, long position, int specId) {
     return IndexCommand.addDataRow(
         MAIN_SNAPSHOT,
@@ -248,6 +256,64 @@ class TestEqualityConvertPKIndex {
               IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 2));
       harness.watermark(2);
       assertThat(harness.extractOutputValues()).hasSize(1);
+    }
+  }
+
+  @Test
+  void removeDataRowEvictsOnlyMatchingPosition() throws Exception {
+    try (KeyedBroadcastOperatorTestHarness<
+            SerializedEqualityValues, IndexCommand, IndexCommand, DVPosition>
+        harness = createHarness()) {
+      harness.open();
+
+      harness.processElement(new StreamRecord<>(addRow("file1.parquet", 0, 0), 0));
+      harness.processElement(new StreamRecord<>(addRow("file1.parquet", 1, 0), 0));
+      harness.processElement(new StreamRecord<>(addRow("file2.parquet", 0, 0), 0));
+      harness.processElement(new StreamRecord<>(removeRow("file1.parquet", 0), 0));
+      harness.processElement(
+          new StreamRecord<>(
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 1));
+      harness.watermark(1);
+
+      assertThat(harness.extractOutputValues())
+          .extracting(DVPosition::dataFilePath, DVPosition::position)
+          .containsExactlyInAnyOrder(tuple("file1.parquet", 1L), tuple("file2.parquet", 0L));
+    }
+  }
+
+  @Test
+  void removeAndAddInOnePhaseMoveKeyToCompactedFile() throws Exception {
+    try (KeyedBroadcastOperatorTestHarness<
+            SerializedEqualityValues, IndexCommand, IndexCommand, DVPosition>
+        harness = createHarness()) {
+      harness.open();
+
+      harness.processElement(new StreamRecord<>(addRow("old.parquet", 0, 0), 0));
+      // A compaction's delta arrives in one phase, in any order across the parallel readers.
+      harness.processElement(new StreamRecord<>(addRow("compacted.parquet", 3, 0), 1));
+      harness.processElement(new StreamRecord<>(removeRow("old.parquet", 0), 1));
+      harness.processElement(
+          new StreamRecord<>(
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 2));
+      harness.watermark(2);
+
+      List<DVPosition> output = harness.extractOutputValues();
+      assertThat(output).hasSize(1);
+      assertThat(output.get(0).dataFilePath()).isEqualTo("compacted.parquet");
+      assertThat(output.get(0).position()).isEqualTo(3);
+    }
+  }
+
+  @Test
+  void removeDataRowOfUnindexedKeyKeepsNoState() throws Exception {
+    try (KeyedBroadcastOperatorTestHarness<
+            SerializedEqualityValues, IndexCommand, IndexCommand, DVPosition>
+        harness = createHarness()) {
+      harness.open();
+
+      harness.processElement(new StreamRecord<>(removeRow("file1.parquet", 0), 0));
+
+      assertThat(keyedStateEntries(harness)).isZero();
     }
   }
 
@@ -743,5 +809,14 @@ class TestEqualityConvertPKIndex {
         1,
         1,
         0);
+  }
+
+  private static int keyedStateEntries(
+      KeyedBroadcastOperatorTestHarness<
+              SerializedEqualityValues, IndexCommand, IndexCommand, DVPosition>
+          harness) {
+    return ((HeapKeyedStateBackend<?>)
+            ((AbstractStreamOperator<?>) harness.getOperator()).getKeyedStateBackend())
+        .numKeyValueStateEntries();
   }
 }
