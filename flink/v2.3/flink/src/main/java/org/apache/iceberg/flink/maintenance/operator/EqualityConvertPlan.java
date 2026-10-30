@@ -31,11 +31,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
  * EqualityConvertCommitter} (for data files and staging deletes to commit).
  *
  * <p>A no-op cycle is encoded by {@link #stagingSnapshotId()} == {@link
- * #NO_OP_STAGING_SNAPSHOT_ID}. Use {@link #noOp(Long, long, long)} to construct one and {@link
- * #noOp()} to check.
+ * #NO_OP_STAGING_SNAPSHOT_ID}. Use {@link #noOp(Long, long, long, long)} to construct one and
+ * {@link #noOp()} to check.
  *
  * <p>A cycle-start marker is a no-op plan whose done timestamp is never reached. Use {@link
- * #cycleStart(long)} to construct one.
+ * #cycleStart(long, long)} to construct one.
  *
  * @param dataFiles new staging data files committed in the cycle
  * @param stagingDVFiles staging DVs passed through to main, used by DVWriter to merge with
@@ -50,6 +50,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
  * @param triggerTimestamp original trigger timestamp, forwarded by the Committer to the Aggregator
  * @param doneTimestamp timestamp after which all phase watermarks have been emitted; the DVWriter
  *     should only process the result when the watermark reaches or exceeds this value
+ * @param indexGeneration generation of the worker index the cycle ran on. The committer does not
+ *     commit a cycle on a generation whose update failed.
  */
 @Internal
 public record EqualityConvertPlan(
@@ -59,7 +61,8 @@ public record EqualityConvertPlan(
     long stagingSnapshotId,
     Long mainSnapshotId,
     long triggerTimestamp,
-    long doneTimestamp)
+    long doneTimestamp,
+    long indexGeneration)
     implements Serializable {
 
   public static final long NO_OP_STAGING_SNAPSHOT_ID = -1L;
@@ -71,7 +74,7 @@ public record EqualityConvertPlan(
 
   /** No-op cycle: empty file lists, sentinel staging snapshot id. */
   public static EqualityConvertPlan noOp(
-      Long mainSnapshotId, long triggerTimestamp, long doneTimestamp) {
+      Long mainSnapshotId, long triggerTimestamp, long doneTimestamp, long indexGeneration) {
     return new EqualityConvertPlan(
         ImmutableList.of(),
         ImmutableList.of(),
@@ -79,14 +82,15 @@ public record EqualityConvertPlan(
         NO_OP_STAGING_SNAPSHOT_ID,
         mainSnapshotId,
         triggerTimestamp,
-        doneTimestamp);
+        doneTimestamp,
+        indexGeneration);
   }
 
   /**
    * Cycle-start marker: a no-op plan whose done timestamp is never reached, so consumers hold it
    * until the cycle's actual plan replaces it.
    */
-  public static EqualityConvertPlan cycleStart(long triggerTimestamp) {
-    return noOp(null, triggerTimestamp, Long.MAX_VALUE);
+  public static EqualityConvertPlan cycleStart(long triggerTimestamp, long indexGeneration) {
+    return noOp(null, triggerTimestamp, Long.MAX_VALUE, indexGeneration);
   }
 }
