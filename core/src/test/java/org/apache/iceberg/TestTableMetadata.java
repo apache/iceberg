@@ -41,6 +41,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -57,6 +58,8 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
+import org.apache.iceberg.encryption.BaseEncryptedKey;
+import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
@@ -1116,6 +1119,40 @@ public class TestTableMetadata {
         .hasMessage(
             "Invalid properties for v%s: [encryption.key-id, encryption.data-key-length]",
             formatVersion);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  void addEncryptionKeyRejectedBeforeV3(int formatVersion) {
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA,
+            PartitionSpec.unpartitioned(),
+            TEST_LOCATION,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)));
+    EncryptedKey key = new BaseEncryptedKey("kek", ByteBuffer.wrap(new byte[] {1}), null, Map.of());
+
+    assertThatThrownBy(() -> TableMetadata.buildFrom(base).addEncryptionKey(key))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot add encryption key kek to v%s table: encryption keys are not supported until v3",
+            formatVersion);
+  }
+
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#V3_AND_ABOVE")
+  void addEncryptionKeyAllowedFromV3(int formatVersion) {
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA,
+            PartitionSpec.unpartitioned(),
+            TEST_LOCATION,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)));
+    EncryptedKey key = new BaseEncryptedKey("kek", ByteBuffer.wrap(new byte[] {1}), null, Map.of());
+
+    TableMetadata metadata = TableMetadata.buildFrom(base).addEncryptionKey(key).build();
+
+    assertThat(metadata.encryptionKeys()).containsExactly(key);
   }
 
   @Test
