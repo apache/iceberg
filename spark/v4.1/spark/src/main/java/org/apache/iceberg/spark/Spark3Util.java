@@ -284,7 +284,12 @@ public class Spark3Util {
   }
 
   public static SortOrder[] toOrdering(org.apache.iceberg.SortOrder sortOrder) {
-    SortOrderToSpark visitor = new SortOrderToSpark(sortOrder.schema());
+    return toOrdering(sortOrder, sortOrder.schema());
+  }
+
+  /** Converts a sort order to a Spark ordering that names columns as they are in the schema. */
+  public static SortOrder[] toOrdering(org.apache.iceberg.SortOrder sortOrder, Schema schema) {
+    SortOrderToSpark visitor = new SortOrderToSpark(schema);
     List<SortOrder> ordering = SortOrderVisitor.visit(sortOrder, visitor);
     return ordering.toArray(new SortOrder[0]);
   }
