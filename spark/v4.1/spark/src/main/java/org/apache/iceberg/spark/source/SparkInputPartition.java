@@ -25,11 +25,14 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.HasPartitionKey;
 import org.apache.spark.sql.connector.read.InputPartition;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.StructType;
 
 class SparkInputPartition implements InputPartition, HasPartitionKey, Serializable {
   private final Types.StructType groupingKeyType;
@@ -37,11 +40,13 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
   private final Broadcast<Table> tableBroadcast;
   private final Broadcast<FileIO> fileIOBroadcast;
   private final String projectionString;
+  private final String readSchemaJson;
   private final boolean caseSensitive;
   private final transient String[] preferredLocations;
   private final boolean cacheDeleteFilesOnExecutors;
 
   private transient Schema projection = null;
+  private transient StructType readSchema = null;
 
   SparkInputPartition(
       Types.StructType groupingKeyType,
@@ -49,6 +54,7 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
       Broadcast<Table> tableBroadcast,
       Broadcast<FileIO> fileIOBroadcast,
       String projectionString,
+      String readSchemaJson,
       boolean caseSensitive,
       String[] preferredLocations,
       boolean cacheDeleteFilesOnExecutors) {
@@ -57,6 +63,7 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
     this.tableBroadcast = tableBroadcast;
     this.fileIOBroadcast = fileIOBroadcast;
     this.projectionString = projectionString;
+    this.readSchemaJson = readSchemaJson;
     this.caseSensitive = caseSensitive;
     this.preferredLocations = preferredLocations;
     this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
@@ -103,5 +110,22 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
     }
 
     return projection;
+  }
+
+  public StructType readSchema() {
+    if (readSchemaJson == null) {
+      return null;
+    }
+
+    if (readSchema == null) {
+      DataType parsed = DataType.fromJson(readSchemaJson);
+      Preconditions.checkState(
+          parsed instanceof StructType,
+          "Expected StructType for read schema JSON, got: %s",
+          parsed.getClass().getSimpleName());
+      this.readSchema = (StructType) parsed;
+    }
+
+    return readSchema;
   }
 }
