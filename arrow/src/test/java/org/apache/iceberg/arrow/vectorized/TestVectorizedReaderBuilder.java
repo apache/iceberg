@@ -110,6 +110,12 @@ public class TestVectorizedReaderBuilder {
                 .id(2)
                 .named("struct")),
         Arguments.of(
+            "struct field without field id",
+            Types.buildGroup(Type.Repetition.OPTIONAL)
+                .addField(shreddedVariant(Type.Repetition.OPTIONAL, "data"))
+                .id(2)
+                .named("struct")),
+        Arguments.of(
             "list element",
             Types.buildGroup(Type.Repetition.OPTIONAL)
                 .as(LogicalTypeAnnotation.listType())
@@ -194,6 +200,10 @@ public class TestVectorizedReaderBuilder {
   }
 
   private static GroupType shreddedVariant(Type.Repetition repetition, int id, String name) {
+    return shreddedVariant(repetition, name).withId(id);
+  }
+
+  private static GroupType shreddedVariant(Type.Repetition repetition, String name) {
     GroupType shreddedField =
         Types.buildGroup(Type.Repetition.REQUIRED)
             .addField(
@@ -210,7 +220,6 @@ public class TestVectorizedReaderBuilder {
             Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.OPTIONAL).named("value"))
         .addField(
             Types.buildGroup(Type.Repetition.OPTIONAL).addField(shreddedField).named("typed_value"))
-        .id(id)
         .named(name);
   }
 }
