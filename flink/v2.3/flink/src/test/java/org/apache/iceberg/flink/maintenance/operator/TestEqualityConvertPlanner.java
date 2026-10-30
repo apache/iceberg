@@ -56,6 +56,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TestEqualityConvertPlanner extends OperatorTestBase {
 
@@ -760,8 +762,10 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
     }
   }
 
-  @Test
-  void rebuildsIndexAfterRestoreFromBeforeCommittedCycle() throws Exception {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void rebuildsIndexAfterRestoreFromBeforeCommittedCycle(boolean plannerSawConversionCommit)
+      throws Exception {
     Table table = createTableWithDelete(3);
     insert(table, 1, "a");
 
@@ -778,9 +782,14 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
         createHarness(STAGING_BRANCH)) {
       harness.open();
 
-      // The checkpoint follows the first cycle, which converts S1 and commits.
+      // The checkpoint follows the first cycle, which converts S1 and commits. The planner sees
+      // that commit only if another trigger follows.
       sendTrigger(harness);
       simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+      if (plannerSawConversionCommit) {
+        sendTrigger(harness);
+      }
+
       state = harness.snapshot(1, System.currentTimeMillis());
 
       // The second cycle indexes S2's data file as staging data and copies it to the target. No
