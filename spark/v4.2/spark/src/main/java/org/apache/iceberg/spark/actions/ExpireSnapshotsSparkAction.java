@@ -276,9 +276,14 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   }
 
   private Set<Long> resolvableSnapshotIds(TableMetadata metadata, Set<Long> deletedSnapshotIds) {
-    Set<Long> resolvable = Sets.newConcurrentHashSet();
+    Set<Long> resolvable = Sets.newConcurrentHashSet(deletedSnapshotIds);
     Tasks.foreach(deletedSnapshotIds)
+        .retry(3)
+        .suppressFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
+        .onFailure(
+            (snapshotId, exc) ->
+                LOG.warn("Failed to check manifest list of expired snapshot {}", snapshotId, exc))
         .run(
             snapshotId -> {
               String manifestListLocation = metadata.snapshot(snapshotId).manifestListLocation();
@@ -289,8 +294,7 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
                     manifestListLocation,
                     snapshotId);
                 missingManifestListLocations.add(manifestListLocation);
-              } else {
-                resolvable.add(snapshotId);
+                resolvable.remove(snapshotId);
               }
             });
 

@@ -146,11 +146,7 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   protected Dataset<FileInfo> contentFileDS(Table table) {
-    return contentFileDS(table, null);
-  }
-
-  protected Dataset<FileInfo> contentFileDS(Table table, Set<Long> snapshotIds) {
-    return contentFileDS(table, snapshotIds, null);
+    return contentFileDS(table, null, null);
   }
 
   protected Dataset<FileInfo> contentFileDS(
