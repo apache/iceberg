@@ -20,6 +20,8 @@ package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.plans.logical.AlterViewAs
+import org.apache.spark.sql.catalyst.plans.logical.AnalyzeColumn
+import org.apache.spark.sql.catalyst.plans.logical.AnalyzeTable
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.View
 import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
@@ -56,6 +58,15 @@ object CheckViews extends (LogicalPlan => Unit) {
 
           case _ => // OK
         }
+
+      case AnalyzeTable(ResolvedV2View(catalog, ident, _), _, _) =>
+        throw QueryCompilationErrors.unsupportedTableOperationError(catalog, ident, "ANALYZE TABLE")
+
+      case AnalyzeColumn(ResolvedV2View(catalog, ident, _), _, _) =>
+        throw QueryCompilationErrors.unsupportedTableOperationError(
+          catalog,
+          ident,
+          "ANALYZE TABLE ... FOR COLUMNS")
 
       case AlterViewAs(ResolvedV2View(_, _, _), _, _, _, _) =>
         throw new IcebergAnalysisException(
