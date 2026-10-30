@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
+import org.apache.iceberg.aws.s3.S3FileIOAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -37,6 +38,7 @@ import org.assertj.core.api.ThrowableAssert;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
@@ -116,6 +118,56 @@ public class TestAwsClientFactories {
                         "us-east-1"))
                 .s3Async())
         .isInstanceOf(DefaultS3CrtAsyncClient.class);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void s3AsyncClientAppliesPathStyleAccess(boolean crtEnabled) {
+    AwsClientFactory factory = AwsClientFactories.from(pathStyleAccessProperties(crtEnabled));
+
+    assertPathStyleAccess(factory.s3Async());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void assumeRoleS3AsyncClientAppliesPathStyleAccess(boolean crtEnabled) {
+    Map<String, String> properties = Maps.newHashMap(pathStyleAccessProperties(crtEnabled));
+    properties.put(AwsProperties.CLIENT_FACTORY, AssumeRoleAwsClientFactory.class.getName());
+    properties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, "arn::test");
+    properties.put(AwsProperties.CLIENT_ASSUME_ROLE_REGION, "us-east-1");
+    AwsClientFactory factory = AwsClientFactories.from(properties);
+
+    assertPathStyleAccess(factory.s3Async());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void s3FileIOS3AsyncClientAppliesPathStyleAccess(boolean crtEnabled) {
+    Map<String, String> properties = Maps.newHashMap(pathStyleAccessProperties(crtEnabled));
+    properties.put(
+        S3FileIOProperties.CLIENT_FACTORY,
+        "org.apache.iceberg.aws.s3.DefaultS3FileIOAwsClientFactory");
+    S3FileIOAwsClientFactory factory = S3FileIOAwsClientFactories.initialize(properties);
+
+    assertPathStyleAccess(factory.s3Async());
+  }
+
+  private static Map<String, String> pathStyleAccessProperties(boolean crtEnabled) {
+    return ImmutableMap.of(
+        S3FileIOProperties.S3_CRT_ENABLED,
+        String.valueOf(crtEnabled),
+        S3FileIOProperties.PATH_STYLE_ACCESS,
+        "true",
+        AwsClientProperties.CLIENT_REGION,
+        "us-east-1");
+  }
+
+  private static void assertPathStyleAccess(S3AsyncClient s3Async) {
+    try (s3Async) {
+      assertThat(
+              s3Async.utilities().getUrl(request -> request.bucket("bucket").key("key")).getPath())
+          .isEqualTo("/bucket/key");
+    }
   }
 
   @Test
