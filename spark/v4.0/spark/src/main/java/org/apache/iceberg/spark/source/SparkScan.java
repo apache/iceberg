@@ -214,12 +214,17 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
         Map<Integer, List<BlobMetadata>> groupedByField =
             metadataList.stream()
+                .filter(metadata -> !metadata.fields().isEmpty())
                 .collect(
                     Collectors.groupingBy(
                         metadata -> metadata.fields().get(0), Collectors.toList()));
 
+        Schema scanSchema = expectedSchema();
         for (Map.Entry<Integer, List<BlobMetadata>> entry : groupedByField.entrySet()) {
-          String colName = table.schema().findColumnName(entry.getKey());
+          String colName = scanSchema.findColumnName(entry.getKey());
+          if (colName == null) {
+            continue;
+          }
           NamedReference ref = FieldReference.column(colName);
           Long ndv = null;
 
