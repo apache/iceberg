@@ -66,5 +66,5 @@ properties.put(JdbcCatalog.PROPERTY_PREFIX + "user", "admin");
 properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "pass");
 properties.put(CatalogProperties.WAREHOUSE_LOCATION, "s3://warehouse/path");
 Configuration hadoopConf = new Configuration(); // configs if you use HadoopFileIO
-JdbcCatalog catalog = CatalogUtil.buildIcebergCatalog("test_jdbc_catalog", properties, hadoopConf);
+Catalog catalog = CatalogUtil.buildIcebergCatalog("test_jdbc_catalog", properties, hadoopConf);
 ```
