@@ -45,7 +45,6 @@ import org.apache.iceberg.types.CheckCompatibility;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ByteBuffers;
 
 class SortKeySerializer extends TypeSerializer<SortKey> {
   private final Schema schema;
@@ -179,7 +178,7 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
           break;
         case FIXED:
         case BINARY:
-          byte[] bytes = ByteBuffers.toByteArray(record.get(i, ByteBuffer.class));
+          byte[] bytes = record.get(i, ByteBuffer.class).array();
           target.writeInt(bytes.length);
           target.write(bytes);
           break;
