@@ -108,6 +108,8 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   private static final String SKIPPED_NO_OP_CYCLES_METRIC = "skippedNoOpCycles";
   private static final String REINDEX_COUNT_METRIC = "reindexCount";
 
+  private static final int STATE_VERSION = 1;
+
   private final String tableName;
   private final String taskName;
   private final TableLoader tableLoader;
@@ -126,6 +128,8 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   private transient ListState<Long> pendingStagingSnapshotState;
   // Equality field IDs the index was built with, allows to detect reconfiguration.
   private transient ListState<Integer> eqFieldIdsState;
+  // Absent in state of a version that recorded the index as current before it was complete.
+  private transient ListState<Integer> stateVersionState;
 
   private transient Table table;
 
@@ -237,6 +241,20 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
           "pendingStagingSnapshotId state should hold at most one value");
       pendingStagingSnapshotId = stateValue;
     }
+
+    stateVersionState =
+        context
+            .getOperatorStateStore()
+            .getListState(new ListStateDescriptor<>("stateVersion", Types.INT));
+
+    // The index recorded by an older version can be incomplete while it looks current.
+    if (context.isRestored() && !stateVersionState.get().iterator().hasNext()) {
+      LOG.info(
+          "Restored state of an older version for table {} task {}, rebuilding the worker index.",
+          tableName,
+          taskName);
+      indexSnapshotId = null;
+    }
   }
 
   @Override
@@ -259,6 +277,9 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     if (pendingStagingSnapshotId != null) {
       pendingStagingSnapshotState.add(pendingStagingSnapshotId);
     }
+
+    stateVersionState.clear();
+    stateVersionState.add(STATE_VERSION);
   }
 
   @Override

@@ -26,9 +26,13 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
+import org.apache.flink.runtime.checkpoint.StateObjectCollection;
+import org.apache.flink.runtime.state.OperatorStateHandle;
+import org.apache.flink.runtime.state.OperatorStreamStateHandle;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
@@ -45,6 +49,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericAppenderHelper;
@@ -53,6 +58,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -1204,6 +1210,55 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
   }
 
   @Test
+  void rebuildsIndexAfterRestoreFromOlderVersion() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    OperatorSubtaskState state;
+    long generationBeforeRestore;
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      // The same state as in stateRestoredAfterCheckpoint, where the index is reused.
+      sendTrigger(harness);
+      simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+      sendTrigger(harness);
+      generationBeforeRestore =
+          harness.extractOutputValues().stream()
+              .mapToLong(ReadCommand::indexGeneration)
+              .max()
+              .getAsLong();
+      state = harness.snapshot(1, System.currentTimeMillis());
+    }
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.initializeState(stateOfOlderVersion(state));
+      harness.open();
+
+      // An older version can record the head as indexed while the index is incomplete.
+      sendTrigger(harness);
+      List<ReadCommand> commands = harness.extractOutputValues();
+
+      long dataFileCount =
+          Long.parseLong(
+              table.currentSnapshot().summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+      assertThat(countDataFileTasks(commands)).isEqualTo(dataFileCount);
+
+      // The workers ignore index entries of an older generation.
+      assertThat(commands).allMatch(cmd -> cmd.indexGeneration() > generationBeforeRestore);
+    }
+  }
+
+  @Test
   void failsOnV2PosDeleteOnStagingBranch() throws Exception {
     Table table = createTableWithDelete(2);
     insert(table, 1, "a");
@@ -1438,6 +1493,24 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
 
   private static long countDataFileTasks(List<ReadCommand> commands) {
     return commands.stream().filter(c -> c.task() instanceof FileScanTask).count();
+  }
+
+  // Keeps the operator state entries that the version before the stateVersion entry wrote.
+  private static OperatorSubtaskState stateOfOlderVersion(OperatorSubtaskState state) {
+    Set<String> olderStateNames =
+        Sets.newHashSet(
+            "indexSnapshotId", "indexGeneration", "eqFieldIds", "pendingStagingSnapshotId");
+    List<OperatorStateHandle> handles = Lists.newArrayList();
+    for (OperatorStateHandle handle : state.getManagedOperatorState()) {
+      Map<String, OperatorStateHandle.StateMetaInfo> stateMetaInfos =
+          Maps.newHashMap(handle.getStateNameToPartitionOffsets());
+      stateMetaInfos.keySet().retainAll(olderStateNames);
+      handles.add(new OperatorStreamStateHandle(stateMetaInfos, handle.getDelegateStateHandle()));
+    }
+
+    return OperatorSubtaskState.builder()
+        .setManagedOperatorState(new StateObjectCollection<>(handles))
+        .build();
   }
 
   private static long countEqDeleteTasks(List<ReadCommand> commands) {
