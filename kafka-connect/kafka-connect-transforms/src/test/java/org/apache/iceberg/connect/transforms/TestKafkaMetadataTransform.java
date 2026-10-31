@@ -258,7 +258,7 @@ public class TestKafkaMetadataTransform {
 
   @Test
   @DisplayName("config must be per-instance, not leaked via a static field")
-  public void testConfigIsNotSharedAcrossInstances() {
+  void configIsNotSharedAcrossInstances() {
     SinkRecord record =
         new SinkRecord(
             TOPIC,
