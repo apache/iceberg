@@ -50,6 +50,14 @@ public class GCPProperties implements Serializable {
    */
   public static final String GCS_KMS_KEY_NAME = "gcs.kms-key-name";
 
+  /**
+   * Configure an alternative endpoint of the KMS service for GcpKeyManagementClient to access.
+   *
+   * <p>This could be used to use KMS key management with any KMS-compatible service that has a
+   * different endpoint
+   */
+  public static final String GCS_KMS_ENDPOINT = "gcs.kms.endpoint";
+
   public static final String GCS_CHANNEL_READ_CHUNK_SIZE = "gcs.channel.read.chunk-size-bytes";
   public static final String GCS_CHANNEL_WRITE_CHUNK_SIZE = "gcs.channel.write.chunk-size-bytes";
 
@@ -95,6 +103,7 @@ public class GCPProperties implements Serializable {
   private String gcsEncryptionKey;
   private String gcsKmsKeyName;
   private String gcsUserProject;
+  private String kmsEndpoint;
 
   private Integer gcsChannelReadChunkSize;
   private Integer gcsChannelWriteChunkSize;
@@ -160,6 +169,7 @@ public class GCPProperties implements Serializable {
     gcsEncryptionKey = properties.get(GCS_ENCRYPTION_KEY);
     gcsKmsKeyName = properties.get(GCS_KMS_KEY_NAME);
     gcsUserProject = properties.get(GCS_USER_PROJECT);
+    kmsEndpoint = properties.get(GCS_KMS_ENDPOINT);
 
     Preconditions.checkState(
         !(gcsEncryptionKey != null && gcsKmsKeyName != null),
@@ -247,6 +257,10 @@ public class GCPProperties implements Serializable {
 
   public Optional<String> userProject() {
     return Optional.ofNullable(gcsUserProject);
+  }
+
+  public Optional<String> kmsEndpoint() {
+    return Optional.ofNullable(kmsEndpoint);
   }
 
   public Optional<String> oauth2Token() {
