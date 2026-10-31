@@ -22,6 +22,8 @@ import static org.apache.iceberg.TestBase.FILE_A;
 import static org.apache.iceberg.TestBase.FILE_B;
 import static org.apache.iceberg.TestBase.SCHEMA;
 import static org.apache.iceberg.rest.RequestMatcher.matches;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -42,6 +44,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -59,23 +62,20 @@ class TestRESTCatalogV2LoadTable extends TestBaseWithRESTServer {
               RESTCatalogProperties.NAMESPACE_SEPARATOR,
               RESTCatalogAdapter.NAMESPACE_SEPARATOR_URLENCODED_UTF_8));
   private static final TableIdentifier TBL = TableIdentifier.of(NS, "tbl");
+  private static final String TBL_LOCATION = "memory://ns/tbl";
 
   @Override
   protected String catalogName() {
     return "catalog-v2-load-table";
   }
 
-  @Override
-  protected RESTCatalogAdapter createAdapterForServer() {
-    return Mockito.spy(adapterAdvertising(route -> true));
-  }
-
   @ParameterizedTest
-  @ValueSource(ints = {1, 2, 3})
+  @ValueSource(ints = {1, 2, 3, 4})
   void loadTableUsesV2Endpoint(int formatVersion) {
     restCatalog.createNamespace(NS);
     restCatalog
         .buildTable(TBL, SCHEMA)
+        .withLocation(TBL_LOCATION)
         .withProperty(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
         .create()
         .newAppend()
@@ -129,8 +129,26 @@ class TestRESTCatalogV2LoadTable extends TestBaseWithRESTServer {
   }
 
   @Test
+  void v1LoadRejectsFormatVersion4Table() {
+    backendCatalog.createNamespace(NS);
+    backendCatalog
+        .buildTable(TBL, SCHEMA)
+        .withLocation(TBL_LOCATION)
+        .withProperty(TableProperties.FORMAT_VERSION, "4")
+        .create();
+    RESTCatalog v1OnlyCatalog = catalog(adapterAdvertising(r -> r != Route.LOAD_TABLE_V2));
+
+    assertThatThrownBy(() -> v1OnlyCatalog.loadTable(TBL))
+        .isInstanceOf(BadRequestException.class)
+        .hasMessageContaining(
+            "Cannot load table ns.tbl with format version 4 using the v1 endpoint; use "
+                + Endpoint.V2_LOAD_TABLE);
+    assertThat(restCatalog.loadTable(TBL)).isNotNull();
+  }
+
+  @Test
   void serverWithoutV2LoadTableUsesV1() {
-    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalogAdapter adapter = Mockito.spy(adapterAdvertising(r -> r != Route.LOAD_TABLE_V2));
     RESTCatalog catalog = catalog(adapter);
     catalog.createNamespace(NS);
     catalog.createTable(TBL, SCHEMA);

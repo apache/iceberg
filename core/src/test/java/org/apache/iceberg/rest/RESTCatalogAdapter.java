@@ -42,6 +42,7 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
@@ -109,6 +110,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           .put(CommitStateUnknownException.class, 500)
           .put(NoSuchPlanIdException.class, 404)
           .put(NoSuchPlanTaskException.class, 404)
+          .put(BadRequestException.class, 400)
           .buildOrThrow();
 
   private final Catalog catalog;
@@ -176,8 +178,6 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
             ConfigResponse.builder()
                 .withEndpoints(
                     Arrays.stream(Route.values())
-                        // v2 load is served but not advertised, so clients keep using v1 by default
-                        .filter(r -> r != Route.LOAD_TABLE_V2)
                         .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
                         .collect(Collectors.toList()))
                 .withOverride(
@@ -318,11 +318,14 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
       case LOAD_TABLE:
       case LOAD_TABLE_V2:
         {
+          TableIdentifier ident = tableIdentFromPathVars(vars);
           LoadTableResponse response =
               CatalogHandlers.loadTable(
-                  catalog,
-                  tableIdentFromPathVars(vars),
-                  snapshotModeFromQueryParams(httpRequest.queryParameters()));
+                  catalog, ident, snapshotModeFromQueryParams(httpRequest.queryParameters()));
+
+          if (route == Route.LOAD_TABLE) {
+            checkLoadableByV1Endpoint(ident, response);
+          }
 
           Optional<HTTPHeaders.HTTPHeader> ifNoneMatchHeader =
               httpRequest.headers().firstEntry(HttpHeaders.IF_NONE_MATCH);
@@ -733,6 +736,15 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         .withType(exc.getClass().getSimpleName())
         .withMessage(exc.getMessage())
         .withStackTrace(exc);
+  }
+
+  private static void checkLoadableByV1Endpoint(TableIdentifier ident, LoadTableResponse response) {
+    int formatVersion = response.tableMetadata().formatVersion();
+    if (formatVersion >= 4) {
+      throw new BadRequestException(
+          "Cannot load table %s with format version %s using the v1 endpoint; use %s",
+          ident, formatVersion, Endpoint.V2_LOAD_TABLE);
+    }
   }
 
   private static Namespace namespaceFromPathVars(Map<String, String> pathVars) {

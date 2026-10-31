@@ -1118,7 +1118,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     verify(adapter, times(1))
         .execute(
             matches(
-                HTTPMethod.GET, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of("snapshots", "refs")),
+                HTTPMethod.GET,
+                RESOURCE_PATHS.tableV2(TABLE),
+                Map.of(),
+                Map.of("snapshots", "refs")),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -1128,7 +1131,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     verify(adapter, times(1))
         .execute(
             matches(
-                HTTPMethod.GET, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of("snapshots", "all")),
+                HTTPMethod.GET,
+                RESOURCE_PATHS.tableV2(TABLE),
+                Map.of(),
+                Map.of("snapshots", "all")),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -1220,7 +1226,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     verify(adapter, times(1))
         .execute(
             matches(
-                HTTPMethod.GET, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of("snapshots", "refs")),
+                HTTPMethod.GET,
+                RESOURCE_PATHS.tableV2(TABLE),
+                Map.of(),
+                Map.of("snapshots", "refs")),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -1231,7 +1240,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     verify(adapter, times(1))
         .execute(
             matches(
-                HTTPMethod.GET, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of("snapshots", "all")),
+                HTTPMethod.GET,
+                RESOURCE_PATHS.tableV2(TABLE),
+                Map.of(),
+                Map.of("snapshots", "all")),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -1331,7 +1343,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             })
         .when(adapter)
         .execute(
-            matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
+            matches(HTTPMethod.GET, RESOURCE_PATHS.tableV2(TABLE)),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -1398,7 +1410,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.doAnswer(addTableConfig)
         .when(adapter)
         .execute(
-            matches(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedContextHeaders),
+            matches(HTTPMethod.GET, RESOURCE_PATHS.tableV2(TBL), expectedContextHeaders),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -1476,7 +1488,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       // load table from catalog + refresh loaded table
       Mockito.verify(adapter, times(2))
           .execute(
-              matches(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedTableHeaders),
+              matches(HTTPMethod.GET, RESOURCE_PATHS.tableV2(TBL), expectedTableHeaders),
               eq(LoadTableResponse.class),
               any(),
               any());
@@ -1484,7 +1496,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       // load table from catalog
       Mockito.verify(adapter)
           .execute(
-              matches(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedContextHeaders),
+              matches(HTTPMethod.GET, RESOURCE_PATHS.tableV2(TBL), expectedContextHeaders),
               eq(LoadTableResponse.class),
               any(),
               any());
@@ -1492,7 +1504,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       // refresh loaded table
       Mockito.verify(adapter)
           .execute(
-              matches(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedTableHeaders),
+              matches(HTTPMethod.GET, RESOURCE_PATHS.tableV2(TBL), expectedTableHeaders),
               eq(LoadTableResponse.class),
               any(),
               any());
@@ -3794,7 +3806,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // loadTable is executed once
     Mockito.verify(adapter, times(2))
-        .execute(matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
+        .execute(matches(HTTPMethod.GET, RESOURCE_PATHS.tableV2(TABLE)), any(), any(), any());
 
     // CommitReport reflects the table state after the commit (reported asynchronously)
     Mockito.verify(adapter, timeout(5000))
@@ -3903,7 +3915,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Consumer<Map<String, String>> responseHeaders) {
             T response =
                 super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
-            if (route == Route.LOAD_TABLE && response instanceof LoadTableResponse loadResponse) {
+            if ((route == Route.LOAD_TABLE || route == Route.LOAD_TABLE_V2)
+                && response instanceof LoadTableResponse loadResponse) {
               return (T)
                   LoadTableResponse.builder()
                       .withTableMetadata(loadResponse.tableMetadata())
