@@ -28,6 +28,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.io.PositionDeleteTracker;
 
 class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
   private final RowDataDeltaWriter writer;
@@ -43,7 +44,8 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
       RowType flinkSchema,
       Set<Integer> equalityFieldIds,
       boolean upsert,
-      boolean useDv) {
+      boolean useDv,
+      PositionDeleteTracker positionDeleteTracker) {
     super(
         spec,
         format,
@@ -55,7 +57,8 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
         flinkSchema,
         equalityFieldIds,
         upsert,
-        useDv);
+        useDv,
+        positionDeleteTracker);
     this.writer = new RowDataDeltaWriter(null, dvFileWriter());
   }
 
