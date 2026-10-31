@@ -343,7 +343,22 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
                 + "iceberg.hive.lock-heartbeat-interval-ms.",
             le);
       } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
-        throw new AlreadyExistsException(e, "Table already exists: %s.%s", database, tableName);
+        // A create_table resent after a lost response fails on the table its first attempt created
+        commitStatus = BaseMetastoreOperations.CommitStatus.UNKNOWN;
+        commitStatus =
+            checkCommitStatusStrict(
+                tableName(),
+                newMetadataLocation,
+                metadata.properties(),
+                () -> checkCurrentTableUuid(metadata.uuid()));
+        switch (commitStatus) {
+          case SUCCESS:
+            break;
+          case FAILURE:
+            throw new AlreadyExistsException(e, "Table already exists: %s.%s", database, tableName);
+          case UNKNOWN:
+            throw new CommitStateUnknownException(e);
+        }
 
       } catch (InvalidObjectException e) {
         throw new ValidationException(e, "Invalid Hive object for %s.%s", database, tableName);
@@ -412,6 +427,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
     LOG.info(
         "Committed to table {} with the new metadata location {}", fullName, newMetadataLocation);
+  }
+
+  private boolean checkCurrentTableUuid(String uuid) {
+    TableMetadata refreshed = refresh();
+    return refreshed != null && uuid.equals(refreshed.uuid());
   }
 
   @Override
