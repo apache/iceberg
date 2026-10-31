@@ -2448,6 +2448,14 @@ components:
       type: string
       const: "variant"
 
+    FileType:
+      type: string
+      const: "file"
+      description:
+        A reference to a range of bytes stored inline or in an external file. The six
+        sub-fields are not listed in the schema; they use the next six field IDs after
+        the field that holds this type, so those IDs must not be assigned to any other field.
+
     StructField:
       type: object
       required:
@@ -2528,9 +2536,10 @@ components:
           type: boolean
 
     Type:
-      # Keep VariantType first, or the generated client resolves `variant` as PrimitiveType.
+      # Keep VariantType and FileType first, or the generated client resolves them as PrimitiveType.
       oneOf:
         - $ref: '#/components/schemas/VariantType'
+        - $ref: '#/components/schemas/FileType'
         - $ref: '#/components/schemas/PrimitiveType'
         - $ref: '#/components/schemas/StructType'
         - $ref: '#/components/schemas/ListType'
