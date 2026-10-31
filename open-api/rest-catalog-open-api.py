@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Dict, Literal
+from typing import Any, Dict, Literal
 from uuid import UUID
 
 from pydantic import Base64Str, BaseModel, ConfigDict, Field, RootModel
@@ -96,7 +96,7 @@ class Namespace(RootModel[list[str]]):
 
 class PageToken(RootModel[str | None]):
     root: str | None = Field(
-        None,
+        ...,
         description='An opaque token that allows clients to make use of pagination for list APIs (e.g. ListTables). Clients may initiate the first paginated request by sending an empty query parameter `pageToken` to the server.\nServers that support pagination should identify the `pageToken` parameter and return a `next-page-token` in the response if there are more results available.  After the initial request, the value of `next-page-token` from each response must be used as the `pageToken` parameter value for the next request. The server must return `null` value for the `next-page-token` in the last response.\nServers that support pagination must return all results in a single response with the value of `next-page-token` set to `null` if the query parameter `pageToken` is not set in the request.\nServers that do not support pagination should ignore the `pageToken` parameter and return all results in a single response. The `next-page-token` must be omitted from the response.\nClients must interpret either `null` or missing response value of `next-page-token` as the end of the listing results.',
     )
 
@@ -578,7 +578,7 @@ class AssertRefSnapshotId(TableRequirement):
 
     type: Literal['assert-ref-snapshot-id']
     ref: str
-    snapshot_id: int = Field(..., alias='snapshot-id')
+    snapshot_id: int | None = Field(..., alias='snapshot-id')
 
 
 class AssertLastAssignedFieldId(TableRequirement):
@@ -1049,7 +1049,7 @@ class CreateNamespaceResponse(BaseModel):
 
 class GetNamespaceResponse(BaseModel):
     namespace: Namespace
-    properties: dict[str, str] | None = Field(
+    properties: dict[str, Any] | None = Field(
         {},
         description='Properties stored on the namespace, if supported by the server. If the server does not support namespace properties, it should return null for this field. If namespace properties are supported, but none are set, it should return an empty object.',
         examples=[{'owner': 'Ralph', 'transient_lastDdlTime': '1452120468'}],
