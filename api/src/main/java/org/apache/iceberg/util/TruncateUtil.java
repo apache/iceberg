@@ -45,15 +45,15 @@ public class TruncateUtil {
   private TruncateUtil() {}
 
   public static byte truncateByte(int width, byte value) {
-    return (byte) (value - (((value % width) + width) % width));
+    return (byte) (value - Math.floorMod(value, width));
   }
 
   public static short truncateShort(int width, short value) {
-    return (short) (value - (((value % width) + width) % width));
+    return (short) (value - Math.floorMod(value, width));
   }
 
   public static int truncateInt(int width, int value) {
-    return value - (((value % width) + width) % width);
+    return value - Math.floorMod(value, width);
   }
 
   public static long truncateLong(int width, long value) {
