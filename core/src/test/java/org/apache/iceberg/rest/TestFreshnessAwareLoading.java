@@ -47,6 +47,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -281,6 +282,133 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
         .execute(
             matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(metadataTableIdentifier)),
             any(),
+            any(),
+            any());
+  }
+
+  @Test
+  public void notModifiedResponseOnRefresh() {
+    Map<String, String> responseHeaders = Maps.newHashMap();
+    RESTCatalogAdapter adapter = adapterCapturingResponseHeaders(responseHeaders);
+    RESTCatalog catalog = catalog(adapter);
+    catalog.createNamespace(TABLE.namespace());
+    catalog.createTable(TABLE, SCHEMA);
+    TableOperations ops = ((BaseTable) catalog.loadTable(TABLE)).operations();
+    TableMetadata loaded = ops.current();
+    String eTag = responseHeaders.get(HttpHeaders.ETAG);
+
+    expectNotModifiedResponseForLoadTable(TABLE, adapter);
+    assertThat(ops.refresh()).isSameAs(loaded);
+
+    verify(adapter)
+        .execute(
+            matches(
+                HTTPRequest.HTTPMethod.GET,
+                RESOURCE_PATHS.table(TABLE),
+                Map.of(HttpHeaders.IF_NONE_MATCH, eTag),
+                Map.of()),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void refreshLoadsChangedTable() {
+    Map<String, String> responseHeaders = Maps.newHashMap();
+    RESTCatalogAdapter adapter = adapterCapturingResponseHeaders(responseHeaders);
+    RESTCatalog catalog = catalog(adapter);
+    catalog.createNamespace(TABLE.namespace());
+    catalog.createTable(TABLE, SCHEMA);
+    TableOperations ops = ((BaseTable) catalog.loadTable(TABLE)).operations();
+    TableMetadata loaded = ops.current();
+    String loadTableETag = responseHeaders.get(HttpHeaders.ETAG);
+
+    // another client changes the table
+    backendCatalog
+        .loadTable(TABLE)
+        .updateSchema()
+        .addColumn("extra", Types.LongType.get())
+        .commit();
+
+    expectFullTableLoadForLoadTable(TABLE, adapter);
+    TableMetadata refreshed = ops.refresh();
+    assertThat(refreshed.metadataFileLocation()).isNotEqualTo(loaded.metadataFileLocation());
+    assertThat(refreshed.schema().findField("extra")).isNotNull();
+    String refreshETag = responseHeaders.get(HttpHeaders.ETAG);
+    assertThat(refreshETag).isNotEqualTo(loadTableETag);
+
+    expectNotModifiedResponseForLoadTable(TABLE, adapter);
+    assertThat(ops.refresh()).isSameAs(refreshed);
+
+    verify(adapter)
+        .execute(
+            matches(
+                HTTPRequest.HTTPMethod.GET,
+                RESOURCE_PATHS.table(TABLE),
+                Map.of(HttpHeaders.IF_NONE_MATCH, loadTableETag),
+                Map.of()),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+    verify(adapter)
+        .execute(
+            matches(
+                HTTPRequest.HTTPMethod.GET,
+                RESOURCE_PATHS.table(TABLE),
+                Map.of(HttpHeaders.IF_NONE_MATCH, refreshETag),
+                Map.of()),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void refreshUsesETagFromCommit() {
+    Map<String, String> responseHeaders = Maps.newHashMap();
+    RESTCatalogAdapter adapter = adapterCapturingResponseHeaders(responseHeaders);
+    RESTCatalog catalog = catalog(adapter);
+    catalog.createNamespace(TABLE.namespace());
+    catalog.createTable(TABLE, SCHEMA);
+    Table table = catalog.loadTable(TABLE);
+    TableOperations ops = ((BaseTable) table).operations();
+
+    responseHeaders.clear();
+    table.updateProperties().set("key", "value").commit();
+    TableMetadata committed = ops.current();
+    String commitETag = responseHeaders.get(HttpHeaders.ETAG);
+    assertThat(commitETag).isNotNull();
+
+    expectNotModifiedResponseForLoadTable(TABLE, adapter);
+    assertThat(ops.refresh()).isSameAs(committed);
+
+    verify(adapter)
+        .execute(
+            matches(
+                HTTPRequest.HTTPMethod.GET,
+                RESOURCE_PATHS.table(TABLE),
+                Map.of(HttpHeaders.IF_NONE_MATCH, commitETag),
+                Map.of()),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void refreshWithoutETag() {
+    RESTCatalogAdapter adapter = adapterWithoutETag();
+    RESTCatalog catalog = catalog(adapter);
+    catalog.createNamespace(TABLE.namespace());
+    catalog.createTable(TABLE, SCHEMA);
+    TableOperations ops = ((BaseTable) catalog.loadTable(TABLE)).operations();
+    TableMetadata loaded = ops.current();
+
+    expectFullTableLoadForLoadTable(TABLE, adapter);
+    assertThat(ops.refresh()).isSameAs(loaded);
+
+    verify(adapter)
+        .execute(
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of()),
+            eq(LoadTableResponse.class),
             any(),
             any());
   }
@@ -621,25 +749,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
   @Test
   public void tableCacheNotUpdatedWithoutETag() {
-    RESTCatalogAdapter adapter =
-        Mockito.spy(
-            new RESTCatalogAdapter(backendCatalog) {
-              @Override
-              public <T extends RESTResponse> T execute(
-                  HTTPRequest request,
-                  Class<T> responseType,
-                  Consumer<ErrorResponse> errorHandler,
-                  Consumer<Map<String, String>> responseHeaders) {
-                // Wrap the original responseHeaders to not accept ETag.
-                Consumer<Map<String, String>> noETagConsumer =
-                    headers -> {
-                      if (!headers.containsKey(HttpHeaders.ETAG)) {
-                        responseHeaders.accept(headers);
-                      }
-                    };
-                return super.execute(request, responseType, errorHandler, noETagConsumer);
-              }
-            });
+    RESTCatalogAdapter adapter = adapterWithoutETag();
 
     RESTCatalog catalog = new RESTCatalog(DEFAULT_SESSION_CONTEXT, config -> adapter);
     catalog.initialize(
@@ -770,9 +880,19 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
           Supplier<Map<String, String>> mutationHeaders,
           FileIO io,
           TableMetadata current,
+          String eTag,
           Set<Endpoint> endpoints,
           Map<String, String> readQueryParams) {
-        super(client, path, readHeaders, mutationHeaders, io, current, endpoints, readQueryParams);
+        super(
+            client,
+            path,
+            readHeaders,
+            mutationHeaders,
+            io,
+            current,
+            eTag,
+            endpoints,
+            readQueryParams);
       }
     }
 
@@ -791,6 +911,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
           Supplier<Map<String, String>> mutationHeaders,
           FileIO fileIO,
           TableMetadata current,
+          String eTag,
           Set<Endpoint> supportedEndpoints,
           Map<String, String> readQueryParams) {
         return new CustomTableOps(
@@ -800,6 +921,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
             mutationHeaders,
             fileIO,
             current,
+            eTag,
             supportedEndpoints,
             readQueryParams);
       }
@@ -938,6 +1060,27 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
                   responseHeaders.accept(renamed);
                 };
             return super.execute(request, responseType, errorHandler, lowercased);
+          }
+        });
+  }
+
+  private RESTCatalogAdapter adapterWithoutETag() {
+    return Mockito.spy(
+        new RESTCatalogAdapter(backendCatalog) {
+          @Override
+          public <T extends RESTResponse> T execute(
+              HTTPRequest request,
+              Class<T> responseType,
+              Consumer<ErrorResponse> errorHandler,
+              Consumer<Map<String, String>> responseHeaders) {
+            // Wrap the original responseHeaders to not accept ETag.
+            Consumer<Map<String, String>> noETagConsumer =
+                headers -> {
+                  if (!headers.containsKey(HttpHeaders.ETAG)) {
+                    responseHeaders.accept(headers);
+                  }
+                };
+            return super.execute(request, responseType, errorHandler, noETagConsumer);
           }
         });
   }
