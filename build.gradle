@@ -438,6 +438,14 @@ project(':iceberg-core') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
+    // OAuth2 client (OAuth2Manager)
+    implementation(libs.nimbus.oauth2.oidc.sdk) {
+      exclude group: 'com.github.stephenc.jcip', module: 'jcip-annotations'
+      // ASM is only used to generate bean accessors at runtime; this code path is never reached.
+      exclude group: 'org.ow2.asm', module: 'asm'
+    }
+    implementation libs.nimbus.jose.jwt
+
     testImplementation libs.jetty.servlet
     testImplementation libs.jakarta.servlet
     testImplementation libs.jetty.compression.server
@@ -766,7 +774,6 @@ project(':iceberg-bigquery') {
   test {
     useJUnitPlatform()
   }
-
   dependencies {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
@@ -1041,7 +1048,6 @@ project(':iceberg-nessie') {
   test {
     useJUnitPlatform()
   }
-
   dependencies {
     api project(':iceberg-api')
     implementation project(':iceberg-common')

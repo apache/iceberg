@@ -169,6 +169,15 @@ public class HTTPClient extends BaseHTTPClient {
     return new HTTPClient(this, session);
   }
 
+  @Override
+  public <T> T unwrap(Class<T> type) {
+    if (type.isInstance(httpClient)) {
+      return type.cast(httpClient);
+    }
+
+    return type.isInstance(this) ? type.cast(this) : null;
+  }
+
   @VisibleForTesting
   static Duration parseKeyLifetime(String lifetime) {
     if (lifetime == null) {
