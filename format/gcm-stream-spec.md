@@ -63,6 +63,8 @@ where
 * `BlockLength` is four bytes (little endian) integer keeping the length of the equal-size split blocks before encryption. The length is specified in bytes.
 * `CipherBlockᵢ` is the i-th enciphered block in the file, with the structure defined below.
 
+Each file must contain at least one cipher block. If the plaintext is empty, writers must store a single cipher block with an empty ciphertext, so that the file and its AAD can still be authenticated. If a file has no cipher blocks, readers must reject it.
+
 ### Cipher Block structure
 
 Cipher blocks have the following structure
@@ -73,7 +75,7 @@ Cipher blocks have the following structure
 where
 
 * `nonce` is the AES GCM nonce, with a length of 12 bytes.
-* `ciphertext` is the encrypted block. Its length is identical to the length of the block before encryption ("plaintext"). The length of all plaintext blocks, except the last, is `BlockLength` bytes. The last block has a non-zero length <= `BlockLength`.
+* `ciphertext` is the encrypted block. Its length is identical to the length of the block before encryption ("plaintext"). The length of all plaintext blocks, except the last, is `BlockLength` bytes. The last block has a length <= `BlockLength`, and is empty only when the whole plaintext stream is empty.
 * `tag` is the AES GCM tag, with a length of 16 bytes.
 
 AES GCM Stream encrypts all blocks by the GCM cipher, without padding. The AES GCM cipher must be implemented by a cryptographic provider according to the NIST SP 800-38D specification. In AES GCM Stream, an input to the GCM cipher is an AES encryption key, a nonce, a plaintext and an AAD (described below). The output is a ciphertext with the length equal to that of plaintext, and a 16-byte authentication tag used to verify the ciphertext and AAD integrity.
