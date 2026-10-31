@@ -224,6 +224,46 @@ class TestRecordSerializer {
         .isNotEqualTo(new RecordSerializer(typeWithField3).serializeKey(record3));
   }
 
+  @Test
+  void serializeKeyFlattensNestedFields() {
+    Types.StructType userType =
+        Types.StructType.of(
+            Types.NestedField.required(3, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(4, "birthday", Types.DateType.get()));
+    Types.StructType keyType =
+        Types.StructType.of(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "user", userType));
+    Record user = GenericRecord.create(userType);
+    user.set(0, 10);
+    user.set(1, DATE);
+    Record key = GenericRecord.create(keyType);
+    key.set(0, 1);
+    key.set(1, user);
+
+    // Leaves id, user.id, user.birthday in depth-first order; nested values are internal too.
+    Types.StructType flatType =
+        Types.StructType.of(keyType.fields().get(0), userType.fields().get(0), userType.field(4));
+    assertThat(new RecordSerializer(keyType).serializeKey(key).data())
+        .isEqualTo(expectedBytes(flatType, 1, 10, (int) DATE.toEpochDay()));
+  }
+
+  @Test
+  void serializeKeyWritesNullLeavesForNullParentStruct() {
+    Types.StructType userType =
+        Types.StructType.of(Types.NestedField.required(3, "id", Types.IntegerType.get()));
+    Types.StructType keyType =
+        Types.StructType.of(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "user", userType));
+    Record key = GenericRecord.create(keyType);
+    key.set(0, 1);
+
+    Types.StructType flatType = Types.StructType.of(keyType.fields().get(0), userType.field(3));
+    assertThat(new RecordSerializer(keyType).serializeKey(key).data())
+        .isEqualTo(expectedBytes(flatType, 1, null));
+  }
+
   /**
    * Reference implementation of the keyed-state key format: field count, field ids, then per field
    * a null marker and the length-prefixed {@link Conversions} bytes of the internal value. Changing

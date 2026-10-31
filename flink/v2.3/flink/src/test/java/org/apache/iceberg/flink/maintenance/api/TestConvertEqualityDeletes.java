@@ -54,22 +54,36 @@ import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericAppenderHelper;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.maintenance.operator.MetricsReporterFactoryForTests;
+import org.apache.iceberg.formats.FileWriterBuilder;
+import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
 
   private static final String STAGING_BRANCH = "__flink_staging_test";
+  private static final Schema NESTED_SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.IntegerType.get()),
+          Types.NestedField.required(
+              2,
+              "user",
+              Types.StructType.of(Types.NestedField.required(3, "id", Types.IntegerType.get()))),
+          Types.NestedField.optional(
+              4, "tags", Types.ListType.ofRequired(5, Types.StringType.get())));
 
   @TempDir private Path tempDir;
 
@@ -115,6 +129,60 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
                         1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Equality field column 'nonexistent' not found in table schema");
+  }
+
+  @Test
+  void testRejectsStructEqualityFieldColumn() {
+    createTableWithDelete(3, NESTED_SCHEMA, PartitionSpec.unpartitioned());
+
+    assertThatThrownBy(() -> appendConvertTask(STAGING_BRANCH, ImmutableList.of("user")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Equality field column 'user' must be a primitive type");
+  }
+
+  @Test
+  void testRejectsEqualityFieldColumnNestedInList() {
+    createTableWithDelete(3, NESTED_SCHEMA, PartitionSpec.unpartitioned());
+
+    assertThatThrownBy(
+            () -> appendConvertTask(STAGING_BRANCH, ImmutableList.of("id", "tags.element")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Equality field column 'tags.element' must not be nested in a list or map");
+  }
+
+  @Test
+  void testConvertNestedEqualityFieldDeletesToDVs() throws Exception {
+    Table table = createTableWithDelete(3, NESTED_SCHEMA, PartitionSpec.unpartitioned());
+    Schema schema = table.schema();
+    DataFile dataFile =
+        new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
+            .writeFile(
+                Lists.newArrayList(
+                    nestedRecord(schema, 1, 10),
+                    nestedRecord(schema, 2, 20),
+                    nestedRecord(schema, 3, 10)));
+    table.newAppend().appendFile(dataFile).commit();
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    // Delete every row whose nested user.id is 10; the top-level id of the delete row is ignored.
+    DeleteFile eqDelete =
+        writeNestedEqualityDelete(
+            table, nestedRecord(schema, 99, 10), schema.findField("user.id").fieldId());
+    table.newRowDelta().addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    appendConvertTask(STAGING_BRANCH, ImmutableList.of("user.id"));
+    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
+
+    table.refresh();
+    assertThat(dvReferencedDataFiles(table)).containsExactly(dataFile.location());
+    assertNoEqualityDeletesOnMain(table, 0);
+    try (CloseableIterable<Record> rows = IcebergGenerics.read(table).build()) {
+      assertThat(Lists.newArrayList(rows)).map(r -> (Integer) r.getField("id")).containsExactly(2);
+    }
   }
 
   @Test
@@ -1012,6 +1080,35 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
         .writeFile(Lists.newArrayList(record));
   }
 
+  private static Record nestedRecord(Schema schema, int id, int userId) {
+    GenericRecord user = GenericRecord.create(schema.findField("user").type().asStructType());
+    user.setField("id", userId);
+    GenericRecord record = GenericRecord.create(schema);
+    record.setField("id", id);
+    record.setField("user", user);
+    return record;
+  }
+
+  private DeleteFile writeNestedEqualityDelete(Table table, Record row, int... equalityFieldIds)
+      throws IOException {
+    File file = File.createTempFile("junit", null, tempDir.toFile());
+    assertThat(file.delete()).isTrue();
+    FileWriterBuilder<EqualityDeleteWriter<Record>, Object> builder =
+        FormatModelRegistry.equalityDeleteWriteBuilder(
+            FileFormat.PARQUET, Record.class, FileHelpers.encrypt(Files.localOutput(file)));
+    EqualityDeleteWriter<Record> writer =
+        builder
+            .schema(table.schema())
+            .spec(table.spec())
+            .equalityFieldIds(equalityFieldIds)
+            .build();
+    try (writer) {
+      writer.write(row);
+    }
+
+    return writer.toDeleteFile();
+  }
+
   private DeleteFile writeStagingDV(Table table, String dataFilePath, long position)
       throws IOException {
     File file = File.createTempFile("junit", null, tempDir.toFile());
@@ -1478,9 +1575,13 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
   }
 
   private void appendConvertTask(String stagingBranch) {
+    appendConvertTask(stagingBranch, ImmutableList.of("id", "data"));
+  }
+
+  private void appendConvertTask(String stagingBranch, List<String> equalityFieldColumns) {
     ConvertEqualityDeletes.builder()
         .stagingBranch(stagingBranch)
-        .equalityFieldColumns(ImmutableList.of("id", "data"))
+        .equalityFieldColumns(equalityFieldColumns)
         .parallelism(2)
         .append(
             infra.triggerStream(),

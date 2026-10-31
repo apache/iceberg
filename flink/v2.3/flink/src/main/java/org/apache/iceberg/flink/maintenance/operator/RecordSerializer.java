@@ -35,17 +35,23 @@ import org.apache.iceberg.types.Types;
  *
  * <p>Generic records hold {@code java.time} values, so they are converted to Iceberg's internal
  * representation with an {@link InternalRecordWrapper} created once per serializer.
+ *
+ * <p>Equality fields nested in structs (e.g. {@code user.id}) are serialized as the primitive
+ * leaves of the key type, depth-first in schema order, via {@link FlattenedEqualityKey}. For a key
+ * made only of top-level primitive fields this is the key type itself, so the bytes are unchanged.
  */
 class RecordSerializer {
 
   private final List<Types.NestedField> keyFields;
   private final InternalRecordWrapper keyWrapper;
+  private final FlattenedEqualityKey flatKey;
   private final ByteArrayOutputStream baos = new ByteArrayOutputStream();
   private final DataOutputStream dos = new DataOutputStream(baos);
 
   RecordSerializer(Types.StructType keyType) {
-    this.keyFields = keyType.fields();
     this.keyWrapper = new InternalRecordWrapper(keyType);
+    this.flatKey = new FlattenedEqualityKey(keyType);
+    this.keyFields = flatKey.flatType().fields();
   }
 
   /**
@@ -53,7 +59,7 @@ class RecordSerializer {
    * of the record, in key type order; trailing fields are ignored.
    */
   public SerializedEqualityValues serializeKey(Record key) {
-    InternalRecordWrapper wrapped = keyWrapper.wrap(key);
+    FlattenedEqualityKey wrapped = flatKey.wrap(keyWrapper.wrap(key));
     baos.reset();
     try {
       dos.writeInt(keyFields.size());
