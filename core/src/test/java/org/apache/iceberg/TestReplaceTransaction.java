@@ -489,6 +489,31 @@ public class TestReplaceTransaction extends TestBase {
     validateSnapshot(null, meta.currentSnapshot(), FILE_A, FILE_B);
   }
 
+  @TestTemplate
+  void createOrReplaceOfMissingTableDeletesUnusedManifestList() {
+    String name = "missing";
+    TestTables.TestTableOperations ops = new TestTables.TestTableOperations(name, tableDir);
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            tableDir.toURI().toString(),
+            ImmutableMap.of(),
+            formatVersion);
+    Transaction createOrReplace = Transactions.createOrReplaceTableTransaction(name, ops, metadata);
+
+    AppendFiles append = createOrReplace.newFastAppend().appendFile(FILE_A);
+    Snapshot applied = append.apply();
+    append.commit();
+
+    createOrReplace.commitTransaction();
+
+    Snapshot committed = TestTables.readMetadata(name).currentSnapshot();
+    assertThat(new File(applied.manifestListLocation())).doesNotExist();
+    assertThat(new File(committed.manifestListLocation())).exists();
+  }
+
   private static Schema assignFreshIds(Schema schema) {
     AtomicInteger lastColumnId = new AtomicInteger(0);
     return TypeUtil.assignFreshIds(schema, lastColumnId::incrementAndGet);
