@@ -1203,7 +1203,7 @@ class TimestampTzNanoTypeValue(RootModel[str]):
 class FixedTypeValue(RootModel[str]):
     root: str = Field(
         ...,
-        description='Fixed length type values are stored and serialized as an uppercase hexadecimal string preserving the fixed length',
+        description='Fixed length type values are stored and serialized as a hexadecimal string preserving the fixed length. Writers should emit uppercase hexadecimal characters; readers must accept either case',
         examples=['78797A'],
     )
 
@@ -1211,7 +1211,7 @@ class FixedTypeValue(RootModel[str]):
 class BinaryTypeValue(RootModel[str]):
     root: str = Field(
         ...,
-        description='Binary type values are stored and serialized as an uppercase hexadecimal string',
+        description='Binary type values are stored and serialized as a hexadecimal string. Writers should emit uppercase hexadecimal characters; readers must accept either case',
         examples=['78797A'],
     )
 
