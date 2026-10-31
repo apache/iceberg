@@ -24,9 +24,14 @@ import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIAL
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.OAuth2Credentials;
@@ -34,6 +39,9 @@ import com.google.auth.oauth2.OAuth2CredentialsWithRefresh;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageBatch;
+import com.google.cloud.storage.StorageBatchResult;
+import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
 import java.io.IOException;
 import java.io.InputStream;
@@ -50,6 +58,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
@@ -58,7 +67,6 @@ import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -75,19 +83,24 @@ public class TestGCSFileIO {
   @SuppressWarnings("unchecked")
   @BeforeEach
   public void before() {
-    // LocalStorageHelper doesn't support batch operations, so mock that here
+    // LocalStorageHelper doesn't support batch operations; emulate storage.batch() over the fake.
     doAnswer(
-            invoke -> {
-              Iterable<BlobId> iter = invoke.getArgument(0);
-              List<Boolean> answer = Lists.newArrayList();
-              iter.forEach(
-                  blobId -> {
-                    answer.add(storage.delete(blobId));
-                  });
-              return answer;
+            batchInvoke -> {
+              StorageBatch batch = mock(StorageBatch.class);
+              doAnswer(
+                      deleteInvoke -> {
+                        BlobId blobId = deleteInvoke.getArgument(0);
+                        boolean deleted = storage.delete(blobId);
+                        StorageBatchResult<Boolean> result = mock(StorageBatchResult.class);
+                        when(result.get()).thenReturn(deleted);
+                        return result;
+                      })
+                  .when(batch)
+                  .delete(any(BlobId.class));
+              return batch;
             })
         .when(storage)
-        .delete(any(Iterable.class));
+        .batch();
 
     io = new GCSFileIO(() -> storage);
   }
@@ -183,6 +196,60 @@ public class TestGCSFileIO {
 
     assertThat(StreamSupport.stream(io.listPrefix(gsUri("del/")).spliterator(), false).count())
         .isEqualTo(1);
+  }
+
+  @Test
+  public void testDeleteFilesIdempotentWhenAlreadyGone() {
+    Iterable<String> deletes =
+        () ->
+            ImmutableList.of(gsUri("gone/data1.dat"), gsUri("gone/data2.dat")).stream().iterator();
+
+    assertThatCode(() -> io.deleteFiles(deletes)).doesNotThrowAnyException();
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testDeleteFilesThrowsOnAccessDenied() {
+    StorageException accessDenied = new StorageException(403, "forbidden");
+    doAnswer(
+            batchInvoke -> {
+              StorageBatch batch = mock(StorageBatch.class);
+              StorageBatchResult<Boolean> result = mock(StorageBatchResult.class);
+              when(result.get()).thenThrow(accessDenied);
+              when(batch.delete(any(BlobId.class))).thenReturn(result);
+              return batch;
+            })
+        .when(storage)
+        .batch();
+
+    Iterable<String> deletes =
+        () -> ImmutableList.of(gsUri("forbidden/data.dat")).stream().iterator();
+
+    assertThatThrownBy(() -> io.deleteFiles(deletes))
+        .isInstanceOf(BulkDeletionFailureException.class)
+        .hasMessage("Failed to delete 1 files");
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testDeleteFilesThrowsWhenBatchSubmitFails() {
+    doAnswer(
+            batchInvoke -> {
+              StorageBatch batch = mock(StorageBatch.class);
+              when(batch.delete(any(BlobId.class))).thenReturn(mock(StorageBatchResult.class));
+              doThrow(new StorageException(503, "unavailable")).when(batch).submit();
+              return batch;
+            })
+        .when(storage)
+        .batch();
+
+    Iterable<String> deletes =
+        () ->
+            ImmutableList.of(gsUri("down/data1.dat"), gsUri("down/data2.dat")).stream().iterator();
+
+    assertThatThrownBy(() -> io.deleteFiles(deletes))
+        .isInstanceOf(BulkDeletionFailureException.class)
+        .hasMessage("Failed to delete 2 files");
   }
 
   @Test
