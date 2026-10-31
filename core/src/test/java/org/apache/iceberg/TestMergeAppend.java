@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterators.concat;
 import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
@@ -36,6 +37,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -164,6 +166,121 @@ public class TestMergeAppend extends TestBase {
         ids(snapshotId, snapshotId),
         files(FILE_A, FILE_B),
         statuses(Status.ADDED, Status.ADDED));
+  }
+
+  @TestTemplate
+  public void identityPartitionAcceptsFileBuiltBeforeSourcePromotion() {
+    createIdentityPromotionTable();
+    PartitionSpec specBeforePromotion = table.spec();
+    DataFile beforePromotion = promotionFile(specBeforePromotion, 5, "before.parquet");
+
+    table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
+
+    assertThatCode(() -> table.newAppend().appendFile(beforePromotion).commit())
+        .doesNotThrowAnyException();
+    assertThat(table.currentSnapshot()).isNotNull();
+  }
+
+  @TestTemplate
+  public void manifestAcceptsFileBuiltAfterSourcePromotion() throws IOException {
+    assumeThat(formatVersion).isEqualTo(2);
+    createIdentityPromotionTable();
+    PartitionSpec specBeforePromotion = table.spec();
+    table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
+    DataFile afterPromotion = promotionFile(table.spec(), 5L, "after.parquet");
+
+    File manifestFile = temp.resolve("promotion-manifest.avro").toFile();
+    OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(formatVersion, specBeforePromotion, outputFile, null);
+    try (writer) {
+      assertThatCode(() -> writer.add(afterPromotion)).doesNotThrowAnyException();
+    }
+    ManifestFile manifest = writer.toManifestFile();
+
+    assertThatCode(() -> table.newFastAppend().appendManifest(manifest).commit())
+        .doesNotThrowAnyException();
+    assertThat(table.currentSnapshot()).isNotNull();
+  }
+
+  @TestTemplate
+  public void mixedPromotionFilesCommitTogether() {
+    createIdentityPromotionTable();
+    PartitionSpec specBeforePromotion = table.spec();
+    DataFile beforePromotion = promotionFile(specBeforePromotion, 5, "before.parquet");
+
+    table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
+    DataFile afterPromotion = promotionFile(table.spec(), 5L, "after.parquet");
+
+    assertThatCode(
+            () -> table.newAppend().appendFile(beforePromotion).appendFile(afterPromotion).commit())
+        .doesNotThrowAnyException();
+    assertThat(table.currentSnapshot()).isNotNull();
+  }
+
+  @TestTemplate
+  public void currentPromotionFileCommits() {
+    createIdentityPromotionTable();
+    table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
+    DataFile afterPromotion = promotionFile(table.spec(), 5L, "current.parquet");
+
+    assertThatCode(() -> table.newAppend().appendFile(afterPromotion).commit())
+        .doesNotThrowAnyException();
+    assertThat(table.currentSnapshot()).isNotNull();
+  }
+
+  @TestTemplate
+  public void invalidPartitionTypeRemainsRejected() {
+    createIdentityPromotionTable();
+    PartitionData partition = new PartitionData(table.spec().partitionType());
+    partition.set(0, "not-a-number");
+
+    assertThatThrownBy(() -> partition.get(0, Long.class))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Wrong class");
+  }
+
+  @TestTemplate
+  public void promotedFloatValueIsAccepted() {
+    PartitionData partition =
+        new PartitionData(
+            Types.StructType.of(Types.NestedField.optional(1, "value", Types.FloatType.get())));
+    partition.set(0, 1.5F);
+
+    assertThat(partition.get(0, Double.class)).isEqualTo(1.5D);
+  }
+
+  @TestTemplate
+  public void outOfRangeNarrowingRemainsRejected() {
+    PartitionData partition =
+        new PartitionData(
+            Types.StructType.of(Types.NestedField.optional(1, "value", Types.LongType.get())));
+    partition.set(0, (long) Integer.MAX_VALUE + 1);
+
+    assertThatThrownBy(() -> partition.get(0, Integer.class))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Wrong class");
+  }
+
+  private void createIdentityPromotionTable() {
+    TestTables.clearTables();
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "region", Types.IntegerType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("region").build();
+    this.table = create(schema, spec);
+  }
+
+  private DataFile promotionFile(PartitionSpec spec, Object partitionValue, String fileName) {
+    PartitionData partition = new PartitionData(spec.partitionType());
+    partition.set(0, partitionValue);
+    return DataFiles.builder(spec)
+        .withPath("/" + fileName)
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .withPartition(partition)
+        .build();
   }
 
   @TestTemplate
@@ -1628,5 +1745,148 @@ public class TestMergeAppend extends TestBase {
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
         .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
+  }
+
+  @TestTemplate
+  public void positionDeleteBeforePromotionCommitsWithRowDelta() {
+    assumeThat(formatVersion).isEqualTo(2);
+    assumeThat(branch).isEqualTo(SnapshotRef.MAIN_BRANCH);
+    createIdentityPromotionTable();
+    PartitionSpec specBeforePromotion = table.spec();
+    DataFile dataFile = promotionFile(specBeforePromotion, 5, "data.parquet");
+    DeleteFile deleteFile = promotionDeleteFile(specBeforePromotion, 5, "pos-deletes.parquet");
+
+    table.newRowDelta().addRows(dataFile).addDeletes(deleteFile).commit();
+    long prePromotionSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
+
+    DataFile dataFileAfter = promotionFile(table.spec(), 5L, "data-after.parquet");
+    assertThatCode(() -> table.newRowDelta().addRows(dataFileAfter).commit())
+        .doesNotThrowAnyException();
+    assertThat(table.currentSnapshot()).isNotNull();
+    assertThat(table.currentSnapshot().snapshotId()).isNotEqualTo(prePromotionSnapshotId);
+
+    // Verify scan planning succeeds
+    assertThatCode(() -> table.newScan().planFiles()).doesNotThrowAnyException();
+  }
+
+  @TestTemplate
+  public void dataFileBeforePromotionDeleteFileAfter() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    assumeThat(branch).isEqualTo(SnapshotRef.MAIN_BRANCH);
+    createIdentityPromotionTable();
+    PartitionSpec specBeforePromotion = table.spec();
+    DataFile dataFileBefore = promotionFile(specBeforePromotion, 5, "data-before.parquet");
+
+    table.newAppend().appendFile(dataFileBefore).commit();
+
+    table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
+
+    DeleteFile deleteFileAfter;
+    if (formatVersion >= 3) {
+      deleteFileAfter =
+          promotionDeletionVector(table.spec(), 5L, dataFileBefore.path().toString(), "dv.puffin");
+    } else {
+      deleteFileAfter = promotionDeleteFile(table.spec(), 5L, "pos-deletes-after.parquet");
+    }
+
+    assertThatCode(() -> table.newRowDelta().addDeletes(deleteFileAfter).commit())
+        .doesNotThrowAnyException();
+    assertThat(table.currentSnapshot()).isNotNull();
+
+    // Verify scan planning succeeds
+    assertThatCode(() -> table.newScan().planFiles()).doesNotThrowAnyException();
+  }
+
+  @TestTemplate
+  public void equalityDeleteBeforePromotionAppliedToDataAfter() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    assumeThat(branch).isEqualTo(SnapshotRef.MAIN_BRANCH);
+    createIdentityPromotionTable();
+    PartitionSpec specBeforePromotion = table.spec();
+    DeleteFile eqDelete = promotionEqualityDeleteFile(specBeforePromotion, 5, "eq-deletes.parquet");
+
+    table.newRowDelta().addDeletes(eqDelete).commit();
+
+    table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
+
+    DataFile dataFileAfter = promotionFile(table.spec(), 5L, "data-after-eq.parquet");
+    assertThatCode(() -> table.newAppend().appendFile(dataFileAfter).commit())
+        .doesNotThrowAnyException();
+    assertThat(table.currentSnapshot()).isNotNull();
+
+    // Verify scan planning succeeds with equality delete
+    assertThatCode(() -> table.newScan().planFiles()).doesNotThrowAnyException();
+  }
+
+  @TestTemplate
+  public void bothDataAndDeleteFilesBeforePromotion() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    createIdentityPromotionTable();
+    PartitionSpec specBeforePromotion = table.spec();
+    DataFile dataFile = promotionFile(specBeforePromotion, 5, "data-both.parquet");
+    DeleteFile deleteFile;
+    if (formatVersion >= 3) {
+      deleteFile =
+          promotionDeletionVector(
+              specBeforePromotion, 5, dataFile.path().toString(), "dv-both.puffin");
+    } else {
+      deleteFile = promotionDeleteFile(specBeforePromotion, 5, "pos-deletes-both.parquet");
+    }
+
+    table.newRowDelta().addRows(dataFile).addDeletes(deleteFile).commit();
+
+    table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
+
+    DataFile dataFileAfter = promotionFile(table.spec(), 5L, "data-after-both.parquet");
+    assertThatCode(() -> table.newAppend().appendFile(dataFileAfter).commit())
+        .doesNotThrowAnyException();
+    assertThat(table.currentSnapshot()).isNotNull();
+
+    // Verify scan planning succeeds
+    assertThatCode(() -> table.newScan().planFiles()).doesNotThrowAnyException();
+  }
+
+  private DeleteFile promotionDeleteFile(
+      PartitionSpec spec, Object partitionValue, String fileName) {
+    PartitionData partition = new PartitionData(spec.partitionType());
+    partition.set(0, partitionValue);
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofPositionDeletes()
+        .withPath("/" + fileName)
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .withPartition(partition)
+        .build();
+  }
+
+  private DeleteFile promotionDeletionVector(
+      PartitionSpec spec, Object partitionValue, String referencedDataFile, String fileName) {
+    PartitionData partition = new PartitionData(spec.partitionType());
+    partition.set(0, partitionValue);
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofPositionDeletes()
+        .withPath("/" + fileName)
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .withPartition(partition)
+        .withReferencedDataFile(referencedDataFile)
+        .withContentOffset(0L)
+        .withContentSizeInBytes(10L)
+        .build();
+  }
+
+  private DeleteFile promotionEqualityDeleteFile(
+      PartitionSpec spec, Object partitionValue, String fileName) {
+    PartitionData partition = new PartitionData(spec.partitionType());
+    partition.set(0, partitionValue);
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofEqualityDeletes(1) // equality on "id" field
+        .withPath("/" + fileName)
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .withPartition(partition)
+        .build();
   }
 }
