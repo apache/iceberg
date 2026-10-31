@@ -91,6 +91,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final ManifestMergeManager<DeleteFile> deleteMergeManager;
   private final ManifestFilterManager<DeleteFile> deleteFilterManager;
   private final AtomicInteger dvMergeAttempt = new AtomicInteger(0);
+  // locations of the merged DV Puffin files written by the most recent mergeDVs call
+  private final List<String> cachedMergedDVLocations = Lists.newArrayList();
 
   // update data
   private final Map<Integer, DataFileSet> newDataFilesBySpec = Maps.newHashMap();
@@ -1120,6 +1122,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private void cleanUncommittedAppends(Set<ManifestFile> committed) {
     deleteUncommitted(cachedNewDataManifests, committed, true /* clear manifests */);
     deleteUncommitted(cachedNewDeleteManifests, committed, true /* clear manifests */);
+    if (cachedNewDeleteManifests.isEmpty()) {
+      // the delete manifests referencing the merged DV Puffin files are gone, so the Puffin files
+      // are orphaned and can be deleted
+      cachedMergedDVLocations.forEach(this::deleteFile);
+      cachedMergedDVLocations.clear();
+    }
+
     // rewritten manifests are always owned by the table
     deleteUncommitted(rewrittenAppendManifests, committed, false);
 
@@ -1184,6 +1193,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       // merge,
       // and the summary cannot be generated until after merging is complete.
       addedDeleteFilesSummary.clear();
+      // the delete manifests referencing the previously merged DV Puffin files are deleted above,
+      // so those Puffin files are orphaned and can be deleted
+      cachedMergedDVLocations.forEach(this::deleteFile);
+      cachedMergedDVLocations.clear();
     }
 
     if (cachedNewDeleteManifests.isEmpty()) {
@@ -1227,12 +1240,24 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                     String.format(
                         "merged-dvs-%s-%s", snapshotId(), dvMergeAttempt.incrementAndGet())));
 
-    return DVUtil.mergeAndWriteDVsIfRequired(
-        dvsByReferencedFile,
-        dvOutputLocation,
-        fileIO,
-        ops().current().specsById(),
-        ThreadPools.getDeleteWorkerPool());
+    List<DeleteFile> mergedDVs =
+        DVUtil.mergeAndWriteDVsIfRequired(
+            dvsByReferencedFile,
+            dvOutputLocation,
+            fileIO,
+            ops().current().specsById(),
+            ThreadPools.getDeleteWorkerPool());
+
+    // resolve the location through the FileIO so that its scheme matches the locations of the
+    // merged DVs, which may differ from the raw output location (e.g. a stripped "file:" scheme)
+    String puffinLocation = fileIO.newOutputFile(dvOutputLocation).location();
+    if (mergedDVs.stream().anyMatch(dv -> puffinLocation.equals(dv.location()))) {
+      // a Puffin file was written and is now referenced by the merged DVs, track it so that it can
+      // be deleted if the cached delete manifests are invalidated or the commit fails
+      cachedMergedDVLocations.add(puffinLocation);
+    }
+
+    return mergedDVs;
   }
 
   private class DataFileFilterManager extends ManifestFilterManager<DataFile> {
