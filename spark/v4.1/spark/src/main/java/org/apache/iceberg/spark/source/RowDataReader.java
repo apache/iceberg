@@ -33,6 +33,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
+import org.apache.iceberg.spark.source.metrics.TaskScanDuration;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
@@ -72,7 +73,9 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
   @Override
   public CustomTaskMetric[] currentMetricsValues() {
     return new CustomTaskMetric[] {
-      new TaskNumSplits(numSplits), new TaskNumDeletes(counter().get())
+      new TaskNumSplits(numSplits),
+      new TaskNumDeletes(counter().get()),
+      new TaskScanDuration(scanDurationNanos())
     };
   }
 
