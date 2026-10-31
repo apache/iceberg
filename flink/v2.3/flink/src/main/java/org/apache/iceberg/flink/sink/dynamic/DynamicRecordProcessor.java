@@ -104,12 +104,14 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     this.forwardStream =
         new OutputTag<>(
             DYNAMIC_FORWARD_STREAM,
-            new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize)) {};
+            new DynamicRecordInternalType(
+                catalogLoader, true, cacheMaximumSize, inputSchemasPerTableCacheMaximumSize)) {};
     if (!immediateUpdate) {
       updateStream =
           new OutputTag<>(
               DYNAMIC_TABLE_UPDATE_STREAM,
-              new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize)) {};
+              new DynamicRecordInternalType(
+                  catalogLoader, true, cacheMaximumSize, inputSchemasPerTableCacheMaximumSize)) {};
     }
 
     this.dynamicRecordWithConfig =
