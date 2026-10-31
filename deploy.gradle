@@ -24,6 +24,7 @@ if (project.hasProperty('release') && jdkVersion != '17') {
 subprojects {
   def isBom = it.name == 'iceberg-bom'
   def isOpenApi = it.name == 'iceberg-open-api'
+  def isKafkaConnectRuntime = it.name == 'iceberg-kafka-connect-runtime'
 
   apply plugin: 'maven-publish'
   apply plugin: 'signing'
@@ -75,6 +76,8 @@ subprojects {
           } else if (isOpenApi) {
             artifact testJar
             artifact testFixturesJar
+          } else if (isKafkaConnectRuntime) {
+            artifact distZip
           } else {
             if (tasks.matching({task -> task.name == 'shadowJar'}).isEmpty()) {
               from components.java
