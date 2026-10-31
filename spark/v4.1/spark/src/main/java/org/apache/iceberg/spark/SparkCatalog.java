@@ -21,6 +21,9 @@ package org.apache.iceberg.spark;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -120,7 +123,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog {
+public class SparkCatalog extends BaseCatalog implements Closeable {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
@@ -837,6 +840,17 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public String name() {
     return catalogName;
+  }
+
+  @Override
+  public void close() {
+    if (icebergCatalog instanceof Closeable) {
+      try {
+        ((Closeable) icebergCatalog).close();
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to close catalog: " + catalogName, e);
+      }
+    }
   }
 
   private static void commitChanges(

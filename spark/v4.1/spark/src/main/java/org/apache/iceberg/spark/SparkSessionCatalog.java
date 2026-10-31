@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.spark;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -64,7 +67,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  */
 public class SparkSessionCatalog<
         T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
-    extends BaseCatalog implements CatalogExtension {
+    extends BaseCatalog implements CatalogExtension, Closeable {
 
   private String catalogName = null;
   private TableCatalog icebergCatalog = null;
@@ -414,6 +417,18 @@ public class SparkSessionCatalog<
   @Override
   public String name() {
     return catalogName;
+  }
+
+  @Override
+  public void close() {
+    // the delegate session catalog is owned by Spark and is not closed here
+    if (icebergCatalog instanceof Closeable) {
+      try {
+        ((Closeable) icebergCatalog).close();
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to close catalog: " + catalogName, e);
+      }
+    }
   }
 
   private boolean useIceberg(String provider) {
