@@ -52,6 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
@@ -271,6 +272,58 @@ class TestFilePlanner {
         .as("the default case-sensitive filter cannot resolve \"ID\"")
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'ID'");
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void columnStatsOmittedByDefault(FileFormat format) throws IOException {
+    ManifestFile root =
+        writeManifest(
+            format, EMPTY_PARTITION, ImmutableList.of(dataFileWithStats(FILE_A, idStats(0, 99))));
+
+    DataFile file = Iterables.getOnlyElement(plan(root, UNPARTITIONED_SPECS)).file();
+
+    assertThat(file.lowerBounds())
+        .as("no column stats are returned unless projectStats requests them")
+        .isNull();
+    assertThat(file.valueCounts()).as("value counts are also omitted by default").isNull();
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void projectStatsForwardedToRootAndLeafReaders(FileFormat format) throws IOException {
+    String rootFile = "s3://bucket/db/table/root.parquet";
+    String leafFile = "s3://bucket/db/table/leaf.parquet";
+    ManifestFile leaf =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(dataFileWithStats(leafFile, idStats(100, 199))));
+    ManifestFile root =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                dataFileWithStats(rootFile, idStats(0, 99)), dataManifest(leaf.path())));
+
+    int idFieldId = TABLE_SCHEMA.findField("id").fieldId();
+    List<FileScanTask> tasks =
+        plan(root, UNPARTITIONED_SPECS, planner -> planner.projectStats(idFieldId));
+
+    assertThat(tasks)
+        .as("requested stats are returned for files in both the root and leaf readers")
+        .hasSize(2)
+        .satisfiesExactlyInAnyOrder(
+            task -> {
+              assertThat(task.file().location()).isEqualTo(rootFile);
+              assertThat(lowerBound(task.file(), idFieldId)).isEqualTo(0);
+              assertThat(upperBound(task.file(), idFieldId)).isEqualTo(99);
+            },
+            task -> {
+              assertThat(task.file().location()).isEqualTo(leafFile);
+              assertThat(lowerBound(task.file(), idFieldId)).isEqualTo(100);
+              assertThat(upperBound(task.file(), idFieldId)).isEqualTo(199);
+            });
   }
 
   @ParameterizedTest
@@ -588,6 +641,14 @@ class TestFilePlanner {
 
   private static TrackedFile dataManifestWithStats(String location, ContentStats stats) {
     return manifestRefWithStats(FileContent.DATA_MANIFEST, location, stats, dataManifestInfo(1));
+  }
+
+  private static Integer lowerBound(DataFile file, int fieldId) {
+    return Conversions.fromByteBuffer(Types.IntegerType.get(), file.lowerBounds().get(fieldId));
+  }
+
+  private static Integer upperBound(DataFile file, int fieldId) {
+    return Conversions.fromByteBuffer(Types.IntegerType.get(), file.upperBounds().get(fieldId));
   }
 
   private static ContentStats idStats(int lower, int upper) {
