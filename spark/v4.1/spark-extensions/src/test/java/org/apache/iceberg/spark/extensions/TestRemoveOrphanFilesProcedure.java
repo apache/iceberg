@@ -35,6 +35,7 @@ import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RawLocalFileSystem;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Files;
@@ -748,5 +749,78 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     // Drop table in afterEach has purge and fails due to invalid authority "localhost"
     // Dropping the table here
     sql("DROP TABLE %s", tableName);
+  }
+
+  @TestTemplate
+  public void catalogHadoopConfOverridesApplyToListing() throws IOException {
+    if (catalogName.equals("testhadoop")) {
+      sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    } else {
+      sql(
+          "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
+          tableName, java.nio.file.Files.createTempDirectory(temp, "junit"));
+    }
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    String location = table.location().replaceFirst("file:", "");
+    new File(location + "/data/trashfile").createNewFile();
+
+    // registered for this catalog alone, so the location below resolves only when the catalog's
+    // Hadoop overrides reach the listing
+    spark
+        .conf()
+        .set(
+            String.format(
+                "spark.sql.catalog.%s.hadoop.fs.%s.impl",
+                catalogName, CatalogScopedFileSystem.SCHEME),
+            CatalogScopedFileSystem.class.getName());
+
+    waitUntilAfter(System.currentTimeMillis());
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.remove_orphan_files("
+                + "table => '%s',"
+                + "older_than => TIMESTAMP '%s',"
+                + "location => '%s',"
+                + "equal_schemes => map('%s', 'file'),"
+                + "dry_run => true)",
+            catalogName,
+            tableIdent,
+            currentTimestamp,
+            CatalogScopedFileSystem.SCHEME + "://" + location,
+            CatalogScopedFileSystem.SCHEME);
+
+    assertThat(output)
+        .as("trash file should be found")
+        .anyMatch(row -> ((String) row[0]).endsWith("/data/trashfile"));
+  }
+
+  @AfterEach
+  public void resetCatalogHadoopConfOverrides() {
+    spark
+        .conf()
+        .unset(
+            String.format(
+                "spark.sql.catalog.%s.hadoop.fs.%s.impl",
+                catalogName, CatalogScopedFileSystem.SCHEME));
+  }
+
+  /** Local file system reachable only under its own scheme, to tell the two configs apart. */
+  public static class CatalogScopedFileSystem extends RawLocalFileSystem {
+    static final String SCHEME = "catalogscopedfs";
+
+    @Override
+    public URI getUri() {
+      return URI.create(SCHEME + ":///");
+    }
+
+    @Override
+    public String getScheme() {
+      return SCHEME;
+    }
   }
 }
