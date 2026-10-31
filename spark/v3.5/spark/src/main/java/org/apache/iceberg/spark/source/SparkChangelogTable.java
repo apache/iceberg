@@ -23,6 +23,7 @@ import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.SparkSession;
@@ -92,7 +93,9 @@ public class SparkChangelogTable implements Table, SupportsRead, SupportsMetadat
 
   private Schema changelogSchema() {
     if (lazyChangelogSchema == null) {
-      this.lazyChangelogSchema = ChangelogUtil.changelogSchema(icebergTable.schema());
+      this.lazyChangelogSchema =
+          ChangelogUtil.changelogSchema(
+              icebergTable.schema(), TableUtil.formatVersion(icebergTable));
     }
 
     return lazyChangelogSchema;
