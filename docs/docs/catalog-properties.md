@@ -34,6 +34,10 @@ Iceberg catalogs support using catalog properties to configure catalog behaviors
 | cache-enabled                     | true               | Whether to cache catalog entries |
 | cache.expiration-interval-ms      | 30000              | How long catalog entries are locally cached, in milliseconds; 0 disables caching, negative values disable expiration |
 | metrics-reporter-impl | org.apache.iceberg.metrics.LoggingMetricsReporter | Custom `MetricsReporter` implementation to use in a catalog. See the [Metrics reporting](metrics-reporting.md) section for additional details |
+| metrics-reporter.namespace.include | null | Comma-separated Java regexes; when set, only reports for tables whose namespace matches one of them are reported. See the [Metrics reporting](metrics-reporting.md) section for additional details |
+| metrics-reporter.namespace.exclude | null | Comma-separated Java regexes; reports for tables whose namespace matches one of them are dropped, and an exclude match wins over an include match |
+| metrics-reporter.table-name.include | null | Comma-separated Java regexes; when set, only reports whose table name matches one of them are reported |
+| metrics-reporter.table-name.exclude | null | Comma-separated Java regexes; reports whose table name matches one of them are dropped, and an exclude match wins over an include match |
 | unique-table-location             | false              | Whether to use a unique location for new tables |
 | encryption.kms-impl               | null               | a custom `KeyManagementClient` implementation to use in a catalog for interactions with KMS (key management service). See the [Encryption](encryption.md) document for additional details |
 
