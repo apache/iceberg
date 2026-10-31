@@ -852,7 +852,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   UnregisterTableResponse.class,
                   mutationHeaders,
                   ErrorHandlers.tableErrorHandler());
-      StaticTableOperations ops = new StaticTableOperations(response.metadata(), io);
+      StaticTableOperations ops = new StaticTableOperations(response.tableMetadata(), io);
       return new BaseTable(ops, identifier.name());
     } finally {
       invalidateTable(context, identifier);

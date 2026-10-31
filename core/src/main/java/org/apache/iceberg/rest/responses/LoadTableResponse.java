@@ -31,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTResponse;
 import org.apache.iceberg.rest.RemoteSigningConfig;
 import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.util.LocationUtil;
 
 /**
  * A REST response that is used when a table is successfully loaded.
@@ -43,6 +44,7 @@ import org.apache.iceberg.rest.credentials.Credential;
 public class LoadTableResponse implements RESTResponse {
 
   private String metadataLocation;
+  private String tableLocation;
   private TableMetadata metadata;
   private Map<String, String> config;
   private TableMetadata metadataWithLocation;
@@ -56,12 +58,14 @@ public class LoadTableResponse implements RESTResponse {
 
   private LoadTableResponse(
       String metadataLocation,
+      String tableLocation,
       TableMetadata metadata,
       Map<String, String> config,
       List<Credential> credentials,
       RemoteSigningConfig remoteSigningConfig,
       Labels labels) {
     this.metadataLocation = metadataLocation;
+    this.tableLocation = tableLocation;
     this.metadata = metadata;
     this.config = config;
     this.credentials = credentials;
@@ -78,13 +82,40 @@ public class LoadTableResponse implements RESTResponse {
     return metadataLocation;
   }
 
+  public String tableLocation() {
+    return tableLocation;
+  }
+
+  TableMetadata metadata() {
+    return metadata;
+  }
+
   public TableMetadata tableMetadata() {
     if (null == metadataWithLocation) {
-      this.metadataWithLocation =
+      TableMetadata withMetadataLocation =
           TableMetadata.buildFrom(metadata).withMetadataLocation(metadataLocation).build();
+      this.metadataWithLocation = resolveTableLocation(withMetadataLocation, tableLocation);
     }
 
     return metadataWithLocation;
+  }
+
+  static TableMetadata resolveTableLocation(TableMetadata metadata, String tableLocation) {
+    TableMetadata resolved = metadata;
+    if (null != tableLocation && !tableLocation.equals(metadata.location())) {
+      // discardChanges keeps the substituted location from being committed as a SetLocation update
+      resolved =
+          TableMetadata.buildFrom(metadata)
+              .setLocation(tableLocation)
+              .discardChanges()
+              .withMetadataLocation(metadata.metadataFileLocation())
+              .build();
+    }
+
+    Preconditions.checkArgument(
+        null != resolved.location(),
+        "Invalid table metadata: location must be set in metadata or in table-location");
+    return resolved;
   }
 
   public Map<String, String> config() {
@@ -107,6 +138,7 @@ public class LoadTableResponse implements RESTResponse {
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("metadataLocation", metadataLocation)
+        .add("tableLocation", tableLocation)
         .add("metadata", metadata)
         .add("config", config)
         .add("labels", labels)
@@ -119,6 +151,7 @@ public class LoadTableResponse implements RESTResponse {
 
   public static class Builder {
     private String metadataLocation;
+    private String tableLocation;
     private TableMetadata metadata;
     private final Map<String, String> config = Maps.newHashMap();
     private final List<Credential> credentials = Lists.newArrayList();
@@ -130,6 +163,15 @@ public class LoadTableResponse implements RESTResponse {
     public Builder withTableMetadata(TableMetadata tableMetadata) {
       this.metadataLocation = tableMetadata.metadataFileLocation();
       this.metadata = tableMetadata;
+      return this;
+    }
+
+    public Builder withTableLocation(String location) {
+      Preconditions.checkArgument(
+          null == location || LocationUtil.hasScheme(location),
+          "Invalid table location: %s, must be absolute with a URI scheme",
+          location);
+      this.tableLocation = location;
       return this;
     }
 
@@ -166,7 +208,13 @@ public class LoadTableResponse implements RESTResponse {
     public LoadTableResponse build() {
       Preconditions.checkNotNull(metadata, "Invalid metadata: null");
       return new LoadTableResponse(
-          metadataLocation, metadata, config, credentials, remoteSigningConfig, labels);
+          metadataLocation,
+          tableLocation,
+          metadata,
+          config,
+          credentials,
+          remoteSigningConfig,
+          labels);
     }
   }
 }
