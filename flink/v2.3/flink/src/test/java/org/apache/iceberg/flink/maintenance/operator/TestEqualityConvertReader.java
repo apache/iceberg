@@ -48,7 +48,11 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.formats.FileWriterBuilder;
+import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -57,6 +61,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class TestEqualityConvertReader extends OperatorTestBase {
+
+  private static final Schema NESTED_SCHEMA =
+      new Schema(
+          Lists.newArrayList(
+              Types.NestedField.required(1, "id", Types.IntegerType.get()),
+              Types.NestedField.required(
+                  2,
+                  "user",
+                  Types.StructType.of(
+                      Types.NestedField.required(3, "id", Types.IntegerType.get()),
+                      Types.NestedField.optional(4, "name", Types.StringType.get()))),
+              Types.NestedField.optional(5, "data", Types.StringType.get())),
+          Sets.newHashSet(1, 3));
 
   @TempDir private Path tempDir;
 
@@ -285,6 +302,50 @@ class TestEqualityConvertReader extends OperatorTestBase {
   }
 
   @Test
+  void serializesNestedEqualityFieldsFromDataAndDeleteFiles() throws Exception {
+    Table table = createTableWithDelete(3, NESTED_SCHEMA, PartitionSpec.unpartitioned());
+    // Table creation reassigns field ids, so resolve them against the table schema.
+    Schema schema = table.schema();
+    int idFieldId = schema.findField("id").fieldId();
+    int userIdFieldId = schema.findField("user.id").fieldId();
+
+    DataFile dataFile =
+        new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
+            .writeFile(
+                Lists.newArrayList(
+                    nestedRecord(schema, 1, 10, "a"), nestedRecord(schema, 1, 20, "b")));
+    table.newAppend().appendFile(dataFile).commit();
+
+    // Delete rows carry the full row, as Flink's sink writes them; only the equality fields
+    // (id, user.id) identify the row. The non-key columns differ from the data row on purpose.
+    DeleteFile eqDelete =
+        writeEqualityDelete(
+            table, Lists.newArrayList(nestedRecord(schema, 1, 20, "z")), idFieldId, userIdFieldId);
+    table.refresh();
+
+    PartitionSpec spec = table.spec();
+    List<Integer> fieldIds = eqDelete.equalityFieldIds();
+    assertThat(fieldIds).containsExactlyInAnyOrder(idFieldId, userIdFieldId);
+
+    try (OneInputStreamOperatorTestHarness<ReadCommand, IndexCommand> harness =
+        createHarness(fieldIds)) {
+      harness.open();
+
+      harness.processElement(
+          ReadCommand.stagingDataFile(new FlinkAddedRowsScanTask(dataFile, spec), 0L, 0L, 0L), 0);
+      harness.processElement(ReadCommand.eqDeleteFile(eqDelete, spec, 0L, 0L, 0L), 1);
+
+      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNullOrEmpty();
+      List<IndexCommand> output = harness.extractOutputValues();
+      assertThat(output).hasSize(3);
+      assertThat(output.get(2).type()).isEqualTo(IndexCommand.Type.RESOLVE_DELETE);
+      assertThat(output.get(1).rowPosition().position()).isEqualTo(1);
+      assertThat(output.get(1).key()).isEqualTo(output.get(2).key());
+      assertThat(output.get(0).key()).isNotEqualTo(output.get(2).key());
+    }
+  }
+
+  @Test
   void propagatesMainSnapshotId() throws Exception {
     Table table = createTableWithDelete(3);
     insert(table, 1, "a");
@@ -468,6 +529,37 @@ class TestEqualityConvertReader extends OperatorTestBase {
         new PartitionData(PartitionSpec.unpartitioned().partitionType()),
         Lists.newArrayList(createRecord(id, data)),
         table.schema());
+  }
+
+  private static GenericRecord nestedRecord(Schema schema, int id, int userId, String name) {
+    GenericRecord user = GenericRecord.create(schema.findField("user").type().asStructType());
+    user.setField("id", userId);
+    user.setField("name", name);
+    GenericRecord record = GenericRecord.create(schema);
+    record.setField("id", id);
+    record.setField("user", user);
+    record.setField("data", name);
+    return record;
+  }
+
+  private DeleteFile writeEqualityDelete(Table table, List<Record> rows, int... equalityFieldIds)
+      throws IOException {
+    File file = File.createTempFile("junit", null, tempDir.toFile());
+    assertThat(file.delete()).isTrue();
+    FileWriterBuilder<EqualityDeleteWriter<Record>, Object> builder =
+        FormatModelRegistry.equalityDeleteWriteBuilder(
+            FileFormat.PARQUET, Record.class, FileHelpers.encrypt(Files.localOutput(file)));
+    EqualityDeleteWriter<Record> writer =
+        builder
+            .schema(table.schema())
+            .spec(table.spec())
+            .equalityFieldIds(equalityFieldIds)
+            .build();
+    try (writer) {
+      rows.forEach(writer::write);
+    }
+
+    return writer.toDeleteFile();
   }
 
   private static DeleteFile writeDV(Table table, String dataFilePath, long... positions)

@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.maintenance.api;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -47,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.NestedField;
 
 /**
@@ -119,6 +121,9 @@ public class ConvertEqualityDeletes {
      *
      * <p>The partition source columns of an equality delete's spec must be a subset of these
      * columns. Writes via Flink's IcebergSink already ensure this.
+     *
+     * <p>Each column must be a primitive field. Fields nested in structs are referenced by their
+     * dotted name, e.g. {@code user.id}; fields nested in lists or maps are not supported.
      */
     public Builder equalityFieldColumns(List<String> columns) {
       Preconditions.checkNotNull(columns, "equalityFieldColumns must not be null");
@@ -286,6 +291,7 @@ public class ConvertEqualityDeletes {
           formatVersion);
 
       Schema schema = table.schema();
+      Map<Integer, Integer> parents = TypeUtil.indexParents(schema.asStruct());
       List<Integer> fieldIds = Lists.newArrayListWithCapacity(equalityFieldColumns.size());
       for (String column : equalityFieldColumns) {
         NestedField field = schema.findField(column);
@@ -294,6 +300,20 @@ public class ConvertEqualityDeletes {
             "Equality field column '%s' not found in table schema %s",
             column,
             schema);
+        Preconditions.checkArgument(
+            field.type().isPrimitiveType(),
+            "Equality field column '%s' must be a primitive type, but is %s",
+            column,
+            field.type());
+        Integer parentId = parents.get(field.fieldId());
+        while (parentId != null) {
+          Preconditions.checkArgument(
+              schema.findType(parentId).isStructType(),
+              "Equality field column '%s' must not be nested in a list or map",
+              column);
+          parentId = parents.get(parentId);
+        }
+
         fieldIds.add(field.fieldId());
       }
 
