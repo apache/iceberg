@@ -176,6 +176,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
             ConfigResponse.builder()
                 .withEndpoints(
                     Arrays.stream(Route.values())
+                        // v2 load is served but not advertised, so clients keep using v1 by default
+                        .filter(r -> r != Route.LOAD_TABLE_V2)
                         .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
                         .collect(Collectors.toList()))
                 .withOverride(
@@ -314,6 +316,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         }
 
       case LOAD_TABLE:
+      case LOAD_TABLE_V2:
         {
           LoadTableResponse response =
               CatalogHandlers.loadTable(

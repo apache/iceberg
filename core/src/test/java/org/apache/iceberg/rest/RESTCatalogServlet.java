@@ -119,7 +119,7 @@ public class RESTCatalogServlet extends HttpServlet {
             Route.from(request.method(), request.path());
         if (routeAndVars != null) {
           Route route = routeAndVars.first();
-          if (route == Route.LOAD_TABLE) {
+          if (route == Route.LOAD_TABLE || route == Route.LOAD_TABLE_V2) {
             response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
           } else if (shouldReturn204(route)) {
             response.setStatus(HttpServletResponse.SC_NO_CONTENT);

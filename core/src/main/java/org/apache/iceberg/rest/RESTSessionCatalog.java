@@ -450,12 +450,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       LoadContext loadContext,
       Map<String, String> headers,
       Consumer<Map<String, String>> responseHeaders) {
-    Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
     return client
         .withAuthSession(contextualSession)
         .get(
-            paths.table(identifier),
+            loadTablePath(identifier),
             RESTUtil.merge(
                 snapshotModeToParam(mode),
                 referencedByParam(
@@ -464,6 +463,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             headers,
             ErrorHandlers.tableErrorHandler(),
             responseHeaders);
+  }
+
+  private String loadTablePath(TableIdentifier identifier) {
+    if (endpoints.contains(Endpoint.V2_LOAD_TABLE)) {
+      return paths.tableV2(identifier);
+    }
+
+    Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
+    return paths.table(identifier);
   }
 
   /** Keys the encoded chain as either the wire query parameter or the internal client property. */
@@ -480,13 +488,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public Table loadTable(
       SessionContext context, TableIdentifier identifier, LoadContext loadContext) {
-    Endpoint.check(
-        endpoints,
-        Endpoint.V1_LOAD_TABLE,
-        () ->
-            new NoSuchTableException(
-                "Unable to load table %s.%s: Server does not support endpoint %s",
-                name(), identifier, Endpoint.V1_LOAD_TABLE));
+    if (!endpoints.contains(Endpoint.V2_LOAD_TABLE)) {
+      Endpoint.check(
+          endpoints,
+          Endpoint.V1_LOAD_TABLE,
+          () ->
+              new NoSuchTableException(
+                  "Unable to load table %s.%s: Server does not support endpoint %s",
+                  name(), identifier, Endpoint.V1_LOAD_TABLE));
+    }
 
     checkIdentifierIsValid(identifier);
 

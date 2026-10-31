@@ -164,14 +164,25 @@ class RESTTableOperations implements TableOperations {
 
   @Override
   public TableMetadata refresh() {
-    Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     return updateCurrentMetadata(
         client.get(
-            path,
+            refreshPath(),
             readQueryParams,
             LoadTableResponse.class,
             readHeaders,
             ErrorHandlers.tableErrorHandler()));
+  }
+
+  private String refreshPath() {
+    if (endpoints.contains(Endpoint.V2_LOAD_TABLE)) {
+      String v2Path = ResourcePaths.v2TableFromV1(path);
+      if (v2Path != null) {
+        return v2Path;
+      }
+    }
+
+    Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
+    return path;
   }
 
   @Override

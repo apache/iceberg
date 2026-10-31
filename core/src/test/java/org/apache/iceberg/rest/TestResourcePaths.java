@@ -587,4 +587,49 @@ public class TestResourcePaths {
         .isEqualTo("v1/ws/catalog/namespaces/n%2Bs/tables/a%2Bb/metrics");
     assertThat(withoutPrefix.metrics(ident)).isEqualTo("v1/namespaces/n%2Bs/tables/a%2Bb/metrics");
   }
+
+  @Test
+  public void tableV2() {
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+    assertThat(withPrefix.tableV2(ident)).isEqualTo("v2/ws/catalog/namespaces/ns/tables/table");
+    assertThat(withoutPrefix.tableV2(ident)).isEqualTo("v2/namespaces/ns/tables/table");
+  }
+
+  @Test
+  public void tableV2MultiLevelNamespaceAndEncodedName() {
+    TableIdentifier ident = TableIdentifier.of(Namespace.of("n1", "n2"), "a+b/c");
+    assertThat(withPrefix.tableV2(ident))
+        .isEqualTo("v2/ws/catalog/namespaces/n1%1Fn2/tables/a%2Bb%2Fc");
+    assertThat(withoutPrefix.tableV2(ident)).isEqualTo("v2/namespaces/n1%1Fn2/tables/a%2Bb%2Fc");
+  }
+
+  @Test
+  public void v2TableFromV1() {
+    assertThat(ResourcePaths.v2TableFromV1(withPrefix.table(TableIdentifier.of("ns", "t"))))
+        .isEqualTo(withPrefix.tableV2(TableIdentifier.of("ns", "t")));
+    assertThat(ResourcePaths.v2TableFromV1(withoutPrefix.table(TableIdentifier.of("ns", "t"))))
+        .isEqualTo(withoutPrefix.tableV2(TableIdentifier.of("ns", "t")));
+    assertThat(
+            ResourcePaths.v2TableFromV1(
+                withoutPrefix.table(TableIdentifier.of(Namespace.of("a", "b"), "t/x"))))
+        .isEqualTo(withoutPrefix.tableV2(TableIdentifier.of(Namespace.of("a", "b"), "t/x")));
+  }
+
+  @Test
+  public void v2TableFromV1WithEmptyPrefix() {
+    ResourcePaths emptyPrefix = ResourcePaths.forCatalogProperties(ImmutableMap.of("prefix", ""));
+    TableIdentifier ident = TableIdentifier.of("ns", "t");
+    assertThat(ResourcePaths.v2TableFromV1(emptyPrefix.table(ident)))
+        .isEqualTo(emptyPrefix.tableV2(ident));
+  }
+
+  @Test
+  public void v2TableFromV1RejectsNonTablePaths() {
+    assertThat(ResourcePaths.v2TableFromV1(withPrefix.metrics(TableIdentifier.of("ns", "t"))))
+        .isNull();
+    assertThat(ResourcePaths.v2TableFromV1(withPrefix.namespace(Namespace.of("ns")))).isNull();
+    assertThat(ResourcePaths.v2TableFromV1("custom/tables/t")).isNull();
+    assertThat(ResourcePaths.v2TableFromV1("v2/namespaces/ns/tables/t")).isNull();
+    assertThat(ResourcePaths.v2TableFromV1("v1/namespaces/ns/tables/")).isNull();
+  }
 }
