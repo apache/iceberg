@@ -126,7 +126,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                 LOG.warn(
                     "Failed on snapshot {} while reading manifest list: {}",
                     snapshot.snapshotId(),
-                    snapshot.manifestListLocation(),
+                    snapshot.rootLocation(),
                     exc))
         .run(
             snapshot -> {
@@ -160,7 +160,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
 
               } catch (IOException e) {
                 throw new RuntimeIOException(
-                    e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
+                    e, "Failed to close manifest list: %s", snapshot.rootLocation());
               }
             });
 
@@ -177,7 +177,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                 LOG.warn(
                     "Failed on snapshot {} while reading manifest list: {}",
                     snapshot.snapshotId(),
-                    snapshot.manifestListLocation(),
+                    snapshot.rootLocation(),
                     exc))
         .run(
             snapshot -> {
@@ -256,12 +256,12 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                   }
                 } catch (IOException e) {
                   throw new RuntimeIOException(
-                      e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
+                      e, "Failed to close manifest list: %s", snapshot.rootLocation());
                 }
 
                 // add the manifest list to the delete set, if present
-                if (snapshot.manifestListLocation() != null) {
-                  manifestListsToDelete.add(snapshot.manifestListLocation());
+                if (snapshot.rootLocation() != null) {
+                  manifestListsToDelete.add(snapshot.rootLocation());
                 }
               }
             });

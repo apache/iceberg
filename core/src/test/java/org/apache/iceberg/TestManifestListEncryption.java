@@ -131,6 +131,41 @@ public class TestManifestListEncryption {
   }
 
   @Test
+  void readWithDirectlyStoredEncryptedKey() throws IOException {
+    FileIO io = new InMemoryFileIO();
+    EncryptionManager em = EncryptionTestHelpers.createEncryptionManager();
+    OutputFile outputFile = io.newOutputFile("memory:" + UUID.randomUUID());
+    ManifestListWriter writer =
+        ManifestLists.write(
+            3, outputFile, em, SNAPSHOT_ID, SNAPSHOT_ID - 1, SEQ_NUM, SNAPSHOT_FIRST_ROW_ID);
+    try (writer) {
+      writer.add(TEST_MANIFEST);
+    }
+
+    FileEncryptionKeys encryptionKeys = writer.encryptionKeys();
+    FileWithEncryptedKey manifestList =
+        new BaseFileWithEncryptedKey(
+            outputFile.location(),
+            io.newInputFile(outputFile.location()).getLength(),
+            null,
+            encryptionKeys.fileKey());
+
+    assertThatThrownBy(() -> io.newInputFile(manifestList))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot decrypt file: %s (use EncryptingFileIO)", outputFile.location());
+
+    try (FileIO readingIO =
+        EncryptingFileIO.combine(
+            io,
+            EncryptionTestHelpers.createEncryptionManager(
+                List.of(encryptionKeys.keyEncryptionKey())))) {
+      List<ManifestFile> manifests = ManifestLists.read(readingIO.newInputFile(manifestList));
+      assertThat(manifests).hasSize(1);
+      assertThat(manifests.get(0).path()).isEqualTo(PATH);
+    }
+  }
+
+  @Test
   public void testKeyWrappingAndRotation() throws IOException {
     EncryptionManager em = EncryptionTestHelpers.createEncryptionManager();
     // This manager uses UnitestKMS.MASTER_KEY_NAME1 as the table master key
@@ -334,7 +369,7 @@ public class TestManifestListEncryption {
             EncryptionTestHelpers.createEncryptionManager(metadata.encryptionKeys()))) {
       return ManifestLists.read(
           io.newInputFile(
-              new BaseManifestListFile(snapshot.manifestListLocation(), snapshot.keyId())));
+              new BaseFileWithEncryptedKey(snapshot.rootLocation(), null, snapshot.keyId(), null)));
     }
   }
 
@@ -375,8 +410,8 @@ public class TestManifestListEncryption {
       List<ManifestFile> manifests =
           ManifestLists.read(
               readingIO.newInputFile(
-                  new BaseManifestListFile(
-                      outputFile.location(), encryptionKeys.fileKey().keyId())));
+                  new BaseFileWithEncryptedKey(
+                      outputFile.location(), null, encryptionKeys.fileKey().keyId(), null)));
       assertThat(manifests).hasSize(1);
       return manifests.get(0);
     }

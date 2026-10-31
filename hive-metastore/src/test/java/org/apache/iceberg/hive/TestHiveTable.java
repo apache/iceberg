@@ -217,7 +217,7 @@ public class TestHiveTable extends HiveTableTestBase {
     String fileLocation = appendData(table, "file");
 
     String manifestListLocation =
-        table.currentSnapshot().manifestListLocation().replace("file:", "");
+        table.currentSnapshot().rootLocation().replace("file:", "");
 
     assertThat(catalog.dropTable(TABLE_IDENTIFIER, false /* do not delete underlying files */))
         .as("Drop should return true and drop the table")
@@ -277,7 +277,7 @@ public class TestHiveTable extends HiveTableTestBase {
     table.newDelete().deleteFile(file2).commit();
 
     String manifestListLocation =
-        table.currentSnapshot().manifestListLocation().replace("file:", "");
+        table.currentSnapshot().rootLocation().replace("file:", "");
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
 

@@ -283,7 +283,7 @@ public class TestTransaction extends TestBase {
     txn.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     ManifestFile appendManifest = txn.table().currentSnapshot().allManifests(table.io()).get(0);
-    String txnManifestList = txn.table().currentSnapshot().manifestListLocation();
+    String txnManifestList = txn.table().currentSnapshot().rootLocation();
 
     // cause the transaction commit to fail
     tableWithBulkIO.ops().failCommits(1);
@@ -386,8 +386,7 @@ public class TestTransaction extends TestBase {
             .collect(Collectors.toList());
     assertThat(deletedManifestLists).hasSize(2).doesNotHaveDuplicates();
     assertThat(deletedManifestLists)
-        .doesNotContain(
-            TestTables.load(location, tableName).currentSnapshot().manifestListLocation());
+        .doesNotContain(TestTables.load(location, tableName).currentSnapshot().rootLocation());
   }
 
   @TestTemplate
@@ -720,7 +719,7 @@ public class TestTransaction extends TestBase {
 
     Transaction txn = txnTable.newTransaction();
     txn.newFastAppend().appendFile(FILE_A).commit();
-    String firstManifestList = txn.table().currentSnapshot().manifestListLocation();
+    String firstManifestList = txn.table().currentSnapshot().rootLocation();
 
     // round trip through JSON so the snapshots the transaction loads have no cached manifest lists
     TestTables.TestTableOperations concurrentOps =
@@ -741,7 +740,7 @@ public class TestTransaction extends TestBase {
 
     Table committedTable = TestTables.load(location, tableName);
     assertThat(committedTable.snapshots()).hasSize(5);
-    String committedManifestList = committedTable.currentSnapshot().manifestListLocation();
+    String committedManifestList = committedTable.currentSnapshot().rootLocation();
     assertThat(manifestListsRead).containsExactly(committedManifestList);
     assertThat(new File(committedManifestList)).exists();
     assertThat(((BaseTransaction) txn).deletedFiles()).contains(firstManifestList);

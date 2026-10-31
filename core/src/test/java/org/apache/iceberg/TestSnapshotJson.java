@@ -129,7 +129,7 @@ public class TestSnapshotJson {
     assertThat(snapshot.snapshotId()).isEqualTo(expected.snapshotId());
     assertThat(snapshot.timestampMillis()).isEqualTo(expected.timestampMillis());
     assertThat(snapshot.parentId()).isEqualTo(expected.parentId());
-    assertThat(snapshot.manifestListLocation()).isEqualTo(expected.manifestListLocation());
+    assertThat(snapshot.rootLocation()).isEqualTo(expected.rootLocation());
     assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
     assertThat(snapshot.operation()).isEqualTo(expected.operation());
     assertThat(snapshot.summary()).isEqualTo(expected.summary());
@@ -216,7 +216,7 @@ public class TestSnapshotJson {
     assertThat(snapshot.snapshotId()).isEqualTo(expected.snapshotId());
     assertThat(snapshot.timestampMillis()).isEqualTo(expected.timestampMillis());
     assertThat(snapshot.parentId()).isEqualTo(expected.parentId());
-    assertThat(snapshot.manifestListLocation()).isEqualTo(expected.manifestListLocation());
+    assertThat(snapshot.rootLocation()).isEqualTo(expected.rootLocation());
     assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
     assertThat(snapshot.operation()).isEqualTo(expected.operation());
     assertThat(snapshot.summary()).isEqualTo(expected.summary());
@@ -319,5 +319,36 @@ public class TestSnapshotJson {
                 + "}",
             currentMs);
     assertThat(SnapshotParser.toJson(snap)).isEqualTo(expected);
+  }
+
+  @Test
+  public void testRootManifestRoundTrip() {
+    long timestampMillis = System.currentTimeMillis();
+    Snapshot expected =
+        new BaseSnapshot(
+            1,
+            23,
+            null,
+            timestampMillis,
+            "append",
+            ImmutableMap.of("operation", "append"),
+            1,
+            "s3://bucket/metadata/root-manifest-23.avro",
+            0L,
+            10L,
+            "key-1",
+            true);
+
+    String json = SnapshotParser.toJson(expected, false);
+    assertThat(json).contains("\"root-manifest\":\"s3://bucket/metadata/root-manifest-23.avro\"");
+    assertThat(json).doesNotContain("manifest-list");
+
+    Snapshot snapshot = SnapshotParser.fromJson(json);
+    assertThat(snapshot.manifestListLocation()).isNull();
+    assertThat(snapshot.rootLocation()).isEqualTo(expected.rootLocation());
+    assertThat(snapshot.keyId()).isEqualTo("key-1");
+    assertThat(snapshot.firstRowId()).isEqualTo(0L);
+    assertThat(snapshot.addedRows()).isEqualTo(10L);
+    assertThat(SnapshotParser.toJson(snapshot, false)).isEqualTo(json);
   }
 }

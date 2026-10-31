@@ -108,8 +108,8 @@ public class CatalogUtil {
       // add all manifests to the delete set because both data and delete files should be removed
       Iterables.addAll(manifestsToDelete, snapshot.allManifests(io));
       // add the manifest list to the delete set, if present
-      if (snapshot.manifestListLocation() != null) {
-        manifestListsToDelete.add(snapshot.manifestListLocation());
+      if (snapshot.rootLocation() != null) {
+        manifestListsToDelete.add(snapshot.rootLocation());
       }
     }
 

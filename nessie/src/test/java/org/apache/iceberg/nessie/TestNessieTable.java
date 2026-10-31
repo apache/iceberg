@@ -385,7 +385,7 @@ public class TestNessieTable extends BaseTestIceberg {
     table.newAppend().appendFile(file).commit();
 
     String manifestListLocation =
-        table.currentSnapshot().manifestListLocation().replace("file:", "");
+        table.currentSnapshot().rootLocation().replace("file:", "");
 
     assertThat(catalog.dropTable(TABLE_IDENTIFIER, false)).isTrue();
     assertThat(catalog.tableExists(TABLE_IDENTIFIER)).isFalse();
@@ -411,7 +411,7 @@ public class TestNessieTable extends BaseTestIceberg {
     table.newDelete().deleteFile(file2).commit();
 
     String manifestListLocation =
-        table.currentSnapshot().manifestListLocation().replace("file:", "");
+        table.currentSnapshot().rootLocation().replace("file:", "");
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
 

@@ -148,7 +148,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
       assertThat(row.getField(3)).as("Should have expected operation").isEqualTo(next.operation());
       assertThat(row.getField(4))
           .as("Should have expected manifest list location")
-          .isEqualTo(next.manifestListLocation());
+          .isEqualTo(next.rootLocation());
       assertThat(row.getField(5)).as("Should have expected summary").isEqualTo(next.summary());
     }
   }

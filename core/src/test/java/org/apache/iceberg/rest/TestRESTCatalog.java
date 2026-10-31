@@ -2633,7 +2633,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               MetadataUpdate.AddSnapshot addSnapshot =
                   (MetadataUpdate.AddSnapshot) body.updates().get(0);
               assertThatThrownBy(
-                      () -> table.io().newInputFile(addSnapshot.snapshot().manifestListLocation()))
+                      () -> table.io().newInputFile(addSnapshot.snapshot().rootLocation()))
                   .isInstanceOf(NotFoundException.class)
                   .hasMessageContaining("No in-memory file found");
             });
@@ -2669,7 +2669,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               UpdateTableRequest body = (UpdateTableRequest) req.body();
               MetadataUpdate.AddSnapshot addSnapshot =
                   (MetadataUpdate.AddSnapshot) body.updates().get(0);
-              String manifestListLocation = addSnapshot.snapshot().manifestListLocation();
+              String manifestListLocation = addSnapshot.snapshot().rootLocation();
               assertThat(table.io().newInputFile(manifestListLocation).exists()).isTrue();
             });
   }
@@ -2715,7 +2715,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                           catalog
                               .loadTable(TABLE)
                               .io()
-                              .newInputFile(addSnapshot.snapshot().manifestListLocation()))
+                              .newInputFile(addSnapshot.snapshot().rootLocation()))
                   .isInstanceOf(NotFoundException.class)
                   .hasMessageContaining("No in-memory file found");
             });
@@ -2757,7 +2757,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
               MetadataUpdate.AddSnapshot addSnapshot =
                   (MetadataUpdate.AddSnapshot) appendSnapshot.get();
-              String manifestListLocation = addSnapshot.snapshot().manifestListLocation();
+              String manifestListLocation = addSnapshot.snapshot().rootLocation();
               assertThat(catalog.loadTable(TABLE).io().newInputFile(manifestListLocation).exists())
                   .isTrue();
             });
@@ -2821,7 +2821,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                           .findFirst())
                   .hasValueSatisfying(
                       addSnapshot -> {
-                        String manifestListLocation = addSnapshot.snapshot().manifestListLocation();
+                        String manifestListLocation = addSnapshot.snapshot().rootLocation();
                         // Files should still exist because we don't know if commit succeeded
                         assertThat(
                                 catalog
@@ -2869,7 +2869,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               assertThat(appendSnapshot).isPresent();
               MetadataUpdate.AddSnapshot addSnapshot =
                   (MetadataUpdate.AddSnapshot) appendSnapshot.get();
-              String manifestListLocation = addSnapshot.snapshot().manifestListLocation();
+              String manifestListLocation = addSnapshot.snapshot().rootLocation();
               assertThatThrownBy(
                       () -> catalog.loadTable(TABLE).io().newInputFile(manifestListLocation))
                   .isInstanceOf(NotFoundException.class)
@@ -2912,7 +2912,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
               MetadataUpdate.AddSnapshot addSnapshot =
                   (MetadataUpdate.AddSnapshot) appendSnapshot.get();
-              String manifestListLocation = addSnapshot.snapshot().manifestListLocation();
+              String manifestListLocation = addSnapshot.snapshot().rootLocation();
               assertThat(catalog.loadTable(TABLE).io().newInputFile(manifestListLocation).exists())
                   .isTrue();
             });

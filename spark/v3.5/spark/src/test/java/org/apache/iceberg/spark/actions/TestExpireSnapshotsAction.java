@@ -626,7 +626,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     checkExpirationResults(1L, 0L, 0L, 1L, 2L, result);
 
     Set<String> expectedDeletes = Sets.newHashSet();
-    expectedDeletes.add(snapshotA.manifestListLocation());
+    expectedDeletes.add(snapshotA.rootLocation());
 
     // Files should be deleted of dangling staged snapshot
     SnapshotChanges.builderFor(table)
@@ -639,7 +639,7 @@ public class TestExpireSnapshotsAction extends TestBase {
             });
 
     // ManifestList should be deleted too
-    expectedDeletes.add(snapshotB.manifestListLocation());
+    expectedDeletes.add(snapshotB.rootLocation());
     snapshotB
         .dataManifests(table.io())
         .forEach(
@@ -820,7 +820,7 @@ public class TestExpireSnapshotsAction extends TestBase {
         .isNull();
     assertThat(deletedFiles)
         .as("Should remove only the expired manifest list location.")
-        .containsExactly(firstSnapshot.manifestListLocation());
+        .containsExactly(firstSnapshot.rootLocation());
 
     checkExpirationResults(0, 0, 0, 0, 1, result);
   }
@@ -870,12 +870,12 @@ public class TestExpireSnapshotsAction extends TestBase {
     assertThat(deletedFiles)
         .as("Should remove expired manifest lists and deleted data file.")
         .containsExactlyInAnyOrder(
-            firstSnapshot.manifestListLocation(), // snapshot expired
+            firstSnapshot.rootLocation(), // snapshot expired
             firstSnapshot
                 .allManifests(table.io())
                 .get(0)
                 .path(), // manifest was rewritten for delete
-            secondSnapshot.manifestListLocation(), // snapshot expired
+            secondSnapshot.rootLocation(), // snapshot expired
             secondSnapshot
                 .allManifests(table.io())
                 .get(0)
@@ -939,12 +939,12 @@ public class TestExpireSnapshotsAction extends TestBase {
     assertThat(deletedFiles)
         .as("Should remove expired manifest lists and deleted data file.")
         .containsExactlyInAnyOrder(
-            firstSnapshot.manifestListLocation(), // snapshot expired
+            firstSnapshot.rootLocation(), // snapshot expired
             firstSnapshot
                 .allManifests(table.io())
                 .get(0)
                 .path(), // manifest was rewritten for delete
-            secondSnapshot.manifestListLocation(), // snapshot expired
+            secondSnapshot.rootLocation(), // snapshot expired
             FILE_A.location());
     checkExpirationResults(1, 0, 0, 1, 2, result);
   }
@@ -998,7 +998,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     assertThat(deletedFiles)
         .as("Should remove expired manifest lists and reverted appended data file")
         .containsExactlyInAnyOrder(
-            secondSnapshot.manifestListLocation(), // snapshot expired
+            secondSnapshot.rootLocation(), // snapshot expired
             Iterables.getOnlyElement(secondSnapshotManifests).path());
 
     checkExpirationResults(0, 0, 0, 1, 1, result);
@@ -1049,7 +1049,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     assertThat(deletedFiles)
         .as("Should remove expired manifest lists and reverted appended data file")
         .containsExactlyInAnyOrder(
-            secondSnapshot.manifestListLocation(), // snapshot expired
+            secondSnapshot.rootLocation(), // snapshot expired
             Iterables.getOnlyElement(secondSnapshotManifests)
                 .path(), // manifest is no longer referenced
             FILE_B.location());
@@ -1094,10 +1094,10 @@ public class TestExpireSnapshotsAction extends TestBase {
 
     Set<String> expectedDeletes =
         Sets.newHashSet(
-            firstSnapshot.manifestListLocation(),
-            secondSnapshot.manifestListLocation(),
-            thirdSnapshot.manifestListLocation(),
-            fourthSnapshot.manifestListLocation(),
+            firstSnapshot.rootLocation(),
+            secondSnapshot.rootLocation(),
+            thirdSnapshot.rootLocation(),
+            fourthSnapshot.rootLocation(),
             FILE_A.location(),
             fileADeletes.location(),
             FILE_A_EQ_DELETES.location());
@@ -1172,7 +1172,7 @@ public class TestExpireSnapshotsAction extends TestBase {
 
     assertThat(pending.get(0).getPath())
         .as("Pending delete should be the expired manifest list location")
-        .isEqualTo(firstSnapshot.manifestListLocation());
+        .isEqualTo(firstSnapshot.rootLocation());
 
     assertThat(pending.get(0).getType())
         .as("Pending delete should be a manifest list")
@@ -1303,7 +1303,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     Set<String> expectedDeletes = Sets.newHashSet();
     expectedDeletes.addAll(ReachableFileUtil.manifestListLocations(table));
     // all snapshot manifest lists except current will be deleted
-    expectedDeletes.remove(table.currentSnapshot().manifestListLocation());
+    expectedDeletes.remove(table.currentSnapshot().rootLocation());
     expectedDeletes.addAll(
         manifestsBefore); // new manifests are reachable from current snapshot and not deleted
     expectedDeletes.addAll(

@@ -241,8 +241,9 @@ public class RewriteTablePathUtil {
       TableMetadata metadata, String sourcePrefix, String targetPrefix) {
     List<Snapshot> newSnapshots = Lists.newArrayListWithCapacity(metadata.snapshots().size());
     for (Snapshot snapshot : metadata.snapshots()) {
-      String newManifestListLocation =
-          newPath(snapshot.manifestListLocation(), sourcePrefix, targetPrefix);
+      String newRootLocation = newPath(snapshot.rootLocation(), sourcePrefix, targetPrefix);
+      boolean rootManifest =
+          snapshot.manifestListLocation() == null && snapshot.rootLocation() != null;
       Snapshot newSnapshot =
           new BaseSnapshot(
               snapshot.sequenceNumber(),
@@ -252,10 +253,11 @@ public class RewriteTablePathUtil {
               snapshot.operation(),
               snapshot.summary(),
               snapshot.schemaId(),
-              newManifestListLocation,
+              newRootLocation,
               snapshot.firstRowId(),
               snapshot.addedRows(),
-              snapshot.keyId());
+              snapshot.keyId(),
+              rootManifest);
       newSnapshots.add(newSnapshot);
     }
     return newSnapshots;
@@ -307,7 +309,7 @@ public class RewriteTablePathUtil {
           "{} of {} manifests in {} were not rewritten in this run and keep their source length",
           carriedOver,
           manifestFiles.size(),
-          snapshot.manifestListLocation());
+          snapshot.rootLocation());
     }
 
     EncryptionManager encryptionManager =
@@ -342,7 +344,7 @@ public class RewriteTablePathUtil {
       return result;
     } catch (IOException e) {
       throw new UncheckedIOException(
-          "Failed to rewrite the manifest list file " + snapshot.manifestListLocation(), e);
+          "Failed to rewrite the manifest list file " + snapshot.rootLocation(), e);
     }
   }
 
@@ -350,7 +352,7 @@ public class RewriteTablePathUtil {
     try {
       return snapshot.allManifests(io);
     } catch (RuntimeIOException e) {
-      LOG.warn("Failed to read manifest list {}", snapshot.manifestListLocation(), e);
+      LOG.warn("Failed to read manifest list {}", snapshot.rootLocation(), e);
       return ImmutableList.of();
     }
   }

@@ -67,8 +67,8 @@ class ReachableFileCleanup extends FileCleanupStrategy {
     for (Snapshot snapshot : snapshotsBeforeExpiration) {
       if (!snapshotsAfterExpiration.contains(snapshot)) {
         expiredSnapshots.add(snapshot);
-        if (snapshot.manifestListLocation() != null) {
-          manifestListsToDelete.add(snapshot.manifestListLocation());
+        if (snapshot.rootLocation() != null) {
+          manifestListsToDelete.add(snapshot.rootLocation());
         }
       }
     }
@@ -134,7 +134,7 @@ class ReachableFileCleanup extends FileCleanupStrategy {
                 }
               } catch (IOException e) {
                 throw new RuntimeIOException(
-                    e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
+                    e, "Failed to close manifest list: %s", snapshot.rootLocation());
               }
             });
 
@@ -160,7 +160,7 @@ class ReachableFileCleanup extends FileCleanupStrategy {
                 }
               } catch (IOException e) {
                 throw new RuntimeIOException(
-                    e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
+                    e, "Failed to close manifest list: %s", snapshot.rootLocation());
               }
             });
 
