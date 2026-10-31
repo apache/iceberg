@@ -3881,6 +3881,81 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .hasMessageContaining("Validation failed, please retry");
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void configuresCredentialsEndpointOnlyWithStorageCredentials(boolean hasCredentials)
+      throws IOException {
+    Credential credential =
+        ImmutableCredential.builder()
+            .prefix("s3://test-bucket/")
+            .putConfig("s3.access-key-id", "test-access-key")
+            .putConfig("s3.secret-access-key", "test-secret-key")
+            .build();
+
+    RESTCatalogAdapter adapter =
+        new RESTCatalogAdapter(backendCatalog) {
+          @SuppressWarnings("unchecked")
+          @Override
+          public <T extends RESTResponse> T handleRequest(
+              Route route,
+              Map<String, String> vars,
+              HTTPRequest httpRequest,
+              Class<T> responseType,
+              Consumer<Map<String, String>> responseHeaders) {
+            T response =
+                super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
+            if (route == Route.LOAD_TABLE && response instanceof LoadTableResponse loadResponse) {
+              LoadTableResponse.Builder builder =
+                  LoadTableResponse.builder()
+                      .withTableMetadata(loadResponse.tableMetadata())
+                      .addAllConfig(loadResponse.config())
+                      .addConfig("client.refresh-credentials-endpoint", "v1/legacy/credentials")
+                      .addConfig(RESTCatalogProperties.CREDENTIALS_ENDPOINT, "unresolved");
+              if (hasCredentials) {
+                builder.addCredential(credential);
+              } else {
+                builder.addConfig("s3.remote-signing-enabled", "true");
+              }
+              return (T) builder.build();
+            }
+            return response;
+          }
+        };
+
+    AtomicReference<Map<String, String>> fileIOProperties = new AtomicReference<>();
+    try (RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), config -> adapter) {
+          @Override
+          protected RESTSessionCatalog newSessionCatalog(
+              Function<Map<String, String>, RESTClient> clientBuilder) {
+            return new RESTSessionCatalog(
+                clientBuilder,
+                (context, config) -> {
+                  fileIOProperties.set(config);
+                  return new TestCatalogUtil.TestFileIOWithStorageCredentials();
+                });
+          }
+        }) {
+      String catalogUri = "https://catalog.example/api/catalog/";
+      catalog.initialize("test", ImmutableMap.of(CatalogProperties.URI, catalogUri));
+      assertThat(fileIOProperties.get())
+          .doesNotContainKey(RESTCatalogProperties.CREDENTIALS_ENDPOINT);
+      catalog.createNamespace(NS);
+      catalog.createTable(TABLE, SCHEMA);
+      catalog.loadTable(TABLE);
+
+      if (hasCredentials) {
+        assertThat(fileIOProperties.get())
+            .containsEntry(
+                RESTCatalogProperties.CREDENTIALS_ENDPOINT,
+                RESTUtil.resolveEndpoint(catalogUri, RESOURCE_PATHS.table(TABLE) + "/credentials"));
+      } else {
+        assertThat(fileIOProperties.get())
+            .doesNotContainKey(RESTCatalogProperties.CREDENTIALS_ENDPOINT);
+      }
+    }
+  }
+
   @Test
   public void testIoBuilderReceivesStorageCredentials() {
     Credential credential =

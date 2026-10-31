@@ -121,6 +121,54 @@ public class TestVendedCredentialsProvider {
   }
 
   @Test
+  public void resolvesRelativeCredentialsUri() {
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpResponse mockResponse =
+        response(
+                LoadCredentialsResponseParser.toJson(
+                    ImmutableLoadCredentialsResponse.builder().build()))
+            .withStatusCode(200);
+    mockServer.when(mockRequest).respond(mockResponse);
+
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(
+            ImmutableMap.of(
+                VendedCredentialsProvider.URI,
+                "/credentials",
+                CatalogProperties.URI,
+                CATALOG_URI))) {
+      assertThat(provider.fetchCredentials().credentials()).isEmpty();
+    }
+
+    mockServer.verify(mockRequest, VerificationTimes.once());
+  }
+
+  @Test
+  public void usesCatalogCredentialsEndpoint() {
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpResponse mockResponse =
+        response(
+                LoadCredentialsResponseParser.toJson(
+                    ImmutableLoadCredentialsResponse.builder().build()))
+            .withStatusCode(200);
+    mockServer.when(mockRequest).respond(mockResponse);
+
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(
+            ImmutableMap.of(
+                RESTCatalogProperties.CREDENTIALS_ENDPOINT,
+                CREDENTIALS_URI,
+                VendedCredentialsProvider.URI,
+                "https://legacy.example/wrong",
+                CatalogProperties.URI,
+                CATALOG_URI))) {
+      assertThat(provider.fetchCredentials().credentials()).isEmpty();
+    }
+
+    mockServer.verify(mockRequest, VerificationTimes.once());
+  }
+
+  @Test
   public void accessKeyIdAndSecretAccessKeyWithoutToken() {
     HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
     LoadCredentialsResponse response =
