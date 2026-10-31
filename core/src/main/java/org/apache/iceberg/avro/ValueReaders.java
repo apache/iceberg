@@ -310,6 +310,9 @@ public class ValueReaders {
     if (constant != null) {
       if (fieldId == MetadataColumns.ROW_ID.fieldId()) {
         return ValueReaders.rowIds((Long) constant, null);
+      } else if (fieldId == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()
+          && idToConstant.get(MetadataColumns.ROW_ID.fieldId()) == null) {
+        return ValueReaders.constant(null);
       }
       return ValueReaders.constant(constant);
     } else if (field.initialDefault() != null) {
