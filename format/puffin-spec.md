@@ -124,6 +124,19 @@ The blob metadata for this blob may include following properties:
   stored as non-negative integer value represented using decimal digits
   with no leading or trailing spaces.
 
+#### `apache-datasketches-hll-v1` blob type
+
+A serialized form of a "compact" HyperLogLog (HLL) sketch produced by the [Apache
+DataSketches](https://datasketches.apache.org/) library. The sketch is obtained
+by constructing an HLL sketch with default seed, and feeding it with individual
+distinct values converted to bytes using Iceberg's single-value serialization.
+
+The blob metadata for this blob may include following properties:
+
+- `ndv`: estimate of number of distinct values, derived from the sketch,
+  stored as non-negative integer value represented using decimal digits
+  with no leading or trailing spaces.
+
 #### `deletion-vector-v1` blob type
 
 A serialized delete vector (bitmap) that represents the positions of rows in a
