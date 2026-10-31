@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -61,7 +62,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.MemberDescription;
+import org.apache.kafka.common.ConsumerGroupState;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
@@ -78,7 +82,10 @@ class Coordinator extends Channel {
 
   private final Catalog catalog;
   private final IcebergSinkConfig config;
-  private final int totalPartitionCount;
+  private int totalPartitionCount;
+  private final AtomicLong assignmentRevision = new AtomicLong();
+  private Map<String, Set<TopicPartition>> cycleAssignments;
+  private long cycleAssignmentRevision;
   private final String snapshotOffsetsProp;
   private final ExecutorService exec;
   private final CommitState commitState;
@@ -125,6 +132,7 @@ class Coordinator extends Channel {
 
   void process() {
     if (commitState.isCommitIntervalReached()) {
+      refreshAssignments();
       // send out begin commit
       commitState.startNewCommit();
       Event event =
@@ -140,6 +148,69 @@ class Coordinator extends Channel {
     }
   }
 
+  private void refreshAssignments() {
+    this.cycleAssignments = null;
+    long revision = assignmentRevision.get();
+    Map<String, Set<TopicPartition>> assignments = sourceAssignments();
+    if (assignments != null && revision == assignmentRevision.get()) {
+      this.totalPartitionCount = assignments.values().stream().mapToInt(Set::size).sum();
+      this.cycleAssignmentRevision = revision;
+      this.cycleAssignments = assignments;
+    }
+  }
+
+  private Map<String, Set<TopicPartition>> sourceAssignments() {
+    try {
+      ConsumerGroupDescription description =
+          KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin());
+      if (description.state() != ConsumerGroupState.STABLE) {
+        LOG.info(
+            "Coordinator {} cannot verify assignment in group state {}",
+            taskId,
+            description.state());
+        return null;
+      }
+
+      Map<String, Set<TopicPartition>> assignments =
+          description.members().stream()
+              .collect(
+                  Collectors.toUnmodifiableMap(
+                      MemberDescription::consumerId,
+                      member -> Set.copyOf(member.assignment().topicPartitions())));
+      if (assignments.values().stream().allMatch(Set::isEmpty)) {
+        LOG.info("Coordinator {} cannot verify an empty assignment", taskId);
+        return null;
+      }
+
+      return assignments;
+    } catch (RuntimeException e) {
+      LOG.warn("Coordinator {} cannot verify the source assignment", taskId, e);
+      return null;
+    }
+  }
+
+  private boolean assignmentUnchanged() {
+    if (cycleAssignments == null) {
+      return false;
+    }
+
+    if (cycleAssignmentRevision != assignmentRevision.get()
+        || !cycleAssignments.equals(sourceAssignments())
+        || cycleAssignmentRevision != assignmentRevision.get()) {
+      this.cycleAssignments = null;
+      LOG.info(
+          "Coordinator {} assignment changed or is unverified; waiting for a partial commit",
+          taskId);
+      return false;
+    }
+
+    return true;
+  }
+
+  void assignmentChanged() {
+    assignmentRevision.incrementAndGet();
+  }
+
   @Override
   protected boolean receive(Envelope envelope) {
     switch (envelope.event().payload().type()) {
@@ -148,7 +219,7 @@ class Coordinator extends Channel {
         return true;
       case DATA_COMPLETE:
         commitState.addReady(envelope);
-        if (commitState.isCommitReady(totalPartitionCount)) {
+        if (commitState.isCommitReady(totalPartitionCount) && assignmentUnchanged()) {
           commit(false);
         }
         return true;
