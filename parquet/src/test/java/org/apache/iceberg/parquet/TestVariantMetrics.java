@@ -132,6 +132,30 @@ public class TestVariantMetrics {
         Variants.ofUUID("f24f9b64-81fa-49d1-b74e-8c09a6e31c56"),
       };
 
+  @Test
+  void missingShreddedFieldWithNonNullVariants() throws IOException {
+    VariantMetadata metadata =
+        VariantMetadata.from(VariantTestUtil.createMetadata(Set.of("event_id"), true));
+    ShreddedObject present = Variants.object(metadata);
+    present.put("event_id", Variants.of(34));
+    ShreddedObject missing = Variants.object(metadata);
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(present),
+            Variant.of(metadata, present),
+            Variant.of(metadata, missing));
+
+    assertThat(metrics.recordCount()).isEqualTo(2L);
+    assertThat(metrics.valueCounts()).containsEntry(2, 2L);
+    assertThat(metrics.nullValueCounts()).containsEntry(2, 0L);
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get("$['event_id']"))
+        .isEqualTo(Variants.of(34));
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get("$['event_id']"))
+        .isEqualTo(Variants.of(34));
+  }
+
   @ParameterizedTest
   @FieldSource("PRIMITIVES")
   public void testShreddedPrimitiveTypes(VariantValue value) throws IOException {
