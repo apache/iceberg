@@ -26,11 +26,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.lang.management.ManagementFactory;
 import java.lang.reflect.Field;
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -195,17 +199,21 @@ public class TestCoordinator extends ChannelTestBase {
     SinkTaskContext context = mock(SinkTaskContext.class);
     Coordinator coordinator =
         new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
-    coordinator.start();
-    initConsumer();
+    try {
+      coordinator.start();
+      initConsumer();
 
-    // first two failures should not throw
-    triggerCommitCycle(coordinator);
-    triggerCommitCycle(coordinator);
+      // first two failures should not throw
+      triggerCommitCycle(coordinator);
+      triggerCommitCycle(coordinator);
 
-    // third consecutive failure should terminate
-    assertThatThrownBy(() -> triggerCommitCycle(coordinator))
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining("transient error");
+      // third consecutive failure should terminate
+      assertThatThrownBy(() -> triggerCommitCycle(coordinator))
+          .isInstanceOf(CommitFailedException.class)
+          .hasMessageContaining("transient error");
+    } finally {
+      shutdown(coordinator);
+    }
   }
 
   @Test
@@ -241,24 +249,28 @@ public class TestCoordinator extends ChannelTestBase {
     SinkTaskContext context = mock(SinkTaskContext.class);
     Coordinator coordinator =
         new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
-    coordinator.start();
-    initConsumer();
+    try {
+      coordinator.start();
+      initConsumer();
 
-    // two failures (counter = 1, 2)
-    triggerCommitCycle(coordinator);
-    triggerCommitCycle(coordinator);
+      // two failures (counter = 1, 2)
+      triggerCommitCycle(coordinator);
+      triggerCommitCycle(coordinator);
 
-    // success resets counter to 0
-    triggerCommitCycle(coordinator);
+      // success resets counter to 0
+      triggerCommitCycle(coordinator);
 
-    // two more failures — still under threshold (counter = 1, 2)
-    triggerCommitCycle(coordinator);
-    triggerCommitCycle(coordinator);
+      // two more failures — still under threshold (counter = 1, 2)
+      triggerCommitCycle(coordinator);
+      triggerCommitCycle(coordinator);
 
-    // third failure after reset — terminates (counter = 3), proving reset happened
-    assertThatThrownBy(() -> triggerCommitCycle(coordinator))
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining("transient error");
+      // third failure after reset — terminates (counter = 3), proving reset happened
+      assertThatThrownBy(() -> triggerCommitCycle(coordinator))
+          .isInstanceOf(CommitFailedException.class)
+          .hasMessageContaining("transient error");
+    } finally {
+      shutdown(coordinator);
+    }
   }
 
   @Test
@@ -277,16 +289,20 @@ public class TestCoordinator extends ChannelTestBase {
     SinkTaskContext context = mock(SinkTaskContext.class);
     Coordinator coordinator =
         new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
-    coordinator.start();
-    initConsumer();
+    try {
+      coordinator.start();
+      initConsumer();
 
-    // first failure is retried
-    triggerCommitCycle(coordinator);
+      // first failure is retried
+      triggerCommitCycle(coordinator);
 
-    // second consecutive failure terminates
-    assertThatThrownBy(() -> triggerCommitCycle(coordinator))
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining("concurrent update");
+      // second consecutive failure terminates
+      assertThatThrownBy(() -> triggerCommitCycle(coordinator))
+          .isInstanceOf(CommitFailedException.class)
+          .hasMessageContaining("concurrent update");
+    } finally {
+      shutdown(coordinator);
+    }
   }
 
   private long nextOffset = 1;
@@ -324,37 +340,43 @@ public class TestCoordinator extends ChannelTestBase {
   @Test
   public void testCommitConsumerOffsetsDoesNotRewind() {
     Coordinator coordinator = startCoordinator();
+    try {
+      long healthyWatermark = 100L;
+      coordinator.controlTopicOffsets().put(0, healthyWatermark);
+      coordinator.commitConsumerOffsets();
 
-    long healthyWatermark = 100L;
-    coordinator.controlTopicOffsets().put(0, healthyWatermark);
-    coordinator.commitConsumerOffsets();
+      coordinator.controlTopicOffsets().put(0, 5L);
+      coordinator.commitConsumerOffsets();
 
-    coordinator.controlTopicOffsets().put(0, 5L);
-    coordinator.commitConsumerOffsets();
-
-    assertThat(lastCommittedOffset(0))
-        .as("commitConsumerOffsets should not rewind the -coord consumer group offsets")
-        .isEqualTo(healthyWatermark);
+      assertThat(lastCommittedOffset(0))
+          .as("commitConsumerOffsets should not rewind the -coord consumer group offsets")
+          .isEqualTo(healthyWatermark);
+    } finally {
+      shutdown(coordinator);
+    }
   }
 
   @Test
   public void testFencedCoordinatorCannotCommitOffsets() {
     Coordinator coordinator = startCoordinator();
+    try {
+      coordinator.controlTopicOffsets().put(0, 100L);
+      coordinator.commitConsumerOffsets();
 
-    coordinator.controlTopicOffsets().put(0, 100L);
-    coordinator.commitConsumerOffsets();
+      producer.fenceProducer();
 
-    producer.fenceProducer();
+      coordinator.controlTopicOffsets().put(0, 150L);
+      assertThatThrownBy(coordinator::commitConsumerOffsets)
+          .as("a fenced coordinator must not be able to commit offsets")
+          .isInstanceOf(ProducerFencedException.class)
+          .hasMessageContaining("fenced");
 
-    coordinator.controlTopicOffsets().put(0, 150L);
-    assertThatThrownBy(coordinator::commitConsumerOffsets)
-        .as("a fenced coordinator must not be able to commit offsets")
-        .isInstanceOf(ProducerFencedException.class)
-        .hasMessageContaining("fenced");
-
-    assertThat(lastCommittedOffset(0))
-        .as("the fenced coordinator's offset must never reach the offset store")
-        .isEqualTo(100L);
+      assertThat(lastCommittedOffset(0))
+          .as("the fenced coordinator's offset must never reach the offset store")
+          .isEqualTo(100L);
+    } finally {
+      shutdown(coordinator);
+    }
   }
 
   @Test
@@ -371,84 +393,106 @@ public class TestCoordinator extends ChannelTestBase {
 
     CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator);
     coordinatorThread.start();
-    coordinatorThread.join(5000);
+    try {
+      coordinatorThread.join(5000);
 
-    assertThat(coordinatorThread.isTerminated()).isTrue();
-    assertThat(coordinatorThread.isFenced())
-        .as("a real coordinator whose producer was fenced must report as fenced")
-        .isTrue();
+      assertThat(coordinatorThread.isTerminated()).isTrue();
+      assertThat(coordinatorThread.isFenced())
+          .as("a real coordinator whose producer was fenced must report as fenced")
+          .isTrue();
 
-    CommitterImpl committer = new CommitterImpl();
-    Field field = CommitterImpl.class.getDeclaredField("coordinatorThread");
-    field.setAccessible(true);
-    field.set(committer, coordinatorThread);
+      CommitterImpl committer = new CommitterImpl();
+      Field field = CommitterImpl.class.getDeclaredField("coordinatorThread");
+      field.setAccessible(true);
+      field.set(committer, coordinatorThread);
 
-    committer.save(Collections.emptyList());
+      committer.save(Collections.emptyList());
 
-    assertThat(field.get(committer))
-        .as("committer must clear a fenced coordinator instead of failing the task")
-        .isNull();
+      assertThat(field.get(committer))
+          .as("committer must clear a fenced coordinator instead of failing the task")
+          .isNull();
+
+      Field execField = Coordinator.class.getDeclaredField("exec");
+      execField.setAccessible(true);
+      assertThat(((ExecutorService) execField.get(coordinator)).isShutdown())
+          .as("clearing a fenced coordinator must shut down its commit thread pool")
+          .isTrue();
+    } finally {
+      // The thread owns coordinator.stop(), which runs as its run loop exits, so stop the thread
+      // and wait for it rather than calling stop() concurrently from the test thread.
+      coordinatorThread.terminate();
+      coordinatorThread.join(5000);
+    }
   }
 
   @Test
   public void testCommitNewConsumerAdvances() {
     Coordinator coordinator = startCoordinator();
+    try {
+      long newWatermark = 5L;
+      coordinator.controlTopicOffsets().put(0, newWatermark);
+      coordinator.commitConsumerOffsets();
 
-    long newWatermark = 5L;
-    coordinator.controlTopicOffsets().put(0, newWatermark);
-    coordinator.commitConsumerOffsets();
-
-    assertThat(lastCommittedOffset(0))
-        .as("commitConsumerOffsets should advance offsets on its first commit")
-        .isEqualTo(newWatermark);
+      assertThat(lastCommittedOffset(0))
+          .as("commitConsumerOffsets should advance offsets on its first commit")
+          .isEqualTo(newWatermark);
+    } finally {
+      shutdown(coordinator);
+    }
   }
 
   @Test
   public void testCommitConsumerAdvances() {
     Coordinator coordinator = startCoordinator();
+    try {
+      long healthyWatermark = 100L;
+      coordinator.controlTopicOffsets().put(0, healthyWatermark);
+      coordinator.commitConsumerOffsets();
 
-    long healthyWatermark = 100L;
-    coordinator.controlTopicOffsets().put(0, healthyWatermark);
-    coordinator.commitConsumerOffsets();
+      long watermarkToCommit = 105L;
+      coordinator.controlTopicOffsets().put(0, watermarkToCommit);
+      coordinator.commitConsumerOffsets();
 
-    long watermarkToCommit = 105L;
-    coordinator.controlTopicOffsets().put(0, watermarkToCommit);
-    coordinator.commitConsumerOffsets();
-
-    assertThat(lastCommittedOffset(0))
-        .as("commitConsumerOffsets should advance offsets when its value is greater")
-        .isEqualTo(watermarkToCommit);
+      assertThat(lastCommittedOffset(0))
+          .as("commitConsumerOffsets should advance offsets when its value is greater")
+          .isEqualTo(watermarkToCommit);
+    } finally {
+      shutdown(coordinator);
+    }
   }
 
   @Test
   public void testCommitConsumerMixedPartitionsRewindOrAdvance() {
     Coordinator coordinator = startCoordinator();
+    try {
+      long healthyWatermark0 = 100L;
+      long healthWatermark1 = 200L;
+      TopicPartition ctl0 = new TopicPartition(CTL_TOPIC_NAME, 0);
+      TopicPartition ctl1 = new TopicPartition(CTL_TOPIC_NAME, 1);
 
-    long healthyWatermark0 = 100L;
-    long healthWatermark1 = 200L;
-    TopicPartition ctl0 = new TopicPartition(CTL_TOPIC_NAME, 0);
-    TopicPartition ctl1 = new TopicPartition(CTL_TOPIC_NAME, 1);
+      consumer.rebalance(ImmutableList.of(ctl0, ctl1));
+      consumer.updateBeginningOffsets(ImmutableMap.of(ctl0, 0L, ctl1, 0L));
 
-    consumer.rebalance(ImmutableList.of(ctl0, ctl1));
-    consumer.updateBeginningOffsets(ImmutableMap.of(ctl0, 0L, ctl1, 0L));
+      coordinator.controlTopicOffsets().put(0, healthyWatermark0);
+      coordinator.controlTopicOffsets().put(1, healthWatermark1);
+      coordinator.commitConsumerOffsets();
 
-    coordinator.controlTopicOffsets().put(0, healthyWatermark0);
-    coordinator.controlTopicOffsets().put(1, healthWatermark1);
-    coordinator.commitConsumerOffsets();
+      long watermarkToCommit = 105L;
+      long watermarkToSkip = 195L;
+      coordinator.controlTopicOffsets().put(0, watermarkToCommit);
+      coordinator.controlTopicOffsets().put(1, watermarkToSkip);
+      coordinator.commitConsumerOffsets();
 
-    long watermarkToCommit = 105L;
-    long watermarkToSkip = 195L;
-    coordinator.controlTopicOffsets().put(0, watermarkToCommit);
-    coordinator.controlTopicOffsets().put(1, watermarkToSkip);
-    coordinator.commitConsumerOffsets();
+      assertThat(lastCommittedOffset(0))
+          .as("commitConsumerOffsets should advance the consumer group offsets")
+          .isEqualTo(watermarkToCommit);
 
-    assertThat(lastCommittedOffset(0))
-        .as("commitConsumerOffsets should advance the consumer group offsets")
-        .isEqualTo(watermarkToCommit);
-
-    assertThat(lastCommittedOffset(1))
-        .as("commitConsumerOffsets should not rewind consumer group offsets")
-        .isEqualTo(healthWatermark1);
+      assertThat(lastCommittedOffset(1))
+          .as("commitConsumerOffsets should not rewind consumer group offsets")
+          .isEqualTo(healthWatermark1);
+    } finally {
+      shutdown(coordinator);
+    }
   }
 
   private Long lastCommittedOffset(int partition) {
@@ -471,6 +515,15 @@ public class TestCoordinator extends ChannelTestBase {
     coordinator.start();
     initConsumer();
     return coordinator;
+  }
+
+  // Nested so stop() still runs, and unregisters the MBeans, when terminate() throws.
+  private static void shutdown(Coordinator coordinator) {
+    try {
+      coordinator.terminate();
+    } finally {
+      coordinator.stop();
+    }
   }
 
   private void assertCommitTable(int idx, UUID commitId, OffsetDateTime ts) {
@@ -501,47 +554,51 @@ public class TestCoordinator extends ChannelTestBase {
     SinkTaskContext context = mock(SinkTaskContext.class);
     Coordinator coordinator =
         new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
-    coordinator.start();
+    try {
+      coordinator.start();
 
-    // init consumer after subscribe()
-    initConsumer();
+      // init consumer after subscribe()
+      initConsumer();
 
-    coordinator.process();
+      coordinator.process();
 
-    assertThat(producer.transactionCommitted()).isTrue();
-    assertThat(producer.history()).hasSize(1);
+      assertThat(producer.transactionCommitted()).isTrue();
+      assertThat(producer.history()).hasSize(1);
 
-    byte[] bytes = producer.history().get(0).value();
-    Event commitRequest = AvroUtil.decode(bytes);
-    assertThat(commitRequest.type()).isEqualTo(PayloadType.START_COMMIT);
+      byte[] bytes = producer.history().get(0).value();
+      Event commitRequest = AvroUtil.decode(bytes);
+      assertThat(commitRequest.type()).isEqualTo(PayloadType.START_COMMIT);
 
-    UUID commitId = ((StartCommit) commitRequest.payload()).commitId();
+      UUID commitId = ((StartCommit) commitRequest.payload()).commitId();
 
-    Event commitResponse =
-        new Event(
-            config.connectGroupId(),
-            new DataWritten(
-                StructType.of(),
-                commitId,
-                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
-                dataFiles,
-                deleteFiles));
-    bytes = AvroUtil.encode(commitResponse);
-    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
+      Event commitResponse =
+          new Event(
+              config.connectGroupId(),
+              new DataWritten(
+                  StructType.of(),
+                  commitId,
+                  TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
+                  dataFiles,
+                  deleteFiles));
+      bytes = AvroUtil.encode(commitResponse);
+      consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
 
-    Event commitReady =
-        new Event(
-            config.connectGroupId(),
-            new DataComplete(
-                commitId, ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, ts))));
-    bytes = AvroUtil.encode(commitReady);
-    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", bytes));
+      Event commitReady =
+          new Event(
+              config.connectGroupId(),
+              new DataComplete(
+                  commitId, ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, ts))));
+      bytes = AvroUtil.encode(commitReady);
+      consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", bytes));
 
-    when(config.commitIntervalMs()).thenReturn(0);
+      when(config.commitIntervalMs()).thenReturn(0);
 
-    coordinator.process();
+      coordinator.process();
 
-    return commitId;
+      return commitId;
+    } finally {
+      shutdown(coordinator);
+    }
   }
 
   @Test
@@ -558,31 +615,35 @@ public class TestCoordinator extends ChannelTestBase {
     SinkTaskContext context = mock(SinkTaskContext.class);
     Coordinator coordinator =
         new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
-    coordinator.start();
+    try {
+      coordinator.start();
 
-    initConsumer();
+      initConsumer();
 
-    coordinator.process();
+      coordinator.process();
 
-    assertThat(coordinator.partialCommitFailureCount()).isEqualTo(0);
+      assertThat(coordinator.partialCommitFailureCount()).isEqualTo(0);
 
-    UUID commitId =
-        ((StartCommit) AvroUtil.decode(producer.history().get(0).value()).payload()).commitId();
-    Event commitResponse =
-        new Event(
-            config.connectGroupId(),
-            new DataWritten(
-                StructType.of(),
-                commitId,
-                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
-                ImmutableList.of(EventTestUtil.createDataFile()),
-                ImmutableList.of()));
-    byte[] bytes = AvroUtil.encode(commitResponse);
-    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
+      UUID commitId =
+          ((StartCommit) AvroUtil.decode(producer.history().get(0).value()).payload()).commitId();
+      Event commitResponse =
+          new Event(
+              config.connectGroupId(),
+              new DataWritten(
+                  StructType.of(),
+                  commitId,
+                  TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
+                  ImmutableList.of(EventTestUtil.createDataFile()),
+                  ImmutableList.of()));
+      byte[] bytes = AvroUtil.encode(commitResponse);
+      consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
 
-    coordinator.process();
+      coordinator.process();
 
-    assertThat(coordinator.partialCommitFailureCount()).isEqualTo(1);
+      assertThat(coordinator.partialCommitFailureCount()).isEqualTo(1);
+    } finally {
+      shutdown(coordinator);
+    }
   }
 
   @Test
@@ -675,5 +736,26 @@ public class TestCoordinator extends ChannelTestBase {
     table.refresh();
     assertThat(table.snapshots()).hasSize(2);
     assertThat(table.currentSnapshot().summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":7}");
+  }
+
+  @Test
+  public void testCoordinatorRegistersJmxMetrics() throws Exception {
+    String connector = "jmx-coord-connector-" + UUID.randomUUID();
+    when(config.connectorName()).thenReturn(connector);
+
+    SinkTaskContext taskContext = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, taskContext);
+    MBeanServer server = ManagementFactory.getPlatformMBeanServer();
+    ObjectName name =
+        new ObjectName(
+            "iceberg.kafka.connect:type=coordinator-metrics,connector=" + connector + ",*");
+    try {
+      assertThat(server.queryNames(name, null)).isNotEmpty();
+    } finally {
+      shutdown(coordinator);
+    }
+    // stop() must unregister the MBeans, else a task restart hits InstanceAlreadyExistsException
+    assertThat(server.queryNames(name, null)).isEmpty();
   }
 }
