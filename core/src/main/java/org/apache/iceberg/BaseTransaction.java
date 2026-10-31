@@ -310,10 +310,6 @@ public class BaseTransaction implements Transaction {
 
   private void commitReplaceTransaction(boolean orCreate) {
     Map<String, String> props = base != null ? base.properties() : current.properties();
-    Set<Long> startingSnapshots =
-        base != null
-            ? base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet())
-            : Sets.newHashSet();
 
     try {
       Tasks.foreach(ops)
@@ -347,7 +343,7 @@ public class BaseTransaction implements Transaction {
     }
 
     if (!deletedFiles.isEmpty()) {
-      cleanUpAfterCommit(startingSnapshots);
+      cleanUpAfterCommit();
     }
   }
 
@@ -428,10 +424,10 @@ public class BaseTransaction implements Transaction {
     }
 
     // the commit succeeded
-    cleanUpAfterCommit(startingSnapshots);
+    cleanUpAfterCommit();
   }
 
-  private void cleanUpAfterCommit(Set<Long> startingSnapshots) {
+  private void cleanUpAfterCommit() {
     try {
       // clean up the data files that were deleted by each operation. first, get the list of
       // committed manifests to ensure that no committed manifest is deleted.
@@ -439,7 +435,9 @@ public class BaseTransaction implements Transaction {
       // successful commit of that operation if the whole transaction is retried.
       // only snapshots added on top of the committed base can reference this transaction's files
       Set<Long> startingSnapshots =
-          base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+          base != null
+              ? base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet())
+              : Sets.newHashSet();
       Set<Snapshot> newSnapshots = Sets.newHashSet();
       for (Snapshot snapshot : current.snapshots()) {
         if (!startingSnapshots.contains(snapshot.snapshotId())) {
