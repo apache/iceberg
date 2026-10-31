@@ -38,7 +38,6 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.BaseDeleteLoader;
 import org.apache.iceberg.data.DeleteLoader;
-import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.flink.TableLoader;
@@ -75,10 +74,8 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
 
   private transient Table table;
   private transient Schema keySchema;
-  private transient StructLikeSerializer fieldSerializer;
-  // Generic records hold java.time values; the serializer expects Iceberg's internal
-  // representation (e.g. days for DATE, micros for TIMESTAMP).
-  private transient InternalRecordWrapper keyWrapper;
+  private transient StructLikeSerializer partitionSerializer;
+  private transient RecordSerializer keySerializer;
   private transient DeleteLoader deleteLoader;
 
   public EqualityConvertReader(
@@ -105,8 +102,8 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
         TypeUtil.getProjectedIds(keySchema).containsAll(eqFieldIds),
         "Equality field IDs %s not present in table schema",
         eqFieldIds);
-    fieldSerializer = new StructLikeSerializer();
-    keyWrapper = new InternalRecordWrapper(keySchema.asStruct());
+    partitionSerializer = new StructLikeSerializer();
+    keySerializer = new RecordSerializer(keySchema.asStruct());
     deleteLoader = new BaseDeleteLoader(deleteFile -> table.io().newInputFile(deleteFile));
   }
 
@@ -155,7 +152,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
     // Use the planner-serialized task spec, not the reader's table, which is loaded once and may
     // lack specs added after startup.
     Types.StructType partitionType = task.spec().partitionType();
-    byte[] partitionBytes = fieldSerializer.encodePartition(partition, partitionType);
+    byte[] partitionBytes = partitionSerializer.encodePartition(partition, partitionType);
 
     InputFile input = table.io().newInputFile(file.location());
     ReadBuilder<Record, Schema> builder =
@@ -170,8 +167,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
           continue;
         }
 
-        SerializedEqualityValues key =
-            fieldSerializer.serializeKey(keyWrapper.wrap(record), keySchema.asStruct());
+        SerializedEqualityValues key = keySerializer.serializeKey(record);
         out.collect(
             IndexCommand.addDataRow(
                 mainSnapshotId,
@@ -207,8 +203,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
         FormatModelRegistry.readBuilder(file.format(), Record.class, input);
     try (CloseableIterable<Record> records = builder.project(keySchema).reuseContainers().build()) {
       for (Record record : records) {
-        SerializedEqualityValues key =
-            fieldSerializer.serializeKey(keyWrapper.wrap(record), keySchema.asStruct());
+        SerializedEqualityValues key = keySerializer.serializeKey(record);
         out.collect(
             IndexCommand.resolveDelete(
                 mainSnapshotId, indexGeneration, key, dataSequenceNumber, deleteSpecId));
