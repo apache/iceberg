@@ -30,6 +30,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import org.apache.iceberg.io.CloseableGroup;
@@ -78,6 +79,12 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     return iter;
   }
 
+  private static void wakeUpConsumer(Semaphore taskSignal) {
+    if (taskSignal.availablePermits() == 0) {
+      taskSignal.release();
+    }
+  }
+
   @VisibleForTesting
   static class ParallelIterator<T> implements CloseableIterator<T> {
     private final Iterator<Task<T>> tasks;
@@ -85,6 +92,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     private final ExecutorService workerPool;
     private final CompletableFuture<Optional<Task<T>>>[] taskFutures;
     private final ConcurrentLinkedQueue<T> queue = new ConcurrentLinkedQueue<>();
+    private final Semaphore taskSignal = new Semaphore(0);
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final int maxQueueSize;
 
@@ -93,7 +101,8 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       Preconditions.checkArgument(maxQueueSize > 0, "Max queue size must be greater than 0");
       this.tasks =
           Iterables.transform(
-                  iterables, iterable -> new Task<>(iterable, queue, closed, maxQueueSize))
+                  iterables,
+                  iterable -> new Task<>(iterable, queue, closed, maxQueueSize, taskSignal))
               .iterator();
       this.workerPool = workerPool;
       // submit 2 tasks per worker at a time
@@ -106,6 +115,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     public void close() {
       // close first, avoid new task submit
       this.closed.set(true);
+      wakeUpConsumer(taskSignal);
 
       try (Closer closer = Closer.create()) {
         synchronized (this) {
@@ -182,13 +192,22 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       return !closed.get() && (tasks.hasNext() || hasRunningTask);
     }
 
+    @SuppressWarnings("FutureReturnValueIgnored")
     private CompletableFuture<Optional<Task<T>>> submitNextTask() {
       if (!closed.get()) {
+        Task<T> task;
         if (!yieldedTasks.isEmpty()) {
-          return CompletableFuture.supplyAsync(yieldedTasks.removeFirst(), workerPool);
+          task = yieldedTasks.removeFirst();
         } else if (tasks.hasNext()) {
-          return CompletableFuture.supplyAsync(tasks.next(), workerPool);
+          task = tasks.next();
+        } else {
+          return null;
         }
+
+        CompletableFuture<Optional<Task<T>>> future =
+            CompletableFuture.supplyAsync(task, workerPool);
+        future.whenComplete((continuation, failure) -> wakeUpConsumer(taskSignal));
+        return future;
       }
       return null;
     }
@@ -208,14 +227,19 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
 
       // this cannot conclude that there are no more records until tasks have finished. while some
       // are running, return true when there is at least one item to return.
-      while (checkTasks()) {
+      while (true) {
+        // Drain before checkTasks() so notifications received during the check are not lost.
+        taskSignal.drainPermits();
+        if (!checkTasks()) {
+          break;
+        }
+
         if (!queue.isEmpty()) {
           return true;
         }
 
         try {
-          Thread.sleep(10);
-
+          taskSignal.acquire();
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
           throw new RuntimeException(e);
@@ -242,6 +266,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
   }
 
   private static class Task<T> implements Supplier<Optional<Task<T>>>, Closeable {
+    private final Semaphore taskSignal;
     private final Iterable<T> input;
     private final ConcurrentLinkedQueue<T> queue;
     private final AtomicBoolean closed;
@@ -253,7 +278,9 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
         Iterable<T> input,
         ConcurrentLinkedQueue<T> queue,
         AtomicBoolean closed,
-        int approximateMaxQueueSize) {
+        int approximateMaxQueueSize,
+        Semaphore taskSignal) {
+      this.taskSignal = taskSignal;
       this.input = Preconditions.checkNotNull(input, "input cannot be null");
       this.queue = Preconditions.checkNotNull(queue, "queue cannot be null");
       this.closed = Preconditions.checkNotNull(closed, "closed cannot be null");
@@ -286,7 +313,9 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
             break;
           }
 
+          // Add to the queue before waking the consumer, or it may wait again and get stuck.
           queue.add(next);
+          wakeUpConsumer(taskSignal);
         }
       } catch (Throwable e) {
         try {
