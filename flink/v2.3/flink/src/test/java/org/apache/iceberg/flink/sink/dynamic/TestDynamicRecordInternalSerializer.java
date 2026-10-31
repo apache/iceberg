@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.io.IOException;
 import java.util.Collections;
+import org.apache.flink.api.common.serialization.SerializerConfigImpl;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.TypeSerializerSnapshot;
 import org.apache.flink.core.memory.DataInputDeserializer;
@@ -129,6 +130,31 @@ public class TestDynamicRecordInternalSerializer {
 
     assertThatCode(() -> serializer.serialize(record, output)).doesNotThrowAnyException();
     assertThat(output.length()).isGreaterThan(0);
+  }
+
+  @Test
+  void testCacheSizesFromType() {
+    DynamicRecordInternalType type =
+        new DynamicRecordInternalType(CATALOG_EXTENSION.catalogLoader(), true, 5, 3);
+    TypeSerializer<DynamicRecordInternal> internalTypeSerializer =
+        type.createSerializer(new SerializerConfigImpl());
+    assertThat(internalTypeSerializer).isInstanceOf(DynamicRecordInternalSerializer.class);
+    DynamicRecordInternalSerializer dynamicRecordInternalSerializer =
+        (DynamicRecordInternalSerializer) internalTypeSerializer;
+
+    assertThat(dynamicRecordInternalSerializer.getSerializerCache().maximumSize()).isEqualTo(5);
+    assertThat(
+            dynamicRecordInternalSerializer
+                .getSerializerCache()
+                .inputSchemasPerTableCacheMaximumSize())
+        .isEqualTo(3);
+
+    DynamicRecordInternalSerializer duplicate =
+        (DynamicRecordInternalSerializer) dynamicRecordInternalSerializer.duplicate();
+    assertThat(duplicate.getSerializerCache())
+        .isNotSameAs(dynamicRecordInternalSerializer.getSerializerCache());
+    assertThat(duplicate.getSerializerCache().maximumSize()).isEqualTo(5);
+    assertThat(duplicate.getSerializerCache().inputSchemasPerTableCacheMaximumSize()).isEqualTo(3);
   }
 
   @ParameterizedTest
