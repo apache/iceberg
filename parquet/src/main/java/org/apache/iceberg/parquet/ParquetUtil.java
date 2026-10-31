@@ -29,18 +29,23 @@ import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.encryption.NativeEncryptionInputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.ByteBuffers;
+import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.EncodingStats;
 import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReader;
+import org.apache.parquet.conf.PlainParquetConfiguration;
+import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
@@ -61,11 +66,28 @@ public class ParquetUtil {
 
   public static Metrics fileMetrics(
       InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping) {
-    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
+    try (ParquetFileReader reader = openFileReader(file)) {
       return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file.location());
     }
+  }
+
+  private static ParquetFileReader openFileReader(InputFile file) throws IOException {
+    if (file instanceof NativeEncryptionInputFile nativeFile) {
+      FileDecryptionProperties decryptionProperties =
+          FileDecryptionProperties.builder()
+              .withFooterKey(ByteBuffers.toByteArray(nativeFile.keyMetadata().encryptionKey()))
+              .withAADPrefix(ByteBuffers.toByteArray(nativeFile.keyMetadata().aadPrefix()))
+              .build();
+      ParquetReadOptions options =
+          ParquetReadOptions.builder(new PlainParquetConfiguration())
+              .withDecryption(decryptionProperties)
+              .build();
+      return ParquetFileReader.open(ParquetIO.file(nativeFile.encryptedInputFile()), options);
+    }
+
+    return ParquetFileReader.open(ParquetIO.file(file));
   }
 
   public static Metrics footerMetrics(
