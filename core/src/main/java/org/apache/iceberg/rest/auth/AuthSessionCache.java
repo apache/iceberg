@@ -28,7 +28,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.Uninterruptibles;
-import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,18 +43,16 @@ public class AuthSessionCache implements AutoCloseable {
   private volatile Cache<String, AuthSession> sessionCache;
 
   /**
-   * Creates a new cache with the given session timeout, and with default executor and default
-   * ticker for eviction tasks.
+   * Creates a new cache with the given session timeout, and with Caffeine's default executor and
+   * the default ticker for eviction tasks.
    *
-   * @param name a distinctive name for the cache.
+   * @param name a distinctive name for the cache. Retained for API compatibility; no dedicated
+   *     thread pool is created, so eviction tasks run on Caffeine's default executor.
    * @param sessionTimeout the session timeout. Sessions will become eligible for eviction after
    *     this duration of inactivity.
    */
   public AuthSessionCache(String name, Duration sessionTimeout) {
-    this(
-        sessionTimeout,
-        ThreadPools.newExitingWorkerPool(name + "-auth-session-evict", 1),
-        Ticker.systemTicker());
+    this(sessionTimeout, null, Ticker.systemTicker());
   }
 
   /**
@@ -64,14 +61,19 @@ public class AuthSessionCache implements AutoCloseable {
    *
    * @param sessionTimeout the session timeout. Sessions will become eligible for eviction after
    *     this duration of inactivity.
-   * @param executor the executor to use for eviction tasks; if null, the cache will create a
-   *     default executor. The executor will be closed when this cache is closed.
+   * @param executor the executor to use for eviction tasks; if null, Caffeine's default executor is
+   *     used. An {@link ExecutorService} executor is shut down when this cache is closed.
    * @param ticker the ticker to use for the cache.
    */
   AuthSessionCache(Duration sessionTimeout, Executor executor, Ticker ticker) {
     this.sessionTimeout = sessionTimeout;
     this.executor = executor;
     this.ticker = ticker;
+  }
+
+  @VisibleForTesting
+  Executor executor() {
+    return executor;
   }
 
   /**
@@ -125,7 +127,6 @@ public class AuthSessionCache implements AutoCloseable {
   private Cache<String, AuthSession> newSessionCache() {
     Caffeine<String, AuthSession> builder =
         Caffeine.newBuilder()
-            .executor(executor)
             .expireAfterAccess(sessionTimeout)
             .ticker(ticker)
             .removalListener(
@@ -134,6 +135,10 @@ public class AuthSessionCache implements AutoCloseable {
                     auth.close();
                   }
                 });
+
+    if (executor != null) {
+      builder.executor(executor);
+    }
 
     return builder.build();
   }
