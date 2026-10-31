@@ -19,10 +19,13 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
@@ -35,6 +38,8 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.types.Types;
@@ -156,6 +161,147 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     tableUpdater.update(
         tableIdentifier, "myBranch", SCHEMA, PartitionSpec.unpartitioned(), TableCreator.DEFAULT);
     assertThat(cache.getInternalCache()).contains(Map.entry(tableIdentifier, cacheItem));
+  }
+
+  @Test
+  void testNamespaceIsCreatedWhenTheCacheAlreadyHoldsTheMissingTable() {
+    // A catalog that reports a table in a missing namespace as NoSuchNamespaceException.
+    InMemoryCatalog catalog =
+        new InMemoryCatalog() {
+          @Override
+          public Table loadTable(TableIdentifier identifier) {
+            if (!namespaceExists(identifier.namespace())) {
+              throw new NoSuchNamespaceException(
+                  "Namespace does not exist: %s", identifier.namespace());
+            }
+
+            return super.loadTable(identifier);
+          }
+        };
+    catalog.initialize("catalog", Map.of());
+    Namespace namespace = Namespace.of("cached_namespace");
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, "myTable");
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    // The record processor asks the cache whether the table exists before it calls the updater, so
+    // the
+    // updater is given the cached answer, which does not carry the exception of the lookup.
+    Tuple2<Boolean, Exception> first = cache.exists(tableIdentifier);
+    assertThat(first.f0).isFalse();
+    assertThat(first.f1).isInstanceOf(NoSuchNamespaceException.class);
+    assertThat(cache.exists(tableIdentifier).f1).isNull();
+
+    tableUpdater.update(
+        tableIdentifier,
+        SnapshotRef.MAIN_BRANCH,
+        SCHEMA,
+        PartitionSpec.unpartitioned(),
+        TableCreator.DEFAULT);
+
+    assertThat(catalog.namespaceExists(namespace)).isTrue();
+    assertThat(catalog.tableExists(tableIdentifier)).isTrue();
+  }
+
+  private static Catalog catalogWithoutNamespaceSupport(Supplier<RuntimeException> lookupFailure) {
+    return new Catalog() {
+      @Override
+      public List<TableIdentifier> listTables(Namespace namespace) {
+        throw new UnsupportedOperationException();
+      }
+
+      @Override
+      public Table loadTable(TableIdentifier identifier) {
+        throw lookupFailure.get();
+      }
+
+      @Override
+      public boolean dropTable(TableIdentifier identifier, boolean purge) {
+        throw new UnsupportedOperationException();
+      }
+
+      @Override
+      public void renameTable(TableIdentifier from, TableIdentifier to) {
+        throw new UnsupportedOperationException();
+      }
+    };
+  }
+
+  @Test
+  void testMissingNamespaceOfCatalogWithoutNamespaceSupportFails() {
+    Catalog catalog =
+        catalogWithoutNamespaceSupport(
+            () -> new NoSuchNamespaceException("Namespace does not exist"));
+    TableIdentifier tableIdentifier =
+        TableIdentifier.of(Namespace.of("missing_namespace"), "myTable");
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    assertThatThrownBy(
+            () ->
+                tableUpdater.update(
+                    tableIdentifier,
+                    SnapshotRef.MAIN_BRANCH,
+                    SCHEMA,
+                    PartitionSpec.unpartitioned(),
+                    TableCreator.DEFAULT))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("does not support namespaces");
+  }
+
+  @Test
+  void testCatalogWithoutNamespaceSupportFailsWhateverTheLookupReported() {
+    Catalog catalog =
+        catalogWithoutNamespaceSupport(() -> new NoSuchTableException("Table does not exist"));
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("some_namespace"), "myTable");
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    // The first answer carries the exception of the lookup, the second one comes from the cache and
+    // carries none: both must fail the same way.
+    assertThat(cache.exists(tableIdentifier).f1).isInstanceOf(NoSuchTableException.class);
+    assertThat(cache.exists(tableIdentifier).f1).isNull();
+    assertThatThrownBy(
+            () ->
+                tableUpdater.update(
+                    tableIdentifier,
+                    SnapshotRef.MAIN_BRANCH,
+                    SCHEMA,
+                    PartitionSpec.unpartitioned(),
+                    TableCreator.DEFAULT))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("does not support namespaces");
+  }
+
+  @Test
+  void testUnexpectedFailureOfTheTableLookupIsNotSwallowed() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
+    RuntimeException failure = new RuntimeException("catalog unavailable");
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS) {
+          @Override
+          Tuple2<Boolean, Exception> exists(TableIdentifier identifier) {
+            return Tuple2.of(false, failure);
+          }
+        };
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    assertThatThrownBy(
+            () ->
+                tableUpdater.update(
+                    tableIdentifier,
+                    SnapshotRef.MAIN_BRANCH,
+                    SCHEMA,
+                    PartitionSpec.unpartitioned(),
+                    TableCreator.DEFAULT))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Unexpected failure looking up table")
+        .hasMessageContaining("catalog unavailable");
+    assertThat(catalog.tableExists(tableIdentifier)).isFalse();
   }
 
   @Test
@@ -452,5 +598,43 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     assertThat(catalog.tableExists(tableIdentifier)).isTrue();
     assertThat(result.f0.resolvedTableSchema().sameSchema(SCHEMA)).isTrue();
     assertThat(result.f0.compareResult()).isEqualTo(CompareSchemasVisitor.Result.SAME);
+  }
+
+  @Test
+  void testTableCreationWhenCatalogReportsMissingNamespaceAsNoSuchTable() {
+    // The Glue catalog answers a lookup in a database that does not exist with
+    // NoSuchTableException,
+    // not NoSuchNamespaceException, and then refuses to create the table.
+    InMemoryCatalog catalog =
+        new InMemoryCatalog() {
+          @Override
+          public Table loadTable(TableIdentifier identifier) {
+            if (!namespaceExists(identifier.namespace())) {
+              throw new NoSuchTableException("Table does not exist: %s", identifier);
+            }
+
+            return super.loadTable(identifier);
+          }
+        };
+    catalog.initialize("catalog", Map.of());
+    Namespace namespace = Namespace.of("glue_like_namespace");
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, "myTable");
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    assertThat(catalog.namespaceExists(namespace)).isFalse();
+
+    Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> result =
+        tableUpdater.update(
+            tableIdentifier,
+            SnapshotRef.MAIN_BRANCH,
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            TableCreator.DEFAULT);
+
+    assertThat(catalog.namespaceExists(namespace)).isTrue();
+    assertThat(catalog.tableExists(tableIdentifier)).isTrue();
+    assertThat(result.f0.resolvedTableSchema().sameSchema(SCHEMA)).isTrue();
   }
 }
