@@ -466,6 +466,42 @@ class TestFilePlanner {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  void leafReportingNoLiveFilesIsPruned(FileFormat format) throws IOException {
+    ManifestFile liveLeaf =
+        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(unpartitionedDataFile(FILE_A)));
+    String deadLeafLocation =
+        "s3://bucket/db/table/dead-leaf." + format.name().toLowerCase(Locale.ROOT);
+    TrackedFile deadLeafRef =
+        manifestRef(
+            FileContent.DATA_MANIFEST,
+            deadLeafLocation,
+            manifestInfo(0, 0, 0, 2, FORMAT_VERSION_V4));
+    ManifestFile root =
+        writeManifest(
+            format, EMPTY_PARTITION, ImmutableList.of(dataManifest(liveLeaf.path()), deadLeafRef));
+
+    FileIO io = Mockito.spy(fileIO);
+    ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
+    FilePlanner planner =
+        new FilePlanner(io, root, TABLE_SCHEMA, UNPARTITIONED_SPECS).scanMetrics(metrics);
+
+    List<FileScanTask> tasks;
+    try (CloseableIterable<FileScanTask> plan = planner.planFiles()) {
+      tasks = Lists.newArrayList(plan);
+    }
+
+    assertThat(tasks)
+        .extracting(task -> task.file().location())
+        .as("only the live leaf is expanded; the leaf reporting no live files is pruned")
+        .containsExactly(FILE_A);
+    Mockito.verify(io, Mockito.never()).newInputFile(deadLeafLocation);
+    assertThat(metrics.skippedDataManifests().value())
+        .as("the pruned leaf is counted as a skipped data manifest")
+        .isEqualTo(1L);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   void deleteManifestInRootUnsupported(FileFormat format) throws IOException {
     ManifestFile root =
         writeManifest(
@@ -484,7 +520,7 @@ class TestFilePlanner {
   void v3ManifestLeafUnsupported(FileFormat format) throws IOException {
     String leafLocation = "s3://bucket/db/table/v3-leaf." + format.name().toLowerCase(Locale.ROOT);
     TrackedFile v3Leaf =
-        manifestRef(FileContent.DATA_MANIFEST, leafLocation, dataManifestInfo(1, 0));
+        manifestRef(FileContent.DATA_MANIFEST, leafLocation, manifestInfo(1, 0, 0, 0, 0));
     ManifestFile root = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(v3Leaf));
 
     FilePlanner planner = new FilePlanner(fileIO, root, TABLE_SCHEMA, UNPARTITIONED_SPECS);
@@ -607,21 +643,22 @@ class TestFilePlanner {
   }
 
   private static ManifestInfo dataManifestInfo(int addedFiles) {
-    return dataManifestInfo(addedFiles, FORMAT_VERSION_V4);
+    return manifestInfo(addedFiles, 0, 0, 0, FORMAT_VERSION_V4);
   }
 
-  private static ManifestInfo dataManifestInfo(int addedFiles, int formatVersion) {
+  private static ManifestInfo manifestInfo(
+      int addedFiles, int existingFiles, int modifiedFiles, int deletedFiles, int formatVersion) {
     return ManifestInfoStruct.builder()
         .addedFilesCount(addedFiles)
-        .existingFilesCount(0)
-        .deletedFilesCount(0)
+        .existingFilesCount(existingFiles)
+        .deletedFilesCount(deletedFiles)
         .replacedFilesCount(0)
-        .modifiedFilesCount(0)
+        .modifiedFilesCount(modifiedFiles)
         .addedRowsCount(addedFiles * RECORD_COUNT)
-        .existingRowsCount(0)
-        .deletedRowsCount(0)
+        .existingRowsCount(existingFiles * RECORD_COUNT)
+        .deletedRowsCount(deletedFiles * RECORD_COUNT)
         .replacedRowsCount(0)
-        .modifiedRowsCount(0)
+        .modifiedRowsCount(modifiedFiles * RECORD_COUNT)
         .minSequenceNumber(0L)
         .formatVersion(formatVersion)
         .build();
