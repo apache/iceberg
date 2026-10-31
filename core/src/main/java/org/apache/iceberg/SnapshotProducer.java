@@ -47,6 +47,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.StandardEncryptionManager.FileEncryptionKeys;
 import org.apache.iceberg.events.CreateSnapshotEvent;
@@ -67,7 +68,9 @@ import org.apache.iceberg.metrics.Timer.Timed;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.util.Exceptions;
@@ -88,7 +91,7 @@ import org.slf4j.LoggerFactory;
 abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotProducer.class);
   static final int MIN_FILE_GROUP_SIZE = 10_000;
-  static final Set<ManifestFile> EMPTY_SET = Sets.newHashSet();
+  static final Set<String> EMPTY_SET = ImmutableSet.of();
 
   /** Default callback used to delete files. */
   private final Consumer<String> defaultDelete =
@@ -109,6 +112,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final AtomicInteger manifestCount = new AtomicInteger(0);
   private final AtomicInteger attempt = new AtomicInteger(0);
   private final List<String> manifestLists = Lists.newArrayList();
+
+  /** Manifest paths written to each manifest list, keyed by manifest list location. */
+  private final Map<String, List<String>> manifestPathsByManifestList = Maps.newHashMap();
+
   private final long targetManifestSizeBytes;
   private final FileFormat manifestFormat;
   private final Map<String, String> manifestWriterProps;
@@ -265,7 +272,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    *
    * @param committed a set of manifest paths that were actually committed
    */
-  protected abstract void cleanUncommitted(Set<ManifestFile> committed);
+  protected abstract void cleanUncommitted(Set<String> committed);
 
   /**
    * A string that describes the action that produced the new snapshot.
@@ -330,6 +337,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
 
       writer.addAll(Arrays.asList(manifestFiles));
+      manifestPathsByManifestList.put(
+          manifestList.location(),
+          Arrays.stream(manifestFiles).map(ManifestFile::path).collect(Collectors.toList()));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
@@ -555,7 +565,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         Snapshot saved = ops.refresh().snapshot(newSnapshotId.get());
         if (saved != null) {
           if (cleanupAfterCommit()) {
-            cleanUncommitted(Sets.newHashSet(saved.allManifests(ops.io())));
+            cleanUncommitted(committedManifestPaths(saved));
           }
 
           // also clean up unused manifest lists created by multiple attempts
@@ -614,7 +624,31 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       deleteFile(manifestList);
     }
     manifestLists.clear();
+    manifestPathsByManifestList.clear();
     cleanUncommitted(EMPTY_SET);
+  }
+
+  /**
+   * Returns the manifest paths of the committed snapshot without reading its manifest list when
+   * this producer wrote that manifest list.
+   */
+  private Set<String> committedManifestPaths(Snapshot saved) {
+    List<String> paths = writtenManifestPaths(saved.manifestListLocation());
+    if (paths != null) {
+      return Sets.newHashSet(paths);
+    }
+
+    return saved.allManifests(ops.io()).stream()
+        .map(ManifestFile::path)
+        .collect(Collectors.toSet());
+  }
+
+  /**
+   * Returns the paths of the manifests written to the given manifest list, or null if not written
+   * by this producer.
+   */
+  List<String> writtenManifestPaths(String manifestListLocation) {
+    return manifestPathsByManifestList.get(manifestListLocation);
   }
 
   protected void deleteFile(String path) {
@@ -770,10 +804,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   // Deletes uncommitted manifests; clears list if clearManifests and any deleted.
   protected void deleteUncommitted(
-      Collection<ManifestFile> manifests, Set<ManifestFile> committed, boolean clearManifests) {
+      Collection<ManifestFile> manifests, Set<String> committed, boolean clearManifests) {
     boolean anyDeleted = false;
     for (ManifestFile manifest : manifests) {
-      if (!committed.contains(manifest)) {
+      if (!committed.contains(manifest.path())) {
         deleteFile(manifest.path());
         anyDeleted = true;
       }

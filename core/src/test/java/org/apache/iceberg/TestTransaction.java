@@ -683,7 +683,7 @@ public class TestTransaction extends TestBase {
   }
 
   @TestTemplate
-  public void testTransactionCleanupReadsOnlyOwnManifestLists() throws IOException {
+  public void testTransactionCleanupReadsNoManifestLists() throws IOException {
     File location = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
     String tableName = "txnCleanupOwnManifestListsTest";
     // record the manifest lists opened after the last successful commit
@@ -742,7 +742,7 @@ public class TestTransaction extends TestBase {
     Table committedTable = TestTables.load(location, tableName);
     assertThat(committedTable.snapshots()).hasSize(5);
     String committedManifestList = committedTable.currentSnapshot().manifestListLocation();
-    assertThat(manifestListsRead).containsExactly(committedManifestList);
+    assertThat(manifestListsRead).isEmpty();
     assertThat(new File(committedManifestList)).exists();
     assertThat(((BaseTransaction) txn).deletedFiles()).contains(firstManifestList);
     assertThat(new File(firstManifestList)).doesNotExist();
@@ -1117,6 +1117,91 @@ public class TestTransaction extends TestBase {
     assertThat(readMetadata().ref("branch").snapshotId()).isEqualTo(branchSnapshot.snapshotId());
     assertThat(readMetadata().snapshot(branchSnapshot.snapshotId()).allManifests(table.io()))
         .hasSize(2);
+  }
+
+  @TestTemplate
+  public void testCommitTransactionDoesNotReadCommittedManifestLists() throws IOException {
+    File location = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
+    String tableName = "txnNoManifestListReread";
+    List<String> openedInputFiles = Lists.newArrayList();
+    TestTables.TestTable txnTable =
+        TestTables.create(
+            location,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(
+                tableName, location, countingFileIO(openedInputFiles)));
+
+    Transaction txn = txnTable.newTransaction();
+    txn.newAppend().appendFile(FILE_A).commit();
+    txn.newAppend().appendFile(FILE_B).commit();
+
+    openedInputFiles.clear();
+    txn.commitTransaction();
+
+    List<String> manifestLists = Lists.newArrayList();
+    for (Snapshot snapshot : txnTable.snapshots()) {
+      manifestLists.add(snapshot.manifestListLocation());
+    }
+    assertThat(manifestLists).hasSize(2);
+    assertThat(openedInputFiles).doesNotContainAnyElementsOf(manifestLists);
+  }
+
+  @TestTemplate
+  public void testCommitTransactionRetryKeepsMergedManifest() throws IOException {
+    File location = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
+    String tableName = "txnRetryMergedManifest";
+    List<String> openedInputFiles = Lists.newArrayList();
+    TestTables.TestTable txnTable =
+        TestTables.create(
+            location,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(
+                tableName, location, countingFileIO(openedInputFiles)));
+    txnTable
+        .updateProperties()
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1")
+        .set("random-snapshot-ids", "true")
+        .commit();
+
+    Transaction txn = txnTable.newTransaction();
+    txn.newAppend().appendFile(FILE_A).commit();
+
+    // a concurrent commit forces the transaction to re-apply its update on top of a new snapshot
+    TestTables.load(location, tableName).newAppend().appendFile(FILE_B).commit();
+    Snapshot concurrent = TestTables.load(location, tableName).currentSnapshot();
+
+    openedInputFiles.clear();
+    txn.commitTransaction();
+    List<String> openedDuringCommit = Lists.newArrayList(openedInputFiles);
+
+    Snapshot committed = txnTable.currentSnapshot();
+    assertThat(committed.parentId()).isEqualTo(concurrent.snapshotId());
+    assertThat(committed.allManifests(txnTable.io())).hasSize(1);
+    for (Snapshot snapshot : txnTable.snapshots()) {
+      assertThat(snapshot.allManifests(txnTable.io()))
+          .allSatisfy(manifest -> assertThat(new File(manifest.path())).exists());
+    }
+
+    // cleanup skips the committed manifest list
+    assertThat(openedDuringCommit).doesNotContain(committed.manifestListLocation());
+  }
+
+  private static TestTables.LocalFileIO countingFileIO(List<String> openedInputFiles) {
+    return new TestTables.LocalFileIO() {
+      @Override
+      public InputFile newInputFile(String path) {
+        openedInputFiles.add(path);
+        return super.newInputFile(path);
+      }
+    };
   }
 
   private static class AppendToBranchTransaction extends BaseTransaction {
