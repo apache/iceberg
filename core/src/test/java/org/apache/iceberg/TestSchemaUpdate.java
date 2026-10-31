@@ -2590,4 +2590,15 @@ public class TestSchemaUpdate {
 
     assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
+
+  @Test
+  void unknownTypePromotion() {
+    Schema schema = new Schema(optional(1, "unknown_col", Types.UnknownType.get()));
+
+    // Verify promotion from UnknownType to primitive types succeeds
+    Schema updatedSchema =
+        new SchemaUpdate(schema, 1).updateColumn("unknown_col", Types.StringType.get()).apply();
+
+    assertThat(updatedSchema.findField("unknown_col").type()).isEqualTo(Types.StringType.get());
+  }
 }
