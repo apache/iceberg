@@ -156,10 +156,11 @@ final class PuffinFormat {
       inputLength = inputBytes.length;
     }
 
-    byte[] decompressed =
-        new byte
-            [Math.toIntExact(
-                ZstdDecompressor.getDecompressedSize(inputBytes, inputOffset, inputLength))];
+    long decompressedSize =
+        ZstdDecompressor.getDecompressedSize(inputBytes, inputOffset, inputLength);
+    Preconditions.checkArgument(
+        decompressedSize >= 0, "Invalid decompressed size: %s", decompressedSize);
+    byte[] decompressed = new byte[Math.toIntExact(decompressedSize)];
     int decompressedLength =
         new ZstdDecompressor()
             .decompress(inputBytes, inputOffset, inputLength, decompressed, 0, decompressed.length);
