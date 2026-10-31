@@ -92,9 +92,8 @@ abstract class FileCleanupStrategy {
               ManifestFile.DELETED_FILES_COUNT.fieldId()));
 
   protected CloseableIterable<ManifestFile> readManifests(Snapshot snapshot) {
-    if (snapshot.manifestListLocation() != null) {
-      return InternalData.read(
-              FileFormat.AVRO, fileIO.newInputFile(snapshot.manifestListLocation()))
+    if (snapshot.rootLocation() != null) {
+      return InternalData.read(FileFormat.AVRO, fileIO.newInputFile(snapshot.rootLocation()))
           .setRootType(GenericManifestFile.class)
           .project(MANIFEST_PROJECTION)
           .reuseContainers()

@@ -1268,8 +1268,7 @@ public class TestMetadataUpdateParser {
   private static void assertEqualsAddSnapshot(
       MetadataUpdate.AddSnapshot expected, MetadataUpdate.AddSnapshot actual) {
     assertThat(actual.snapshot().snapshotId()).isEqualTo(expected.snapshot().snapshotId());
-    assertThat(actual.snapshot().manifestListLocation())
-        .isEqualTo(expected.snapshot().manifestListLocation());
+    assertThat(actual.snapshot().rootLocation()).isEqualTo(expected.snapshot().rootLocation());
     assertThat(actual.snapshot().summary())
         .as("Snapshot summary should be equivalent")
         .containsExactlyEntriesOf(expected.snapshot().summary());

@@ -107,7 +107,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     assertThat(table.currentSnapshot().snapshotId()).isEqualTo(snapshotId);
     assertThat(table.snapshot(firstSnapshot.snapshotId())).isNull();
-    assertThat(deletedFiles).containsExactly(firstSnapshot.manifestListLocation());
+    assertThat(deletedFiles).containsExactly(firstSnapshot.rootLocation());
   }
 
   @TestTemplate
@@ -146,12 +146,12 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should remove expired manifest lists and deleted data file")
         .isEqualTo(
             Sets.newHashSet(
-                firstSnapshot.manifestListLocation(), // snapshot expired
+                firstSnapshot.rootLocation(), // snapshot expired
                 firstSnapshot
                     .allManifests(table.io())
                     .get(0)
                     .path(), // manifest was rewritten for delete
-                secondSnapshot.manifestListLocation(), // snapshot expired
+                secondSnapshot.rootLocation(), // snapshot expired
                 secondSnapshot
                     .allManifests(table.io())
                     .get(0)
@@ -205,12 +205,12 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should remove expired manifest lists and deleted data file")
         .isEqualTo(
             Sets.newHashSet(
-                firstSnapshot.manifestListLocation(), // snapshot expired
+                firstSnapshot.rootLocation(), // snapshot expired
                 firstSnapshot
                     .allManifests(table.io())
                     .get(0)
                     .path(), // manifest was rewritten for delete
-                secondSnapshot.manifestListLocation(), // snapshot expired
+                secondSnapshot.rootLocation(), // snapshot expired
                 FILE_A.location() // deleted
                 ));
   }
@@ -258,7 +258,7 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should remove expired manifest lists and reverted appended data file")
         .isEqualTo(
             Sets.newHashSet(
-                secondSnapshot.manifestListLocation(), // snapshot expired
+                secondSnapshot.rootLocation(), // snapshot expired
                 Iterables.getOnlyElement(secondSnapshotManifests)
                     .path()) // manifest is no longer referenced
             );
@@ -329,7 +329,7 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should remove expired manifest lists and reverted appended data file")
         .isEqualTo(
             Sets.newHashSet(
-                secondSnapshot.manifestListLocation(), // snapshot expired
+                secondSnapshot.rootLocation(), // snapshot expired
                 secondSnapshotManifests.stream()
                     .findFirst()
                     .get()
@@ -798,7 +798,7 @@ public class TestRemoveSnapshots extends TestBase {
         .commit();
 
     Set<String> expectedDeletes = Sets.newHashSet();
-    expectedDeletes.add(snapshotA.manifestListLocation());
+    expectedDeletes.add(snapshotA.rootLocation());
 
     // Files should be deleted of dangling staged snapshot
     SnapshotChanges.builderFor(table)
@@ -811,7 +811,7 @@ public class TestRemoveSnapshots extends TestBase {
             });
 
     // ManifestList should be deleted too
-    expectedDeletes.add(snapshotB.manifestListLocation());
+    expectedDeletes.add(snapshotB.rootLocation());
     snapshotB
         .dataManifests(table.io())
         .forEach(
@@ -1039,8 +1039,7 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(table.currentSnapshot()).isEqualTo(thirdSnapshot);
     assertThat(table.snapshots()).hasSize(1);
     assertThat(deletedFiles)
-        .containsExactlyInAnyOrder(
-            firstSnapshot.manifestListLocation(), secondSnapshot.manifestListLocation());
+        .containsExactlyInAnyOrder(firstSnapshot.rootLocation(), secondSnapshot.rootLocation());
   }
 
   @TestTemplate
@@ -1089,9 +1088,9 @@ public class TestRemoveSnapshots extends TestBase {
             ImmutableSet.builder()
                 .add(FILE_A.location())
                 .add(FILE_A_DELETES.location())
-                .add(firstSnapshot.manifestListLocation())
-                .add(secondSnapshot.manifestListLocation())
-                .add(thirdSnapshot.manifestListLocation())
+                .add(firstSnapshot.rootLocation())
+                .add(secondSnapshot.rootLocation())
+                .add(thirdSnapshot.rootLocation())
                 .addAll(manifestPaths(secondSnapshot, table.io()))
                 .addAll(
                     manifestOfDeletedFiles.stream()
@@ -1570,7 +1569,7 @@ public class TestRemoveSnapshots extends TestBase {
     Set<String> expectedDeletes = Sets.newHashSet();
 
     // Only deletionA's manifest list and manifests should be removed
-    expectedDeletes.add(deletionA.manifestListLocation());
+    expectedDeletes.add(deletionA.rootLocation());
     expectedDeletes.addAll(manifestPaths(deletionA, table.io()));
     table.expireSnapshots().expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
 
@@ -1595,9 +1594,9 @@ public class TestRemoveSnapshots extends TestBase {
         .deleteWith(deletedFiles::add)
         .commit();
 
-    expectedDeletes.add(appendA.manifestListLocation());
+    expectedDeletes.add(appendA.rootLocation());
     expectedDeletes.addAll(manifestPaths(appendA, table.io()));
-    expectedDeletes.add(branchDelete.manifestListLocation());
+    expectedDeletes.add(branchDelete.rootLocation());
     expectedDeletes.addAll(manifestPaths(branchDelete, table.io()));
     expectedDeletes.add(FILE_A.location());
 
@@ -1653,7 +1652,7 @@ public class TestRemoveSnapshots extends TestBase {
     tableWithBulkIO.newAppend().appendFile(FILE_A).commit();
 
     Set<String> deletedManifestLists =
-        Sets.newHashSet(tableWithBulkIO.currentSnapshot().manifestListLocation());
+        Sets.newHashSet(tableWithBulkIO.currentSnapshot().rootLocation());
     Set<String> deletedManifests =
         tableWithBulkIO.currentSnapshot().allManifests(table.io()).stream()
             .map(ManifestFile::path)
@@ -1661,7 +1660,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     tableWithBulkIO.newDelete().deleteFile(FILE_A).commit();
 
-    deletedManifestLists.add(tableWithBulkIO.currentSnapshot().manifestListLocation());
+    deletedManifestLists.add(tableWithBulkIO.currentSnapshot().rootLocation());
     deletedManifests.addAll(
         tableWithBulkIO.currentSnapshot().allManifests(table.io()).stream()
             .map(ManifestFile::path)
@@ -1732,8 +1731,8 @@ public class TestRemoveSnapshots extends TestBase {
             appendManifest,
             deleteManifest,
             file.location(),
-            append.manifestListLocation(),
-            delete.manifestListLocation());
+            append.rootLocation(),
+            delete.rootLocation());
     assertThat(table.specs().keySet())
         .as("Only id_bucket + data_bucket transform should exist")
         .containsExactly(idAndDataBucketSpec.specId());
@@ -1762,7 +1761,7 @@ public class TestRemoveSnapshots extends TestBase {
         .deleteWith(deletedFiles::add)
         .commit();
 
-    assertThat(deletedFiles).containsExactlyInAnyOrder(append.manifestListLocation());
+    assertThat(deletedFiles).containsExactlyInAnyOrder(append.rootLocation());
     assertThat(table.specs().keySet())
         .as("Only data_bucket transform should exist")
         .containsExactly(dataBucketSpec.specId());
@@ -1773,12 +1772,12 @@ public class TestRemoveSnapshots extends TestBase {
     table.newAppend().appendFile(FILE_A).commit();
 
     Set<String> expectedDeletedFiles = Sets.newHashSet();
-    expectedDeletedFiles.add(table.currentSnapshot().manifestListLocation());
+    expectedDeletedFiles.add(table.currentSnapshot().rootLocation());
 
     table.updateSchema().addColumn("extra_col1", Types.StringType.get()).commit();
 
     table.newAppend().appendFile(FILE_B).commit();
-    expectedDeletedFiles.add(table.currentSnapshot().manifestListLocation());
+    expectedDeletedFiles.add(table.currentSnapshot().rootLocation());
 
     table.updateSchema().addColumn("extra_col2", Types.LongType.get()).deleteColumn("id").commit();
 
@@ -1816,7 +1815,7 @@ public class TestRemoveSnapshots extends TestBase {
     table.newAppend().appendFile(FILE_A).commit();
 
     Set<String> expectedDeletedFiles = Sets.newHashSet();
-    expectedDeletedFiles.add(table.currentSnapshot().manifestListLocation());
+    expectedDeletedFiles.add(table.currentSnapshot().rootLocation());
 
     table.newAppend().appendFile(FILE_B).commit();
 
@@ -1925,7 +1924,7 @@ public class TestRemoveSnapshots extends TestBase {
         .expireOlderThan(System.currentTimeMillis())
         .deleteWith(deletedFiles::add)
         .commit();
-    assertThat(deletedFiles).isEqualTo(ImmutableSet.of(snapshotA.manifestListLocation()));
+    assertThat(deletedFiles).isEqualTo(ImmutableSet.of(snapshotA.rootLocation()));
   }
 
   @TestTemplate
@@ -1955,8 +1954,8 @@ public class TestRemoveSnapshots extends TestBase {
 
     Set<String> expectedDeletedFiles =
         ImmutableSet.of(
-            snapshotA.manifestListLocation(),
-            snapshotDeleteA.manifestListLocation(),
+            snapshotA.rootLocation(),
+            snapshotDeleteA.rootLocation(),
             Iterables.getOnlyElement(snapshotA.allManifests(table.io())).path(),
             Iterables.getOnlyElement(snapshotDeleteA.allManifests(table.io())).path(),
             FILE_A.location());
@@ -1993,9 +1992,9 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(deletedFiles)
         .as("CleanupLevel.ALL should delete both metadata and data files")
         .containsExactlyInAnyOrder(
-            firstSnapshot.manifestListLocation(),
+            firstSnapshot.rootLocation(),
             firstSnapshot.allManifests(table.io()).get(0).path(),
-            secondSnapshot.manifestListLocation(),
+            secondSnapshot.rootLocation(),
             secondSnapshot.allManifests(table.io()).get(0).path(),
             FILE_A.location());
   }
@@ -2021,9 +2020,9 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(deletedFiles)
         .as("CleanupLevel.METADATA_ONLY should delete only metadata files")
         .containsExactlyInAnyOrder(
-            firstSnapshot.manifestListLocation(),
+            firstSnapshot.rootLocation(),
             firstSnapshot.allManifests(table.io()).get(0).path(),
-            secondSnapshot.manifestListLocation(),
+            secondSnapshot.rootLocation(),
             secondSnapshot.allManifests(table.io()).get(0).path());
   }
 
@@ -2130,9 +2129,9 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(deletedFiles)
         .as("Should only delete metadata files when overridden to METADATA_ONLY")
         .containsExactlyInAnyOrder(
-            firstSnapshot.manifestListLocation(),
+            firstSnapshot.rootLocation(),
             firstSnapshot.allManifests(table.io()).get(0).path(),
-            secondSnapshot.manifestListLocation(),
+            secondSnapshot.rootLocation(),
             secondSnapshot.allManifests(table.io()).get(0).path());
 
     // FILE_A should NOT be deleted because cleanupLevel was overridden to METADATA_ONLY
@@ -2368,7 +2367,7 @@ public class TestRemoveSnapshots extends TestBase {
         .deleteWith(deletedFiles::add)
         .commit();
 
-    assertThat(deletedFiles).containsExactly(firstSnapshot.manifestListLocation());
+    assertThat(deletedFiles).containsExactly(firstSnapshot.rootLocation());
 
     appendOnlyManifestPaths.forEach(
         path -> Mockito.verify(spyFileIO, Mockito.never()).newInputFile(path));

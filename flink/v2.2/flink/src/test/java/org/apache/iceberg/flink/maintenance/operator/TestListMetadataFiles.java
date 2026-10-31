@@ -114,7 +114,7 @@ class TestListMetadataFiles extends OperatorTestBase {
       List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
       assertThat(snapshots).hasSize(3);
       for (Snapshot snapshot : snapshots) {
-        assertThat(tableMetadataFiles).contains(snapshot.manifestListLocation());
+        assertThat(tableMetadataFiles).contains(snapshot.rootLocation());
       }
       // Verify total count matches what 3 snapshots should produce
       assertThat(tableMetadataFiles).hasSize(24);

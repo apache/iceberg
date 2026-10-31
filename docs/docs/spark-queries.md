@@ -382,9 +382,9 @@ To show the valid snapshots for a table:
 SELECT * FROM prod.db.table.snapshots;
 ```
 
-| committed_at | snapshot_id | parent_id | operation | manifest_list | summary |
-| -- | -- | -- | -- | -- | -- |
-| 2019-02-08 03:29:51.215 | 57897183625154 | null      | append    | s3://.../table/metadata/snap-57897183625154-1.avro | { added-records -> 2478404, total-records -> 2478404, added-data-files -> 438, total-data-files -> 438, spark.app.id -> application_1520379288616_155055 } |
+| committed_at | snapshot_id | parent_id | operation | manifest_list | summary | root_location |
+| -- | -- | -- | -- | -- | -- | -- |
+| 2019-02-08 03:29:51.215 | 57897183625154 | null      | append    | s3://.../table/metadata/snap-57897183625154-1.avro | { added-records -> 2478404, total-records -> 2478404, added-data-files -> 438, total-data-files -> 438, spark.app.id -> application_1520379288616_155055 } | s3://.../table/metadata/snap-57897183625154-1.avro |
 
 You can also join snapshots to table history. For example, this query will show table history, with the application ID that wrote each snapshot:
 

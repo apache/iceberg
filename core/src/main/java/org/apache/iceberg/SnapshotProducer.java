@@ -371,7 +371,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         manifestList.location(),
         nextRowId,
         assignedRows,
-        manifestListEncryptionKeys != null ? manifestListEncryptionKeys.fileKey().keyId() : null);
+        manifestListEncryptionKeys != null ? manifestListEncryptionKeys.fileKey().keyId() : null,
+        base.formatVersion() >= TableMetadata.MIN_FORMAT_VERSION_ROOT_MANIFEST);
   }
 
   private void runValidations(Snapshot parentSnapshot) {
@@ -560,7 +561,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
           // also clean up unused manifest lists created by multiple attempts
           for (String manifestList : manifestLists) {
-            if (!saved.manifestListLocation().equals(manifestList)) {
+            if (!saved.rootLocation().equals(manifestList)) {
               deleteFile(manifestList);
             }
           }

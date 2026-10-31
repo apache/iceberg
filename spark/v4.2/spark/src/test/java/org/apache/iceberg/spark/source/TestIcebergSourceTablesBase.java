@@ -908,13 +908,13 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     table.refresh();
     long firstSnapshotTimestamp = table.currentSnapshot().timestampMillis();
     long firstSnapshotId = table.currentSnapshot().snapshotId();
-    String firstManifestList = table.currentSnapshot().manifestListLocation();
+    String firstManifestList = table.currentSnapshot().rootLocation();
 
     table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
 
     long secondSnapshotTimestamp = table.currentSnapshot().timestampMillis();
     long secondSnapshotId = table.currentSnapshot().snapshotId();
-    String secondManifestList = table.currentSnapshot().manifestListLocation();
+    String secondManifestList = table.currentSnapshot().rootLocation();
 
     // rollback the table state to the first snapshot
     table.manageSnapshots().rollbackTo(firstSnapshotId).commit();
@@ -944,6 +944,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
                         "changed-partition-count", "1",
                         "total-data-files", "1",
                         "total-records", "1"))
+                .set("root_location", firstManifestList)
                 .build(),
             builder
                 .set("committed_at", secondSnapshotTimestamp * 1000)
@@ -959,6 +960,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
                         "changed-partition-count", "1",
                         "total-records", "0",
                         "total-data-files", "0"))
+                .set("root_location", secondManifestList)
                 .build());
 
     assertThat(actual).as("Snapshots table should have a row for each snapshot").hasSize(2);

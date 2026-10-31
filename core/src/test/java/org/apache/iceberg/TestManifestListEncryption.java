@@ -369,8 +369,7 @@ public class TestManifestListEncryption {
             EncryptionTestHelpers.createEncryptionManager(metadata.encryptionKeys()))) {
       return ManifestLists.read(
           io.newInputFile(
-              new BaseFileWithEncryptedKey(
-                  snapshot.manifestListLocation(), null, snapshot.keyId(), null)));
+              new BaseFileWithEncryptedKey(snapshot.rootLocation(), null, snapshot.keyId(), null)));
     }
   }
 
