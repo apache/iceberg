@@ -31,8 +31,8 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,11 +78,20 @@ class TableUpdater {
       TableIdentifier identifier, Schema schema, PartitionSpec spec, TableCreator tableCreator) {
     Tuple2<Boolean, Exception> exists = cache.exists(identifier);
     if (Boolean.FALSE.equals(exists.f0)) {
-      if (exists.f1 instanceof NoSuchNamespaceException) {
-        SupportsNamespaces catalogWithNameSpace = (SupportsNamespaces) catalog;
+      Preconditions.checkState(
+          catalog instanceof SupportsNamespaces,
+          "Cannot create table %s: catalog %s does not support namespaces",
+          identifier,
+          catalog.name());
+
+      // The catalog is asked rather than the lookup exception: catalogs differ in what they throw
+      // for a missing namespace (Glue throws NoSuchTableException) and cached lookups carry none.
+      SupportsNamespaces catalogWithNamespaces = (SupportsNamespaces) catalog;
+      if (!identifier.namespace().isEmpty()
+          && !catalogWithNamespaces.namespaceExists(identifier.namespace())) {
         LOG.info("Namespace {} not found during table search. Creating namespace", identifier);
         try {
-          catalogWithNameSpace.createNamespace(identifier.namespace());
+          catalogWithNamespaces.createNamespace(identifier.namespace());
         } catch (AlreadyExistsException e) {
           LOG.debug("Namespace {} created concurrently", identifier.namespace(), e);
         }

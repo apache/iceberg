@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -35,6 +36,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.types.Types;
@@ -42,6 +44,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Mockito;
 
 public class TestTableUpdater extends TestFlinkIcebergSinkBase {
 
@@ -452,5 +455,63 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     assertThat(catalog.tableExists(tableIdentifier)).isTrue();
     assertThat(result.f0.resolvedTableSchema().sameSchema(SCHEMA)).isTrue();
     assertThat(result.f0.compareResult()).isEqualTo(CompareSchemasVisitor.Result.SAME);
+  }
+
+  @Test
+  void testNamespaceCreatedWhenCatalogReportsMissingNamespaceAsMissingTable() {
+    // Like the Glue catalog, which throws NoSuchTableException for a table in a missing namespace
+    InMemoryCatalog catalog =
+        new InMemoryCatalog() {
+          @Override
+          public Table loadTable(TableIdentifier identifier) {
+            if (!namespaceExists(identifier.namespace())) {
+              throw new NoSuchTableException("Table does not exist: %s", identifier);
+            }
+
+            return super.loadTable(identifier);
+          }
+        };
+    catalog.initialize("catalog", Map.of());
+    Namespace namespace = Namespace.of("glue_like_namespace");
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, "myTable");
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    // The record processor looks the table up before calling the updater, so the updater only
+    // sees the cached answer, which carries no exception
+    cache.exists(tableIdentifier);
+
+    tableUpdater.update(
+        tableIdentifier,
+        SnapshotRef.MAIN_BRANCH,
+        SCHEMA,
+        PartitionSpec.unpartitioned(),
+        TableCreator.DEFAULT);
+
+    assertThat(catalog.namespaceExists(namespace)).isTrue();
+    assertThat(catalog.tableExists(tableIdentifier)).isTrue();
+  }
+
+  @Test
+  void testTableCreationFailsForCatalogWithoutNamespaceSupport() {
+    Catalog catalog = Mockito.mock(Catalog.class);
+    TableIdentifier tableIdentifier = TableIdentifier.of("some_namespace", "myTable");
+    Mockito.when(catalog.loadTable(tableIdentifier))
+        .thenThrow(new NoSuchTableException("Table does not exist: %s", tableIdentifier));
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    assertThatThrownBy(
+            () ->
+                tableUpdater.update(
+                    tableIdentifier,
+                    SnapshotRef.MAIN_BRANCH,
+                    SCHEMA,
+                    PartitionSpec.unpartitioned(),
+                    TableCreator.DEFAULT))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("does not support namespaces");
   }
 }
