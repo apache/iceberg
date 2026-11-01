@@ -467,18 +467,23 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void leafReportingNoLiveFilesIsPruned(FileFormat format) throws IOException {
-    ManifestFile liveLeaf =
+    ManifestFile addedLeaf =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(unpartitionedDataFile(FILE_A)));
+    ManifestFile existingLeaf =
+        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(unpartitionedDataFile(FILE_B)));
+    ManifestFile modifiedLeaf =
+        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(unpartitionedDataFile(FILE_C)));
     String deadLeafLocation =
         "s3://bucket/db/table/dead-leaf." + format.name().toLowerCase(Locale.ROOT);
-    TrackedFile deadLeafRef =
-        manifestRef(
-            FileContent.DATA_MANIFEST,
-            deadLeafLocation,
-            manifestInfo(0, 0, 0, 2, FORMAT_VERSION_V4));
     ManifestFile root =
         writeManifest(
-            format, EMPTY_PARTITION, ImmutableList.of(dataManifest(liveLeaf.path()), deadLeafRef));
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                manifestRef(FileContent.DATA_MANIFEST, addedLeaf.path(), addedOnly(1)),
+                manifestRef(FileContent.DATA_MANIFEST, existingLeaf.path(), existingOnly(1)),
+                manifestRef(FileContent.DATA_MANIFEST, modifiedLeaf.path(), modifiedOnly(1)),
+                manifestRef(FileContent.DATA_MANIFEST, deadLeafLocation, deletedOnly(2))));
 
     FileIO io = Mockito.spy(fileIO);
     ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
@@ -492,8 +497,8 @@ class TestFilePlanner {
 
     assertThat(tasks)
         .extracting(task -> task.file().location())
-        .as("only the live leaf is expanded; the leaf reporting no live files is pruned")
-        .containsExactly(FILE_A);
+        .as("leaves with added, existing, or modified files are expanded; deleted-only is pruned")
+        .containsExactlyInAnyOrder(FILE_A, FILE_B, FILE_C);
     Mockito.verify(io, Mockito.never()).newInputFile(deadLeafLocation);
     assertThat(metrics.skippedDataManifests().value())
         .as("the pruned leaf is counted as a skipped data manifest")
@@ -619,11 +624,11 @@ class TestFilePlanner {
   }
 
   private static TrackedFile dataManifest(String location, int addedFiles) {
-    return manifestRef(FileContent.DATA_MANIFEST, location, dataManifestInfo(addedFiles));
+    return manifestRef(FileContent.DATA_MANIFEST, location, addedOnly(addedFiles));
   }
 
   private static TrackedFile dataManifestWithStats(String location, ContentStats stats) {
-    return manifestRefWithStats(FileContent.DATA_MANIFEST, location, stats, dataManifestInfo(1));
+    return manifestRefWithStats(FileContent.DATA_MANIFEST, location, stats, addedOnly(1));
   }
 
   private static ContentStats idStats(int lower, int upper) {
@@ -642,8 +647,20 @@ class TestFilePlanner {
     return stats;
   }
 
-  private static ManifestInfo dataManifestInfo(int addedFiles) {
+  private static ManifestInfo addedOnly(int addedFiles) {
     return manifestInfo(addedFiles, 0, 0, 0, FORMAT_VERSION_V4);
+  }
+
+  private static ManifestInfo existingOnly(int existingFiles) {
+    return manifestInfo(0, existingFiles, 0, 0, FORMAT_VERSION_V4);
+  }
+
+  private static ManifestInfo modifiedOnly(int modifiedFiles) {
+    return manifestInfo(0, 0, modifiedFiles, 0, FORMAT_VERSION_V4);
+  }
+
+  private static ManifestInfo deletedOnly(int deletedFiles) {
+    return manifestInfo(0, 0, 0, deletedFiles, FORMAT_VERSION_V4);
   }
 
   private static ManifestInfo manifestInfo(

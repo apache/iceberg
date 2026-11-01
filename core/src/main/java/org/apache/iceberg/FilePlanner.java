@@ -197,13 +197,7 @@ class FilePlanner {
   }
 
   private static boolean hasLiveFiles(ManifestFile leaf) {
-    return hasFiles(leaf.addedFilesCount())
-        || hasFiles(leaf.existingFilesCount())
-        || hasFiles(leaf.modifiedFilesCount());
-  }
-
-  private static boolean hasFiles(Integer count) {
-    return count == null || count > 0;
+    return leaf.hasAddedFiles() || leaf.hasExistingFiles() || leaf.modifiedFilesCount() > 0;
   }
 
   /** Per-spec task inputs computed once and shared across all files of a spec. */
