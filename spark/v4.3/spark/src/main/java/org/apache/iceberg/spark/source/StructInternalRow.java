@@ -68,6 +68,7 @@ import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.sql.types.VariantType;
 import org.apache.spark.unsafe.types.BinaryView;
 import org.apache.spark.unsafe.types.CalendarInterval;
+import org.apache.spark.unsafe.types.TimestampNanosVal;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
@@ -157,6 +158,22 @@ class StructInternalRow extends InternalRow {
       throw new IllegalStateException(
           "Unknown type for long field. Type name: " + longVal.getClass().getName());
     }
+  }
+
+  @Override
+  public TimestampNanosVal getTimestampNTZNanos(int ordinal) {
+    // SPARK-56981 (4.3.0): nanosWithinMicro is the sub-microsecond remainder, in [0, 999].
+    // Iceberg timestamps mapped by this module have microsecond precision, so it is always 0.
+    // TODO: support nanosecond timestamps once this module supports mapping timestamp_ns.
+    return new TimestampNanosVal(getLong(ordinal), (short) 0);
+  }
+
+  @Override
+  public TimestampNanosVal getTimestampLTZNanos(int ordinal) {
+    // SPARK-56981 (4.3.0): nanosWithinMicro is the sub-microsecond remainder, in [0, 999].
+    // Iceberg timestamps mapped by this module have microsecond precision, so it is always 0.
+    // TODO: support nanosecond timestamps once this module supports mapping timestamp_ns.
+    return new TimestampNanosVal(getLong(ordinal), (short) 0);
   }
 
   @Override

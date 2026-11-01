@@ -71,6 +71,7 @@ import org.apache.spark.sql.types.GeographyType$;
 import org.apache.spark.sql.types.GeometryType$;
 import org.apache.spark.unsafe.types.BinaryView;
 import org.apache.spark.unsafe.types.CalendarInterval;
+import org.apache.spark.unsafe.types.TimestampNanosVal;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
@@ -767,6 +768,22 @@ public class SparkParquetReaders {
     @Override
     public long getLong(int ordinal) {
       return (long) values[ordinal];
+    }
+
+    @Override
+    public TimestampNanosVal getTimestampNTZNanos(int ordinal) {
+      // SPARK-56981 (4.3.0): nanosWithinMicro is the sub-microsecond remainder, in [0, 999].
+      // Iceberg timestamps mapped by this module have microsecond precision, so it is always 0.
+      // TODO: support nanosecond timestamps once this module supports mapping timestamp_ns.
+      return new TimestampNanosVal(getLong(ordinal), (short) 0);
+    }
+
+    @Override
+    public TimestampNanosVal getTimestampLTZNanos(int ordinal) {
+      // SPARK-56981 (4.3.0): nanosWithinMicro is the sub-microsecond remainder, in [0, 999].
+      // Iceberg timestamps mapped by this module have microsecond precision, so it is always 0.
+      // TODO: support nanosecond timestamps once this module supports mapping timestamp_ns.
+      return new TimestampNanosVal(getLong(ordinal), (short) 0);
     }
 
     @Override

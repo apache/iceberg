@@ -47,7 +47,7 @@ case class OrderAwareCoalesceExec(
       // make sure we don't output an RDD with 0 partitions,
       // when claiming that we have a `SinglePartition`
       // see CoalesceExec in Spark
-      new CoalesceExec.EmptyRDDWithPartitions(sparkContext, numPartitions)
+      new EmptyRDDWithPartitions(sparkContext, numPartitions)
     } else {
       result.coalesce(numPartitions, shuffle = false, Some(coalescer))
     }

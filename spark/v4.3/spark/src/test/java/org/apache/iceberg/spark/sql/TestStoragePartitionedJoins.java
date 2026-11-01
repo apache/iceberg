@@ -101,7 +101,7 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
           "true",
           SQLConf.V2_BUCKETING_PARTIALLY_CLUSTERED_DISTRIBUTION_ENABLED().key(),
           "false",
-          SQLConf.V2_BUCKETING_ALLOW_JOIN_KEYS_SUBSET_OF_PARTITION_KEYS().key(),
+          SQLConf.V2_BUCKETING_ALLOW_KEYS_SUBSET_OF_PARTITION_KEYS().key(),
           "true",
           SQLConf.V2_BUCKETING_ALLOW_COMPATIBLE_TRANSFORMS().key(),
           "true");
