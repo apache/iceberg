@@ -23,23 +23,27 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.List;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 @Internal
 public class DeltaManifestsSerializer implements SimpleVersionedSerializer<DeltaManifests> {
   private static final int VERSION_1 = 1;
   private static final int VERSION_2 = 2;
+  private static final int VERSION_3 = 3;
   private static final byte[] EMPTY_BINARY = new byte[0];
 
   public static final DeltaManifestsSerializer INSTANCE = new DeltaManifestsSerializer();
 
   @Override
   public int getVersion() {
-    return VERSION_2;
+    return VERSION_3;
   }
 
   @Override
@@ -58,13 +62,13 @@ public class DeltaManifestsSerializer implements SimpleVersionedSerializer<Delta
     out.writeInt(dataManifestBinary.length);
     out.write(dataManifestBinary);
 
-    byte[] deleteManifestBinary = EMPTY_BINARY;
-    if (deltaManifests.deleteManifest() != null) {
-      deleteManifestBinary = ManifestFiles.encode(deltaManifests.deleteManifest());
+    List<ManifestFile> deleteManifests = deltaManifests.deleteManifests();
+    out.writeInt(deleteManifests.size());
+    for (ManifestFile deleteManifest : deleteManifests) {
+      byte[] deleteManifestBinary = ManifestFiles.encode(deleteManifest);
+      out.writeInt(deleteManifestBinary.length);
+      out.write(deleteManifestBinary);
     }
-
-    out.writeInt(deleteManifestBinary.length);
-    out.write(deleteManifestBinary);
 
     CharSequence[] referencedDataFiles = deltaManifests.referencedDataFiles();
     out.writeInt(referencedDataFiles.length);
@@ -81,6 +85,8 @@ public class DeltaManifestsSerializer implements SimpleVersionedSerializer<Delta
       return deserializeV1(serialized);
     } else if (version == VERSION_2) {
       return deserializeV2(serialized);
+    } else if (version == VERSION_3) {
+      return deserializeV3(serialized);
     } else {
       throw new RuntimeException("Unknown serialize version: " + version);
     }
@@ -113,12 +119,40 @@ public class DeltaManifestsSerializer implements SimpleVersionedSerializer<Delta
       deleteManifest = ManifestFiles.decode(deleteManifestBinary);
     }
 
+    List<ManifestFile> deleteManifests =
+        deleteManifest != null ? ImmutableList.of(deleteManifest) : ImmutableList.of();
+    return new DeltaManifests(dataManifest, deleteManifests, readReferencedDataFiles(in));
+  }
+
+  private DeltaManifests deserializeV3(byte[] serialized) throws IOException {
+    DataInputStream in = new DataInputStream(new ByteArrayInputStream(serialized));
+
+    ManifestFile dataManifest = null;
+    int dataManifestSize = in.readInt();
+    if (dataManifestSize > 0) {
+      byte[] dataManifestBinary = new byte[dataManifestSize];
+      in.readFully(dataManifestBinary);
+      dataManifest = ManifestFiles.decode(dataManifestBinary);
+    }
+
+    int deleteManifestNum = in.readInt();
+    List<ManifestFile> deleteManifests = Lists.newArrayListWithCapacity(deleteManifestNum);
+    for (int i = 0; i < deleteManifestNum; i++) {
+      byte[] deleteManifestBinary = new byte[in.readInt()];
+      in.readFully(deleteManifestBinary);
+      deleteManifests.add(ManifestFiles.decode(deleteManifestBinary));
+    }
+
+    return new DeltaManifests(dataManifest, deleteManifests, readReferencedDataFiles(in));
+  }
+
+  private static CharSequence[] readReferencedDataFiles(DataInputStream in) throws IOException {
     int referenceDataFileNum = in.readInt();
     CharSequence[] referencedDataFiles = new CharSequence[referenceDataFileNum];
     for (int i = 0; i < referenceDataFileNum; i++) {
       referencedDataFiles[i] = in.readUTF();
     }
 
-    return new DeltaManifests(dataManifest, deleteManifest, referencedDataFiles);
+    return referencedDataFiles;
   }
 }

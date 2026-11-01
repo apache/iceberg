@@ -147,6 +147,7 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
             result,
             () -> icebergManifestOutputFileFactory.create(checkpointId),
             table.spec(),
+            table.specs()::get,
             TableUtil.formatVersion(table));
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(

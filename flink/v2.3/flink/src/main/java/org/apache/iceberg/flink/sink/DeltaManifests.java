@@ -22,6 +22,7 @@ import java.util.List;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 @Internal
@@ -30,19 +31,25 @@ public class DeltaManifests {
   private static final CharSequence[] EMPTY_REF_DATA_FILES = new CharSequence[0];
 
   private final ManifestFile dataManifest;
-  private final ManifestFile deleteManifest;
+  private final List<ManifestFile> deleteManifests;
   private final CharSequence[] referencedDataFiles;
 
   DeltaManifests(ManifestFile dataManifest, ManifestFile deleteManifest) {
-    this(dataManifest, deleteManifest, EMPTY_REF_DATA_FILES);
+    this(
+        dataManifest,
+        deleteManifest != null ? ImmutableList.of(deleteManifest) : ImmutableList.of(),
+        EMPTY_REF_DATA_FILES);
   }
 
   DeltaManifests(
-      ManifestFile dataManifest, ManifestFile deleteManifest, CharSequence[] referencedDataFiles) {
+      ManifestFile dataManifest,
+      List<ManifestFile> deleteManifests,
+      CharSequence[] referencedDataFiles) {
+    Preconditions.checkNotNull(deleteManifests, "Delete manifests shouldn't be null.");
     Preconditions.checkNotNull(referencedDataFiles, "Referenced data files shouldn't be null.");
 
     this.dataManifest = dataManifest;
-    this.deleteManifest = deleteManifest;
+    this.deleteManifests = ImmutableList.copyOf(deleteManifests);
     this.referencedDataFiles = referencedDataFiles;
   }
 
@@ -50,8 +57,8 @@ public class DeltaManifests {
     return dataManifest;
   }
 
-  ManifestFile deleteManifest() {
-    return deleteManifest;
+  List<ManifestFile> deleteManifests() {
+    return deleteManifests;
   }
 
   CharSequence[] referencedDataFiles() {
@@ -59,15 +66,12 @@ public class DeltaManifests {
   }
 
   public List<ManifestFile> manifests() {
-    List<ManifestFile> manifests = Lists.newArrayListWithCapacity(2);
+    List<ManifestFile> manifests = Lists.newArrayListWithCapacity(1 + deleteManifests.size());
     if (dataManifest != null) {
       manifests.add(dataManifest);
     }
 
-    if (deleteManifest != null) {
-      manifests.add(deleteManifest);
-    }
-
+    manifests.addAll(deleteManifests);
     return manifests;
   }
 }

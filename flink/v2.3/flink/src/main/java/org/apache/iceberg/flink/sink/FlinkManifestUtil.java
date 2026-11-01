@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -35,6 +36,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -101,9 +103,25 @@ public class FlinkManifestUtil {
       PartitionSpec spec,
       int formatVersion)
       throws IOException {
+    return writeCompletedFiles(result, outputFileSupplier, spec, specId -> spec, formatVersion);
+  }
+
+  /**
+   * Write the {@link WriteResult} to temporary manifest files.
+   *
+   * @param result the completed files; data files must be written with {@code spec}
+   * @param deleteSpecs resolves the partition spec of each delete file by its spec ID
+   */
+  public static DeltaManifests writeCompletedFiles(
+      WriteResult result,
+      Supplier<OutputFile> outputFileSupplier,
+      PartitionSpec spec,
+      Function<Integer, PartitionSpec> deleteSpecs,
+      int formatVersion)
+      throws IOException {
 
     ManifestFile dataManifest = null;
-    ManifestFile deleteManifest = null;
+    List<ManifestFile> deleteManifests = Lists.newArrayList();
 
     // Write the completed data files into a newly created data manifest file.
     if (result.dataFiles() != null && result.dataFiles().length > 0) {
@@ -115,23 +133,45 @@ public class FlinkManifestUtil {
               formatVersion);
     }
 
-    // Write the completed delete files into a newly created delete manifest file.
     if (result.deleteFiles() != null && result.deleteFiles().length > 0) {
-      OutputFile deleteManifestFile = outputFileSupplier.get();
-
-      ManifestWriter<DeleteFile> deleteManifestWriter =
-          ManifestFiles.writeDeleteManifest(
-              formatVersion, spec, deleteManifestFile, DUMMY_SNAPSHOT_ID);
-      try (ManifestWriter<DeleteFile> writer = deleteManifestWriter) {
-        for (DeleteFile deleteFile : result.deleteFiles()) {
-          writer.add(deleteFile);
+      Map<PartitionSpec, List<DeleteFile>> deleteFilesBySpec = Maps.newLinkedHashMap();
+      for (DeleteFile deleteFile : result.deleteFiles()) {
+        PartitionSpec deleteSpec = deleteSpecs.apply(deleteFile.specId());
+        if (deleteSpec == null) {
+          LOG.warn(
+              "Skipping delete file {} for removed partition spec {}",
+              deleteFile.location(),
+              deleteFile.specId());
+          continue;
         }
+
+        deleteFilesBySpec
+            .computeIfAbsent(deleteSpec, unused -> Lists.newArrayList())
+            .add(deleteFile);
       }
 
-      deleteManifest = deleteManifestWriter.toManifestFile();
+      for (Map.Entry<PartitionSpec, List<DeleteFile>> entry : deleteFilesBySpec.entrySet()) {
+        deleteManifests.add(
+            writeDeleteFiles(
+                outputFileSupplier.get(), entry.getKey(), entry.getValue(), formatVersion));
+      }
     }
 
-    return new DeltaManifests(dataManifest, deleteManifest, result.referencedDataFiles());
+    return new DeltaManifests(dataManifest, deleteManifests, result.referencedDataFiles());
+  }
+
+  private static ManifestFile writeDeleteFiles(
+      OutputFile outputFile, PartitionSpec spec, List<DeleteFile> deleteFiles, int formatVersion)
+      throws IOException {
+    ManifestWriter<DeleteFile> deleteManifestWriter =
+        ManifestFiles.writeDeleteManifest(formatVersion, spec, outputFile, DUMMY_SNAPSHOT_ID);
+    try (ManifestWriter<DeleteFile> writer = deleteManifestWriter) {
+      for (DeleteFile deleteFile : deleteFiles) {
+        writer.add(deleteFile);
+      }
+    }
+
+    return deleteManifestWriter.toManifestFile();
   }
 
   public static WriteResult readCompletedFiles(
@@ -144,10 +184,17 @@ public class FlinkManifestUtil {
       builder.addDataFiles(readDataFiles(deltaManifests.dataManifest(), io, specsById));
     }
 
-    // Read the completed delete files from persisted delete manifests file.
-    if (deltaManifests.deleteManifest() != null) {
+    for (ManifestFile deleteManifest : deltaManifests.deleteManifests()) {
+      if (!specsById.containsKey(deleteManifest.partitionSpecId())) {
+        LOG.warn(
+            "Skipping delete manifest {} for removed partition spec {}",
+            deleteManifest.path(),
+            deleteManifest.partitionSpecId());
+        continue;
+      }
+
       try (CloseableIterable<DeleteFile> deleteFiles =
-          ManifestFiles.readDeleteManifest(deltaManifests.deleteManifest(), io, specsById)) {
+          ManifestFiles.readDeleteManifest(deleteManifest, io, specsById)) {
         builder.addDeleteFiles(deleteFiles);
       }
     }

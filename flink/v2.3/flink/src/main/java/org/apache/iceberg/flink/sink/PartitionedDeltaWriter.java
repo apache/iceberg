@@ -51,7 +51,8 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
       RowType flinkSchema,
       Set<Integer> equalityFieldIds,
       boolean upsert,
-      boolean useDv) {
+      boolean useDv,
+      Map<Integer, PartitionSpec> tableSpecs) {
     super(
         spec,
         format,
@@ -63,7 +64,8 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
         flinkSchema,
         equalityFieldIds,
         upsert,
-        useDv);
+        useDv,
+        tableSpecs);
     this.partitionKey = new PartitionKey(spec, schema);
   }
 

@@ -260,6 +260,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       long checkpointId)
       throws IOException {
     NavigableMap<Long, byte[]> pendingMap = deltaManifestsMap.headMap(checkpointId, true);
+    table.refresh();
     List<ManifestFile> manifests = Lists.newArrayList();
     NavigableMap<Long, WriteResult> pendingResults = Maps.newTreeMap();
     for (Map.Entry<Long, byte[]> e : pendingMap.entrySet()) {
@@ -450,6 +451,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
             result,
             () -> manifestOutputFileFactory.create(checkpointId),
             spec,
+            table.specs()::get,
             TableUtil.formatVersion(table));
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(

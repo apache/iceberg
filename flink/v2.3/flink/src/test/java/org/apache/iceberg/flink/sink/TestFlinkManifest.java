@@ -20,6 +20,8 @@ package org.apache.iceberg.flink.sink;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -147,7 +149,7 @@ public class TestFlinkManifest {
             TableUtil.formatVersion(table));
 
     assertThat(deltaManifests.dataManifest()).isNotNull();
-    assertThat(deltaManifests.deleteManifest()).isNull();
+    assertThat(deltaManifests.deleteManifests()).isEmpty();
     assertThat(Paths.get(deltaManifests.dataManifest().path()))
         .hasParent(userProvidedFolder.toPath());
 
@@ -193,7 +195,10 @@ public class TestFlinkManifest {
         SimpleVersionedSerialization.readVersionAndDeSerialize(
             DeltaManifestsSerializer.INSTANCE, versionedSerializeData);
     TestHelpers.assertEquals(expected.dataManifest(), actual.dataManifest());
-    TestHelpers.assertEquals(expected.deleteManifest(), actual.deleteManifest());
+    assertThat(actual.deleteManifests()).hasSameSizeAs(expected.deleteManifests());
+    for (int i = 0; i < expected.deleteManifests().size(); i++) {
+      TestHelpers.assertEquals(expected.deleteManifests().get(i), actual.deleteManifests().get(i));
+    }
 
     byte[] versionedSerializeData2 =
         SimpleVersionedSerialization.writeVersionAndSerialize(
@@ -221,7 +226,7 @@ public class TestFlinkManifest {
     DeltaManifests delta =
         SimpleVersionedSerialization.readVersionAndDeSerialize(
             DeltaManifestsSerializer.INSTANCE, dataV1);
-    assertThat(delta.deleteManifest()).isNull();
+    assertThat(delta.deleteManifests()).isEmpty();
     assertThat(delta.dataManifest()).isNotNull();
     TestHelpers.assertEquals(manifest, delta.dataManifest());
 
@@ -231,6 +236,42 @@ public class TestFlinkManifest {
     for (int i = 0; i < 10; i++) {
       TestHelpers.assertEquals(dataFiles.get(i), actualFiles.get(i));
     }
+  }
+
+  @Test
+  void readsVersion2State() throws IOException {
+    ManifestOutputFileFactory factory =
+        FlinkManifestUtil.createOutputFileFactory(
+            () -> table, table.properties(), newFlinkJobId(), newOperatorUniqueId(), 1, 1);
+    DeltaManifests expected =
+        FlinkManifestUtil.writeCompletedFiles(
+            WriteResult.builder()
+                .addDataFiles(generateDataFiles(1))
+                .addDeleteFiles(generateEqDeleteFiles(1))
+                .addReferencedDataFiles("data-file-1")
+                .build(),
+            () -> factory.create(1),
+            table.spec(),
+            TableUtil.formatVersion(table));
+
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    try (DataOutputStream out = new DataOutputStream(bytes)) {
+      for (ManifestFile manifest : expected.manifests()) {
+        byte[] encoded = ManifestFiles.encode(manifest);
+        out.writeInt(encoded.length);
+        out.write(encoded);
+      }
+
+      out.writeInt(1);
+      out.writeUTF("data-file-1");
+    }
+
+    DeltaManifests actual = DeltaManifestsSerializer.INSTANCE.deserialize(2, bytes.toByteArray());
+
+    TestHelpers.assertEquals(expected.dataManifest(), actual.dataManifest());
+    assertThat(actual.deleteManifests()).hasSize(1);
+    TestHelpers.assertEquals(expected.deleteManifests().get(0), actual.deleteManifests().get(0));
+    assertThat(actual.referencedDataFiles()).containsExactly("data-file-1");
   }
 
   private static class V1Serializer implements SimpleVersionedSerializer<ManifestFile> {
