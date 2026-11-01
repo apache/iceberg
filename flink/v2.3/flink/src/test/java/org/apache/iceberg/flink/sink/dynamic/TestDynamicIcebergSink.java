@@ -34,6 +34,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -2141,6 +2143,80 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     assertThat(records).hasSize(1);
     assertThat(records.get(0).getField("data")).isEqualTo("a");
     assertThat(records.get(0).getField("c")).isEqualTo(5L);
+  }
+
+  @Test
+  void testSideOutputForErroneousRecordsImmediateUpdatePath() {
+    runTestSideOutputForErroneousRecords(true);
+  }
+
+  @Test
+  void testSideOutputForErroneousRecordsNonImmediateUpdatePath() {
+    runTestSideOutputForErroneousRecords(false);
+  }
+
+  private void runTestSideOutputForErroneousRecords(boolean immediateUpdate) {
+    // Converting int -> boolean will fail
+    Schema incompatibleSchemaChange =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.BooleanType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    List<DynamicIcebergDataImpl> rows =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                SnapshotRef.MAIN_BRANCH,
+                PartitionSpec.unpartitioned()),
+            new DynamicIcebergDataImpl(
+                // Converting int -> boolean will fail
+                incompatibleSchemaChange,
+                "t1",
+                SnapshotRef.MAIN_BRANCH,
+                PartitionSpec.unpartitioned(),
+                true,
+                Collections.singleton("id"),
+                false));
+
+    DataStream<DynamicIcebergDataImpl> dataStream =
+        env.fromData(rows, TypeInformation.of(new TypeHint<>() {}));
+    env.setParallelism(1);
+
+    AtomicInteger errorCount = new AtomicInteger();
+    AtomicReference<Tuple2<DynamicRecord, Exception>> rejectedRecord = new AtomicReference<>();
+
+    DynamicIcebergSink.forInput(dataStream)
+        .generator(new Generator())
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .errorStreamConsumer(
+            errorStream -> {
+              // This code runs at the end of the append() call to execute the Flink job and
+              // retrieve the error stream.
+              // The try/catch is only required due to the checked exception of executeAndCollect().
+              try {
+                errorStream
+                    .executeAndCollect()
+                    .forEachRemaining(
+                        record -> {
+                          errorCount.incrementAndGet();
+                          rejectedRecord.set(record);
+                        });
+              } catch (Exception e) {
+                throw new RuntimeException(e);
+              }
+            })
+        .errorStreamFilter(error -> true)
+        .immediateTableUpdate(immediateUpdate)
+        .append();
+
+    assertThat(errorCount.get()).isEqualTo(1);
+    Tuple2<DynamicRecord, Exception> actual = rejectedRecord.get();
+    assertThat(actual.f0.schema().asStruct()).isEqualTo(incompatibleSchemaChange.asStruct());
+    // upsertMode and equalityFields of the submitted record survive to the error stream.
+    assertThat(actual.f0.upsertMode()).isTrue();
+    assertThat(actual.f0.equalityFields()).containsExactly("id");
+    assertThat(actual.f1).hasMessage("Cannot change column type: id: int -> boolean");
   }
 
   private void runTest(List<DynamicIcebergDataImpl> dynamicData) throws Exception {

@@ -126,6 +126,16 @@ class TestRowDataConverter {
   }
 
   @Test
+  void testNullValueForRequiredField() {
+    Schema currentSchema = new Schema(optional(1, "id", Types.IntegerType.get()));
+    Schema targetSchema = new Schema(required(1, "id", Types.IntegerType.get()));
+
+    assertThatThrownBy(() -> convert(GenericRowData.of((Object) null), currentSchema, targetSchema))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Null value for non-nullable field: id");
+  }
+
+  @Test
   void testIntToLong() {
     Schema schemaWithLong =
         new Schema(

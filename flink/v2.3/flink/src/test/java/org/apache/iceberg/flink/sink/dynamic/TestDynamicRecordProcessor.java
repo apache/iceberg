@@ -172,7 +172,8 @@ class TestDynamicRecordProcessor {
                 String.valueOf(CACHE_REFRESH_MS)),
             new Configuration()),
         Collections.emptyMap(),
-        new Configuration());
+        new Configuration(),
+        null);
   }
 
   private static OutputTag<DynamicRecordInternal> updateStream() {
