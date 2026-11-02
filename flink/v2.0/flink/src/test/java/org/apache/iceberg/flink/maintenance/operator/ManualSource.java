@@ -41,7 +41,6 @@ import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 
 /** Testing source implementation for Flink sources which can be triggered manually. */
 public class ManualSource<T>
@@ -69,7 +68,7 @@ public class ManualSource<T>
     this.type = type;
     this.env = env;
     this.index = numSources++;
-    QUEUES.add(Queues.newArrayDeque());
+    QUEUES.add(new ArrayDeque<>());
     AVAILABILITIES.add(new CompletableFuture<>());
   }
 
