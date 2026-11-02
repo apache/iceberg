@@ -122,7 +122,7 @@ Notes:
     - when the last planned conversion did not commit
     - when an earlier rebuild did not finish
 - The `equalityFieldColumns` set is persisted in operator state. Reconfiguring it across a restart from savepoint is **not supported** and the job will fail fast on restore. Restart from a clean state (no savepoint) if the equality columns change.
-- The committer keeps no state besides the index generation of the last failed cycle, which keeps the next conversion commit on that generation from committing. On restart, the planner rediscovers its position by walking the target branch for the marker property `equality-convert-staging-snapshot` written by the committer. If that marker is no longer reachable on the target branch (target was rolled back, replace-main'ed, or the marker snapshot was expired) the planner fails and requires manual intervention.
+- On restart, the planner rediscovers its position by walking the target branch for the marker property `equality-convert-staging-snapshot` written by the committer. If that marker is no longer reachable on the target branch (target was rolled back, replaced, or the marker snapshot was expired) the planner fails and requires manual intervention.
 
 **Concurrent commits on the target branch**
 
