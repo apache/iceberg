@@ -1762,8 +1762,7 @@ public class TestMergeAppend extends TestBase {
     table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
 
     DataFile dataFileAfter = promotionFile(table.spec(), 5L, "data-after.parquet");
-    assertThatCode(() -> table.newRowDelta().addRows(dataFileAfter).commit())
-        .doesNotThrowAnyException();
+    table.newRowDelta().addRows(dataFileAfter).commit();
     assertThat(table.currentSnapshot()).isNotNull();
     assertThat(table.currentSnapshot().snapshotId()).isNotEqualTo(prePromotionSnapshotId);
 
@@ -1794,8 +1793,7 @@ public class TestMergeAppend extends TestBase {
       deleteFileAfter = promotionDeleteFile(table.spec(), 5L, "pos-deletes-after.parquet");
     }
 
-    assertThatCode(() -> table.newRowDelta().addDeletes(deleteFileAfter).commit())
-        .doesNotThrowAnyException();
+    table.newRowDelta().addDeletes(deleteFileAfter).commit();
     assertThat(table.currentSnapshot()).isNotNull();
 
     // Verify scan planning: iterate tasks and check delete is applied
@@ -1818,8 +1816,7 @@ public class TestMergeAppend extends TestBase {
     table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
 
     DataFile dataFileAfter = promotionFile(table.spec(), 5L, "data-after-eq.parquet");
-    assertThatCode(() -> table.newAppend().appendFile(dataFileAfter).commit())
-        .doesNotThrowAnyException();
+    table.newAppend().appendFile(dataFileAfter).commit();
     assertThat(table.currentSnapshot()).isNotNull();
 
     // Verify scan planning: iterate tasks to ensure partition matching works
@@ -1850,8 +1847,7 @@ public class TestMergeAppend extends TestBase {
     table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
 
     DataFile dataFileAfter = promotionFile(table.spec(), 5L, "data-after-both.parquet");
-    assertThatCode(() -> table.newAppend().appendFile(dataFileAfter).commit())
-        .doesNotThrowAnyException();
+    table.newAppend().appendFile(dataFileAfter).commit();
     assertThat(table.currentSnapshot()).isNotNull();
 
     // Verify scan planning: iterate tasks and check delete is applied
