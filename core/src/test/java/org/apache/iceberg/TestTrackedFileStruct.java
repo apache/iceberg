@@ -93,7 +93,7 @@ class TestTrackedFileStruct {
     assertThat(file.fileSizeInBytes()).isEqualTo(512L);
     assertThat(file.specId()).isEqualTo(1);
     assertThat(file.contentStats()).isSameAs(CONTENT_STATS);
-    assertThat(file.tightStats()).isTrue();
+    assertThat(file.hasTightStats()).isTrue();
     assertThat(file.sortOrderId()).isEqualTo(5);
     assertThat(file.deletionVector()).isSameAs(DELETION_VECTOR);
     assertThat(file.manifestInfo()).isSameAs(MANIFEST_INFO);
@@ -129,7 +129,7 @@ class TestTrackedFileStruct {
     assertThat(file.specId()).isEqualTo(1);
     assertThat(file.partition()).isSameAs(PARTITION);
     assertThat(file.contentStats()).isSameAs(CONTENT_STATS);
-    assertThat(file.tightStats()).isTrue();
+    assertThat(file.hasTightStats()).isTrue();
     assertThat(file.sortOrderId()).isEqualTo(5);
     assertThat(file.deletionVector()).isSameAs(DELETION_VECTOR);
     assertThat(file.manifestInfo()).isSameAs(MANIFEST_INFO);
@@ -207,7 +207,7 @@ class TestTrackedFileStruct {
     assertThat(copy.fileSizeInBytes()).isEqualTo(512L);
     assertThat(copy.specId()).isEqualTo(1);
     assertThat(copy.contentStats()).isSameAs(CONTENT_STATS_COPY);
-    assertThat(copy.tightStats()).isTrue();
+    assertThat(copy.hasTightStats()).isTrue();
     assertThat(copy.sortOrderId()).isEqualTo(5);
     assertThat(copy.deletionVector()).isSameAs(DELETION_VECTOR_COPY);
     assertThat(copy.manifestInfo()).isSameAs(MANIFEST_INFO_COPY);
@@ -254,7 +254,7 @@ class TestTrackedFileStruct {
     assertThat(copy.fileSizeInBytes()).isEqualTo(512L);
     assertThat(copy.specId()).isEqualTo(1);
     assertThat(copy.contentStats()).isSameAs(statsCopy);
-    assertThat(copy.tightStats()).isTrue();
+    assertThat(copy.hasTightStats()).isTrue();
     assertThat(copy.sortOrderId()).isEqualTo(5);
     assertThat(copy.deletionVector()).isSameAs(DELETION_VECTOR_COPY);
     assertThat(copy.manifestInfo()).isSameAs(MANIFEST_INFO_COPY);
@@ -302,7 +302,7 @@ class TestTrackedFileStruct {
     assertThat(copy.fileSizeInBytes()).isEqualTo(512L);
     assertThat(copy.specId()).isEqualTo(1);
     assertThat(copy.contentStats()).isNull();
-    assertThat(copy.tightStats()).isTrue();
+    assertThat(copy.hasTightStats()).isTrue();
     assertThat(copy.sortOrderId()).isEqualTo(5);
     assertThat(copy.deletionVector()).isSameAs(DELETION_VECTOR_COPY);
     assertThat(copy.manifestInfo()).isSameAs(MANIFEST_INFO_COPY);
@@ -448,7 +448,7 @@ class TestTrackedFileStruct {
     assertThat(deserialized.recordCount()).isEqualTo(100L);
     assertThat(deserialized.fileSizeInBytes()).isEqualTo(1024L);
     assertThat(deserialized.specId()).isEqualTo(7);
-    assertThat(deserialized.tightStats()).isTrue();
+    assertThat(deserialized.hasTightStats()).isTrue();
     assertThat(deserialized.sortOrderId()).isEqualTo(1);
     assertThat(deserialized.deletionVector()).isNull();
     assertThat(deserialized.manifestInfo()).isNull();

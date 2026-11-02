@@ -62,7 +62,7 @@ class V4TestComparators {
             .thenComparing(TrackedFile::specId, natural())
             .thenComparing(TrackedFile::partition, partitionComparator)
             .thenComparing(TrackedFile::contentStats, CONTENT_STATS)
-            .thenComparing(TrackedFile::tightStats, natural())
+            .thenComparing(TrackedFile::hasTightStats, natural())
             .thenComparing(TrackedFile::sortOrderId, natural())
             .thenComparing(TrackedFile::deletionVector, DELETION_VECTOR)
             .thenComparing(TrackedFile::manifestInfo, MANIFEST_INFO)

@@ -215,7 +215,7 @@ class TrackedFileAdapters {
 
     @Override
     public boolean hasTightStats() {
-      return Boolean.TRUE.equals(file().tightStats());
+      return file().hasTightStats();
     }
   }
 
@@ -633,7 +633,7 @@ class TrackedFileAdapters {
     }
 
     @Override
-    public Boolean tightStats() {
+    public boolean hasTightStats() {
       return file.hasTightStats();
     }
 
@@ -759,8 +759,8 @@ class TrackedFileAdapters {
     }
 
     @Override
-    public Boolean tightStats() {
-      return null;
+    public boolean hasTightStats() {
+      return false;
     }
 
     @Override

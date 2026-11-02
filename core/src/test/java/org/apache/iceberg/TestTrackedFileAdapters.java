@@ -835,7 +835,7 @@ class TestTrackedFileAdapters {
     assertThat(result.recordCount()).isEqualTo(file.recordCount());
     assertThat(result.fileSizeInBytes()).isEqualTo(file.fileSizeInBytes());
     assertThat(result.specId()).isEqualTo(file.specId());
-    assertThat(result.tightStats()).isEqualTo(file.hasTightStats());
+    assertThat(result.hasTightStats()).isEqualTo(file.hasTightStats());
     assertThat(result.sortOrderId()).isEqualTo(file.sortOrderId());
     assertThat(result.keyMetadata()).isEqualTo(file.keyMetadata());
     assertThat(result.splitOffsets()).isEqualTo(file.splitOffsets());

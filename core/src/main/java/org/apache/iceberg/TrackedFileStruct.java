@@ -225,8 +225,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   }
 
   @Override
-  public Boolean tightStats() {
-    return tightStats;
+  public boolean hasTightStats() {
+    return Boolean.TRUE.equals(tightStats);
   }
 
   @Override
