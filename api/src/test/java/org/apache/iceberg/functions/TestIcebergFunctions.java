@@ -23,6 +23,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -97,6 +100,13 @@ public class TestIcebergFunctions {
   }
 
   @Test
+  public void showFirst4FourOrFewerReturnsString() {
+    SerializableFunction<CharSequence, CharSequence> fn =
+        IcebergFunctions.showFirst4().bind(Types.StringType.get());
+    assertThat(fn.apply(new StringBuilder("ab"))).isInstanceOf(String.class).isEqualTo("ab");
+  }
+
+  @Test
   public void showLast4SpecExample() {
     SerializableFunction<CharSequence, CharSequence> fn =
         IcebergFunctions.showLast4().bind(Types.StringType.get());
@@ -109,6 +119,13 @@ public class TestIcebergFunctions {
         IcebergFunctions.showLast4().bind(Types.StringType.get());
     assertThat(fn.apply("abcd")).isEqualTo("abcd");
     assertThat(fn.apply("ab")).isEqualTo("ab");
+  }
+
+  @Test
+  public void showLast4FourOrFewerReturnsString() {
+    SerializableFunction<CharSequence, CharSequence> fn =
+        IcebergFunctions.showLast4().bind(Types.StringType.get());
+    assertThat(fn.apply(new StringBuilder("ab"))).isInstanceOf(String.class).isEqualTo("ab");
   }
 
   @Test
@@ -323,22 +340,36 @@ public class TestIcebergFunctions {
   }
 
   @Test
-  public void sha256GlobalIntegerDeterministic() {
+  public void sha256GlobalIntegerUsesLittleEndian() throws NoSuchAlgorithmException {
     SerializableFunction<Object, Object> fn =
         IcebergFunctions.sha256Global().bind(Types.IntegerType.get());
-    Object first = fn.apply(42);
-    Object second = fn.apply(42);
-    assertThat(first).isEqualTo(second);
-    assertThat(first).isInstanceOf(Integer.class);
+    byte[] input = littleEndian(4).putInt(42).array();
+    assertThat(fn.apply(42)).isEqualTo(sha256LittleEndian(input).getInt());
   }
 
   @Test
-  public void sha256GlobalLongDeterministic() {
+  public void sha256GlobalLongUsesLittleEndian() throws NoSuchAlgorithmException {
     IcebergFunction<Long, Long> sha256 = IcebergFunctions.sha256Global();
     SerializableFunction<Long, Long> fn = sha256.bind(Types.LongType.get());
-    Long first = fn.apply(42L);
-    Long second = fn.apply(42L);
-    assertThat(first).isEqualTo(second);
+    byte[] input = littleEndian(8).putLong(42L).array();
+    assertThat(fn.apply(42L)).isEqualTo(sha256LittleEndian(input).getLong());
+  }
+
+  @Test
+  public void sha256QueryLocalPrependsSalt() throws NoSuchAlgorithmException {
+    byte[] salt = new byte[16];
+    Arrays.fill(salt, (byte) 7);
+    SerializableFunction<Object, Object> fn =
+        IcebergFunctions.sha256QueryLocal().bind(Types.LongType.get(), salt);
+    byte[] input = littleEndian(8).putLong(42L).array();
+    assertThat(fn.apply(42L)).isEqualTo(sha256LittleEndian(salt, input).getLong());
+  }
+
+  @Test
+  public void sha256QueryLocalBindWithoutSaltIsUnsupported() {
+    assertThatThrownBy(() -> IcebergFunctions.sha256QueryLocal().bind(Types.StringType.get()))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("requires a salt");
   }
 
   @Test
@@ -477,5 +508,18 @@ public class TestIcebergFunctions {
   public void unknownFunctionsDifferByName() {
     assertThat(IcebergFunctions.fromString("future-a"))
         .isNotEqualTo(IcebergFunctions.fromString("future-b"));
+  }
+
+  private static ByteBuffer littleEndian(int size) {
+    return ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN);
+  }
+
+  private static ByteBuffer sha256LittleEndian(byte[]... parts) throws NoSuchAlgorithmException {
+    MessageDigest md = MessageDigest.getInstance("SHA-256");
+    for (byte[] part : parts) {
+      md.update(part);
+    }
+
+    return ByteBuffer.wrap(md.digest()).order(ByteOrder.LITTLE_ENDIAN);
   }
 }
