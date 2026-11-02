@@ -78,6 +78,8 @@ public class FileMetadata {
       if (isPartitioned) {
         partitionData.clear();
       }
+      this.content = null;
+      this.equalityFieldIds = null;
       this.filePath = null;
       this.format = null;
       this.recordCount = -1L;
@@ -89,7 +91,13 @@ public class FileMetadata {
       this.lowerBounds = null;
       this.upperBounds = null;
       this.totalBytes = null;
+      this.originalTypes = null;
+      this.keyMetadata = null;
       this.sortOrderId = null;
+      this.splitOffsets = null;
+      this.referencedDataFile = null;
+      this.contentOffset = null;
+      this.contentSizeInBytes = null;
     }
 
     /**
