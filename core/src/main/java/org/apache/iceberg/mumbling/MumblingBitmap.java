@@ -437,6 +437,8 @@ class MumblingBitmap implements ManifestBitmap {
         // copy the sparse array if needed; other was sparse and merge set no new bits
         if (cardinality < DENSE_CONTAINER_SIZE) {
           this.sparse = Arrays.copyOf(other.sparse, other.sparse.length);
+        } else {
+          this.sparse = null;
         }
       } else {
         // Set the positions from the other container in this container
