@@ -330,9 +330,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
     // For incremental copies, filter out files that were already copied by a previous replication.
     // Prefer the target copy of the start version (dedup by target path), which retains everything
-    // previously replicated even when source snapshots have since been expired. If the target is not
-    // readable (e.g. files were not physically copied), fall back to the start version on the source
-    // (dedup by source path).
+    // previously replicated even when source snapshots have since been expired. If the target is
+    // not readable (e.g. files were not physically copied), fall back to the start version on the
+    // source (dedup by source path).
     if (startMetadata != null && !rewriteManifestResult.copyPlan().isEmpty()) {
       try {
         String targetStartVersion =
