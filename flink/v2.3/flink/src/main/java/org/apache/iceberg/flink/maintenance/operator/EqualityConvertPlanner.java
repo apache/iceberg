@@ -291,9 +291,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     // here until the plan arrives; without the marker it cannot tell a phase watermark emitted
     // before the plan from an idle watermark that must be forwarded, and forwarding the former
     // would release the maintenance lock before the commit.
-    output.collect(
-        METADATA_STREAM,
-        new StreamRecord<>(EqualityConvertPlan.cycleStart(triggerTs, indexGeneration)));
+    output.collect(METADATA_STREAM, new StreamRecord<>(EqualityConvertPlan.cycleStart(triggerTs)));
 
     Long currentMainSnapshotId = lastMainSnapshotId;
     try {

@@ -157,7 +157,7 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
       // phase watermark must not escape: forwarding it would let the LockRemover release the
       // maintenance lock before this cycle commits.
       harness.processElement2(
-          new StreamRecord<>(EqualityConvertPlan.cycleStart(triggerTs, INDEX_GENERATION)));
+          new StreamRecord<>(EqualityConvertPlan.cycleStart(triggerTs)));
       harness.processBothWatermarks(new Watermark(triggerTs + 1));
       assertThat(watermarks(harness)).isEmpty();
       assertThat(harness.extractOutputValues()).isEmpty();

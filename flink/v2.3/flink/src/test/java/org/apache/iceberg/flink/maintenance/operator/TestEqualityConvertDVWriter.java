@@ -154,8 +154,7 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
           new StreamRecord<>(new DVPosition(dataFilePath, 0, 0, EMPTY_PARTITION, 0L), time));
 
       // The cycle-start marker is not a plan: it must not trigger a write.
-      harness.processElement2(
-          new StreamRecord<>(EqualityConvertPlan.cycleStart(time, INDEX_GENERATION), time));
+      harness.processElement2(new StreamRecord<>(EqualityConvertPlan.cycleStart(time), time));
       harness.processBothWatermarks(new Watermark(time));
       assertThat(harness.extractOutputValues()).isEmpty();
 

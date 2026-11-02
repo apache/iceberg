@@ -35,7 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
  * {@link #noOp()} to check.
  *
  * <p>A cycle-start marker is a no-op plan whose done timestamp is never reached. Use {@link
- * #cycleStart(long, long)} to construct one.
+ * #cycleStart(long)} to construct one.
  *
  * @param dataFiles new staging data files committed in the cycle
  * @param stagingDVFiles staging DVs passed through to main, used by DVWriter to merge with
@@ -51,7 +51,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
  * @param doneTimestamp timestamp after which all phase watermarks have been emitted; the DVWriter
  *     should only process the result when the watermark reaches or exceeds this value
  * @param indexGeneration generation of the worker index the cycle ran on. The committer does not
- *     commit a cycle on a generation whose update failed.
+ *     commit a cycle on a generation whose update failed. {@link #NO_INDEX_GENERATION} for the
+ *     cycle-start marker.
  */
 @Internal
 public record EqualityConvertPlan(
@@ -66,6 +67,8 @@ public record EqualityConvertPlan(
     implements Serializable {
 
   public static final long NO_OP_STAGING_SNAPSHOT_ID = -1L;
+
+  public static final long NO_INDEX_GENERATION = -1L;
 
   /** Returns {@code true} if this cycle has nothing to commit. */
   public boolean noOp() {
@@ -90,7 +93,7 @@ public record EqualityConvertPlan(
    * Cycle-start marker: a no-op plan whose done timestamp is never reached, so consumers hold it
    * until the cycle's actual plan replaces it.
    */
-  public static EqualityConvertPlan cycleStart(long triggerTimestamp, long indexGeneration) {
-    return noOp(null, triggerTimestamp, Long.MAX_VALUE, indexGeneration);
+  public static EqualityConvertPlan cycleStart(long triggerTimestamp) {
+    return noOp(null, triggerTimestamp, Long.MAX_VALUE, NO_INDEX_GENERATION);
   }
 }
