@@ -648,10 +648,12 @@ class TestTrackedFileAdapters {
 
   @Test
   void dataTrackedFileAdapterFromDataFile() {
-    TrackedFile result = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(DATA_FILE);
+    DataFile file = Mockito.spy(DATA_FILE);
+    when(file.hasTightStats()).thenReturn(true);
+    TrackedFile result = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(file);
 
     assertThat(result.tracking()).isNull();
-    assertWrappedDataFileMatchesFileFields(result, DATA_FILE);
+    assertWrappedDataFileMatchesFileFields(result, file);
   }
 
   @Test
@@ -675,12 +677,10 @@ class TestTrackedFileAdapters {
 
   @Test
   void dataTrackedFileAdapterReuse() {
-    DataFile file1 = Mockito.spy(DATA_FILE);
-    when(file1.hasTightStats()).thenReturn(true);
     TrackedFileAdapters.DataTrackedFile adapter = TrackedFileAdapters.forDataFile(TABLE_SCHEMA);
 
-    adapter.wrap(new Delegates.DelegatingDataFile(file1));
-    assertWrappedDataFileMatchesFileFields(adapter, file1);
+    adapter.wrap(DATA_FILE);
+    assertWrappedDataFileMatchesFileFields(adapter, DATA_FILE);
     assertThat(adapter.tracking()).isNull();
 
     DataFile file2 =
