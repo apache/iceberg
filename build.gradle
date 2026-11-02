@@ -849,7 +849,7 @@ project(':iceberg-gcp') {
   }
 
   check.dependsOn integrationTest
-}
+  }
 
 project(':iceberg-hive-metastore') {
   test {

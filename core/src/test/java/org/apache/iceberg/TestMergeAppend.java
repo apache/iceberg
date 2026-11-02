@@ -37,6 +37,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -1767,8 +1768,12 @@ public class TestMergeAppend extends TestBase {
     assertThat(table.currentSnapshot()).isNotNull();
     assertThat(table.currentSnapshot().snapshotId()).isNotEqualTo(prePromotionSnapshotId);
 
-    // Verify scan planning succeeds
-    assertThatCode(() -> table.newScan().planFiles()).doesNotThrowAnyException();
+    // Verify scan planning: iterate tasks and check delete is applied
+    List<FileScanTask> tasks =
+        Lists.newArrayList(
+            table.newScan().filter(Expressions.equal("region", 5L)).planFiles().iterator());
+    assertThat(tasks).hasSize(1);
+    assertThat(tasks.get(0).deletes()).hasSize(1);
   }
 
   @TestTemplate
@@ -1795,8 +1800,12 @@ public class TestMergeAppend extends TestBase {
         .doesNotThrowAnyException();
     assertThat(table.currentSnapshot()).isNotNull();
 
-    // Verify scan planning succeeds
-    assertThatCode(() -> table.newScan().planFiles()).doesNotThrowAnyException();
+    // Verify scan planning: iterate tasks and check delete is applied
+    List<FileScanTask> tasks =
+        Lists.newArrayList(
+            table.newScan().filter(Expressions.equal("region", 5L)).planFiles().iterator());
+    assertThat(tasks).hasSize(1);
+    assertThat(tasks.get(0).deletes()).hasSize(1);
   }
 
   @TestTemplate
@@ -1816,8 +1825,12 @@ public class TestMergeAppend extends TestBase {
         .doesNotThrowAnyException();
     assertThat(table.currentSnapshot()).isNotNull();
 
-    // Verify scan planning succeeds with equality delete
-    assertThatCode(() -> table.newScan().planFiles()).doesNotThrowAnyException();
+    // Verify scan planning: iterate tasks and check equality delete is applied
+    List<FileScanTask> tasks =
+        Lists.newArrayList(
+            table.newScan().filter(Expressions.equal("region", 5L)).planFiles().iterator());
+    assertThat(tasks).hasSize(1);
+    assertThat(tasks.get(0).deletes()).hasSize(1);
   }
 
   @TestTemplate
@@ -1844,8 +1857,13 @@ public class TestMergeAppend extends TestBase {
         .doesNotThrowAnyException();
     assertThat(table.currentSnapshot()).isNotNull();
 
-    // Verify scan planning succeeds
-    assertThatCode(() -> table.newScan().planFiles()).doesNotThrowAnyException();
+    // Verify scan planning: iterate tasks and check delete is applied
+    List<FileScanTask> tasks =
+        Lists.newArrayList(
+            table.newScan().filter(Expressions.equal("region", 5L)).planFiles().iterator());
+    assertThat(tasks).hasSize(2);
+    // At least one task should have the delete file
+    assertThat(tasks.stream().mapToInt(t -> t.deletes().size()).sum()).isGreaterThanOrEqualTo(1);
   }
 
   private DeleteFile promotionDeleteFile(
