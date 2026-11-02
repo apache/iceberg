@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.functions;
 
+import java.util.Locale;
+
 /** Factory for {@link IcebergFunction} implementations. */
 public class IcebergFunctions {
   private IcebergFunctions() {}
@@ -27,7 +29,7 @@ public class IcebergFunctions {
    * UnknownFunction} if the name is not recognized.
    */
   public static IcebergFunction<?, ?> fromString(String function) {
-    switch (function) {
+    switch (function.toLowerCase(Locale.ROOT)) {
       case MaskAlphanum.NAME:
         return MaskAlphanum.get();
       case MaskToFixedValue.NAME:
