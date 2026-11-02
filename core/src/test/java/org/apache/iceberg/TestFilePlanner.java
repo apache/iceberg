@@ -52,6 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
@@ -271,6 +272,58 @@ class TestFilePlanner {
         .as("the default case-sensitive filter cannot resolve \"ID\"")
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'ID'");
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void taskOmitsStatsUnlessProjected(FileFormat format) throws IOException {
+    ManifestFile root =
+        writeManifest(
+            format, EMPTY_PARTITION, ImmutableList.of(dataFileWithStats(FILE_A, idStats(0, 99))));
+
+    DataFile file = Iterables.getOnlyElement(plan(root, UNPARTITIONED_SPECS)).file();
+
+    assertThat(file.lowerBounds())
+        .as("no column stats are returned unless projectStats requests them")
+        .isNull();
+    assertThat(file.valueCounts()).as("value counts are also omitted by default").isNull();
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void tasksContainProjectedStats(FileFormat format) throws IOException {
+    ManifestFile leaf =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(dataFileWithStats(FILE_C, idAndDataStats(100, 199))));
+    ManifestFile root =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                dataFileWithStats(FILE_A, idAndDataStats(0, 99)), dataManifest(leaf.path())));
+
+    int idFieldId = TABLE_SCHEMA.findField("id").fieldId();
+    int dataFieldId = TABLE_SCHEMA.findField("data").fieldId();
+    List<FileScanTask> tasks =
+        plan(root, UNPARTITIONED_SPECS, planner -> planner.projectStats(idFieldId));
+
+    assertThat(tasks)
+        .extracting(
+            task -> task.file().location(),
+            task -> lowerBound(task.file(), idFieldId),
+            task -> upperBound(task.file(), idFieldId))
+        .as("projected id stats are returned for files in both the root and a leaf")
+        .containsExactlyInAnyOrder(tuple(FILE_A, 0, 99), tuple(FILE_C, 100, 199));
+
+    assertThat(tasks)
+        .as("stats for unprojected fields are omitted")
+        .allSatisfy(
+            task -> {
+              assertThat(task.file().lowerBounds()).doesNotContainKey(dataFieldId);
+              assertThat(task.file().upperBounds()).doesNotContainKey(dataFieldId);
+            });
   }
 
   @ParameterizedTest
@@ -590,20 +643,37 @@ class TestFilePlanner {
     return manifestRefWithStats(FileContent.DATA_MANIFEST, location, stats, dataManifestInfo(1));
   }
 
+  private static Integer lowerBound(DataFile file, int fieldId) {
+    return Conversions.fromByteBuffer(Types.IntegerType.get(), file.lowerBounds().get(fieldId));
+  }
+
+  private static Integer upperBound(DataFile file, int fieldId) {
+    return Conversions.fromByteBuffer(Types.IntegerType.get(), file.upperBounds().get(fieldId));
+  }
+
   private static ContentStats idStats(int lower, int upper) {
     ContentStatsStruct stats = new ContentStatsStruct(STATS_TYPE);
-    stats.setStats(
-        TABLE_SCHEMA.findField("id").fieldId(),
-        new FieldStatsStruct<>(
-            STATS_TYPE.fieldType("id").asStructType(),
-            lower,
-            upper,
-            true, // tightBounds
-            RECORD_COUNT,
-            0, // nullValueCount
-            0, // nanValueCount
-            0L)); // totalBytes
+    stats.setStats(TABLE_SCHEMA.findField("id").fieldId(), fieldStats("id", lower, upper));
     return stats;
+  }
+
+  private static ContentStats idAndDataStats(int lower, int upper) {
+    ContentStatsStruct stats = new ContentStatsStruct(STATS_TYPE);
+    stats.setStats(TABLE_SCHEMA.findField("id").fieldId(), fieldStats("id", lower, upper));
+    stats.setStats(TABLE_SCHEMA.findField("data").fieldId(), fieldStats("data", "a", "z"));
+    return stats;
+  }
+
+  private static <T> FieldStatsStruct<T> fieldStats(String fieldName, T lower, T upper) {
+    return new FieldStatsStruct<>(
+        STATS_TYPE.fieldType(fieldName).asStructType(),
+        lower,
+        upper,
+        true, // tightBounds
+        RECORD_COUNT,
+        0, // nullValueCount
+        0, // nanValueCount
+        0L); // totalBytes
   }
 
   private static ManifestInfo dataManifestInfo(int addedFiles) {

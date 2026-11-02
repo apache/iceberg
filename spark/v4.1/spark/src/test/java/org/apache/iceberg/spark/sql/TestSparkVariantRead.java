@@ -46,6 +46,8 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
+import org.apache.spark.sql.execution.SparkPlan;
+import org.apache.spark.sql.execution.datasources.v2.BatchScanExec;
 import org.apache.spark.types.variant.Variant;
 import org.apache.spark.unsafe.types.VariantVal;
 import org.junit.jupiter.api.AfterEach;
@@ -53,6 +55,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import scala.collection.JavaConverters;
 
 public class TestSparkVariantRead extends TestBase {
 
@@ -462,6 +465,51 @@ public class TestSparkVariantRead extends TestBase {
     assertThat(v2.getFieldByKey("age").getLong()).isEqualTo(25L);
 
     sql("DROP TABLE IF EXISTS %s", toggleTable);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void readShreddedWithoutProjectingVariant(boolean vectorized)
+      throws IOException, NoSuchTableException, ParseException {
+    String shreddedTable = CATALOG + ".default.var_shredded_unprojected";
+    sql("DROP TABLE IF EXISTS %s", shreddedTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, v VARIANT) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', 'write.parquet.shred-variants'='true')",
+        shreddedTable);
+
+    spark.conf().set("spark.sql.iceberg.shred-variants", "true");
+    try {
+      sql(
+          "INSERT INTO %s VALUES "
+              + "(1, parse_json('{\"name\":\"alice\",\"age\":30}')), "
+              + "(2, parse_json('{\"name\":\"bob\",\"age\":25}'))",
+          shreddedTable);
+    } finally {
+      spark.conf().unset("spark.sql.iceberg.shred-variants");
+    }
+
+    Table table = Spark3Util.loadIcebergTable(spark, shreddedTable);
+    assertHasTypedValueSubtree(table);
+    setVectorization(shreddedTable, vectorized);
+
+    List<Row> rows = Lists.newArrayList();
+    SparkPlan plan =
+        executeAndKeepPlan(
+            () -> rows.addAll(spark.table(shreddedTable).select("id").collectAsList()));
+    assertThat(rows).extracting(r -> r.getLong(0)).containsExactlyInAnyOrder(1L, 2L);
+
+    List<SparkPlan> leaves = JavaConverters.seqAsJavaList(plan.collectLeaves());
+    assertThat(leaves)
+        .singleElement()
+        .isInstanceOfSatisfying(
+            BatchScanExec.class,
+            scan ->
+                assertThat(scan.supportsColumnar())
+                    .as("Scan should be columnar only when vectorization is enabled")
+                    .isEqualTo(vectorized));
+
+    sql("DROP TABLE IF EXISTS %s", shreddedTable);
   }
 
   @ParameterizedTest
