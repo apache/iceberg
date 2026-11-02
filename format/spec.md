@@ -1751,7 +1751,7 @@ The rows in the delete file must be sorted by `file_path` then `pos` to optimize
 
 Equality delete files identify deleted rows in a collection of data files by one or more column values, and may optionally contain additional columns of the deleted row.
 
-Equality delete files must not be added to v4 tables. Equality deletes cannot be added as an entry to a v4 manifest. Equality delete files referenced by v2 or v3 delete manifests must still be applied in a v4 table. Equality delete files do not apply to a data file that has column files (see [Writing Column Files](#writing-column-files)).
+Equality delete files must not be added to v4 tables. Equality deletes cannot be added as an entry to a v4 manifest. Equality delete files referenced by v2 or v3 delete manifests must still be applied in a v4 table. Equality delete files cannot apply to a data file that has column files (see [Writing Column Files](#writing-column-files)).
 
 Equality delete files store any subset of a table's columns and use the table's field ids. The _delete columns_ are the columns of the delete file used to match data rows. Delete columns are identified by id in the delete file [metadata column `equality_ids`](#manifests). The column restrictions for columns used in equality delete files are the same as those for [identifier fields](#identifier-field-ids) with the exception that optional columns and columns nested under optional structs are allowed (if a parent struct column is null it implies the leaf column is null).
 
@@ -1806,11 +1806,13 @@ Manifests hold the same statistics for delete files and data files. For delete f
 
 ### Column Files
 
-Starting in v4, a data file may store fields in column files listed in [`column_files`](#column-file-fields). A column file can use any supported Iceberg file format and must have rows that align with the data file it modifies.
+Starting in v4, a data file or v4 leaf manifest may store fields in column files listed in [`column_files`](#column-file-fields). A column file can use any supported Iceberg file format and must have rows that align with the file it modifies.
 
-A column file is responsible for all the values of the fields listed in its `field_ids`. Each ID must identify a field in the table schema, or a row lineage field required by [Writing Column Files](#writing-column-files). A schema field must be top-level or nested in structs, and must not be nested within a list or map.
+A column file stores the fields listed in its `field_ids`, each as a whole, including all of its nested fields. Each ID must identify a field in the schema of the file it modifies, which is the table schema for a data file and the tracked file schema for a leaf manifest, or a row lineage field required by [Writing Column Files](#writing-column-files). Fields nested within a list or map must not be listed in `field_ids`.
 
 #### Writing Column Files
+
+The rules below apply to column files of data files. Rules for writing column files of leaf manifests are not defined here.
 
 A column file stores the value of each of its listed fields for every row of the data file. Values that did not change are still included, and values for deleted rows should be null.
 
@@ -1830,13 +1832,15 @@ The `tracking` fields of the MODIFIED entry are set as described in [Updating Tr
     - Every delete that applied to the data file before the column files were added must be written into the MODIFIED entry's `deletion_vector`.
 - `column_files`:
     - Each field ID listed in an added column file must be removed from the `field_ids` of the previous entry's column files, and a column file with no remaining `field_ids` must be removed.
-    - One new column file must list `_last_updated_sequence_number` in its `field_ids`, with a null value for rows the update changed and the row's current non-null value for other rows that are not deleted.
+    - One of the added column files must take responsibility for `_last_updated_sequence_number` by listing it in its `field_ids`, replacing the data file or previous column file that stored it. In that column file:
+        - Rows the update changed must store null, so they inherit the MODIFIED entry's data sequence number.
+        - Other rows that are not deleted must store the non-null `_last_updated_sequence_number` read from the previous entry.
 
 #### Reading Column Files
 
-A projected field whose ID is in a column file's `field_ids` must be read from that column file. All other projected fields are read from the data file using [Column Projection](#column-projection).
+A projected field whose ID is in a column file's `field_ids` must be read from that column file. All other projected fields are read from the file it modifies, using [Column Projection](#column-projection) for a data file.
 
-Column files and the data file are aligned by row position before the deletion vector is applied. The scan schema must be used for field types and nullability. Null values in a column file may represent deleted rows.
+A column file and the file it modifies are aligned by row position before deletes are applied from the data file's `deletion_vector` or the leaf manifest's `manifest_info.dv`. The scan schema must be used for field types and nullability. Null values in a column file may represent deleted rows.
 
 ## Appendix A: Format-specific Requirements
 
