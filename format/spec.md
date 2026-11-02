@@ -479,6 +479,27 @@ Identifier fields may be nested in structs but cannot be nested within maps or l
 
 Identifier field IDs are replaced by a [`primary-key` constraint](#constraints) in v4 and must not be set in a v4 table schema.
 
+#### Stats-only Fields
+
+Stats are tracked in manifests by field ID. Schema fields have assigned IDs, but additional field IDs may be assigned to track stats for derived values. For instance, lower and upper bounds for `to_lower_case(name)` are useful for case-insensitive file pruning.
+
+These additional _stats-only fields_ are used to track stats for derived values that are not part of the table schema and are not materialized. A stats-only field consists of:
+
+* A **`field-id`** assigned by incrementing the table's `last-column-id`
+* A **`type`** that can be `partition-value` or `expr-value`
+* An optional **`data-type`** that determines the bound type; must be a primitive or variant
+* Type-specific fields that define how derived values are produced
+
+The `partition-value` type stores stats for the output of a partition field, identified by a `partition-field-id` type-specific field. The bound type is the partition field's result type and `data-type` is omitted. This may be used to store bucket partition values in stats for filtering.
+
+The `expr-value` type stores stats for the result of a [value expression](expressions-spec.md#value-expressions), stored in the `expr` field. Expressions must use only ID references. The output type of the value expression must be stored in the `data-type` field.
+
+Readers must not fail when an unsupported stats-only field `type` is found; stats for unsupported types must be ignored.
+
+Writers must preserve existing stats for stats-only fields listed in a table's `stats-fields` if the `data-type` is known (either set or specified by a supported type). Writers should produce stats when possible for stats-only fields. A writer should set the field stats struct to null if an expression is unsupported, produces an incompatible output type when bound, or binding fails.
+
+The data type of a stats-only field may only change according to the type promotion rules above.
+
 #### Reserved Field IDs
 
 Iceberg tables must not use field ids greater than 2147483447 (`Integer.MAX_VALUE - 200`). This id range is reserved for metadata columns that can be used in user data schemas, like the `_file` column that holds the file path in which a row was stored.
@@ -1478,6 +1499,7 @@ Table metadata consists of the following fields:
     | _optional_ | _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
     |            |            | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot’s `first-row-id`. See [Row Lineage](#row-lineage). |
     |            |            | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
+    |            |            | _optional_ | **`stats-fields`**          | A list (optional) of [stats-only fields](#stats-only-fields) used to track stats for derived values. |
 
 === "v4"
     | v4         | Field                       | Description |
@@ -1507,6 +1529,7 @@ Table metadata consists of the following fields:
     | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
     | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot's `first-row-id`. See [Row Lineage](#row-lineage). |
     | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
+    | _optional_ | **`stats-fields`**          | A list (optional) of [stats-only fields](#stats-only-fields) used to track stats for derived values. |
     | _optional_ | **`last-constraint-id`**    | An integer; the highest assigned constraint ID for the table. This is used to ensure constraints are always assigned an unused ID. See [Constraints](#constraints). |
     | _optional_ | **`constraints`**           | A list of [constraints](#constraints) for the table. |
 
@@ -2136,6 +2159,7 @@ A metadata JSON file may be compressed with [GZIP](https://datatracker.ietf.org/
 |**`default-sort-order-id`**|`JSON int`|`0`|
 |**`refs`**|`JSON map with string key and object value:`<br />`{`<br />&nbsp;&nbsp;`"<name>": {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"type": <type>,`<br />&nbsp;&nbsp;`"max-ref-age-ms": <long>,`<br />&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"test": {`<br />&nbsp;&nbsp;`"snapshot-id": 123456789000,`<br />&nbsp;&nbsp;`"type": "tag",`<br />&nbsp;&nbsp;`"max-ref-age-ms": 10000000`<br />&nbsp;&nbsp;`}`<br />`}`|
 |**`encryption-keys`**|`JSON list of encryption key objects`|`[ {"key-id": "5f819b", "key-metadata": "aWNlYmVyZwo="} ]`|
+|**`stats-fields`**|`JSON list of stats-only field objects`|`[ {"field-id": 102, "type": "partition-value", "partition-field-id": 1001} ]`|
 |**`last-constraint-id`**|`JSON int`|`2`|
 |**`constraints`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"constraint-id": <id>,`<br />&nbsp;&nbsp;`"type": "check",`<br />&nbsp;&nbsp;`"name": "<name>",`<br />&nbsp;&nbsp;`"enforced": <boolean>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"expression": { ... }`<br />`}, {`<br />&nbsp;&nbsp;`"constraint-id": <id>,`<br />&nbsp;&nbsp;`"type": "primary-key",`<br />&nbsp;&nbsp;`"name": "<name>",`<br />&nbsp;&nbsp;`"enforced": <boolean>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"field-ids": [ ... ]`<br />`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"constraint-id": 1,`<br />&nbsp;&nbsp;`"type": "check",`<br />&nbsp;&nbsp;`"name": "chk_amount",`<br />&nbsp;&nbsp;`"enforced": true,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"expression": { ... }`<br />`}, {`<br />&nbsp;&nbsp;`"constraint-id": 2,`<br />&nbsp;&nbsp;`"type": "primary-key",`<br />&nbsp;&nbsp;`"name": "pk_sales",`<br />&nbsp;&nbsp;`"enforced": false,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"field-ids": [1]`<br />`} ]`|
 
