@@ -77,8 +77,6 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
   private transient InMemoryLookupCache cache;
 
   private transient Counter missCounter;
-  private transient Counter loadCounter;
-  private transient Counter loadFailuresCounter;
   private transient volatile long currentSnapshotId;
   private transient volatile long cachedRecords;
   private transient volatile long latestLoadTimeMs;
@@ -108,8 +106,6 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
 
     MetricGroup metricGroup = context.getMetricGroup().addGroup(METRIC_GROUP);
     this.missCounter = metricGroup.counter("missCount");
-    this.loadCounter = metricGroup.counter("loadCount");
-    this.loadFailuresCounter = metricGroup.counter("numLoadFailures");
     this.currentSnapshotId = IcebergLookupReader.CURRENT_SNAPSHOT;
     this.cachedRecords = 0L;
     this.latestLoadTimeMs = UNINITIALIZED;
@@ -188,9 +184,6 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
         loaded.add(extractKey(row), rowSerializer.toBinaryRow(row).copy());
         rowCnt++;
       }
-    } catch (IOException | RuntimeException e) {
-      loadFailuresCounter.inc();
-      throw e;
     } finally {
       this.latestLoadTimeMs = System.currentTimeMillis() - start;
     }
@@ -198,7 +191,6 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
     this.cache = loaded;
     this.currentSnapshotId = snapshotId;
     this.cachedRecords = rowCnt;
-    loadCounter.inc();
 
     LOG.info(
         "IcebergFullCachingLookupFunction loading finished, snapshot={}, rows={}, cost={} ms",

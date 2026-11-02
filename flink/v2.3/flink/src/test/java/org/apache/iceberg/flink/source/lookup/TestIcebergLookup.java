@@ -199,6 +199,16 @@ class TestIcebergLookup {
   }
 
   @Test
+  void lookupFunctionHandlesEmptyTable() throws Exception {
+    CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
+
+    lookupFunction = newLookupFunction(ID_KEY_INDEXES, true);
+    lookupFunction.open(new FunctionContext(null));
+
+    assertThat(lookupFunction.lookup(keyRow(1L))).isEmpty();
+  }
+
+  @Test
   void lookupFunctionHandlesMultipleRowsPerKey() throws Exception {
     Table table = CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
     appendRecords(
@@ -300,12 +310,8 @@ class TestIcebergLookup {
     return row;
   }
 
-  private static void assertRow(RowData row, Long id, String data, String category) {
-    assertThat(row.isNullAt(0)).isEqualTo(id == null);
-    if (id != null) {
-      assertThat(row.getLong(0)).isEqualTo(id);
-    }
-
+  private static void assertRow(RowData row, long id, String data, String category) {
+    assertThat(row.getLong(0)).isEqualTo(id);
     assertThat(row.getString(1)).hasToString(data);
     assertThat(row.getString(2)).hasToString(category);
   }
