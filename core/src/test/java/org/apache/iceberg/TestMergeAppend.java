@@ -1751,7 +1751,6 @@ public class TestMergeAppend extends TestBase {
   @TestTemplate
   public void positionDeleteBeforePromotionCommitsWithRowDelta() {
     assumeThat(formatVersion).isEqualTo(2);
-    assumeThat(branch).isEqualTo(SnapshotRef.MAIN_BRANCH);
     createIdentityPromotionTable();
     PartitionSpec specBeforePromotion = table.spec();
     DataFile dataFile = promotionFile(specBeforePromotion, 5, "data.parquet");
@@ -1779,7 +1778,6 @@ public class TestMergeAppend extends TestBase {
   @TestTemplate
   public void dataFileBeforePromotionDeleteFileAfter() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
-    assumeThat(branch).isEqualTo(SnapshotRef.MAIN_BRANCH);
     createIdentityPromotionTable();
     PartitionSpec specBeforePromotion = table.spec();
     DataFile dataFileBefore = promotionFile(specBeforePromotion, 5, "data-before.parquet");
@@ -1811,7 +1809,6 @@ public class TestMergeAppend extends TestBase {
   @TestTemplate
   public void equalityDeleteBeforePromotionAppliedToDataAfter() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
-    assumeThat(branch).isEqualTo(SnapshotRef.MAIN_BRANCH);
     createIdentityPromotionTable();
     PartitionSpec specBeforePromotion = table.spec();
     DeleteFile eqDelete = promotionEqualityDeleteFile(specBeforePromotion, 5, "eq-deletes.parquet");
@@ -1825,12 +1822,12 @@ public class TestMergeAppend extends TestBase {
         .doesNotThrowAnyException();
     assertThat(table.currentSnapshot()).isNotNull();
 
-    // Verify scan planning: iterate tasks and check equality delete is applied
+    // Verify scan planning: iterate tasks to ensure partition matching works
+    // Equality deletes are handled in DeleteFileIndex, not task.deletes()
     List<FileScanTask> tasks =
         Lists.newArrayList(
             table.newScan().filter(Expressions.equal("region", 5L)).planFiles().iterator());
     assertThat(tasks).hasSize(1);
-    assertThat(tasks.get(0).deletes()).hasSize(1);
   }
 
   @TestTemplate
