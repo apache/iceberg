@@ -140,11 +140,15 @@ class FilePlanner {
 
     List<CloseableIterable<TrackedFile>> leafPlanTasks = Lists.newArrayList();
     for (ManifestFile leaf : leafManifests) {
-      leafPlanTasks.add(reader(leaf));
+      if (hasLiveFiles(leaf)) {
+        leafPlanTasks.add(reader(leaf));
+      } else {
+        scanMetrics.skippedDataManifests().increment();
+      }
     }
 
     CloseableIterable<TrackedFile> leafFiles =
-        executorService != null && leafManifests.size() > 1
+        executorService != null && leafPlanTasks.size() > 1
             ? new ParallelIterable<>(leafPlanTasks, executorService)
             : CloseableIterable.concat(leafPlanTasks);
 
@@ -202,6 +206,12 @@ class FilePlanner {
         SchemaParser.toJson(spec.schema()),
         PartitionSpecParser.toJson(spec),
         ResidualEvaluator.of(spec, filter, caseSensitive));
+  }
+
+  private static boolean hasLiveFiles(ManifestFile leaf) {
+    return leaf.hasAddedFiles()
+        || leaf.hasExistingFiles()
+        || (leaf.modifiedFilesCount() != null && leaf.modifiedFilesCount() > 0);
   }
 
   /** Per-spec task inputs computed once and shared across all files of a spec. */
