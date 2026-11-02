@@ -38,6 +38,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -767,14 +768,32 @@ class TestHashKeyGenerator {
     GenericRowData row3 = GenericRowData.of(2, StringData.fromString("baz"));
 
     int writeKey1 =
-        distributionFieldsWriteKey(
-            generator, unpartitioned, writeParallelism, distributionFields, row1);
+        getWriteKey(
+            generator,
+            unpartitioned,
+            DistributionMode.HASH,
+            writeParallelism,
+            Collections.emptySet(),
+            distributionFields,
+            row1);
     int writeKey2 =
-        distributionFieldsWriteKey(
-            generator, unpartitioned, writeParallelism, distributionFields, row2);
+        getWriteKey(
+            generator,
+            unpartitioned,
+            DistributionMode.HASH,
+            writeParallelism,
+            Collections.emptySet(),
+            distributionFields,
+            row2);
     int writeKey3 =
-        distributionFieldsWriteKey(
-            generator, unpartitioned, writeParallelism, distributionFields, row3);
+        getWriteKey(
+            generator,
+            unpartitioned,
+            DistributionMode.HASH,
+            writeParallelism,
+            Collections.emptySet(),
+            distributionFields,
+            row3);
 
     assertThat(writeKey1).isEqualTo(writeKey2);
     assertThat(writeKey2).isNotEqualTo(writeKey3);
@@ -796,38 +815,41 @@ class TestHashKeyGenerator {
     GenericRowData row1 = GenericRowData.of(1, StringData.fromString("x"));
     GenericRowData row2 = GenericRowData.of(2, StringData.fromString("x"));
 
-    assertThat(
-            distributionFieldsWriteKey(
-                generator, partitioned, writeParallelism, distributionFields, row1))
-        .isEqualTo(
-            distributionFieldsWriteKey(
-                generator, partitioned, writeParallelism, distributionFields, row2));
-
-    // Distinct 'data' values must not all collapse onto a single writer
-    Set<Integer> writeKeys = Sets.newHashSet();
-    for (int i = 0; i < 8; i++) {
-      writeKeys.add(
-          distributionFieldsWriteKey(
-              generator,
-              partitioned,
-              writeParallelism,
-              distributionFields,
-              GenericRowData.of(i, StringData.fromString("value-" + i))));
-    }
-
-    assertThat(writeKeys).hasSizeGreaterThan(1);
+    int writeKey1 =
+        getWriteKey(
+            generator,
+            partitioned,
+            DistributionMode.HASH,
+            writeParallelism,
+            Collections.emptySet(),
+            distributionFields,
+            row1);
+    int writeKey2 =
+        getWriteKey(
+            generator,
+            partitioned,
+            DistributionMode.HASH,
+            writeParallelism,
+            Collections.emptySet(),
+            distributionFields,
+            row2);
+    assertThat(writeKey1).isEqualTo(writeKey2);
   }
 
   @Test
   void testDistributionFieldsMissingFromSchema() {
     HashKeyGenerator generator = new HashKeyGenerator(16, 8);
-    DynamicRecord record =
-        distributionFieldsRecord(
-            PartitionSpec.unpartitioned(),
-            DistributionMode.HASH,
-            Collections.singleton("does_not_exist"));
 
-    assertThatThrownBy(() -> generator.generateKey(record))
+    assertThatThrownBy(
+            () ->
+                getWriteKey(
+                    generator,
+                    PartitionSpec.unpartitioned(),
+                    DistributionMode.HASH,
+                    2,
+                    Collections.emptySet(),
+                    Collections.singleton("does_not_exist"),
+                    GenericRowData.of(1, StringData.fromString("foo"))))
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining(
             "Missing distribution field 'does_not_exist'. "
@@ -835,24 +857,68 @@ class TestHashKeyGenerator {
   }
 
   @Test
+  void testDistributionFieldsSubsetOfEqualityFields() throws Exception {
+    HashKeyGenerator generator = new HashKeyGenerator(16, 8);
+    PartitionSpec unpartitioned = PartitionSpec.unpartitioned();
+    Set<String> equalityFields = ImmutableSet.of("id", "data");
+    Set<String> distributionFields = Collections.singleton("id");
+
+    int writeKey1 =
+        getWriteKey(
+            generator,
+            unpartitioned,
+            DistributionMode.HASH,
+            2,
+            equalityFields,
+            distributionFields,
+            GenericRowData.of(1, StringData.fromString("a")));
+    int writeKey2 =
+        getWriteKey(
+            generator,
+            unpartitioned,
+            DistributionMode.HASH,
+            2,
+            equalityFields,
+            distributionFields,
+            GenericRowData.of(1, StringData.fromString("b")));
+    int writeKey3 =
+        getWriteKey(
+            generator,
+            unpartitioned,
+            DistributionMode.HASH,
+            2,
+            equalityFields,
+            distributionFields,
+            GenericRowData.of(2, StringData.fromString("a")));
+
+    assertThat(writeKey1).isEqualTo(writeKey2);
+    assertThat(writeKey1).isNotEqualTo(writeKey3);
+  }
+
+  @Test
   void testDistributionFieldsNotSubsetOfEqualityFields() {
     HashKeyGenerator generator = new HashKeyGenerator(16, 8);
-    DynamicRecord record =
-        distributionFieldsRecord(
-            PartitionSpec.unpartitioned(), DistributionMode.HASH, Collections.singleton("data"));
-    record.setEqualityFields(Collections.singleton("id"));
 
-    assertThatThrownBy(() -> generator.generateKey(record))
+    assertThatThrownBy(
+            () ->
+                getWriteKey(
+                    generator,
+                    PartitionSpec.unpartitioned(),
+                    DistributionMode.HASH,
+                    2,
+                    Collections.singleton("id"),
+                    Collections.singleton("data"),
+                    GenericRowData.of(1, StringData.fromString("foo"))))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            "Invalid distribution fields '[data]'. Expected distribution fields '[data]' "
+            "Invalid distribution fields '[data]'. Expected distribution fields "
                 + "to be a subset of equality fields '[id]'.");
   }
 
   @Test
   void testDistributionFieldsNotSubsetOfIdentifierFields() {
     HashKeyGenerator generator = new HashKeyGenerator(16, 8);
-    Schema tableSchema =
+    Schema schemaWithIdentifier =
         new Schema(
             Lists.newArrayList(
                 Types.NestedField.required(1, "id", Types.IntegerType.get()),
@@ -860,14 +926,20 @@ class TestHashKeyGenerator {
             Sets.newHashSet(1));
 
     DynamicRecord record =
-        distributionFieldsRecord(
-            PartitionSpec.unpartitioned(), DistributionMode.HASH, Collections.singleton("data"));
+        new DynamicRecord(
+            TABLE_IDENTIFIER,
+            BRANCH,
+            schemaWithIdentifier,
+            GenericRowData.of(1, StringData.fromString("foo")),
+            PartitionSpec.unpartitioned(),
+            DistributionMode.HASH,
+            2);
+    record.setDistributionFields(Collections.singleton("data"));
 
-    assertThatThrownBy(
-            () -> generator.generateKey(record, tableSchema, PartitionSpec.unpartitioned(), null))
+    assertThatThrownBy(() -> generator.generateKey(record))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            "Invalid distribution fields '[data]'. Expected distribution fields '[data]' "
+            "Invalid distribution fields '[data]'. Expected distribution fields "
                 + "to be a subset of equality fields '[id]'.");
   }
 
@@ -878,46 +950,27 @@ class TestHashKeyGenerator {
         generator.getKeySelectorCache();
 
     PartitionSpec unpartitioned = PartitionSpec.unpartitioned();
-    DynamicRecord record1 =
-        distributionFieldsRecord(unpartitioned, DistributionMode.HASH, Collections.singleton("id"));
-    DynamicRecord record2 =
-        distributionFieldsRecord(
-            unpartitioned, DistributionMode.HASH, Collections.singleton("data"));
+    GenericRowData row = GenericRowData.of(1, StringData.fromString("foo"));
 
-    generator.generateKey(record1);
+    getWriteKey(
+        generator,
+        unpartitioned,
+        DistributionMode.HASH,
+        2,
+        Collections.emptySet(),
+        Collections.singleton("id"),
+        row);
     assertThat(keySelectorCache).hasSize(1);
 
-    generator.generateKey(record2);
+    getWriteKey(
+        generator,
+        unpartitioned,
+        DistributionMode.HASH,
+        2,
+        Collections.emptySet(),
+        Collections.singleton("data"),
+        row);
     assertThat(keySelectorCache).hasSize(2);
-  }
-
-  private static int distributionFieldsWriteKey(
-      HashKeyGenerator generator,
-      PartitionSpec spec,
-      int writeParallelism,
-      Set<String> distributionFields,
-      GenericRowData row)
-      throws Exception {
-    DynamicRecord record =
-        new DynamicRecord(
-            TABLE_IDENTIFIER, BRANCH, SCHEMA, row, spec, DistributionMode.HASH, writeParallelism);
-    record.setDistributionFields(distributionFields);
-    return generator.generateKey(record);
-  }
-
-  private static DynamicRecord distributionFieldsRecord(
-      PartitionSpec spec, DistributionMode mode, Set<String> distributionFields) {
-    DynamicRecord record =
-        new DynamicRecord(
-            TABLE_IDENTIFIER,
-            BRANCH,
-            SCHEMA,
-            GenericRowData.of(1, StringData.fromString("foo")),
-            spec,
-            mode,
-            2);
-    record.setDistributionFields(distributionFields);
-    return record;
   }
 
   private static int getWriteKey(
@@ -963,12 +1016,54 @@ class TestHashKeyGenerator {
       DistributionMode mode,
       int writeParallelism,
       Set<String> equalityFields,
+      Set<String> distributionFields,
+      GenericRowData row)
+      throws Exception {
+    return getWriteKey(
+        generator,
+        spec,
+        mode,
+        writeParallelism,
+        equalityFields,
+        distributionFields,
+        row,
+        new FlinkWriteConf(Collections.emptyMap(), new Configuration()));
+  }
+
+  private static int getWriteKey(
+      HashKeyGenerator generator,
+      PartitionSpec spec,
+      DistributionMode mode,
+      int writeParallelism,
+      Set<String> equalityFields,
+      GenericRowData row,
+      FlinkWriteConf flinkWriteConf)
+      throws Exception {
+    return getWriteKey(
+        generator,
+        spec,
+        mode,
+        writeParallelism,
+        equalityFields,
+        Collections.emptySet(),
+        row,
+        flinkWriteConf);
+  }
+
+  private static int getWriteKey(
+      HashKeyGenerator generator,
+      PartitionSpec spec,
+      DistributionMode mode,
+      int writeParallelism,
+      Set<String> equalityFields,
+      Set<String> distributionFields,
       GenericRowData row,
       FlinkWriteConf flinkWriteConf)
       throws Exception {
     DynamicRecord inputRecord =
         new DynamicRecord(TABLE_IDENTIFIER, BRANCH, SCHEMA, row, spec, mode, writeParallelism);
     inputRecord.setEqualityFields(equalityFields);
+    inputRecord.setDistributionFields(distributionFields);
 
     DynamicRecordWithConfig dynamicRecordWithConfig = new DynamicRecordWithConfig(flinkWriteConf);
     return generator.generateKey(dynamicRecordWithConfig.wrap(inputRecord));

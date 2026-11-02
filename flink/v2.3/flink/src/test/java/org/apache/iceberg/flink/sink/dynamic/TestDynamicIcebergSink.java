@@ -1246,10 +1246,10 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         Lists.newArrayList(table.snapshots()).stream()
             .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
             .collect(Collectors.toList());
-    assertThat(dataSnapshots).isNotEmpty();
-    for (Snapshot snapshot : dataSnapshots) {
-      assertThat(snapshot.addedDataFiles(table.io())).hasSize(1);
-    }
+
+    assertThat(dataSnapshots)
+        .isNotEmpty()
+        .allSatisfy(snapshot -> assertThat(snapshot.addedDataFiles(table.io())).hasSize(1));
   }
 
   @Test
