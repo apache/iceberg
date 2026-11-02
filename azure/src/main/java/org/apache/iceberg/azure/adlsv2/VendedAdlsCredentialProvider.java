@@ -115,8 +115,14 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
     Preconditions.checkState(
         !adlsCredentials.isEmpty(),
         String.format("Invalid ADLS Credentials for storage-account %s: empty", storageAccount));
+    // A catalog can return the same SAS token for several prefixes of one storage account. The
+    // provider keeps one token per storage account, so the credentials must carry the same token.
     Preconditions.checkState(
-        adlsCredentials.size() == 1,
+        adlsCredentials.stream()
+                .map(c -> c.config().get(AzureProperties.ADLS_SAS_TOKEN_PREFIX + storageAccount))
+                .distinct()
+                .count()
+            == 1,
         "Invalid ADLS Credentials: only one ADLS credential should exist per storage-account");
 
     Credential adlsCredential = adlsCredentials.get(0);
