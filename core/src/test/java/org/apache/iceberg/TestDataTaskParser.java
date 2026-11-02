@@ -46,7 +46,8 @@ public class TestDataTaskParser {
           Types.NestedField.optional(
               6,
               "summary",
-              Types.MapType.ofRequired(7, 8, Types.StringType.get(), Types.StringType.get())));
+              Types.MapType.ofRequired(7, 8, Types.StringType.get(), Types.StringType.get())),
+          Types.NestedField.optional(9, "root_manifest", Types.StringType.get()));
 
   // copied from SnapshotsTable to avoid making it package public
   private static StaticDataTask.Row snapshotToRow(Snapshot snap) {
@@ -56,7 +57,8 @@ public class TestDataTaskParser {
         snap.parentId(),
         snap.operation(),
         snap.manifestListLocation(),
-        snap.summary());
+        snap.summary(),
+        snap.rootManifestLocation());
   }
 
   @Test
@@ -134,7 +136,8 @@ public class TestDataTaskParser {
             + "{\"id\":5,\"name\":\"manifest_list\",\"required\":false,\"type\":\"string\"},"
             + "{\"id\":6,\"name\":\"summary\",\"required\":false,\"type\":{\"type\":\"map\","
             + "\"key-id\":7,\"key\":\"string\",\"value-id\":8,"
-            + "\"value\":\"string\",\"value-required\":true}}]},"
+            + "\"value\":\"string\",\"value-required\":true}},"
+            + "{\"id\":9,\"name\":\"root_manifest\",\"required\":false,\"type\":\"string\"}]},"
             + "\"projection\":{\"type\":\"struct\",\"schema-id\":0,"
             + "\"fields\":[{\"id\":1,\"name\":\"committed_at\",\"required\":true,\"type\":\"timestamptz\"},"
             + "{\"id\":2,\"name\":\"snapshot_id\",\"required\":true,\"type\":\"long\"},"
@@ -143,7 +146,8 @@ public class TestDataTaskParser {
             + "{\"id\":5,\"name\":\"manifest_list\",\"required\":false,\"type\":\"string\"},"
             + "{\"id\":6,\"name\":\"summary\",\"required\":false,\"type\":{\"type\":\"map\","
             + "\"key-id\":7,\"key\":\"string\",\"value-id\":8,"
-            + "\"value\":\"string\",\"value-required\":true}}]},"
+            + "\"value\":\"string\",\"value-required\":true}},"
+            + "{\"id\":9,\"name\":\"root_manifest\",\"required\":false,\"type\":\"string\"}]},"
             + "\"metadata-file\":{\"spec-id\":0,\"content\":\"data\","
             + "\"file-path\":\"/tmp/metadata2.json\","
             + "\"file-format\":\"metadata\",\"partition\":[],"
@@ -253,7 +257,8 @@ public class TestDataTaskParser {
         + "{\"id\":5,\"name\":\"manifest_list\",\"required\":false,\"type\":\"string\"},"
         + "{\"id\":6,\"name\":\"summary\",\"required\":false,\"type\":{\"type\":\"map\","
         + "\"key-id\":7,\"key\":\"string\",\"value-id\":8,"
-        + "\"value\":\"string\",\"value-required\":true}}]},"
+        + "\"value\":\"string\",\"value-required\":true}},"
+        + "{\"id\":9,\"name\":\"root_manifest\",\"required\":false,\"type\":\"string\"}]},"
         + "\"projection\":{\"type\":\"struct\",\"schema-id\":0,"
         + "\"fields\":[{\"id\":1,\"name\":\"committed_at\",\"required\":true,\"type\":\"timestamptz\"},"
         + "{\"id\":2,\"name\":\"snapshot_id\",\"required\":true,\"type\":\"long\"},"
@@ -262,7 +267,8 @@ public class TestDataTaskParser {
         + "{\"id\":5,\"name\":\"manifest_list\",\"required\":false,\"type\":\"string\"},"
         + "{\"id\":6,\"name\":\"summary\",\"required\":false,\"type\":{\"type\":\"map\","
         + "\"key-id\":7,\"key\":\"string\",\"value-id\":8,"
-        + "\"value\":\"string\",\"value-required\":true}}]},"
+        + "\"value\":\"string\",\"value-required\":true}},"
+        + "{\"id\":9,\"name\":\"root_manifest\",\"required\":false,\"type\":\"string\"}]},"
         + "\"metadata-file\":{\"spec-id\":0,\"content\":\"data\","
         + "\"file-path\":\"/tmp/metadata2.json\","
         + "\"file-format\":\"metadata\",\"partition\":[],"

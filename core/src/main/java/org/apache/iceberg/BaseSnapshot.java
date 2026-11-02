@@ -39,6 +39,7 @@ class BaseSnapshot implements Snapshot {
   private final long sequenceNumber;
   private final long timestampMillis;
   private final String manifestListLocation;
+  private final String rootManifestLocation;
   private final String operation;
   private final Map<String, String> summary;
   private final Integer schemaId;
@@ -68,6 +69,38 @@ class BaseSnapshot implements Snapshot {
       Long firstRowId,
       Long addedRows,
       String keyId) {
+    this(
+        sequenceNumber,
+        snapshotId,
+        parentId,
+        timestampMillis,
+        operation,
+        summary,
+        schemaId,
+        manifestList,
+        null,
+        firstRowId,
+        addedRows,
+        keyId);
+  }
+
+  BaseSnapshot(
+      long sequenceNumber,
+      long snapshotId,
+      Long parentId,
+      long timestampMillis,
+      String operation,
+      Map<String, String> summary,
+      Integer schemaId,
+      String manifestList,
+      String rootManifest,
+      Long firstRowId,
+      Long addedRows,
+      String keyId) {
+    Preconditions.checkArgument(
+        manifestList == null || rootManifest == null,
+        "Snapshot %s cannot have both a manifest list and a root manifest",
+        snapshotId);
     Preconditions.checkArgument(
         firstRowId == null || firstRowId >= 0,
         "Invalid first-row-id (cannot be negative): %s",
@@ -87,6 +120,7 @@ class BaseSnapshot implements Snapshot {
     this.summary = summary;
     this.schemaId = schemaId;
     this.manifestListLocation = manifestList;
+    this.rootManifestLocation = rootManifest;
     this.v1ManifestLocations = null;
     this.firstRowId = firstRowId;
     this.addedRows = firstRowId != null ? addedRows : null;
@@ -110,6 +144,7 @@ class BaseSnapshot implements Snapshot {
     this.summary = summary;
     this.schemaId = schemaId;
     this.manifestListLocation = null;
+    this.rootManifestLocation = null;
     this.v1ManifestLocations = v1ManifestLocations;
     this.firstRowId = null;
     this.addedRows = null;
@@ -181,7 +216,11 @@ class BaseSnapshot implements Snapshot {
     }
 
     if (allManifests == null) {
-      // if manifests isn't set, then the snapshotFile is set and should be read to get the list
+      // if manifests isn't set, then the manifest list must be read
+      Preconditions.checkArgument(
+          manifestListLocation != null,
+          "Cannot read manifests from snapshot %s: no manifest list",
+          snapshotId);
       this.allManifests =
           ManifestLists.read(
               ManifestLists.newInputFile(
@@ -259,6 +298,11 @@ class BaseSnapshot implements Snapshot {
   @Override
   public String manifestListLocation() {
     return manifestListLocation;
+  }
+
+  @Override
+  public String rootManifestLocation() {
+    return rootManifestLocation;
   }
 
   private void cacheDeleteFileChanges(FileIO fileIO) {
@@ -370,6 +414,7 @@ class BaseSnapshot implements Snapshot {
         .add("operation", operation)
         .add("summary", summary)
         .add("manifest-list", manifestListLocation)
+        .add("root-manifest", rootManifestLocation)
         .add("schema-id", schemaId)
         .add("first-row-id", firstRowId)
         .add("added-rows", addedRows)
