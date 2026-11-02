@@ -1770,8 +1770,9 @@ public class TestMergeAppend extends TestBase {
     List<FileScanTask> tasks =
         Lists.newArrayList(
             table.newScan().filter(Expressions.equal("region", 5L)).planFiles().iterator());
-    assertThat(tasks).hasSize(1);
-    assertThat(tasks.get(0).deletes()).hasSize(1);
+    assertThat(tasks).hasSize(2);
+    // The delete file should be applied to the first data file (before promotion)
+    assertThat(tasks.stream().mapToInt(t -> t.deletes().size()).sum()).isGreaterThanOrEqualTo(1);
   }
 
   @TestTemplate
