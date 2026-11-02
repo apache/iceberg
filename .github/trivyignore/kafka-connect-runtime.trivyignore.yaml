@@ -24,11 +24,17 @@
 # upgraded independently of Apache Parquet, and 1.18.1 still bundles
 # vulnerable versions.
 #
+vulnerabilities:
 # jackson-databind CVEs shaded into parquet-jackson 1.18.1 (jackson 2.22.2),
 # only fixed in jackson >= 2.18.11 / 2.21.7 / 2.22.3.
-CVE-2026-91776
-CVE-2026-91777
+- id: CVE-2026-91776
+- id: CVE-2026-91777
 # jackson-core CVEs shaded into parquet-jackson 1.17.1, only fixed in jackson
 # >= 2.18.11 / 2.21.7 / 2.22.3. Apache Parquet 1.18.1 still bundles 2.22.2.
-CVE-2026-89407
-CVE-2026-89425
+- id: CVE-2026-89407
+- id: CVE-2026-89425
+# guava CVE shaded into hadoop-shaded-guava 1.5.0 (guava 33.4.8), only fixed in
+# guava >= 33.7.2. No newer hadoop-shaded-guava release exists yet.
+- id: CVE-2026-102554
+  paths:
+  - "**/hadoop-shaded-guava-1.5.0.jar"

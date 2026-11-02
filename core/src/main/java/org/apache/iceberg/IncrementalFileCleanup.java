@@ -97,14 +97,15 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
 
     Set<Long> pickedAncestorSnapshotIds = Sets.newHashSet();
     for (long snapshotId : ancestorIds) {
-      String sourceSnapshotId =
-          beforeExpiration
-              .snapshot(snapshotId)
-              .summary()
-              .get(SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP);
+      Map<String, String> summary = beforeExpiration.snapshot(snapshotId).summary();
+      Long sourceSnapshotId =
+          summary != null
+              ? PropertyUtil.propertyAsNullableLong(
+                  summary, SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP)
+              : null;
       if (sourceSnapshotId != null) {
         // protect any snapshot that was cherry-picked into the current table state
-        pickedAncestorSnapshotIds.add(Long.parseLong(sourceSnapshotId));
+        pickedAncestorSnapshotIds.add(sourceSnapshotId);
       }
     }
 
@@ -192,9 +193,12 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                   return;
                 }
 
+                Map<String, String> summary = snapshot.summary();
                 long sourceSnapshotId =
-                    PropertyUtil.propertyAsLong(
-                        snapshot.summary(), SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP, -1);
+                    summary != null
+                        ? PropertyUtil.propertyAsLong(
+                            summary, SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP, -1)
+                        : -1;
                 if (ancestorIds.contains(sourceSnapshotId)) {
                   // this commit was cherry-picked from a commit that is in the current table state.
                   // do not clean up its changes because it would revert data file additions that
