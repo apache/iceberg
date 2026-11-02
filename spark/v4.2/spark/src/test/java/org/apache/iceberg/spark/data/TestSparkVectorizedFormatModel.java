@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.iceberg.FileFormat;
@@ -48,21 +47,28 @@ class TestSparkVectorizedFormatModel extends ReadFormatModelTests<ColumnarBatch>
 
   private static final FileFormat[] FILE_FORMATS = {FileFormat.ORC, FileFormat.PARQUET};
 
-  // Spark has no TIME or TIMESTAMP_NANO type. The Arrow-based Parquet reader also cannot read
-  // nested or geospatial columns, the vectorized ORC reader can.
-  private static final Map<FileFormat, Set<Type.TypeID>> UNSUPPORTED_TYPE_IDS =
-      Map.of(
-          FileFormat.ORC,
-          Set.of(Type.TypeID.TIME, Type.TypeID.TIMESTAMP_NANO),
-          FileFormat.PARQUET,
-          Set.of(
-              Type.TypeID.TIME,
-              Type.TypeID.TIMESTAMP_NANO,
-              Type.TypeID.STRUCT,
-              Type.TypeID.LIST,
-              Type.TypeID.MAP,
-              Type.TypeID.GEOMETRY,
-              Type.TypeID.GEOGRAPHY));
+  private static final Set<Type.TypeID> SPARK_UNSUPPORTED_TYPE_IDS =
+      Set.of(Type.TypeID.TIME, Type.TypeID.TIMESTAMP_NANO);
+
+  // The Arrow-based Parquet reader cannot read nested or geospatial columns;
+  // the vectorized ORC reader supports nested types.
+  private static final Set<Type.TypeID> ARROW_UNSUPPORTED_TYPE_IDS =
+      Set.of(
+          Type.TypeID.STRUCT,
+          Type.TypeID.LIST,
+          Type.TypeID.MAP,
+          Type.TypeID.GEOMETRY,
+          Type.TypeID.GEOGRAPHY);
+
+  private static final Set<Type.TypeID> PARQUET_UNSUPPORTED_TYPE_IDS =
+      Set.of(
+          Type.TypeID.TIME,
+          Type.TypeID.TIMESTAMP_NANO,
+          Type.TypeID.STRUCT,
+          Type.TypeID.LIST,
+          Type.TypeID.MAP,
+          Type.TypeID.GEOMETRY,
+          Type.TypeID.GEOGRAPHY);
 
   private static final List<Arguments> FORMAT_AND_GENERATOR =
       Arrays.stream(FILE_FORMATS)
@@ -75,12 +81,15 @@ class TestSparkVectorizedFormatModel extends ReadFormatModelTests<ColumnarBatch>
 
   private static boolean supportsVectorized(FileFormat format, DataGenerator generator) {
     return supportsGenerator(format, generator)
-        && !containsType(generator.schema(), UNSUPPORTED_TYPE_IDS.get(format));
+        && (format != FileFormat.PARQUET
+            || !containsType(generator.schema(), ARROW_UNSUPPORTED_TYPE_IDS));
   }
 
   @Override
   protected Collection<Type.TypeID> unsupportedTypeIds(FileFormat fileFormat) {
-    return UNSUPPORTED_TYPE_IDS.get(fileFormat);
+    return fileFormat == FileFormat.PARQUET
+        ? PARQUET_UNSUPPORTED_TYPE_IDS
+        : SPARK_UNSUPPORTED_TYPE_IDS;
   }
 
   @Override

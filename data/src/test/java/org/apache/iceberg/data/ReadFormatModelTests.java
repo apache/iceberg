@@ -422,9 +422,7 @@ public abstract class ReadFormatModelTests<T> {
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
 
     try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(projectedSchema)
-            .build()) {
+        readBuilder(fileFormat, inputFile).project(projectedSchema).build()) {
       assertRecordsEqual(projectedSchema, projectedGenericRecords, reader);
     }
   }
@@ -452,10 +450,7 @@ public abstract class ReadFormatModelTests<T> {
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
     List<T> readRecords;
     try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(schema)
-            .filter(lessThanFilter)
-            .build()) {
+        readBuilder(fileFormat, inputFile).project(schema).filter(lessThanFilter).build()) {
       readRecords = ImmutableList.copyOf(reader);
     }
 
@@ -465,10 +460,7 @@ public abstract class ReadFormatModelTests<T> {
     Expression greaterThanFilter = Expressions.greaterThanOrEqual("id", count - 1);
 
     try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(schema)
-            .filter(greaterThanFilter)
-            .build()) {
+        readBuilder(fileFormat, inputFile).project(schema).filter(greaterThanFilter).build()) {
       readRecords = ImmutableList.copyOf(reader);
     }
 
@@ -502,7 +494,7 @@ public abstract class ReadFormatModelTests<T> {
     // caseSensitive=false: upper-cased column name must be resolved correctly.
     List<T> readRecords;
     try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+        readBuilder(fileFormat, inputFile)
             .project(schema)
             .filter(upperCaseFilter)
             .caseSensitive(false)
@@ -516,7 +508,7 @@ public abstract class ReadFormatModelTests<T> {
     assertThatThrownBy(
             () -> {
               try (CloseableIterable<T> reader =
-                  FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+                  readBuilder(fileFormat, inputFile)
                       .project(schema)
                       .filter(upperCaseFilter)
                       .caseSensitive(true)
@@ -557,7 +549,7 @@ public abstract class ReadFormatModelTests<T> {
 
     List<T> readRecords;
     try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+        readBuilder(fileFormat, inputFile)
             .project(schema)
             .split(firstSplitStart, firstSplitLength)
             .build()) {
@@ -569,10 +561,7 @@ public abstract class ReadFormatModelTests<T> {
     // split(fileLength, 0): empty range at the end of the file, so no records should be returned
     List<T> emptyReadRecords;
     try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(schema)
-            .split(fileLength, 0)
-            .build()) {
+        readBuilder(fileFormat, inputFile).project(schema).split(fileLength, 0).build()) {
       emptyReadRecords = ImmutableList.copyOf(reader);
     }
 
@@ -580,10 +569,7 @@ public abstract class ReadFormatModelTests<T> {
 
     // split(0, fileLength): full file range, so all records should be returned
     try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(schema)
-            .split(0, fileLength)
-            .build()) {
+        readBuilder(fileFormat, inputFile).project(schema).split(0, fileLength).build()) {
       readRecords = ImmutableList.copyOf(reader);
     }
 
@@ -2431,9 +2417,7 @@ public abstract class ReadFormatModelTests<T> {
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
     List<T> readRecords;
     try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(emptySchema)
-            .build()) {
+        readBuilder(fileFormat, inputFile).project(emptySchema).build()) {
       readRecords = ImmutableList.copyOf(reader);
     }
 
@@ -2458,7 +2442,7 @@ public abstract class ReadFormatModelTests<T> {
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
 
     try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+        readBuilder(fileFormat, inputFile)
             .project(icebergSchema)
             .withNameMapping(nameMapping)
             .build()) {
@@ -2934,9 +2918,7 @@ public abstract class ReadFormatModelTests<T> {
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
     List<T> readRecords;
 
-    ReadBuilder<T, ?> readerBuilder =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(projectionSchema);
+    ReadBuilder<T, ?> readerBuilder = readBuilder(fileFormat, inputFile).project(projectionSchema);
 
     if (idToConstant != null) {
       readerBuilder.idToConstant(convertConstantsToEngine(projectionSchema, idToConstant));
@@ -2987,9 +2969,7 @@ public abstract class ReadFormatModelTests<T> {
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
 
     try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(readSchema)
-            .build()) {
+        readBuilder(fileFormat, inputFile).project(readSchema).build()) {
       assertRecordsEqual(readSchema, expectedGenericRecords, reader);
     }
   }
