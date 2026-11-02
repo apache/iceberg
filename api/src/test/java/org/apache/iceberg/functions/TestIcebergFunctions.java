@@ -462,6 +462,11 @@ public class TestIcebergFunctions {
   }
 
   @Test
+  public void fromStringIsCaseInsensitive() {
+    assertThat(IcebergFunctions.fromString("SHOW_LAST_4")).isSameAs(IcebergFunctions.showLast4());
+  }
+
+  @Test
   public void fromStringPreservesUnknownFunction() {
     IcebergFunction<?, ?> function = IcebergFunctions.fromString("future-mask-v2");
     assertThat(function).isInstanceOf(UnknownFunction.class);
