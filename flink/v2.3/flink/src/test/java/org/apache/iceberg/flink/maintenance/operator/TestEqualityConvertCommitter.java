@@ -156,8 +156,7 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
       // The planner marks cycle start, then emits phase watermarks before the plan. The pre-plan
       // phase watermark must not escape: forwarding it would let the LockRemover release the
       // maintenance lock before this cycle commits.
-      harness.processElement2(
-          new StreamRecord<>(EqualityConvertPlan.cycleStart(triggerTs)));
+      harness.processElement2(new StreamRecord<>(EqualityConvertPlan.cycleStart(triggerTs)));
       harness.processBothWatermarks(new Watermark(triggerTs + 1));
       assertThat(watermarks(harness)).isEmpty();
       assertThat(harness.extractOutputValues()).isEmpty();
@@ -285,7 +284,7 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
       table.refresh();
       assertThat(table.currentSnapshot().snapshotId()).isEqualTo(mainSnapshotId);
       assertThat(table.io().newInputFile(writtenDv.location()).exists()).isFalse();
-      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
+      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
 
       // Planned again with a rebuilt index on a new generation, the conversion commits.
       harness.processElement2(
@@ -325,7 +324,7 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
 
       table.refresh();
       assertThat(table.currentSnapshot().snapshotId()).isEqualTo(mainSnapshotId);
-      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
+      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
     }
   }
 

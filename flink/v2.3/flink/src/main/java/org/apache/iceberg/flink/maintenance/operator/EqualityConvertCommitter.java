@@ -77,6 +77,7 @@ import org.slf4j.LoggerFactory;
  * may have left the index without some rows, but that cycle has no commit to withhold. The
  * committer withholds the next conversion commit on that generation instead: the next trigger then
  * plans that staging snapshot again, which makes the planner rebuild the index on a new generation.
+ * The failure was reported where it happened, so the withheld cycle completes without an error.
  * Apart from that the committer is stateless: {@code bufferedResults} and {@code planResult} are
  * not checkpointed. The maintenance framework ensures mutual exclusive tasks, and on restart the
  * planner re-derives its position from {@link #COMMITTED_STAGING_SNAPSHOT_PROPERTY} on main, so the
@@ -252,13 +253,16 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
     }
 
     if (planResult.indexGeneration() == failedIndexGeneration) {
+      LOG.warn(
+          "Not committing staging snapshot {} for table {} task {}: an index update failed on "
+              + "index generation {}, so the next trigger rebuilds the index and converts the "
+              + "snapshot again.",
+          planResult.stagingSnapshotId(),
+          tableName,
+          taskName,
+          failedIndexGeneration);
       deleteUncommittedDVs();
-      throw new IllegalStateException(
-          String.format(
-              "Not committing staging snapshot %s for table %s: an index update failed on index "
-                  + "generation %s, so the next trigger rebuilds the index and converts the "
-                  + "snapshot again.",
-              planResult.stagingSnapshotId(), tableName, failedIndexGeneration));
+      return;
     }
 
     table.refresh();

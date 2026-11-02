@@ -1512,9 +1512,13 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
       table.newRowDelta().addDeletes(secondDelete).toBranch(STAGING_BRANCH).commit();
 
       // The index may miss the external row, so the next conversion is not committed.
+      table.refresh();
+      long mainSnapshotId = table.currentSnapshot().snapshotId();
       long time3 = time2 + 1;
       infra.source().sendRecord(Trigger.create(time3, 0), time3);
-      assertThat(infra.sink().poll(Duration.ofSeconds(10)).success()).isFalse();
+      assertThat(infra.sink().poll(Duration.ofSeconds(10)).success()).isTrue();
+      table.refresh();
+      assertThat(table.currentSnapshot().snapshotId()).isEqualTo(mainSnapshotId);
 
       // Planned again, the conversion rebuilds the index and deletes the external row.
       long time4 = time3 + 1;
