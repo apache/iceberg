@@ -276,7 +276,7 @@ class TestFilePlanner {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  void columnStatsOmittedByDefault(FileFormat format) throws IOException {
+  void taskOmitsStatsUnlessProjected(FileFormat format) throws IOException {
     ManifestFile root =
         writeManifest(
             format, EMPTY_PARTITION, ImmutableList.of(dataFileWithStats(FILE_A, idStats(0, 99))));
@@ -291,38 +291,38 @@ class TestFilePlanner {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  void projectStatsForwardedToRootAndLeafReaders(FileFormat format) throws IOException {
-    String rootFile = "s3://bucket/db/table/root.parquet";
-    String leafFile = "s3://bucket/db/table/leaf.parquet";
+  void tasksContainProjectedStats(FileFormat format) throws IOException {
     ManifestFile leaf =
         writeManifest(
             format,
             EMPTY_PARTITION,
-            ImmutableList.of(dataFileWithStats(leafFile, idStats(100, 199))));
+            ImmutableList.of(dataFileWithStats(FILE_C, idAndDataStats(100, 199))));
     ManifestFile root =
         writeManifest(
             format,
             EMPTY_PARTITION,
             ImmutableList.of(
-                dataFileWithStats(rootFile, idStats(0, 99)), dataManifest(leaf.path())));
+                dataFileWithStats(FILE_A, idAndDataStats(0, 99)), dataManifest(leaf.path())));
 
     int idFieldId = TABLE_SCHEMA.findField("id").fieldId();
+    int dataFieldId = TABLE_SCHEMA.findField("data").fieldId();
     List<FileScanTask> tasks =
         plan(root, UNPARTITIONED_SPECS, planner -> planner.projectStats(idFieldId));
 
     assertThat(tasks)
-        .as("requested stats are returned for files in both the root and leaf readers")
-        .hasSize(2)
-        .satisfiesExactlyInAnyOrder(
+        .extracting(
+            task -> task.file().location(),
+            task -> lowerBound(task.file(), idFieldId),
+            task -> upperBound(task.file(), idFieldId))
+        .as("projected id stats are returned for files in both the root and a leaf")
+        .containsExactlyInAnyOrder(tuple(FILE_A, 0, 99), tuple(FILE_C, 100, 199));
+
+    assertThat(tasks)
+        .as("stats for unprojected fields are omitted")
+        .allSatisfy(
             task -> {
-              assertThat(task.file().location()).isEqualTo(rootFile);
-              assertThat(lowerBound(task.file(), idFieldId)).isEqualTo(0);
-              assertThat(upperBound(task.file(), idFieldId)).isEqualTo(99);
-            },
-            task -> {
-              assertThat(task.file().location()).isEqualTo(leafFile);
-              assertThat(lowerBound(task.file(), idFieldId)).isEqualTo(100);
-              assertThat(upperBound(task.file(), idFieldId)).isEqualTo(199);
+              assertThat(task.file().lowerBounds()).doesNotContainKey(dataFieldId);
+              assertThat(task.file().upperBounds()).doesNotContainKey(dataFieldId);
             });
   }
 
@@ -653,18 +653,27 @@ class TestFilePlanner {
 
   private static ContentStats idStats(int lower, int upper) {
     ContentStatsStruct stats = new ContentStatsStruct(STATS_TYPE);
-    stats.setStats(
-        TABLE_SCHEMA.findField("id").fieldId(),
-        new FieldStatsStruct<>(
-            STATS_TYPE.fieldType("id").asStructType(),
-            lower,
-            upper,
-            true, // tightBounds
-            RECORD_COUNT,
-            0, // nullValueCount
-            0, // nanValueCount
-            0L)); // totalBytes
+    stats.setStats(TABLE_SCHEMA.findField("id").fieldId(), fieldStats("id", lower, upper));
     return stats;
+  }
+
+  private static ContentStats idAndDataStats(int lower, int upper) {
+    ContentStatsStruct stats = new ContentStatsStruct(STATS_TYPE);
+    stats.setStats(TABLE_SCHEMA.findField("id").fieldId(), fieldStats("id", lower, upper));
+    stats.setStats(TABLE_SCHEMA.findField("data").fieldId(), fieldStats("data", "a", "z"));
+    return stats;
+  }
+
+  private static <T> FieldStatsStruct<T> fieldStats(String fieldName, T lower, T upper) {
+    return new FieldStatsStruct<>(
+        STATS_TYPE.fieldType(fieldName).asStructType(),
+        lower,
+        upper,
+        true, // tightBounds
+        RECORD_COUNT,
+        0, // nullValueCount
+        0, // nanValueCount
+        0L); // totalBytes
   }
 
   private static ManifestInfo dataManifestInfo(int addedFiles) {
