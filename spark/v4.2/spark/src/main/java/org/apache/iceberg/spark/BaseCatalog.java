@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark;
 
+import java.io.Closeable;
 import java.util.Set;
 import org.apache.iceberg.spark.procedures.SparkProcedures;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
@@ -41,7 +42,8 @@ abstract class BaseCatalog
         SupportsNamespaces,
         HasIcebergCatalog,
         SupportsFunctions,
-        RelationCatalog {
+        RelationCatalog,
+        Closeable {
   private static final String USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS = "use-nullable-query-schema";
   private static final boolean USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT = true;
 
@@ -125,4 +127,11 @@ abstract class BaseCatalog
   public Set<TableCatalogCapability> capabilities() {
     return Set.of(TableCatalogCapability.SUPPORT_COLUMN_DEFAULT_VALUE);
   }
+
+  /**
+   * Closes the underlying Iceberg catalog. Spark calls this when it releases the session that
+   * loaded this catalog.
+   */
+  @Override
+  public abstract void close();
 }

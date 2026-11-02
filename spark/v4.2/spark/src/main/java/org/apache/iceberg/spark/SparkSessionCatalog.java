@@ -71,7 +71,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  */
 public class SparkSessionCatalog<
         T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
-    extends BaseCatalog implements CatalogExtension, Closeable {
+    extends BaseCatalog implements CatalogExtension {
 
   private String catalogName = null;
   private TableCatalog icebergCatalog = null;
