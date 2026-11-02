@@ -877,11 +877,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
 
     // DVs for data files added in this operation can't conflict with concurrent commits
-    Set<String> referencedExistingDataFiles = Sets.newHashSet(dvsByReferencedFile.keySet());
+    Set<String> unmatchedReferencedDataFiles = Sets.newHashSet(dvsByReferencedFile.keySet());
     for (DataFileSet dataFiles : newDataFilesBySpec.values()) {
       for (DataFile dataFile : dataFiles) {
-        if (referencedExistingDataFiles.remove(dataFile.location())
-            && referencedExistingDataFiles.isEmpty()) {
+        if (unmatchedReferencedDataFiles.remove(dataFile.location())
+            && unmatchedReferencedDataFiles.isEmpty()) {
           return;
         }
       }

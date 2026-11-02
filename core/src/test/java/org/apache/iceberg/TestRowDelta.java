@@ -1983,7 +1983,7 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
-  void dvsForAddedDataFilesSkipValidation() {
+  public void testDvsForAddedDataFilesSkipValidation() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
 
     commit(table, table.newRowDelta().addRows(newDataFile("data_bucket=0")), branch);
