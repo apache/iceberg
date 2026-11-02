@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -35,7 +36,6 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,7 +62,7 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
     this.openSplitFunction = openSplitFunction;
     this.splitComparator = splitComparator;
     this.indexOfSubtask = context.getIndexOfSubtask();
-    this.splits = Queues.newArrayDeque();
+    this.splits = new ArrayDeque<>();
   }
 
   /**

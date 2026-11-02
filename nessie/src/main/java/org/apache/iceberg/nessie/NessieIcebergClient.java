@@ -169,7 +169,7 @@ public class NessieIcebergClient implements AutoCloseable {
       throw new NoSuchNamespaceException(
           ex,
           "Unable to list %ss due to missing ref '%s'",
-          NessieUtil.contentTypeString(type).toLowerCase(Locale.ENGLISH),
+          NessieUtil.contentTypeString(type).toLowerCase(Locale.ROOT),
           getRef().getName());
     }
   }
@@ -466,7 +466,7 @@ public class NessieIcebergClient implements AutoCloseable {
     IcebergContent existingToContent = fetchContent(to);
     validateToContentForRename(from, to, existingToContent);
 
-    String contentType = NessieUtil.contentTypeString(type).toLowerCase(Locale.ENGLISH);
+    String contentType = NessieUtil.contentTypeString(type).toLowerCase(Locale.ROOT);
     try {
       commitRetry(
           String.format("Iceberg rename %s from '%s' to '%s'", contentType, from, to),
@@ -566,7 +566,7 @@ public class NessieIcebergClient implements AutoCloseable {
               identifier, NessieUtil.contentTypeString(type)));
     }
 
-    String contentType = NessieUtil.contentTypeString(type).toLowerCase(Locale.ENGLISH);
+    String contentType = NessieUtil.contentTypeString(type).toLowerCase(Locale.ROOT);
 
     if (purge) {
       LOG.info(

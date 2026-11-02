@@ -100,6 +100,31 @@ public interface ContentFile<F> {
   Map<Integer, ByteBuffer> upperBounds();
 
   /**
+   * Returns map from column ID to the total uncompressed size in memory in bytes of non-null values
+   * if collected, null otherwise.
+   *
+   * <p>This statistic is not persisted in manifests prior to v4, so it is generally only present on
+   * newly created or written files, and is null for files read back from such manifests.
+   */
+  default Map<Integer, Long> totalBytes() {
+    return null;
+  }
+
+  /**
+   * Returns if collected, map from column ID to its average value size in memory (uncompressed) in
+   * bytes over non-null values, null otherwise.
+   *
+   * <p>This statistic is not persisted in manifests prior to v4, so it is generally only present on
+   * newly created or written files, and is null for files read back from such manifests.
+   *
+   * @deprecated since 1.13.0, will be removed in 2.0.0; use {@link #totalBytes()} instead.
+   */
+  @Deprecated
+  default Map<Integer, Integer> avgValueSizes() {
+    return Metrics.avgValueSizes(totalBytes(), valueCounts(), nullValueCounts());
+  }
+
+  /**
    * Returns metadata about how this file is encrypted, or null if the file is stored in plain text.
    */
   ByteBuffer keyMetadata();
@@ -186,8 +211,7 @@ public interface ContentFile<F> {
    * Copies this file without file stats. Manifest readers can reuse file instances; use this method
    * to copy data without stats when collecting files.
    *
-   * @return a copy of this data file, without lower bounds, upper bounds, value counts, null value
-   *     counts, or nan value counts
+   * @return a copy of this data file without column stats
    */
   F copyWithoutStats();
 
@@ -197,8 +221,7 @@ public interface ContentFile<F> {
    * files.
    *
    * @param requestedColumnIds column IDs for which to keep stats.
-   * @return a copy of data file, with lower bounds, upper bounds, value counts, null value counts,
-   *     and nan value counts for only specific columns.
+   * @return a copy of this data file with column stats for only the requested columns
    */
   default F copyWithStats(Set<Integer> requestedColumnIds) {
     throw new UnsupportedOperationException(
@@ -210,9 +233,8 @@ public interface ContentFile<F> {
    * use this method to copy data when collecting files from tasks.
    *
    * @param withStats Will copy this file without file stats if set to <code>false</code>.
-   * @return a copy of this data file. If <code>withStats</code> is set to <code>false</code> the
-   *     file will not contain lower bounds, upper bounds, value counts, null value counts, or nan
-   *     value counts
+   * @return a copy of this data file. If <code>withStats</code> is <code>false</code>, the copy
+   *     will not contain column stats
    */
   default F copy(boolean withStats) {
     return withStats ? copy() : copyWithoutStats();

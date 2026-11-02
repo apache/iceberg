@@ -473,7 +473,7 @@ public class OperatorTestBase {
     GenericRecord nested = GenericRecord.create(table.schema());
     nested.set(0, 1);
     nested.set(1, "a");
-    posDelete.set(dataFilePath, pos, nested);
+    posDelete.set(dataFilePath, pos);
     return FileHelpers.writePosDeleteFile(
         table, Files.localOutput(file), null, Lists.newArrayList(posDelete), 2);
   }
@@ -487,7 +487,7 @@ public class OperatorTestBase {
     GenericRecord nested = GenericRecord.create(table.schema());
     nested.set(0, id);
     nested.set(1, oldData);
-    posDelete.set(path, pos, nested);
+    posDelete.set(path, pos);
     return FileHelpers.writePosDeleteFile(
         table, Files.localOutput(file), null, Lists.newArrayList(posDelete), formatVersion);
   }

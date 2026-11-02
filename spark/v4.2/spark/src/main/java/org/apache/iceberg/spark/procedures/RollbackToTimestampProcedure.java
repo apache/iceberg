@@ -1,0 +1,116 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.spark.procedures;
+
+import java.util.Iterator;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
+import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
+import org.apache.spark.sql.connector.read.Scan;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Metadata;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
+
+/**
+ * A procedure that rollbacks a table to a given point in time.
+ *
+ * <p><em>Note:</em> this procedure invalidates all cached Spark plans that reference the affected
+ * table.
+ *
+ * @see org.apache.iceberg.ManageSnapshots#rollbackToTime(long)
+ */
+class RollbackToTimestampProcedure extends BaseProcedure {
+
+  static final String NAME = "rollback_to_timestamp";
+
+  private static final ProcedureParameter TABLE_PARAM =
+      requiredInParameter("table", DataTypes.StringType);
+  private static final ProcedureParameter TIMESTAMP_PARAM =
+      requiredInParameter("timestamp", DataTypes.TimestampType);
+
+  private static final ProcedureParameter[] PARAMETERS =
+      new ProcedureParameter[] {TABLE_PARAM, TIMESTAMP_PARAM};
+
+  private static final StructType OUTPUT_TYPE =
+      new StructType(
+          new StructField[] {
+            new StructField("previous_snapshot_id", DataTypes.LongType, false, Metadata.empty()),
+            new StructField("current_snapshot_id", DataTypes.LongType, false, Metadata.empty())
+          });
+
+  public static ProcedureBuilder builder() {
+    return new BaseProcedure.Builder<RollbackToTimestampProcedure>() {
+      @Override
+      protected RollbackToTimestampProcedure doBuild() {
+        return new RollbackToTimestampProcedure(tableCatalog());
+      }
+    };
+  }
+
+  private RollbackToTimestampProcedure(TableCatalog catalog) {
+    super(catalog);
+  }
+
+  @Override
+  public BoundProcedure bind(StructType inputType) {
+    return this;
+  }
+
+  @Override
+  public ProcedureParameter[] parameters() {
+    return PARAMETERS;
+  }
+
+  @Override
+  public Iterator<Scan> call(InternalRow args) {
+    ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
+    Identifier tableIdent = input.ident(TABLE_PARAM);
+    // timestamps in Spark have microsecond precision so this conversion is lossy
+    long timestampMillis = input.asTimestampMillis(TIMESTAMP_PARAM);
+
+    return modifyIcebergTable(
+        tableIdent,
+        table -> {
+          Snapshot previousSnapshot = table.currentSnapshot();
+
+          table.manageSnapshots().rollbackToTime(timestampMillis).commit();
+
+          Snapshot currentSnapshot = table.currentSnapshot();
+
+          InternalRow outputRow =
+              newInternalRow(previousSnapshot.snapshotId(), currentSnapshot.snapshotId());
+          return asScanIterator(OUTPUT_TYPE, outputRow);
+        });
+  }
+
+  @Override
+  public String name() {
+    return NAME;
+  }
+
+  @Override
+  public String description() {
+    return "RollbackToTimestampProcedure";
+  }
+}

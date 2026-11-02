@@ -364,6 +364,12 @@
             <property name="format" value="findAndRegisterModules"/>
             <property name="message" value="Use ObjectMapper#registerModule(&lt;yourModule&gt;) explicitly. ObjectMapper#findAndRegisterModules() is dangerous because it will change behaviour depending on which modules are on your classpath (including transitive dependencies)."/>
         </module>
+        <module name="RegexpSinglelineJava">
+            <property name="id" value="LiteralStringReplaceAll"/>
+            <property name="ignoreComments" value="true"/>
+            <property name="format" value="\.replaceAll\(\s*&quot;([^&quot;\\\\.*+?^$()\[\]{}|]*)&quot;"/>
+            <property name="message" value="Use String.replace for literal replacements; replaceAll compiles a regex on every call."/>
+        </module>
         <module name="RegexpSinglelineJava"> <!-- Java Coding Guidelines: Avoid Generics clutter where possible -->
             <property name="format" value="ImmutableList\.Builder.*new ImmutableList\.Builder"/>
             <property name="message" value="Use ImmutableList.builder() for variable assignment."/>

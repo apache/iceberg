@@ -25,7 +25,6 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.Accessors;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
@@ -296,25 +295,17 @@ public class ManifestEvaluator {
       }
 
       T lower = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
-      literals =
-          literals.stream()
-              .filter(v -> ref.comparator().compare(lower, v) <= 0)
-              .collect(Collectors.toList());
-      if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
-        return ROWS_CANNOT_MATCH;
-      }
-
       T upper = Conversions.fromByteBuffer(ref.type(), fieldStats.upperBound());
-      literals =
-          literals.stream()
-              .filter(v -> ref.comparator().compare(upper, v) >= 0)
-              .collect(Collectors.toList());
-      if (literals
-          .isEmpty()) { // if all remaining values are greater than upper bound, rows cannot match.
-        return ROWS_CANNOT_MATCH;
+
+      // rows might match if any literal falls within the manifest's [lower, upper] bounds
+      for (T literal : literals) {
+        if (ref.comparator().compare(lower, literal) <= 0
+            && ref.comparator().compare(upper, literal) >= 0) {
+          return ROWS_MIGHT_MATCH;
+        }
       }
 
-      return ROWS_MIGHT_MATCH;
+      return ROWS_CANNOT_MATCH;
     }
 
     @Override

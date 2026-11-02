@@ -24,34 +24,28 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.avro.SupportsIndexProjection;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.StructLikeUtil;
+import org.apache.iceberg.util.StructProjection;
 
 /** Mutable {@link StructLike} implementation of {@link TrackedFile}. */
 class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, Serializable {
   private static final Types.StructType EMPTY_STRUCT_TYPE = Types.StructType.of();
-  private static final PartitionData EMPTY_PARTITION_DATA =
-      new PartitionData(EMPTY_STRUCT_TYPE) {
-        @Override
-        public PartitionData copy() {
-          return this; // this does not change
-        }
-      };
 
   private static final Types.StructType BASE_TYPE =
       Types.StructType.of(
           TrackedFile.TRACKING,
           TrackedFile.CONTENT_TYPE,
-          TrackedFile.FORMAT_VERSION,
           TrackedFile.LOCATION,
           TrackedFile.FILE_FORMAT,
           TrackedFile.RECORD_COUNT,
           TrackedFile.FILE_SIZE_IN_BYTES,
           TrackedFile.SPEC_ID,
-          Types.NestedField.required(
+          Types.NestedField.optional(
               TrackedFile.PARTITION_ID,
               TrackedFile.PARTITION_NAME,
               EMPTY_STRUCT_TYPE,
@@ -65,17 +59,15 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
           TrackedFile.DELETION_VECTOR,
           TrackedFile.MANIFEST_INFO,
           TrackedFile.KEY_METADATA,
-          TrackedFile.SPLIT_OFFSETS,
-          TrackedFile.EQUALITY_IDS);
+          TrackedFile.SPLIT_OFFSETS);
 
   private FileContent contentType = null;
-  private int formatVersion = -1;
   private String location = null;
   private FileFormat fileFormat = null;
   private Tracking tracking = null;
   private long recordCount = -1L;
   private long fileSizeInBytes = -1L;
-  private PartitionData partitionData = EMPTY_PARTITION_DATA;
+  private StructLike partition = null;
 
   // optional fields
   private Integer specId = null;
@@ -85,16 +77,12 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private ManifestInfo manifestInfo = null;
   private byte[] keyMetadata = null;
   private long[] splitOffsets = null;
-  private int[] equalityIds = null;
+
+  private transient StructProjection partitionProjection = null;
 
   /** Used by internal readers to instantiate this class with a projection schema. */
   TrackedFileStruct(Types.StructType projection) {
     super(BASE_TYPE, projection);
-    // partition type may be null if the field was not projected
-    Type partType = projection.fieldType("partition");
-    if (partType != null) {
-      this.partitionData = new PartitionData(partType.asNestedType().asStructType());
-    }
   }
 
   /** No-projection constructor for direct construction. */
@@ -105,60 +93,52 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   TrackedFileStruct(
       Tracking tracking,
       FileContent contentType,
-      int formatVersion,
       String location,
       FileFormat fileFormat,
-      PartitionData partition,
       long recordCount,
       long fileSizeInBytes,
       Integer specId,
+      PartitionData partition,
       ContentStats contentStats,
       Integer sortOrderId,
       DeletionVector deletionVector,
       ManifestInfo manifestInfo,
       ByteBuffer keyMetadata,
-      List<Long> splitOffsets,
-      List<Integer> equalityIds) {
+      List<Long> splitOffsets) {
     super(BASE_TYPE.fields().size());
     this.tracking = tracking;
     this.contentType = contentType;
-    this.formatVersion = formatVersion;
     this.location = location;
     this.fileFormat = fileFormat;
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
-    if (partition != null) {
-      this.partitionData = partition;
-    }
-
     this.specId = specId;
+    this.partition = partition;
     this.contentStats = contentStats;
     this.sortOrderId = sortOrderId;
     this.deletionVector = deletionVector;
     this.manifestInfo = manifestInfo;
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
     this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
-    this.equalityIds = ArrayUtil.toIntArray(equalityIds);
   }
 
   /** Copy constructor. */
-  private TrackedFileStruct(TrackedFileStruct toCopy, boolean withStats, Set<Integer> statsIds) {
+  private TrackedFileStruct(TrackedFileStruct toCopy, Set<Integer> statsIds) {
     super(toCopy);
     this.contentType = toCopy.contentType;
-    this.formatVersion = toCopy.formatVersion;
     this.location = toCopy.location;
     this.fileFormat = toCopy.fileFormat;
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     this.specId = toCopy.specId;
-    this.partitionData = toCopy.partitionData.copy();
+    this.partition = toCopy.partition == null ? null : StructLikeUtil.copy(toCopy.partition());
     this.tracking = toCopy.tracking != null ? toCopy.tracking.copy() : null;
     this.sortOrderId = toCopy.sortOrderId;
     this.deletionVector = toCopy.deletionVector != null ? toCopy.deletionVector.copy() : null;
 
-    if (withStats && toCopy.contentStats != null) {
-      ContentStats filtered = BaseContentStats.buildFrom(toCopy.contentStats, statsIds).build();
-      this.contentStats = filtered.fieldStats().isEmpty() ? null : filtered;
+    if (toCopy.contentStats != null && (statsIds == null || !statsIds.isEmpty())) {
+      this.contentStats =
+          statsIds != null ? toCopy.contentStats.copy(statsIds) : toCopy.contentStats.copy();
     } else {
       this.contentStats = null;
     }
@@ -171,10 +151,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.splitOffsets =
         toCopy.splitOffsets != null
             ? Arrays.copyOf(toCopy.splitOffsets, toCopy.splitOffsets.length)
-            : null;
-    this.equalityIds =
-        toCopy.equalityIds != null
-            ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length)
             : null;
   }
 
@@ -189,13 +165,14 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   }
 
   @Override
-  public int formatVersion() {
-    return formatVersion;
-  }
-
-  @Override
   public String location() {
     return location;
+  }
+
+  // Package-private only so the manifest reader can store the location resolved against the
+  // table location; other callers must go through construction.
+  void setLocation(String newLocation) {
+    this.location = newLocation;
   }
 
   @Override
@@ -213,6 +190,15 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     return fileSizeInBytes;
   }
 
+  void setPartitionProjection(StructProjection projection) {
+    this.partitionProjection = projection;
+  }
+
+  void clearPartition() {
+    this.partition = null;
+    this.partitionProjection = null;
+  }
+
   @Override
   public Integer specId() {
     return specId;
@@ -220,7 +206,12 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
 
   @Override
   public StructLike partition() {
-    return partitionData;
+    if (partition == null) {
+      ValidationException.check(specId == null, "Missing partition for spec %s", specId);
+      return null;
+    }
+
+    return partitionProjection != null ? partitionProjection.wrap(partition) : partition;
   }
 
   @Override
@@ -254,18 +245,13 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   }
 
   @Override
-  public List<Integer> equalityIds() {
-    return equalityIds != null ? ArrayUtil.toUnmodifiableIntList(equalityIds) : null;
-  }
-
-  @Override
   public TrackedFile copy() {
-    return new TrackedFileStruct(this, true, null);
+    return new TrackedFileStruct(this, null);
   }
 
   @Override
   public TrackedFile copyWithStats(Set<Integer> requestedColumnIds) {
-    return new TrackedFileStruct(this, true, requestedColumnIds);
+    return new TrackedFileStruct(this, requestedColumnIds);
   }
 
   @Override
@@ -277,20 +263,18 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     return switch (pos) {
       case 0 -> tracking;
       case 1 -> contentType != null ? contentType.id() : null;
-      case 2 -> formatVersion;
-      case 3 -> location;
-      case 4 -> fileFormat != null ? fileFormat.toString() : null;
-      case 5 -> recordCount;
-      case 6 -> fileSizeInBytes;
-      case 7 -> specId;
-      case 8 -> partitionData;
-      case 9 -> contentStats;
-      case 10 -> sortOrderId;
-      case 11 -> deletionVector;
-      case 12 -> manifestInfo;
-      case 13 -> keyMetadata();
-      case 14 -> splitOffsets();
-      case 15 -> equalityIds();
+      case 2 -> location;
+      case 3 -> fileFormat != null ? fileFormat.toString() : null;
+      case 4 -> recordCount;
+      case 5 -> fileSizeInBytes;
+      case 6 -> specId;
+      case 7 -> partition;
+      case 8 -> contentStats;
+      case 9 -> sortOrderId;
+      case 10 -> deletionVector;
+      case 11 -> manifestInfo;
+      case 12 -> keyMetadata();
+      case 13 -> splitOffsets();
       default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     };
   }
@@ -300,22 +284,20 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     switch (pos) {
       case 0 -> this.tracking = (Tracking) value;
       case 1 -> this.contentType = FileContent.fromId((Integer) value);
-      case 2 -> this.formatVersion = (int) value;
-      case 3 ->
+      case 2 ->
           // always coerce to String for Serializable
           this.location = value.toString();
-      case 4 -> this.fileFormat = FileFormat.fromString(value.toString());
-      case 5 -> this.recordCount = (long) value;
-      case 6 -> this.fileSizeInBytes = (long) value;
-      case 7 -> this.specId = (Integer) value;
-      case 8 -> this.partitionData = (PartitionData) value;
-      case 9 -> this.contentStats = (ContentStats) value;
-      case 10 -> this.sortOrderId = (Integer) value;
-      case 11 -> this.deletionVector = (DeletionVector) value;
-      case 12 -> this.manifestInfo = (ManifestInfo) value;
-      case 13 -> this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
-      case 14 -> this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
-      case 15 -> this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
+      case 3 -> this.fileFormat = FileFormat.fromString(value.toString());
+      case 4 -> this.recordCount = (long) value;
+      case 5 -> this.fileSizeInBytes = (long) value;
+      case 6 -> this.specId = (Integer) value;
+      case 7 -> this.partition = (StructLike) value;
+      case 8 -> this.contentStats = (ContentStats) value;
+      case 9 -> this.sortOrderId = (Integer) value;
+      case 10 -> this.deletionVector = (DeletionVector) value;
+      case 11 -> this.manifestInfo = (ManifestInfo) value;
+      case 12 -> this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
+      case 13 -> this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
       default -> {
         // ignore the object, it must be from a newer version of the format
       }
@@ -326,13 +308,12 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("content", contentType != null ? contentType.lowerCaseName() : null)
-        .add("format_version", formatVersion)
         .add("location", location)
         .add("file_format", fileFormat)
         .add("record_count", recordCount)
         .add("file_size_in_bytes", fileSizeInBytes)
         .add("spec_id", specId())
-        .add("partition", partitionData)
+        .add("partition", partition)
         .add("tracking", tracking)
         .add("content_stats", contentStats)
         .add("sort_order_id", sortOrderId)
@@ -340,7 +321,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         .add("manifest_info", manifestInfo)
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
-        .add("equality_ids", equalityIds == null ? "null" : equalityIds())
         .toString();
   }
 }

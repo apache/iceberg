@@ -45,63 +45,8 @@ Flink passes in catalog properties through `CREATE CATALOG` statement, see more 
 
 ## REST catalog properties
 
-The following properties configure the behavior of the REST catalog client.
-
-| Property                              | Default           | Description                                                                                                                                                                                      |
-|---------------------------------------|-------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `snapshot-loading-mode`               | `ALL`             | Controls how snapshots are loaded from the REST server. Supported values: `ALL` (load all snapshots), `REFS` (load only referenced snapshots).                                                  |
-| `rest-metrics-reporting-enabled`      | `true`            | Whether to enable metrics reporting to the REST server.                                                                                                                                          |
-| `view-endpoints-supported`            | `false`           | For backwards compatibility with older REST servers. Set to `true` if the server supports view endpoints but doesn't send the `endpoints` field in the ConfigResponse.                          |
-| `rest-page-size`                      | null              | The page size to use when listing namespaces, tables, or other paginated resources.                                                                                                              |
-| `namespace-separator`                 | `%1F`             | The separator character used for namespace levels when communicating with the REST server.                                                                                                       |
-| `scan-planning-mode`                  | `CLIENT`          | Controls where scan planning is performed. Supported values: `CLIENT` (client-side planning), `SERVER` (server-side planning). Can be overridden per-table by the server in LoadTableResponse. |
-
-### Table cache properties
-
-The following properties configure the table cache used for freshness-aware table loading. Note, this cache is different from the one that can be configured at catalog level in general.
-
-| Property                                 | Default           | Description                                                                            |
-|------------------------------------------|-------------------|----------------------------------------------------------------------------------------|
-| `rest-table-cache.expire-after-write-ms` | `300000` (5 min)  | Time in milliseconds after which cached table entries expire.                          |
-| `rest-table-cache.max-entries`           | `100`             | Maximum number of table entries to cache.                                              |
-
-### Auth properties
-
-The following catalog properties configure authentication for the REST catalog.
-They support Basic, OAuth2, SigV4, and Google authentication.
-
-#### REST auth properties
-
-| Property                             | Default          | Description                                                                                                       |
-|--------------------------------------|------------------|-------------------------------------------------------------------------------------------------------------------|
-| `rest.auth.type`                     | `none`           | Authentication mechanism for REST catalog access. Supported values: `none`, `basic`, `oauth2`, `sigv4`, `google`. |
-| `rest.auth.basic.username`           | null             | Username for Basic authentication. Required if `rest.auth.type` = `basic`.                                        |
-| `rest.auth.basic.password`           | null             | Password for Basic authentication. Required if `rest.auth.type` = `basic`.                                        |
-| `rest.auth.sigv4.delegate-auth-type` | `oauth2`         | Auth type to delegate to after `sigv4` signing.                                                                   |
-
-#### OAuth2 auth properties
-Required and optional properties to include while using `oauth2` authentication
-
-| Property                | Default           | Description                                                                                                                                                           |
-|-------------------------|-------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `token`                 | null              | A Bearer token to interact with the server. Either `token` or `credential` is required.                                                                               |
-| `credential`            | null              | Credential string in the form of `client_id:client_secret` to exchange for a token in the OAuth2 client credentials flow. Either `token` or `credential` is required. |
-| `oauth2-server-uri`     | `v1/oauth/tokens` | OAuth2 token endpoint URI. Required if the REST catalog is not the OAuth2 authentication server.                                                                      |
-| `token-expires-in-ms`   | 3600000 (1 hour)  | Time in milliseconds after which a bearer token is considered expired. Used to decide when to refresh or re-exchange a token.                                         |
-| `token-refresh-enabled` | true              | Determines whether tokens are automatically refreshed when expiration details are available.                                                                          |
-| `token-exchange-enabled`| true              | Determines whether to use the token exchange flow to acquire new tokens. Disabling this will allow fallback to the client credential flow.                            |
-| `scope`                 | `catalog`         | Additional scope for `oauth2`.                                                                                                                                        |
-| `audience`              | null              | Optional param to specify token `audience`                                                                                                                            |
-| `resource`              | null              | Optional param to specify `resource`                                                                                                                                  |
-
-#### Google auth properties
-Required and optional properties to include while using `google` authentication
-
-| Property                   | Default                                          | Description                                      |
-|----------------------------|--------------------------------------------------|--------------------------------------------------|
-| `gcp.auth.credentials-path`| Application Default Credentials (ADC)            | Path to a service account JSON key file.         |
-| `gcp.auth.credentials-json` | Application Default Credentials (ADC)            | JSON string of a service account credential.     |
-| `gcp.auth.scopes`          | `https://www.googleapis.com/auth/cloud-platform` | Comma-separated list of OAuth scopes to request. |
+Configuration for connecting to a REST catalog, including authentication, is
+documented on the [REST catalog page](rest-catalog.md#configuration).
 
 ## Lock catalog properties
 

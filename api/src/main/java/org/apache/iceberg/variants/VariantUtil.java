@@ -21,7 +21,9 @@ package org.apache.iceberg.variants;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.util.function.Function;
+import java.util.function.IntFunction;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.ByteBuffers;
 
 class VariantUtil {
   private static final int BASIC_TYPE_MASK = 0b11;
@@ -30,7 +32,44 @@ class VariantUtil {
   private static final int BASIC_TYPE_OBJECT = 2;
   private static final int BASIC_TYPE_ARRAY = 3;
 
+  /**
+   * Maximum nesting depth in a Variant (permitted depths 0..MAX_VARIANT_DEPTH). Safety limit, not a
+   * spec bound. Matches parquet-java (apache/parquet-java#3562).
+   */
+  static final int MAX_VARIANT_DEPTH = 1000;
+
+  /**
+   * Maximum element count for Variant containers and metadata dictionaries. Safety limit against
+   * buffer-to-heap allocation amplification.
+   */
+  static final int MAX_ELEMENTS = 16_777_216;
+
   private VariantUtil() {}
+
+  /** Parses a variant value; validates input and enforces {@link #MAX_VARIANT_DEPTH}. */
+  static VariantValue fromBuffer(VariantMetadata metadata, ByteBuffer value, int depth) {
+    Preconditions.checkArgument(depth >= 0, "Invalid variant: negative depth %s", depth);
+    Preconditions.checkArgument(
+        depth <= MAX_VARIANT_DEPTH,
+        "Invalid variant: nesting depth %s exceeds maximum %s",
+        depth,
+        MAX_VARIANT_DEPTH);
+    Preconditions.checkArgument(value.remaining() >= 1, "Invalid variant: empty value buffer");
+    int header = ByteBuffers.readByte(value, 0);
+    BasicType basicType = basicType(header);
+    switch (basicType) {
+      case PRIMITIVE:
+        return SerializedPrimitive.from(value, header);
+      case SHORT_STRING:
+        return SerializedShortString.from(value, header);
+      case OBJECT:
+        return SerializedObject.from(metadata, value, header, depth);
+      case ARRAY:
+        return SerializedArray.from(metadata, value, header, depth);
+    }
+
+    throw new UnsupportedOperationException("Unsupported basic type: " + basicType);
+  }
 
   static float readFloat(ByteBuffer buffer, int offset) {
     return buffer.getFloat(buffer.position() + offset);
@@ -60,19 +99,33 @@ class VariantUtil {
     }
   }
 
-  static <T extends Comparable<T>> int find(int size, T key, Function<Integer, T> resolve) {
-    int low = 0;
-    int high = size - 1;
-    while (low <= high) {
-      int mid = (low + high) >>> 1;
-      T value = resolve.apply(mid);
-      int cmp = key.compareTo(value);
-      if (cmp == 0) {
-        return mid;
-      } else if (cmp < 0) {
-        high = mid - 1;
-      } else {
-        low = mid + 1;
+  static int find(int size, String key, IntFunction<String> resolve) {
+    // retry supplementary-plane keys in UTF-16 order to find fields written in the legacy layout
+    int attempts = 1;
+    for (int i = 0; i < key.length(); i += 1) {
+      if (key.charAt(i) >= Character.MIN_SURROGATE) {
+        attempts = 2;
+        break;
+      }
+    }
+
+    for (int attempt = 0; attempt < attempts; attempt += 1) {
+      int low = 0;
+      int high = size - 1;
+      while (low <= high) {
+        int mid = (low + high) >>> 1;
+        String value = resolve.apply(mid);
+        int cmp =
+            attempt == 0
+                ? VariantMetadata.FIELD_NAME_ORDER.compare(key, value)
+                : key.compareTo(value);
+        if (cmp == 0) {
+          return mid;
+        } else if (cmp < 0) {
+          high = mid - 1;
+        } else {
+          low = mid + 1;
+        }
       }
     }
 

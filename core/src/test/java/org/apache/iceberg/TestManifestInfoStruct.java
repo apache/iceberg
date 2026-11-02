@@ -23,44 +23,66 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import org.apache.iceberg.mumbling.MumblingTestUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TestManifestInfoStruct {
 
   @Test
-  void testFieldAccess() {
+  void fieldAccess() {
     ManifestInfoStruct info =
-        new ManifestInfoStruct(10, 20, 3, 2, 1000L, 2000L, 300L, 200L, 5L, new byte[] {0xF}, 1L);
+        new ManifestInfoStruct(
+            10,
+            20,
+            3,
+            2,
+            1,
+            1000L,
+            2000L,
+            300L,
+            200L,
+            100L,
+            5L,
+            MumblingTestUtil.onlyFirstBitSetBytes(),
+            4);
 
     assertThat(info.addedFilesCount()).isEqualTo(10);
     assertThat(info.existingFilesCount()).isEqualTo(20);
     assertThat(info.deletedFilesCount()).isEqualTo(3);
     assertThat(info.replacedFilesCount()).isEqualTo(2);
+    assertThat(info.modifiedFilesCount()).isEqualTo(1);
     assertThat(info.addedRowsCount()).isEqualTo(1000L);
     assertThat(info.existingRowsCount()).isEqualTo(2000L);
     assertThat(info.deletedRowsCount()).isEqualTo(300L);
     assertThat(info.replacedRowsCount()).isEqualTo(200L);
+    assertThat(info.modifiedRowsCount()).isEqualTo(100L);
     assertThat(info.minSequenceNumber()).isEqualTo(5L);
-    assertThat(info.dv()).isNotNull();
-    assertThat(info.dvCardinality()).isEqualTo(1L);
+    assertThat(info.manifestDeletionVector().buffer())
+        .isEqualTo(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()));
+    assertThat(info.manifestDeletionVector().cardinality()).isEqualTo(1);
+    assertThat(info.formatVersion()).isEqualTo(4);
   }
 
   @Test
-  void testCopy() {
+  void copy() {
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
             .addedFilesCount(10)
             .existingFilesCount(20)
             .deletedFilesCount(3)
             .replacedFilesCount(2)
+            .modifiedFilesCount(1)
             .addedRowsCount(1000L)
             .existingRowsCount(2000L)
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
+            .modifiedRowsCount(100L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(new byte[] {0xF}))
-            .dvCardinality(1L)
+            .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
+            .formatVersion(4)
             .build();
 
     ManifestInfoStruct copy = info.copy();
@@ -69,38 +91,43 @@ class TestManifestInfoStruct {
     assertThat(copy.existingFilesCount()).isEqualTo(20);
     assertThat(copy.deletedFilesCount()).isEqualTo(3);
     assertThat(copy.replacedFilesCount()).isEqualTo(2);
+    assertThat(copy.modifiedFilesCount()).isEqualTo(1);
     assertThat(copy.addedRowsCount()).isEqualTo(1000L);
     assertThat(copy.existingRowsCount()).isEqualTo(2000L);
     assertThat(copy.deletedRowsCount()).isEqualTo(300L);
     assertThat(copy.replacedRowsCount()).isEqualTo(200L);
+    assertThat(copy.modifiedRowsCount()).isEqualTo(100L);
     assertThat(copy.minSequenceNumber()).isEqualTo(5L);
-    assertThat(copy.dvCardinality()).isEqualTo(1L);
+    assertThat(copy.formatVersion()).isEqualTo(4);
 
     // verify deep copy of dv byte array
-    assertThat(copy.dv().array()).isNotSameAs(info.dv().array());
+    assertThat(copy.manifestDeletionVector().buffer().array())
+        .isNotSameAs(info.manifestDeletionVector().buffer().array());
   }
 
   @Test
-  void testNullableFields() {
+  void nullableFields() {
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
             .addedFilesCount(0)
             .existingFilesCount(0)
             .deletedFilesCount(0)
             .replacedFilesCount(0)
+            .modifiedFilesCount(0)
             .addedRowsCount(0L)
             .existingRowsCount(0L)
             .deletedRowsCount(0L)
             .replacedRowsCount(0L)
+            .modifiedRowsCount(0L)
             .minSequenceNumber(0L)
+            .formatVersion(4)
             .build();
 
-    assertThat(info.dv()).isNull();
-    assertThat(info.dvCardinality()).isNull();
+    assertThat(info.manifestDeletionVector()).isNull();
   }
 
   @Test
-  void testProjectedStructLike() {
+  void projectedStructLike() {
     // project only added_files_count (field ID 504) and min_sequence_number (field ID 516)
     Types.StructType projection =
         Types.StructType.of(ManifestInfo.ADDED_FILES_COUNT, ManifestInfo.MIN_SEQUENCE_NUMBER);
@@ -109,7 +136,7 @@ class TestManifestInfoStruct {
     assertThat(info.size()).isEqualTo(2);
 
     // projected position 0 maps to internal position 0 (added_files_count)
-    // projected position 1 maps to internal position 8 (min_sequence_number)
+    // projected position 1 maps to internal position 10 (min_sequence_number)
     info.set(0, 10);
     info.set(1, 5L);
 
@@ -120,21 +147,24 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testInternalSetIgnoresUnknownOrdinal() {
+  void internalSetIgnoresUnknownOrdinal() {
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
             .addedFilesCount(10)
             .existingFilesCount(20)
             .deletedFilesCount(3)
             .replacedFilesCount(2)
+            .modifiedFilesCount(1)
             .addedRowsCount(1000L)
             .existingRowsCount(2000L)
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
+            .modifiedRowsCount(100L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(new byte[] {0xF}))
-            .dvCardinality(1L)
+            .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
+            .formatVersion(4)
             .build();
+    ManifestBitmap mdv = info.manifestDeletionVector();
 
     // unknown ordinals from a newer format version are silently ignored
     info.internalSet(99, "value from a newer format");
@@ -144,30 +174,34 @@ class TestManifestInfoStruct {
     assertThat(info.existingFilesCount()).isEqualTo(20);
     assertThat(info.deletedFilesCount()).isEqualTo(3);
     assertThat(info.replacedFilesCount()).isEqualTo(2);
+    assertThat(info.modifiedFilesCount()).isEqualTo(1);
     assertThat(info.addedRowsCount()).isEqualTo(1000L);
     assertThat(info.existingRowsCount()).isEqualTo(2000L);
     assertThat(info.deletedRowsCount()).isEqualTo(300L);
     assertThat(info.replacedRowsCount()).isEqualTo(200L);
+    assertThat(info.modifiedRowsCount()).isEqualTo(100L);
     assertThat(info.minSequenceNumber()).isEqualTo(5L);
-    assertThat(info.dv()).isEqualTo(ByteBuffer.wrap(new byte[] {0xF}));
-    assertThat(info.dvCardinality()).isEqualTo(1L);
+    assertThat(info.formatVersion()).isEqualTo(4);
+    assertThat(info.manifestDeletionVector()).isSameAs(mdv);
   }
 
   @Test
-  void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
+  void javaSerializationRoundTrip() throws IOException, ClassNotFoundException {
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
             .addedFilesCount(10)
             .existingFilesCount(20)
             .deletedFilesCount(3)
             .replacedFilesCount(2)
+            .modifiedFilesCount(1)
             .addedRowsCount(1000L)
             .existingRowsCount(2000L)
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
+            .modifiedRowsCount(100L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(new byte[] {0xF}))
-            .dvCardinality(1L)
+            .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
+            .formatVersion(4)
             .build();
 
     ManifestInfoStruct deserialized = TestHelpers.roundTripSerialize(info);
@@ -176,27 +210,32 @@ class TestManifestInfoStruct {
     assertThat(deserialized.existingFilesCount()).isEqualTo(20);
     assertThat(deserialized.deletedFilesCount()).isEqualTo(3);
     assertThat(deserialized.replacedFilesCount()).isEqualTo(2);
+    assertThat(deserialized.modifiedFilesCount()).isEqualTo(1);
     assertThat(deserialized.addedRowsCount()).isEqualTo(1000L);
     assertThat(deserialized.existingRowsCount()).isEqualTo(2000L);
     assertThat(deserialized.deletedRowsCount()).isEqualTo(300L);
     assertThat(deserialized.replacedRowsCount()).isEqualTo(200L);
+    assertThat(deserialized.modifiedRowsCount()).isEqualTo(100L);
     assertThat(deserialized.minSequenceNumber()).isEqualTo(5L);
-    assertThat(deserialized.dv()).isEqualTo(ByteBuffer.wrap(new byte[] {0xF}));
-    assertThat(deserialized.dvCardinality()).isEqualTo(1L);
+    assertThat(deserialized.formatVersion()).isEqualTo(4);
+    assertThat(deserialized.manifestDeletionVector().buffer())
+        .isEqualTo(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()));
   }
 
   @Test
-  void testBuilderMissingAddedFilesCount() {
+  void builderMissingAddedFilesCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -204,17 +243,19 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderMissingExistingFilesCount() {
+  void builderMissingExistingFilesCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
                     .addedFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -222,17 +263,19 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderMissingDeletedFilesCount() {
+  void builderMissingDeletedFilesCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
                     .addedFilesCount(0)
                     .existingFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -240,17 +283,19 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderMissingReplacedFilesCount() {
+  void builderMissingReplacedFilesCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
                     .addedFilesCount(0)
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -258,7 +303,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderMissingAddedRowsCount() {
+  void builderMissingAddedRowsCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -266,9 +311,11 @@ class TestManifestInfoStruct {
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -276,7 +323,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderMissingExistingRowsCount() {
+  void builderMissingExistingRowsCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -284,9 +331,11 @@ class TestManifestInfoStruct {
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -294,7 +343,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderMissingDeletedRowsCount() {
+  void builderMissingDeletedRowsCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -302,9 +351,11 @@ class TestManifestInfoStruct {
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -312,7 +363,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderMissingReplacedRowsCount() {
+  void builderMissingReplacedRowsCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -320,9 +371,11 @@ class TestManifestInfoStruct {
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -330,7 +383,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderMissingMinSequenceNumber() {
+  void builderMissingModifiedFilesCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -342,83 +395,15 @@ class TestManifestInfoStruct {
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
+                    .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Missing required value: min sequence number");
+        .hasMessage("Missing required value: modified files count");
   }
 
   @Test
-  void testBuilderRejectsNegativeAddedFilesCount() {
-    assertThatThrownBy(() -> ManifestInfoStruct.builder().addedFilesCount(-1))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid added files count: -1 (must be >= 0)");
-  }
-
-  @Test
-  void testBuilderRejectsNegativeExistingFilesCount() {
-    assertThatThrownBy(() -> ManifestInfoStruct.builder().existingFilesCount(-1))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid existing files count: -1 (must be >= 0)");
-  }
-
-  @Test
-  void testBuilderRejectsNegativeDeletedFilesCount() {
-    assertThatThrownBy(() -> ManifestInfoStruct.builder().deletedFilesCount(-1))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid deleted files count: -1 (must be >= 0)");
-  }
-
-  @Test
-  void testBuilderRejectsNegativeReplacedFilesCount() {
-    assertThatThrownBy(() -> ManifestInfoStruct.builder().replacedFilesCount(-1))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid replaced files count: -1 (must be >= 0)");
-  }
-
-  @Test
-  void testBuilderRejectsNegativeAddedRowsCount() {
-    assertThatThrownBy(() -> ManifestInfoStruct.builder().addedRowsCount(-1L))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid added rows count: -1 (must be >= 0)");
-  }
-
-  @Test
-  void testBuilderRejectsNegativeExistingRowsCount() {
-    assertThatThrownBy(() -> ManifestInfoStruct.builder().existingRowsCount(-1L))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid existing rows count: -1 (must be >= 0)");
-  }
-
-  @Test
-  void testBuilderRejectsNegativeDeletedRowsCount() {
-    assertThatThrownBy(() -> ManifestInfoStruct.builder().deletedRowsCount(-1L))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid deleted rows count: -1 (must be >= 0)");
-  }
-
-  @Test
-  void testBuilderRejectsNegativeReplacedRowsCount() {
-    assertThatThrownBy(() -> ManifestInfoStruct.builder().replacedRowsCount(-1L))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid replaced rows count: -1 (must be >= 0)");
-  }
-
-  @Test
-  void testBuilderRejectsNegativeMinSequenceNumber() {
-    assertThatThrownBy(() -> ManifestInfoStruct.builder().minSequenceNumber(-1L))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid min sequence number: -1 (must be >= 0)");
-  }
-
-  @Test
-  void testBuilderRejectsNegativeDvCardinality() {
-    assertThatThrownBy(() -> ManifestInfoStruct.builder().dvCardinality(-1L))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid DV cardinality: -1 (must be >= 0)");
-  }
-
-  @Test
-  void testBuilderRejectsRowsWithoutFiles() {
+  void builderMissingModifiedRowsCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -426,11 +411,131 @@ class TestManifestInfoStruct {
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
-                    .addedRowsCount(10L)
+                    .modifiedFilesCount(0)
+                    .addedRowsCount(0L)
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
                     .minSequenceNumber(0L)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing required value: modified rows count");
+  }
+
+  @Test
+  void builderMissingMinSequenceNumber() {
+    assertThatThrownBy(
+            () ->
+                ManifestInfoStruct.builder()
+                    .addedFilesCount(0)
+                    .existingFilesCount(0)
+                    .deletedFilesCount(0)
+                    .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
+                    .addedRowsCount(0L)
+                    .existingRowsCount(0L)
+                    .deletedRowsCount(0L)
+                    .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing required value: min sequence number");
+  }
+
+  @Test
+  void builderRejectsNegativeAddedFilesCount() {
+    assertThatThrownBy(() -> ManifestInfoStruct.builder().addedFilesCount(-1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid added files count: -1 (must be >= 0)");
+  }
+
+  @Test
+  void builderRejectsNegativeExistingFilesCount() {
+    assertThatThrownBy(() -> ManifestInfoStruct.builder().existingFilesCount(-1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid existing files count: -1 (must be >= 0)");
+  }
+
+  @Test
+  void builderRejectsNegativeDeletedFilesCount() {
+    assertThatThrownBy(() -> ManifestInfoStruct.builder().deletedFilesCount(-1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid deleted files count: -1 (must be >= 0)");
+  }
+
+  @Test
+  void builderRejectsNegativeReplacedFilesCount() {
+    assertThatThrownBy(() -> ManifestInfoStruct.builder().replacedFilesCount(-1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid replaced files count: -1 (must be >= 0)");
+  }
+
+  @Test
+  void builderRejectsNegativeModifiedFilesCount() {
+    assertThatThrownBy(() -> ManifestInfoStruct.builder().modifiedFilesCount(-1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid modified files count: -1 (must be >= 0)");
+  }
+
+  @Test
+  void builderRejectsNegativeAddedRowsCount() {
+    assertThatThrownBy(() -> ManifestInfoStruct.builder().addedRowsCount(-1L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid added rows count: -1 (must be >= 0)");
+  }
+
+  @Test
+  void builderRejectsNegativeExistingRowsCount() {
+    assertThatThrownBy(() -> ManifestInfoStruct.builder().existingRowsCount(-1L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid existing rows count: -1 (must be >= 0)");
+  }
+
+  @Test
+  void builderRejectsNegativeDeletedRowsCount() {
+    assertThatThrownBy(() -> ManifestInfoStruct.builder().deletedRowsCount(-1L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid deleted rows count: -1 (must be >= 0)");
+  }
+
+  @Test
+  void builderRejectsNegativeReplacedRowsCount() {
+    assertThatThrownBy(() -> ManifestInfoStruct.builder().replacedRowsCount(-1L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid replaced rows count: -1 (must be >= 0)");
+  }
+
+  @Test
+  void builderRejectsNegativeModifiedRowsCount() {
+    assertThatThrownBy(() -> ManifestInfoStruct.builder().modifiedRowsCount(-1L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid modified rows count: -1 (must be >= 0)");
+  }
+
+  @Test
+  void builderRejectsNegativeMinSequenceNumber() {
+    assertThatThrownBy(() -> ManifestInfoStruct.builder().minSequenceNumber(-1L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid min sequence number: -1 (must be >= 0)");
+  }
+
+  @Test
+  void builderRejectsRowsWithoutFiles() {
+    assertThatThrownBy(
+            () ->
+                ManifestInfoStruct.builder()
+                    .addedFilesCount(0)
+                    .existingFilesCount(0)
+                    .deletedFilesCount(0)
+                    .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
+                    .addedRowsCount(10L)
+                    .existingRowsCount(0L)
+                    .deletedRowsCount(0L)
+                    .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
+                    .minSequenceNumber(0L)
+                    .formatVersion(4)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid added counts: 10 rows in 0 files");
@@ -442,11 +547,14 @@ class TestManifestInfoStruct {
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(5L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
+                    .formatVersion(4)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid existing counts: 5 rows in 0 files");
@@ -458,11 +566,14 @@ class TestManifestInfoStruct {
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(0L)
                     .deletedRowsCount(3L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
+                    .formatVersion(4)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid deleted counts: 3 rows in 0 files");
@@ -474,93 +585,85 @@ class TestManifestInfoStruct {
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(7L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
+                    .formatVersion(4)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid replaced counts: 7 rows in 0 files");
+
+    assertThatThrownBy(
+            () ->
+                ManifestInfoStruct.builder()
+                    .addedFilesCount(0)
+                    .existingFilesCount(0)
+                    .deletedFilesCount(0)
+                    .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
+                    .addedRowsCount(0L)
+                    .existingRowsCount(0L)
+                    .deletedRowsCount(0L)
+                    .replacedRowsCount(0L)
+                    .modifiedRowsCount(4L)
+                    .minSequenceNumber(0L)
+                    .formatVersion(4)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid modified counts: 4 rows in 0 files");
   }
 
   @Test
-  void testBuilderAllowsFilesWithoutRows() {
+  void builderAllowsFilesWithoutRows() {
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
             .addedFilesCount(5)
             .existingFilesCount(5)
             .deletedFilesCount(5)
             .replacedFilesCount(5)
+            .modifiedFilesCount(5)
             .addedRowsCount(0L)
             .existingRowsCount(0L)
             .deletedRowsCount(0L)
             .replacedRowsCount(0L)
+            .modifiedRowsCount(0L)
             .minSequenceNumber(0L)
+            .formatVersion(4)
             .build();
 
     assertThat(info.addedFilesCount()).isEqualTo(5);
     assertThat(info.existingFilesCount()).isEqualTo(5);
     assertThat(info.deletedFilesCount()).isEqualTo(5);
     assertThat(info.replacedFilesCount()).isEqualTo(5);
+    assertThat(info.modifiedFilesCount()).isEqualTo(5);
     assertThat(info.addedRowsCount()).isEqualTo(0L);
     assertThat(info.existingRowsCount()).isEqualTo(0L);
     assertThat(info.deletedRowsCount()).isEqualTo(0L);
     assertThat(info.replacedRowsCount()).isEqualTo(0L);
+    assertThat(info.modifiedRowsCount()).isEqualTo(0L);
   }
 
   @Test
-  void testBuilderDvPairingValidation() {
-    assertThatThrownBy(
-            () ->
-                ManifestInfoStruct.builder()
-                    .addedFilesCount(0)
-                    .existingFilesCount(0)
-                    .deletedFilesCount(0)
-                    .replacedFilesCount(0)
-                    .addedRowsCount(0L)
-                    .existingRowsCount(0L)
-                    .deletedRowsCount(0L)
-                    .replacedRowsCount(0L)
-                    .minSequenceNumber(0L)
-                    .dv(ByteBuffer.wrap(new byte[] {0xF}))
-                    .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid DV and cardinality: must both be null or non-null");
-
-    assertThatThrownBy(
-            () ->
-                ManifestInfoStruct.builder()
-                    .addedFilesCount(0)
-                    .existingFilesCount(0)
-                    .deletedFilesCount(0)
-                    .replacedFilesCount(0)
-                    .addedRowsCount(0L)
-                    .existingRowsCount(0L)
-                    .deletedRowsCount(0L)
-                    .replacedRowsCount(0L)
-                    .minSequenceNumber(0L)
-                    .dvCardinality(1L)
-                    .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid DV and cardinality: must both be null or non-null");
-  }
-
-  @Test
-  void testKryoSerializationRoundTrip() throws IOException {
+  void kryoSerializationRoundTrip() throws IOException {
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
             .addedFilesCount(10)
             .existingFilesCount(20)
             .deletedFilesCount(3)
             .replacedFilesCount(2)
+            .modifiedFilesCount(1)
             .addedRowsCount(1000L)
             .existingRowsCount(2000L)
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
+            .modifiedRowsCount(100L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(new byte[] {0xF}))
-            .dvCardinality(1L)
+            .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
+            .formatVersion(4)
             .build();
 
     ManifestInfoStruct deserialized = TestHelpers.KryoHelpers.roundTripSerialize(info);
@@ -569,12 +672,66 @@ class TestManifestInfoStruct {
     assertThat(deserialized.existingFilesCount()).isEqualTo(20);
     assertThat(deserialized.deletedFilesCount()).isEqualTo(3);
     assertThat(deserialized.replacedFilesCount()).isEqualTo(2);
+    assertThat(deserialized.modifiedFilesCount()).isEqualTo(1);
     assertThat(deserialized.addedRowsCount()).isEqualTo(1000L);
     assertThat(deserialized.existingRowsCount()).isEqualTo(2000L);
     assertThat(deserialized.deletedRowsCount()).isEqualTo(300L);
     assertThat(deserialized.replacedRowsCount()).isEqualTo(200L);
+    assertThat(deserialized.modifiedRowsCount()).isEqualTo(100L);
     assertThat(deserialized.minSequenceNumber()).isEqualTo(5L);
-    assertThat(deserialized.dv()).isEqualTo(ByteBuffer.wrap(new byte[] {0xF}));
-    assertThat(deserialized.dvCardinality()).isEqualTo(1L);
+    assertThat(deserialized.formatVersion()).isEqualTo(4);
+    assertThat(deserialized.manifestDeletionVector().buffer())
+        .isEqualTo(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()));
+  }
+
+  @Test
+  void builderMissingFormatVersion() {
+    assertThatThrownBy(
+            () ->
+                ManifestInfoStruct.builder()
+                    .addedFilesCount(0)
+                    .existingFilesCount(0)
+                    .deletedFilesCount(0)
+                    .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
+                    .addedRowsCount(0L)
+                    .existingRowsCount(0L)
+                    .deletedRowsCount(0L)
+                    .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
+                    .minSequenceNumber(0L)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing required value: format version");
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {-1, 1, 2, 3})
+  void builderRejectsUndefinedFormatVersion(int version) {
+    assertThatThrownBy(() -> ManifestInfoStruct.builder().formatVersion(version))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid format version: " + version + " (must be 0 or >= 4)");
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, 4, 5})
+  void builderAcceptsValidFormatVersion(int version) {
+    ManifestInfoStruct info =
+        ManifestInfoStruct.builder()
+            .addedFilesCount(0)
+            .existingFilesCount(0)
+            .deletedFilesCount(0)
+            .replacedFilesCount(0)
+            .modifiedFilesCount(0)
+            .addedRowsCount(0L)
+            .existingRowsCount(0L)
+            .deletedRowsCount(0L)
+            .replacedRowsCount(0L)
+            .modifiedRowsCount(0L)
+            .minSequenceNumber(0L)
+            .formatVersion(version)
+            .build();
+
+    assertThat(info.formatVersion()).isEqualTo(version);
   }
 }

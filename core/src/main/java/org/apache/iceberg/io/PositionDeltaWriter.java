@@ -64,21 +64,7 @@ public interface PositionDeltaWriter<T> extends Closeable {
    * @param spec a partition spec
    * @param partition a partition or null if the spec is unpartitioned
    */
-  default void delete(CharSequence path, long pos, PartitionSpec spec, StructLike partition) {
-    delete(path, pos, null, spec, partition);
-  }
-
-  /**
-   * Deletes a position in the provided spec/partition and records the deleted row in the delete
-   * file.
-   *
-   * @param path a data file path
-   * @param pos a position
-   * @param row a deleted row
-   * @param spec a partition spec
-   * @param partition a partition or null if the spec is unpartitioned
-   */
-  void delete(CharSequence path, long pos, T row, PartitionSpec spec, StructLike partition);
+  void delete(CharSequence path, long pos, PartitionSpec spec, StructLike partition);
 
   /**
    * Returns a result that contains information about written {@link DataFile}s or {@link

@@ -19,7 +19,6 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import static org.assertj.core.api.Assertions.assertThatNoException;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
@@ -38,7 +37,7 @@ import org.junit.jupiter.api.Test;
 public class TestVectorizedReaderBuilder {
 
   @Test
-  public void testVariantNotSupportedInVectorizedReads() {
+  public void testVariantSupportedInVectorizedReads() {
     Schema icebergSchema =
         new Schema(
             NestedField.required(1, "id", IntegerType.get()),
@@ -50,10 +49,9 @@ public class TestVectorizedReaderBuilder {
         new VectorizedReaderBuilder(
             icebergSchema, parquetSchema, false, ImmutableMap.of(), readers -> null);
 
-    assertThatThrownBy(
-            () -> TypeWithSchemaVisitor.visit(icebergSchema.asStruct(), parquetSchema, builder))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("Vectorized reads are not supported yet for variant fields");
+    assertThatNoException()
+        .isThrownBy(
+            () -> TypeWithSchemaVisitor.visit(icebergSchema.asStruct(), parquetSchema, builder));
   }
 
   @Test

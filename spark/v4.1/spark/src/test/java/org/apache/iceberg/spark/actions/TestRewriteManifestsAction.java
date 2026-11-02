@@ -77,6 +77,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBase;
@@ -387,6 +388,31 @@ public class TestRewriteManifestsAction extends TestBase {
         resultDF.sort("c1", "c2").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
 
     assertThat(actualRecords).as("Rows must match").isEqualTo(expectedRecords);
+  }
+
+  @TestTemplate
+  void snapshotPropertyFromSessionConf() {
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            tableLocation);
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(1, null, "AAAA")));
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(2, "CCCC", "CCCC")));
+    table.refresh();
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "key", "session-value"),
+        () -> {
+          SparkActions.get()
+              .rewriteManifests(table)
+              .rewriteIf(manifest -> true)
+              .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+              .execute();
+          table.refresh();
+          assertThat(table.currentSnapshot().summary()).containsEntry("key", "session-value");
+        });
   }
 
   @TestTemplate
@@ -754,6 +780,42 @@ public class TestRewriteManifestsAction extends TestBase {
 
     // Make sure we have at least two manifests, otherwise the test misses the point
     assertThat(manifestsDf.count()).as("There should be at least 2 manifests").isGreaterThan(1L);
+  }
+
+  @TestTemplate
+  public void
+      testRewriteManifestsPartitionedTableWithCustomSortingOnFieldNameContainingDotAndBacktick()
+          throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "a", Types.StructType.of(optional(2, "b`c", Types.StringType.get()))),
+            optional(3, "ds", Types.StringType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("a.b`c").build();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
+    Table table = TABLES.create(schema, spec, options, tableLocation);
+
+    // write two manifests so the rewrite doesn't short-circuit via the "already optimal" early
+    // return, and sortColumn() actually gets exercised
+    ManifestFile manifest1 =
+        writeManifest(table, ImmutableList.of(newDataFile(table, TestHelpers.Row.of("val1"))));
+    table.newFastAppend().appendManifest(manifest1).commit();
+
+    ManifestFile manifest2 =
+        writeManifest(table, ImmutableList.of(newDataFile(table, TestHelpers.Row.of("val2"))));
+    table.newFastAppend().appendManifest(manifest2).commit();
+
+    RewriteManifests.Result result =
+        SparkActions.get()
+            .rewriteManifests(table)
+            .rewriteIf(manifest -> true)
+            .sortBy(ImmutableList.of("a.b`c"))
+            .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+            .execute();
+
+    assertThat(result.rewrittenManifests()).hasSize(2);
+    assertThat(result.addedManifests()).hasSizeGreaterThanOrEqualTo(1);
   }
 
   @TestTemplate

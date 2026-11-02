@@ -83,14 +83,19 @@ public class ByteBuffers {
     int base = buffer.position() + offset;
     switch (size) {
       case 4:
-        buffer.putInt(base, value);
+        buffer.put(base, (byte) (value & 0xFF));
+        buffer.put(base + 1, (byte) ((value >> 8) & 0xFF));
+        buffer.put(base + 2, (byte) ((value >> 16) & 0xFF));
+        buffer.put(base + 3, (byte) ((value >> 24) & 0xFF));
         return;
       case 3:
-        buffer.putShort(base, (short) (value & 0xFFFF));
+        buffer.put(base, (byte) (value & 0xFF));
+        buffer.put(base + 1, (byte) ((value >> 8) & 0xFF));
         buffer.put(base + 2, (byte) ((value >> 16) & 0xFF));
         return;
       case 2:
-        buffer.putShort(base, (short) (value & 0xFFFF));
+        buffer.put(base, (byte) (value & 0xFF));
+        buffer.put(base + 1, (byte) ((value >> 8) & 0xFF));
         return;
       case 1:
         buffer.put(base, (byte) (value & 0xFF));
@@ -105,7 +110,8 @@ public class ByteBuffers {
   }
 
   public static short readLittleEndianInt16(ByteBuffer buffer, int offset) {
-    return buffer.getShort(buffer.position() + offset);
+    int base = buffer.position() + offset;
+    return (short) ((buffer.get(base) & 0xFF) | ((buffer.get(base + 1) & 0xFF) << 8));
   }
 
   public static int readByte(ByteBuffer buffer, int offset) {
@@ -116,11 +122,16 @@ public class ByteBuffers {
     int base = buffer.position() + offset;
     switch (size) {
       case 4:
-        return buffer.getInt(base);
+        return (buffer.get(base) & 0xFF)
+            | ((buffer.get(base + 1) & 0xFF) << 8)
+            | ((buffer.get(base + 2) & 0xFF) << 16)
+            | ((buffer.get(base + 3) & 0xFF) << 24);
       case 3:
-        return (((int) buffer.getShort(base)) & 0xFFFF) | ((buffer.get(base + 2) & 0xFF) << 16);
+        return (buffer.get(base) & 0xFF)
+            | ((buffer.get(base + 1) & 0xFF) << 8)
+            | ((buffer.get(base + 2) & 0xFF) << 16);
       case 2:
-        return ((int) buffer.getShort(base)) & 0xFFFF;
+        return (buffer.get(base) & 0xFF) | ((buffer.get(base + 1) & 0xFF) << 8);
       case 1:
         return buffer.get(base) & 0xFF;
     }
@@ -129,10 +140,22 @@ public class ByteBuffers {
   }
 
   public static int readLittleEndianInt32(ByteBuffer buffer, int offset) {
-    return buffer.getInt(buffer.position() + offset);
+    int base = buffer.position() + offset;
+    return (buffer.get(base) & 0xFF)
+        | ((buffer.get(base + 1) & 0xFF) << 8)
+        | ((buffer.get(base + 2) & 0xFF) << 16)
+        | ((buffer.get(base + 3) & 0xFF) << 24);
   }
 
   public static long readLittleEndianInt64(ByteBuffer buffer, int offset) {
-    return buffer.getLong(buffer.position() + offset);
+    int base = buffer.position() + offset;
+    return (long) (buffer.get(base) & 0xFF)
+        | ((long) (buffer.get(base + 1) & 0xFF) << 8)
+        | ((long) (buffer.get(base + 2) & 0xFF) << 16)
+        | ((long) (buffer.get(base + 3) & 0xFF) << 24)
+        | ((long) (buffer.get(base + 4) & 0xFF) << 32)
+        | ((long) (buffer.get(base + 5) & 0xFF) << 40)
+        | ((long) (buffer.get(base + 6) & 0xFF) << 48)
+        | ((long) (buffer.get(base + 7) & 0xFF) << 56);
   }
 }

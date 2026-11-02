@@ -64,16 +64,6 @@ public class SparkReadConf {
   }
 
   public SparkReadConf(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
-    this(spark, table, null, options);
-  }
-
-  /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0. Use {@link #SparkReadConf(SparkSession,
-   *     Table, CaseInsensitiveStringMap)} instead.
-   */
-  @Deprecated
-  public SparkReadConf(
-      SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
     this.spark = spark;
     this.table = table;
     this.confParser = new SparkConfParser(spark, table, options);
@@ -156,13 +146,18 @@ public class SparkReadConf {
   }
 
   public Long splitSizeOption() {
-    return confParser.longConf().option(SparkReadOptions.SPLIT_SIZE).parseOptional();
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.SPLIT_SIZE)
+        .sessionConf(SparkSQLProperties.READ_SPLIT_SIZE)
+        .parseOptional();
   }
 
   public long splitSize() {
     return confParser
         .longConf()
         .option(SparkReadOptions.SPLIT_SIZE)
+        .sessionConf(SparkSQLProperties.READ_SPLIT_SIZE)
         .tableProperty(TableProperties.SPLIT_SIZE)
         .defaultValue(TableProperties.SPLIT_SIZE_DEFAULT)
         .parse();

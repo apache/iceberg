@@ -37,8 +37,8 @@ public class TestSparkFormatModel extends BaseFormatModelTests<InternalRow> {
       Set.of(
           Type.TypeID.TIME,
           Type.TypeID.TIMESTAMP_NANO,
-          // TODO: Remove once FIXED is working on TCK
-          Type.TypeID.FIXED);
+          Type.TypeID.GEOMETRY,
+          Type.TypeID.GEOGRAPHY);
 
   @Override
   protected Collection<Type.TypeID> unsupportedTypeIds() {

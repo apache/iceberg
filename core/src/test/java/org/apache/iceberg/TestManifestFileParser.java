@@ -37,19 +37,19 @@ public class TestManifestFileParser {
   @Test
   public void nullCheck() throws Exception {
     StringWriter writer = new StringWriter();
-    JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+    try (JsonGenerator generator = JsonUtil.factory().createGenerator(writer)) {
+      assertThatThrownBy(() -> ManifestFileParser.toJson(null, generator))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Invalid manifest file: null");
 
-    assertThatThrownBy(() -> ManifestFileParser.toJson(null, generator))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid manifest file: null");
+      assertThatThrownBy(() -> ManifestFileParser.toJson(createManifestFile(), null))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Invalid JSON generator: null");
 
-    assertThatThrownBy(() -> ManifestFileParser.toJson(createManifestFile(), null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid JSON generator: null");
-
-    assertThatThrownBy(() -> ManifestFileParser.fromJson(null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid JSON node for manifest file: null");
+      assertThatThrownBy(() -> ManifestFileParser.fromJson(null))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Invalid JSON node for manifest file: null");
+    }
   }
 
   @Test

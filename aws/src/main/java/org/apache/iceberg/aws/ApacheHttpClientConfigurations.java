@@ -27,8 +27,8 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.http.SdkHttpClient;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
-import software.amazon.awssdk.http.apache.ProxyConfiguration;
+import software.amazon.awssdk.http.apache5.Apache5HttpClient;
+import software.amazon.awssdk.http.apache5.ProxyConfiguration;
 
 class ApacheHttpClientConfigurations extends BaseHttpClientConfigurations {
   private Long connectionTimeoutMs;
@@ -48,7 +48,7 @@ class ApacheHttpClientConfigurations extends BaseHttpClientConfigurations {
 
   @Override
   protected SdkHttpClient buildHttpClient() {
-    final ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    final Apache5HttpClient.Builder apacheHttpClientBuilder = Apache5HttpClient.builder();
     configureApacheHttpClientBuilder(apacheHttpClientBuilder);
     return apacheHttpClientBuilder.build();
   }
@@ -93,7 +93,7 @@ class ApacheHttpClientConfigurations extends BaseHttpClientConfigurations {
   }
 
   @VisibleForTesting
-  void configureApacheHttpClientBuilder(ApacheHttpClient.Builder apacheHttpClientBuilder) {
+  void configureApacheHttpClientBuilder(Apache5HttpClient.Builder apacheHttpClientBuilder) {
     if (connectionTimeoutMs != null) {
       apacheHttpClientBuilder.connectionTimeout(Duration.ofMillis(connectionTimeoutMs));
     }
@@ -124,7 +124,7 @@ class ApacheHttpClientConfigurations extends BaseHttpClientConfigurations {
     configureProxy(apacheHttpClientBuilder);
   }
 
-  private void configureProxy(ApacheHttpClient.Builder apacheHttpClientBuilder) {
+  private void configureProxy(Apache5HttpClient.Builder apacheHttpClientBuilder) {
     if (proxyEndpoint != null
         || proxyUseSystemPropertyValues != null
         || proxyUseEnvironmentVariableValues != null) {

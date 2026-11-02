@@ -247,7 +247,7 @@ public class TestWriteMetricsConfig {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.builderFor(COMPLEX_SCHEMA).identity("strCol").build();
+    PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> properties = Maps.newHashMap();
     properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none");
     properties.put("write.metadata.metrics.column.longCol", "counts");

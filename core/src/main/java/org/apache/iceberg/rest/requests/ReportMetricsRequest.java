@@ -37,7 +37,7 @@ public interface ReportMetricsRequest extends RESTRequest {
     static ReportType fromString(String reportType) {
       Preconditions.checkArgument(null != reportType, "Invalid report type: null");
       try {
-        return ReportType.valueOf(reportType.toUpperCase(Locale.ENGLISH));
+        return ReportType.valueOf(reportType.toUpperCase(Locale.ROOT));
       } catch (IllegalArgumentException e) {
         return UNKNOWN;
       }

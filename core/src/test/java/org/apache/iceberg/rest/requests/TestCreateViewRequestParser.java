@@ -127,4 +127,28 @@ public class TestCreateViewRequestParser {
     assertThat(CreateViewRequestParser.toJson(CreateViewRequestParser.fromJson(json), true))
         .isEqualTo(expectedJson);
   }
+
+  @Test
+  public void nullProperties() {
+    String viewVersion =
+        ViewVersionParser.toJson(
+            ImmutableViewVersion.builder()
+                .schemaId(0)
+                .versionId(1)
+                .timestampMillis(23L)
+                .defaultNamespace(Namespace.of("ns1"))
+                .build());
+
+    String json =
+        "{\"name\":\"view-name\","
+            + "\"location\":\"location\","
+            + "\"view-version\":"
+            + viewVersion
+            + ","
+            + "\"schema\":{\"type\":\"struct\",\"schema-id\":0,"
+            + "\"fields\":[{\"id\":1,\"name\":\"x\",\"required\":true,\"type\":\"long\"}]},"
+            + "\"properties\":null}";
+
+    assertThat(CreateViewRequestParser.fromJson(json).properties()).isEmpty();
+  }
 }

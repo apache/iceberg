@@ -55,6 +55,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.BaseMetastoreTableOperations;
@@ -92,8 +93,8 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
         @Override
         public RetryResult beforeEval(Exception exception) {
-          if (exception instanceof BaseServiceException) {
-            boolean retriable = ((BaseServiceException) exception).isRetryable();
+          if (exception instanceof BaseServiceException serviceException) {
+            boolean retriable = serviceException.isRetryable();
             return retriable
                 ? ExceptionHandler.Interceptor.RetryResult.RETRY
                 : ExceptionHandler.Interceptor.RetryResult.CONTINUE_EVALUATION;
@@ -148,21 +149,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
   @Override
   public Dataset create(Dataset dataset) {
-    Dataset response = null;
-    try {
-      response =
-          BigQueryRetryHelper.runWithRetries(
-              () -> internalCreate(dataset),
-              bigqueryOptions.getRetrySettings(),
-              BIGQUERY_EXCEPTION_HANDLER,
-              bigqueryOptions.getClock(),
-              DEFAULT_RETRY_CONFIG,
-              bigqueryOptions.isOpenTelemetryTracingEnabled(),
-              bigqueryOptions.getOpenTelemetryTracer());
-    } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
-      handleBigQueryRetryException(e);
-    }
-    return response;
+    return runWithRetries(() -> internalCreate(dataset));
   }
 
   private Dataset internalCreate(Dataset dataset) {
@@ -245,18 +232,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
     dataset.setExternalCatalogDatasetOptions(optionsToUpdate.setParameters(newParameters));
 
-    try {
-      BigQueryRetryHelper.runWithRetries(
-          () -> internalUpdate(dataset),
-          bigqueryOptions.getRetrySettings(),
-          BIGQUERY_EXCEPTION_HANDLER,
-          bigqueryOptions.getClock(),
-          DEFAULT_RETRY_CONFIG,
-          bigqueryOptions.isOpenTelemetryTracingEnabled(),
-          bigqueryOptions.getOpenTelemetryTracer());
-    } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
-      handleBigQueryRetryException(e);
-    }
+    runWithRetries(() -> internalUpdate(dataset));
 
     return true;
   }
@@ -286,18 +262,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
     dataset.setExternalCatalogDatasetOptions(existingOptions.setParameters(newParameters));
 
-    try {
-      BigQueryRetryHelper.runWithRetries(
-          () -> internalUpdate(dataset),
-          bigqueryOptions.getRetrySettings(),
-          BIGQUERY_EXCEPTION_HANDLER,
-          bigqueryOptions.getClock(),
-          DEFAULT_RETRY_CONFIG,
-          bigqueryOptions.isOpenTelemetryTracingEnabled(),
-          bigqueryOptions.getOpenTelemetryTracer());
-    } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
-      handleBigQueryRetryException(e);
-    }
+    runWithRetries(() -> internalUpdate(dataset));
     return true;
   }
 
@@ -328,22 +293,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     // Ensure it is an Iceberg table supported by the BigQuery metastore catalog.
     validateTable(table);
     // TODO: Ensure table creation is idempotent when handling retries.
-    Table response = null;
-    try {
-      response =
-          BigQueryRetryHelper.runWithRetries(
-              () -> internalCreate(table),
-              bigqueryOptions.getRetrySettings(),
-              BIGQUERY_EXCEPTION_HANDLER,
-              bigqueryOptions.getClock(),
-              DEFAULT_RETRY_CONFIG,
-              bigqueryOptions.isOpenTelemetryTracingEnabled(),
-              bigqueryOptions.getOpenTelemetryTracer());
-    } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
-      handleBigQueryRetryException(e);
-    }
-
-    return response;
+    return runWithRetries(() -> internalCreate(table));
   }
 
   private Table internalCreate(Table table) {
@@ -401,22 +351,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
             // Must set the schema as null for using schema auto-detect.
             .setSchema(Data.nullOf(TableSchema.class));
 
-    Table response = null;
-    try {
-      response =
-          BigQueryRetryHelper.runWithRetries(
-              () -> internalUpdate(tableReference, updatedTable, table.getEtag()),
-              bigqueryOptions.getRetrySettings(),
-              BIGQUERY_EXCEPTION_HANDLER,
-              bigqueryOptions.getClock(),
-              DEFAULT_RETRY_CONFIG,
-              bigqueryOptions.isOpenTelemetryTracingEnabled(),
-              bigqueryOptions.getOpenTelemetryTracer());
-    } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
-      handleBigQueryRetryException(e);
-    }
-
-    return response;
+    return runWithRetries(() -> internalUpdate(tableReference, updatedTable, table.getEtag()));
   }
 
   private Table internalUpdate(TableReference tableReference, Table table, String etag) {
@@ -434,7 +369,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
         String responseString = response.parseAsString();
-        if (responseString.toLowerCase(Locale.ENGLISH).contains("not found: connection")) {
+        if (responseString.toLowerCase(Locale.ROOT).contains("not found: connection")) {
           throw new BadRequestException("%s", responseString);
         }
 
@@ -553,32 +488,6 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     }
   }
 
-  //  private Dataset internalUpdate(Dataset dataset) {
-  //    Preconditions.checkArgument(
-  //        dataset.getDatasetReference() != null, "Dataset Reference can not be null!");
-  //    Preconditions.checkArgument(
-  //        dataset.getDatasetReference().getDatasetId() != null, "Dataset Id can not be null!");
-  //
-  //    try {
-  //      HttpResponse response =
-  //          client
-  //              .datasets()
-  //              .update(
-  //                  dataset.getDatasetReference().getProjectId(),
-  //                  dataset.getDatasetReference().getDatasetId(),
-  //                  dataset)
-  //              .setRequestHeaders(new HttpHeaders().setIfMatch(dataset.getEtag()))
-  //              .executeUnparsed();
-  //      if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
-  //        throw new NoSuchNamespaceException("%s", response.getStatusMessage());
-  //      }
-  //
-  //      return convertExceptionIfUnsuccessful(response).parseAs(Dataset.class);
-  //    } catch (IOException e) {
-  //      throw new RuntimeIOException("%s", e);
-  //    }
-  //  }
-
   /**
    * Checks if the given table represents a BigQuery Metastore Iceberg table. A table is considered
    * an Iceberg table if it has ExternalCatalogTableOptions, a non-empty parameters map containing
@@ -594,8 +503,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       return false;
     }
 
-    java.util.Map<String, String> parameters =
-        table.getExternalCatalogTableOptions().getParameters();
+    Map<String, String> parameters = table.getExternalCatalogTableOptions().getParameters();
 
     if (!parameters.containsKey(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)
         || !parameters.containsKey(BaseMetastoreTableOperations.TABLE_TYPE_PROP)) {
@@ -631,10 +539,10 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
             + (exception.getContent() != null ? "\n" + exception.getContent() : "");
 
     switch (response.getStatusCode()) {
-      case HttpStatusCodes.STATUS_CODE_UNAUTHORIZED:
-        throw new NotAuthorizedException(
-            "Not authorized to call the BigQuery API or access this resource: %s", errorMessage);
-      case HttpStatusCodes.STATUS_CODE_BAD_REQUEST:
+      case HttpStatusCodes.STATUS_CODE_UNAUTHORIZED ->
+          throw new NotAuthorizedException(
+              "Not authorized to call the BigQuery API or access this resource: %s", errorMessage);
+      case HttpStatusCodes.STATUS_CODE_BAD_REQUEST -> {
         GoogleJsonError errorDetails = exception.getDetails();
         if (errorDetails != null) {
           List<GoogleJsonError.ErrorInfo> errors = errorDetails.getErrors();
@@ -647,35 +555,54 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
           }
         }
         throw new BadRequestException("%s", errorMessage);
-      case HttpStatusCodes.STATUS_CODE_FORBIDDEN:
-        throw new ForbiddenException("%s", errorMessage);
-      case HttpStatusCodes.STATUS_CODE_PRECONDITION_FAILED:
-        throw new CommitFailedException("%s", errorMessage);
-      case HttpStatusCodes.STATUS_CODE_NOT_FOUND:
-        throw new IllegalArgumentException(errorMessage);
-      case HttpStatusCodes.STATUS_CODE_SERVER_ERROR:
-        throw new ServiceFailureException("%s", errorMessage);
-      case HttpStatusCodes.STATUS_CODE_SERVICE_UNAVAILABLE:
-        throw new ServiceUnavailableException("%s", errorMessage);
-      case HttpStatusCodes.STATUS_CODE_CONFLICT:
-        throw new AlreadyExistsException("%s", errorMessage);
-      default:
-        throw new HttpResponseException(response);
+      }
+      case HttpStatusCodes.STATUS_CODE_FORBIDDEN ->
+          throw new ForbiddenException("%s", errorMessage);
+      case HttpStatusCodes.STATUS_CODE_PRECONDITION_FAILED ->
+          throw new CommitFailedException("%s", errorMessage);
+      case HttpStatusCodes.STATUS_CODE_NOT_FOUND ->
+          throw new IllegalArgumentException(errorMessage);
+      case HttpStatusCodes.STATUS_CODE_SERVER_ERROR ->
+          throw new ServiceFailureException("%s", errorMessage);
+      case HttpStatusCodes.STATUS_CODE_SERVICE_UNAVAILABLE ->
+          throw new ServiceUnavailableException("%s", errorMessage);
+      case HttpStatusCodes.STATUS_CODE_CONFLICT ->
+          throw new AlreadyExistsException("%s", errorMessage);
+      default -> throw new HttpResponseException(response);
     }
   }
 
   /**
-   * Translates BigQueryRetryHelperException to the RuntimeException that caused the error. This
-   * method will always throw an exception.
+   * Executes the given callable through {@link BigQueryRetryHelper} with this client's configured
+   * retry settings, translating a {@link BigQueryRetryHelper.BigQueryRetryHelperException} into the
+   * underlying runtime exception.
    */
-  private static void handleBigQueryRetryException(
+  private <T> T runWithRetries(Callable<T> callable) {
+    try {
+      return BigQueryRetryHelper.runWithRetries(
+          callable,
+          bigqueryOptions.getRetrySettings(),
+          BIGQUERY_EXCEPTION_HANDLER,
+          bigqueryOptions.getClock(),
+          DEFAULT_RETRY_CONFIG,
+          bigqueryOptions.isOpenTelemetryTracingEnabled(),
+          bigqueryOptions.getOpenTelemetryTracer());
+    } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
+      throw asRuntimeException(e);
+    }
+  }
+
+  /**
+   * Returns the {@link RuntimeException} that caused the given retry exception, wrapping a
+   * non-runtime cause in a new {@link RuntimeException}.
+   */
+  private static RuntimeException asRuntimeException(
       BigQueryRetryHelper.BigQueryRetryHelperException retryException) {
     Throwable cause = retryException.getCause();
-    String message = retryException.getMessage();
-    if (cause instanceof RuntimeException) {
-      throw (RuntimeException) cause;
-    } else {
-      throw new RuntimeException(message, cause);
+    if (cause instanceof RuntimeException runtimeException) {
+      return runtimeException;
     }
+
+    return new RuntimeException(retryException.getMessage(), cause);
   }
 }

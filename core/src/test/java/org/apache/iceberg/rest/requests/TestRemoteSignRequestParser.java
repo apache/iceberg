@@ -152,6 +152,23 @@ public class TestRemoteSignRequestParser {
   }
 
   @Test
+  public void nullPropertiesBodyAndProvider() {
+    String json =
+        "{\"region\":\"us-west-2\","
+            + "\"method\":\"PUT\","
+            + "\"uri\":\"http://localhost:49208/iceberg-signer-test\","
+            + "\"headers\":{},"
+            + "\"properties\":null,"
+            + "\"body\":null,"
+            + "\"provider\":null}";
+
+    RemoteSignRequest request = RemoteSignRequestParser.fromJson(json);
+    assertThat(request.properties()).isEmpty();
+    assertThat(request.body()).isNull();
+    assertThat(request.provider()).isNull();
+  }
+
+  @Test
   public void roundTripSerdeWithProperties() {
     RemoteSignRequest request =
         ImmutableRemoteSignRequest.builder()

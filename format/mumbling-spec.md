@@ -28,7 +28,6 @@ This spec is for version 1.
 
 [roaring]: https://roaringbitmap.org/
 
-
 ## Overview
 
 Mumbling bitmaps are based on the same idea as Roaring bitmaps: a bitmap is
@@ -45,7 +44,6 @@ bitmap). The descriptor encodes the container size for sparse containers (0-31
 values), or that a container is dense (32). Because the format uses a
 descriptor array instead of keys and offsets, descriptor bytes are stored
 as a PFOR-encoded array.
-
 
 ## Design choices
 
@@ -77,7 +75,6 @@ difference between offsets to find container length. This approach was not
 chosen because array encoding would be worse (values are increasing), and the
 remaining descriptor bits cannot be used.
 
-
 ## Format
 
 A Mumbling bitmap consists of 3 concatenated sections:
@@ -87,7 +84,6 @@ A Mumbling bitmap consists of 3 concatenated sections:
 * Containers
 
 Throughout the format, integers are unsigned and stored as little endian.
-
 
 ### Header
 
@@ -101,7 +97,6 @@ The Mumbling header is made up of the following fields:
 
 Because the container count is limited to 8,192, cardinality is limited to
 2,097,152 (8,192 containers of 256 bits).
-
 
 ### Descriptor array
 
@@ -130,13 +125,12 @@ Example descriptors:
 | `20` | `0010 0000` | Dense container stored in 32 bytes |
 
 The descriptor array is encoded using patched frame of reference (PFOR)
-documented in [Appendix A](pfor). PFOR was chosen because it can efficiently
+documented in [Appendix A][pfor]. PFOR was chosen because it can efficiently
 store mostly uniform container sizes along with occasional larger values. The
 binary representation for descriptors also allows saving at least 2 bits per
 value.
 
 [pfor]: #appendix-a-pfor-encoding-for-unsigned-bytes
-
 
 ### Containers
 
@@ -150,7 +144,6 @@ the container.
 Containers may be sparse or dense. This type is encoded by the container's
 corresponding descriptor byte. Containers with less than 32 bits set must be
 sparse and containers with 32 or more bits set must be dense.
-
 
 #### Sparse containers
 
@@ -173,7 +166,6 @@ Examples:
 | 3          | `00 22 FF`        | 0, 34, 255 |
 | 31         | `00 01 02 ... 1E` | 0, 1, 2, ..., 30 |
 
-
 ### Dense containers
 
 A dense container encodes each bit of the container as 0 (unset) or 1 (set) in
@@ -193,7 +185,6 @@ Examples:
 | 32         | `FF FF FF FF 80 ... 00` | 0-32 |
 | 32         | `FF FF 00 ... 00 FF FF` | 0-15, 240-255 |
 | 32         | `AA AA ... AA AA`       | Even positions: 0, 2, 4, ... |
-
 
 ## Working with bitmaps
 
@@ -224,7 +215,6 @@ of the bitmap position:
 let pos_in_container: u8 = (pos & 0xFF) as u8
 ```
 
-
 # Appendix A: PFOR encoding for unsigned bytes
 
 The unsigned byte PFOR encoding splits the value array into 256-value chunks.
@@ -239,7 +229,6 @@ each value are packed into the _primary_ array.  Finally, the positions of
 _exception_ values that do not fit in `b1` bits are tracked in an offset array,
 and the remaining bits of the exceptions are packed into an exception array.
 
-
 ## PFOR encoding
 
 Each chunk is stored using the following concatenated sections:
@@ -248,7 +237,6 @@ Each chunk is stored using the following concatenated sections:
 * Primary value array
 * Exception offsets
 * Exception value array
-
 
 ### Header
 
@@ -267,7 +255,6 @@ The header layout packs `b1` and `b2` in one byte, followed by `e` and `m`.
 | 0    | 4-7  | `b2` |
 | 1    | 0-7  | `e` |
 | 2    | 0-7  | `m` |
-
 
 ### Encoding
 
@@ -302,7 +289,6 @@ When `b1` is 8, values are each stored in a byte and there are no exceptions.
 In this case, `e` must be 0, `b2` must be 0, and it is recommended that
 implementations store the original values (`m` is 0).
 
-
 ### Examples
 
 | Length | Encoded byte array hex | Decoded values             | Description |
@@ -312,5 +298,3 @@ implementations store the original values (`m` is 0).
 | 8      | `80 02 00 04 07 FF FE` | [0, 0, 0, 0, FF, 0, 0, FE] | 0 bits per value, `m` = 0, 2 exceptions, 8 bits per exception |
 | 3      | `02 00 06 18`          | [6, 7, 8]                  | 2 bits per value, `m` = 6, no exceptions |
 | 4      | `32 01 06 09 01 E0`    | [6, 34, 8, 7]              | 2 bits per value, `m` = 6, 1 exception, 3 bits per exception |
-
-

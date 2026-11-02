@@ -129,7 +129,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
   @Override
   public synchronized void stop() {
     Preconditions.checkArgument(
-        !stopped, "AsyncSparkMicroBatchPlanner for {} was already stopped", table().name());
+        !stopped, "AsyncSparkMicroBatchPlanner for %s was already stopped", table().name());
     stopped = true;
     LOG.info("Stopping AsyncSparkMicroBatchPlanner for table: {}", table().name());
     executor.shutdownNow();
@@ -252,7 +252,9 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
       return StreamingOffset.START_OFFSET;
     }
 
-    if (table().currentSnapshot().timestampMillis() < readConf().streamFromTimestamp()) {
+    // Only a new stream starts from the timestamp. A resumed stream continues from its offset.
+    if (startOffset.equals(StreamingOffset.START_OFFSET)
+        && table().currentSnapshot().timestampMillis() < readConf().streamFromTimestamp()) {
       LOG.info("latestOffset returning START_OFFSET, currentSnapshot() < fromTimestamp");
       return StreamingOffset.START_OFFSET;
     }

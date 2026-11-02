@@ -38,8 +38,8 @@ public class HttpClientProperties implements Serializable {
 
   /**
    * If this is set under {@link #CLIENT_TYPE}, {@link
-   * software.amazon.awssdk.http.apache.ApacheHttpClient} will be used as the HTTP Client in {@link
-   * AwsClientFactory}
+   * software.amazon.awssdk.http.apache5.Apache5HttpClient} will be used as the HTTP Client in
+   * {@link AwsClientFactory}
    */
   public static final String CLIENT_TYPE_APACHE = "apache";
 
@@ -57,7 +57,7 @@ public class HttpClientProperties implements Serializable {
   /**
    * Used to configure the proxy endpoint. Used by both {@link
    * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient.Builder} and {@link
-   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}
+   * software.amazon.awssdk.http.apache5.Apache5HttpClient.Builder}
    */
   public static final String PROXY_ENDPOINT = "http-client.proxy-endpoint";
 
@@ -68,7 +68,7 @@ public class HttpClientProperties implements Serializable {
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/ProxyConfiguration.html
    * and
-   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ProxyConfiguration.html
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/ProxyConfiguration.html
    */
   public static final String PROXY_USE_SYSTEM_PROPERTY_VALUES =
       "http-client.proxy-use-system-property-values";
@@ -80,7 +80,7 @@ public class HttpClientProperties implements Serializable {
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/ProxyConfiguration.html
    * and
-   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ProxyConfiguration.html
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/ProxyConfiguration.html
    */
   public static final String PROXY_USE_ENVIRONMENT_VARIABLE_VALUES =
       "http-client.proxy-use-environment-variable-values";
@@ -109,103 +109,103 @@ public class HttpClientProperties implements Serializable {
 
   /**
    * Used to configure the connection timeout in milliseconds for {@link
-   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
-   * #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}
+   * software.amazon.awssdk.http.apache5.Apache5HttpClient.Builder}. This flag only works when
+   * {@link #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}
    *
    * <p>For more details, see
-   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html
    */
   public static final String APACHE_CONNECTION_TIMEOUT_MS =
       "http-client.apache.connection-timeout-ms";
 
   /**
    * Used to configure the socket timeout in milliseconds for {@link
-   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
-   * #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}
+   * software.amazon.awssdk.http.apache5.Apache5HttpClient.Builder}. This flag only works when
+   * {@link #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}
    *
    * <p>For more details, see
-   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html
    */
   public static final String APACHE_SOCKET_TIMEOUT_MS = "http-client.apache.socket-timeout-ms";
 
   /**
    * Used to configure the connection acquisition timeout in milliseconds for {@link
-   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
-   * #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}
+   * software.amazon.awssdk.http.apache5.Apache5HttpClient.Builder}. This flag only works when
+   * {@link #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}
    *
    * <p>For more details, see
-   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html
    */
   public static final String APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS =
       "http-client.apache.connection-acquisition-timeout-ms";
 
   /**
    * Used to configure the connection max idle time in milliseconds for {@link
-   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
-   * #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}
+   * software.amazon.awssdk.http.apache5.Apache5HttpClient.Builder}. This flag only works when
+   * {@link #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}
    *
    * <p>For more details, see
-   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html
    */
   public static final String APACHE_CONNECTION_MAX_IDLE_TIME_MS =
       "http-client.apache.connection-max-idle-time-ms";
 
   /**
    * Used to configure the connection time to live in milliseconds for {@link
-   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
-   * #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}
+   * software.amazon.awssdk.http.apache5.Apache5HttpClient.Builder}. This flag only works when
+   * {@link #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}
    *
    * <p>For more details, see
-   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html
    */
   public static final String APACHE_CONNECTION_TIME_TO_LIVE_MS =
       "http-client.apache.connection-time-to-live-ms";
 
   /**
    * Used to configure whether to enable the expect continue setting for {@link
-   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
-   * #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}
+   * software.amazon.awssdk.http.apache5.Apache5HttpClient.Builder}. This flag only works when
+   * {@link #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}
    *
    * <p>In default, this is disabled.
    *
    * <p>For more details, see
-   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html
    */
   public static final String APACHE_EXPECT_CONTINUE_ENABLED =
       "http-client.apache.expect-continue-enabled";
 
   /**
    * Used to configure the max connections number for {@link
-   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
-   * #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}
+   * software.amazon.awssdk.http.apache5.Apache5HttpClient.Builder}. This flag only works when
+   * {@link #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}
    *
    * <p>For more details, see
-   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html
    */
   public static final String APACHE_MAX_CONNECTIONS = "http-client.apache.max-connections";
 
   /**
    * Used to configure whether to enable the tcp keep alive setting for {@link
-   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
-   * #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}.
+   * software.amazon.awssdk.http.apache5.Apache5HttpClient.Builder}. This flag only works when
+   * {@link #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}.
    *
    * <p>In default, this is disabled.
    *
    * <p>For more details, see
-   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html
    */
   public static final String APACHE_TCP_KEEP_ALIVE_ENABLED =
       "http-client.apache.tcp-keep-alive-enabled";
 
   /**
    * Used to configure whether to use idle connection reaper for {@link
-   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
-   * #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}.
+   * software.amazon.awssdk.http.apache5.Apache5HttpClient.Builder}. This flag only works when
+   * {@link #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_APACHE}.
    *
    * <p>In default, this is enabled.
    *
    * <p>For more details, see
-   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache5/Apache5HttpClient.Builder.html
    */
   public static final String APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED =
       "http-client.apache.use-idle-connection-reaper-enabled";
@@ -259,7 +259,7 @@ public class HttpClientProperties implements Serializable {
   /**
    * Dynamically load the http client builder to avoid runtime deps requirements of both {@link
    * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient} and {@link
-   * software.amazon.awssdk.http.apache.ApacheHttpClient}, since including both will cause error
+   * software.amazon.awssdk.http.apache5.Apache5HttpClient}, since including both will cause error
    * described in <a href="https://github.com/apache/iceberg/issues/6715">issue#6715</a>
    */
   private <T> T loadHttpClientConfigurations(String impl) {

@@ -196,7 +196,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testNoFilter() {
+  public void noFilter() {
     Table metadataTable = createMetadataTable();
 
     TableScan scan = metadataTable.newScan().select(partitionColumn("data_bucket"));
@@ -210,7 +210,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testAnd() {
+  public void and() {
     Table metadataTable = createMetadataTable();
 
     Expression and =
@@ -223,7 +223,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testLt() {
+  public void lt() {
     Table metadataTable = createMetadataTable();
 
     Expression lt = Expressions.lessThan(partitionColumn("data_bucket"), 2);
@@ -235,7 +235,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testOr() {
+  public void or() {
     Table metadataTable = createMetadataTable();
 
     Expression or =
@@ -252,7 +252,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testNot() {
+  public void not() {
     Table metadataTable = createMetadataTable();
 
     Expression not = Expressions.not(Expressions.lessThan(partitionColumn("data_bucket"), 2));
@@ -265,7 +265,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testIn() {
+  public void in() {
     Table metadataTable = createMetadataTable();
 
     Expression set = Expressions.in(partitionColumn("data_bucket"), 2, 3);
@@ -279,7 +279,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testNotNull() {
+  public void notNull() {
     Table metadataTable = createMetadataTable();
     Expression unary = Expressions.notNull(partitionColumn("data_bucket"));
     TableScan scan = metadataTable.newScan().filter(unary);
@@ -294,7 +294,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testPlanTasks() {
+  public void planTasks() {
     Table metadataTable = createMetadataTable();
 
     Expression and =
@@ -307,7 +307,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testPartitionSpecEvolutionRemovalV1() {
+  public void partitionSpecEvolutionRemovalV1() {
     assumeThat(formatVersion).isEqualTo(1);
 
     // Change spec and add two data files
@@ -371,7 +371,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testPartitionSpecEvolutionRemovalV2() {
+  public void partitionSpecEvolutionRemovalV2() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
     // Change spec and add two data and delete files each
@@ -440,7 +440,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testPartitionSpecEvolutionAdditiveV1() {
+  public void partitionSpecEvolutionAdditiveV1() {
     assumeThat(formatVersion).isEqualTo(1);
 
     // Change spec and add two data files
@@ -506,7 +506,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testPartitionSpecEvolutionAdditiveV2AndAbove() {
+  public void partitionSpecEvolutionAdditiveV2AndAbove() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
     // Change spec and add two data and delete files each

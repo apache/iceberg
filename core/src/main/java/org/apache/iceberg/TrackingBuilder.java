@@ -29,7 +29,7 @@ class TrackingBuilder {
   private final Long fileSequenceNumber;
   private final Long firstRowId;
   private EntryStatus status;
-  private Long dvSnapshotId;
+  private Long modifiedSnapshotId;
   private byte[] deletedPositions;
   private byte[] replacedPositions;
 
@@ -37,6 +37,7 @@ class TrackingBuilder {
    * Creates a builder for a newly added file.
    *
    * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
+   * @return a builder for a newly added file
    */
   static TrackingBuilder added(long newSnapshotId) {
     return new TrackingBuilder(newSnapshotId);
@@ -47,6 +48,7 @@ class TrackingBuilder {
    *
    * @param source source tracking from a manifest entry
    * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
+   * @return a builder for a tracking row derived from the source
    */
   static TrackingBuilder from(Tracking source, long newSnapshotId) {
     return new TrackingBuilder(source, newSnapshotId);
@@ -57,6 +59,7 @@ class TrackingBuilder {
    *
    * @param source source tracking from a manifest entry
    * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
+   * @return a DELETED tracking row derived from the source
    */
   static Tracking deleted(Tracking source, long newSnapshotId) {
     return terminal(EntryStatus.DELETED, source, newSnapshotId);
@@ -67,6 +70,7 @@ class TrackingBuilder {
    *
    * @param source source tracking from a manifest entry
    * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
+   * @return a REPLACED tracking row derived from the source
    */
   static Tracking replaced(Tracking source, long newSnapshotId) {
     return terminal(EntryStatus.REPLACED, source, newSnapshotId);
@@ -79,7 +83,7 @@ class TrackingBuilder {
     this.dataSequenceNumber = null;
     this.fileSequenceNumber = null;
     this.firstRowId = null;
-    this.dvSnapshotId = null;
+    this.modifiedSnapshotId = null;
     this.deletedPositions = null;
     this.replacedPositions = null;
   }
@@ -93,7 +97,7 @@ class TrackingBuilder {
     this.dataSequenceNumber = source.dataSequenceNumber();
     this.fileSequenceNumber = source.fileSequenceNumber();
     this.firstRowId = source.firstRowId();
-    this.dvSnapshotId = source.dvSnapshotId();
+    this.modifiedSnapshotId = source.modifiedSnapshotId();
     this.deletedPositions = null;
     this.replacedPositions = null;
   }
@@ -103,7 +107,7 @@ class TrackingBuilder {
     Preconditions.checkState(
         deletedPositions == null && replacedPositions == null,
         "Cannot mark DV updated on a manifest entry (deleted/replaced positions are set)");
-    this.dvSnapshotId = newSnapshotId;
+    this.modifiedSnapshotId = newSnapshotId;
     if (status == EntryStatus.EXISTING) {
       this.status = EntryStatus.MODIFIED;
     }
@@ -116,7 +120,7 @@ class TrackingBuilder {
     Preconditions.checkState(
         status != EntryStatus.ADDED, "Cannot set deleted positions on ADDED entry");
     this.deletedPositions = ByteBuffers.toByteArray(positions);
-    this.dvSnapshotId = newSnapshotId;
+    this.modifiedSnapshotId = newSnapshotId;
     this.status = EntryStatus.MODIFIED;
     return this;
   }
@@ -126,7 +130,7 @@ class TrackingBuilder {
     Preconditions.checkState(
         status != EntryStatus.ADDED, "Cannot set replaced positions on ADDED entry");
     this.replacedPositions = ByteBuffers.toByteArray(positions);
-    this.dvSnapshotId = newSnapshotId;
+    this.modifiedSnapshotId = newSnapshotId;
     this.status = EntryStatus.MODIFIED;
     return this;
   }
@@ -137,7 +141,7 @@ class TrackingBuilder {
         snapshotId,
         dataSequenceNumber,
         fileSequenceNumber,
-        dvSnapshotId,
+        modifiedSnapshotId,
         firstRowId,
         deletedPositions,
         replacedPositions);
@@ -151,7 +155,7 @@ class TrackingBuilder {
         newSnapshotId,
         source.dataSequenceNumber(),
         source.fileSequenceNumber(),
-        source.dvSnapshotId(),
+        source.modifiedSnapshotId(),
         source.firstRowId(),
         null,
         null);

@@ -141,7 +141,7 @@ public class TestSplitPlanning extends TestBase {
     List<DataFile> file128Mb = newFiles(1, 128 * 1024 * 1024);
     Iterable<DataFile> files = Iterables.concat(files120Mb, file128Mb);
     appendFiles(files);
-    // we expect 2 bins from non-overriden table properties
+    // we expect 2 bins from non-overridden table properties
     TableScan scan = table.newScan().option(TableProperties.SPLIT_LOOKBACK, "1");
     CloseableIterable<CombinedScanTask> tasks = scan.planTasks();
     assertThat(tasks).hasSize(2);

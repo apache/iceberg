@@ -49,6 +49,8 @@ import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.actions.RewriteDataFiles;
+import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
@@ -68,6 +70,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkExecutorCache.CacheValue;
 import org.apache.iceberg.spark.SparkExecutorCache.Conf;
+import org.apache.iceberg.spark.actions.RewriteDataFilesSparkAction;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.SparkEnv;
@@ -212,6 +216,38 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
           SparkReadConf readConf = new SparkReadConf(spark, table, Collections.emptyMap());
           assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
         });
+  }
+
+  @TestTemplate
+  void cacheDeleteFilesDisabledByDefault() throws Exception {
+    List<DeleteFile> deleteFiles = createAndInitTable(TableProperties.DELETE_MODE, MERGE_ON_READ);
+
+    RewriteDataFiles.Result result =
+        SparkActions.get(spark)
+            .rewriteDataFiles(Spark3Util.loadIcebergTable(spark, targetTableName))
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(2);
+
+    // both delete files apply to both data files and the cache is off, so each is opened per file
+    assertThat(deleteFiles).allMatch(deleteFile -> streamCount(deleteFile) == 2);
+  }
+
+  @TestTemplate
+  void cacheDeleteFilesEnabledByOption() throws Exception {
+    List<DeleteFile> deleteFiles = createAndInitTable(TableProperties.DELETE_MODE, MERGE_ON_READ);
+
+    RewriteDataFiles.Result result =
+        SparkActions.get(spark)
+            .rewriteDataFiles(Spark3Util.loadIcebergTable(spark, targetTableName))
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .option(RewriteDataFilesSparkAction.CACHE_DELETE_FILES, "true")
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(2);
+
+    assertThat(deleteFiles).allMatch(deleteFile -> streamCount(deleteFile) == 1);
   }
 
   @TestTemplate

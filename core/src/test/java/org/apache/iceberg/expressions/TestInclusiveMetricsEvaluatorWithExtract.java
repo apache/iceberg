@@ -63,15 +63,15 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.FieldSource;
 
-public class TestInclusiveMetricsEvaluatorWithExtract {
-  private static final Schema SCHEMA =
+public class TestInclusiveMetricsEvaluatorWithExtract<F> {
+  protected static final Schema SCHEMA =
       new Schema(
           required(1, "id", IntegerType.get()),
           required(2, "variant", Types.VariantType.get()),
           optional(3, "all_nulls", Types.VariantType.get()));
 
-  private static final int INT_MIN_VALUE = 30;
-  private static final int INT_MAX_VALUE = 79;
+  protected static final int INT_MIN_VALUE = 30;
+  protected static final int INT_MAX_VALUE = 79;
 
   private static final DataFile FILE =
       new TestDataFile(
@@ -108,19 +108,43 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
                       Variants.of("abe")))));
 
   private boolean shouldRead(Expression expr) {
-    return shouldRead(expr, FILE);
+    return shouldRead(expr, file());
   }
 
-  private boolean shouldRead(Expression expr, DataFile file) {
+  private boolean shouldRead(Expression expr, F file) {
     return shouldRead(expr, file, true);
   }
 
   private boolean shouldReadCaseInsensitive(Expression expr) {
-    return shouldRead(expr, FILE, false);
+    return shouldRead(expr, file(), false);
   }
 
-  private boolean shouldRead(Expression expr, DataFile file, boolean caseSensitive) {
-    return new InclusiveMetricsEvaluator(SCHEMA, expr, caseSensitive).eval(file);
+  protected boolean shouldRead(Expression expr, F file, boolean caseSensitive) {
+    return new InclusiveMetricsEvaluator(SCHEMA, expr, caseSensitive).eval((DataFile) file);
+  }
+
+  protected F file() {
+    return asFile(FILE);
+  }
+
+  protected F emptyFile() {
+    return asFile(new TestDataFile("file.parquet", Row.of(), 0));
+  }
+
+  /** Returns a file with variant bounds for the given path in the {@code variant} column. */
+  protected F fileWithVariantBounds(String path, VariantValue lower, VariantValue upper) {
+    Map<Integer, ByteBuffer> lowerBounds =
+        ImmutableMap.of(2, VariantTestUtil.variantBuffer(Map.of(path, lower)));
+    Map<Integer, ByteBuffer> upperBounds =
+        ImmutableMap.of(2, VariantTestUtil.variantBuffer(Map.of(path, upper)));
+
+    return asFile(
+        new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds));
+  }
+
+  @SuppressWarnings("unchecked")
+  private F asFile(DataFile dataFile) {
+    return (F) dataFile;
   }
 
   @Test
@@ -223,7 +247,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
   @ParameterizedTest
   @FieldSource("MISSING_STATS_EXPRESSIONS")
   public void testZeroRecordFile(Expression expr) {
-    DataFile empty = new TestDataFile("file.parquet", Row.of(), 0);
+    F empty = emptyFile();
     assertThat(shouldRead(expr, empty)).as("Should never read 0-record file: " + expr).isFalse();
   }
 
@@ -851,21 +875,9 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
   @ParameterizedTest
   @FieldSource("DATEANDTIMESTAMPTYPESEQPARAMETERS")
   public void testDateAndTimestampTypesEq(String variantType, Arguments args) {
-    // lower bounds
-    Map<Integer, ByteBuffer> lowerBounds =
-        ImmutableMap.of(
-            2,
-            VariantTestUtil.variantBuffer(
-                Map.of("$['event_timestamp']", (VariantValue) args.get()[1])));
-    // upper bounds
-    Map<Integer, ByteBuffer> upperBounds =
-        ImmutableMap.of(
-            2,
-            VariantTestUtil.variantBuffer(
-                Map.of("$['event_timestamp']", (VariantValue) args.get()[2])));
-
-    DataFile file =
-        new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
+    F file =
+        fileWithVariantBounds(
+            "$['event_timestamp']", (VariantValue) args.get()[1], (VariantValue) args.get()[2]);
     Expression expr = equal(extract("variant", "$.event_timestamp", variantType), args.get()[0]);
     assertThat(shouldRead(expr, file)).isEqualTo(args.get()[3]);
   }
@@ -998,21 +1010,9 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
   @ParameterizedTest
   @FieldSource("DATEANDTIMESTAMPTYPESNOTEQPARAMETERS")
   public void testDateAndTimestampTypesNotEq(String variantType, Arguments args) {
-    // lower bounds
-    Map<Integer, ByteBuffer> lowerBounds =
-        ImmutableMap.of(
-            2,
-            VariantTestUtil.variantBuffer(
-                Map.of("$['event_timestamp']", (VariantValue) args.get()[1])));
-    // upper bounds
-    Map<Integer, ByteBuffer> upperBounds =
-        ImmutableMap.of(
-            2,
-            VariantTestUtil.variantBuffer(
-                Map.of("$['event_timestamp']", (VariantValue) args.get()[2])));
-
-    DataFile file =
-        new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
+    F file =
+        fileWithVariantBounds(
+            "$['event_timestamp']", (VariantValue) args.get()[1], (VariantValue) args.get()[2]);
     Expression expr = notEqual(extract("variant", "$.event_timestamp", variantType), args.get()[0]);
     assertThat(shouldRead(expr, file)).as("Should read: many possible timestamps" + expr).isTrue();
   }
@@ -1020,16 +1020,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
   @Test
   public void testUUIDEq() {
     UUID uuid = UUID.randomUUID();
-    // lower bounds
-    Map<Integer, ByteBuffer> lowerBounds =
-        ImmutableMap.of(
-            2, VariantTestUtil.variantBuffer(Map.of("$['event_uuid']", Variants.ofUUID(uuid))));
-    // upper bounds
-    Map<Integer, ByteBuffer> upperBounds =
-        ImmutableMap.of(
-            2, VariantTestUtil.variantBuffer(Map.of("$['event_uuid']", Variants.ofUUID(uuid))));
-    DataFile file =
-        new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
+    F file = fileWithVariantBounds("$['event_uuid']", Variants.ofUUID(uuid), Variants.ofUUID(uuid));
     Expression expr = equal(extract("variant", "$.event_uuid", PhysicalType.UUID.name()), uuid);
     assertThat(shouldRead(expr, file)).as("Should read: many possible UUIDs" + expr).isTrue();
   }

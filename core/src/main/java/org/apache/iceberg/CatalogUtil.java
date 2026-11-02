@@ -314,7 +314,7 @@ public class CatalogUtil {
     if (catalogImpl == null) {
       String catalogType =
           PropertyUtil.propertyAsString(options, ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
-      switch (catalogType.toLowerCase(Locale.ENGLISH)) {
+      switch (catalogType.toLowerCase(Locale.ROOT)) {
         case ICEBERG_CATALOG_TYPE_HIVE:
           catalogImpl = ICEBERG_CATALOG_HIVE;
           break;

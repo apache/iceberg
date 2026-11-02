@@ -107,8 +107,11 @@ class TableUpdater {
       try {
         table.manageSnapshots().createBranch(branch).commit();
         LOG.info("Branch {} for {} created", branch, identifier);
-      } catch (CommitFailedException e) {
-        table.refresh();
+      } catch (CommitFailedException | IllegalArgumentException e) {
+        if (!table.refs().containsKey(branch)) {
+          table.refresh();
+        }
+
         if (table.refs().containsKey(branch)) {
           LOG.debug("Branch {} concurrently created for {}.", branch, identifier);
         } else {
@@ -142,7 +145,9 @@ class TableUpdater {
               tableSchema,
               result,
               DataConverter.get(
-                  FlinkSchemaUtil.convert(schema), FlinkSchemaUtil.convert(tableSchema)));
+                  FlinkSchemaUtil.convert(schema),
+                  FlinkSchemaUtil.convert(tableSchema),
+                  caseSensitive));
         case SCHEMA_UPDATE_NEEDED:
           LOG.info(
               "Triggering schema update for table {} {} to {}", identifier, tableSchema, schema);

@@ -123,6 +123,23 @@ public class TestCustomNessieClient extends BaseTestIceberg {
         .hasMessage("catalogOptions must be non-null");
   }
 
+  @Test
+  void initializeWithoutWarehouse() {
+    NessieCatalog catalog = new NessieCatalog();
+    NessieIcebergClient client = new NessieIcebergClient(null, null, null, null);
+    FileIO fileIO = new TestCatalogUtil.TestFileIONoArg();
+
+    assertThatThrownBy(
+            () ->
+                catalog.initialize(
+                    "nessie",
+                    client,
+                    fileIO,
+                    ImmutableMap.of("nessie.authentication.token", "secret-token")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Parameter 'warehouse' not set, Nessie can't store data.");
+  }
+
   @SuppressWarnings("rawtypes")
   public static final class DummyClientBuilderImpl extends AbstractNessieClientBuilder {
 

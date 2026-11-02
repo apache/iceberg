@@ -95,11 +95,13 @@ import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
+import org.apache.iceberg.rest.responses.ImmutableUnregisterTableResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
+import org.apache.iceberg.rest.responses.UnregisterTableResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
@@ -488,6 +490,20 @@ public class CatalogHandlers {
     }
   }
 
+  public static UnregisterTableResponse unregisterTable(Catalog catalog, TableIdentifier ident) {
+    Table table = catalog.unregisterTable(ident);
+    if (!(table instanceof BaseTable)) {
+      throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
+    }
+
+    TableMetadata metadata = ((BaseTable) table).operations().current();
+
+    return ImmutableUnregisterTableResponse.builder()
+        .metadataLocation(metadata.metadataFileLocation())
+        .metadata(metadata)
+        .build();
+  }
+
   public static void purgeTable(Catalog catalog, TableIdentifier ident) {
     boolean dropped = catalog.dropTable(ident, true);
     if (!dropped) {
@@ -500,15 +516,6 @@ public class CatalogHandlers {
     if (!exists) {
       throw new NoSuchTableException("Table does not exist: %s", ident);
     }
-  }
-
-  /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0. Use {@link #loadTable(Catalog,
-   *     TableIdentifier, SnapshotMode)} instead.
-   */
-  @Deprecated
-  public static LoadTableResponse loadTable(Catalog catalog, TableIdentifier ident) {
-    return loadTable(catalog, ident, SnapshotMode.ALL);
   }
 
   public static LoadTableResponse loadTable(
@@ -537,7 +544,7 @@ public class CatalogHandlers {
       return LoadTableResponse.builder().withTableMetadata(metadata).build();
     } else if (table instanceof BaseMetadataTable) {
       // metadata tables are loaded on the client side, return NoSuchTableException for now
-      throw new NoSuchTableException("Table does not exist: %s", ident.toString());
+      throw new NoSuchTableException("Table does not exist: %s", ident);
     }
 
     throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
@@ -857,10 +864,9 @@ public class CatalogHandlers {
           table.uuid().toString(),
           tasksPerPlanTask.applyAsInt(configuredScan),
           request.minRowsRequested());
-      return PlanTableScanResponse.builder()
+      return PlanTableScanResponse.builder(table.specs())
           .withPlanId(asyncPlanId)
           .withPlanStatus(PlanStatus.SUBMITTED)
-          .withSpecsById(table.specs())
           .build();
     }
 
@@ -877,11 +883,10 @@ public class CatalogHandlers {
             ? Collections.emptyList()
             : IN_MEMORY_PLANNING_STATE.nextPlanTask(initial.second());
     PlanTableScanResponse.Builder builder =
-        PlanTableScanResponse.builder()
+        PlanTableScanResponse.builder(table.specs())
             .withPlanStatus(PlanStatus.COMPLETED)
             .withPlanId(planId)
-            .withFileScanTasks(initial.first())
-            .withSpecsById(table.specs());
+            .withFileScanTasks(initial.first());
 
     if (!nextPlanTasks.isEmpty()) {
       builder.withPlanTasks(nextPlanTasks);
@@ -907,11 +912,10 @@ public class CatalogHandlers {
     }
 
     Pair<List<FileScanTask>, String> initial = IN_MEMORY_PLANNING_STATE.initialScanTasksFor(planId);
-    return FetchPlanningResultResponse.builder()
+    return FetchPlanningResultResponse.builder(table.specs())
         .withPlanStatus(PlanStatus.COMPLETED)
         .withFileScanTasks(initial.first())
         .withPlanTasks(IN_MEMORY_PLANNING_STATE.nextPlanTask(initial.second()))
-        .withSpecsById(table.specs())
         .build();
   }
 
@@ -929,10 +933,9 @@ public class CatalogHandlers {
     String planTask = request.planTask();
     List<FileScanTask> fileScanTasks = IN_MEMORY_PLANNING_STATE.fileScanTasksForPlanTask(planTask);
 
-    return FetchScanTasksResponse.builder()
+    return FetchScanTasksResponse.builder(table.specs())
         .withFileScanTasks(fileScanTasks)
         .withPlanTasks(IN_MEMORY_PLANNING_STATE.nextPlanTask(planTask))
-        .withSpecsById(table.specs())
         .build();
   }
 

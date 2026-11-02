@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -166,6 +167,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     private final HTTPHeaders contextHeaders;
     private final java.util.concurrent.ConcurrentMap<String, RuntimeException>
         simulateFailureOnFirstSuccessByKey = new java.util.concurrent.ConcurrentHashMap<>();
+    // Records the Idempotency-Key value seen on every mutation request, in arrival order.
+    private final List<String> observedMutationIdempotencyKeys = new CopyOnWriteArrayList<>();
 
     HeaderValidatingAdapter(
         Catalog catalog, HTTPHeaders catalogHeaders, HTTPHeaders contextHeaders) {
@@ -192,6 +195,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           key,
           new CommitStateUnknownException(
               new RuntimeException("simulated transient 503 after success")));
+    }
+
+    /** Returns all Idempotency-Key values observed on mutation requests, in arrival order. */
+    public List<String> observedMutationIdempotencyKeys() {
+      return observedMutationIdempotencyKeys;
     }
 
     @Override
@@ -233,13 +241,16 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               handleRequest(
                   routeAndVars.first(), vars.build(), request, responseType, responseHeaders);
 
-          // For tests: simulate a transient 503 after the first successful mutation for a key.
+          // For tests: record observed keys and simulate transient failures for keyed mutations.
           Optional<HTTPHeaders.HTTPHeader> keyHeader =
               request.headers().firstEntry(RESTUtil.IDEMPOTENCY_KEY_HEADER);
           boolean isMutation =
               request.method() == HTTPMethod.POST || request.method() == HTTPMethod.DELETE;
           if (isMutation && keyHeader.isPresent()) {
             String key = keyHeader.get().value();
+            // Record every Idempotency-Key seen on a mutation (including retries) so tests can
+            // assert that all transport attempts carry the identical key.
+            observedMutationIdempotencyKeys.add(key);
             RuntimeException failure = simulateFailureOnFirstSuccessByKey.remove(key);
             if (failure != null) {
               throw failure;
@@ -431,6 +442,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0.html#uri-path-canonicalization
     // for additional details
     return false;
+  }
+
+  @Override
+  protected boolean supportsVariant() {
+    return true;
   }
 
   /* RESTCatalog specific tests */
@@ -1294,6 +1310,57 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(refsTable.currentSnapshot()).isEqualTo(table.currentSnapshot());
     assertThat(refsTable.snapshots()).hasSize(numSnapshots);
     assertThat(refsTable.history()).hasSize(numSnapshots);
+  }
+
+  @Test
+  public void loadTablePropagatesRemoteSigningConfig() throws IOException {
+    RemoteSigningConfig signingConfig =
+        ImmutableRemoteSigningConfig.builder().putProperties("k", "v").build();
+
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    // Inject signing config into load table responses
+    Mockito.doAnswer(
+            invocation -> {
+              LoadTableResponse response = (LoadTableResponse) invocation.callRealMethod();
+              return LoadTableResponse.builder()
+                  .withTableMetadata(response.tableMetadata())
+                  .addAllConfig(response.config())
+                  .withRemoteSigningConfig(signingConfig)
+                  .build();
+            })
+        .when(adapter)
+        .execute(
+            matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO"));
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    catalog.createTable(TABLE, SCHEMA);
+
+    Table table = catalog.loadTable(TABLE);
+    FileIO io = table.io();
+
+    assertThat(io.properties())
+        .containsEntry(
+            RESTCatalogProperties.REMOTE_SIGNING_CONFIG,
+            RemoteSigningConfigParser.toJson(signingConfig));
+
+    catalog.close();
   }
 
   @SuppressWarnings("MethodLength")
@@ -3209,7 +3276,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           Supplier<Map<String, String>> mutationHeaders,
           FileIO fileIO,
           TableMetadata current,
-          Set<Endpoint> supportedEndpoints) {
+          Set<Endpoint> supportedEndpoints,
+          Map<String, String> readQueryParams) {
         RESTTableOperations ops =
             new CustomRESTTableOperations(
                 restClient, path, mutationHeaders, fileIO, current, supportedEndpoints);
@@ -3421,30 +3489,48 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     IdempotentEnv env = idempotentEnv(key, ns, "t_idemp");
     CreateTableRequest req = createReq(env.ident);
 
-    // First attempt: server finalizes success but responds 503
-    assertThatThrownBy(
-            () ->
-                env.http.post(
-                    ResourcePaths.forCatalogProperties(ImmutableMap.of()).tables(ns),
-                    req,
-                    LoadTableResponse.class,
-                    env.headers,
-                    ErrorHandlers.tableErrorHandler()))
-        .isInstanceOf(RuntimeException.class)
-        .hasMessageContaining("simulated transient 503");
-
-    // Verify request shape (method, path, headers including Idempotency-Key)
-    verifyCreatePost(ns, env.headers);
-
-    // Retry with same key: server should replay 200 OK
-    LoadTableResponse replay =
+    // The client auto-retries the keyed POST on 503; the server replays the finalized 200, so
+    // the call succeeds transparently without the caller needing to retry manually.
+    LoadTableResponse response =
         env.http.post(
             ResourcePaths.forCatalogProperties(ImmutableMap.of()).tables(ns),
             req,
             LoadTableResponse.class,
             env.headers,
             ErrorHandlers.tableErrorHandler());
-    assertThat(replay).isNotNull();
+    assertThat(response).isNotNull();
+
+    // Verify request shape (method, path, headers including Idempotency-Key)
+    verifyCreatePost(ns, env.headers);
+  }
+
+  @Test
+  public void testIdempotentCreateRetryCarriesSameKey() {
+    // Pin the invariant: when the client auto-retries a keyed POST (503-then-200), every transport
+    // attempt must carry the identical Idempotency-Key so the server can replay the cached result.
+    String key = "idemp-same-key-retry";
+    adapterForRESTServer.simulate503OnFirstSuccessForKey(key);
+    Namespace ns = Namespace.of("ns_samekey");
+    IdempotentEnv env = idempotentEnv(key, ns, "t_samekey");
+    CreateTableRequest req = createReq(env.ident);
+
+    // Trigger the 503-then-200 retry cycle; the call must succeed transparently.
+    LoadTableResponse response =
+        env.http.post(
+            ResourcePaths.forCatalogProperties(ImmutableMap.of()).tables(ns),
+            req,
+            LoadTableResponse.class,
+            env.headers,
+            ErrorHandlers.tableErrorHandler());
+    assertThat(response).isNotNull();
+
+    // The adapter must have observed the Idempotency-Key on exactly 2 transport attempts
+    // (initial attempt + one auto-retry) and both values must be identical.
+    List<String> observedKeys =
+        adapterForRESTServer.observedMutationIdempotencyKeys().stream()
+            .filter(k -> k.equals(key))
+            .collect(Collectors.toList());
+    assertThat(observedKeys).hasSize(2);
   }
 
   @Test
@@ -3988,6 +4074,28 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       catalog.close();
       overwriteCatalog.close();
     }
+  }
+
+  @Test
+  public void testLoadTableWithSpecialChars() {
+    Namespace ns1 = Namespace.of("ns 1 ?=-+");
+    Namespace ns2 = Namespace.of("ns 1 ?=-+", "ns 2 ?=-+");
+
+    if (requiresNamespaceCreate()) {
+      restCatalog.createNamespace(ns1);
+      restCatalog.createNamespace(ns2);
+    }
+
+    TableIdentifier t1 = TableIdentifier.of(ns2, "table 1 ?=-+");
+
+    restCatalog.buildTable(t1, SCHEMA).create();
+    assertThat(restCatalog.tableExists(t1)).as("Table should exist").isTrue();
+
+    Table table = restCatalog.loadTable(t1);
+
+    String metadataFileLocation =
+        ((HasTableOperations) table).operations().current().metadataFileLocation();
+    assertThat(metadataFileLocation).contains("ns 1 ?=-+/ns 2 ?=-+/table 1 ?=-+");
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {

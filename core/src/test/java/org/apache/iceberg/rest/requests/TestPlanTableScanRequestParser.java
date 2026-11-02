@@ -283,4 +283,13 @@ public class TestPlanTableScanRequestParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse expression from non-object: null");
   }
+
+  @Test
+  public void nullCaseSensitiveAndUseSnapshotSchema() {
+    String json = "{\"snapshot-id\":123,\"case-sensitive\":null,\"use-snapshot-schema\":null}";
+
+    PlanTableScanRequest request = PlanTableScanRequestParser.fromJson(json);
+    assertThat(request.caseSensitive()).isTrue();
+    assertThat(request.useSnapshotSchema()).isFalse();
+  }
 }

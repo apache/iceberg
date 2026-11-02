@@ -56,8 +56,7 @@ public class TestTableIdentifierParser {
 
     String identifierMissingNamespace = "{\"name\":\"paid\"}";
     assertThat(TableIdentifierParser.fromJson(identifierMissingNamespace))
-        .as(
-            "Should implicitly convert a missing namespace into the the empty namespace when parsing")
+        .as("Should implicitly convert a missing namespace into the empty namespace when parsing")
         .isEqualTo(identifierWithEmptyNamespace);
   }
 

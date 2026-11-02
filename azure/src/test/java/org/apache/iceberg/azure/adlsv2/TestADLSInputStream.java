@@ -26,10 +26,14 @@ import static org.mockito.Mockito.when;
 
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.implementation.models.InternalDataLakeFileOpenInputStreamResult;
+import com.azure.storage.file.datalake.models.PathProperties;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+import org.apache.iceberg.io.FileIOMetricsContext;
+import org.apache.iceberg.metrics.CachingMetricsContext;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -122,5 +126,92 @@ class TestADLSInputStream {
     adlsInputStream.readTail(new byte[0], 0, 0);
 
     verify(inputStream).close();
+  }
+
+  @Test
+  void testReadFullyTracksMetrics() throws IOException {
+    byte[] data = new byte[] {1, 2, 3, 4, 5, 6, 7, 8};
+    InputStream byteStream = new ByteArrayInputStream(data);
+    InternalDataLakeFileOpenInputStreamResult openInputStreamResult =
+        new InternalDataLakeFileOpenInputStreamResult(byteStream, mock());
+    when(fileClient.openInputStream(any())).thenReturn(openInputStreamResult);
+
+    CachingMetricsContext metrics = new CachingMetricsContext();
+    Counter readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
+    Counter readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+
+    try (ADLSInputStream in =
+        new ADLSInputStream(
+            "abfs://container@account.dfs.core.windows.net/path/to/file",
+            fileClient,
+            (long) data.length,
+            mock(),
+            metrics)) {
+      in.readFully(0, new byte[data.length], 0, data.length);
+
+      assertThat(readBytes.value()).isEqualTo(data.length);
+      assertThat(readOperations.value()).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void testReadTailTracksMetrics() throws IOException {
+    byte[] data = new byte[] {1, 2, 3, 4, 5, 6, 7, 8};
+    InputStream byteStream = new ByteArrayInputStream(data);
+    // the constructor's openStream() reads the file size from the stream result, so report the
+    // real length; otherwise readTail computes a negative start offset
+    PathProperties properties = mock(PathProperties.class);
+    when(properties.getFileSize()).thenReturn((long) data.length);
+    InternalDataLakeFileOpenInputStreamResult openInputStreamResult =
+        new InternalDataLakeFileOpenInputStreamResult(byteStream, properties);
+    when(fileClient.openInputStream(any())).thenReturn(openInputStreamResult);
+
+    CachingMetricsContext metrics = new CachingMetricsContext();
+    Counter readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
+    Counter readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+
+    try (ADLSInputStream in =
+        new ADLSInputStream(
+            "abfs://container@account.dfs.core.windows.net/path/to/file",
+            fileClient,
+            (long) data.length,
+            mock(),
+            metrics)) {
+      int tailLength = 4;
+      int bytesRead = in.readTail(new byte[tailLength], 0, tailLength);
+
+      assertThat(bytesRead).isEqualTo(tailLength);
+      assertThat(readBytes.value()).isEqualTo(tailLength);
+      assertThat(readOperations.value()).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void testReadTailEmptyObjectDoesNotCountMetrics() throws IOException {
+    InputStream byteStream = new ByteArrayInputStream(new byte[0]);
+    PathProperties properties = mock(PathProperties.class);
+    when(properties.getFileSize()).thenReturn(0L);
+    InternalDataLakeFileOpenInputStreamResult openInputStreamResult =
+        new InternalDataLakeFileOpenInputStreamResult(byteStream, properties);
+    when(fileClient.openInputStream(any())).thenReturn(openInputStreamResult);
+
+    CachingMetricsContext metrics = new CachingMetricsContext();
+    Counter readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
+    Counter readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+
+    try (ADLSInputStream in =
+        new ADLSInputStream(
+            "abfs://container@account.dfs.core.windows.net/path/to/file",
+            fileClient,
+            0L,
+            mock(),
+            metrics)) {
+      int bytesRead = in.readTail(new byte[8], 0, 8);
+
+      // an empty object yields no bytes; a no-data read counts neither bytes nor an operation
+      assertThat(bytesRead).isEqualTo(0);
+      assertThat(readBytes.value()).isEqualTo(0);
+      assertThat(readOperations.value()).isEqualTo(0);
+    }
   }
 }

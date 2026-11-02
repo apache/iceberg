@@ -277,18 +277,16 @@ public class StructRowData implements RowData {
       case DECIMAL:
         return value;
       case TIMESTAMP:
-        long timeMillis;
+        long micros;
         if (value instanceof LocalDateTime localDateTime) {
-          timeMillis = DateTimeUtil.microsFromTimestamp(localDateTime) / 1000L;
+          micros = DateTimeUtil.microsFromTimestamp(localDateTime);
         } else if (value instanceof OffsetDateTime offsetDateTime) {
-          timeMillis = DateTimeUtil.microsFromTimestamptz(offsetDateTime) / 1000L;
+          micros = DateTimeUtil.microsFromTimestamptz(offsetDateTime);
         } else {
-          timeMillis = Math.floorDiv((Long) value, 1000L);
+          micros = (Long) value;
         }
         return TimestampData.fromEpochMillis(
-            timeMillis,
-            (int) Math.floorMod(value instanceof Long ? (Long) value : timeMillis * 1000L, 1000L)
-                * 1000);
+            Math.floorDiv(micros, 1000L), (int) Math.floorMod(micros, 1000L) * 1000);
       case TIMESTAMP_NANO:
         long nanoLong;
         if (value instanceof LocalDateTime localDateTime) {

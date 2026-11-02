@@ -38,7 +38,7 @@ import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
-public class TestTableSerializerCache {
+class TestTableSerializerCache {
 
   @RegisterExtension
   static final HadoopCatalogExtension CATALOG_EXTENSION = new HadoopCatalogExtension("db", "table");
@@ -120,5 +120,48 @@ public class TestTableSerializerCache {
   void testCacheSize() {
     cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1000);
     assertThat(cache.maximumSize()).isEqualTo(1000);
+  }
+
+  @Test
+  void testReusesCatalogAcrossLookups() {
+    Table table = CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table"), schema1);
+    Table table2 = CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table2"), schema2);
+
+    LoadCountingCatalogLoader catalogLoader =
+        new LoadCountingCatalogLoader(CATALOG_EXTENSION.catalogLoader());
+    cache = new TableSerializerCache(catalogLoader, 10);
+
+    // schema/spec ids are unknown, so both lookups miss the cache and need the catalog
+    cache.serializerWithSchemaAndSpec(
+        "table", table.schema().schemaId(), PartitionSpec.unpartitioned().specId());
+    cache.serializerWithSchemaAndSpec(
+        "table2", table2.schema().schemaId(), PartitionSpec.unpartitioned().specId());
+
+    assertThat(catalogLoader.loadCount()).isEqualTo(1);
+  }
+
+  private static class LoadCountingCatalogLoader implements CatalogLoader {
+    private final CatalogLoader delegate;
+    private int loadCount = 0;
+
+    private LoadCountingCatalogLoader(CatalogLoader delegate) {
+      this.delegate = delegate;
+    }
+
+    private int loadCount() {
+      return loadCount;
+    }
+
+    @Override
+    public Catalog loadCatalog() {
+      loadCount += 1;
+      return delegate.loadCatalog();
+    }
+
+    @Override
+    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+    public CatalogLoader clone() {
+      return this;
+    }
   }
 }

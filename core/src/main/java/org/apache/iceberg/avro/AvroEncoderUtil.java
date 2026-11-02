@@ -23,6 +23,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.Locale;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.io.BinaryDecoder;
@@ -31,7 +32,6 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.EncoderFactory;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class AvroEncoderUtil {
 
@@ -71,11 +71,11 @@ public class AvroEncoderUtil {
       // Read the magic bytes
       byte header0 = dataInput.readByte();
       byte header1 = dataInput.readByte();
-      Preconditions.checkState(
-          header0 == MAGIC_BYTES[0] && header1 == MAGIC_BYTES[1],
-          "Unrecognized header bytes: 0x%02X 0x%02X",
-          header0,
-          header1);
+      if (header0 != MAGIC_BYTES[0] || header1 != MAGIC_BYTES[1]) {
+        throw new IllegalStateException(
+            String.format(
+                Locale.ROOT, "Unrecognized header bytes: 0x%02X 0x%02X", header0, header1));
+      }
 
       // Read avro schema
       Schema avroSchema = new Schema.Parser().parse(dataInput.readUTF());

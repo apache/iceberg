@@ -185,10 +185,8 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
     private void offerInitialFileScanTasks() throws InterruptedException {
       while (!initialFileScanTasks.isEmpty() && !Thread.currentThread().isInterrupted()) {
         FileScanTask initialFileScanTask = initialFileScanTasks.poll();
-        if (initialFileScanTask != null) {
-          if (!offerWithTimeout(initialFileScanTask)) {
-            return;
-          }
+        if (initialFileScanTask != null && !offerWithTimeout(initialFileScanTask)) {
+          return;
         }
       }
     }

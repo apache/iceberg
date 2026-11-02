@@ -59,12 +59,10 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestMetadataTableReadableMetrics extends CatalogTestBase {
   private static final String TABLE_NAME = "test_table";
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}")
+  @Parameters(name = "catalogType={0}, baseNamespace={1}")
   protected static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
-    String catalogName = "testhive";
-    Namespace baseNamespace = Namespace.empty();
-    parameters.add(new Object[] {catalogName, baseNamespace});
+    parameters.add(new Object[] {CatalogType.HIVE, Namespace.empty()});
     return parameters;
   }
 

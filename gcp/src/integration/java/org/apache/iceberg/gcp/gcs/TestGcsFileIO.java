@@ -50,6 +50,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.HttpWaitStrategy;
@@ -240,6 +241,10 @@ public class TestGcsFileIO {
     }
   }
 
+  @Disabled(
+      "Regression in gcs-analytics-core, "
+          + "https://github.com/GoogleCloudPlatform/gcs-analytics-core/pull/371 fixes it, "
+          + "enable once fixed version available")
   @Test
   public void readMissingLocationGcsAnalyticsCoreEnabled() throws IOException {
     String location = String.format("gs://%s/path/to/data.parquet", BUCKET);

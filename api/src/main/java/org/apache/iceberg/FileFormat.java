@@ -78,7 +78,7 @@ public enum FileFormat {
   public static FileFormat fromString(String fileFormat) {
     Preconditions.checkArgument(null != fileFormat, "Invalid file format: null");
     try {
-      return FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
+      return FileFormat.valueOf(fileFormat.toUpperCase(Locale.ROOT));
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(String.format("Invalid file format: %s", fileFormat), e);
     }

@@ -120,7 +120,7 @@ public class ManifestsTable extends BaseMetadataTable {
       return null;
     }
 
-    List<StaticDataTask.Row> rows = Lists.newArrayList();
+    List<StaticDataTask.Row> rows = Lists.newArrayListWithCapacity(summaries.size());
 
     for (int i = 0; i < summaries.size(); i += 1) {
       ManifestFile.PartitionFieldSummary summary = summaries.get(i);

@@ -393,10 +393,35 @@ SET table.exec.iceberg.use-v2-sink = true;
 
 To use SinkV2 based implementation, replace `FlinkSink` with `IcebergSink` in the provided snippets.
 !!! warning
-    There are some slight differences between these implementations:
+    There is a slight difference between these implementations:
 
-     - The `RANGE` distribution mode is not yet available for the `IcebergSink`
      - When using `IcebergSink` use `uidSuffix` instead of the `uidPrefix`
+
+### Post-commit table maintenance
+
+`IcebergSink` can run [table maintenance](flink-maintenance.md#icebergsink-with-post-commit-integration)
+tasks automatically after each commit, so a separate maintenance job is not required. Enable them with
+builder methods (or the equivalent `flink-maintenance.*` write options):
+
+- `rewriteDataFiles()` compacts small data files
+- `expireSnapshots()` expires old snapshots
+- `deleteOrphanFiles()` removes unreferenced files
+- `convertEqualityDeletes()` converts equality deletes to deletion vectors (requires equality fields
+  and table format version >= 3)
+
+```java
+IcebergSink.forRowData(dataStream)
+    .table(table)
+    .tableLoader(tableLoader)
+    .upsert(true)
+    .equalityFieldColumns(List.of("id"))
+    .rewriteDataFiles()
+    .convertEqualityDeletes()
+    .append();
+```
+
+See [IcebergSink with Post-Commit Integration](flink-maintenance.md#icebergsink-with-post-commit-integration)
+for the full options, locking, and the `convertEqualityDeletes` staging/target-branch setup.
 
 ## Flink Dynamic Iceberg Sink
 

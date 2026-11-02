@@ -30,9 +30,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 import org.apache.iceberg.gcp.GCPProperties;
+import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.CachingMetricsContext;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.jupiter.api.Test;
 
@@ -111,8 +114,28 @@ public class TestGCSInputStream {
       assertThat(bytesRead).isEqualTo(dataSize);
       assertThat(Arrays.copyOfRange(actual, 0, bytesRead)).isEqualTo(expected);
 
-      assertThat(in.read(actual, 0, 10)).isEqualTo(EOF);
+      assertThat(in.read(actual, 0, actual.length)).isEqualTo(EOF);
       assertThat(in.getPos()).isEqualTo(dataSize);
+    }
+  }
+
+  @Test
+  void bufferedReadRejectsInvalidRanges() throws Exception {
+    BlobId uri = BlobId.fromGsUtilUri("gs://bucket/path/to/read-bounds.dat");
+    writeGCSData(uri, new byte[] {1, 2, 3, 4});
+
+    try (SeekableInputStream in =
+        new GCSInputStream(storage, uri, null, gcpProperties, MetricsContext.nullMetrics())) {
+      byte[] buffer = new byte[4];
+      assertThatThrownBy(() -> in.read(buffer, 2, 3))
+          .isInstanceOf(IndexOutOfBoundsException.class)
+          .hasMessageContaining("end index (5)");
+      assertThatThrownBy(() -> in.read(buffer, -1, 1))
+          .isInstanceOf(IndexOutOfBoundsException.class)
+          .hasMessageContaining("start index (-1)");
+      assertThatThrownBy(() -> in.read(buffer, 0, -1))
+          .isInstanceOf(IndexOutOfBoundsException.class)
+          .hasMessageContaining("end index (-1)");
     }
   }
 
@@ -179,6 +202,49 @@ public class TestGCSInputStream {
 
     assertThat(Arrays.copyOfRange(buffer, offset, offset + length))
         .isEqualTo(Arrays.copyOfRange(original, offset, offset + length));
+  }
+
+  @Test
+  public void testRangeReadMetrics() throws Exception {
+    BlobId uri = BlobId.fromGsUtilUri("gs://bucket/path/to/read-metrics.dat");
+    int dataSize = 1024 * 1024;
+    byte[] data = randomData(dataSize);
+    writeGCSData(uri, data);
+
+    CachingMetricsContext metrics = new CachingMetricsContext();
+    Counter readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
+    Counter readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+
+    try (RangeReadable in = new GCSInputStream(storage, uri, null, gcpProperties, metrics)) {
+      int length = 1024;
+      in.readFully(0, new byte[length], 0, length);
+      assertThat(readBytes.value()).isEqualTo(length);
+      assertThat(readOperations.value()).isEqualTo(1);
+
+      int tailLength = 512;
+      in.readTail(new byte[tailLength], 0, tailLength);
+      assertThat(readBytes.value()).isEqualTo(length + tailLength);
+      assertThat(readOperations.value()).isEqualTo(2);
+    }
+  }
+
+  @Test
+  public void testReadTailEmptyObjectDoesNotDecrementMetrics() throws Exception {
+    BlobId uri = BlobId.fromGsUtilUri("gs://bucket/path/to/empty.dat");
+    writeGCSData(uri, new byte[0]);
+
+    CachingMetricsContext metrics = new CachingMetricsContext();
+    Counter readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
+    Counter readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+
+    try (RangeReadable in = new GCSInputStream(storage, uri, 0L, gcpProperties, metrics)) {
+      int bytesRead = in.readTail(new byte[8], 0, 8);
+
+      // an empty object yields no bytes; a no-data read counts neither bytes nor an operation
+      assertThat(bytesRead).isLessThanOrEqualTo(0);
+      assertThat(readBytes.value()).isEqualTo(0);
+      assertThat(readOperations.value()).isEqualTo(0);
+    }
   }
 
   @Test

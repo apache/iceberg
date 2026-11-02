@@ -94,4 +94,10 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement removeDanglingDeleteFiles");
   }
+
+  /** Instantiates an action to repair a table. */
+  default RepairTable repairTable(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement repairTable");
+  }
 }

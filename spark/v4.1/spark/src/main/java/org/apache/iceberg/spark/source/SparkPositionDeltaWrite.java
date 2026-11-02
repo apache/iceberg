@@ -458,7 +458,6 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
               .dataSchema(context.dataSchema())
               .dataSparkType(context.dataSparkType())
               .deleteFileFormat(context.deleteFileFormat())
-              .positionDeleteSparkType(context.deleteSparkType())
               .writeProperties(writeProperties)
               .dataSortOrder(table.sortOrders().get(sortOrderId))
               .build();
@@ -912,13 +911,6 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
     long targetDataFileSize() {
       return targetDataFileSize;
-    }
-
-    /* @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
-     *     Position deletes that include row data are no longer supported.
-     */
-    StructType deleteSparkType() {
-      return deleteSparkType;
     }
 
     FileFormat deleteFileFormat() {

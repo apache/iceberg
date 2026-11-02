@@ -291,7 +291,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     if (delimited) {
       return columnName;
     } else {
-      return "`" + columnName.replaceAll("`", "``") + "`";
+      return "`" + columnName.replace("`", "``") + "`";
     }
   }
 

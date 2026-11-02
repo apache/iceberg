@@ -138,6 +138,37 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
   }
 
   @Test
+  void ignoresCycleStartMarker() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    String dataFilePath = getFirstDataFilePath(table);
+
+    try (TwoInputStreamOperatorTestHarness<DVPosition, EqualityConvertPlan, DVWriteResult> harness =
+        createHarness()) {
+      harness.open();
+
+      long time = System.currentTimeMillis();
+      harness.processElement1(
+          new StreamRecord<>(new DVPosition(dataFilePath, 0, 0, EMPTY_PARTITION, 0L), time));
+
+      // The cycle-start marker is not a plan: it must not trigger a write.
+      harness.processElement2(new StreamRecord<>(EqualityConvertPlan.cycleStart(time), time));
+      harness.processBothWatermarks(new Watermark(time));
+      assertThat(harness.extractOutputValues()).isEmpty();
+
+      // The real plan that follows still drives the write. The watermark must advance past the
+      // previous one for the operator to process it.
+      harness.processElement2(new StreamRecord<>(emptyEqualityConvertPlan(), time));
+      harness.processBothWatermarks(new Watermark(time + 1));
+
+      List<DVWriteResult> output = harness.extractOutputValues();
+      assertThat(output).hasSize(1);
+      assertThat(output.get(0).hasError()).isFalse();
+    }
+  }
+
+  @Test
   void writesDVFilesForMultipleDataFiles() throws Exception {
     Table table = createTableWithDelete(3);
     insert(table, 1, "a");
@@ -210,7 +241,13 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
       long time = System.currentTimeMillis();
       EqualityConvertPlan planResult =
           new EqualityConvertPlan(
-              Lists.newArrayList(), Lists.newArrayList(stagingDV), 1L, null, 0L, 0L);
+              Lists.newArrayList(),
+              Lists.newArrayList(stagingDV),
+              Lists.newArrayList(),
+              1L,
+              null,
+              0L,
+              0L);
 
       // New position 1 in the same file. Must merge it with the staged position 0.
       harness.processElement1(
@@ -245,7 +282,13 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
       long time = System.currentTimeMillis();
       EqualityConvertPlan planResult =
           new EqualityConvertPlan(
-              Lists.newArrayList(), Lists.newArrayList(), 1L, plannedSnapshotId, 0L, 0L);
+              Lists.newArrayList(),
+              Lists.newArrayList(),
+              Lists.newArrayList(),
+              1L,
+              plannedSnapshotId,
+              0L,
+              0L);
 
       harness.processElement1(
           new StreamRecord<>(new DVPosition(dataFilePath, 0, 0, EMPTY_PARTITION, 0L), time));
@@ -447,7 +490,8 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
   }
 
   private static EqualityConvertPlan emptyEqualityConvertPlan() {
-    return new EqualityConvertPlan(Lists.newArrayList(), Lists.newArrayList(), 1L, null, 0L, 0L);
+    return new EqualityConvertPlan(
+        Lists.newArrayList(), Lists.newArrayList(), Lists.newArrayList(), 1L, null, 0L, 0L);
   }
 
   private static String getFirstDataFilePath(Table table) {

@@ -95,19 +95,13 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.catalyst.analysis.NoSuchDatabaseException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.catalyst.analysis.UnresolvedAttribute;
 import org.apache.spark.sql.catalyst.catalog.CatalogTable;
 import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition;
 import org.apache.spark.sql.catalyst.catalog.SessionCatalog;
-import org.apache.spark.sql.catalyst.expressions.Expression;
-import org.apache.spark.sql.catalyst.expressions.NamedExpression;
-import org.apache.spark.sql.catalyst.parser.ParseException;
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.Function2;
 import scala.Option;
 import scala.Some;
 import scala.Tuple2;
@@ -115,7 +109,6 @@ import scala.collection.JavaConverters;
 import scala.collection.immutable.Map$;
 import scala.collection.immutable.Seq;
 import scala.collection.mutable.Builder;
-import scala.runtime.AbstractPartialFunction;
 
 /**
  * Java version of the original SparkTableUtil.scala
@@ -131,62 +124,6 @@ public class SparkTableUtil {
           + " within the same table.  If you are sure, you may set 'check_duplicate_files' to false to force the import.";
 
   private SparkTableUtil() {}
-
-  /**
-   * Returns a DataFrame with a row for each partition in the table.
-   *
-   * <p>The DataFrame has 3 columns, partition key (a=1/b=2), partition location, and format (avro
-   * or parquet).
-   *
-   * @param spark a Spark session
-   * @param table a table name and (optional) database
-   * @return a DataFrame of the table's partitions
-   * @deprecated since 1.11.0, will be removed in 1.12.0
-   */
-  @Deprecated
-  public static Dataset<Row> partitionDF(SparkSession spark, String table) {
-    List<SparkPartition> partitions = getPartitions(spark, table);
-    return spark
-        .createDataFrame(partitions, SparkPartition.class)
-        .toDF("partition", "uri", "format");
-  }
-
-  /**
-   * Returns a DataFrame with a row for each partition that matches the specified 'expression'.
-   *
-   * @param spark a Spark session.
-   * @param table name of the table.
-   * @param expression The expression whose matching partitions are returned.
-   * @return a DataFrame of the table partitions.
-   * @deprecated since 1.11.0, will be removed in 1.12.0
-   */
-  @Deprecated
-  public static Dataset<Row> partitionDFByFilter(
-      SparkSession spark, String table, String expression) {
-    List<SparkPartition> partitions = getPartitionsByFilter(spark, table, expression);
-    return spark
-        .createDataFrame(partitions, SparkPartition.class)
-        .toDF("partition", "uri", "format");
-  }
-
-  /**
-   * Returns all partitions in the table.
-   *
-   * @param spark a Spark session
-   * @param table a table name and (optional) database
-   * @return all table's partitions
-   * @deprecated since 1.11.0, will be removed in 1.12.0
-   */
-  @Deprecated
-  public static List<SparkPartition> getPartitions(SparkSession spark, String table) {
-    try {
-      TableIdentifier tableIdent = spark.sessionState().sqlParser().parseTableIdentifier(table);
-      return getPartitions(spark, tableIdent, null);
-    } catch (ParseException e) {
-      throw SparkExceptionUtil.toUncheckedException(
-          e, "Unable to parse table identifier: %s", table);
-    }
-  }
 
   /**
    * Returns all partitions in the table.
@@ -213,80 +150,6 @@ public class SparkTableUtil {
       }
       Seq<CatalogTablePartition> partitions =
           catalog.listPartitions(tableIdent, scalaPartitionFilter).toIndexedSeq();
-      return JavaConverters.seqAsJavaListConverter(partitions).asJava().stream()
-          .map(catalogPartition -> toSparkPartition(catalogPartition, catalogTable))
-          .collect(Collectors.toList());
-    } catch (NoSuchDatabaseException e) {
-      throw SparkExceptionUtil.toUncheckedException(
-          e, "Unknown table: %s. Database not found in catalog.", tableIdent);
-    } catch (NoSuchTableException e) {
-      throw SparkExceptionUtil.toUncheckedException(
-          e, "Unknown table: %s. Table not found in catalog.", tableIdent);
-    }
-  }
-
-  /**
-   * Returns partitions that match the specified 'predicate'.
-   *
-   * @param spark a Spark session
-   * @param table a table name and (optional) database
-   * @param predicate a predicate on partition columns
-   * @return matching table's partitions
-   * @deprecated since 1.11.0, will be removed in 1.12.0
-   */
-  @Deprecated
-  public static List<SparkPartition> getPartitionsByFilter(
-      SparkSession spark, String table, String predicate) {
-    TableIdentifier tableIdent;
-    try {
-      tableIdent = spark.sessionState().sqlParser().parseTableIdentifier(table);
-    } catch (ParseException e) {
-      throw SparkExceptionUtil.toUncheckedException(
-          e, "Unable to parse the table identifier: %s", table);
-    }
-
-    Expression unresolvedPredicateExpr;
-    try {
-      unresolvedPredicateExpr = spark.sessionState().sqlParser().parseExpression(predicate);
-    } catch (ParseException e) {
-      throw SparkExceptionUtil.toUncheckedException(
-          e, "Unable to parse the predicate expression: %s", predicate);
-    }
-
-    Expression resolvedPredicateExpr = resolveAttrs(spark, table, unresolvedPredicateExpr);
-    return getPartitionsByFilter(spark, tableIdent, resolvedPredicateExpr);
-  }
-
-  /**
-   * Returns partitions that match the specified 'predicate'.
-   *
-   * @param spark a Spark session
-   * @param tableIdent a table identifier
-   * @param predicateExpr a predicate expression on partition columns
-   * @return matching table's partitions
-   * @deprecated since 1.11.0, will be removed in 1.12.0
-   */
-  @Deprecated
-  public static List<SparkPartition> getPartitionsByFilter(
-      SparkSession spark, TableIdentifier tableIdent, Expression predicateExpr) {
-    try {
-      SessionCatalog catalog = spark.sessionState().catalog();
-      CatalogTable catalogTable = catalog.getTableMetadata(tableIdent);
-
-      Expression resolvedPredicateExpr;
-      if (!predicateExpr.resolved()) {
-        resolvedPredicateExpr = resolveAttrs(spark, tableIdent.quotedString(), predicateExpr);
-      } else {
-        resolvedPredicateExpr = predicateExpr;
-      }
-      Seq<Expression> predicates =
-          JavaConverters.collectionAsScalaIterableConverter(ImmutableList.of(resolvedPredicateExpr))
-              .asScala()
-              .toIndexedSeq();
-
-      Seq<CatalogTablePartition> partitions =
-          catalog.listPartitionsByFilter(tableIdent, predicates).toIndexedSeq();
-
       return JavaConverters.seqAsJavaListConverter(partitions).asJava().stream()
           .map(catalogPartition -> toSparkPartition(catalogPartition, catalogTable))
           .collect(Collectors.toList());
@@ -344,31 +207,6 @@ public class SparkTableUtil {
     return new SparkPartition(partitionSpec, uri, format);
   }
 
-  private static Expression resolveAttrs(SparkSession spark, String table, Expression expr) {
-    Function2<String, String, Object> resolver = spark.sessionState().analyzer().resolver();
-    LogicalPlan plan = spark.table(table).queryExecution().analyzed();
-    return expr.transform(
-        new AbstractPartialFunction<Expression, Expression>() {
-          @Override
-          public Expression apply(Expression attr) {
-            UnresolvedAttribute unresolvedAttribute = (UnresolvedAttribute) attr;
-            Option<NamedExpression> namedExpressionOption =
-                plan.resolve(unresolvedAttribute.nameParts(), resolver);
-            if (namedExpressionOption.isDefined()) {
-              return (Expression) namedExpressionOption.get();
-            } else {
-              throw new IllegalArgumentException(
-                  String.format("Could not resolve %s using columns: %s", attr, plan.output()));
-            }
-          }
-
-          @Override
-          public boolean isDefinedAt(Expression attr) {
-            return attr instanceof UnresolvedAttribute;
-          }
-        });
-  }
-
   private static Iterator<ManifestFile> buildManifest(
       int formatVersion,
       Long snapshotId,
@@ -404,61 +242,6 @@ public class SparkTableUtil {
     } else {
       return Collections.emptyIterator();
     }
-  }
-
-  /**
-   * Import files from an existing Spark table to an Iceberg table.
-   *
-   * <p>The import uses the Spark session to get table metadata. It assumes no operation is going on
-   * the original and target table and thus is not thread-safe.
-   *
-   * @param spark a Spark session
-   * @param sourceTableIdent an identifier of the source Spark table
-   * @param targetTable an Iceberg table where to import the data
-   * @param stagingDir a staging directory to store temporary manifest files
-   * @param partitionFilter only import partitions whose values match those in the map, can be
-   *     partially defined
-   * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
-   * @deprecated since 1.11.0, will be removed in 1.12.0
-   */
-  @Deprecated
-  public static void importSparkTable(
-      SparkSession spark,
-      TableIdentifier sourceTableIdent,
-      Table targetTable,
-      String stagingDir,
-      Map<String, String> partitionFilter,
-      boolean checkDuplicateFiles) {
-    importSparkTable(
-        spark, sourceTableIdent, targetTable, stagingDir, partitionFilter, checkDuplicateFiles, 1);
-  }
-
-  /**
-   * Import files from an existing Spark table to an Iceberg table.
-   *
-   * <p>The import uses the Spark session to get table metadata. It assumes no operation is going on
-   * the original and target table and thus is not thread-safe.
-   *
-   * @param spark a Spark session
-   * @param sourceTableIdent an identifier of the source Spark table
-   * @param targetTable an Iceberg table where to import the data
-   * @param stagingDir a staging directory to store temporary manifest files
-   * @param parallelism number of threads to use for file reading
-   * @deprecated since 1.11.0, will be removed in 1.12.0
-   */
-  @Deprecated
-  public static void importSparkTable(
-      SparkSession spark,
-      TableIdentifier sourceTableIdent,
-      Table targetTable,
-      String stagingDir,
-      int parallelism) {
-    importSparkTable(
-        spark,
-        sourceTableIdent,
-        targetTable,
-        stagingDir,
-        TableMigrationUtil.migrationService(parallelism));
   }
 
   /**
@@ -638,36 +421,6 @@ public class SparkTableUtil {
    * @param sourceTableIdent an identifier of the source Spark table
    * @param targetTable an Iceberg table where to import the data
    * @param stagingDir a staging directory to store temporary manifest files
-   * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
-   * @deprecated since 1.11.0, will be removed in 1.12.0
-   */
-  @Deprecated
-  public static void importSparkTable(
-      SparkSession spark,
-      TableIdentifier sourceTableIdent,
-      Table targetTable,
-      String stagingDir,
-      boolean checkDuplicateFiles) {
-    importSparkTable(
-        spark,
-        sourceTableIdent,
-        targetTable,
-        stagingDir,
-        Collections.emptyMap(),
-        checkDuplicateFiles,
-        1);
-  }
-
-  /**
-   * Import files from an existing Spark table to an Iceberg table.
-   *
-   * <p>The import uses the Spark session to get table metadata. It assumes no operation is going on
-   * the original and target table and thus is not thread-safe.
-   *
-   * @param spark a Spark session
-   * @param sourceTableIdent an identifier of the source Spark table
-   * @param targetTable an Iceberg table where to import the data
-   * @param stagingDir a staging directory to store temporary manifest files
    */
   public static void importSparkTable(
       SparkSession spark, TableIdentifier sourceTableIdent, Table targetTable, String stagingDir) {
@@ -731,28 +484,6 @@ public class SparkTableUtil {
       throw SparkExceptionUtil.toUncheckedException(
           e, "Unknown table: %s. Table not found in catalog.", sourceTableIdent);
     }
-  }
-
-  /**
-   * Import files from given partitions to an Iceberg table.
-   *
-   * @param spark a Spark session
-   * @param partitions partitions to import
-   * @param targetTable an Iceberg table where to import the data
-   * @param spec a partition spec
-   * @param stagingDir a staging directory to store temporary manifest files
-   * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
-   * @deprecated since 1.11.0, will be removed in 1.12.0
-   */
-  @Deprecated
-  public static void importSparkPartitions(
-      SparkSession spark,
-      List<SparkPartition> partitions,
-      Table targetTable,
-      PartitionSpec spec,
-      String stagingDir,
-      boolean checkDuplicateFiles) {
-    importSparkPartitions(spark, partitions, targetTable, spec, stagingDir, checkDuplicateFiles, 1);
   }
 
   /**
@@ -931,41 +662,6 @@ public class SparkTableUtil {
     } catch (Throwable e) {
       deleteManifests(targetTable.io(), manifests);
       throw e;
-    }
-  }
-
-  /**
-   * Import files from given partitions to an Iceberg table.
-   *
-   * @param spark a Spark session
-   * @param partitions partitions to import
-   * @param targetTable an Iceberg table where to import the data
-   * @param spec a partition spec
-   * @param stagingDir a staging directory to store temporary manifest files
-   * @deprecated since 1.11.0, will be removed in 1.12.0
-   */
-  @Deprecated
-  public static void importSparkPartitions(
-      SparkSession spark,
-      List<SparkPartition> partitions,
-      Table targetTable,
-      PartitionSpec spec,
-      String stagingDir) {
-    importSparkPartitions(spark, partitions, targetTable, spec, stagingDir, false, 1);
-  }
-
-  /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0
-   */
-  @Deprecated
-  public static List<SparkPartition> filterPartitions(
-      List<SparkPartition> partitions, Map<String, String> partitionFilter) {
-    if (partitionFilter.isEmpty()) {
-      return partitions;
-    } else {
-      return partitions.stream()
-          .filter(p -> p.getValues().entrySet().containsAll(partitionFilter.entrySet()))
-          .collect(Collectors.toList());
     }
   }
 
