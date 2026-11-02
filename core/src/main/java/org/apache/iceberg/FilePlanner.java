@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -56,6 +57,7 @@ class FilePlanner {
 
   private String tableLocation = null;
   private Expression dataFilter = Expressions.alwaysTrue();
+  private int[] statsFieldIds = null;
   private boolean ignoreResiduals = false;
   private boolean caseSensitive = true;
   private ScanMetrics scanMetrics = ScanMetrics.noop();
@@ -82,6 +84,12 @@ class FilePlanner {
   FilePlanner filterData(Expression expr) {
     Preconditions.checkArgument(expr != null, "Invalid filter: null");
     this.dataFilter = expr;
+    return this;
+  }
+
+  FilePlanner projectStats(int... fieldIds) {
+    Preconditions.checkArgument(fieldIds != null, "Invalid field IDs: null");
+    this.statsFieldIds = Arrays.copyOf(fieldIds, fieldIds.length);
     return this;
   }
 
@@ -164,6 +172,10 @@ class FilePlanner {
             .scanMetrics(scanMetrics);
     if (tableLocation != null) {
       builder.tableLocation(tableLocation);
+    }
+
+    if (statsFieldIds != null) {
+      builder.projectStats(statsFieldIds);
     }
 
     return builder.build();
