@@ -73,7 +73,7 @@ final class ShowLast4 implements IcebergFunction<CharSequence, CharSequence> {
         count++;
       }
       if (count <= 4) {
-        return input;
+        return input.toString();
       }
       int keepFromOffset = lastFourStarts[count % 4];
       StringBuilder sb = new StringBuilder(input.length());

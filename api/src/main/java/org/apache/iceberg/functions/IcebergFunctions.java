@@ -18,13 +18,13 @@
  */
 package org.apache.iceberg.functions;
 
-/** Factory for the {@link IcebergFunction} implementations defined by the REST spec. */
+/** Factory for {@link IcebergFunction} implementations. */
 public class IcebergFunctions {
   private IcebergFunctions() {}
 
   /**
-   * Returns the function with the given name, or an {@link UnknownFunction} if the name is not
-   * recognized.
+   * Returns the function with the given name, such as {@code show_last_4}, or an {@link
+   * UnknownFunction} if the name is not recognized.
    */
   public static IcebergFunction<?, ?> fromString(String function) {
     switch (function) {

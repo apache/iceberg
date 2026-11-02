@@ -61,7 +61,7 @@ final class ShowFirst4 implements IcebergFunction<CharSequence, CharSequence> {
     @Override
     protected CharSequence applyNonNull(CharSequence input) {
       if (Character.codePointCount(input, 0, input.length()) <= 4) {
-        return input;
+        return input.toString();
       }
       StringBuilder sb = new StringBuilder(input.length());
       int cpIndex = 0;

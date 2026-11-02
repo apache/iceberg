@@ -56,7 +56,7 @@ final class Sha256QueryLocal<T> implements SaltedFunction<T, T> {
 
   @Override
   public SerializableFunction<T, T> bind(Type type) {
-    throw new IllegalArgumentException(
+    throw new UnsupportedOperationException(
         "sha_256_query_local requires a salt; call bind(Type, byte[]) instead");
   }
 
