@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -41,6 +42,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.BulkDeletionFailureException;
@@ -2372,5 +2374,59 @@ public class TestRemoveSnapshots extends TestBase {
 
     appendOnlyManifestPaths.forEach(
         path -> Mockito.verify(spyFileIO, Mockito.never()).newInputFile(path));
+  }
+
+  @TestTemplate
+  public void testFailedRetainedManifestListReadDoesNotDeleteLiveManifests() {
+    TestTables.LocalFileIO spyFileIO = Mockito.spy(new TestTables.LocalFileIO());
+    String tableName = "testFailedRetainedManifestListRead";
+    Table testTable =
+        TestTables.create(
+            tableDir,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, tableDir, spyFileIO));
+
+    testTable.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = testTable.currentSnapshot();
+    Set<String> firstSnapshotManifests =
+        firstSnapshot.allManifests(testTable.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    waitUntilAfter(firstSnapshot.timestampMillis());
+
+    testTable.newFastAppend().appendFile(FILE_B).commit();
+    Snapshot secondSnapshot = testTable.currentSnapshot();
+    long tAfterCommits = waitUntilAfter(secondSnapshot.timestampMillis());
+
+    // the retained snapshot still references the first snapshot's manifest
+    assertThat(
+            secondSnapshot.allManifests(testTable.io()).stream()
+                .map(ManifestFile::path)
+                .collect(Collectors.toSet()))
+        .containsAll(firstSnapshotManifests);
+
+    // the manifest list of the retained snapshot cannot be read during cleanup
+    Mockito.doThrow(new RuntimeIOException("Injected failure"))
+        .when(spyFileIO)
+        .newInputFile(secondSnapshot.manifestListLocation());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    Throwable thrown =
+        catchThrowable(
+            () ->
+                removeSnapshots(testTable)
+                    .expireOlderThan(tAfterCommits)
+                    .deleteWith(deletedFiles::add)
+                    .commit());
+
+    assertThat(deletedFiles).doesNotContainAnyElementsOf(firstSnapshotManifests);
+    assertThat(thrown)
+        .isInstanceOf(RuntimeIOException.class)
+        .hasMessageContaining("Injected failure");
   }
 }
