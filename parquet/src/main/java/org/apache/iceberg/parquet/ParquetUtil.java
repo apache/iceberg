@@ -66,8 +66,15 @@ public class ParquetUtil {
 
   public static Metrics fileMetrics(
       InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping) {
-    if (file instanceof NativeEncryptionInputFile) {
-      NativeEncryptionInputFile nativeFile = (NativeEncryptionInputFile) file;
+    try (ParquetFileReader reader = openFileReader(file)) {
+      return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping);
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to read footer of file: %s", file.location());
+    }
+  }
+
+  private static ParquetFileReader openFileReader(InputFile file) throws IOException {
+    if (file instanceof NativeEncryptionInputFile nativeFile) {
       FileDecryptionProperties decryptionProperties =
           FileDecryptionProperties.builder()
               .withFooterKey(ByteBuffers.toByteArray(nativeFile.keyMetadata().encryptionKey()))
@@ -77,19 +84,10 @@ public class ParquetUtil {
           ParquetReadOptions.builder(new PlainParquetConfiguration())
               .withDecryption(decryptionProperties)
               .build();
-      try (ParquetFileReader reader =
-          ParquetFileReader.open(ParquetIO.file(nativeFile.encryptedInputFile()), options)) {
-        return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping);
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to read footer of file: %s", file.location());
-      }
+      return ParquetFileReader.open(ParquetIO.file(nativeFile.encryptedInputFile()), options);
     }
 
-    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
-      return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to read footer of file: %s", file.location());
-    }
+    return ParquetFileReader.open(ParquetIO.file(file));
   }
 
   public static Metrics footerMetrics(

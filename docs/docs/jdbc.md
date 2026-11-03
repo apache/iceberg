@@ -35,6 +35,7 @@ the JDBC catalog allows arbitrary configurations through:
 | -------------------- | --------------------------------- | ------------------------------------------------------ |
 | uri                  |                                   | the JDBC connection string |
 | jdbc.<property_key\> |                                   | any key value pairs to configure the JDBC connection |
+| jdbc.metadata-refresh-max-retries | 20                      | number of times to retry reading table or view metadata during a refresh |
 
 ### Examples
 

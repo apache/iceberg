@@ -113,10 +113,16 @@ Notes:
 
 **State and restart**
 
-- The PK-index worker keeps a keyed row-position index of the target branch in Flink state and **maintains it incrementally across checkpoints**: each trigger cycle only applies the commits added on the target branch since the last indexed snapshot, and the resulting index is persisted with the next Flink checkpoint. On failover, the worker resumes from the most recent checkpointed index rather than rebuilding from scratch. Its size scales with the number of live rows in the table for the configured equality columns; size Flink state backend, checkpoint storage, and TaskManager memory accordingly. **RocksDB is the preferred state backend** because the PK index can grow beyond the available heap and RocksDB spills to local disk instead of failing with an `OutOfMemoryError`.
-- Full (re)indexing from the target branch head is only triggered in a few cases: cold start with no checkpoint, external commits that advance the target past the currently-indexed snapshot (see below), when the planner detects that the target branch has diverged from the indexed snapshot (rollback / replace-main / expired marker), or when a staging snapshot is planned again because the cycle that planned it did not commit.
+- The PK-index worker keeps a keyed row-position index of the target branch in Flink state, persisted with each Flink checkpoint. Its size scales with the number of live rows in the table for the configured equality columns; size Flink state backend, checkpoint storage, and TaskManager memory accordingly. **RocksDB is the preferred state backend** because the PK index can grow beyond the available heap and RocksDB spills to local disk instead of failing with an `OutOfMemoryError`.
+- The index is **reused across triggers and restored on failover** while it matches the head of the target branch: the head is the snapshot the index was built from, or the converter's own commit for the last planned staging snapshot directly on top of it. Each cycle applies its staging snapshot's changes to the index, so consecutive conversions do not rebuild it.
+- Otherwise the next trigger **rebuilds the index** from the target branch head, reading the equality columns of every live data file. This happens:
+    - on cold start without a checkpoint, and on the first trigger after restoring state written by an older Iceberg version
+    - after any other commit on the target branch, e.g. compaction, external writes, rollback, or replace-main (see *Concurrent commits on the target branch* below)
+    - after restoring a checkpoint that predates the latest conversion commit
+    - when the last planned conversion did not commit
+    - when an earlier rebuild did not finish
 - The `equalityFieldColumns` set is persisted in operator state. Reconfiguring it across a restart from savepoint is **not supported** and the job will fail fast on restore. Restart from a clean state (no savepoint) if the equality columns change.
-- The committer is intentionally stateless. On restart, the planner rediscovers its position by walking the target branch for the marker property `equality-convert-staging-snapshot` written by the committer. If that marker is no longer reachable on the target branch (target was rolled back, replace-main'ed, or the marker snapshot was expired) the planner fails and requires manual intervention.
+- On restart, the planner rediscovers its position by walking the target branch for the marker property `equality-convert-staging-snapshot` written by the committer. If that marker is no longer reachable on the target branch (target was rolled back, replaced, or the marker snapshot was expired) the planner fails and requires manual intervention.
 
 **Concurrent commits on the target branch**
 

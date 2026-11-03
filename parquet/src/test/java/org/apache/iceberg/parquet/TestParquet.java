@@ -29,8 +29,12 @@ import static org.apache.iceberg.TableProperties.PARQUET_DICT_ENCODING_ENABLED_C
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.isNull;
+import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.write;
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterables.getOnlyElement;
@@ -803,7 +807,7 @@ public class TestParquet {
                 ImmutableMap.of(
                     "id", 5L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000003000"))));
 
-    File file = writeNanoRecords(schema, records);
+    File file = writeRecords(schema, records);
 
     // Boundary at 500 ns: only ids 3 (750 ns), 4 (1500 ns), 5 (3000 ns) qualify.
     List<Long> ids =
@@ -841,7 +845,7 @@ public class TestParquet {
                 ImmutableMap.of(
                     "id", 5L, "ts", OffsetDateTime.parse("2024-01-01T00:00:00.000003000+00:00"))));
 
-    File file = writeNanoRecords(schema, records);
+    File file = writeRecords(schema, records);
 
     // Boundary == 2024-01-01T00:00:00.000000500Z, expressed in +04:00. id2 is that same instant
     // (written in +05:00); a strict greaterThan excludes it, leaving ids 3/4/5.
@@ -850,7 +854,57 @@ public class TestParquet {
     assertThat(ids).containsExactlyInAnyOrder(3L, 4L, 5L);
   }
 
-  private File writeNanoRecords(Schema schema, List<Record> records) throws IOException {
+  @Test
+  public void booleanEqualFilter() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "flag", Types.BooleanType.get()));
+    File file = writeBooleanRecords(schema, true, false, true);
+
+    assertThat(filterIds(schema, file, equal("flag", true))).containsExactlyInAnyOrder(1L, 3L);
+  }
+
+  @Test
+  public void booleanNotEqualFilter() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "flag", Types.BooleanType.get()));
+    File file = writeBooleanRecords(schema, true, false, true);
+
+    assertThat(filterIds(schema, file, notEqual("flag", true))).containsExactly(2L);
+  }
+
+  @Test
+  public void booleanIsNullFilter() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "flag", Types.BooleanType.get()));
+    File file = writeBooleanRecords(schema, true, null, false);
+
+    assertThat(filterIds(schema, file, isNull("flag"))).containsExactly(2L);
+  }
+
+  @Test
+  public void booleanNotNullFilter() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "flag", Types.BooleanType.get()));
+    File file = writeBooleanRecords(schema, true, null, false);
+
+    assertThat(filterIds(schema, file, notNull("flag"))).containsExactlyInAnyOrder(1L, 3L);
+  }
+
+  private File writeBooleanRecords(Schema schema, Boolean... flags) throws IOException {
+    Record template = org.apache.iceberg.data.GenericRecord.create(schema);
+    List<Record> records = Lists.newArrayList();
+    for (int i = 0; i < flags.length; i += 1) {
+      records.add(template.copy("id", (long) (i + 1), "flag", flags[i]));
+    }
+
+    return writeRecords(schema, records);
+  }
+
+  private File writeRecords(Schema schema, List<Record> records) throws IOException {
     File file = createTempFile(temp);
     try (FileAppender<Record> appender =
         Parquet.write(Files.localOutput(file))
