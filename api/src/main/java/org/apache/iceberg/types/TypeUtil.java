@@ -38,7 +38,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class TypeUtil {
 
@@ -729,62 +728,31 @@ public class TypeUtil {
   private static class ReassignConflictingIds implements GetID {
     private final Set<Integer> conflictingIds;
     private final Set<Integer> allUsedIds;
-    private final Set<Integer> claimedIds;
     private final AtomicInteger nextId;
 
     private ReassignConflictingIds(Set<Integer> conflictingIds, Set<Integer> allUsedIds) {
       this.conflictingIds = conflictingIds;
       this.allUsedIds = allUsedIds;
-      this.claimedIds = Sets.newHashSet();
       this.nextId = new AtomicInteger();
     }
 
     @Override
     public int get(int oldId) {
-      return get(oldId, 0);
-    }
-
-    @Override
-    public int get(int oldId, int numReserved) {
-      // a field that is not conflicting keeps its ID, so oldId itself is not checked against the
-      // caller's used IDs, only against the IDs this assigner has already claimed
-      if (conflictingIds.contains(oldId)
-          || claimedIds.contains(oldId)
-          || !isRangeAvailable(oldId + 1, oldId + numReserved)) {
-        return nextAvailableId(numReserved);
+      if (conflictingIds.contains(oldId)) {
+        return nextAvailableId();
       } else {
-        return claim(oldId, numReserved);
+        return oldId;
       }
     }
 
-    private int nextAvailableId(int numReserved) {
+    private int nextAvailableId() {
       int candidateId = nextId.incrementAndGet();
 
-      while (!isRangeAvailable(candidateId, candidateId + numReserved)) {
+      while (allUsedIds.contains(candidateId)) {
         candidateId = nextId.incrementAndGet();
       }
 
-      nextId.addAndGet(numReserved);
-
-      return claim(candidateId, numReserved);
-    }
-
-    private int claim(int firstId, int numReserved) {
-      for (int id = firstId; id <= firstId + numReserved; id += 1) {
-        claimedIds.add(id);
-      }
-
-      return firstId;
-    }
-
-    private boolean isRangeAvailable(int firstId, int lastId) {
-      for (int id = firstId; id <= lastId; id += 1) {
-        if (allUsedIds.contains(id) || claimedIds.contains(id)) {
-          return false;
-        }
-      }
-
-      return true;
+      return candidateId;
     }
   }
 
