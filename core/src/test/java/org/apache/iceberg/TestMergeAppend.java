@@ -1766,13 +1766,24 @@ public class TestMergeAppend extends TestBase {
     assertThat(table.currentSnapshot()).isNotNull();
     assertThat(table.currentSnapshot().snapshotId()).isNotEqualTo(prePromotionSnapshotId);
 
-    // Verify scan planning: iterate tasks and check delete is applied
+    // Verify scan planning: iterate tasks and check delete is applied to correct file
     List<FileScanTask> tasks =
         Lists.newArrayList(
             table.newScan().filter(Expressions.equal("region", 5L)).planFiles().iterator());
     assertThat(tasks).hasSize(2);
-    // The delete file should be applied to the first data file (before promotion)
-    assertThat(tasks.stream().mapToInt(t -> t.deletes().size()).sum()).isGreaterThanOrEqualTo(1);
+    // Pre-promotion file should have the delete; post-promotion file should not
+    FileScanTask prePromotionTask =
+        tasks.stream()
+            .filter(t -> t.file().path().toString().equals("/data.parquet"))
+            .findFirst()
+            .orElseThrow();
+    FileScanTask postPromotionTask =
+        tasks.stream()
+            .filter(t -> t.file().path().toString().equals("/data-after.parquet"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(prePromotionTask.deletes()).hasSize(1);
+    assertThat(postPromotionTask.deletes()).isEmpty();
   }
 
   @TestTemplate
@@ -1810,22 +1821,22 @@ public class TestMergeAppend extends TestBase {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
     createIdentityPromotionTable();
     PartitionSpec specBeforePromotion = table.spec();
-    DeleteFile eqDelete = promotionEqualityDeleteFile(specBeforePromotion, 5, "eq-deletes.parquet");
 
+    // Add data file first, then equality delete after it
+    DataFile dataFileBefore = promotionFile(specBeforePromotion, 5, "data-before-eq.parquet");
+    table.newAppend().appendFile(dataFileBefore).commit();
+
+    DeleteFile eqDelete = promotionEqualityDeleteFile(specBeforePromotion, 5, "eq-deletes.parquet");
     table.newRowDelta().addDeletes(eqDelete).commit();
 
     table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
 
-    DataFile dataFileAfter = promotionFile(table.spec(), 5L, "data-after-eq.parquet");
-    table.newAppend().appendFile(dataFileAfter).commit();
-    assertThat(table.currentSnapshot()).isNotNull();
-
-    // Verify scan planning: iterate tasks to ensure partition matching works
-    // Equality deletes are handled in DeleteFileIndex, not task.deletes()
+    // Verify scan planning: the pre-promotion data file should have the equality delete
     List<FileScanTask> tasks =
         Lists.newArrayList(
             table.newScan().filter(Expressions.equal("region", 5L)).planFiles().iterator());
     assertThat(tasks).hasSize(1);
+    assertThat(tasks.get(0).deletes()).hasSize(1);
   }
 
   @TestTemplate
@@ -1851,13 +1862,24 @@ public class TestMergeAppend extends TestBase {
     table.newAppend().appendFile(dataFileAfter).commit();
     assertThat(table.currentSnapshot()).isNotNull();
 
-    // Verify scan planning: iterate tasks and check delete is applied
+    // Verify scan planning: delete should apply to pre-promotion file only
     List<FileScanTask> tasks =
         Lists.newArrayList(
             table.newScan().filter(Expressions.equal("region", 5L)).planFiles().iterator());
     assertThat(tasks).hasSize(2);
-    // At least one task should have the delete file
-    assertThat(tasks.stream().mapToInt(t -> t.deletes().size()).sum()).isGreaterThanOrEqualTo(1);
+    // Pre-promotion file should have the delete; post-promotion file should not
+    FileScanTask prePromotionTask =
+        tasks.stream()
+            .filter(t -> t.file().path().toString().equals("/data-both.parquet"))
+            .findFirst()
+            .orElseThrow();
+    FileScanTask postPromotionTask =
+        tasks.stream()
+            .filter(t -> t.file().path().toString().equals("/data-after-both.parquet"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(prePromotionTask.deletes()).hasSize(1);
+    assertThat(postPromotionTask.deletes()).isEmpty();
   }
 
   private DeleteFile promotionDeleteFile(
