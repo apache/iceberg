@@ -51,7 +51,7 @@ class V4TestHelpers {
       PartitionData partition,
       ContentStats stats,
       DeletionVector dv) {
-    return dataFile(ADDED_TRACKING, location, specId, partition, stats, dv);
+    return dataFile(ADDED_TRACKING, location, specId, partition, stats, dv, null);
   }
 
   static TrackedFile dataFileWithStats(String location, ContentStats stats) {
