@@ -1059,7 +1059,7 @@ A simple (and recommended) way for writers to adapt existing metadata for table 
 
 #### Inheritance
 
-Values for `snapshot_id`, `sequence_number`, and `file_sequence_number` are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the snapshot root file. In v4, `snapshot_timestamp` is also inherited when `null`; see [Snapshot Timestamp Inheritance](#snapshot-timestamp-inheritance).
+Values for `snapshot_id`, `sequence_number`, and `file_sequence_number` are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the snapshot root file. In v4 and later, `snapshot_timestamp` is also inherited when `null`; see [Snapshot Timestamp Inheritance](#snapshot-timestamp-inheritance).
 
 ##### Sequence Number Inheritance
 
@@ -1081,16 +1081,13 @@ Inheritance does not apply to v1, which does not have inherited fields like sequ
 
 In v4 and later, the `snapshot_timestamp` tracking field records the `timestamp-ms` of the snapshot that added or last modified a file's data, converted to microseconds. It is used to assign `_last_updated_time` for [row lineage](#row-lineage).
 
-The snapshot's `timestamp-ms` is not known until the snapshot is successfully committed and may change when a commit is retried, so writers set `snapshot_timestamp` to `null` when the value must come from the committing snapshot. Writers must set `snapshot_timestamp` for data file and leaf manifest entries as follows:
+Writers must set `tracking.snapshot_timestamp` for data file and leaf manifest entries as follows:
 
 * An ADDED entry must have a `null` `snapshot_timestamp`.
 * An entry MODIFIED by column files must have a `null` `snapshot_timestamp`.
 * Any other entry written to a new manifest must have a non-null `snapshot_timestamp` (inherited or previously persisted).
 
-When reading, a `null` `snapshot_timestamp` is inherited differently depending on the entry location:
-
-* Root manifest entries inherit from the snapshot's `timestamp-ms` converted to microseconds.
-* Leaf manifest entries inherit from the `snapshot_timestamp` of the root manifest entry that tracks the leaf manifest.
+When reading, `snapshot_timestamp` is inherited by replacing `null` with the snapshot's `timestamp-ms` converted to microseconds for entries in the root manifest, or with the `snapshot_timestamp` of the root manifest entry that tracks the leaf manifest for entries in a leaf manifest.
 
 Manifest lists and manifests written before a table was upgraded to v4 do not have a `snapshot_timestamp` field and the field should be read as if it is `null`. When reading a manifest list written before v4, each manifest inherits the snapshot's `timestamp-ms` converted to microseconds, and entries in a manifest written before v4 inherit that manifest's `snapshot_timestamp`. As a result, rows in the table at the time of the upgrade have a `_last_updated_time` equal to the `timestamp-ms` of the last snapshot before the upgrade, converted to microseconds.
 
