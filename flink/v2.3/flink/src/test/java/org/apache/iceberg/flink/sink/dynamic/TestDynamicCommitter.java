@@ -68,6 +68,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class TestDynamicCommitter {
 
   static final String DB = "db";
+  static final String SINK_ID = "sinkId";
   static final String TABLE1 = "table";
   static final String TABLE2 = "table2";
 
@@ -191,17 +192,17 @@ class TestDynamicCommitter {
     CommitRequest<DynamicCommittable> commitRequest1 =
         new MockCommitRequest<>(
             new DynamicCommittable(
-                tableKey1, deltaManifests1, jobId, jobId, operatorId, checkpointId));
+                tableKey1, deltaManifests1, jobId, SINK_ID, operatorId, checkpointId));
 
     CommitRequest<DynamicCommittable> commitRequest2 =
         new MockCommitRequest<>(
             new DynamicCommittable(
-                tableKey2, deltaManifests2, jobId, jobId, operatorId, checkpointId));
+                tableKey2, deltaManifests2, jobId, SINK_ID, operatorId, checkpointId));
 
     CommitRequest<DynamicCommittable> commitRequest3 =
         new MockCommitRequest<>(
             new DynamicCommittable(
-                tableKey3, deltaManifests3, jobId, jobId, operatorId, checkpointId));
+                tableKey3, deltaManifests3, jobId, SINK_ID, operatorId, checkpointId));
 
     dynamicCommitter.commit(Sets.newHashSet(commitRequest1, commitRequest2, commitRequest3));
 
@@ -215,6 +216,7 @@ class TestDynamicCommitter {
                 .put("added-records", "42")
                 .put("changed-partition-count", "1")
                 .put("flink.job-id", jobId)
+                .put("flink.sink-id", SINK_ID)
                 .put("flink.max-committed-checkpoint-id", "" + checkpointId)
                 .put("flink.operator-id", operatorId)
                 .put("total-data-files", "1")
@@ -232,6 +234,7 @@ class TestDynamicCommitter {
                 .put("added-records", "42")
                 .put("changed-partition-count", "1")
                 .put("flink.job-id", jobId)
+                .put("flink.sink-id", SINK_ID)
                 .put("flink.max-committed-checkpoint-id", "" + checkpointId)
                 .put("flink.operator-id", operatorId)
                 .put("total-data-files", "1")
@@ -252,6 +255,7 @@ class TestDynamicCommitter {
                 .put("added-records", "42")
                 .put("changed-partition-count", "1")
                 .put("flink.job-id", jobId)
+                .put("flink.sink-id", SINK_ID)
                 .put("flink.max-committed-checkpoint-id", "" + checkpointId)
                 .put("flink.operator-id", operatorId)
                 .put("total-data-files", "1")
@@ -365,6 +369,7 @@ class TestDynamicCommitter {
     // Operator id is stable across Flink job restarts, jobId is not.
     final String operatorId = new OperatorID().toHexString();
     final String previousJobIdStr = previousJobId.toHexString();
+    final String previousSinkId = UUID.randomUUID().toString();
     final int previousCheckpointId = 10;
 
     byte[][] previousManifests =
@@ -376,7 +381,7 @@ class TestDynamicCommitter {
             tableKey,
             previousManifests,
             previousJobIdStr,
-            previousJobIdStr,
+            previousSinkId,
             operatorId,
             previousCheckpointId);
     previousCommitter.commit(Sets.newHashSet(new MockCommitRequest<>(previousCommittable)));
@@ -396,6 +401,7 @@ class TestDynamicCommitter {
             newCommitterMetrics);
 
     final String newJobIdStr = newJobId.toHexString();
+    final String newSinkId = UUID.randomUUID().toString();
     final int newCheckpointId = previousCheckpointId + 1;
 
     byte[][] previousManifestsNew =
@@ -410,13 +416,13 @@ class TestDynamicCommitter {
                 tableKey,
                 previousManifestsNew,
                 previousJobIdStr,
-                previousJobIdStr,
+                previousSinkId,
                 operatorId,
                 previousCheckpointId));
     CommitRequest<DynamicCommittable> newCommitRequest =
         new MockCommitRequest<>(
             new DynamicCommittable(
-                tableKey, newManifests, newJobIdStr, newJobIdStr, operatorId, newCheckpointId));
+                tableKey, newManifests, newJobIdStr, newSinkId, operatorId, newCheckpointId));
 
     newCommitter.commit(Sets.newHashSet(replayedPreviousCommitRequest, newCommitRequest));
 
@@ -426,12 +432,14 @@ class TestDynamicCommitter {
     Snapshot first = Iterables.get(table.snapshots(), 0);
     assertThat(first.summary())
         .containsEntry("flink.job-id", previousJobIdStr)
+        .containsEntry("flink.sink-id", previousSinkId)
         .containsEntry("flink.max-committed-checkpoint-id", String.valueOf(previousCheckpointId))
         .containsEntry("flink.operator-id", operatorId);
 
     Snapshot second = Iterables.get(table.snapshots(), 1);
     assertThat(second.summary())
         .containsEntry("flink.job-id", newJobIdStr)
+        .containsEntry("flink.sink-id", newSinkId)
         .containsEntry("flink.max-committed-checkpoint-id", String.valueOf(newCheckpointId))
         .containsEntry("flink.operator-id", operatorId);
   }
@@ -1171,7 +1179,7 @@ class TestDynamicCommitter {
   private DynamicWriteResultAggregator openAggregator() throws Exception {
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
-            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId");
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, SINK_ID);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
