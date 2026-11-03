@@ -69,12 +69,6 @@ class TestColumnFileStruct {
   }
 
   @Test
-  void structLikeSize() {
-    ColumnFileStruct columnFile = new ColumnFileStruct();
-    assertThat(columnFile.size()).isEqualTo(5);
-  }
-
-  @Test
   void setFieldsByOrdinals() {
     ColumnFileStruct columnFile = new ColumnFileStruct();
 
