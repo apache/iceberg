@@ -76,6 +76,7 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
   private final CloseableIterator<TaggedRow> mergedIterator;
   private final List<RowDataReader> fileReaders;
   private final ProjectingInternalRow projectingRow;
+  private final InheritedTaskMetrics inheritedMetrics = new InheritedTaskMetrics();
   private InternalRow current;
   private FileBlock currentBlock;
 
@@ -276,9 +277,13 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
       totalDeletes += reader.counter().get();
     }
 
-    return new CustomTaskMetric[] {
-      new TaskNumSplits(fileReaders.size()), new TaskNumDeletes(totalDeletes)
-    };
+    return inheritedMetrics.addTo(
+        new TaskNumSplits(fileReaders.size()), new TaskNumDeletes(totalDeletes));
+  }
+
+  @Override
+  public void initMetricsValues(CustomTaskMetric[] metrics) {
+    inheritedMetrics.inherit(metrics);
   }
 
   private static Comparator<InternalRow> buildComparator(
