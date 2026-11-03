@@ -254,10 +254,8 @@ class TestConvertEqualityDeletesE2E extends OperatorTestBase {
     StreamExecutionEnvironment restoredEnv = StreamExecutionEnvironment.getExecutionEnvironment();
     appendConvertTask(restoredEnv, STAGING_BRANCH, "ConvertEqualityDeletesRestoreUID");
     StreamGraph streamGraph = restoredEnv.getStreamGraph();
-    // Submitting the graph directly skips the executor, which is what normally assigns the job id
-    streamGraph.setJobId(JobID.generate());
     streamGraph.setSavepointRestoreSettings(SavepointRestoreSettings.forPath(savepointPath));
-    JobID restoredJobId = clusterClient.submitJob(streamGraph).get();
+    JobID restoredJobId = clusterClient.submitJob(streamGraph.getJobGraph()).get();
     try {
       awaitConverted(table, deleteSnapshotId);
       SimpleDataUtil.assertTableRecords(table, ImmutableList.of());
