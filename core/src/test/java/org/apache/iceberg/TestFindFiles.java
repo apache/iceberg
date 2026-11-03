@@ -138,9 +138,8 @@ public class TestFindFiles extends TestBase {
 
     table.newAppend().appendFile(FILE_B).commit();
 
-    // Strictly between FILE_B's and FILE_C's snapshots: in the same millisecond as either, asOfTime
-    // would include FILE_C or drop FILE_B.
-    long timestamp = TestHelpers.waitUntilAfter(table.currentSnapshot().timestampMillis());
+    // asOfTime includes a snapshot committed at the timestamp, so FILE_C's must come strictly later
+    long timestamp = table.currentSnapshot().timestampMillis();
     TestHelpers.waitUntilAfter(timestamp);
 
     table.newAppend().appendFile(FILE_C).commit();
