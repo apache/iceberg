@@ -104,6 +104,8 @@ import org.junit.jupiter.params.provider.FieldSource;
  */
 public abstract class ReadFormatModelTests<T> {
 
+  @TempDir private File tableDir;
+
   protected abstract Class<T> engineType();
 
   protected abstract Object engineSchema(Schema schema);
@@ -135,8 +137,6 @@ public abstract class ReadFormatModelTests<T> {
 
     assertThat(rowOffset).isEqualTo(expected.size());
   }
-
-  @TempDir private File tableDir;
 
   /**
    * Returns the set of type IDs that this engine cannot handle. The base implementation returns an
@@ -1487,23 +1487,38 @@ public abstract class ReadFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
+  void testReaderBuilderRecordsPerBatchNotSupported(FileFormat fileFormat) throws IOException {
+    assumeThat(supportsBatchReads())
+        .as(engineType().getSimpleName() + " supports batch reads")
+        .isFalse();
+
+    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    Schema schema = dataGenerator.schema();
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    writeGenericRecords(fileFormat, schema, genericRecords);
+
+    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
+    assertThatThrownBy(
+            () ->
+                FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+                    .recordsPerBatch(100))
+        .hasMessageContaining("Batch reading is not supported")
+        .isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
   void testReaderBuilderRecordsPerBatch(FileFormat fileFormat) throws IOException {
+    assumeThat(supportsBatchReads())
+        .as(engineType().getSimpleName() + " does not support batch reads")
+        .isTrue();
+
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords(1000);
     writeGenericRecords(fileFormat, schema, genericRecords);
 
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    if (!supportsBatchReads()) {
-      assertThatThrownBy(
-              () ->
-                  FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-                      .recordsPerBatch(100))
-          .hasMessageContaining("Batch reading is not supported")
-          .isInstanceOf(UnsupportedOperationException.class);
-      return;
-    }
-
     List<T> readRecords;
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
@@ -1516,6 +1531,7 @@ public abstract class ReadFormatModelTests<T> {
     for (T batch : readRecords) {
       assertThat(countRows(List.of(batch))).isLessThanOrEqualTo(100);
     }
+
     assertThat(countRows(readRecords)).isEqualTo(genericRecords.size());
   }
 
@@ -2916,8 +2932,6 @@ public abstract class ReadFormatModelTests<T> {
       throws IOException {
 
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<T> readRecords;
-
     ReadBuilder<T, ?> readerBuilder = readBuilder(fileFormat, inputFile).project(projectionSchema);
 
     if (idToConstant != null) {

@@ -34,6 +34,7 @@ import org.apache.iceberg.data.DataGenerators;
 import org.apache.iceberg.data.ReadFormatModelTests;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.data.vectorized.IcebergArrowColumnVector;
@@ -61,14 +62,10 @@ class TestSparkVectorizedFormatModel extends ReadFormatModelTests<ColumnarBatch>
           Type.TypeID.GEOGRAPHY);
 
   private static final Set<Type.TypeID> PARQUET_UNSUPPORTED_TYPE_IDS =
-      Set.of(
-          Type.TypeID.TIME,
-          Type.TypeID.TIMESTAMP_NANO,
-          Type.TypeID.STRUCT,
-          Type.TypeID.LIST,
-          Type.TypeID.MAP,
-          Type.TypeID.GEOMETRY,
-          Type.TypeID.GEOGRAPHY);
+      ImmutableSet.<Type.TypeID>builder()
+          .addAll(SPARK_UNSUPPORTED_TYPE_IDS)
+          .addAll(ARROW_UNSUPPORTED_TYPE_IDS)
+          .build();
 
   private static final List<Arguments> FORMAT_AND_GENERATOR =
       Arrays.stream(FILE_FORMATS)
@@ -201,6 +198,7 @@ class TestSparkVectorizedFormatModel extends ReadFormatModelTests<ColumnarBatch>
             InternalRowConverter.convert(schema, expected.get(rowOffset + i)),
             batch.getRow(i));
       }
+
       rowOffset += batch.numRows();
     }
 
