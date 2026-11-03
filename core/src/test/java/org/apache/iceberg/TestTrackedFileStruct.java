@@ -302,7 +302,7 @@ class TestTrackedFileStruct {
     assertThat(copy.fileSizeInBytes()).isEqualTo(512L);
     assertThat(copy.specId()).isEqualTo(1);
     assertThat(copy.contentStats()).isNull();
-    assertThat(copy.hasTightStats()).isTrue();
+    assertThat(copy.hasTightStats()).isFalse();
     assertThat(copy.sortOrderId()).isEqualTo(5);
     assertThat(copy.deletionVector()).isSameAs(DELETION_VECTOR_COPY);
     assertThat(copy.manifestInfo()).isSameAs(MANIFEST_INFO_COPY);

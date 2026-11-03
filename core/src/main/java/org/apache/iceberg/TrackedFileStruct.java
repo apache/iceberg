@@ -143,11 +143,12 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     if (toCopy.contentStats != null && (statsIds == null || !statsIds.isEmpty())) {
       this.contentStats =
           statsIds != null ? toCopy.contentStats.copy(statsIds) : toCopy.contentStats.copy();
+      this.tightStats = toCopy.tightStats;
     } else {
       this.contentStats = null;
+      this.tightStats = null;
     }
 
-    this.tightStats = toCopy.tightStats;
     this.manifestInfo = toCopy.manifestInfo != null ? toCopy.manifestInfo.copy() : null;
     this.keyMetadata =
         toCopy.keyMetadata != null
