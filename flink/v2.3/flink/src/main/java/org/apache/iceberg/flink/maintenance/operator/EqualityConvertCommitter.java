@@ -92,8 +92,6 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
   public static final String COMMITTED_STAGING_SNAPSHOT_PROPERTY =
       "equality-convert-staging-snapshot";
 
-  private static final long NO_FAILED_INDEX_GENERATION = -1L;
-
   private static final String ADDED_DV_NUM_METRIC = "addedDvNum";
   private static final String REMOVED_EQ_DELETE_NUM_METRIC = "removedEqDeleteNum";
   private static final String COMMIT_DURATION_MS_METRIC = "commitDurationMs";
@@ -160,10 +158,10 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
             .getOperatorStateStore()
             .getListState(new ListStateDescriptor<>("failedIndexGeneration", Types.LONG));
 
-    failedIndexGeneration = NO_FAILED_INDEX_GENERATION;
+    failedIndexGeneration = EqualityConvertPlan.NO_INDEX_GENERATION;
     for (Long stateValue : failedIndexGenerationState.get()) {
       Preconditions.checkState(
-          failedIndexGeneration == NO_FAILED_INDEX_GENERATION,
+          failedIndexGeneration == EqualityConvertPlan.NO_INDEX_GENERATION,
           "failedIndexGeneration state should hold at most one value");
       failedIndexGeneration = stateValue;
     }
@@ -173,7 +171,7 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
   public void snapshotState(StateSnapshotContext context) throws Exception {
     super.snapshotState(context);
     failedIndexGenerationState.clear();
-    if (failedIndexGeneration != NO_FAILED_INDEX_GENERATION) {
+    if (failedIndexGeneration != EqualityConvertPlan.NO_INDEX_GENERATION) {
       failedIndexGenerationState.add(failedIndexGeneration);
     }
   }
