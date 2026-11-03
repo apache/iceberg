@@ -110,7 +110,7 @@ Inheriting the sequence number from manifest metadata allows writing a new manif
 
 Row-level deletes are stored in delete files.
 
-The current representation is [_deletion vectors_](#deletion-vectors) (v3 or above), which encode deleted positions of a single data file in a bitmap.
+The current representation is [_deletion vectors_](#deletion-vectors) (v3 or above), which encode deleted positions of a single file in a bitmap.
 
 Legacy representations:
 
@@ -1361,10 +1361,10 @@ This section details how to encode row-level deletes in Iceberg delete files.
 
 Row-level deletes have changed across Iceberg versions:
 
-* v4 allows writing only deletion vectors that are co-located with data file metadata
-* v3 allows writing deletion vectors and equality delete files in delete manifests
-* v2 allows writing position delete and equality delete files
 * v1 does not support row-level deletes
+* v2 allows position delete files and equality delete files stored as entries in delete manifests
+* v3 forbids new position delete files and allows deletion vectors as a replacement
+* v4 forbids new equality deletes and delete manifests. Deletion vector metadata is now part of the manifest entries of the data files they modify
 
 There are different formats for encoding row-level deletes:
 
