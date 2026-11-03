@@ -154,6 +154,14 @@ Developers can leverage the benefits of Iceberg tables and take advantage of hig
 
 IOMETE is a fully-managed ready to use, batteries included Data Platform. IOMETE optimizes clustering, compaction, and access control to Apache Iceberg tables. Customer data remains on customer's account to prevent vendor lock-in. The core of IOMETE platform is a serverless Lakehouse that leverages Apache Iceberg as its core table format. IOMETE platform also includes Serverless Spark, an SQL Editor, A Data Catalog, and granular data access control. IOMETE supports Hybrid-multi-cloud setups.
 
+### [LakeOps](https://lakeops.dev)
+
+[LakeOps](https://lakeops.dev) is an autonomous control plane for Apache Iceberg lakehouses. It connects to existing Iceberg catalogs and object storage, continuously analyzes table health, file layout, manifests, snapshots, delete files, and query telemetry, then coordinates maintenance operations such as compaction, snapshot expiration, manifest optimization, orphan file cleanup, and delete-file optimization.
+
+LakeOps is designed for teams operating Iceberg across multiple catalogs, storage systems, and query engines. It provides lake-wide observability, coordinated automated table maintenance, query-aware compaction with a powerful Rust engine, policy-based governance, multi-engine routing, and agentic AI readiness through MCP interfaces and SQL guardrails, without moving data or replacing the underlying catalog, storage, or compute engines.
+
+Learn more in the [LakeOps documentation](https://lakeops.dev/docs) and the [LakeOps blog](https://lakeops.dev/blog).
+
 ### [Microsoft OneLake](https://learn.microsoft.com/en-us/fabric/onelake/)
 [Microsoft OneLake](https://learn.microsoft.com/en-us/fabric/onelake/) is a single unified data lake that brings together your entire data estate into an open, secure foundation for analytics across the organization. Built into Microsoft Fabric, OneLake delivers two powerful APIs: the Tables API and the Files API. The [OneLake Tables API](https://aka.ms/onelakeircdocs) supports the Apache Iceberg REST Catalog (IRC) specification, making it simple to create, manage, and integrate Iceberg tables with existing tools and workflows. The OneLake Files API offers full Azure Data Lake Storage (ADLS) compatibility, enabling seamless file operations and interoperability with familiar ADLS tools. Together, these APIs make OneLake a truly open and interoperable data lake, delivering flexibility and connectivity for modern analytics and AI-driven pipelines.
 
