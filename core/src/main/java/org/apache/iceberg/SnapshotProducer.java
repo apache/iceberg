@@ -67,6 +67,7 @@ import org.apache.iceberg.metrics.Timer.Timed;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
@@ -88,7 +89,7 @@ import org.slf4j.LoggerFactory;
 abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotProducer.class);
   static final int MIN_FILE_GROUP_SIZE = 10_000;
-  static final Set<ManifestFile> EMPTY_SET = Sets.newHashSet();
+  static final Set<ManifestFile> EMPTY_SET = ImmutableSet.of();
 
   /** Default callback used to delete files. */
   private final Consumer<String> defaultDelete =
