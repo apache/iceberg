@@ -805,12 +805,11 @@ class KeyManagementCredential(BaseModel):
     or unwrap table key encryption keys (KEKs) against `kms-key-ids`.
 
     These IDs may be specified by the `encryption.key-id` table property or recorded in the
-    `encrypted-by-id` fields of KMS-wrapped KEK entries in `encryption-keys`. References to
-    table-internal keys are not KMS key IDs and must not be used for credential matching.
+    `encrypted-by-id` fields of KMS-wrapped KEK entries in `encryption-keys`.
 
     Credential configs should use provider-specific expiration mechanisms where available and should
     be scoped to the minimum required KMS operations and listed KMS key IDs where the provider
-    supports it. Clients must not persist credentials beyond any provider-specific expiration.
+    supports it.
 
     """
 
