@@ -115,7 +115,8 @@ public class ValueWriters {
   }
 
   public static ValueWriter<Variant> variants() {
-    return VariantWriter.INSTANCE;
+    // not a shared instance: the writer reuses a buffer for serialization
+    return new VariantWriter();
   }
 
   public static <T> ValueWriter<T> option(int nullIndex, ValueWriter<T> writer) {
@@ -442,8 +443,6 @@ public class ValueWriters {
   }
 
   private static class VariantWriter implements ValueWriter<Variant> {
-    private static final VariantWriter INSTANCE = new VariantWriter();
-
     private final VariantMetadataWriter metadataWriter;
     private final VariantValueWriter valueWriter;
 
