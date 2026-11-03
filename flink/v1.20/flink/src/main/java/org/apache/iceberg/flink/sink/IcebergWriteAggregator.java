@@ -76,6 +76,15 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
   }
 
   @Override
+  public void close() throws Exception {
+    try {
+      super.close();
+    } finally {
+      tableLoader.close();
+    }
+  }
+
+  @Override
   public void finish() throws IOException {
     prepareSnapshotPreBarrier(Long.MAX_VALUE);
   }

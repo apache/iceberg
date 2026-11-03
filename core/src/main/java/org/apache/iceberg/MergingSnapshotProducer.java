@@ -41,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.ContentFileUtil;
@@ -515,6 +516,17 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Long startingSnapshotId,
       Expression conflictDetectionFilter,
       Snapshot parent) {
+    // DVs for data files added in this operation can't conflict with concurrent commits
+    Set<String> unmatchedReferencedDataFiles = Sets.newHashSet(dvsByReferencedFile.keySet());
+    for (DataFileSet dataFiles : newDataFilesBySpec.values()) {
+      for (DataFile dataFile : dataFiles) {
+        if (unmatchedReferencedDataFiles.remove(dataFile.location())
+            && unmatchedReferencedDataFiles.isEmpty()) {
+          return;
+        }
+      }
+    }
+
     CommitValidator.newValidator()
         .io(ops().io())
         .startingSnapshotId(startingSnapshotId)
