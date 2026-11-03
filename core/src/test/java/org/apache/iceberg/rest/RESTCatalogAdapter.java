@@ -319,13 +319,11 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
       case LOAD_TABLE_V2:
         {
           TableIdentifier ident = tableIdentFromPathVars(vars);
+          SnapshotMode mode = snapshotModeFromQueryParams(httpRequest.queryParameters());
           LoadTableResponse response =
-              CatalogHandlers.loadTable(
-                  catalog, ident, snapshotModeFromQueryParams(httpRequest.queryParameters()));
-
-          if (route == Route.LOAD_TABLE) {
-            checkLoadableByV1Endpoint(ident, response);
-          }
+              route == Route.LOAD_TABLE
+                  ? CatalogHandlers.loadTable(catalog, ident, mode)
+                  : CatalogHandlers.loadTableV2(catalog, ident, mode);
 
           Optional<HTTPHeaders.HTTPHeader> ifNoneMatchHeader =
               httpRequest.headers().firstEntry(HttpHeaders.IF_NONE_MATCH);
@@ -736,15 +734,6 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         .withType(exc.getClass().getSimpleName())
         .withMessage(exc.getMessage())
         .withStackTrace(exc);
-  }
-
-  private static void checkLoadableByV1Endpoint(TableIdentifier ident, LoadTableResponse response) {
-    int formatVersion = response.tableMetadata().formatVersion();
-    if (formatVersion >= 4) {
-      throw new BadRequestException(
-          "Cannot load table %s with format version %s using the v1 endpoint; use %s",
-          ident, formatVersion, Endpoint.V2_LOAD_TABLE);
-    }
   }
 
   private static Namespace namespaceFromPathVars(Map<String, String> pathVars) {

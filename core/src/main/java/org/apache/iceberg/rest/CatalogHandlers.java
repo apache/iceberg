@@ -69,6 +69,7 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -114,6 +115,8 @@ import org.apache.iceberg.view.ViewOperations;
 import org.apache.iceberg.view.ViewRepresentation;
 
 public class CatalogHandlers {
+  // the REST spec only allows the v2 load endpoint to return tables at this format version or later
+  private static final int MIN_FORMAT_VERSION_V2_LOAD_ONLY = 4;
   private static final Schema EMPTY_SCHEMA = new Schema();
   private static final String INITIAL_PAGE_TOKEN = "";
   private static final InMemoryPlanningState IN_MEMORY_PLANNING_STATE =
@@ -519,6 +522,19 @@ public class CatalogHandlers {
   }
 
   public static LoadTableResponse loadTable(
+      Catalog catalog, TableIdentifier ident, SnapshotMode mode) {
+    LoadTableResponse response = loadTableV2(catalog, ident, mode);
+    int formatVersion = response.tableMetadata().formatVersion();
+    if (formatVersion >= MIN_FORMAT_VERSION_V2_LOAD_ONLY) {
+      throw new BadRequestException(
+          "Cannot load table %s with format version %s using the v1 endpoint; use %s",
+          ident, formatVersion, Endpoint.V2_LOAD_TABLE);
+    }
+
+    return response;
+  }
+
+  public static LoadTableResponse loadTableV2(
       Catalog catalog, TableIdentifier ident, SnapshotMode mode) {
     Table table = catalog.loadTable(ident);
 
