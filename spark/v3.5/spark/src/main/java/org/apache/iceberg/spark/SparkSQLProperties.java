@@ -109,6 +109,9 @@ public class SparkSQLProperties {
       "spark.sql.iceberg.async-micro-batch-planning-enabled";
   public static final boolean ASYNC_MICRO_BATCH_PLANNING_ENABLED_DEFAULT = false;
 
+  // Prefix for custom snapshot properties
+  public static final String SNAPSHOT_PROPERTY_PREFIX = "spark.sql.iceberg.snapshot-property.";
+
   // Controls whether adaptive split sizing is enabled
   public static final String READ_ADAPTIVE_SPLIT_SIZE_ENABLED =
       "spark.sql.iceberg.read.adaptive-split-size.enabled";
