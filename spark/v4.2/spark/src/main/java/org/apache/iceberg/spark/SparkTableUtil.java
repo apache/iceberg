@@ -61,6 +61,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.TableMigrationUtil;
+import org.apache.iceberg.exceptions.CleanableFailure;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
@@ -658,8 +660,14 @@ public class SparkTableUtil {
         // delete original manifests as they were rewritten before the commit
         deleteManifests(targetTable.io(), manifests);
       }
+    } catch (CommitStateUnknownException e) {
+      // don't delete the staged manifests: the commit may have succeeded and reference them
+      throw e;
     } catch (Throwable e) {
-      deleteManifests(targetTable.io(), manifests);
+      if (e instanceof CleanableFailure) {
+        deleteManifests(targetTable.io(), manifests);
+      }
+
       throw e;
     }
   }
