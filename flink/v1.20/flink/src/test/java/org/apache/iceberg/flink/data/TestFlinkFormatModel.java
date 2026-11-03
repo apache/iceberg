@@ -37,7 +37,12 @@ public class TestFlinkFormatModel extends BaseFormatModelTests<RowData> {
 
   private static final Set<Type.TypeID> UNSUPPORTED_TYPE_IDS =
       Set.of(
-          Type.TypeID.TIME, Type.TypeID.TIMESTAMP_NANO, Type.TypeID.VARIANT, Type.TypeID.UNKNOWN);
+          Type.TypeID.TIME,
+          Type.TypeID.TIMESTAMP_NANO,
+          Type.TypeID.VARIANT,
+          Type.TypeID.UNKNOWN,
+          Type.TypeID.GEOMETRY,
+          Type.TypeID.GEOGRAPHY);
 
   @Override
   protected Collection<Type.TypeID> unsupportedTypeIds() {

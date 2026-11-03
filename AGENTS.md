@@ -211,7 +211,7 @@ CloseableIterable<FileScanTask> planFiles();
 - **Format code:** `./gradlew spotlessApply`
 - **Check formatting:** `./gradlew spotlessCheck`
 - **Checkstyle (core module):** `./gradlew :iceberg-core:checkstyleMain :iceberg-core:checkstyleTest` (replace the module path for other modules).
-- **API compatibility:** `./gradlew revApiCheck`
+- **API compatibility:** `./gradlew revApi`
 
 ## PR & Commit Conventions
 

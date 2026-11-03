@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import static org.apache.iceberg.TestHelpers.waitUntilAfter;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Clock;
@@ -154,6 +155,27 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     TableMetadataCache.CacheItem cacheItem = cache.getInternalCache().get(tableIdentifier);
     assertThat(cacheItem).isNotNull();
     assertThat(cacheItem.inputSchemas()).containsKeys(SCHEMA, SCHEMA2);
+  }
+
+  @Test
+  void refreshesUnresolvedSchemaAfterRefreshInterval() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA);
+    table.newAppend().commit();
+
+    long refreshMs = 10L;
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, refreshMs, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    cache.update(tableIdentifier, table);
+    assertThat(cache.schema(tableIdentifier, SCHEMA2).compareResult())
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
+
+    table.updateSchema().addColumn("extra", Types.StringType.get()).commit();
+    waitUntilAfter(System.currentTimeMillis() + refreshMs);
+
+    assertThat(cache.schema(tableIdentifier, SCHEMA2).compareResult())
+        .isEqualTo(CompareSchemasVisitor.Result.SAME);
   }
 
   @Test

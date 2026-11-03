@@ -173,7 +173,7 @@ Run a query:
 5 rows in set
 ```
 
-For more details, please refer to the [Python Table API](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/python/table/intro_to_table_api/).
+For more details, please refer to the [Python Table API](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/api/python/user_guide/table/index.html).
 
 ## Adding catalogs
 

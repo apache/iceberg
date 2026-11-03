@@ -29,7 +29,13 @@ case class RenameV2ViewExec(catalog: ViewCatalog, oldIdent: Identifier, newIdent
   override lazy val output: Seq[Attribute] = Nil
 
   override protected def run(): Seq[InternalRow] = {
-    catalog.renameView(oldIdent, newIdent)
+    val qualifiedNewIdent = if (newIdent.namespace.isEmpty) {
+      Identifier.of(oldIdent.namespace, newIdent.name)
+    } else {
+      newIdent
+    }
+
+    catalog.renameView(oldIdent, qualifiedNewIdent)
 
     Seq.empty
   }

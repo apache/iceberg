@@ -35,15 +35,23 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortField;
+import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.UnboundPartitionSpec;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.LoadContext;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -60,6 +68,7 @@ import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.SparkView;
 import org.apache.iceberg.spark.source.StagedSparkTable;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.UpdateViewProperties;
@@ -118,7 +127,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog {
+public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContext {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
@@ -133,6 +142,14 @@ public class SparkCatalog extends BaseCatalog {
           ViewProperties.METADATA_COMPRESSION,
           ViewProperties.WRITE_METADATA_LOCATION,
           ViewProperties.REPLACE_DROP_DIALECT_ALLOWED);
+  private static final Set<String> COLUMN_PROPERTY_PREFIXES =
+      ImmutableSet.of(
+          TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX,
+          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX,
+          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX,
+          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX,
+          TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX,
+          TableProperties.PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX);
 
   private enum ViewCommit {
     CREATE,
@@ -178,17 +195,34 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
-    return load(ident, null /* no time travel */);
+    return loadTable(ident, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, LoadContext context) throws NoSuchTableException {
+    return load(ident, null /* no time travel */, context);
   }
 
   @Override
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
-    return load(ident, TimeTravel.version(version));
+    return loadTable(ident, version, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, String version, LoadContext context)
+      throws NoSuchTableException {
+    return load(ident, TimeTravel.version(version), context);
   }
 
   @Override
   public Table loadTable(Identifier ident, long timestampMicros) throws NoSuchTableException {
-    return load(ident, TimeTravel.timestampMicros(timestampMicros));
+    return loadTable(ident, timestampMicros, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, long timestampMicros, LoadContext context)
+      throws NoSuchTableException {
+    return load(ident, TimeTravel.timestampMicros(timestampMicros), context);
   }
 
   @Override
@@ -204,18 +238,135 @@ public class SparkCatalog extends BaseCatalog {
   public Table createTable(Identifier ident, TableInfo tableInfo)
       throws TableAlreadyExistsException, NoSuchNamespaceException {
     Schema icebergSchema = SparkSchemaUtil.convertWithDefaults(tableInfo);
+    return createTable(
+        ident,
+        icebergSchema,
+        Spark3Util.toPartitionSpec(icebergSchema, tableInfo.partitions()),
+        tableInfo.properties(),
+        SortOrder.unsorted());
+  }
+
+  @Override
+  public Table createTableLike(Identifier ident, TableInfo tableInfo, Table sourceTable)
+      throws TableAlreadyExistsException, NoSuchNamespaceException {
+    // Spark intentionally excludes the source table's properties from tableInfo and leaves it to
+    // the connector to decide which to clone via sourceTable. Clone the source Iceberg table's
+    // schema, partition spec, properties and sort order, then let user-specified LIKE options (in
+    // tableInfo) take precedence.
+    Schema icebergSchema;
+    PartitionSpec spec;
+    Map<String, String> properties = Maps.newHashMap();
+    SortOrder sortOrder = SortOrder.unsorted();
+
+    if (sourceTable instanceof SparkTable sparkTable) {
+      org.apache.iceberg.Table sourceIcebergTable = sparkTable.table();
+      icebergSchema = sparkTable.icebergSchema();
+      spec = copyPartitionSpec(icebergSchema, sourceIcebergTable.spec());
+      properties.putAll(
+          copyColumnProperties(
+              sourceIcebergTable.properties(), sourceIcebergTable.schema(), icebergSchema));
+      properties.remove(TableProperties.WRITE_METADATA_LOCATION);
+      properties.remove(TableProperties.WRITE_DATA_LOCATION);
+      properties.remove(TableProperties.OBJECT_STORE_PATH);
+      properties.remove(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+      properties.remove(TableProperties.DEFAULT_NAME_MAPPING);
+      properties.put(
+          TableProperties.FORMAT_VERSION,
+          String.valueOf(TableUtil.formatVersion(sourceIcebergTable)));
+      sortOrder = copySortOrder(icebergSchema, sourceIcebergTable.sortOrder());
+    } else {
+      // Spark passes the column defaults of a non-Iceberg source as SQL text only, which
+      // convertWithDefaults rejects, so cloning a source column with a default fails for now
+      icebergSchema = SparkSchemaUtil.convertWithDefaults(tableInfo);
+      spec = Spark3Util.toPartitionSpec(icebergSchema, tableInfo.partitions());
+    }
+
+    String provider = tableInfo.properties().get(TableCatalog.PROP_PROVIDER);
+    if (provider != null && !"iceberg".equalsIgnoreCase(provider)) {
+      properties.remove(TableProperties.DEFAULT_FILE_FORMAT);
+    }
+
+    properties.putAll(tableInfo.properties());
+
+    return createTable(ident, icebergSchema, spec, properties, sortOrder);
+  }
+
+  private Table createTable(
+      Identifier ident,
+      Schema icebergSchema,
+      PartitionSpec spec,
+      Map<String, String> properties,
+      SortOrder sortOrder)
+      throws TableAlreadyExistsException {
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       org.apache.iceberg.Table icebergTable =
           builder
-              .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, tableInfo.partitions()))
-              .withLocation(tableInfo.properties().get("location"))
-              .withProperties(Spark3Util.rebuildCreateProperties(tableInfo.properties()))
+              .withPartitionSpec(spec)
+              .withSortOrder(sortOrder)
+              .withLocation(properties.get("location"))
+              .withProperties(Spark3Util.rebuildCreateProperties(properties))
               .create();
       return new SparkTable(icebergTable);
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
     }
+  }
+
+  /**
+   * Returns the source properties with column-specific properties renamed or dropped to match the
+   * given schema, since those properties name columns of the current schema, which can differ from
+   * the schema of a pinned snapshot.
+   */
+  private static Map<String, String> copyColumnProperties(
+      Map<String, String> properties, Schema currentSchema, Schema schema) {
+    List<String> deletedColumns = Lists.newArrayList();
+    Map<String, String> renamedColumns = Maps.newHashMap();
+    TypeUtil.indexByName(currentSchema.asStruct())
+        .forEach(
+            (name, id) -> {
+              String nameInSchema = schema.findColumnName(id);
+              if (nameInSchema == null) {
+                deletedColumns.add(name);
+              } else if (!nameInSchema.equals(name)) {
+                renamedColumns.put(name, nameInSchema);
+              }
+            });
+
+    return PropertyUtil.applySchemaChanges(
+        properties, deletedColumns, renamedColumns, COLUMN_PROPERTY_PREFIXES);
+  }
+
+  private static PartitionSpec copyPartitionSpec(Schema schema, PartitionSpec sourceSpec) {
+    UnboundPartitionSpec spec = sourceSpec.toUnbound();
+    for (int index = sourceSpec.fields().size() - 1; index >= 0; index -= 1) {
+      if (schema.findField(sourceSpec.fields().get(index).sourceId()) == null) {
+        spec.fields().remove(index);
+      }
+    }
+
+    return spec.bind(schema);
+  }
+
+  private static SortOrder copySortOrder(Schema schema, SortOrder sourceSortOrder) {
+    if (sourceSortOrder.isUnsorted()) {
+      return SortOrder.unsorted();
+    }
+
+    SortOrder.Builder builder = SortOrder.builderFor(schema);
+    for (SortField field : sourceSortOrder.fields()) {
+      String sourceName = schema.findColumnName(field.sourceId());
+      if (sourceName == null) {
+        continue;
+      }
+
+      builder.sortBy(
+          Expressions.transform(sourceName, field.transform()),
+          field.direction(),
+          field.nullOrder());
+    }
+
+    return builder.build();
   }
 
   @Override
@@ -558,9 +709,15 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public View loadView(Identifier ident) throws NoSuchViewException {
+    return loadView(ident, LoadContext.empty());
+  }
+
+  @Override
+  public View loadView(Identifier ident, LoadContext context) throws NoSuchViewException {
     if (null != asViewCatalog) {
       try {
-        org.apache.iceberg.view.View icebergView = asViewCatalog.loadView(buildIdentifier(ident));
+        org.apache.iceberg.view.View icebergView =
+            asViewCatalog.loadView(buildIdentifier(ident), context);
         return SparkView.toView(catalogName, icebergView);
       } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
         throw new NoSuchViewException(ident);
@@ -922,13 +1079,14 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  private Table load(Identifier ident, TimeTravel timeTravel) throws NoSuchTableException {
+  private Table load(Identifier ident, TimeTravel timeTravel, LoadContext context)
+      throws NoSuchTableException {
     if (isPathIdentifier(ident)) {
       return loadPath((PathIdentifier) ident, timeTravel);
     }
 
     try {
-      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident));
+      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident), context);
       return SparkTable.create(table, timeTravel);
 
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -941,7 +1099,7 @@ public class SparkCatalog extends BaseCatalog {
       TableIdentifier namespaceAsIdent = buildIdentifier(namespaceToIdentifier(ident.namespace()));
       org.apache.iceberg.Table table;
       try {
-        table = icebergCatalog.loadTable(namespaceAsIdent);
+        table = icebergCatalog.loadTable(namespaceAsIdent, context);
       } catch (Exception ignored) {
         // the namespace does not identify a table, so it cannot be a table with a snapshot selector
         // throw an exception for the original identifier

@@ -18,22 +18,37 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import static org.apache.iceberg.TestHelpers.waitUntilAfter;
+import static org.apache.iceberg.flink.TestFixtures.DATABASE;
+import static org.apache.iceberg.flink.TestFixtures.TABLE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Collections;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
+import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.StringData;
+import org.apache.flink.util.OutputTag;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.flink.HadoopCatalogExtension;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 class TestDynamicRecordProcessor {
+
+  @RegisterExtension
+  private static final HadoopCatalogExtension CATALOG_EXTENSION =
+      new HadoopCatalogExtension(DATABASE, TABLE);
 
   private static final Schema SCHEMA =
       new Schema(
@@ -49,6 +64,7 @@ class TestDynamicRecordProcessor {
 
   private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of("default", "table");
   private static final String BRANCH = SnapshotRef.MAIN_BRANCH;
+  private static final int CACHE_REFRESH_MS = 10;
 
   @Test
   void testForwardEligibleWhenNoEqualityFields() {
@@ -85,6 +101,85 @@ class TestDynamicRecordProcessor {
     record.setEqualityFields(Collections.emptySet());
 
     assertThat(DynamicRecordProcessor.isForwardEligible(record)).isFalse();
+  }
+
+  @Test
+  void routesRecordsToMainOutputAfterTableCreationAndCacheRefresh() throws Exception {
+    DynamicRecord record = recordWithDistributionMode(SCHEMA, DistributionMode.NONE);
+
+    OutputTag<DynamicRecordInternal> updateStream = updateStream();
+    try (OneInputStreamOperatorTestHarness<DynamicRecord, DynamicRecordInternal> harness =
+        ProcessFunctionTestHarnesses.forProcessFunction(processorWithoutImmediateUpdate())) {
+      harness.processElement(record, 0L);
+      assertThat(harness.getSideOutput(updateStream)).hasSize(1);
+      assertThat(harness.extractOutputValues()).isEmpty();
+
+      Table table = CATALOG_EXTENSION.catalog().createTable(TABLE_IDENTIFIER, SCHEMA);
+      table.manageSnapshots().createBranch(BRANCH).commit();
+      waitUntilAfter(System.currentTimeMillis() + CACHE_REFRESH_MS);
+
+      harness.processElement(record, 1L);
+      assertThat(harness.getSideOutput(updateStream)).hasSize(1);
+      assertThat(harness.extractOutputValues()).hasSize(1);
+    }
+  }
+
+  @Test
+  void routesRecordsToMainOutputAfterSchemaUpdateAndCacheRefresh() throws Exception {
+    Table table = CATALOG_EXTENSION.catalog().createTable(TABLE_IDENTIFIER, SCHEMA);
+    table.newAppend().commit();
+    Schema schemaWithNewColumn =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "data", Types.StringType.get()),
+            Types.NestedField.optional(3, "extra", Types.StringType.get()));
+    DynamicRecord record =
+        new DynamicRecord(
+            TABLE_IDENTIFIER,
+            BRANCH,
+            schemaWithNewColumn,
+            GenericRowData.of(1, StringData.fromString("foo"), StringData.fromString("bar")),
+            PartitionSpec.unpartitioned(),
+            DistributionMode.NONE,
+            2);
+
+    OutputTag<DynamicRecordInternal> updateStream = updateStream();
+    try (OneInputStreamOperatorTestHarness<DynamicRecord, DynamicRecordInternal> harness =
+        ProcessFunctionTestHarnesses.forProcessFunction(processorWithoutImmediateUpdate())) {
+      harness.processElement(record, 0L);
+      assertThat(harness.getSideOutput(updateStream)).hasSize(1);
+      assertThat(harness.extractOutputValues()).isEmpty();
+
+      table.updateSchema().addColumn("extra", Types.StringType.get()).commit();
+      waitUntilAfter(System.currentTimeMillis() + CACHE_REFRESH_MS);
+
+      harness.processElement(record, 1L);
+      assertThat(harness.getSideOutput(updateStream)).hasSize(1);
+      assertThat(harness.extractOutputValues()).hasSize(1);
+    }
+  }
+
+  private static DynamicRecordProcessor<DynamicRecord> processorWithoutImmediateUpdate() {
+    return new DynamicRecordProcessor<>(
+        (input, out) -> out.collect(input),
+        CATALOG_EXTENSION.catalogLoader(),
+        TableCreator.DEFAULT,
+        new FlinkDynamicSinkConf(
+            ImmutableMap.of(
+                FlinkDynamicSinkOptions.IMMEDIATE_TABLE_UPDATE.key(),
+                "false",
+                FlinkDynamicSinkOptions.CACHE_REFRESH_MS.key(),
+                String.valueOf(CACHE_REFRESH_MS)),
+            new Configuration()),
+        Collections.emptyMap(),
+        new Configuration());
+  }
+
+  private static OutputTag<DynamicRecordInternal> updateStream() {
+    return new OutputTag<>(
+        DynamicRecordProcessor.DYNAMIC_TABLE_UPDATE_STREAM,
+        new DynamicRecordInternalType(
+            CATALOG_EXTENSION.catalogLoader(), true, CACHE_REFRESH_MS)) {};
   }
 
   private static DynamicRecord recordWithDistributionMode(

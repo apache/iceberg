@@ -50,6 +50,15 @@ class StructLikeSerializer {
   private final ByteArrayOutputStream baos = new ByteArrayOutputStream();
   private final DataOutputStream dos = new DataOutputStream(baos);
 
+  /**
+   * Serializes the equality values of {@code key} into a keyed-state key.
+   *
+   * <p>Field values must use Iceberg's internal representation, as expected by {@link
+   * Conversions#toByteBuffer(Type, Object)}: for example days as {@code int} for {@code date},
+   * microseconds as {@code long} for {@code time} and {@code timestamp}. Generic {@link
+   * org.apache.iceberg.data.Record}s hold {@code java.time} values instead and must be wrapped with
+   * {@link org.apache.iceberg.data.InternalRecordWrapper} first.
+   */
   public SerializedEqualityValues serializeKey(StructLike key, Types.StructType keyType) {
     baos.reset();
     try {
