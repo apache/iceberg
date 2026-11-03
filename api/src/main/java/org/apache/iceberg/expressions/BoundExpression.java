@@ -19,9 +19,9 @@
 package org.apache.iceberg.expressions;
 
 /**
- * Marker class for any expression that is bound and can be used in expressions where a bound
- * instance is required (e.g. arguments to a {@link BoundApply}).
+ * Represents any expression that is bound and can be used in expressions where a bound instance is
+ * required (e.g. arguments to a {@link BoundApply}).
  *
  * @param <T> return type of the expression
  */
-public interface BoundExpression<T> extends Expression {}
+public interface BoundExpression<T> extends Expression, Bound<T> {}

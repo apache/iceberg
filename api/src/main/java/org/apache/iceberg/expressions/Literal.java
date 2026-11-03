@@ -23,6 +23,7 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.UUID;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 
 /**
@@ -73,6 +74,11 @@ public interface Literal<T> extends ValueExpression<T>, BoundExpression<T>, Seri
 
   /** Returns the value wrapped by this literal. */
   T value();
+
+  @Override
+  default T eval(StructLike ignored) {
+    return value();
+  }
 
   /**
    * Converts this literal to a literal of the given type.

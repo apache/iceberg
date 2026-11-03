@@ -19,6 +19,7 @@
 package org.apache.iceberg.expressions;
 
 import java.util.List;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 
 /**
@@ -48,5 +49,16 @@ public class BoundApply<T> implements Apply<T>, BoundValueExpression<T> {
   @Override
   public Type type() {
     return functionReference.type();
+  }
+
+  /**
+   * Evaluate the based on the provided struct-like object.
+   *
+   * @throws UnsupportedOperationException always
+   */
+  @Override
+  public T eval(StructLike struct) {
+    throw new UnsupportedOperationException(
+        "Function evaluation not implemented: " + functionReference.name());
   }
 }
