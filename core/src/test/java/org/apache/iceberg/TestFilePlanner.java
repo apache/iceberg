@@ -52,6 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
@@ -275,6 +276,58 @@ class TestFilePlanner {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  void taskOmitsStatsUnlessProjected(FileFormat format) throws IOException {
+    ManifestFile root =
+        writeManifest(
+            format, EMPTY_PARTITION, ImmutableList.of(dataFileWithStats(FILE_A, idStats(0, 99))));
+
+    DataFile file = Iterables.getOnlyElement(plan(root, UNPARTITIONED_SPECS)).file();
+
+    assertThat(file.lowerBounds())
+        .as("no column stats are returned unless projectStats requests them")
+        .isNull();
+    assertThat(file.valueCounts()).as("value counts are also omitted by default").isNull();
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void tasksContainProjectedStats(FileFormat format) throws IOException {
+    ManifestFile leaf =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(dataFileWithStats(FILE_C, idAndDataStats(100, 199))));
+    ManifestFile root =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                dataFileWithStats(FILE_A, idAndDataStats(0, 99)), dataManifest(leaf.path())));
+
+    int idFieldId = TABLE_SCHEMA.findField("id").fieldId();
+    int dataFieldId = TABLE_SCHEMA.findField("data").fieldId();
+    List<FileScanTask> tasks =
+        plan(root, UNPARTITIONED_SPECS, planner -> planner.projectStats(idFieldId));
+
+    assertThat(tasks)
+        .extracting(
+            task -> task.file().location(),
+            task -> lowerBound(task.file(), idFieldId),
+            task -> upperBound(task.file(), idFieldId))
+        .as("projected id stats are returned for files in both the root and a leaf")
+        .containsExactlyInAnyOrder(tuple(FILE_A, 0, 99), tuple(FILE_C, 100, 199));
+
+    assertThat(tasks)
+        .as("stats for unprojected fields are omitted")
+        .allSatisfy(
+            task -> {
+              assertThat(task.file().lowerBounds()).doesNotContainKey(dataFieldId);
+              assertThat(task.file().upperBounds()).doesNotContainKey(dataFieldId);
+            });
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   void taskAttachesColocatedDV(FileFormat format) throws IOException {
     TrackedFile fileWithDV =
         unpartitionedDataFileWithDV("s3://bucket/db/table/with-dv.parquet", DV);
@@ -466,6 +519,47 @@ class TestFilePlanner {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  void leafReportingNoLiveFilesIsPruned(FileFormat format) throws IOException {
+    ManifestFile addedLeaf =
+        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(unpartitionedDataFile(FILE_A)));
+    ManifestFile existingLeaf =
+        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(unpartitionedDataFile(FILE_B)));
+    ManifestFile modifiedLeaf =
+        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(unpartitionedDataFile(FILE_C)));
+    String deadLeafLocation =
+        "s3://bucket/db/table/dead-leaf." + format.name().toLowerCase(Locale.ROOT);
+    ManifestFile root =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                manifestRef(FileContent.DATA_MANIFEST, addedLeaf.path(), addedOnly(1)),
+                manifestRef(FileContent.DATA_MANIFEST, existingLeaf.path(), existingOnly(1)),
+                manifestRef(FileContent.DATA_MANIFEST, modifiedLeaf.path(), modifiedOnly(1)),
+                manifestRef(FileContent.DATA_MANIFEST, deadLeafLocation, deletedOnly(2))));
+
+    FileIO io = Mockito.spy(fileIO);
+    ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
+    FilePlanner planner =
+        new FilePlanner(io, root, TABLE_SCHEMA, UNPARTITIONED_SPECS).scanMetrics(metrics);
+
+    List<FileScanTask> tasks;
+    try (CloseableIterable<FileScanTask> plan = planner.planFiles()) {
+      tasks = Lists.newArrayList(plan);
+    }
+
+    assertThat(tasks)
+        .extracting(task -> task.file().location())
+        .as("leaves with added, existing, or modified files are expanded; deleted-only is pruned")
+        .containsExactlyInAnyOrder(FILE_A, FILE_B, FILE_C);
+    Mockito.verify(io, Mockito.never()).newInputFile(deadLeafLocation);
+    assertThat(metrics.skippedDataManifests().value())
+        .as("the pruned leaf is counted as a skipped data manifest")
+        .isEqualTo(1L);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   void deleteManifestInRootUnsupported(FileFormat format) throws IOException {
     ManifestFile root =
         writeManifest(
@@ -484,7 +578,7 @@ class TestFilePlanner {
   void v3ManifestLeafUnsupported(FileFormat format) throws IOException {
     String leafLocation = "s3://bucket/db/table/v3-leaf." + format.name().toLowerCase(Locale.ROOT);
     TrackedFile v3Leaf =
-        manifestRef(FileContent.DATA_MANIFEST, leafLocation, dataManifestInfo(1, 0));
+        manifestRef(FileContent.DATA_MANIFEST, leafLocation, manifestInfo(1, 0, 0, 0, 0));
     ManifestFile root = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(v3Leaf));
 
     FilePlanner planner = new FilePlanner(fileIO, root, TABLE_SCHEMA, UNPARTITIONED_SPECS);
@@ -583,45 +677,75 @@ class TestFilePlanner {
   }
 
   private static TrackedFile dataManifest(String location, int addedFiles) {
-    return manifestRef(FileContent.DATA_MANIFEST, location, dataManifestInfo(addedFiles));
+    return manifestRef(FileContent.DATA_MANIFEST, location, addedOnly(addedFiles));
   }
 
   private static TrackedFile dataManifestWithStats(String location, ContentStats stats) {
-    return manifestRefWithStats(FileContent.DATA_MANIFEST, location, stats, dataManifestInfo(1));
+    return manifestRefWithStats(FileContent.DATA_MANIFEST, location, stats, addedOnly(1));
+  }
+
+  private static Integer lowerBound(DataFile file, int fieldId) {
+    return Conversions.fromByteBuffer(Types.IntegerType.get(), file.lowerBounds().get(fieldId));
+  }
+
+  private static Integer upperBound(DataFile file, int fieldId) {
+    return Conversions.fromByteBuffer(Types.IntegerType.get(), file.upperBounds().get(fieldId));
   }
 
   private static ContentStats idStats(int lower, int upper) {
     ContentStatsStruct stats = new ContentStatsStruct(STATS_TYPE);
-    stats.setStats(
-        TABLE_SCHEMA.findField("id").fieldId(),
-        new FieldStatsStruct<>(
-            STATS_TYPE.fieldType("id").asStructType(),
-            lower,
-            upper,
-            true, // tightBounds
-            RECORD_COUNT,
-            0, // nullValueCount
-            0, // nanValueCount
-            0L)); // totalBytes
+    stats.setStats(TABLE_SCHEMA.findField("id").fieldId(), fieldStats("id", lower, upper));
     return stats;
   }
 
-  private static ManifestInfo dataManifestInfo(int addedFiles) {
-    return dataManifestInfo(addedFiles, FORMAT_VERSION_V4);
+  private static ContentStats idAndDataStats(int lower, int upper) {
+    ContentStatsStruct stats = new ContentStatsStruct(STATS_TYPE);
+    stats.setStats(TABLE_SCHEMA.findField("id").fieldId(), fieldStats("id", lower, upper));
+    stats.setStats(TABLE_SCHEMA.findField("data").fieldId(), fieldStats("data", "a", "z"));
+    return stats;
   }
 
-  private static ManifestInfo dataManifestInfo(int addedFiles, int formatVersion) {
+  private static <T> FieldStatsStruct<T> fieldStats(String fieldName, T lower, T upper) {
+    return new FieldStatsStruct<>(
+        STATS_TYPE.fieldType(fieldName).asStructType(),
+        lower,
+        upper,
+        true, // tightBounds
+        RECORD_COUNT,
+        0, // nullValueCount
+        0, // nanValueCount
+        0L); // totalBytes
+  }
+
+  private static ManifestInfo addedOnly(int addedFiles) {
+    return manifestInfo(addedFiles, 0, 0, 0, FORMAT_VERSION_V4);
+  }
+
+  private static ManifestInfo existingOnly(int existingFiles) {
+    return manifestInfo(0, existingFiles, 0, 0, FORMAT_VERSION_V4);
+  }
+
+  private static ManifestInfo modifiedOnly(int modifiedFiles) {
+    return manifestInfo(0, 0, modifiedFiles, 0, FORMAT_VERSION_V4);
+  }
+
+  private static ManifestInfo deletedOnly(int deletedFiles) {
+    return manifestInfo(0, 0, 0, deletedFiles, FORMAT_VERSION_V4);
+  }
+
+  private static ManifestInfo manifestInfo(
+      int addedFiles, int existingFiles, int modifiedFiles, int deletedFiles, int formatVersion) {
     return ManifestInfoStruct.builder()
         .addedFilesCount(addedFiles)
-        .existingFilesCount(0)
-        .deletedFilesCount(0)
+        .existingFilesCount(existingFiles)
+        .deletedFilesCount(deletedFiles)
         .replacedFilesCount(0)
-        .modifiedFilesCount(0)
+        .modifiedFilesCount(modifiedFiles)
         .addedRowsCount(addedFiles * RECORD_COUNT)
-        .existingRowsCount(0)
-        .deletedRowsCount(0)
+        .existingRowsCount(existingFiles * RECORD_COUNT)
+        .deletedRowsCount(deletedFiles * RECORD_COUNT)
         .replacedRowsCount(0)
-        .modifiedRowsCount(0)
+        .modifiedRowsCount(modifiedFiles * RECORD_COUNT)
         .minSequenceNumber(0L)
         .formatVersion(formatVersion)
         .build();
