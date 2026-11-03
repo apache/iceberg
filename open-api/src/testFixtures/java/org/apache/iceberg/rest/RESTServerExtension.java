@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import java.io.UncheckedIOException;
-import java.net.BindException;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.extension.AfterAllCallback;
@@ -49,6 +47,10 @@ public class RESTServerExtension implements BeforeAllCallback, AfterAllCallback 
     this.config = conf;
   }
 
+  /**
+   * Returns the server and client configuration. With {@link #FREE_PORT}, the port in it is the one
+   * the server bound, so read it from {@code beforeAll} on, not before.
+   */
   public Map<String, String> config() {
     return config;
   }
@@ -61,22 +63,13 @@ public class RESTServerExtension implements BeforeAllCallback, AfterAllCallback 
   public void beforeAll(ExtensionContext extensionContext) throws Exception {
     if (Boolean.parseBoolean(
         extensionContext.getConfigurationParameter(RCKUtils.RCK_LOCAL).orElse("true"))) {
-      int maxAttempts = 10;
-      for (int i = 0; i < maxAttempts; i++) {
-        try {
-          if (findFreePort) {
-            config.put(RESTCatalogServer.REST_PORT, String.valueOf(RCKUtils.findFreePort()));
-          }
-          this.localServer = new RESTCatalogServer(config);
-          this.localServer.start(false);
-          break;
-        } catch (BindException e) {
-          if (!findFreePort || i == maxAttempts - 1) {
-            throw new UncheckedIOException("Failed to start REST server", e);
-          }
-        } catch (Exception e) {
-          throw new RuntimeException("Failed to start REST server", e);
-        }
+      this.localServer = new RESTCatalogServer(config);
+      this.localServer.start(false);
+      if (findFreePort) {
+        // The server binds port 0 itself, so the OS picks the port at bind time; the client uses
+        // the
+        // port it reports. Picking a free port first and binding it later raced with other forks.
+        config.put(RESTCatalogServer.REST_PORT, String.valueOf(localServer.port()));
       }
 
       this.client = RCKUtils.initCatalogClient(config);
