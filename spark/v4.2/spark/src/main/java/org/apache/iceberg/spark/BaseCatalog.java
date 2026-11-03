@@ -25,6 +25,7 @@ import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
+import org.apache.spark.sql.catalyst.analysis.ViewUtil;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.ProcedureCatalog;
 import org.apache.spark.sql.connector.catalog.Relation;
@@ -108,6 +109,12 @@ abstract class BaseCatalog
     try {
       return loadTable(ident);
     } catch (NoSuchTableException e) {
+      if (ViewUtil.referencedByEnabled()) {
+        // Don't return views: Spark's own view expansion can't pass the referenced-by chain to the
+        // catalog. ResolveReferencedByViews expands Iceberg views that are left unresolved instead.
+        throw e;
+      }
+
       try {
         return loadView(ident);
       } catch (NoSuchViewException viewException) {
