@@ -44,6 +44,10 @@ final class JdbcUtil {
   // property to control if catalog tables are created during initialization
   static final String INIT_CATALOG_TABLES_PROPERTY =
       JdbcCatalog.PROPERTY_PREFIX + "init-catalog-tables";
+  // property to control how many times reading table or view metadata is retried during a refresh
+  static final String METADATA_REFRESH_MAX_RETRIES_PROPERTY =
+      JdbcCatalog.PROPERTY_PREFIX + "metadata-refresh-max-retries";
+  static final int METADATA_REFRESH_MAX_RETRIES_DEFAULT = 20;
 
   static final String RETRYABLE_STATUS_CODES = "retryable_status_codes";
   private static final String POSTGRES_UNIQUE_VIOLATION_SQLSTATE = "23505";
@@ -526,6 +530,20 @@ final class JdbcUtil {
     Properties result = new Properties();
     result.putAll(PropertyUtil.propertiesWithPrefix(properties, prefix));
     return result;
+  }
+
+  static int metadataRefreshMaxRetries(Map<String, String> properties) {
+    int maxRetries =
+        PropertyUtil.propertyAsInt(
+            properties,
+            METADATA_REFRESH_MAX_RETRIES_PROPERTY,
+            METADATA_REFRESH_MAX_RETRIES_DEFAULT);
+    Preconditions.checkArgument(
+        maxRetries >= 0,
+        "Invalid %s: %s (must be >= 0)",
+        METADATA_REFRESH_MAX_RETRIES_PROPERTY,
+        maxRetries);
+    return maxRetries;
   }
 
   static boolean isConstraintViolation(SQLException ex) {

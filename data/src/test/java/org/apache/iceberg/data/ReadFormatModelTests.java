@@ -69,6 +69,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.formats.FileWriterBuilder;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.formats.ReadBuilder;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
@@ -86,6 +87,7 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
@@ -179,6 +181,11 @@ public abstract class ReadFormatModelTests<T> {
   static final String FEATURE_NATIVE_ENCRYPTION = "nativeEncryption";
   static final String FEATURE_AES_STREAM_ENCRYPTION = "aesStreamEncryption";
   static final String FEATURE_VARIANT = "variant";
+  static final String FEATURE_GEOSPATIAL = "geospatial";
+
+  private static final Set<Type.TypeID> VARIANT_TYPE_IDS = Set.of(Type.TypeID.VARIANT);
+  private static final Set<Type.TypeID> GEOSPATIAL_TYPE_IDS =
+      Set.of(Type.TypeID.GEOMETRY, Type.TypeID.GEOGRAPHY);
 
   private static final Map<FileFormat, String[]> MISSING_FEATURES =
       Map.of(
@@ -198,7 +205,8 @@ public abstract class ReadFormatModelTests<T> {
             FEATURE_READER_DEFAULT,
             FEATURE_AES_STREAM_ENCRYPTION,
             FEATURE_NATIVE_ENCRYPTION,
-            FEATURE_VARIANT
+            FEATURE_VARIANT,
+            FEATURE_GEOSPATIAL
           },
           FileFormat.PARQUET,
           new String[] {FEATURE_AES_STREAM_ENCRYPTION});
@@ -1475,6 +1483,43 @@ public abstract class ReadFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
+  void testDataWriterGeospatialBounds(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_GEOSPATIAL);
+    assumeSupports(fileFormat, FEATURE_COLUMN_LEVEL_METRICS);
+
+    Schema schema = new DataGenerators.Geometry().schema();
+
+    // The spatial lower/upper bounds are the corners of the bounding box over all values, so no
+    // single value needs to sit at a corner. Points are chosen so the expected corners differ from
+    // every input point, and the optional column exercises a skipped null.
+    List<Record> records =
+        List.of(
+            GenericRecord.create(schema)
+                .copy("geometry_col", wkbPoint(1.0, 4.0), "geometry_opt_col", wkbPoint(-3.0, 7.0)),
+            GenericRecord.create(schema)
+                .copy("geometry_col", wkbPoint(5.0, 2.0), "geometry_opt_col", null),
+            GenericRecord.create(schema)
+                .copy("geometry_col", wkbPoint(3.0, 6.0), "geometry_opt_col", wkbPoint(2.0, -1.0)));
+
+    DataFile dataFile = writeGenericRecords(fileFormat, schema, records);
+
+    Type geometryType = schema.findType("geometry_col");
+
+    // Required column box: min corner (1, 2), max corner (5, 6).
+    assertGeospatialBound(
+        geometryType, dataFile.lowerBounds().get(1), GeospatialBound.createXY(1.0, 2.0));
+    assertGeospatialBound(
+        geometryType, dataFile.upperBounds().get(1), GeospatialBound.createXY(5.0, 6.0));
+
+    // Optional column box over the two non-null values: min corner (-3, -1), max corner (2, 7).
+    assertGeospatialBound(
+        geometryType, dataFile.lowerBounds().get(2), GeospatialBound.createXY(-3.0, -1.0));
+    assertGeospatialBound(
+        geometryType, dataFile.upperBounds().get(2), GeospatialBound.createXY(2.0, 7.0));
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
   void testDataWriterMetricsWithNoneMode(FileFormat fileFormat) throws IOException {
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
@@ -2412,9 +2457,22 @@ public abstract class ReadFormatModelTests<T> {
   }
 
   private static boolean supportsGenerator(FileFormat fileFormat, DataGenerator generator) {
-    boolean hasVariant =
-        TypeUtil.find(generator.schema(), type -> type.typeId() == Type.TypeID.VARIANT) != null;
-    return !hasVariant || supportsFeature(fileFormat, FEATURE_VARIANT);
+    Schema schema = generator.schema();
+    return supportsTypes(fileFormat, schema, VARIANT_TYPE_IDS, FEATURE_VARIANT)
+        && supportsTypes(fileFormat, schema, GEOSPATIAL_TYPE_IDS, FEATURE_GEOSPATIAL);
+  }
+
+  /**
+   * Returns whether the format can handle the gated types the schema uses: either the schema uses
+   * none of them, or the format supports the feature that gates them.
+   */
+  private static boolean supportsTypes(
+      FileFormat fileFormat, Schema schema, Set<Type.TypeID> typeIds, String feature) {
+    return !usesAnyType(schema.asStruct(), typeIds) || supportsFeature(fileFormat, feature);
+  }
+
+  private static boolean usesAnyType(Type type, Set<Type.TypeID> typeIds) {
+    return TypeUtil.find(type, nested -> typeIds.contains(nested.typeId())) != null;
   }
 
   /**
@@ -2574,6 +2632,14 @@ public abstract class ReadFormatModelTests<T> {
     }
 
     return new Object[] {min, max};
+  }
+
+  private static ByteBuffer wkbPoint(double xCoord, double yCoord) {
+    return ByteBuffer.wrap(RandomUtil.wkbPoint(xCoord, yCoord));
+  }
+
+  private static void assertGeospatialBound(Type type, ByteBuffer bound, GeospatialBound expected) {
+    assertThat((Object) Conversions.fromByteBuffer(type, bound)).isEqualTo(expected);
   }
 
   private static void assertBoundsNull(Schema schema, ContentFile<?> file) {
@@ -2754,7 +2820,7 @@ public abstract class ReadFormatModelTests<T> {
                         projectionSchema.findType(entry.getKey()), entry.getValue())));
   }
 
-  private static Record structLikeToRecord(StructLike structLike, Types.StructType structType) {
+  static Record structLikeToRecord(StructLike structLike, Types.StructType structType) {
     Record record = GenericRecord.create(structType);
     int sourceSize = structLike.size();
     for (int i = 0; i < structType.fields().size(); i++) {

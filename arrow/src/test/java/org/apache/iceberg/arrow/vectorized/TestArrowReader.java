@@ -65,6 +65,7 @@ import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -86,6 +87,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -95,8 +97,11 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -107,6 +112,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Test cases for {@link ArrowReader}.
@@ -387,6 +393,79 @@ public class TestArrowReader {
     }
 
     assertThat(totalRowsRead).as("Should read all rows").isEqualTo(millisValues.size());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testDictionaryEncodedTimestampMillisAreReadCorrectly(boolean adjustToUTC)
+      throws Exception {
+    tables = new HadoopTables();
+    Types.TimestampType timestampType =
+        adjustToUTC ? Types.TimestampType.withZone() : Types.TimestampType.withoutZone();
+    Table table =
+        tables.create(
+            new Schema(Types.NestedField.required(1, "ts_millis", timestampType)), tableLocation);
+
+    File testFile = new File(tempDir, "timestamp-millis-dictionary.parquet");
+    MessageType parquetSchema =
+        new MessageType(
+            "test",
+            primitive(PrimitiveType.PrimitiveTypeName.INT64, Type.Repetition.REQUIRED)
+                .as(
+                    LogicalTypeAnnotation.timestampType(
+                        adjustToUTC, LogicalTypeAnnotation.TimeUnit.MILLIS))
+                .id(1)
+                .named("ts_millis"));
+
+    // repeating a few values keeps every page dictionary-encoded
+    List<Long> millisValues = Lists.newArrayList(1609459200000L, 1640995200000L);
+    int rowCount = 1000;
+    List<Long> expectedMicros = Lists.newArrayList();
+    try (ParquetWriter<Group> writer =
+        ExampleParquetWriter.builder(new Path(testFile.toURI()))
+            .withType(parquetSchema)
+            .withDictionaryEncoding(true)
+            .build()) {
+      SimpleGroupFactory factory = new SimpleGroupFactory(parquetSchema);
+      for (int i = 0; i < rowCount; i += 1) {
+        long millis = millisValues.get(i % millisValues.size());
+        Group group = factory.newGroup();
+        group.add("ts_millis", millis);
+        writer.write(group);
+        expectedMicros.add(millis * 1000L);
+      }
+    }
+
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(
+            HadoopInputFile.fromPath(new Path(testFile.toURI()), new Configuration()))) {
+      assertThat(reader.getFooter().getBlocks())
+          .flatExtracting(BlockMetaData::getColumns)
+          .noneMatch(ParquetUtil::hasNonDictionaryPages);
+    }
+
+    table
+        .newAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath(testFile.getAbsolutePath())
+                .withFileSizeInBytes(testFile.length())
+                .withFormat(FileFormat.PARQUET)
+                .withRecordCount(rowCount)
+                .build())
+        .commit();
+
+    List<Long> actualMicros = Lists.newArrayList();
+    try (VectorizedTableScanIterable vectorizedReader =
+        new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
+      for (ColumnarBatch batch : vectorizedReader) {
+        for (int i = 0; i < batch.numRows(); i += 1) {
+          actualMicros.add(batch.column(0).getLong(i));
+        }
+      }
+    }
+
+    assertThat(actualMicros).isEqualTo(expectedMicros);
   }
 
   /**

@@ -18,15 +18,20 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 
 /**
  * An optional operator to perform table updates for tables (e.g. schema update) in a non-concurrent
@@ -87,13 +92,32 @@ class DynamicTableUpdateOperator
             data.spec(),
             tableCreator);
     TableMetadataCache.ResolvedSchemaInfo compareInfo = newData.f0;
+    Schema tableSchema = compareInfo.resolvedTableSchema();
 
-    data.setSchema(compareInfo.resolvedTableSchema());
+    data.setEqualityFieldIds(remapFieldIds(data.equalityFields(), data.schema(), tableSchema));
+    data.setSchema(tableSchema);
     data.setSpec(newData.f1);
 
     RowData newRowData = (RowData) newData.f0.recordConverter().convert(data.rowData());
     data.setRowData(newRowData);
 
     return data;
+  }
+
+  private Set<Integer> remapFieldIds(Set<Integer> fieldIds, Schema fromSchema, Schema toSchema) {
+    if (fieldIds == null || fieldIds.isEmpty()) {
+      return fieldIds;
+    }
+
+    Set<Integer> remappedIds = Sets.newHashSetWithExpectedSize(fieldIds.size());
+    for (Integer fieldId : fieldIds) {
+      String name = fromSchema.findColumnName(fieldId);
+      Types.NestedField field =
+          caseSensitive ? toSchema.findField(name) : toSchema.caseInsensitiveFindField(name);
+      Preconditions.checkNotNull(field, "Equality field %s does not exist in schema", name);
+      remappedIds.add(field.fieldId());
+    }
+
+    return remappedIds;
   }
 }

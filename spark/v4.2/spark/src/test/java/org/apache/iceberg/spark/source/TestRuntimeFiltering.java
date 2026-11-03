@@ -27,12 +27,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
@@ -46,6 +49,7 @@ import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -458,6 +462,190 @@ public class TestRuntimeFiltering extends TestBaseWithCatalog {
         sql(query));
   }
 
+  @TestTemplate
+  public void scalarSubqueryWithUnsupportedPartitionPredicate() {
+    sql("CREATE TABLE %s (id INT, part STRING) USING iceberg PARTITIONED BY (part)", tableName);
+    configurePlanningMode(planningMode);
+    sql("INSERT INTO %s VALUES (1, 'abc'), (2, 'abx'), (3, 'def'), (4, 'xyz')", tableName);
+
+    sql("CREATE TABLE dim (pattern STRING) USING parquet");
+    sql("INSERT INTO dim VALUES ('^ab')");
+
+    String query =
+        String.format(
+            "SELECT * FROM %s WHERE part RLIKE (SELECT max(pattern) FROM dim) ORDER BY id",
+            tableName);
+
+    deleteNotMatchingFiles(Expressions.startsWith("part", "ab"));
+
+    assertEquals(
+        "Should have expected rows",
+        sql("SELECT * FROM %s WHERE part RLIKE '^ab' ORDER BY id", tableName),
+        sql(query));
+  }
+
+  @TestTemplate
+  public void scalarSubqueryWithUdfPartitionPredicate() {
+    sql("CREATE TABLE %s (id INT, part STRING) USING iceberg PARTITIONED BY (part)", tableName);
+    configurePlanningMode(planningMode);
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'A'), (3, 'b'), (4, 'B')", tableName);
+
+    sql("CREATE TABLE dim (val STRING) USING parquet");
+    sql("INSERT INTO dim VALUES ('A')");
+
+    spark
+        .udf()
+        .register(
+            "my_upper_runtime",
+            (String value) -> value == null ? null : value.toUpperCase(Locale.ROOT),
+            DataTypes.StringType);
+
+    String query =
+        String.format(
+            "SELECT * FROM %s WHERE my_upper_runtime(part) = (SELECT max(val) FROM dim) ORDER BY id",
+            tableName);
+
+    deleteNotMatchingFiles(
+        Expressions.or(Expressions.equal("part", "a"), Expressions.equal("part", "A")));
+
+    assertEquals(
+        "Should have expected rows",
+        sql("SELECT * FROM %s WHERE my_upper_runtime(part) = 'A' ORDER BY id", tableName),
+        sql(query));
+  }
+
+  @TestTemplate
+  public void scalarSubqueryOnNonFirstPartitionColumn() {
+    sql(
+        "CREATE TABLE %s (id INT, p1 INT, p2 STRING) USING iceberg PARTITIONED BY (p1, p2)",
+        tableName);
+    configurePlanningMode(planningMode);
+    sql(
+        "INSERT INTO %s VALUES (1, 1, 'abc'), (2, 1, 'def'), (3, 2, 'abx'), (4, 2, 'xyz')",
+        tableName);
+
+    sql("CREATE TABLE dim (pattern STRING) USING parquet");
+    sql("INSERT INTO dim VALUES ('^ab')");
+
+    String query =
+        String.format(
+            "SELECT * FROM %s WHERE p2 RLIKE (SELECT max(pattern) FROM dim) ORDER BY id",
+            tableName);
+
+    deleteNotMatchingFiles(Expressions.startsWith("p2", "ab"));
+
+    assertEquals(
+        "Should have expected rows",
+        sql("SELECT * FROM %s WHERE p2 RLIKE '^ab' ORDER BY id", tableName),
+        sql(query));
+  }
+
+  @TestTemplate
+  public void scalarSubqueryWithSupportedPartitionPredicate() {
+    sql("CREATE TABLE %s (id INT, part STRING) USING iceberg PARTITIONED BY (part)", tableName);
+    configurePlanningMode(planningMode);
+    sql("INSERT INTO %s VALUES (1, 'abc'), (2, 'def')", tableName);
+
+    sql("CREATE TABLE dim (val STRING) USING parquet");
+    sql("INSERT INTO dim VALUES ('abc')");
+
+    String query =
+        String.format(
+            "SELECT * FROM %s WHERE part = (SELECT max(val) FROM dim) ORDER BY id", tableName);
+
+    deleteNotMatchingFiles(Expressions.equal("part", "abc"));
+
+    assertEquals(
+        "Should have expected rows",
+        sql("SELECT * FROM %s WHERE part = 'abc' ORDER BY id", tableName),
+        sql(query));
+  }
+
+  @TestTemplate
+  public void scalarSubqueryWithMultiplePartitionSpecs() {
+    sql("CREATE TABLE %s (id INT, part STRING) USING iceberg PARTITIONED BY (part)", tableName);
+    configurePlanningMode(planningMode);
+    sql("INSERT INTO %s VALUES (1, 'abc'), (2, 'def')", tableName);
+
+    validationCatalog.loadTable(tableIdent).updateSpec().addField("id").commit();
+    sql("REFRESH TABLE %s", tableName);
+
+    sql("INSERT INTO %s VALUES (3, 'abx'), (4, 'xyz')", tableName);
+
+    sql("CREATE TABLE dim (pattern STRING) USING parquet");
+    sql("INSERT INTO dim VALUES ('^ab')");
+
+    String query =
+        String.format(
+            "SELECT * FROM %s WHERE part RLIKE (SELECT max(pattern) FROM dim) ORDER BY id",
+            tableName);
+
+    deleteNotMatchingFiles(Expressions.startsWith("part", "ab"));
+
+    assertEquals(
+        "Should have expected rows",
+        sql("SELECT * FROM %s WHERE part RLIKE '^ab' ORDER BY id", tableName),
+        sql(query));
+  }
+
+  @TestTemplate
+  public void scalarSubqueryKeepsTasksWithNonEvaluablePartitionSpec() {
+    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg PARTITIONED BY (data)", tableName);
+    configurePlanningMode(planningMode);
+    sql("INSERT INTO %s VALUES (1, 'x'), (2, 'y'), (9, 'x')", tableName);
+
+    validationCatalog
+        .loadTable(tableIdent)
+        .updateSpec()
+        .addField("id")
+        .removeField("data")
+        .commit();
+    sql("REFRESH TABLE %s", tableName);
+
+    sql("INSERT INTO %s VALUES (1, 'z'), (4, 'z')", tableName);
+
+    sql("CREATE TABLE dim (val INT) USING parquet");
+    sql("INSERT INTO dim VALUES (1)");
+
+    deletePartitionFile(validationCatalog.loadTable(tableIdent), "id", 1);
+
+    String query =
+        String.format(
+            "SELECT * FROM %s WHERE coalesce(id, 0) > (SELECT max(val) FROM dim) ORDER BY id",
+            tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        sql("SELECT * FROM %s WHERE id > 1 ORDER BY id", tableName),
+        sql(query));
+  }
+
+  @TestTemplate
+  public void scalarSubqueriesWithAcceptedAndRejectedPredicates() {
+    sql(
+        "CREATE TABLE %s (id INT, p1 STRING, p2 INT) USING iceberg PARTITIONED BY (p1, p2)",
+        tableName);
+    configurePlanningMode(planningMode);
+    sql("INSERT INTO %s VALUES (1, 'a', 1), (2, 'a', 2), (3, 'b', 1), (4, 'b', 2)", tableName);
+
+    sql("CREATE TABLE dim (v1 STRING, v2 INT) USING parquet");
+    sql("INSERT INTO dim VALUES ('a', 1)");
+
+    String query =
+        String.format(
+            "SELECT * FROM %s WHERE p1 = (SELECT max(v1) FROM dim) "
+                + "AND coalesce(p2, 0) > (SELECT max(v2) FROM dim) ORDER BY id",
+            tableName);
+
+    deleteNotMatchingFiles(
+        Expressions.and(Expressions.equal("p1", "a"), Expressions.equal("p2", 2)));
+
+    assertEquals(
+        "Should have expected rows",
+        sql("SELECT * FROM %s WHERE p1 = 'a' AND p2 = 2 ORDER BY id", tableName),
+        sql(query));
+  }
+
   private void assertQueryContainsRuntimeFilter(String query) {
     assertQueryContainsRuntimeFilters(query, 1, "Query should have 1 runtime filter");
   }
@@ -477,6 +665,18 @@ public class TestRuntimeFiltering extends TestBaseWithCatalog {
   // delete files that don't match the filter to ensure dynamic filtering works and only required
   // files are read
   private void deleteNotMatchingFiles(Expression filter, int expectedDeletedFileCount) {
+    assertThat(deleteFilesNotMatching(filter))
+        .as("Deleted unexpected number of files")
+        .hasSize(expectedDeletedFileCount);
+  }
+
+  private void deleteNotMatchingFiles(Expression filter) {
+    assertThat(deleteFilesNotMatching(filter))
+        .as("Should delete files to verify runtime filtering")
+        .isNotEmpty();
+  }
+
+  private Set<String> deleteFilesNotMatching(Expression filter) {
     Table table = validationCatalog.loadTable(tableIdent);
     FileIO io = table.io();
 
@@ -503,8 +703,34 @@ public class TestRuntimeFiltering extends TestBaseWithCatalog {
       throw new UncheckedIOException(e);
     }
 
-    assertThat(deletedFileLocations)
-        .as("Deleted unexpected number of files")
-        .hasSize(expectedDeletedFileCount);
+    return deletedFileLocations;
+  }
+
+  private void deletePartitionFile(Table table, String fieldName, int partitionValue) {
+    PartitionSpec spec = table.spec();
+    int position = partitionPosition(spec, fieldName);
+    FileIO io = table.io();
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      for (FileScanTask task : tasks) {
+        if (task.spec().specId() == spec.specId()
+            && partitionValue == task.partition().get(position, Integer.class)) {
+          io.deleteFile(task.file().location());
+        }
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  private static int partitionPosition(PartitionSpec spec, String fieldName) {
+    for (int pos = 0; pos < spec.fields().size(); pos++) {
+      PartitionField field = spec.fields().get(pos);
+      if (field.name().equals(fieldName) && !field.transform().isVoid()) {
+        return pos;
+      }
+    }
+
+    throw new IllegalArgumentException("Cannot find partition field: " + fieldName);
   }
 }
