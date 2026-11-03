@@ -52,6 +52,7 @@ import com.google.common.io.Files;
 import com.google.common.io.Resources;
 import com.google.common.primitives.Bytes;
 import com.google.common.primitives.Ints;
+import com.google.common.primitives.UnsignedBytes;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -101,5 +102,6 @@ public class GuavaClasses {
     Suppliers.class.getName();
     Stopwatch.class.getName();
     Ints.class.getName();
+    UnsignedBytes.class.getName();
   }
 }

@@ -25,9 +25,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PartitionMap;
@@ -58,7 +58,7 @@ public class PartitionStatsUtil {
 
     StructType partitionType = Partitioning.partitionType(table);
     List<ManifestFile> manifests = snapshot.allManifests(table.io());
-    Queue<PartitionMap<PartitionStats>> statsByManifest = Queues.newConcurrentLinkedQueue();
+    Queue<PartitionMap<PartitionStats>> statsByManifest = new ConcurrentLinkedQueue<>();
     Tasks.foreach(manifests)
         .stopOnFailure()
         .throwFailureWhenFinished()
