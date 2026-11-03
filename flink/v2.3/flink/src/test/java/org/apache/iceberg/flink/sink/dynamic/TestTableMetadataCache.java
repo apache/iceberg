@@ -357,6 +357,23 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
   }
 
   @Test
+  void testSchemaPrefersExactMatchOnOlderSchemaOverConversionToCurrentSchema() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA);
+    Schema oldShape = table.schema();
+    table.updateSchema().updateColumn("id", Types.LongType.get()).commit();
+    assertThat(table.schema().findField("id").type()).isEqualTo(Types.LongType.get());
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema resolved = cache.schema(tableIdentifier, oldShape).resolvedTableSchema();
+
+    assertThat(resolved.findField("id").type()).isEqualTo(Types.IntegerType.get());
+  }
+
+  @Test
   void testSchemaFallsBackToHistoricalSchemaWhenReAddedColumnTypeIsIncompatible() {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
