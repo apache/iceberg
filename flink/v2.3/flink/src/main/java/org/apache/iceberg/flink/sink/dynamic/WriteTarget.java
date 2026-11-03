@@ -84,18 +84,6 @@ class WriteTarget implements Serializable {
     return new WriteTarget(tableName, branch, null, specId, upsertMode, equalityFields);
   }
 
-  /**
-   * Returns whether this target and the given one differ at most in schema ID, the same as
-   * comparing their {@link #withoutSchemaId()} copies but without creating them.
-   */
-  boolean sameScopeAs(WriteTarget other) {
-    return Objects.equals(tableName, other.tableName)
-        && Objects.equals(branch, other.branch)
-        && Objects.equals(specId, other.specId)
-        && upsertMode == other.upsertMode
-        && Objects.equals(equalityFields, other.equalityFields);
-  }
-
   static WriteTarget deserializeFrom(DataInputView view) throws IOException {
     return new WriteTarget(
         view.readUTF(),

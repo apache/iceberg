@@ -98,23 +98,17 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
   @Override
   public void write(DynamicRecordInternal element, Context context)
       throws IOException, InterruptedException {
-    WriteTarget writeTarget =
-        new WriteTarget(
-            element.tableName(),
-            element.branch(),
-            element.schema().schemaId(),
-            element.spec().specId(),
-            element.upsertMode(),
-            element.equalityFields());
-
-    TaskWriter<RowData> writer = writers.get(writeTarget);
-    if (writer == null) {
-      warnIfSplitsTable(writeTarget);
-      writer = createWriter(writeTarget, element);
-      writers.put(writeTarget, writer);
-    }
-
-    writer.write(element.rowData());
+    writers
+        .computeIfAbsent(
+            new WriteTarget(
+                element.tableName(),
+                element.branch(),
+                element.schema().schemaId(),
+                element.spec().specId(),
+                element.upsertMode(),
+                element.equalityFields()),
+            writerKey -> createWriter(writerKey, element))
+        .write(element.rowData());
     metrics.mainMetricsGroup().getNumRecordsSendCounter().inc();
   }
 
@@ -185,24 +179,6 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     }
 
     return trackers.forPartition(partition);
-  }
-
-  private void warnIfSplitsTable(WriteTarget newTarget) {
-    for (WriteTarget existing : writers.keySet()) {
-      if (existing.sameScopeAs(newTarget)) {
-        LOG.warn(
-            "Opening another writer for table {} branch {} within one checkpoint: schema ID {} -> {}, "
-                + "spec ID {}, subtask {}, attempt {}. Re-writes of a key across the schema change "
-                + "are retired with position deletes while the writers share an inserted-row tracker",
-            newTarget.tableName(),
-            newTarget.branch(),
-            existing.schemaId(),
-            newTarget.schemaId(),
-            newTarget.specId(),
-            subTaskId,
-            attemptId);
-      }
-    }
   }
 
   /** Inserted-row trackers of one table within one checkpoint, one per partition. */
