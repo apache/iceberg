@@ -1245,7 +1245,7 @@ Inheritance does not apply to v1, which does not have inherited fields like sequ
 
 ##### Snapshot Timestamp Inheritance
 
-In v4 and later, the `snapshot_timestamp` tracking field records the `timestamp-ms` of the snapshot that added or last modified a file's data, converted to microseconds. It is used to assign `_last_updated_time` for [row lineage](#row-lineage).
+The `snapshot_timestamp` tracking field records the `timestamp-ms` of the snapshot that added or last modified a file's data, converted to microseconds. It is used to assign `_last_updated_time` for [row lineage](#row-lineage).
 
 Writers must set `tracking.snapshot_timestamp` for data file and leaf manifest entries as follows:
 
