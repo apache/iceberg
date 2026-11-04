@@ -62,6 +62,8 @@ import org.apache.iceberg.flink.maintenance.operator.MetricsReporterFactoryForTe
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
@@ -1626,6 +1628,89 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
           .contains(rewritten.location())
           .doesNotContain(appended.location());
       assertRecords(table, ImmutableList.of(createRecord(1, "a")));
+    } finally {
+      closeJobClient(jobClient);
+    }
+  }
+
+  @Test
+  void testReindexAcrossCompactionOfFileWithDV() throws Exception {
+    Table table = createTableWithDelete(3);
+    DataFile original =
+        new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
+            .writeFile(
+                ImmutableList.of(createRecord(1, "a"), createRecord(2, "b"), createRecord(3, "c")));
+    table.newAppend().appendFile(original).commit();
+    // The compaction leaves this file alone, so its delta stays below a rebuild of main.
+    insert(
+        table,
+        ImmutableList.of(createRecord(10, "x"), createRecord(11, "x"), createRecord(12, "x")));
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile firstDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(firstDelete).toBranch(STAGING_BRANCH).commit();
+
+    appendConvertTask(STAGING_BRANCH);
+
+    JobClient jobClient = null;
+    try {
+      jobClient = infra.env().executeAsync();
+
+      long time1 = System.currentTimeMillis();
+      infra.source().sendRecord(Trigger.create(time1, 0), time1);
+      assertThat(infra.sink().poll(Duration.ofSeconds(10)).success()).isTrue();
+
+      table.refresh();
+      assertRecords(
+          table,
+          ImmutableList.of(
+              createRecord(2, "b"),
+              createRecord(3, "c"),
+              createRecord(10, "x"),
+              createRecord(11, "x"),
+              createRecord(12, "x")));
+
+      // The compaction replaces the data file together with the DV of the first conversion. The
+      // index still holds the rows of the file that the DV does not delete.
+      DeleteFile dv =
+          Iterables.getOnlyElement(table.currentSnapshot().addedDeleteFiles(table.io()));
+      DataFile compacted =
+          new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
+              .writeFile(ImmutableList.of(createRecord(2, "b"), createRecord(3, "c")));
+      table
+          .newRewrite()
+          .validateFromSnapshot(table.currentSnapshot().snapshotId())
+          .rewriteFiles(
+              ImmutableSet.of(original),
+              ImmutableSet.of(dv),
+              ImmutableSet.of(compacted),
+              ImmutableSet.of())
+          .commit();
+      table.refresh();
+
+      DeleteFile secondDelete = writeEqualityDelete(table, 2, "b");
+      table.newRowDelta().addDeletes(secondDelete).toBranch(STAGING_BRANCH).commit();
+
+      long time2 = time1 + 1;
+      infra.source().sendRecord(Trigger.create(time2, 0), time2);
+      TaskResult result2 = infra.sink().poll(Duration.ofSeconds(10));
+      assertThat(result2.exceptions()).isEmpty();
+      assertThat(result2.success()).isTrue();
+
+      table.refresh();
+      // A DV on the original file would mean its row stayed in the index after the compaction.
+      assertThat(dvReferencedDataFiles(table))
+          .contains(compacted.location())
+          .doesNotContain(original.location());
+      assertRecords(
+          table,
+          ImmutableList.of(
+              createRecord(3, "c"),
+              createRecord(10, "x"),
+              createRecord(11, "x"),
+              createRecord(12, "x")));
     } finally {
       closeJobClient(jobClient);
     }
