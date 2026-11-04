@@ -114,25 +114,25 @@ Notes:
 **State and restart**
 
 - The PK-index worker keeps a keyed row-position index of the target branch in Flink state, persisted with each Flink checkpoint. Its size scales with the number of live rows in the table for the configured equality columns; size Flink state backend, checkpoint storage, and TaskManager memory accordingly. **RocksDB is the preferred state backend** because the PK index can grow beyond the available heap and RocksDB spills to local disk instead of failing with an `OutOfMemoryError`.
-- The index is **reused across triggers and restored on failover** while it matches the head of the target branch: the head is the snapshot the index was built from, or the converter's own commit for the last planned staging snapshot directly on top of it. Each cycle applies its staging snapshot's changes to the index, so consecutive conversions do not rebuild it.
+- The index is **reused across triggers and restored on failover** while it matches the head of the target branch, or while it can be reached from the latest head of the target branch. We refresh the index based on the delta between the index snapshot and the latest snapshot, so it corresponds to the latest table state.
 - External commits on the target branch (e.g. compaction or direct writes) are applied to the index as a delta: the planner reads the data files they added and removed, and the worker indexes or evicts their rows. A file that is added and removed within the delta is skipped.
 - In the following cases the next trigger **rebuilds the index** from the target branch head instead, reading the equality columns of every live data file:
     - on cold start without a checkpoint, and on the first trigger after restoring state written by an older Iceberg version
     - when the indexed snapshot is no longer in the history of the target head, e.g. after rollback, replace-main, or snapshot expiration
     - after restoring a checkpoint that predates the latest conversion commit
     - when the last planned conversion did not commit
-    - when an earlier rebuild did not finish
+    - when an earlier index update (rebuild or delta) failed
     - when the delta would read more rows than a rebuild
 - The `equalityFieldColumns` set is persisted in operator state. Reconfiguring it across a restart from savepoint is **not supported** and the job will fail fast on restore. Restart from a clean state (no savepoint) if the equality columns change.
 - On restart, the planner rediscovers its position by walking the target branch for the marker property `equality-convert-staging-snapshot` written by the committer. If that marker is no longer reachable on the target branch (target was rolled back, replaced, or the marker snapshot was expired) the planner fails and requires manual intervention.
 
 **Concurrent commits on the target branch**
 
-- External commits to the target branch (e.g. compaction, direct writes) are detected by `RowDelta.validateFromSnapshot`. A conflicting cycle fails at commit; the next trigger reindexes the worker's PK index from the new target head and retries.
+- External commits to the target branch (e.g. compaction, direct writes) are detected by `RowDelta.validateFromSnapshot`. A conflicting cycle fails at commit; the next trigger rebuilds the worker's PK index from the new target head and retries.
 - **Recommendation: avoid continuous concurrent writers on the target branch.** The conflict check runs at commit time, so a cycle that loses the race has already paid the cost of reading data files, resolving the PK index, and writing DV files — all of which is thrown away on failure. If another writer commits to the target faster than the converter can complete a cycle, cycles can fail repeatedly and never catch up (a livelock), and the abandoned DV files linger until `DeleteOrphanFiles` cleans them up.
 - **Acceptable patterns** (the design assumes one of these):
     - The Flink `IcebergSink` is the *only* writer to `stagingBranch`, and nothing except this converter writes to `targetBranch`. Other maintenance tasks (compaction, expire snapshots, orphan cleanup) share the same `TriggerLockFactory` so they are serialized with the converter and will not race it.
-    - Occasional external commits to the target branch (e.g. manual fixes, ad-hoc backfill) are fine — the next trigger will reindex and succeed.
+    - Occasional external commits to the target branch (e.g. manual fixes, ad-hoc backfill) are fine — the next trigger brings the index up to date and succeeds.
 
 ### Lock Management
 
