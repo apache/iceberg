@@ -35,6 +35,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.DeletedDataFileScanTask;
+import org.apache.iceberg.DeletedRowsScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.MockFileScanTask;
@@ -79,10 +80,20 @@ class TestInputFilesDecryptor {
           .withFormat(FileFormat.PARQUET)
           .build();
 
+  private static final DeleteFile OTHER_DELETE_FILE =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/other-deletes.parquet")
+          .withFileSizeInBytes(54L)
+          .withRecordCount(2L)
+          .withFormat(FileFormat.PARQUET)
+          .build();
+
   private EncryptingFileIO encryptingIO;
   private InputFile dataInputFile;
   private InputFile deleteInputFile;
   private InputFile otherDataInputFile;
+  private InputFile otherDeleteInputFile;
   private Map<String, InputFile> inputFiles;
 
   @BeforeEach
@@ -90,6 +101,7 @@ class TestInputFilesDecryptor {
     this.dataInputFile = Mockito.mock(InputFile.class);
     this.deleteInputFile = Mockito.mock(InputFile.class);
     this.otherDataInputFile = Mockito.mock(InputFile.class);
+    this.otherDeleteInputFile = Mockito.mock(InputFile.class);
     this.inputFiles =
         ImmutableMap.of(
             DATA_FILE.location(),
@@ -97,7 +109,9 @@ class TestInputFilesDecryptor {
             DELETE_FILE.location(),
             deleteInputFile,
             OTHER_DATA_FILE.location(),
-            otherDataInputFile);
+            otherDataInputFile,
+            OTHER_DELETE_FILE.location(),
+            otherDeleteInputFile);
     this.encryptingIO = Mockito.mock(EncryptingFileIO.class);
     Mockito.when(encryptingIO.bulkDecrypt(any()))
         .thenAnswer(
@@ -201,9 +215,9 @@ class TestInputFilesDecryptor {
 
   @Test
   void resolvesFilesOfAddedRowsTasks() {
-    AddedRowsScanTask task = Mockito.mock(AddedRowsScanTask.class);
-    Mockito.when(task.file()).thenReturn(DATA_FILE);
-    Mockito.when(task.deletes()).thenReturn(ImmutableList.of(DELETE_FILE));
+    AddedRowsScanTask task = Mockito.mock(AddedRowsScanTask.class, Mockito.CALLS_REAL_METHODS);
+    Mockito.doReturn(DATA_FILE).when(task).file();
+    Mockito.doReturn(ImmutableList.of(DELETE_FILE)).when(task).deletes();
 
     InputFilesDecryptor decryptor =
         InputFilesDecryptor.fromTasks(ImmutableList.of(task), encryptingIO);
@@ -216,9 +230,10 @@ class TestInputFilesDecryptor {
 
   @Test
   void resolvesFilesOfDeletedDataFileTasks() {
-    DeletedDataFileScanTask task = Mockito.mock(DeletedDataFileScanTask.class);
-    Mockito.when(task.file()).thenReturn(DATA_FILE);
-    Mockito.when(task.existingDeletes()).thenReturn(ImmutableList.of(DELETE_FILE));
+    DeletedDataFileScanTask task =
+        Mockito.mock(DeletedDataFileScanTask.class, Mockito.CALLS_REAL_METHODS);
+    Mockito.doReturn(DATA_FILE).when(task).file();
+    Mockito.doReturn(ImmutableList.of(DELETE_FILE)).when(task).existingDeletes();
 
     InputFilesDecryptor decryptor =
         InputFilesDecryptor.fromTasks(ImmutableList.of(task), encryptingIO);
@@ -230,9 +245,27 @@ class TestInputFilesDecryptor {
   }
 
   @Test
+  void resolvesFilesOfDeletedRowsTasks() {
+    DeletedRowsScanTask task = Mockito.mock(DeletedRowsScanTask.class, Mockito.CALLS_REAL_METHODS);
+    Mockito.doReturn(DATA_FILE).when(task).file();
+    Mockito.doReturn(ImmutableList.of(DELETE_FILE)).when(task).addedDeletes();
+    Mockito.doReturn(ImmutableList.of(OTHER_DELETE_FILE)).when(task).existingDeletes();
+
+    InputFilesDecryptor decryptor =
+        InputFilesDecryptor.fromTasks(ImmutableList.of(task), encryptingIO);
+
+    assertThat(decryptor.getInputFile(DATA_FILE.location())).isSameAs(dataInputFile);
+    assertThat(decryptor.getInputFile(DELETE_FILE.location())).isSameAs(deleteInputFile);
+    assertThat(decryptor.getInputFile(OTHER_DELETE_FILE.location())).isSameAs(otherDeleteInputFile);
+
+    Mockito.verify(encryptingIO, Mockito.times(1)).bulkDecrypt(any());
+  }
+
+  @Test
   void resolvesFilesOfPositionDeletesTasks() {
-    PositionDeletesScanTask task = Mockito.mock(PositionDeletesScanTask.class);
-    Mockito.when(task.file()).thenReturn(DELETE_FILE);
+    PositionDeletesScanTask task =
+        Mockito.mock(PositionDeletesScanTask.class, Mockito.CALLS_REAL_METHODS);
+    Mockito.doReturn(DELETE_FILE).when(task).file();
 
     InputFilesDecryptor decryptor =
         InputFilesDecryptor.fromTasks(ImmutableList.of(task), encryptingIO);

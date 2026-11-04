@@ -20,13 +20,10 @@ package org.apache.iceberg.encryption;
 
 import java.util.Collection;
 import java.util.Map;
-import java.util.stream.Stream;
-import org.apache.iceberg.AddedRowsScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ContentFile;
-import org.apache.iceberg.DeletedDataFileScanTask;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.PositionDeletesScanTask;
+import org.apache.iceberg.HasReferencedFiles;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -78,25 +75,12 @@ public class InputFilesDecryptor {
   private static Collection<ContentFile<?>> referencedFiles(Iterable<? extends ScanTask> tasks) {
     Map<String, ContentFile<?>> files = Maps.newHashMap();
     for (ScanTask task : tasks) {
-      Stream<? extends ContentFile<?>> taskFiles;
-      if (task instanceof FileScanTask fileTask) {
-        taskFiles = Stream.concat(Stream.of(fileTask.file()), fileTask.deletes().stream());
-      } else if (task instanceof AddedRowsScanTask addedRowsTask) {
-        taskFiles =
-            Stream.concat(Stream.of(addedRowsTask.file()), addedRowsTask.deletes().stream());
-      } else if (task instanceof DeletedDataFileScanTask deletedDataFileTask) {
-        taskFiles =
-            Stream.concat(
-                Stream.of(deletedDataFileTask.file()),
-                deletedDataFileTask.existingDeletes().stream());
-      } else if (task instanceof PositionDeletesScanTask positionDeletesTask) {
-        taskFiles = Stream.of(positionDeletesTask.file());
-      } else {
+      if (!(task instanceof HasReferencedFiles referencing)) {
         throw new IllegalArgumentException(
             "Unsupported scan task type: " + task.getClass().getName());
       }
 
-      taskFiles.forEach(file -> files.put(file.location(), file));
+      referencing.referencedFiles().forEach(file -> files.put(file.location(), file));
     }
 
     return files.values();
