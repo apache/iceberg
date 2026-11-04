@@ -438,6 +438,7 @@ public class Parquet {
       if (compressionLevel == null) {
         return;
       }
+
       switch (codec) {
         case GZIP -> config.put("zlib.compress.level", compressionLevel);
         case BROTLI -> config.put("compression.brotli.quality", compressionLevel);

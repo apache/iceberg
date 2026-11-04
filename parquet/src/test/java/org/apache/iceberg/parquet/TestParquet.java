@@ -905,6 +905,7 @@ public class TestParquet {
         }
       }
     }
+
     return sizes;
   }
 
@@ -918,6 +919,7 @@ public class TestParquet {
         }
       }
     }
+
     return codecs;
   }
 
