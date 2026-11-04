@@ -60,8 +60,10 @@ import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.connector.catalog.SupportsDeleteV2;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations;
+import org.apache.spark.sql.connector.catalog.SupportsSchemaEvolution;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.TableCapability;
+import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.constraints.Constraint;
 import org.apache.spark.sql.connector.catalog.constraints.Constraint.ValidationStatus;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
@@ -80,7 +82,11 @@ import org.slf4j.LoggerFactory;
  * <p>Note the table state (e.g. schema, snapshot) is pinned upon loading and must not change.
  */
 public class SparkTable extends BaseSparkTable
-    implements SupportsRead, SupportsWrite, SupportsDeleteV2, SupportsRowLevelOperations {
+    implements SupportsRead,
+        SupportsWrite,
+        SupportsDeleteV2,
+        SupportsRowLevelOperations,
+        SupportsSchemaEvolution {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
@@ -94,6 +100,7 @@ public class SparkTable extends BaseSparkTable
           TableCapability.OVERWRITE_DYNAMIC);
 
   private final Schema schema; // effective schema (not necessarily current table schema)
+  private final SparkSchemaEvolution schemaEvolution;
   private final Snapshot snapshot; // always set unless table is empty
   private final String branch; // set if table is loaded for specific branch
   private final TimeTravel timeTravel; // set if table is loaded for time travel
@@ -125,6 +132,7 @@ public class SparkTable extends BaseSparkTable
       Table table, Schema schema, Snapshot snapshot, String branch, TimeTravel timeTravel) {
     super(table, schema);
     this.schema = schema;
+    this.schemaEvolution = new SparkSchemaEvolution(table, schema);
     this.snapshot = snapshot;
     this.branch = branch;
     this.timeTravel = timeTravel;
@@ -133,6 +141,11 @@ public class SparkTable extends BaseSparkTable
 
   public SparkTable copyWithBranch(String newBranch) {
     return new SparkTable(table(), newBranch);
+  }
+
+  /** Returns the Iceberg schema pinned when this table was loaded. */
+  public Schema icebergSchema() {
+    return schema;
   }
 
   public Long snapshotId() {
@@ -156,6 +169,11 @@ public class SparkTable extends BaseSparkTable
   @Override
   public Set<TableCapability> capabilities() {
     return capabilities;
+  }
+
+  @Override
+  public boolean supportsColumnChange(TableChange.ColumnChange change) {
+    return schemaEvolution.supportsColumnChange(change);
   }
 
   @Override

@@ -53,6 +53,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.azure.adlsv2.VendedAdlsCredentialProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -296,6 +297,17 @@ public class TestAzureProperties {
 
     verify(clientBuilder, never()).sasToken(any());
     verify(clientBuilder, never()).credential(any(StorageSharedKeyCredential.class));
+  }
+
+  @Test
+  public void nullValuesAreIgnored() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(ADLS_READ_BLOCK_SIZE, null);
+    properties.put(ADLS_WRITE_BLOCK_SIZE, null);
+
+    AzureProperties azureProperties = new AzureProperties(properties);
+    assertThat(azureProperties.adlsReadBlockSize()).isEmpty();
+    assertThat(azureProperties.adlsWriteBlockSize()).isEmpty();
   }
 
   static class DummyTokenCredential implements TokenCredential {

@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
@@ -65,10 +66,12 @@ public final class TestS3InputStream {
 
   @Test
   void testReadTailClosesTheStream() throws IOException {
+    byte[] buffer = new byte[1];
     when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
         .thenReturn(inputStream);
+    when(inputStream.read(buffer, 0, buffer.length)).thenReturn(buffer.length);
 
-    s3InputStream.readTail(new byte[0], 0, 0);
+    s3InputStream.readTail(buffer, 0, buffer.length);
 
     verify(inputStream).close();
   }
@@ -109,6 +112,21 @@ public final class TestS3InputStream {
       assertThat(readBytes.value()).isEqualTo(0);
       assertThat(readOperations.value()).isEqualTo(0);
     }
+  }
+
+  @Test
+  void zeroLengthReadTailReturnsZeroWithoutChangingBuffer() throws IOException {
+    byte[] buffer = new byte[] {2};
+
+    assertThat(s3InputStream.readTail(buffer, 0, 0)).isZero();
+    assertThat(buffer).containsExactly((byte) 2);
+  }
+
+  @Test
+  void zeroLengthReadTailDoesNotCallS3() throws IOException {
+    s3InputStream.readTail(new byte[0], 0, 0);
+
+    verifyNoInteractions(s3Client);
   }
 
   @Test

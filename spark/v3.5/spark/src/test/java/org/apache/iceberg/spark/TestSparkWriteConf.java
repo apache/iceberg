@@ -54,6 +54,8 @@ import java.util.Map;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
@@ -398,6 +400,54 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  void extraSnapshotMetadataReflectsSessionConfig() {
+    withSQLConf(
+        ImmutableMap.of("spark.sql.iceberg.snapshot-property.test-key", "session-value"),
+        () -> {
+          Table table = validationCatalog.loadTable(tableIdent);
+          SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+
+          Map<String, String> metadata = writeConf.extraSnapshotMetadata();
+
+          assertThat(metadata).containsEntry("test-key", "session-value");
+        });
+  }
+
+  @TestTemplate
+  void extraSnapshotMetadataWriteOptionsOverrideSessionConfig() {
+    withSQLConf(
+        ImmutableMap.of("spark.sql.iceberg.snapshot-property.test-key", "session-value"),
+        () -> {
+          Table table = validationCatalog.loadTable(tableIdent);
+          Map<String, String> writeOptions =
+              ImmutableMap.of("snapshot-property.test-key", "write-option-value");
+          SparkWriteConf writeConf = new SparkWriteConf(spark, table, writeOptions);
+
+          Map<String, String> metadata = writeConf.extraSnapshotMetadata();
+
+          // Assert that writeOptions take precedence over session config
+          assertThat(metadata).containsEntry("test-key", "write-option-value");
+        });
+  }
+
+  @TestTemplate
+  void extraSnapshotMetadataPersistedOnWrite() {
+    String propertyKey = "test-key";
+    String propertyValue = "session-value";
+
+    withSQLConf(
+        ImmutableMap.of("spark.sql.iceberg.snapshot-property." + propertyKey, propertyValue),
+        () -> {
+          spark.sql(
+              String.format(
+                  "INSERT INTO %s VALUES (1, 'a', DATE '2021-01-01', TIMESTAMP '2021-01-01 00:00:00')",
+                  tableName));
+          Table table = validationCatalog.loadTable(tableIdent);
+          assertThat(table.currentSnapshot().summary()).containsEntry(propertyKey, propertyValue);
+        });
+  }
+
+  @TestTemplate
   public void testDataPropsDefaultsAsDeleteProps() {
     List<List<Map<String, String>>> propertiesSuites =
         Lists.newArrayList(
@@ -596,6 +646,29 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         .isEqualTo(table.sortOrder().orderId());
 
     assertThat(writeConfNoOption.outputSortOrderId(SparkWriteRequirements.EMPTY)).isEqualTo(0);
+  }
+
+  @TestTemplate
+  void sortOrderWriteConfWithUnsortedId() {
+    Schema schema = validationCatalog.loadTable(tableIdent).schema();
+    validationCatalog.dropTable(tableIdent);
+    Table table =
+        validationCatalog
+            .buildTable(tableIdent, schema)
+            .withSortOrder(SortOrder.builderFor(schema).asc("id").build())
+            .create();
+    assertThat(table.sortOrders()).doesNotContainKey(SortOrder.unsorted().orderId());
+
+    SparkWriteConf writeConf =
+        new SparkWriteConf(
+            spark,
+            table,
+            ImmutableMap.of(
+                SparkWriteOptions.OUTPUT_SORT_ORDER_ID,
+                String.valueOf(SortOrder.unsorted().orderId())));
+
+    assertThat(writeConf.outputSortOrderId(SparkWriteRequirements.EMPTY))
+        .isEqualTo(SortOrder.unsorted().orderId());
   }
 
   private void testWriteProperties(List<Map<String, String>> propertiesSuite) {

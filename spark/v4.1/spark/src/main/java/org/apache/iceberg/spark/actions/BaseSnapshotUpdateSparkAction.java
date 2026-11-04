@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.spark.sql.SparkSession;
 
 abstract class BaseSnapshotUpdateSparkAction<ThisT> extends BaseSparkAction<ThisT> {
@@ -28,7 +29,14 @@ abstract class BaseSnapshotUpdateSparkAction<ThisT> extends BaseSparkAction<This
   private final Map<String, String> summary = Maps.newHashMap();
 
   protected BaseSnapshotUpdateSparkAction(SparkSession spark) {
+    this(spark, ImmutableMap.of());
+  }
+
+  protected BaseSnapshotUpdateSparkAction(
+      SparkSession spark, Map<String, String> snapshotProperties) {
     super(spark);
+    summary.putAll(SparkUtil.sessionSnapshotProperties(spark));
+    summary.putAll(snapshotProperties);
   }
 
   public ThisT snapshotProperty(String property, String value) {
