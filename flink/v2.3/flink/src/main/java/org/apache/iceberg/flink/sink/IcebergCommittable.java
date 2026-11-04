@@ -26,7 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 /**
  * The aggregated results of a single checkpoint which should be committed. Containing the
  * serialized {@link org.apache.iceberg.flink.sink.DeltaManifests} file - which contains the commit
- * data, and the jobId, operatorId, checkpointId triplet which helps identifying the specific commit
+ * data, and the jobId, sinkId, operatorId, checkpointId which identify the specific commit
  *
  * <p>{@link IcebergCommittableSerializer} is used for serializing the objects between the Writer
  * and the Aggregator operator and between the Aggregator and the Committer as well.
@@ -34,12 +34,15 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 class IcebergCommittable implements Serializable {
   private final byte[] manifest;
   private final String jobId;
+  private final String sinkId;
   private final String operatorId;
   private final long checkpointId;
 
-  IcebergCommittable(byte[] manifest, String jobId, String operatorId, long checkpointId) {
+  IcebergCommittable(
+      byte[] manifest, String jobId, String sinkId, String operatorId, long checkpointId) {
     this.manifest = manifest;
     this.jobId = jobId;
+    this.sinkId = sinkId;
     this.operatorId = operatorId;
     this.checkpointId = checkpointId;
   }
@@ -50,6 +53,10 @@ class IcebergCommittable implements Serializable {
 
   String jobId() {
     return jobId;
+  }
+
+  String sinkId() {
+    return sinkId;
   }
 
   String operatorId() {
@@ -64,6 +71,7 @@ class IcebergCommittable implements Serializable {
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("jobId", jobId)
+        .add("sinkId", sinkId)
         .add("checkpointId", checkpointId)
         .add("operatorId", operatorId)
         .toString();
@@ -83,12 +91,13 @@ class IcebergCommittable implements Serializable {
     return checkpointId == that.checkpointId
         && Arrays.equals(manifest, that.manifest)
         && Objects.equals(jobId, that.jobId)
+        && Objects.equals(sinkId, that.sinkId)
         && Objects.equals(operatorId, that.operatorId);
   }
 
   @Override
   public int hashCode() {
-    int result = Objects.hash(jobId, operatorId, checkpointId);
+    int result = Objects.hash(jobId, sinkId, operatorId, checkpointId);
     result = 31 * result + Arrays.hashCode(manifest);
     return result;
   }
