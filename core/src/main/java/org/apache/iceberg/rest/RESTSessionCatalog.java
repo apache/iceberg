@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -60,6 +61,7 @@ import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
@@ -1173,7 +1175,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             loadInternal(context, ident, snapshotMode, LoadContext.empty(), Map.of(), h -> {});
       } catch (NoSuchTableException e) {
         // a view can only conflict with the table name if the table doesn't exist
-        if (viewExistsIfPermitted(context, ident)) {
+        if (existsIfPermitted(() -> viewExists(context, ident))) {
           throw new AlreadyExistsException("View with same name already exists: %s", ident);
         }
 
@@ -1254,17 +1256,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         return replaceTransaction();
       } catch (NoSuchTableException e) {
         return createTransaction();
-      }
-    }
-
-    private boolean viewExistsIfPermitted(
-        SessionContext sessionContext, TableIdentifier identifier) {
-      try {
-        return viewExists(sessionContext, identifier);
-      } catch (ForbiddenException e) {
-        // callers without view access can't have a view to replace, and the server rejects a
-        // conflicting create
-        return false;
       }
     }
 
@@ -1551,6 +1542,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private void checkNamespaceIsValid(Namespace namespace) {
     if (namespace.isEmpty()) {
       throw new NoSuchNamespaceException("Invalid namespace: %s", namespace);
+    }
+  }
+
+  private static boolean existsIfPermitted(BooleanSupplier exists) {
+    try {
+      return exists.getAsBoolean();
+    } catch (ForbiddenException | NotAuthorizedException e) {
+      // a denied probe is treated as no conflict, the server still rejects a conflicting create
+      return false;
     }
   }
 
@@ -1915,11 +1915,18 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     @Override
     public View replace() {
-      if (tableExists(context, identifier)) {
-        throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
+      LoadViewResponse response;
+      try {
+        response = loadView();
+      } catch (NoSuchViewException e) {
+        if (existsIfPermitted(() -> tableExists(context, identifier))) {
+          throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
+        }
+
+        throw e;
       }
 
-      return replace(loadView());
+      return replace(response);
     }
 
     private LoadViewResponse loadView() {
