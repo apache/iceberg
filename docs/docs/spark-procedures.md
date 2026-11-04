@@ -436,7 +436,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 |------|---------------|-------------|
 | `var-length-contribution` | 8 | Number of bytes considered from an input column of a type with variable length (String, Binary) |
 | `max-output-size` | 2147483647 | Amount of bytes interleaved in the ZOrder algorithm |
-| `quantization-bits` | 0 | 0 (default) disables. 8, 16, 24 or 32 maps each zorder or hilbert column linearly from the min and max of the files in each rewrite group onto that many bits before building the curve, so columns with different ranges carry equal weight. Each group uses its own range. Requires column bounds (metrics mode `truncate` or `full`) on the clustered columns; a column with an infinite bound fails the rewrite. 16 is a good start. |
+| `quantization-bits` | 0 | 0 (default) disables. 8, 16, 24 or 32 maps each zorder or hilbert column linearly from the min and max of the files in each rewrite group onto that many bits before building the curve, so columns with different ranges carry equal weight. Each group uses its own range. Requires column bounds (metrics mode `truncate` or `full`) on the clustered columns; a column with an infinite bound fails the rewrite of that file group. A value of 16 is recommended. |
 
 ##### Options for sort strategy with hilbert sort_order
 

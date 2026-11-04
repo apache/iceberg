@@ -145,13 +145,15 @@ class SparkZOrderFileRewriteRunner extends SparkShufflingFileRewriteRunner {
 
   @Override
   protected Dataset<Row> sortedDF(
-      Dataset<Row> df, Function<Dataset<Row>, Dataset<Row>> sortFunc, List<FileScanTask> group) {
+      Dataset<Row> df,
+      Function<Dataset<Row>, Dataset<Row>> sortFunc,
+      List<FileScanTask> groupTasks) {
     if (quantizationBits == 0) {
       return sortedDF(df, sortFunc);
     }
 
     List<CurveQuantization.ColumnRange> ranges =
-        CurveQuantization.ranges(group, table(), zOrderColNames);
+        CurveQuantization.ranges(groupTasks, table(), zOrderColNames);
     return sortedByZValue(df, sortFunc, quantizedZValue(df, ranges));
   }
 

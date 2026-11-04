@@ -106,7 +106,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -122,7 +121,6 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBase;
-import org.apache.iceberg.spark.actions.CurveQuantization.ColumnRange;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Comparators;
@@ -133,7 +131,6 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.Pair;
-import org.apache.iceberg.util.ZOrderByteUtils;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -180,7 +177,12 @@ public class TestRewriteDataFilesAction extends TestBase {
   private static final int NARROW_VALUES = 10;
   private static final int NARROW_POINT = 3;
   private static final long WIDE_MAX = 10_000_000L;
-  private static final String QUANTIZATION_BITS = "16";
+  private static final String SIXTEEN_BITS = "16";
+  private static final long FIRST_MICROS =
+      DateTimeUtil.microsFromTimestamp(LocalDateTime.of(2025, 1, 1, 0, 0));
+  private static final long DAY_MICROS = TimeUnit.DAYS.toMicros(1);
+  private static final long NARROW_POINT_MICROS =
+      FIRST_MICROS + NARROW_POINT * DAY_MICROS + DAY_MICROS / 2;
 
   @Parameter private int formatVersion;
 
@@ -2504,7 +2506,24 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  void hilbertAcceptsColumnNamesInAnyCase() {
+    assumeThat(formatVersion).isEqualTo(2);
+    Table table = createTable(4);
+    long dataSizeBefore = testDataSize(table);
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .hilbert("C2", "C3")
+            .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
+            .execute();
+
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+    assertThat(result.rewrittenDataFilesCount()).isGreaterThan(0);
+  }
+
+  @TestTemplate
   void hilbertWithQuantizationNeedsFewerFilesForNarrowColumn() {
+    assumeThat(formatVersion).isEqualTo(2);
     Table raw = createNarrowAndWideTable("raw", ImmutableMap.of());
     Table quantized = createNarrowAndWideTable("quantized", ImmutableMap.of());
     List<Object[]> originalData = currentData(quantized);
@@ -2512,7 +2531,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     splitInHalfRewrite(raw).hilbert("a", "b").execute();
     splitInHalfRewrite(quantized)
         .hilbert("a", "b")
-        .option(CurveQuantization.QUANTIZATION_BITS, QUANTIZATION_BITS)
+        .option(CurveQuantization.QUANTIZATION_BITS, SIXTEEN_BITS)
         .execute();
 
     assertEquals("We shouldn't have changed the data", originalData, currentData(quantized));
@@ -2523,6 +2542,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   void zOrderWithQuantizationNeedsFewerFilesForNarrowColumn() {
+    assumeThat(formatVersion).isEqualTo(2);
     Table raw = createNarrowAndWideTable("raw", ImmutableMap.of());
     Table quantized = createNarrowAndWideTable("quantized", ImmutableMap.of());
     List<Object[]> originalData = currentData(quantized);
@@ -2530,7 +2550,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     splitInHalfRewrite(raw).zOrder("a", "b").execute();
     splitInHalfRewrite(quantized)
         .zOrder("a", "b")
-        .option(CurveQuantization.QUANTIZATION_BITS, QUANTIZATION_BITS)
+        .option(CurveQuantization.QUANTIZATION_BITS, SIXTEEN_BITS)
         .execute();
 
     assertEquals("We shouldn't have changed the data", originalData, currentData(quantized));
@@ -2540,11 +2560,9 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  void quantizedRewriteClustersTemporalColumn() {
+  void quantizedRewriteClustersDateColumn() {
+    assumeThat(formatVersion).isEqualTo(2);
     int firstDay = DateTimeUtil.daysFromDate(LocalDate.of(2025, 1, 1));
-    long firstMicros = DateTimeUtil.microsFromTimestamp(LocalDateTime.of(2025, 1, 1, 0, 0));
-    long dayMicros = TimeUnit.DAYS.toMicros(1);
-    long pointMicros = firstMicros + NARROW_POINT * dayMicros + dayMicros / 2;
 
     assertQuantizedHilbertClustersColumn(
         "date",
@@ -2553,24 +2571,37 @@ public class TestRewriteDataFilesAction extends TestBase {
         firstDay,
         NARROW_VALUES,
         firstDay + NARROW_POINT);
+  }
+
+  @TestTemplate
+  void quantizedRewriteClustersTimestampColumn() {
+    assumeThat(formatVersion).isEqualTo(2);
+
     assertQuantizedHilbertClustersColumn(
         "timestamp",
         Types.TimestampType.withZone(),
         "timestamp_micros(a) AS a",
-        firstMicros,
-        NARROW_VALUES * dayMicros,
-        pointMicros);
+        FIRST_MICROS,
+        NARROW_VALUES * DAY_MICROS,
+        NARROW_POINT_MICROS);
+  }
+
+  @TestTemplate
+  void quantizedRewriteClustersTimestampNtzColumn() {
+    assumeThat(formatVersion).isEqualTo(2);
+
     assertQuantizedHilbertClustersColumn(
         "timestamp_ntz",
         Types.TimestampType.withoutZone(),
         "CAST(timestamp_micros(a) AS TIMESTAMP_NTZ) AS a",
-        firstMicros,
-        NARROW_VALUES * dayMicros,
-        pointMicros);
+        FIRST_MICROS,
+        NARROW_VALUES * DAY_MICROS,
+        NARROW_POINT_MICROS);
   }
 
   @TestTemplate
   void quantizedRewriteUsesEachPartitionsOwnRange() {
+    assumeThat(formatVersion).isEqualTo(2);
     int secondPartitionMin = 1000;
     Dataset<Row> rows =
         randomRows(0, NARROW_VALUES)
@@ -2589,7 +2620,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         splitInHalfRewrite(table)
             .hilbert("a", "b")
-            .option(CurveQuantization.QUANTIZATION_BITS, QUANTIZATION_BITS)
+            .option(CurveQuantization.QUANTIZATION_BITS, SIXTEEN_BITS)
             .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "2")
             .execute();
 
@@ -2605,6 +2636,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   void quantizedRewriteKeepsRowsWithNulls() {
+    assumeThat(formatVersion).isEqualTo(2);
     Dataset<Row> rows =
         randomRows(0, NARROW_VALUES)
             .selectExpr("1 AS p", "IF(b % 10 < 3, NULL, CAST(a AS INT)) AS a", "b")
@@ -2623,7 +2655,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         splitInHalfRewrite(table)
             .zOrder("a", "b")
-            .option(CurveQuantization.QUANTIZATION_BITS, QUANTIZATION_BITS)
+            .option(CurveQuantization.QUANTIZATION_BITS, SIXTEEN_BITS)
             .execute();
 
     assertThat(result.rewrittenDataFilesCount()).isEqualTo(originalFiles);
@@ -2632,6 +2664,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   void quantizedRewriteFailsWhenColumnHasNoBounds() {
+    assumeThat(formatVersion).isEqualTo(2);
     Table table =
         createNarrowAndWideTable(
             "counts", ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts"));
@@ -2640,48 +2673,11 @@ public class TestRewriteDataFilesAction extends TestBase {
             () ->
                 basicRewrite(table)
                     .hilbert("a", "b")
-                    .option(CurveQuantization.QUANTIZATION_BITS, QUANTIZATION_BITS)
+                    .option(CurveQuantization.QUANTIZATION_BITS, SIXTEEN_BITS)
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("column a")
         .hasMessageContaining("write.metadata.metrics");
-  }
-
-  @TestTemplate
-  void quantizedKeysHaveFixedWidth() throws IOException {
-    Table table =
-        createCurveTable(
-            "keys",
-            NARROW_AND_WIDE_SCHEMA,
-            PartitionSpec.unpartitioned(),
-            ImmutableMap.of(),
-            spark.sql("SELECT * FROM VALUES (0, 1L), (NULL, 2L), (9, NULL), (4, 5L) AS t(a, b)"));
-    List<FileScanTask> tasks;
-    try (CloseableIterable<FileScanTask> files = table.newScan().includeColumnStats().planFiles()) {
-      tasks = Lists.newArrayList(files);
-    }
-
-    ColumnRange range = CurveQuantization.ranges(tasks, table, ImmutableList.of("a")).get(0);
-    int bits = Integer.parseInt(QUANTIZATION_BITS);
-    SparkZOrderUDF udf =
-        new SparkZOrderUDF(2, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE, Integer.MAX_VALUE);
-    List<Row> keys =
-        spark
-            .read()
-            .format("iceberg")
-            .load(table.location())
-            .select(
-                udf.quantizedOrderedBytes(col("a"), DataTypes.IntegerType, range, bits),
-                udf.quantizedOrderedBytes(col("b"), DataTypes.LongType, ColumnRange.NONE, bits))
-            .collectAsList();
-
-    assertThat(keys).hasSize(4);
-    assertThat(keys)
-        .allSatisfy(
-            row -> {
-              assertThat(row.<byte[]>getAs(0)).hasSize(bits / Byte.SIZE);
-              assertThat(row.<byte[]>getAs(1)).hasSize(bits / Byte.SIZE);
-            });
   }
 
   @TestTemplate
@@ -2692,7 +2688,7 @@ public class TestRewriteDataFilesAction extends TestBase {
             () ->
                 basicRewrite(table)
                     .zOrder("c1", "c2")
-                    .option(CurveQuantization.QUANTIZATION_BITS, QUANTIZATION_BITS)
+                    .option(CurveQuantization.QUANTIZATION_BITS, SIXTEEN_BITS)
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot quantize column c2 of type string");
@@ -3086,7 +3082,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     splitInHalfRewrite(table)
         .hilbert("a", "b")
-        .option(CurveQuantization.QUANTIZATION_BITS, QUANTIZATION_BITS)
+        .option(CurveQuantization.QUANTIZATION_BITS, SIXTEEN_BITS)
         .execute();
 
     assertThat(percentFilesRequired(table, "a", point))

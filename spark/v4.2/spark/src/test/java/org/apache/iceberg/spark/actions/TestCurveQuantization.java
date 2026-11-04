@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.apache.spark.sql.functions.col;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -43,8 +44,13 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.ZOrderByteUtils;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TestCurveQuantization extends TestBase {
 
@@ -200,14 +206,40 @@ class TestCurveQuantization extends TestBase {
     assertThat(ranges.get(1).max()).isEqualTo((double) maxMicros);
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"7", "12", "40", "-8"})
+  void quantizationBitsRejectsInvalidValues(String bits) {
+    Map<String, String> options = ImmutableMap.of(CurveQuantization.QUANTIZATION_BITS, bits);
+
+    assertThatThrownBy(() -> CurveQuantization.quantizationBits(options))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot use quantization-bits %s, it must be 0 (off), 8, 16, 24 or 32", bits);
+  }
+
   @Test
-  void quantizationBitsRejectsInvalidValues() {
-    for (String bits : ImmutableList.of("7", "12", "40", "-8")) {
-      Map<String, String> options = ImmutableMap.of(CurveQuantization.QUANTIZATION_BITS, bits);
-      assertThatThrownBy(() -> CurveQuantization.quantizationBits(options))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessage("Cannot use quantization-bits %s, it must be 0 (off), 8, 16, 24 or 32", bits);
-    }
+  void quantizedKeysHaveFixedWidth() {
+    Table table = createTable(ImmutableMap.of());
+    ColumnRange range = onlyRange(ImmutableList.of(intFile(0, 9)), table, "int_col");
+    int bits = 16;
+    SparkZOrderUDF udf =
+        new SparkZOrderUDF(2, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE, Integer.MAX_VALUE);
+
+    List<Row> keys =
+        spark
+            .sql("SELECT * FROM VALUES (0, 1L), (NULL, 2L), (9, NULL), (4, 5L) AS t(a, b)")
+            .repartition(1)
+            .select(
+                udf.quantizedOrderedBytes(col("a"), DataTypes.IntegerType, range, bits),
+                udf.quantizedOrderedBytes(col("b"), DataTypes.LongType, ColumnRange.NONE, bits))
+            .collectAsList();
+
+    assertThat(keys).hasSize(4);
+    assertThat(keys)
+        .allSatisfy(
+            row -> {
+              assertThat(row.<byte[]>getAs(0)).hasSize(bits / Byte.SIZE);
+              assertThat(row.<byte[]>getAs(1)).hasSize(bits / Byte.SIZE);
+            });
   }
 
   @Test

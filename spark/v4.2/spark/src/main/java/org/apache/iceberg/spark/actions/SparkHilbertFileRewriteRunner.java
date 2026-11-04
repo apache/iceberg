@@ -131,13 +131,15 @@ class SparkHilbertFileRewriteRunner extends SparkShufflingFileRewriteRunner {
 
   @Override
   protected Dataset<Row> sortedDF(
-      Dataset<Row> df, Function<Dataset<Row>, Dataset<Row>> sortFunc, List<FileScanTask> group) {
+      Dataset<Row> df,
+      Function<Dataset<Row>, Dataset<Row>> sortFunc,
+      List<FileScanTask> groupTasks) {
     if (quantizationBits == 0) {
       return sortedDF(df, sortFunc);
     }
 
     List<CurveQuantization.ColumnRange> ranges =
-        CurveQuantization.ranges(group, table(), hilbertColNames);
+        CurveQuantization.ranges(groupTasks, table(), hilbertColNames);
     return sortedByHilbertValue(df, sortFunc, quantizedHilbertValue(df, ranges));
   }
 

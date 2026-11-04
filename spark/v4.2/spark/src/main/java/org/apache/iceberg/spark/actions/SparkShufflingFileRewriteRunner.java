@@ -93,7 +93,9 @@ abstract class SparkShufflingFileRewriteRunner extends SparkDataFileRewriteRunne
       Dataset<Row> df, Function<Dataset<Row>, Dataset<Row>> sortFunc);
 
   protected Dataset<Row> sortedDF(
-      Dataset<Row> df, Function<Dataset<Row>, Dataset<Row>> sortFunc, List<FileScanTask> group) {
+      Dataset<Row> df,
+      Function<Dataset<Row>, Dataset<Row>> sortFunc,
+      List<FileScanTask> groupTasks) {
     return sortedDF(df, sortFunc);
   }
 

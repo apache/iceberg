@@ -128,9 +128,11 @@ final class CurveQuantization {
           TableProperties.DEFAULT_WRITE_METRICS_MODE,
           TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX,
           column);
-    }
-
-    if (filesWithoutCounts > 0) {
+      LOG.warn(
+          "Leaving column {} unclustered for this file group because none of its {} files have stats for the column",
+          column,
+          filesWithoutCounts);
+    } else if (filesWithoutCounts > 0) {
       LOG.warn(
           "Ignoring {} files without metrics for column {} when computing its quantization range",
           filesWithoutCounts,
