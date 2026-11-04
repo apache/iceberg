@@ -24,18 +24,23 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import org.apache.iceberg.AddedRowsScanTask;
+import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.DeletedDataFileScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.MockFileScanTask;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -74,20 +79,48 @@ class TestInputFilesDecryptor {
           .withFormat(FileFormat.PARQUET)
           .build();
 
+  private static final DeleteFile OTHER_DELETE_FILE =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/other-deletes.parquet")
+          .withFileSizeInBytes(54L)
+          .withRecordCount(2L)
+          .withFormat(FileFormat.PARQUET)
+          .build();
+
   private EncryptingFileIO encryptingIO;
   private InputFile dataInputFile;
   private InputFile deleteInputFile;
+  private InputFile otherDataInputFile;
+  private InputFile otherDeleteInputFile;
+  private Map<String, InputFile> inputFiles;
 
   @BeforeEach
   void before() {
     this.dataInputFile = Mockito.mock(InputFile.class);
     this.deleteInputFile = Mockito.mock(InputFile.class);
+    this.otherDataInputFile = Mockito.mock(InputFile.class);
+    this.otherDeleteInputFile = Mockito.mock(InputFile.class);
+    this.inputFiles =
+        ImmutableMap.of(
+            DATA_FILE.location(),
+            dataInputFile,
+            DELETE_FILE.location(),
+            deleteInputFile,
+            OTHER_DATA_FILE.location(),
+            otherDataInputFile,
+            OTHER_DELETE_FILE.location(),
+            otherDeleteInputFile);
     this.encryptingIO = Mockito.mock(EncryptingFileIO.class);
     Mockito.when(encryptingIO.bulkDecrypt(any()))
-        .thenReturn(
-            ImmutableMap.of(
-                DATA_FILE.location(), dataInputFile,
-                DELETE_FILE.location(), deleteInputFile));
+        .thenAnswer(
+            invocation -> {
+              Iterable<ContentFile<?>> files = invocation.getArgument(0);
+              ImmutableMap.Builder<String, InputFile> decrypted = ImmutableMap.builder();
+              files.forEach(
+                  file -> decrypted.put(file.location(), inputFiles.get(file.location())));
+              return decrypted.buildOrThrow();
+            });
   }
 
   @Test
@@ -143,12 +176,13 @@ class TestInputFilesDecryptor {
 
   @Test
   void resolvesInputFilesOnceWhenAccessedConcurrently() throws Exception {
-    Mockito.when(encryptingIO.bulkDecrypt(any()))
-        .thenAnswer(
+    Mockito.doAnswer(
             invocation -> {
               Thread.sleep(50);
               return ImmutableMap.of(DATA_FILE.location(), dataInputFile);
-            });
+            })
+        .when(encryptingIO)
+        .bulkDecrypt(any());
 
     InputFilesDecryptor decryptor =
         InputFilesDecryptor.fromTasks(
@@ -176,5 +210,99 @@ class TestInputFilesDecryptor {
     }
 
     Mockito.verify(encryptingIO, Mockito.times(1)).bulkDecrypt(any());
+  }
+
+  @Test
+  void resolvesFilesOfAddedRowsTasks() {
+    InputFilesDecryptor decryptor =
+        InputFilesDecryptor.fromChangelogTasks(
+            ImmutableList.of(addedRowsTask(DATA_FILE, DELETE_FILE)), encryptingIO);
+
+    assertThat(decryptor.getInputFile(DATA_FILE.location())).isSameAs(dataInputFile);
+    assertThat(decryptor.getInputFile(DELETE_FILE.location())).isSameAs(deleteInputFile);
+
+    Mockito.verify(encryptingIO, Mockito.times(1)).bulkDecrypt(any());
+  }
+
+  @Test
+  void resolvesFilesOfDeletedDataFileTasks() {
+    InputFilesDecryptor decryptor =
+        InputFilesDecryptor.fromChangelogTasks(
+            ImmutableList.of(deletedDataFileTask(DATA_FILE, DELETE_FILE)), encryptingIO);
+
+    assertThat(decryptor.getInputFile(DATA_FILE.location())).isSameAs(dataInputFile);
+    assertThat(decryptor.getInputFile(DELETE_FILE.location())).isSameAs(deleteInputFile);
+
+    Mockito.verify(encryptingIO, Mockito.times(1)).bulkDecrypt(any());
+  }
+
+  @Test
+  void deduplicatesFilesOfChangelogTasks() {
+    InputFilesDecryptor decryptor =
+        InputFilesDecryptor.fromChangelogTasks(
+            ImmutableList.of(
+                addedRowsTask(DATA_FILE, DELETE_FILE),
+                deletedDataFileTask(OTHER_DATA_FILE, DELETE_FILE)),
+            encryptingIO);
+
+    assertThat(decryptor.getInputFile(DATA_FILE.location())).isSameAs(dataInputFile);
+    assertThat(decryptor.getInputFile(OTHER_DATA_FILE.location())).isSameAs(otherDataInputFile);
+    assertThat(decryptor.getInputFile(DELETE_FILE.location())).isSameAs(deleteInputFile);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Iterable<ContentFile<?>>> captor = ArgumentCaptor.forClass(Iterable.class);
+    Mockito.verify(encryptingIO).bulkDecrypt(captor.capture());
+    assertThat(captor.getValue())
+        .containsExactlyInAnyOrder(DATA_FILE, OTHER_DATA_FILE, DELETE_FILE);
+  }
+
+  @Test
+  void failsForUnsupportedChangelogTasks() {
+    ChangelogScanTask task = Mockito.mock(ChangelogScanTask.class);
+    InputFilesDecryptor decryptor =
+        InputFilesDecryptor.fromChangelogTasks(ImmutableList.of(task), encryptingIO);
+
+    assertThatThrownBy(() -> decryptor.getInputFile(DATA_FILE.location()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported changelog scan task type: " + task.getClass().getName());
+  }
+
+  @Test
+  void deduplicatesFilesOfPositionDeletesTasks() {
+    InputFilesDecryptor decryptor =
+        InputFilesDecryptor.fromPositionDeletesTasks(
+            ImmutableList.of(
+                positionDeletesTask(DELETE_FILE),
+                positionDeletesTask(DELETE_FILE),
+                positionDeletesTask(OTHER_DELETE_FILE)),
+            encryptingIO);
+
+    assertThat(decryptor.getInputFile(DELETE_FILE.location())).isSameAs(deleteInputFile);
+    assertThat(decryptor.getInputFile(OTHER_DELETE_FILE.location())).isSameAs(otherDeleteInputFile);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Iterable<ContentFile<?>>> captor = ArgumentCaptor.forClass(Iterable.class);
+    Mockito.verify(encryptingIO).bulkDecrypt(captor.capture());
+    assertThat(captor.getValue()).containsExactlyInAnyOrder(DELETE_FILE, OTHER_DELETE_FILE);
+  }
+
+  private static ChangelogScanTask addedRowsTask(DataFile file, DeleteFile... deletes) {
+    AddedRowsScanTask task = Mockito.mock(AddedRowsScanTask.class);
+    Mockito.when(task.file()).thenReturn(file);
+    Mockito.when(task.deletes()).thenReturn(ImmutableList.copyOf(deletes));
+    return task;
+  }
+
+  private static ChangelogScanTask deletedDataFileTask(DataFile file, DeleteFile... deletes) {
+    DeletedDataFileScanTask task = Mockito.mock(DeletedDataFileScanTask.class);
+    Mockito.when(task.file()).thenReturn(file);
+    Mockito.when(task.existingDeletes()).thenReturn(ImmutableList.copyOf(deletes));
+    return task;
+  }
+
+  private static PositionDeletesScanTask positionDeletesTask(DeleteFile file) {
+    PositionDeletesScanTask task = Mockito.mock(PositionDeletesScanTask.class);
+    Mockito.when(task.file()).thenReturn(file);
+    return task;
   }
 }

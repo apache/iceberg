@@ -27,7 +27,6 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.DeletedDataFileScanTask;
-import org.apache.iceberg.DeletedRowsScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.io.FileIO;
@@ -112,8 +111,6 @@ public class InputFilesDecryptor {
                 Stream.of(deletedDataFileTask.file()),
                 deletedDataFileTask.existingDeletes().stream())
             .forEach(file -> files.put(file.location(), file));
-      } else if (task instanceof DeletedRowsScanTask) {
-        throw new UnsupportedOperationException("Deleted rows scan task is not supported yet");
       } else {
         throw new IllegalArgumentException(
             "Unsupported changelog scan task type: " + task.getClass().getName());
