@@ -544,7 +544,7 @@ A data file with only new rows for the table may omit the `_last_updated_sequenc
 
 On read, if `_last_updated_sequence_number` is `null` it is assigned the `sequence_number` of the data file's manifest entry. The data sequence number of a data file is documented in [Sequence Number Inheritance](#sequence-number-inheritance).
 
-In v4 and later, `_last_updated_time` is set in the same way as `_last_updated_sequence_number`. On read, if `_last_updated_time` is `null` it is assigned the `snapshot_timestamp` of the data file's tracking metadata, documented in [Snapshot Timestamp Inheritance](#snapshot-timestamp-inheritance).
+`_last_updated_time` is set in the same way as `_last_updated_sequence_number`. On read, if `_last_updated_time` is `null` it is assigned the `snapshot_timestamp` of the data file's tracking metadata, documented in [Snapshot Timestamp Inheritance](#snapshot-timestamp-inheritance).
 
 When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `first_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `first_row_id` is assigned when writing the snapshot root file and is documented in [Snapshot Root File First Row ID Assignment](#snapshot-root-file-first-row-id-assignment). Starting in v4, a data file in the root manifest is assigned a `first_row_id` in the same way. A snapshot's `first-row-id` is set to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
 
