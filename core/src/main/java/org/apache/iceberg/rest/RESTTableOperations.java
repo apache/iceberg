@@ -55,7 +55,7 @@ class RESTTableOperations implements TableOperations {
 
   private final RESTClient client;
   private final String path;
-  private final String loadPath;
+  private String loadPath;
   private final Supplier<Map<String, String>> readHeaders;
   private final Supplier<Map<String, String>> mutationHeaders;
   private final FileIO io;
@@ -76,7 +76,6 @@ class RESTTableOperations implements TableOperations {
     this(
         client,
         path,
-        path,
         headers,
         headers,
         io,
@@ -99,7 +98,6 @@ class RESTTableOperations implements TableOperations {
     this(
         client,
         path,
-        path,
         headers,
         headers,
         io,
@@ -113,7 +111,6 @@ class RESTTableOperations implements TableOperations {
   RESTTableOperations(
       RESTClient client,
       String path,
-      String loadPath,
       Supplier<Map<String, String>> readHeaders,
       Supplier<Map<String, String>> mutationHeaders,
       FileIO io,
@@ -123,7 +120,6 @@ class RESTTableOperations implements TableOperations {
     this(
         client,
         path,
-        loadPath,
         readHeaders,
         mutationHeaders,
         io,
@@ -137,7 +133,6 @@ class RESTTableOperations implements TableOperations {
   RESTTableOperations(
       RESTClient client,
       String path,
-      String loadPath,
       Supplier<Map<String, String>> readHeaders,
       Supplier<Map<String, String>> mutationHeaders,
       FileIO io,
@@ -148,7 +143,7 @@ class RESTTableOperations implements TableOperations {
       Map<String, String> readQueryParams) {
     this.client = client;
     this.path = path;
-    this.loadPath = loadPath;
+    this.loadPath = path;
     this.readHeaders = readHeaders;
     this.mutationHeaders = mutationHeaders;
     this.io = io;
@@ -182,6 +177,13 @@ class RESTTableOperations implements TableOperations {
             LoadTableResponse.class,
             readHeaders,
             ErrorHandlers.tableErrorHandler()));
+  }
+
+  void useLoadPath(String tablePath, String newLoadPath) {
+    // operations that a subclass built with its own path keep refreshing from that path
+    if (path.equals(tablePath)) {
+      this.loadPath = newLoadPath;
+    }
   }
 
   @Override

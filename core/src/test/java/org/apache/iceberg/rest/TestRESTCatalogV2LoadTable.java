@@ -31,13 +31,17 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -45,6 +49,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.UnsupportedFormatVersionException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -169,12 +174,13 @@ class TestRESTCatalogV2LoadTable extends TestBaseWithRESTServer {
   @Test
   void refreshUsesLoadPath() {
     RESTClient client = clientReturning(newTableMetadata());
-    ops(
+    RESTTableOperations ops =
+        ops(
             client,
             RESOURCE_PATHS.table(TBL),
-            RESOURCE_PATHS.tableV2(TBL),
-            Set.of(Endpoint.V1_LOAD_TABLE, Endpoint.V2_LOAD_TABLE))
-        .refresh();
+            Set.of(Endpoint.V1_LOAD_TABLE, Endpoint.V2_LOAD_TABLE));
+    ops.useLoadPath(RESOURCE_PATHS.table(TBL), RESOURCE_PATHS.tableV2(TBL));
+    ops.refresh();
 
     Mockito.verify(client)
         .get(
@@ -193,13 +199,87 @@ class TestRESTCatalogV2LoadTable extends TestBaseWithRESTServer {
   }
 
   @Test
-  void refreshUsesLoadPathWhenServerListsOnlyV2() {
-    String loadPath = "custom/v2/tables/tbl";
+  void refreshKeepsCustomPathWhenServerListsOnlyV2() {
+    String customPath = "custom/tables/tbl";
     RESTClient client = clientReturning(newTableMetadata());
-    ops(client, "custom/tables/tbl", loadPath, Set.of(Endpoint.V2_LOAD_TABLE)).refresh();
+    RESTTableOperations ops = ops(client, customPath, Set.of(Endpoint.V2_LOAD_TABLE));
+    ops.useLoadPath(RESOURCE_PATHS.table(TBL), RESOURCE_PATHS.tableV2(TBL));
+    ops.refresh();
 
     Mockito.verify(client)
-        .get(eq(loadPath), anyMap(), eq(LoadTableResponse.class), any(Supplier.class), any());
+        .get(eq(customPath), anyMap(), eq(LoadTableResponse.class), any(Supplier.class), any());
+  }
+
+  @Test
+  void tableOpsHooksOfSubclassAreCalled() {
+    AtomicInteger simpleOpsCalls = new AtomicInteger();
+    AtomicInteger transactionOpsCalls = new AtomicInteger();
+    RESTCatalogAdapter adapter = Mockito.spy(adapterAdvertising(route -> true));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter) {
+          @Override
+          protected RESTSessionCatalog newSessionCatalog(
+              Function<Map<String, String>, RESTClient> clientBuilder) {
+            return new RESTSessionCatalog(clientBuilder, null) {
+              @Override
+              protected RESTTableOperations newTableOps(
+                  RESTClient restClient,
+                  String path,
+                  Supplier<Map<String, String>> readHeaders,
+                  Supplier<Map<String, String>> mutationHeaderSupplier,
+                  FileIO fileIO,
+                  TableMetadata current,
+                  Set<Endpoint> supportedEndpoints,
+                  Map<String, String> readQueryParams) {
+                simpleOpsCalls.incrementAndGet();
+                return super.newTableOps(
+                    restClient,
+                    path,
+                    readHeaders,
+                    mutationHeaderSupplier,
+                    fileIO,
+                    current,
+                    supportedEndpoints,
+                    readQueryParams);
+              }
+
+              @Override
+              protected RESTTableOperations newTableOps(
+                  RESTClient restClient,
+                  String path,
+                  Supplier<Map<String, String>> readHeaders,
+                  Supplier<Map<String, String>> mutationHeaderSupplier,
+                  FileIO fileIO,
+                  RESTTableOperations.UpdateType updateType,
+                  List<MetadataUpdate> createChanges,
+                  TableMetadata current,
+                  Set<Endpoint> supportedEndpoints) {
+                transactionOpsCalls.incrementAndGet();
+                return super.newTableOps(
+                    restClient,
+                    path,
+                    readHeaders,
+                    mutationHeaderSupplier,
+                    fileIO,
+                    updateType,
+                    createChanges,
+                    current,
+                    supportedEndpoints);
+              }
+            };
+          }
+        };
+    catalog.initialize("test", ImmutableMap.of(CatalogProperties.URI, "ignored"));
+    catalog.createNamespace(NS);
+    catalog.buildTable(TBL, SCHEMA).createTransaction().commitTransaction();
+    Table table = catalog.loadTable(TBL);
+
+    Mockito.clearInvocations(adapter);
+    table.refresh();
+
+    assertThat(transactionOpsCalls).hasValue(1);
+    assertThat(simpleOpsCalls).hasPositiveValue();
+    verifyLoad(adapter, RESOURCE_PATHS.tableV2(TBL));
   }
 
   private RESTCatalogAdapter adapterAdvertising(Predicate<Route> advertised) {
@@ -252,10 +332,9 @@ class TestRESTCatalogV2LoadTable extends TestBaseWithRESTServer {
     return client;
   }
 
-  private static RESTTableOperations ops(
-      RESTClient client, String path, String loadPath, Set<Endpoint> endpoints) {
+  private static RESTTableOperations ops(RESTClient client, String path, Set<Endpoint> endpoints) {
     return new RESTTableOperations(
-        client, path, loadPath, Map::of, Map::of, null, newTableMetadata(), endpoints, Map.of());
+        client, path, Map::of, Map::of, null, newTableMetadata(), endpoints, Map.of());
   }
 
   private static TableMetadata newTableMetadata() {

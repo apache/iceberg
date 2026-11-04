@@ -648,8 +648,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   identifier, context, tableConf, loadContext, credentials, remoteSigningConfig),
               tableMetadata,
               endpoints,
-              readQueryParams,
-              loadTablePath(identifier));
+              readQueryParams);
+      ops.useLoadPath(paths.table(identifier), loadTablePath(identifier));
 
       trackFileIO(ops);
 
@@ -807,8 +807,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 response.remoteSigningConfig()),
             response.tableMetadata(),
             endpoints,
-            Map.of(),
-            loadTablePath(ident));
+            Map.of());
+    ops.useLoadPath(paths.table(ident), loadTablePath(ident));
 
     trackFileIO(ops);
 
@@ -1122,8 +1122,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   response.remoteSigningConfig()),
               response.tableMetadata(),
               endpoints,
-              Map.of(),
-              loadTablePath(ident));
+              Map.of());
+      ops.useLoadPath(paths.table(ident), loadTablePath(ident));
 
       trackFileIO(ops);
 
@@ -1168,8 +1168,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               RESTTableOperations.UpdateType.CREATE,
               createChanges(meta),
               meta,
-              endpoints,
-              loadTablePath(ident));
+              endpoints);
+      ops.useLoadPath(paths.table(ident), loadTablePath(ident));
 
       trackFileIO(ops);
 
@@ -1241,8 +1241,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               RESTTableOperations.UpdateType.REPLACE,
               changes.build(),
               base,
-              endpoints,
-              loadTablePath(ident));
+              endpoints);
+      ops.useLoadPath(paths.table(ident), loadTablePath(ident));
 
       trackFileIO(ops);
 
@@ -1398,39 +1398,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   /**
-   * @deprecated since 1.13.0, will be removed in 1.14.0; use {@link #newTableOps(RESTClient,
-   *     String, Supplier, Supplier, FileIO, TableMetadata, Set, Map, String)} instead.
-   */
-  @Deprecated
-  protected RESTTableOperations newTableOps(
-      RESTClient restClient,
-      String path,
-      Supplier<Map<String, String>> readHeaders,
-      Supplier<Map<String, String>> mutationHeaderSupplier,
-      FileIO fileIO,
-      TableMetadata current,
-      Set<Endpoint> supportedEndpoints,
-      Map<String, String> readQueryParams) {
-    return newTableOps(
-        restClient,
-        path,
-        readHeaders,
-        mutationHeaderSupplier,
-        fileIO,
-        current,
-        supportedEndpoints,
-        readQueryParams,
-        path);
-  }
-
-  /**
    * Create a new {@link RESTTableOperations} instance for simple table operations.
    *
    * <p>This method can be overridden in subclasses to provide custom table operations
    * implementations.
    *
    * @param restClient the REST client to use for communicating with the catalog server
-   * @param path the REST path for the table, used for commits
+   * @param path the REST path for the table
    * @param readHeaders a supplier for additional HTTP headers to include in read requests
    *     (GET/HEAD)
    * @param mutationHeaderSupplier a supplier for additional HTTP headers to include in mutation
@@ -1440,8 +1414,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    * @param supportedEndpoints the set of supported REST endpoints
    * @param readQueryParams query parameters to send on read requests, such as the referenced-by
    *     view chain the table was loaded through
-   * @param loadPath the REST path used to load the table on refresh, which is the v2 load path when
-   *     the server supports it
    * @return a new RESTTableOperations instance
    */
   protected RESTTableOperations newTableOps(
@@ -1452,47 +1424,16 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       FileIO fileIO,
       TableMetadata current,
       Set<Endpoint> supportedEndpoints,
-      Map<String, String> readQueryParams,
-      String loadPath) {
+      Map<String, String> readQueryParams) {
     return new RESTTableOperations(
         restClient,
         path,
-        loadPath,
         readHeaders,
         mutationHeaderSupplier,
         fileIO,
         current,
         supportedEndpoints,
         readQueryParams);
-  }
-
-  /**
-   * @deprecated since 1.13.0, will be removed in 1.14.0; use {@link #newTableOps(RESTClient,
-   *     String, Supplier, Supplier, FileIO, RESTTableOperations.UpdateType, List, TableMetadata,
-   *     Set, String)} instead.
-   */
-  @Deprecated
-  protected RESTTableOperations newTableOps(
-      RESTClient restClient,
-      String path,
-      Supplier<Map<String, String>> readHeaders,
-      Supplier<Map<String, String>> mutationHeaderSupplier,
-      FileIO fileIO,
-      RESTTableOperations.UpdateType updateType,
-      List<MetadataUpdate> createChanges,
-      TableMetadata current,
-      Set<Endpoint> supportedEndpoints) {
-    return newTableOps(
-        restClient,
-        path,
-        readHeaders,
-        mutationHeaderSupplier,
-        fileIO,
-        updateType,
-        createChanges,
-        current,
-        supportedEndpoints,
-        path);
   }
 
   /**
@@ -1503,7 +1444,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    * implementations for transaction-based operations.
    *
    * @param restClient the REST client to use for communicating with the catalog server
-   * @param path the REST path for the table, used for commits
+   * @param path the REST path for the table
    * @param readHeaders a supplier for additional HTTP headers to include in read requests
    *     (GET/HEAD)
    * @param mutationHeaderSupplier a supplier for additional HTTP headers to include in mutation
@@ -1513,8 +1454,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    * @param createChanges the list of metadata updates to apply during table creation or replacement
    * @param current the current table metadata (may be null for CREATE operations)
    * @param supportedEndpoints the set of supported REST endpoints
-   * @param loadPath the REST path used to load the table on refresh, which is the v2 load path when
-   *     the server supports it
    * @return a new RESTTableOperations instance
    */
   protected RESTTableOperations newTableOps(
@@ -1526,12 +1465,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       RESTTableOperations.UpdateType updateType,
       List<MetadataUpdate> createChanges,
       TableMetadata current,
-      Set<Endpoint> supportedEndpoints,
-      String loadPath) {
+      Set<Endpoint> supportedEndpoints) {
     return new RESTTableOperations(
         restClient,
         path,
-        loadPath,
         readHeaders,
         mutationHeaderSupplier,
         fileIO,

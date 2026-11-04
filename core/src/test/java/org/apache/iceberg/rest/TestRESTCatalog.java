@@ -3289,8 +3289,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           FileIO fileIO,
           TableMetadata current,
           Set<Endpoint> supportedEndpoints,
-          Map<String, String> readQueryParams,
-          String loadPath) {
+          Map<String, String> readQueryParams) {
         RESTTableOperations ops =
             new CustomRESTTableOperations(
                 restClient, path, mutationHeaders, fileIO, current, supportedEndpoints);
@@ -3309,8 +3308,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           RESTTableOperations.UpdateType updateType,
           List<MetadataUpdate> createChanges,
           TableMetadata current,
-          Set<Endpoint> supportedEndpoints,
-          String loadPath) {
+          Set<Endpoint> supportedEndpoints) {
         RESTTableOperations ops =
             new CustomRESTTableOperations(
                 restClient,
