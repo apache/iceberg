@@ -33,6 +33,7 @@ import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
+import org.apache.iceberg.spark.source.metrics.TaskScanDuration;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.PartitionReader;
@@ -88,7 +89,9 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
   @Override
   public CustomTaskMetric[] currentMetricsValues() {
     return new CustomTaskMetric[] {
-      new TaskNumSplits(numSplits), new TaskNumDeletes(counter().get())
+      new TaskNumSplits(numSplits),
+      new TaskNumDeletes(counter().get()),
+      new TaskScanDuration(scanDurationNanos())
     };
   }
 

@@ -69,7 +69,7 @@ class TestDynamicWriteResultAggregator {
 
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
-            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, cacheRefreshMs);
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId", cacheRefreshMs);
     try (OneInputStreamOperatorTestHarness<
             CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>>
         testHarness = new OneInputStreamOperatorTestHarness<>(aggregator)) {
@@ -113,7 +113,7 @@ class TestDynamicWriteResultAggregator {
     final int zeroCacheSize = 0;
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
-            CATALOG_EXTENSION.catalogLoader(), zeroCacheSize, cacheRefreshMs);
+            CATALOG_EXTENSION.catalogLoader(), zeroCacheSize, "sinkId", cacheRefreshMs);
     try (OneInputStreamOperatorTestHarness<
             CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>>
         testHarness = new OneInputStreamOperatorTestHarness<>(aggregator)) {
@@ -167,7 +167,10 @@ class TestDynamicWriteResultAggregator {
         testHarness =
             new OneInputStreamOperatorTestHarness<>(
                 new DynamicWriteResultAggregator(
-                    CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, cacheRefreshMs))) {
+                    CATALOG_EXTENSION.catalogLoader(),
+                    cacheMaximumSize,
+                    "sinkId",
+                    cacheRefreshMs))) {
       testHarness.open();
 
       TableKey tableKey = new TableKey("table", "branch");
@@ -229,7 +232,7 @@ class TestDynamicWriteResultAggregator {
         testHarness =
             new OneInputStreamOperatorTestHarness<>(
                 new DynamicWriteResultAggregator(
-                    CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, 0L))) {
+                    CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId", 0L))) {
       testHarness.open();
 
       TableKey tableKey = new TableKey("table", "branch");
