@@ -524,7 +524,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
 
   private void collectDataFileChanges(
       Snapshot snapshot, Map<String, DataFile> added, Map<String, DataFile> removed) {
-    if (!addsFiles(snapshot) && !removesDataFiles(snapshot)) {
+    if (!changesFiles(snapshot)) {
       // E.g. a manifest rewrite, for which SnapshotChanges would read every manifest to find no
       // file change.
       return;
@@ -983,14 +983,17 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     return false;
   }
 
-  private boolean addsFiles(Snapshot snapshot) {
-    Map<String, String> summary = snapshot.summary();
-    return summaryCount(summary, SnapshotSummary.ADDED_FILES_PROP) > 0
-        || summaryCount(summary, SnapshotSummary.ADDED_DELETE_FILES_PROP) > 0;
-  }
+  // Reads the manifest list, as the summary properties are optional and a missing one reads as no
+  // change. A manifest without file counts counts as a change.
+  private boolean changesFiles(Snapshot snapshot) {
+    for (ManifestFile manifest : snapshot.allManifests(table.io())) {
+      if (Objects.equals(manifest.snapshotId(), snapshot.snapshotId())
+          && (manifest.hasAddedFiles() || manifest.hasDeletedFiles())) {
+        return true;
+      }
+    }
 
-  private boolean removesDataFiles(Snapshot snapshot) {
-    return summaryCount(snapshot.summary(), SnapshotSummary.DELETED_FILES_PROP) > 0;
+    return false;
   }
 
   private static long summaryCount(Map<String, String> summary, String key) {

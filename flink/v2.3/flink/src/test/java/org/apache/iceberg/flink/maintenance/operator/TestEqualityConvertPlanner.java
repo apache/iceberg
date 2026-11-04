@@ -21,9 +21,14 @@ package org.apache.iceberg.flink.maintenance.operator;
 import static org.apache.iceberg.flink.SimpleDataUtil.createRecord;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +46,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
@@ -51,6 +57,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
@@ -60,6 +67,7 @@ import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.JsonUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -753,6 +761,40 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       assertThat(dataCommands).hasSize(1);
       assertThat(dataCommands.get(0).type()).isEqualTo(ReadCommand.Type.REMOVED_DATA_FILE);
       assertThat(filePath(dataCommands.get(0))).isEqualTo(removedFile.location());
+    }
+  }
+
+  @Test
+  void reindexesCompactionWithoutSummaryFileCounts() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+    DataFile replaced = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    insert(table, 3, "c");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      sendTrigger(harness);
+      int afterFirst = harness.extractOutputValues().size();
+
+      DataFile compacted = writeDataFile(table, createRecord(2, "b"));
+      table.newRewrite().deleteFile(replaced).addFile(compacted).commit();
+      table.refresh();
+      dropSummaryFileCounts(table);
+
+      sendTrigger(harness);
+      List<ReadCommand> all = harness.extractOutputValues();
+      assertThat(all.subList(afterFirst, all.size()))
+          .filteredOn(c -> c.task() instanceof FileScanTask)
+          .extracting(ReadCommand::type, TestEqualityConvertPlanner::filePath)
+          .containsExactlyInAnyOrder(
+              tuple(ReadCommand.Type.DATA_FILE, compacted.location()),
+              tuple(ReadCommand.Type.REMOVED_DATA_FILE, replaced.location()));
     }
   }
 
@@ -1825,6 +1867,25 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
 
   private static long countDataFileTasks(List<ReadCommand> commands) {
     return commands.stream().filter(c -> c.task() instanceof FileScanTask).count();
+  }
+
+  // Keeps only the operation in the summary of the current snapshot, like a writer that leaves the
+  // file counts out. The planner reads the rewritten metadata file on its next refresh.
+  private static void dropSummaryFileCounts(Table table) throws IOException {
+    String location = ((HasTableOperations) table).operations().current().metadataFileLocation();
+    ObjectNode metadata;
+    try (InputStream in = table.io().newInputFile(location).newStream()) {
+      metadata = (ObjectNode) JsonUtil.mapper().readTree(in);
+    }
+
+    JsonNode snapshots = metadata.get("snapshots");
+    ((ObjectNode) snapshots.get(snapshots.size() - 1).get("summary")).retain("operation");
+    try (OutputStream out = table.io().newOutputFile(location).createOrOverwrite()) {
+      JsonUtil.mapper().writeValue(out, metadata);
+    }
+
+    assertThat(TableMetadataParser.read(table.io(), location).currentSnapshot().summary())
+        .doesNotContainKeys(SnapshotSummary.ADDED_FILES_PROP, SnapshotSummary.DELETED_FILES_PROP);
   }
 
   // Keeps the operator state entries that the version before the stateVersion entry wrote.
