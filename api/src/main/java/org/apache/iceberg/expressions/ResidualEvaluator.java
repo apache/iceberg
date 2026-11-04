@@ -95,7 +95,7 @@ public class ResidualEvaluator implements Serializable {
 
   private ResidualEvaluator(PartitionSpec spec, Expression expr, boolean caseSensitive) {
     this.spec = spec;
-    this.expr = Expressions.rewriteNot(expr);
+    this.expr = expr != null ? Expressions.rewriteNot(expr) : null;
     this.caseSensitive = caseSensitive;
   }
 
