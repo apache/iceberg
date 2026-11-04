@@ -22,9 +22,16 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.StructLikeUtil;
+import org.apache.iceberg.util.StructProjection;
 
 class V4Metadata {
   private V4Metadata() {}
@@ -539,6 +546,732 @@ class V4Metadata {
     @Override
     public Long pos() {
       return null;
+    }
+  }
+
+  /** Base wrapper used to write a {@link TrackedFile} using the v4 tracked file schema. */
+  private static void checkNullSequenceNumbers(TrackedFile file, Tracking tracking) {
+    // null sequence numbers are inherited from the commit: ADDED entries inherit both and
+    // MODIFIED entries inherit only the data sequence number
+    EntryStatus status = tracking.status();
+    Preconditions.checkState(
+        tracking.dataSequenceNumber() != null
+            || status == EntryStatus.ADDED
+            || status == EntryStatus.MODIFIED,
+        "Cannot write null data sequence number for status %s (must be ADDED or MODIFIED): %s",
+        status,
+        file.location());
+    Preconditions.checkState(
+        tracking.fileSequenceNumber() != null || status == EntryStatus.ADDED,
+        "Cannot write null file sequence number for status %s (must be ADDED): %s",
+        status,
+        file.location());
+  }
+
+  private abstract static class TrackedFileWrapper implements TrackedFile, StructLike {
+    private static final int SIZE =
+        TrackedFile.schema(Types.StructType.of(), Types.StructType.of()).columns().size();
+
+    private final Map<Integer, PartitionSpec> specsById;
+    private final Map<Integer, StructProjection> partitionProjections;
+    private final ContentStatsWrapper contentStats;
+
+    private TrackedFile wrapped = null;
+    private Integer specId = null;
+    private TrackingWrapper tracking = null;
+    private ManifestInfoWrapper manifestInfo = null;
+
+    private TrackedFileWrapper(
+        Map<Integer, PartitionSpec> specsById, Types.StructType contentStatsType) {
+      this.specsById = specsById;
+      this.partitionProjections = partitionProjections(specsById);
+      this.contentStats = new ContentStatsWrapper(contentStatsType);
+    }
+
+    protected void wrapInternal(
+        TrackedFile file, TrackingWrapper newTracking, ManifestInfoWrapper newManifestInfo) {
+      Integer fileSpecId = file.specId();
+      PartitionSpec spec = fileSpecId != null ? specsById.get(fileSpecId) : null;
+      Preconditions.checkArgument(
+          fileSpecId == null || spec != null,
+          "Cannot find partition spec for spec ID: %s",
+          fileSpecId);
+
+      this.wrapped = file;
+      // v4 metadata stores a null spec ID and partition for unpartitioned files
+      this.specId = spec != null && !spec.fields().isEmpty() ? fileSpecId : null;
+      this.tracking = newTracking;
+      this.manifestInfo = newManifestInfo;
+    }
+
+    @Override
+    public int size() {
+      return SIZE;
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Cannot modify a read-only tracked file");
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(get(pos));
+    }
+
+    private Object get(int pos) {
+      return switch (pos) {
+        case 0 -> tracking;
+        case 1 -> wrapped.contentType().id();
+        case 2 -> wrapped.location();
+        case 3 -> wrapped.fileFormat().toString();
+        case 4 -> wrapped.recordCount();
+        case 5 -> wrapped.fileSizeInBytes();
+        case 6 -> specId;
+        case 7 -> unionPartition();
+        case 8 -> wrapped.contentStats() != null ? contentStats.wrap(wrapped.contentStats()) : null;
+        case 9 -> wrapped.sortOrderId();
+        case 10 -> wrapped.deletionVector();
+        case 11 -> manifestInfo;
+        case 12 -> wrapped.keyMetadata();
+        case 13 -> wrapped.splitOffsets();
+        case 14 -> wrapped.columnFiles();
+        default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      };
+    }
+
+    @Override
+    public Tracking tracking() {
+      return tracking;
+    }
+
+    @Override
+    public FileContent contentType() {
+      return wrapped.contentType();
+    }
+
+    @Override
+    public String location() {
+      return wrapped.location();
+    }
+
+    @Override
+    public FileFormat fileFormat() {
+      return wrapped.fileFormat();
+    }
+
+    @Override
+    public long recordCount() {
+      return wrapped.recordCount();
+    }
+
+    @Override
+    public long fileSizeInBytes() {
+      return wrapped.fileSizeInBytes();
+    }
+
+    @Override
+    public Integer specId() {
+      return specId;
+    }
+
+    @Override
+    public StructLike partition() {
+      return specId != null ? wrapped.partition() : null;
+    }
+
+    @Override
+    public ContentStats contentStats() {
+      return wrapped.contentStats();
+    }
+
+    @Override
+    public Integer sortOrderId() {
+      return wrapped.sortOrderId();
+    }
+
+    @Override
+    public DeletionVector deletionVector() {
+      return wrapped.deletionVector();
+    }
+
+    @Override
+    public ManifestInfo manifestInfo() {
+      return manifestInfo;
+    }
+
+    @Override
+    public ByteBuffer keyMetadata() {
+      return wrapped.keyMetadata();
+    }
+
+    @Override
+    public List<Long> splitOffsets() {
+      return wrapped.splitOffsets();
+    }
+
+    @Override
+    public List<ColumnFile> columnFiles() {
+      return wrapped.columnFiles();
+    }
+
+    @Override
+    public TrackedFile copy() {
+      return copy(null /* all stats */);
+    }
+
+    @Override
+    public TrackedFile copyWithStats(Set<Integer> requestedColumnIds) {
+      return copy(requestedColumnIds);
+    }
+
+    private TrackedFile copy(Set<Integer> statsIds) {
+      ContentStats stats = wrapped.contentStats();
+      ContentStats statsCopy;
+      if (stats == null || (statsIds != null && statsIds.isEmpty())) {
+        statsCopy = null;
+      } else {
+        statsCopy = statsIds != null ? stats.copy(statsIds) : stats.copy();
+      }
+
+      DeletionVector dv = wrapped.deletionVector();
+      return new TrackedFileStruct(
+          tracking.copy(),
+          wrapped.contentType(),
+          wrapped.location(),
+          wrapped.fileFormat(),
+          wrapped.recordCount(),
+          wrapped.fileSizeInBytes(),
+          specId,
+          StructLikeUtil.copy(partition()),
+          statsCopy,
+          wrapped.sortOrderId(),
+          dv != null ? dv.copy() : null,
+          manifestInfo != null ? manifestInfo.copy() : null,
+          wrapped.keyMetadata(),
+          wrapped.splitOffsets(),
+          copyColumnFiles(wrapped.columnFiles()));
+    }
+
+    private static List<ColumnFile> copyColumnFiles(List<ColumnFile> columnFiles) {
+      if (columnFiles == null) {
+        return null;
+      }
+
+      List<ColumnFile> copies = Lists.newArrayListWithCapacity(columnFiles.size());
+      for (ColumnFile columnFile : columnFiles) {
+        copies.add(columnFile.copy());
+      }
+
+      return copies;
+    }
+
+    private StructLike unionPartition() {
+      StructLike partition = partition();
+      if (partition == null) {
+        return null;
+      }
+
+      StructProjection projection = partitionProjections.get(specId);
+      return projection != null ? projection.wrap(partition) : partition;
+    }
+
+    private static Map<Integer, StructProjection> partitionProjections(
+        Map<Integer, PartitionSpec> specsById) {
+      Types.StructType unionType = Partitioning.unionPartitionTypes(specsById.values());
+      Map<Integer, StructProjection> projections = Maps.newHashMap();
+      for (PartitionSpec spec : specsById.values()) {
+        Types.StructType partitionType = spec.partitionType();
+        StructProjection projection =
+            partitionType.equals(unionType)
+                ? null
+                : StructProjection.createAllowMissing(partitionType, unionType);
+        projections.put(spec.specId(), projection);
+      }
+
+      return projections;
+    }
+  }
+
+  /** Wrapper used to write a data file to a v4 leaf manifest. */
+  static class LeafTrackedFileWrapper extends TrackedFileWrapper {
+    private final TrackingWrapper trackingWrapper = new TrackingWrapper();
+
+    LeafTrackedFileWrapper(
+        Map<Integer, PartitionSpec> specsById, Types.StructType contentStatsType) {
+      super(specsById, contentStatsType);
+    }
+
+    LeafTrackedFileWrapper wrap(TrackedFile file, Tracking newTracking) {
+      Preconditions.checkArgument(file != null, "Invalid file: null");
+      Preconditions.checkArgument(newTracking != null, "Invalid tracking: null");
+      Preconditions.checkArgument(
+          file.contentType() == FileContent.DATA,
+          "Invalid content type for leaf manifest: %s",
+          file.contentType());
+
+      checkNullSequenceNumbers(file, newTracking);
+
+      trackingWrapper.wrap(
+          newTracking,
+          newTracking.snapshotId(),
+          newTracking.dataSequenceNumber(),
+          newTracking.fileSequenceNumber(),
+          newTracking.firstRowId());
+      wrapInternal(file, trackingWrapper, null /* manifestInfo */);
+      return this;
+    }
+  }
+
+  /** Wrapper used to write a data file or leaf manifest to a v4 root manifest. */
+  static class RootTrackedFileWrapper extends TrackedFileWrapper {
+    private final long commitSnapshotId;
+    private final long commitSequenceNumber;
+    private final TrackingWrapper trackingWrapper = new TrackingWrapper();
+    private final ManifestInfoWrapper manifestInfoWrapper = new ManifestInfoWrapper();
+
+    RootTrackedFileWrapper(
+        long commitSnapshotId,
+        long commitSequenceNumber,
+        Map<Integer, PartitionSpec> specsById,
+        Types.StructType contentStatsType) {
+      super(specsById, contentStatsType);
+      this.commitSnapshotId = commitSnapshotId;
+      this.commitSequenceNumber = commitSequenceNumber;
+    }
+
+    /**
+     * Re-points this wrapper at a file and the tracking to write for it.
+     *
+     * @param file a data file or manifest
+     * @param newTracking the tracking to write for the file
+     * @param assignedFirstRowId a first row ID to assign to the file, or null if it is already
+     *     assigned
+     * @return this for method chaining
+     */
+    RootTrackedFileWrapper wrap(TrackedFile file, Tracking newTracking, Long assignedFirstRowId) {
+      Preconditions.checkArgument(file != null, "Invalid file: null");
+      Preconditions.checkArgument(newTracking != null, "Invalid tracking: null");
+
+      boolean isManifest = file.contentType() != FileContent.DATA;
+      Preconditions.checkArgument(
+          !isManifest || file.manifestInfo() != null,
+          "Missing manifest info for manifest: %s",
+          file.location());
+      Preconditions.checkArgument(
+          newTracking.snapshotId() != null, "Missing snapshot ID for file: %s", file.location());
+      checkNullSequenceNumbers(file, newTracking);
+
+      long snapshotId = newTracking.snapshotId();
+      // a modified entry inherits the data sequence number of the commit that modified it
+      Long dataSequenceSnapshotId =
+          newTracking.status() == EntryStatus.MODIFIED
+              ? newTracking.modifiedSnapshotId()
+              : newTracking.snapshotId();
+      trackingWrapper.wrap(
+          newTracking,
+          snapshotId,
+          resolveSequenceNumber(file, newTracking.dataSequenceNumber(), dataSequenceSnapshotId),
+          resolveSequenceNumber(file, newTracking.fileSequenceNumber(), snapshotId),
+          resolveFirstRowId(file, newTracking, assignedFirstRowId));
+
+      if (isManifest) {
+        ManifestInfo info = file.manifestInfo();
+        manifestInfoWrapper.wrap(
+            info, resolveSequenceNumber(file, info.minSequenceNumber(), snapshotId));
+        wrapInternal(file, trackingWrapper, manifestInfoWrapper);
+      } else {
+        wrapInternal(file, trackingWrapper, null /* manifestInfo */);
+      }
+
+      return this;
+    }
+
+    private long resolveSequenceNumber(
+        TrackedFile file, Long existingSequenceNumber, Long entrySnapshotId) {
+      if (existingSequenceNumber == null
+          || existingSequenceNumber == ManifestWriter.UNASSIGNED_SEQ) {
+        // the sequence number is assigned here, so the file must be changed by the current commit
+        Preconditions.checkState(
+            entrySnapshotId != null && entrySnapshotId == commitSnapshotId,
+            "Cannot assign sequence number to file from snapshot %s (committing snapshot %s): %s",
+            entrySnapshotId,
+            commitSnapshotId,
+            file.location());
+        return commitSequenceNumber;
+      }
+
+      return existingSequenceNumber;
+    }
+
+    private static Long resolveFirstRowId(
+        TrackedFile file, Tracking newTracking, Long assignedFirstRowId) {
+      if (file.contentType() == FileContent.DELETE_MANIFEST) {
+        Preconditions.checkState(
+            assignedFirstRowId == null,
+            "Cannot assign first-row-id to delete manifest: %s",
+            file.location());
+        return null;
+      }
+
+      if (assignedFirstRowId != null) {
+        Preconditions.checkState(
+            newTracking.status().isLive(),
+            "Cannot assign first-row-id to file with status %s: %s",
+            newTracking.status(),
+            file.location());
+        Preconditions.checkState(
+            newTracking.firstRowId() == null,
+            "Cannot assign first-row-id to file with existing first-row-id %s: %s",
+            newTracking.firstRowId(),
+            file.location());
+        return assignedFirstRowId;
+      }
+
+      Preconditions.checkState(
+          newTracking.firstRowId() != null, "Missing first-row-id for file: %s", file.location());
+      return newTracking.firstRowId();
+    }
+  }
+
+  /** Wrapper used to write {@link Tracking} using the v4 tracking schema. */
+  private static class TrackingWrapper implements Tracking, StructLike {
+    private static final int SIZE = Tracking.schema().fields().size();
+
+    private Tracking wrapped = null;
+    private Long snapshotId = null;
+    private Long dataSequenceNumber = null;
+    private Long fileSequenceNumber = null;
+    private Long firstRowId = null;
+
+    private TrackingWrapper wrap(
+        Tracking tracking,
+        Long newSnapshotId,
+        Long newDataSequenceNumber,
+        Long newFileSequenceNumber,
+        Long newFirstRowId) {
+      this.wrapped = tracking;
+      this.snapshotId = newSnapshotId;
+      this.dataSequenceNumber = newDataSequenceNumber;
+      this.fileSequenceNumber = newFileSequenceNumber;
+      this.firstRowId = newFirstRowId;
+      return this;
+    }
+
+    @Override
+    public int size() {
+      return SIZE;
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Cannot modify read-only tracking");
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(get(pos));
+    }
+
+    private Object get(int pos) {
+      return switch (pos) {
+        case 0 -> wrapped.status().id();
+        case 1 -> snapshotId;
+        case 2 -> dataSequenceNumber;
+        case 3 -> fileSequenceNumber;
+        case 4 -> wrapped.modifiedSnapshotId();
+        case 5 -> firstRowId;
+        case 6 -> wrapped.deletedPositions();
+        case 7 -> wrapped.replacedPositions();
+        default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      };
+    }
+
+    @Override
+    public EntryStatus status() {
+      return wrapped.status();
+    }
+
+    @Override
+    public Long snapshotId() {
+      return snapshotId;
+    }
+
+    @Override
+    public Long dataSequenceNumber() {
+      return dataSequenceNumber;
+    }
+
+    @Override
+    public Long fileSequenceNumber() {
+      return fileSequenceNumber;
+    }
+
+    @Override
+    public Long modifiedSnapshotId() {
+      return wrapped.modifiedSnapshotId();
+    }
+
+    @Override
+    public Long firstRowId() {
+      return firstRowId;
+    }
+
+    @Override
+    public ByteBuffer deletedPositions() {
+      return wrapped.deletedPositions();
+    }
+
+    @Override
+    public ByteBuffer replacedPositions() {
+      return wrapped.replacedPositions();
+    }
+
+    @Override
+    public String manifestLocation() {
+      return wrapped.manifestLocation();
+    }
+
+    @Override
+    public long manifestPos() {
+      return wrapped.manifestPos();
+    }
+
+    @Override
+    public Tracking copy() {
+      return new TrackingStruct(
+          wrapped.status(),
+          snapshotId,
+          dataSequenceNumber,
+          fileSequenceNumber,
+          wrapped.modifiedSnapshotId(),
+          firstRowId,
+          ByteBuffers.toByteArray(wrapped.deletedPositions()),
+          ByteBuffers.toByteArray(wrapped.replacedPositions()));
+    }
+  }
+
+  /** Wrapper used to write {@link ManifestInfo} using the v4 manifest info schema. */
+  private static class ManifestInfoWrapper implements ManifestInfo, StructLike {
+    private static final int SIZE = ManifestInfo.schema().fields().size();
+
+    private ManifestInfo wrapped = null;
+    private long minSequenceNumber = ManifestWriter.UNASSIGNED_SEQ;
+
+    private ManifestInfoWrapper wrap(ManifestInfo info, long newMinSequenceNumber) {
+      this.wrapped = info;
+      this.minSequenceNumber = newMinSequenceNumber;
+      return this;
+    }
+
+    @Override
+    public int size() {
+      return SIZE;
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Cannot modify read-only manifest info");
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(get(pos));
+    }
+
+    private Object get(int pos) {
+      return switch (pos) {
+        case 0 -> wrapped.addedFilesCount();
+        case 1 -> wrapped.existingFilesCount();
+        case 2 -> wrapped.deletedFilesCount();
+        case 3 -> wrapped.replacedFilesCount();
+        case 4 -> wrapped.modifiedFilesCount();
+        case 5 -> wrapped.addedRowsCount();
+        case 6 -> wrapped.existingRowsCount();
+        case 7 -> wrapped.deletedRowsCount();
+        case 8 -> wrapped.replacedRowsCount();
+        case 9 -> wrapped.modifiedRowsCount();
+        case 10 -> minSequenceNumber;
+        case 11 -> mdvBuffer();
+        case 12 -> wrapped.formatVersion();
+        default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      };
+    }
+
+    private ByteBuffer mdvBuffer() {
+      ManifestBitmap mdv = wrapped.manifestDeletionVector();
+      return mdv != null ? mdv.buffer() : null;
+    }
+
+    @Override
+    public int addedFilesCount() {
+      return wrapped.addedFilesCount();
+    }
+
+    @Override
+    public int existingFilesCount() {
+      return wrapped.existingFilesCount();
+    }
+
+    @Override
+    public int deletedFilesCount() {
+      return wrapped.deletedFilesCount();
+    }
+
+    @Override
+    public int replacedFilesCount() {
+      return wrapped.replacedFilesCount();
+    }
+
+    @Override
+    public int modifiedFilesCount() {
+      return wrapped.modifiedFilesCount();
+    }
+
+    @Override
+    public long addedRowsCount() {
+      return wrapped.addedRowsCount();
+    }
+
+    @Override
+    public long existingRowsCount() {
+      return wrapped.existingRowsCount();
+    }
+
+    @Override
+    public long deletedRowsCount() {
+      return wrapped.deletedRowsCount();
+    }
+
+    @Override
+    public long replacedRowsCount() {
+      return wrapped.replacedRowsCount();
+    }
+
+    @Override
+    public long modifiedRowsCount() {
+      return wrapped.modifiedRowsCount();
+    }
+
+    @Override
+    public long minSequenceNumber() {
+      return minSequenceNumber;
+    }
+
+    @Override
+    public ManifestBitmap manifestDeletionVector() {
+      return wrapped.manifestDeletionVector();
+    }
+
+    @Override
+    public int formatVersion() {
+      return wrapped.formatVersion();
+    }
+
+    @Override
+    public ManifestInfo copy() {
+      return new ManifestInfoStruct(
+          wrapped.addedFilesCount(),
+          wrapped.existingFilesCount(),
+          wrapped.deletedFilesCount(),
+          wrapped.replacedFilesCount(),
+          wrapped.modifiedFilesCount(),
+          wrapped.addedRowsCount(),
+          wrapped.existingRowsCount(),
+          wrapped.deletedRowsCount(),
+          wrapped.replacedRowsCount(),
+          wrapped.modifiedRowsCount(),
+          minSequenceNumber,
+          ByteBuffers.toByteArray(mdvBuffer()),
+          wrapped.formatVersion());
+    }
+  }
+
+  /** Wrapper used to write {@link ContentStats} using a manifest's content stats type. */
+  private static class ContentStatsWrapper implements StructLike {
+    private final int[] posToFieldId;
+    private final FieldStatsWrapper[] fieldStats;
+    private ContentStats wrapped = null;
+
+    private ContentStatsWrapper(Types.StructType type) {
+      List<Types.NestedField> fields = type.fields();
+      this.posToFieldId = new int[fields.size()];
+      this.fieldStats = new FieldStatsWrapper[fields.size()];
+      for (int pos = 0; pos < fields.size(); pos += 1) {
+        Types.NestedField field = fields.get(pos);
+        posToFieldId[pos] = StatsUtil.toFieldId(field.fieldId());
+        fieldStats[pos] = new FieldStatsWrapper(field.type().asStructType());
+      }
+    }
+
+    private ContentStatsWrapper wrap(ContentStats stats) {
+      this.wrapped = stats;
+      return this;
+    }
+
+    @Override
+    public int size() {
+      return posToFieldId.length;
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Cannot modify read-only content stats");
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      FieldStats<?> stats = wrapped.statsFor(posToFieldId[pos]);
+      return javaClass.cast(stats != null ? fieldStats[pos].wrap(stats) : null);
+    }
+  }
+
+  /** Wrapper used to write {@link FieldStats} using a manifest's field stats type. */
+  private static class FieldStatsWrapper implements StructLike {
+    private final int[] posToOffset;
+    private FieldStats<?> wrapped = null;
+
+    private FieldStatsWrapper(Types.StructType type) {
+      List<Types.NestedField> fields = type.fields();
+      this.posToOffset = new int[fields.size()];
+      for (int pos = 0; pos < fields.size(); pos += 1) {
+        posToOffset[pos] = StatsUtil.statOffset(fields.get(pos).fieldId());
+      }
+    }
+
+    private FieldStatsWrapper wrap(FieldStats<?> stats) {
+      this.wrapped = stats;
+      return this;
+    }
+
+    @Override
+    public int size() {
+      return posToOffset.length;
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Cannot modify read-only field stats");
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(get(posToOffset[pos]));
+    }
+
+    private Object get(int offset) {
+      return switch (offset) {
+        case StatsUtil.LOWER_BOUND_OFFSET -> wrapped.lowerBound();
+        case StatsUtil.UPPER_BOUND_OFFSET -> wrapped.upperBound();
+        case StatsUtil.TIGHT_BOUNDS_OFFSET -> wrapped.tightBounds();
+        case StatsUtil.VALUE_COUNT_OFFSET -> wrapped.hasValueCount() ? wrapped.valueCount() : null;
+        case StatsUtil.NULL_VALUE_COUNT_OFFSET ->
+            wrapped.hasNullValueCount() ? wrapped.nullValueCount() : null;
+        case StatsUtil.NAN_VALUE_COUNT_OFFSET ->
+            wrapped.hasNanValueCount() ? wrapped.nanValueCount() : null;
+        case StatsUtil.TOTAL_BYTES_OFFSET -> wrapped.hasTotalBytes() ? wrapped.totalBytes() : null;
+        default -> throw new UnsupportedOperationException("Unsupported stats offset: " + offset);
+      };
     }
   }
 }
