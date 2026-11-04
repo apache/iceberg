@@ -166,6 +166,7 @@ public class IcebergSink
   private final long targetDataFileSize;
   private final String branch;
   private final boolean overwriteMode;
+  private final boolean fullOverwrite;
   private final int workerPoolSize;
   private final boolean maintenanceEnabled;
   private final Table table;
@@ -188,6 +189,7 @@ public class IcebergSink
       Set<Integer> equalityFieldIds,
       String branch,
       boolean overwriteMode,
+      boolean fullOverwrite,
       List<MaintenanceTaskBuilder<?>> maintenanceTasks,
       FlinkMaintenanceConfig flinkMaintenanceConfig,
       Set<String> equalityFieldColumns) {
@@ -201,6 +203,7 @@ public class IcebergSink
     this.equalityFieldIds = equalityFieldIds;
     this.branch = branch;
     this.overwriteMode = overwriteMode;
+    this.fullOverwrite = fullOverwrite;
     this.table = table;
     this.upsertMode = flinkWriteConf.upsertMode();
     this.dataFileFormat = flinkWriteConf.dataFileFormat();
@@ -246,6 +249,7 @@ public class IcebergSink
         branch,
         snapshotProperties,
         overwriteMode,
+        fullOverwrite,
         workerPoolSize,
         sinkId,
         metrics,
@@ -772,6 +776,7 @@ public class IcebergSink
       }
 
       boolean overwriteMode = flinkWriteConf.overwriteMode();
+      boolean fullOverwrite = flinkWriteConf.fullOverwrite();
 
       // Validate the equality fields and partition fields if we enable the upsert mode.
       Set<Integer> equalityFieldIds =
@@ -842,6 +847,7 @@ public class IcebergSink
           equalityFieldIds,
           flinkWriteConf.branch(),
           overwriteMode,
+          fullOverwrite,
           maintenanceTasks,
           flinkMaintenanceConfig,
           equalityFieldColumnsSet);

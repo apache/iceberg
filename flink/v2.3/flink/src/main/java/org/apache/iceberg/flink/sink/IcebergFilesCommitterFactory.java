@@ -31,6 +31,7 @@ class IcebergFilesCommitterFactory
 
   private final TableLoader tableLoader;
   private final boolean overwriteMode;
+  private final boolean fullOverwrite;
   private final Map<String, String> snapshotProperties;
   private final int workerPoolSize;
   private final String branch;
@@ -39,12 +40,14 @@ class IcebergFilesCommitterFactory
   IcebergFilesCommitterFactory(
       TableLoader tableLoader,
       boolean overwriteMode,
+      boolean fullOverwrite,
       Map<String, String> snapshotProperties,
       int workerPoolSize,
       String branch,
       PartitionSpec spec) {
     this.tableLoader = tableLoader;
     this.overwriteMode = overwriteMode;
+    this.fullOverwrite = fullOverwrite;
     this.snapshotProperties = snapshotProperties;
     this.workerPoolSize = workerPoolSize;
     this.branch = branch;
@@ -54,7 +57,14 @@ class IcebergFilesCommitterFactory
   @Override
   public StreamOperator createStreamOperator(StreamOperatorParameters parameters) {
     return new IcebergFilesCommitter(
-        parameters, tableLoader, overwriteMode, snapshotProperties, workerPoolSize, branch, spec);
+        parameters,
+        tableLoader,
+        overwriteMode,
+        fullOverwrite,
+        snapshotProperties,
+        workerPoolSize,
+        branch,
+        spec);
   }
 
   @Override
