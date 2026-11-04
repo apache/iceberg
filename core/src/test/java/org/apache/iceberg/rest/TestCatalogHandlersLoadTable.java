@@ -27,7 +27,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.BadRequestException;
+import org.apache.iceberg.exceptions.UnsupportedFormatVersionException;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
@@ -73,7 +73,7 @@ class TestCatalogHandlersLoadTable {
     createTable(4);
 
     assertThatThrownBy(() -> CatalogHandlers.loadTable(catalog, TABLE, SnapshotMode.ALL))
-        .isInstanceOf(BadRequestException.class)
+        .isInstanceOf(UnsupportedFormatVersionException.class)
         .hasMessage(
             "Cannot load table db.t with format version 4 using the v1 endpoint; use "
                 + Endpoint.V2_LOAD_TABLE);

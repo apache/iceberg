@@ -44,7 +44,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.BadRequestException;
+import org.apache.iceberg.exceptions.UnsupportedFormatVersionException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -139,8 +139,8 @@ class TestRESTCatalogV2LoadTable extends TestBaseWithRESTServer {
     RESTCatalog v1OnlyCatalog = catalog(adapterAdvertising(r -> r != Route.LOAD_TABLE_V2));
 
     assertThatThrownBy(() -> v1OnlyCatalog.loadTable(TBL))
-        .isInstanceOf(BadRequestException.class)
-        .hasMessageContaining(
+        .isInstanceOf(UnsupportedFormatVersionException.class)
+        .hasMessage(
             "Cannot load table ns.tbl with format version 4 using the v1 endpoint; use "
                 + Endpoint.V2_LOAD_TABLE);
     assertThat(restCatalog.loadTable(TBL)).isNotNull();

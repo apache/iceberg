@@ -69,11 +69,11 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.exceptions.UnsupportedFormatVersionException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -526,7 +526,7 @@ public class CatalogHandlers {
     LoadTableResponse response = loadTableV2(catalog, ident, mode);
     int formatVersion = response.tableMetadata().formatVersion();
     if (formatVersion >= MIN_FORMAT_VERSION_V2_LOAD_ONLY) {
-      throw new BadRequestException(
+      throw new UnsupportedFormatVersionException(
           "Cannot load table %s with format version %s using the v1 endpoint; use %s",
           ident, formatVersion, Endpoint.V2_LOAD_TABLE);
     }

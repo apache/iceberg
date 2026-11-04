@@ -57,6 +57,7 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.UnprocessableEntityException;
+import org.apache.iceberg.exceptions.UnsupportedFormatVersionException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -111,6 +112,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           .put(NoSuchPlanIdException.class, 404)
           .put(NoSuchPlanTaskException.class, 404)
           .put(BadRequestException.class, 400)
+          .put(UnsupportedFormatVersionException.class, 400)
           .buildOrThrow();
 
   private final Catalog catalog;
