@@ -108,6 +108,13 @@ public class TestOAuth2Util {
   }
 
   @Test
+  void expiresAtWithFractionalExp() {
+    String token =
+        new PlainJWT(new JWTClaimsSet.Builder().claim("exp", 19999999999.5).build()).serialize();
+    assertThat(OAuth2Util.expiresAtMillis(token)).isEqualTo(19999999999500L);
+  }
+
+  @Test
   public void testCredentialFlowForSessionRefresh() throws IOException {
     AuthConfig authConfig =
         ImmutableAuthConfig.builder()
