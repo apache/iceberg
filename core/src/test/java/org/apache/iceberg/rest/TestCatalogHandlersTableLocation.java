@@ -64,7 +64,7 @@ class TestCatalogHandlersTableLocation {
     TableIdentifier ident = createTable(formatVersion, "load");
 
     LoadTableResponse response =
-        CatalogHandlers.loadTable(catalog, ident, RESTCatalogProperties.SnapshotMode.ALL);
+        CatalogHandlers.loadTableV2(catalog, ident, RESTCatalogProperties.SnapshotMode.ALL);
 
     assertLoadTableLocation(response, formatVersion, catalog.loadTable(ident).location());
   }
