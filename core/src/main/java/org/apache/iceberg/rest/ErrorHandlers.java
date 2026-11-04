@@ -36,6 +36,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.ServiceUnavailableException;
+import org.apache.iceberg.exceptions.UnsupportedFormatVersionException;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
@@ -145,6 +146,11 @@ public class ErrorHandlers {
     @Override
     public void accept(ErrorResponse error) {
       switch (error.code()) {
+        case 400:
+          if (UnsupportedFormatVersionException.class.getSimpleName().equals(error.type())) {
+            throw new UnsupportedFormatVersionException("%s", error.message());
+          }
+          break;
         case 404:
           if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
             throw new NoSuchNamespaceException("%s", error.message());

@@ -78,6 +78,7 @@ enum Route {
       LoadTableResponse.class),
   TABLE_EXISTS(HTTPRequest.HTTPMethod.HEAD, ResourcePaths.V1_TABLE),
   LOAD_TABLE(HTTPRequest.HTTPMethod.GET, ResourcePaths.V1_TABLE, null, LoadTableResponse.class),
+  LOAD_TABLE_V2(HTTPRequest.HTTPMethod.GET, ResourcePaths.V2_TABLE, null, LoadTableResponse.class),
   REGISTER_TABLE(
       HTTPRequest.HTTPMethod.POST,
       ResourcePaths.V1_TABLE_REGISTER,
@@ -167,7 +168,7 @@ enum Route {
 
     // parse the pattern into requirements and variables
     List<String> parts =
-        Splitter.on('/').splitToList(pattern.replaceFirst("/v1/", "v1/").replace("/{prefix}", ""));
+        Splitter.on('/').splitToList(pattern.replaceFirst("^/", "").replace("/{prefix}", ""));
     ImmutableMap.Builder<Integer, String> requirementsBuilder = ImmutableMap.builder();
     ImmutableMap.Builder<Integer, String> variablesBuilder = ImmutableMap.builder();
     for (int pos = 0; pos < parts.size(); pos += 1) {

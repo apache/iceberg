@@ -55,6 +55,7 @@ class RESTTableOperations implements TableOperations {
 
   private final RESTClient client;
   private final String path;
+  private String loadPath;
   private final Supplier<Map<String, String>> readHeaders;
   private final Supplier<Map<String, String>> mutationHeaders;
   private final FileIO io;
@@ -142,6 +143,7 @@ class RESTTableOperations implements TableOperations {
       Map<String, String> readQueryParams) {
     this.client = client;
     this.path = path;
+    this.loadPath = path;
     this.readHeaders = readHeaders;
     this.mutationHeaders = mutationHeaders;
     this.io = io;
@@ -164,14 +166,24 @@ class RESTTableOperations implements TableOperations {
 
   @Override
   public TableMetadata refresh() {
-    Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
+    if (!endpoints.contains(Endpoint.V2_LOAD_TABLE)) {
+      Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
+    }
+
     return updateCurrentMetadata(
         client.get(
-            path,
+            loadPath,
             readQueryParams,
             LoadTableResponse.class,
             readHeaders,
             ErrorHandlers.tableErrorHandler()));
+  }
+
+  void useLoadPath(String tablePath, String newLoadPath) {
+    // operations that a subclass built with its own path keep refreshing from that path
+    if (path.equals(tablePath)) {
+      this.loadPath = newLoadPath;
+    }
   }
 
   @Override

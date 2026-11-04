@@ -20,9 +20,11 @@ package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.NoSuchWarehouseException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
+import org.apache.iceberg.exceptions.UnsupportedFormatVersionException;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.junit.jupiter.api.Test;
 
@@ -103,5 +105,33 @@ public class TestErrorHandlers {
     assertThatThrownBy(() -> ErrorHandlers.configErrorHandler().accept(error))
         .isInstanceOf(ServiceFailureException.class)
         .hasMessageContaining("Internal server error");
+  }
+
+  @Test
+  public void tableErrorHandlerThrowsUnsupportedFormatVersionException() {
+    ErrorResponse error =
+        ErrorResponse.builder()
+            .responseCode(400)
+            .withType("UnsupportedFormatVersionException")
+            .withMessage("Cannot load table ns.t with format version 4 using the v1 endpoint")
+            .build();
+
+    assertThatThrownBy(() -> ErrorHandlers.tableErrorHandler().accept(error))
+        .isInstanceOf(UnsupportedFormatVersionException.class)
+        .hasMessage("Cannot load table ns.t with format version 4 using the v1 endpoint");
+  }
+
+  @Test
+  public void tableErrorHandlerThrowsBadRequestExceptionForOtherTypes() {
+    ErrorResponse error =
+        ErrorResponse.builder()
+            .responseCode(400)
+            .withType("BadRequestException")
+            .withMessage("Invalid request")
+            .build();
+
+    assertThatThrownBy(() -> ErrorHandlers.tableErrorHandler().accept(error))
+        .isExactlyInstanceOf(BadRequestException.class)
+        .hasMessage("Malformed request: Invalid request");
   }
 }
