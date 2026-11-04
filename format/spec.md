@@ -551,7 +551,7 @@ When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its 
 When an existing row is moved to a different data file for any reason, writers should write `_row_id`, `_last_updated_sequence_number`, and `_last_updated_time` according to the following rules:
 
 1. The row's existing non-null `_row_id` must be copied into the new data file
-2. If the write has modified the row, the `_last_updated_sequence_number` field and, in v4 and later, the `_last_updated_time` field must be set to `null` (so that the modification's sequence number and snapshot timestamp replace the current values)
+2. If the write has modified the row, the `_last_updated_sequence_number` and `_last_updated_time` fields must be set to `null` (so that the modification's sequence number and snapshot timestamp replace the current values)
 3. If the write has not modified the row, the existing non-null `_last_updated_sequence_number` value and, in v4 and later, the existing non-null `_last_updated_time` value must be copied to the new data file
 
 Engines may model operations as deleting/inserting rows or as modifications to rows that preserve row ids.
