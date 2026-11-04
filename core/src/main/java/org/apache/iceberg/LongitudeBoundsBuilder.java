@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg;
 
-import java.util.ArrayList;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * Accumulates circular longitude intervals, where west greater than east crosses the antimeridian.
@@ -33,7 +33,7 @@ class LongitudeBoundsBuilder {
   private static final double LONGITUDE_SPAN = MAX_LONGITUDE - MIN_LONGITUDE;
   private static final int MAX_INTERVALS = 64;
 
-  private final List<Interval> intervals = new ArrayList<>();
+  private final List<Interval> intervals = Lists.newArrayList();
   private boolean fullLongitude = false;
 
   void add(double west, double east) {
@@ -120,12 +120,20 @@ class LongitudeBoundsBuilder {
   }
 
   static class Interval {
-    final double west;
-    final double east;
+    private final double west;
+    private final double east;
 
     private Interval(double west, double east) {
       this.west = west;
       this.east = east;
+    }
+
+    double west() {
+      return west;
+    }
+
+    double east() {
+      return east;
     }
   }
 }

@@ -152,8 +152,8 @@ class TestLongitudeBoundsBuilder {
   private static void assertBounds(LongitudeBoundsBuilder bounds, double west, double east) {
     LongitudeBoundsBuilder.Interval interval = bounds.build();
     assertThat(interval).isNotNull();
-    assertThat(interval.west).isEqualTo(west);
-    assertThat(interval.east).isEqualTo(east);
+    assertThat(interval.west()).isEqualTo(west);
+    assertThat(interval.east()).isEqualTo(east);
   }
 
   private static void assertContains(
@@ -164,8 +164,8 @@ class TestLongitudeBoundsBuilder {
   }
 
   private static boolean contains(LongitudeBoundsBuilder.Interval interval, double longitude) {
-    return interval.west <= interval.east
-        ? longitude >= interval.west && longitude <= interval.east
-        : longitude >= interval.west || longitude <= interval.east;
+    return interval.west() <= interval.east()
+        ? longitude >= interval.west() && longitude <= interval.east()
+        : longitude >= interval.west() || longitude <= interval.east();
   }
 }
