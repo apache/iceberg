@@ -88,7 +88,7 @@ public class TestReferencedByQueryParam {
         .execute(
             matches(
                 HTTPMethod.GET,
-                "v1/namespaces/ns/tables/test_table",
+                "v2/namespaces/ns/tables/test_table",
                 Map.of(),
                 ImmutableMap.of(
                     "snapshots",
@@ -108,7 +108,7 @@ public class TestReferencedByQueryParam {
         .execute(
             matches(
                 HTTPMethod.GET,
-                "v1/namespaces/ns/tables/test_table",
+                "v2/namespaces/ns/tables/test_table",
                 Map.of(),
                 ImmutableMap.of("snapshots", "all")),
             eq(LoadTableResponse.class),
@@ -188,7 +188,7 @@ public class TestReferencedByQueryParam {
             })
         .when(adapter)
         .execute(
-            matches(HTTPMethod.GET, "v1/namespaces/ns/tables/test_table"),
+            matches(HTTPMethod.GET, "v2/namespaces/ns/tables/test_table"),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -221,7 +221,7 @@ public class TestReferencedByQueryParam {
         .execute(
             matches(
                 HTTPMethod.GET,
-                "v1/namespaces/ns/tables/test_table",
+                "v2/namespaces/ns/tables/test_table",
                 Map.of(),
                 ImmutableMap.of(
                     "snapshots",
@@ -245,7 +245,7 @@ public class TestReferencedByQueryParam {
         .execute(
             matches(
                 HTTPMethod.GET,
-                "v1/namespaces/ns/tables/test_table",
+                "v2/namespaces/ns/tables/test_table",
                 Map.of(),
                 ImmutableMap.of(
                     RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, "ns.outer_view")),

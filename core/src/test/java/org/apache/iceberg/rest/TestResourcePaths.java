@@ -587,4 +587,19 @@ public class TestResourcePaths {
         .isEqualTo("v1/ws/catalog/namespaces/n%2Bs/tables/a%2Bb/metrics");
     assertThat(withoutPrefix.metrics(ident)).isEqualTo("v1/namespaces/n%2Bs/tables/a%2Bb/metrics");
   }
+
+  @Test
+  public void tableV2() {
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+    assertThat(withPrefix.tableV2(ident)).isEqualTo("v2/ws/catalog/namespaces/ns/tables/table");
+    assertThat(withoutPrefix.tableV2(ident)).isEqualTo("v2/namespaces/ns/tables/table");
+  }
+
+  @Test
+  public void tableV2MultiLevelNamespaceAndEncodedName() {
+    TableIdentifier ident = TableIdentifier.of(Namespace.of("n1", "n2"), "a+b/c");
+    assertThat(withPrefix.tableV2(ident))
+        .isEqualTo("v2/ws/catalog/namespaces/n1%1Fn2/tables/a%2Bb%2Fc");
+    assertThat(withoutPrefix.tableV2(ident)).isEqualTo("v2/namespaces/n1%1Fn2/tables/a%2Bb%2Fc");
+  }
 }

@@ -202,7 +202,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
         .execute(
             matches(
                 HTTPRequest.HTTPMethod.GET,
-                RESOURCE_PATHS.table(TABLE),
+                RESOURCE_PATHS.tableV2(TABLE),
                 Map.of(),
                 Map.of("snapshots", "refs")),
             eq(LoadTableResponse.class),
@@ -258,7 +258,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
             })
         .when(adapterForRESTServer)
         .execute(
-            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.tableV2(TABLE)),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -272,14 +272,14 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
     Mockito.verify(adapterForRESTServer, times(3))
         .execute(
-            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.tableV2(TABLE)),
             eq(LoadTableResponse.class),
             any(),
             any());
 
     verify(adapterForRESTServer)
         .execute(
-            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(metadataTableIdentifier)),
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.tableV2(metadataTableIdentifier)),
             any(),
             any(),
             any());
@@ -320,7 +320,10 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
     Mockito.verify(adapterForRESTServer, times(2))
         .execute(
-            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.tableV2(TABLE)),
+            any(),
+            any(),
+            any());
   }
 
   @Test
@@ -382,11 +385,11 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
             ImmutableMap.of(RESTCatalogProperties.NAMESPACE_SEPARATOR, "%2E"));
 
     Mockito.verify(adapterForRESTServer, times(2))
-        .execute(matches(HTTPRequest.HTTPMethod.GET, paths.table(TABLE)), any(), any(), any());
+        .execute(matches(HTTPRequest.HTTPMethod.GET, paths.tableV2(TABLE)), any(), any(), any());
 
     Mockito.verify(adapterForRESTServer)
         .execute(
-            matches(HTTPRequest.HTTPMethod.GET, paths.table(metadataTableIdentifier)),
+            matches(HTTPRequest.HTTPMethod.GET, paths.tableV2(metadataTableIdentifier)),
             any(),
             any(),
             any());
@@ -437,6 +440,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
                     .withEndpoints(
                         ImmutableList.of(
                             Endpoint.V1_LOAD_TABLE,
+                            Endpoint.V2_LOAD_TABLE,
                             Endpoint.V1_CREATE_NAMESPACE,
                             Endpoint.V1_CREATE_TABLE))
                     .build())
@@ -517,7 +521,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
     Mockito.verify(adapterForRESTServer)
         .execute(
-            matches(HTTPRequest.HTTPMethod.GET, paths.table(metadataTableIdentifier)),
+            matches(HTTPRequest.HTTPMethod.GET, paths.tableV2(metadataTableIdentifier)),
             any(),
             any(),
             any());
@@ -561,7 +565,10 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
     Mockito.verify(adapterToVerify, times(3 + loadTableCountFromAction))
         .execute(
-            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.tableV2(TABLE)),
+            any(),
+            any(),
+            any());
   }
 
   @Test
@@ -602,7 +609,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     Mockito.doAnswer(invocation -> null)
         .when(adapterForRESTServer)
         .execute(
-            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.tableV2(TABLE)),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -616,7 +623,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
         .isInstanceOf(RESTException.class)
         .hasMessage(
             "Invalid (NOT_MODIFIED) response for request: method=%s, path=%s",
-            HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE));
+            HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.tableV2(TABLE));
   }
 
   @Test
@@ -885,7 +892,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
         .execute(
             matches(
                 HTTPRequest.HTTPMethod.GET,
-                RESOURCE_PATHS.table(TABLE),
+                RESOURCE_PATHS.tableV2(TABLE),
                 Map.of(),
                 Map.of("snapshots", "refs")),
             eq(LoadTableResponse.class),
@@ -897,7 +904,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
         .execute(
             matches(
                 HTTPRequest.HTTPMethod.GET,
-                RESOURCE_PATHS.table(TABLE),
+                RESOURCE_PATHS.tableV2(TABLE),
                 Map.of(HttpHeaders.IF_NONE_MATCH, eTag),
                 Map.of("snapshots", "refs")),
             eq(LoadTableResponse.class),
@@ -909,7 +916,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
         .execute(
             matches(
                 HTTPRequest.HTTPMethod.GET,
-                RESOURCE_PATHS.table(TABLE),
+                RESOURCE_PATHS.tableV2(TABLE),
                 Map.of(),
                 Map.of("snapshots", "all")),
             eq(LoadTableResponse.class),
@@ -1002,7 +1009,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     Mockito.doAnswer(invocationAssertsFullLoad)
         .when(adapter)
         .execute(
-            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(ident)),
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.tableV2(ident)),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -1017,7 +1024,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     Mockito.doAnswer(invocationAssertsFullLoad)
         .when(adapter)
         .execute(
-            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(ident)),
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.tableV2(ident)),
             eq(LoadTableResponse.class),
             any(),
             any());
