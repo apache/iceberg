@@ -36,16 +36,23 @@ class TestCommitValidator {
             () ->
                 CommitValidator.newValidator()
                     .conflictDetectionFilter(Expressions.alwaysTrue())
-                    .partitionSet(partitions))
+                    .conflictDetectionPartitions(partitions))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Conflict detection filter and partition set are mutually exclusive");
 
     assertThatThrownBy(
             () ->
                 CommitValidator.newValidator()
-                    .partitionSet(partitions)
+                    .conflictDetectionPartitions(partitions)
                     .conflictDetectionFilter(Expressions.alwaysTrue()))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Conflict detection filter and partition set are mutually exclusive");
+  }
+
+  @Test
+  void validationFailsWhenSetParentNotCalled() {
+    assertThatThrownBy(() -> CommitValidator.newValidator().assertNoAddedDataFiles())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("setParent must be invoked before running validations");
   }
 }

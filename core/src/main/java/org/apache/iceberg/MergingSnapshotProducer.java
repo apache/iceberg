@@ -323,6 +323,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         appendedManifestsSummary);
   }
 
+  protected void setNewDataFilesDataSequenceNumber(long sequenceNumber) {
+    this.newDataFilesDataSequenceNumber = sequenceNumber;
+  }
+
   /**
    * Validates that no files matching given partitions have been added to the table since a starting
    * snapshot.
@@ -338,9 +342,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .io(ops().io())
         .startingSnapshotId(startingSnapshotId)
         .caseSensitive(caseSensitive)
-        .partitionSet(partitionSet)
+        .conflictDetectionPartitions(partitionSet)
         .setParent(base, parent)
-        .validateNoConflictingAddedDataFiles();
+        .assertNoAddedDataFiles();
   }
 
   /**
@@ -362,7 +366,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .caseSensitive(caseSensitive)
         .conflictDetectionFilter(conflictDetectionFilter)
         .setParent(base, parent)
-        .validateNoConflictingAddedDataFiles();
+        .assertNoAddedDataFiles();
   }
 
   /**
@@ -376,13 +380,17 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateNoNewDeletesForDataFiles(
       TableMetadata base, Long startingSnapshotId, Iterable<DataFile> dataFiles, Snapshot parent) {
-    CommitValidator.newValidator()
-        .io(ops().io())
-        .startingSnapshotId(startingSnapshotId)
-        .caseSensitive(caseSensitive)
-        .setParent(base, parent)
-        .validateNoConflictingDeletesForDataFiles(
-            dataFiles, newDataFilesDataSequenceNumber != null);
+    CommitValidator validator =
+        CommitValidator.newValidator()
+            .io(ops().io())
+            .startingSnapshotId(startingSnapshotId)
+            .caseSensitive(caseSensitive)
+            .setParent(base, parent);
+    if (newDataFilesDataSequenceNumber != null) {
+      validator.assertNoNewPositionDeletesFor(dataFiles);
+    } else {
+      validator.assertNoNewDeletesFor(dataFiles);
+    }
   }
 
   /**
@@ -407,7 +415,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .caseSensitive(caseSensitive)
         .conflictDetectionFilter(dataFilter)
         .setParent(base, parent)
-        .validateNoConflictingDeletesForDataFiles(dataFiles, false);
+        .assertNoNewDeletesFor(dataFiles);
   }
 
   /**
@@ -427,7 +435,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .caseSensitive(caseSensitive)
         .conflictDetectionFilter(dataFilter)
         .setParent(base, parent)
-        .validateNoConflictingAddedDeleteFiles();
+        .assertNoNewRowDeletes();
   }
 
   /**
@@ -445,9 +453,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .io(ops().io())
         .startingSnapshotId(startingSnapshotId)
         .caseSensitive(caseSensitive)
-        .partitionSet(partitionSet)
+        .conflictDetectionPartitions(partitionSet)
         .setParent(base, parent)
-        .validateNoConflictingAddedDeleteFiles();
+        .assertNoNewRowDeletes();
   }
 
   /**
@@ -467,7 +475,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .caseSensitive(caseSensitive)
         .conflictDetectionFilter(dataFilter)
         .setParent(base, parent)
-        .validateNoConflictingDeletedDataFiles();
+        .assertNoDeletedDataFiles();
   }
 
   /**
@@ -485,13 +493,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .io(ops().io())
         .startingSnapshotId(startingSnapshotId)
         .caseSensitive(caseSensitive)
-        .partitionSet(partitionSet)
+        .conflictDetectionPartitions(partitionSet)
         .setParent(base, parent)
-        .validateNoConflictingDeletedDataFiles();
-  }
-
-  protected void setNewDataFilesDataSequenceNumber(long sequenceNumber) {
-    this.newDataFilesDataSequenceNumber = sequenceNumber;
+        .assertNoDeletedDataFiles();
   }
 
   protected void validateDataFilesExist(
@@ -507,7 +511,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .caseSensitive(caseSensitive)
         .conflictDetectionFilter(conflictDetectionFilter)
         .setParent(base, parent)
-        .validateDataFilesExist(requiredDataFiles, skipDeletes);
+        .assertDataFilesExist(requiredDataFiles, skipDeletes);
   }
 
   // validates there are no concurrently added DVs for referenced data files
@@ -534,7 +538,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .scanWith(workerPool())
         .conflictDetectionFilter(conflictDetectionFilter)
         .setParent(base, parent)
-        .validateNoConflictingAddedDVs(dvsByReferencedFile.keySet());
+        .assertNoNewPositionDeletesFor(dvsByReferencedFile.keySet());
   }
 
   @Override

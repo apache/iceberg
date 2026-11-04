@@ -74,7 +74,7 @@ class CommitValidator {
   private Long startingSnapshotId = null;
   private boolean caseSensitive = true;
   private Expression conflictDetectionFilter = null;
-  private PartitionSet partitionSet = null;
+  private PartitionSet conflictDetectionPartitions = null;
   private ExecutorService workerPool = null;
 
   private TableMetadata base = null;
@@ -82,36 +82,52 @@ class CommitValidator {
 
   private CommitValidator() {}
 
+  /** Sets the {@link FileIO} used to read manifests. */
   CommitValidator io(FileIO newIo) {
     this.io = newIo;
     return this;
   }
 
+  /**
+   * Sets the snapshot that the validation window starts after. A null id validates from the table's
+   * first snapshot.
+   */
   CommitValidator startingSnapshotId(Long newStartingSnapshotId) {
     this.startingSnapshotId = newStartingSnapshotId;
     return this;
   }
 
+  /** Sets whether name-based matching is case sensitive. */
   CommitValidator caseSensitive(boolean isCaseSensitive) {
     this.caseSensitive = isCaseSensitive;
     return this;
   }
 
+  /**
+   * Sets the filter that scopes conflict detection. Mutually exclusive with {@link
+   * #conflictDetectionPartitions(PartitionSet)}.
+   */
   CommitValidator conflictDetectionFilter(Expression filter) {
     Preconditions.checkState(
-        partitionSet == null, "Conflict detection filter and partition set are mutually exclusive");
+        conflictDetectionPartitions == null,
+        "Conflict detection filter and partition set are mutually exclusive");
     this.conflictDetectionFilter = filter;
     return this;
   }
 
-  CommitValidator partitionSet(PartitionSet newPartitionSet) {
+  /**
+   * Sets the partitions that scope conflict detection. Mutually exclusive with {@link
+   * #conflictDetectionFilter(Expression)}.
+   */
+  CommitValidator conflictDetectionPartitions(PartitionSet partitions) {
     Preconditions.checkState(
         conflictDetectionFilter == null,
         "Conflict detection filter and partition set are mutually exclusive");
-    this.partitionSet = newPartitionSet;
+    this.conflictDetectionPartitions = partitions;
     return this;
   }
 
+  /** Sets the worker pool used to read manifests in parallel. */
   CommitValidator scanWith(ExecutorService newWorkerPool) {
     this.workerPool = newWorkerPool;
     return this;
@@ -127,17 +143,24 @@ class CommitValidator {
     return this;
   }
 
+  private void requireParentSet() {
+    Preconditions.checkState(base != null, "setParent must be invoked before running validations");
+  }
+
   /**
    * Validates that no data files matching the conflict detection scope have been added to the table
    * since the starting snapshot.
    */
-  void validateNoConflictingAddedDataFiles() {
+  void assertNoAddedDataFiles() {
+    requireParentSet();
     try (CloseableIterable<ManifestEntry<DataFile>> conflictEntries = addedDataFiles()) {
       CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictEntries.iterator();
       if (conflicts.hasNext()) {
         throw new ValidationException(
             "Found conflicting files that can contain records matching %s: %s",
-            partitionSet != null ? "partitions " + partitionSet : conflictDetectionFilter,
+            conflictDetectionPartitions != null
+                ? "partitions " + conflictDetectionPartitions
+                : conflictDetectionFilter,
             Iterators.toString(
                 Iterators.transform(conflicts, entry -> entry.file().location().toString())));
       }
@@ -146,7 +169,9 @@ class CommitValidator {
       throw new UncheckedIOException(
           String.format(
               "Failed to validate no appends matching %s",
-              partitionSet != null ? partitionSet : conflictDetectionFilter),
+              conflictDetectionPartitions != null
+                  ? conflictDetectionPartitions
+                  : conflictDetectionFilter),
           e);
     }
   }
@@ -161,7 +186,7 @@ class CommitValidator {
     Set<Long> newSnapshots =
         validationHistory(
             VALIDATE_ADDED_FILES_OPERATIONS,
-            snapshot -> addNewManifests(snapshot, snapshot.dataManifests(io), manifests));
+            snapshot -> Iterables.addAll(manifests, newDataManifests(snapshot)));
 
     ManifestGroup manifestGroup =
         new ManifestGroup(io, manifests, ImmutableList.of())
@@ -175,27 +200,155 @@ class CommitValidator {
       manifestGroup = manifestGroup.filterData(conflictDetectionFilter);
     }
 
-    if (partitionSet != null) {
+    if (conflictDetectionPartitions != null) {
       manifestGroup =
           manifestGroup.filterManifestEntries(
-              entry -> partitionSet.contains(entry.file().specId(), entry.file().partition()));
+              entry ->
+                  conflictDetectionPartitions.contains(
+                      entry.file().specId(), entry.file().partition()));
     }
 
     return manifestGroup.entries();
   }
 
   /**
+   * Validates that no new delete files that must be applied to the given data files have been added
+   * to the table since the starting snapshot.
+   *
+   * @param dataFiles data files to validate have no new row deletes
+   */
+  void assertNoNewDeletesFor(Iterable<DataFile> dataFiles) {
+    requireParentSet();
+    assertNoNewDeletesFor(dataFiles, false);
+  }
+
+  /**
+   * Validates that no new position deletes that must be applied to the given data files have been
+   * added to the table since the starting snapshot.
+   *
+   * @param dataFiles data files to validate have no new position deletes
+   */
+  void assertNoNewPositionDeletesFor(Iterable<DataFile> dataFiles) {
+    requireParentSet();
+    assertNoNewDeletesFor(dataFiles, true);
+  }
+
+  private void assertNoNewDeletesFor(Iterable<DataFile> dataFiles, boolean ignoreEqualityDeletes) {
+    // if there is no current table state, no files have been added
+    if (parent == null || base.formatVersion() < 2) {
+      return;
+    }
+
+    List<DeleteFileIndex> deleteIndexes = addedDeleteFilesIndexedPerSnapshot(null);
+
+    long startingSequenceNumber = startingSequenceNumber();
+    for (DataFile dataFile : dataFiles) {
+      for (DeleteFileIndex deletes : deleteIndexes) {
+        // if any delete is found that applies to files written in or before the starting snapshot,
+        // fail
+        DeleteFile[] deleteFiles = deletes.forDataFile(startingSequenceNumber, dataFile);
+        if (ignoreEqualityDeletes) {
+          ValidationException.check(
+              !containsPositionDeletes(deleteFiles),
+              "Cannot commit, found new position delete for replaced data file: %s",
+              dataFile);
+        } else {
+          ValidationException.check(
+              deleteFiles.length == 0,
+              "Cannot commit, found new delete for replaced data file: %s",
+              dataFile);
+        }
+      }
+    }
+  }
+
+  /**
+   * Validates that no delete files matching the conflict detection scope have been added to the
+   * table since the starting snapshot.
+   */
+  void assertNoNewRowDeletes() {
+    requireParentSet();
+    Set<String> locations =
+        referencedDeleteFileLocations(
+            addedDeleteFilesIndexedPerSnapshot(conflictDetectionPartitions));
+    ValidationException.check(
+        locations.isEmpty(),
+        "Found new conflicting delete files that can apply to records matching %s: %s",
+        conflictDetectionPartitions != null ? conflictDetectionPartitions : conflictDetectionFilter,
+        locations);
+  }
+
+  /**
+   * Returns one index per snapshot in the validation window, covering the matching delete files
+   * added since the starting snapshot.
+   *
+   * <p>Callers must check every index. A single index cannot hold them all because it allows at
+   * most one deletion vector per data file. That holds within a snapshot but not across them: a
+   * data file can be referenced by a replacement deletion vector in each snapshot in the window.
+   *
+   * @param partitions a partition set used to find delete files
+   */
+  private List<DeleteFileIndex> addedDeleteFilesIndexedPerSnapshot(PartitionSet partitions) {
+    // if there is no current table state, no delete files have been added
+    if (parent == null || base.formatVersion() < 2) {
+      return ImmutableList.of();
+    }
+
+    List<ManifestFile> addedDeleteManifests = Lists.newArrayList();
+    validationHistory(
+        VALIDATE_ADDED_DELETE_FILES_OPERATIONS,
+        snapshot -> Iterables.addAll(addedDeleteManifests, newDeleteManifests(snapshot)));
+
+    // the history collects a manifest only from the snapshot that added it, so grouping by
+    // snapshot ID assigns each manifest to exactly one index and still reads it once.
+    // LinkedHashMap keeps the history order, which keeps the failure message deterministic.
+    Map<Long, List<ManifestFile>> deleteManifestsBySnapshot =
+        addedDeleteManifests.stream()
+            .collect(
+                Collectors.groupingBy(
+                    ManifestFile::snapshotId, LinkedHashMap::new, Collectors.toList()));
+
+    long startingSequenceNumber = startingSequenceNumber();
+    List<DeleteFileIndex> deleteIndexes = Lists.newArrayList();
+    for (List<ManifestFile> deleteManifests : deleteManifestsBySnapshot.values()) {
+      deleteIndexes.add(buildDeleteFileIndex(deleteManifests, startingSequenceNumber, partitions));
+    }
+
+    return deleteIndexes;
+  }
+
+  private DeleteFileIndex buildDeleteFileIndex(
+      List<ManifestFile> deleteManifests, long startingSequenceNumber, PartitionSet partitions) {
+    DeleteFileIndex.Builder builder =
+        DeleteFileIndex.builderFor(io, deleteManifests)
+            .afterSequenceNumber(startingSequenceNumber)
+            .caseSensitive(caseSensitive)
+            .specsById(base.specsById());
+
+    if (conflictDetectionFilter != null) {
+      builder.filterData(conflictDetectionFilter);
+    }
+
+    if (partitions != null) {
+      builder.filterPartitions(partitions);
+    }
+
+    return builder.build();
+  }
+
+  /**
    * Validates that no data files matching the conflict detection scope have been deleted from the
    * table since the starting snapshot.
    */
-  void validateNoConflictingDeletedDataFiles() {
+  void assertNoDeletedDataFiles() {
+    requireParentSet();
     try (CloseableIterable<ManifestEntry<DataFile>> conflictEntries = deletedDataFiles()) {
       CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictEntries.iterator();
       if (conflicts.hasNext()) {
         throw new ValidationException(
             "Found conflicting deleted files that can %s: %s",
-            partitionSet != null
-                ? "apply to records matching " + partitionSet
+            conflictDetectionPartitions != null
+                ? "apply to records matching " + conflictDetectionPartitions
                 : "contain records matching " + conflictDetectionFilter,
             Iterators.toString(
                 Iterators.transform(conflicts, entry -> entry.file().location().toString())));
@@ -205,7 +358,9 @@ class CommitValidator {
       throw new UncheckedIOException(
           String.format(
               "Failed to validate no deleted data files matching %s",
-              partitionSet != null ? partitionSet : conflictDetectionFilter),
+              conflictDetectionPartitions != null
+                  ? conflictDetectionPartitions
+                  : conflictDetectionFilter),
           e);
     }
   }
@@ -220,7 +375,7 @@ class CommitValidator {
     Set<Long> newSnapshots =
         validationHistory(
             VALIDATE_DATA_FILES_EXIST_OPERATIONS,
-            snapshot -> addNewManifests(snapshot, snapshot.dataManifests(io), manifests));
+            snapshot -> Iterables.addAll(manifests, newDataManifests(snapshot)));
 
     ManifestGroup manifestGroup =
         new ManifestGroup(io, manifests, ImmutableList.of())
@@ -234,10 +389,12 @@ class CommitValidator {
       manifestGroup = manifestGroup.filterData(conflictDetectionFilter);
     }
 
-    if (partitionSet != null) {
+    if (conflictDetectionPartitions != null) {
       manifestGroup =
           manifestGroup.filterManifestEntries(
-              entry -> partitionSet.contains(entry.file().specId(), entry.file().partition()));
+              entry ->
+                  conflictDetectionPartitions.contains(
+                      entry.file().specId(), entry.file().partition()));
     }
 
     return manifestGroup.entries();
@@ -251,7 +408,8 @@ class CommitValidator {
    * @param skipDeletes when true, removals by delete operations are ignored
    */
   @SuppressWarnings("CollectionUndefinedEquality")
-  void validateDataFilesExist(CharSequenceSet requiredDataFiles, boolean skipDeletes) {
+  void assertDataFilesExist(CharSequenceSet requiredDataFiles, boolean skipDeletes) {
+    requireParentSet();
     // if there is no current table state, no files have been removed
     if (parent == null) {
       return;
@@ -266,7 +424,7 @@ class CommitValidator {
     Set<Long> newSnapshots =
         validationHistory(
             matchingOperations,
-            snapshot -> addNewManifests(snapshot, snapshot.dataManifests(io), manifests));
+            snapshot -> Iterables.addAll(manifests, newDataManifests(snapshot)));
 
     ManifestGroup matchingDeletesGroup =
         new ManifestGroup(io, manifests, ImmutableList.of())
@@ -297,182 +455,37 @@ class CommitValidator {
   }
 
   /**
-   * Validates that no delete files matching the conflict detection scope have been added to the
-   * table since the starting snapshot.
-   */
-  void validateNoConflictingAddedDeleteFiles() {
-    Set<String> locations =
-        referencedDeleteFileLocations(
-            addedDeleteFilesIndexedPerSnapshot(conflictDetectionFilter, partitionSet));
-    ValidationException.check(
-        locations.isEmpty(),
-        "Found new conflicting delete files that can apply to records matching %s: %s",
-        partitionSet != null ? partitionSet : conflictDetectionFilter,
-        locations);
-  }
-
-  /**
-   * Validates that no new delete files that must be applied to the given data files have been added
-   * to the table since the starting snapshot.
-   *
-   * <p>When equality deletes are ignored, only position deletes fail the validation. Ignoring them
-   * is safe when the added data files share the replaced files' data sequence number, since
-   * equality deletes added at a higher sequence number still apply to the added files (for example,
-   * when rewriting data files).
-   *
-   * @param dataFiles data files to validate have no new row deletes
-   * @param ignoreEqualityDeletes whether to ignore equality deletes during validation
-   */
-  void validateNoConflictingDeletesForDataFiles(
-      Iterable<DataFile> dataFiles, boolean ignoreEqualityDeletes) {
-    // if there is no current table state, no files have been added
-    if (parent == null || base.formatVersion() < 2) {
-      return;
-    }
-
-    List<DeleteFileIndex> deleteIndexes =
-        addedDeleteFilesIndexedPerSnapshot(conflictDetectionFilter, null);
-
-    long startingSequenceNumber = startingSequenceNumber();
-    for (DataFile dataFile : dataFiles) {
-      for (DeleteFileIndex deletes : deleteIndexes) {
-        // if any delete is found that applies to files written in or before the starting snapshot,
-        // fail
-        DeleteFile[] deleteFiles = deletes.forDataFile(startingSequenceNumber, dataFile);
-        if (ignoreEqualityDeletes) {
-          ValidationException.check(
-              !containsPositionDeletes(deleteFiles),
-              "Cannot commit, found new position delete for replaced data file: %s",
-              dataFile);
-        } else {
-          ValidationException.check(
-              deleteFiles.length == 0,
-              "Cannot commit, found new delete for replaced data file: %s",
-              dataFile);
-        }
-      }
-    }
-  }
-
-  /**
-   * Returns one index per snapshot in the validation window, covering the matching delete files
-   * added since the starting snapshot.
-   *
-   * <p>Callers must check every index. A single index cannot hold them all because it allows at
-   * most one deletion vector per data file. That holds within a snapshot but not across them: a
-   * data file can be referenced by a replacement deletion vector in each snapshot in the window.
-   *
-   * @param dataFilter an expression used to find delete files
-   * @param partitions a partition set used to find delete files
-   */
-  private List<DeleteFileIndex> addedDeleteFilesIndexedPerSnapshot(
-      Expression dataFilter, PartitionSet partitions) {
-    // if there is no current table state, no delete files have been added
-    if (parent == null || base.formatVersion() < 2) {
-      return ImmutableList.of();
-    }
-
-    List<ManifestFile> addedDeleteManifests = Lists.newArrayList();
-    validationHistory(
-        VALIDATE_ADDED_DELETE_FILES_OPERATIONS,
-        snapshot -> addNewManifests(snapshot, snapshot.deleteManifests(io), addedDeleteManifests));
-
-    // the history collects a manifest only from the snapshot that added it, so grouping by
-    // snapshot ID assigns each manifest to exactly one index and still reads it once.
-    // LinkedHashMap keeps the history order, which keeps the failure message deterministic.
-    Map<Long, List<ManifestFile>> deleteManifestsBySnapshot =
-        addedDeleteManifests.stream()
-            .collect(
-                Collectors.groupingBy(
-                    ManifestFile::snapshotId, LinkedHashMap::new, Collectors.toList()));
-
-    long startingSequenceNumber = startingSequenceNumber();
-    List<DeleteFileIndex> deleteIndexes = Lists.newArrayList();
-    for (List<ManifestFile> deleteManifests : deleteManifestsBySnapshot.values()) {
-      deleteIndexes.add(
-          buildDeleteFileIndex(deleteManifests, startingSequenceNumber, dataFilter, partitions));
-    }
-
-    return deleteIndexes;
-  }
-
-  private DeleteFileIndex buildDeleteFileIndex(
-      List<ManifestFile> deleteManifests,
-      long startingSequenceNumber,
-      Expression dataFilter,
-      PartitionSet partitions) {
-    DeleteFileIndex.Builder builder =
-        DeleteFileIndex.builderFor(io, deleteManifests)
-            .afterSequenceNumber(startingSequenceNumber)
-            .caseSensitive(caseSensitive)
-            .specsById(base.specsById());
-
-    if (dataFilter != null) {
-      builder.filterData(dataFilter);
-    }
-
-    if (partitions != null) {
-      builder.filterPartitions(partitions);
-    }
-
-    return builder.build();
-  }
-
-  private static Set<String> referencedDeleteFileLocations(List<DeleteFileIndex> deleteIndexes) {
-    Set<String> locations = Sets.newLinkedHashSet();
-    for (DeleteFileIndex deletes : deleteIndexes) {
-      for (DeleteFile deleteFile : deletes.referencedDeleteFiles()) {
-        locations.add(deleteFile.location());
-      }
-    }
-
-    return locations;
-  }
-
-  private static boolean containsPositionDeletes(DeleteFile[] deleteFiles) {
-    for (DeleteFile deleteFile : deleteFiles) {
-      if (deleteFile.content() == FileContent.POSITION_DELETES) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  /**
-   * Validates that no deletion vectors have been concurrently added for the referenced data files
-   * since the starting snapshot.
+   * Validates that no position deletes (deletion vectors) have been concurrently added for the
+   * referenced data files since the starting snapshot.
    *
    * @param referencedDataFiles data files referenced by this operation's deletion vectors
    */
-  void validateNoConflictingAddedDVs(Set<String> referencedDataFiles) {
+  void assertNoNewPositionDeletesFor(Set<String> referencedDataFiles) {
+    requireParentSet();
     // skip if there is no current table state or this operation doesn't add new DVs
     if (parent == null || referencedDataFiles.isEmpty()) {
       return;
     }
 
-    List<ManifestFile> newDeleteManifests = Lists.newArrayList();
+    List<ManifestFile> addedDeleteManifests = Lists.newArrayList();
     Set<Long> newSnapshotIds =
         validationHistory(
             VALIDATE_ADDED_DVS_OPERATIONS,
-            snapshot ->
-                addNewManifests(snapshot, snapshot.deleteManifests(io), newDeleteManifests));
+            snapshot -> Iterables.addAll(addedDeleteManifests, newDeleteManifests(snapshot)));
 
     Iterable<ManifestFile> matchingManifests =
         Iterables.filter(
-            filterManifestsByPartition(conflictDetectionFilter, newDeleteManifests),
+            filterManifestsByPartition(conflictDetectionFilter, addedDeleteManifests),
             ManifestFile::hasAddedFiles);
 
     Tasks.foreach(matchingManifests)
         .stopOnFailure()
         .throwFailureWhenFinished()
         .executeWith(workerPool)
-        .run(
-            manifest ->
-                validateNoConflictingAddedDVs(manifest, newSnapshotIds, referencedDataFiles));
+        .run(manifest -> checkManifestForAddedDVs(manifest, newSnapshotIds, referencedDataFiles));
   }
 
-  private void validateNoConflictingAddedDVs(
+  private void checkManifestForAddedDVs(
       ManifestFile manifest, Set<Long> newSnapshotIds, Set<String> referencedDataFiles) {
     try (CloseableIterable<ManifestEntry<DeleteFile>> entries =
         ManifestFiles.readDeleteManifest(manifest, io, base.specsById())
@@ -551,13 +564,14 @@ class CommitValidator {
     return newSnapshots;
   }
 
-  private static void addNewManifests(
-      Snapshot snapshot, Iterable<ManifestFile> manifests, List<ManifestFile> collector) {
-    for (ManifestFile manifest : manifests) {
-      if (manifest.snapshotId() == snapshot.snapshotId()) {
-        collector.add(manifest);
-      }
-    }
+  private Iterable<ManifestFile> newDataManifests(Snapshot snapshot) {
+    return Iterables.filter(
+        snapshot.dataManifests(io), manifest -> manifest.snapshotId() == snapshot.snapshotId());
+  }
+
+  private Iterable<ManifestFile> newDeleteManifests(Snapshot snapshot) {
+    return Iterables.filter(
+        snapshot.deleteManifests(io), manifest -> manifest.snapshotId() == snapshot.snapshotId());
   }
 
   private long startingSequenceNumber() {
@@ -566,5 +580,26 @@ class CommitValidator {
     } else {
       return TableMetadata.INITIAL_SEQUENCE_NUMBER;
     }
+  }
+
+  private static Set<String> referencedDeleteFileLocations(List<DeleteFileIndex> deleteIndexes) {
+    Set<String> locations = Sets.newLinkedHashSet();
+    for (DeleteFileIndex deletes : deleteIndexes) {
+      for (DeleteFile deleteFile : deletes.referencedDeleteFiles()) {
+        locations.add(deleteFile.location());
+      }
+    }
+
+    return locations;
+  }
+
+  private static boolean containsPositionDeletes(DeleteFile[] deleteFiles) {
+    for (DeleteFile deleteFile : deleteFiles) {
+      if (deleteFile.content() == FileContent.POSITION_DELETES) {
+        return true;
+      }
+    }
+
+    return false;
   }
 }
