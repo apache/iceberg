@@ -52,7 +52,9 @@ import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
@@ -821,21 +823,29 @@ public class TestParquet {
   }
 
   @Test
-  void perColumnCompressionLevelWritesSuccessfully() throws Exception {
-    File file =
-        writeIntAndStringFields(
-            ImmutableMap.of(
-                PARQUET_COMPRESSION,
-                "snappy",
-                PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "int_field",
-                "zstd",
-                PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "int_field",
-                "9"),
-            5);
+  void perColumnCompressionLevelIsApplied() throws Exception {
+    File lowLevelFile = writeWithStringFieldZstdLevel(1);
+    File highLevelFile = writeWithStringFieldZstdLevel(19);
 
-    assertThat(readColumnCodecs(file))
-        .containsEntry("int_field", CompressionCodecName.ZSTD)
-        .containsEntry("string_field", CompressionCodecName.SNAPPY);
+    assertThat(readColumnCodecs(highLevelFile))
+        .containsEntry("int_field", CompressionCodecName.SNAPPY)
+        .containsEntry("string_field", CompressionCodecName.ZSTD);
+    assertThat(readColumnSizes(highLevelFile).get("string_field"))
+        .isLessThan(readColumnSizes(lowLevelFile).get("string_field"));
+  }
+
+  private File writeWithStringFieldZstdLevel(int level) throws IOException {
+    Random random = new Random(0);
+    return writeIntAndStringFields(
+        ImmutableMap.of(
+            PARQUET_COMPRESSION,
+            "snappy",
+            PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "string_field",
+            "zstd",
+            PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "string_field",
+            String.valueOf(level)),
+        20_000,
+        i -> "value-" + random.nextInt(5_000) + "-" + random.nextInt(5_000));
   }
 
   @Test
@@ -855,6 +865,12 @@ public class TestParquet {
 
   private File writeIntAndStringFields(Map<String, String> properties, int recordCount)
       throws IOException {
+    return writeIntAndStringFields(properties, recordCount, i -> "test");
+  }
+
+  private File writeIntAndStringFields(
+      Map<String, String> properties, int recordCount, IntFunction<String> stringValue)
+      throws IOException {
     Schema schema =
         new Schema(
             optional(1, "int_field", IntegerType.get()),
@@ -865,7 +881,7 @@ public class TestParquet {
     for (int i = 1; i <= recordCount; i++) {
       GenericData.Record record = new GenericData.Record(avroSchema);
       record.put("int_field", i);
-      record.put("string_field", "test");
+      record.put("string_field", stringValue.apply(i));
       records.add(record);
     }
 
@@ -877,6 +893,19 @@ public class TestParquet {
         ParquetAvroWriter::buildWriter,
         records.toArray(new GenericData.Record[] {}));
     return file;
+  }
+
+  private Map<String, Long> readColumnSizes(File file) throws IOException {
+    Map<String, Long> sizes = Maps.newHashMap();
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(Files.localInput(file)))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          sizes.merge(column.getPath().toDotString(), column.getTotalSize(), Long::sum);
+        }
+      }
+    }
+    return sizes;
   }
 
   private Map<String, CompressionCodecName> readColumnCodecs(File file) throws IOException {
