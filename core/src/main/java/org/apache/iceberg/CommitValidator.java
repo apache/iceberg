@@ -455,8 +455,8 @@ class CommitValidator {
   }
 
   /**
-   * Validates that no position deletes (deletion vectors) have been concurrently added for the
-   * referenced data files since the starting snapshot.
+   * Validates that no deletion vectors have been concurrently added for the referenced data files
+   * since the starting snapshot.
    *
    * @param referencedDataFiles data files referenced by this operation's deletion vectors
    */
