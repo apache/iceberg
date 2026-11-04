@@ -246,6 +246,12 @@ public class UnboundValuePredicate<T> implements Expression {
         leftType,
         boundRight,
         rightType);
+    Type operandType = leftType != null ? leftType : rightType;
+    ValidationException.check(
+        operandType == null || operandType.isPrimitiveType(),
+        "Cannot compare non-primitive type %s: %s",
+        operandType,
+        this);
 
     if (isOutOfRange(boundRight)) {
       return outOfRange(op, boundRight == Literals.<T>aboveMax());

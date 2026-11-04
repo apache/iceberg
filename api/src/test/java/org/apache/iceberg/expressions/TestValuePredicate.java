@@ -19,6 +19,7 @@
 package org.apache.iceberg.expressions;
 
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -52,6 +53,12 @@ class TestValuePredicate {
   private static final Types.StructType STRUCT = SCHEMA.asStruct();
   private static final PartitionSpec ID_SPEC =
       PartitionSpec.builderFor(SCHEMA).identity("id", "id_part").build();
+  private static final Types.StructType OPTIONAL_STRUCT =
+      Types.StructType.of(
+          optional(1, "x", Types.LongType.get()),
+          optional(2, "y", Types.LongType.get()),
+          optional(3, "s", Types.StringType.get()),
+          optional(4, "t", Types.StringType.get()));
   private static final Types.StructType INT_STRUCT =
       Types.StructType.of(required(5, "i", Types.IntegerType.get()));
   private static final FunctionReference FUNCTION =
@@ -285,6 +292,30 @@ class TestValuePredicate {
   }
 
   @Test
+  void nanRightLiteralIsRejected() {
+    assertThatThrownBy(
+            () ->
+                new UnboundValuePredicate<>(
+                    Operation.LT, Expressions.ref("id"), Literal.of(Double.NaN)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid literal: NaN, use isNaN or notNaN instead");
+  }
+
+  @Test
+  void nonPrimitiveComparisonFails() {
+    Types.StructType struct =
+        Types.StructType.of(
+            optional(1, "point", Types.StructType.of(optional(2, "x", Types.LongType.get()))));
+    UnboundValuePredicate<Object> pred =
+        new UnboundValuePredicate<>(
+            Operation.EQ, Expressions.ref("point"), Expressions.<Object>ref("point"));
+
+    assertThatThrownBy(() -> Binder.bind(struct, pred, true))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot compare non-primitive type");
+  }
+
+  @Test
   void nullSetLiteralIsRejected() {
     List<Literal<Long>> values = Arrays.asList(Literal.of(1L), null);
 
@@ -483,15 +514,56 @@ class TestValuePredicate {
     assertThat(evaluator.eval(Row.of(id, other, "a", 0L))).isEqualTo(expected);
   }
 
-  @Test
-  void evaluatorComparesLiteralToReference() {
-    UnboundValuePredicate<CharSequence> pred =
-        new UnboundValuePredicate<>(
-            Operation.STARTS_WITH, Literal.of("abc"), Expressions.ref("data"));
-    Evaluator evaluator = new Evaluator(STRUCT, pred);
+  private static Stream<Arguments> comparisonsWithNullableLeft() {
+    return Stream.of(
+            Operation.LT,
+            Operation.LT_EQ,
+            Operation.GT,
+            Operation.GT_EQ,
+            Operation.EQ,
+            Operation.NOT_EQ)
+        .flatMap(op -> Stream.of(1L, 2L, 3L, null).map(value -> Arguments.of(op, value)));
+  }
 
-    assertThat(evaluator.eval(Row.of(1L, 2L, "ab", 0L))).isTrue();
-    assertThat(evaluator.eval(Row.of(1L, 2L, "abd", 0L))).isFalse();
+  @ParameterizedTest
+  @MethodSource("comparisonsWithNullableLeft")
+  void evaluatorComparesReferencesLikeLegacyPredicate(Operation op, Long value) {
+    Row row = Row.of(value, 2L, null, null);
+    boolean expected = new Evaluator(OPTIONAL_STRUCT, Expressions.predicate(op, "x", 2L)).eval(row);
+    UnboundValuePredicate<Long> pred =
+        new UnboundValuePredicate<>(op, Expressions.ref("x"), Expressions.<Long>ref("y"));
+
+    assertThat(new Evaluator(OPTIONAL_STRUCT, pred).eval(row)).isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "STARTS_WITH, ab, a, true",
+    "STARTS_WITH, ab, b, false",
+    "STARTS_WITH, , nu, false",
+    "STARTS_WITH, nullable, , false",
+    "NOT_STARTS_WITH, ab, a, false",
+    "NOT_STARTS_WITH, ab, b, true",
+    "NOT_STARTS_WITH, , nu, true",
+    "NOT_STARTS_WITH, nullable, , true"
+  })
+  void evaluatorAppliesStartsWithToNullableReferences(
+      Operation op, String value, String prefix, boolean expected) {
+    UnboundValuePredicate<CharSequence> pred =
+        new UnboundValuePredicate<>(op, Expressions.ref("s"), Expressions.ref("t"));
+
+    assertThat(new Evaluator(OPTIONAL_STRUCT, pred).eval(Row.of(null, null, value, prefix)))
+        .isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"ab, true", "abd, false", ", false"})
+  void evaluatorAppliesStartsWithLiteralOnLeft(String prefix, boolean expected) {
+    UnboundValuePredicate<CharSequence> pred =
+        new UnboundValuePredicate<>(Operation.STARTS_WITH, Literal.of("abc"), Expressions.ref("t"));
+
+    assertThat(new Evaluator(OPTIONAL_STRUCT, pred).eval(Row.of(null, null, null, prefix)))
+        .isEqualTo(expected);
   }
 
   @Test

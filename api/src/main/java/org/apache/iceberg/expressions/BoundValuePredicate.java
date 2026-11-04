@@ -135,13 +135,16 @@ public class BoundValuePredicate<T> implements BoundExpression<Boolean> {
       case NOT_NULL -> leftValue != null;
       case IS_NAN -> NaNUtil.isNaN(leftValue);
       case NOT_NAN -> !NaNUtil.isNaN(leftValue);
-      case IN -> literalSet.contains(leftValue);
-      case NOT_IN -> !literalSet.contains(leftValue);
-      case STARTS_WITH -> String.valueOf(leftValue).startsWith(String.valueOf(right.eval(struct)));
-      case NOT_STARTS_WITH ->
-          !String.valueOf(leftValue).startsWith(String.valueOf(right.eval(struct)));
+      case IN -> leftValue != null && literalSet.contains(leftValue);
+      case NOT_IN -> leftValue == null || !literalSet.contains(leftValue);
+      case STARTS_WITH -> startsWith(leftValue, right.eval(struct));
+      case NOT_STARTS_WITH -> !startsWith(leftValue, right.eval(struct));
       default -> compare(leftValue, right.eval(struct));
     };
+  }
+
+  private static boolean startsWith(Object value, Object prefix) {
+    return value != null && prefix != null && value.toString().startsWith(prefix.toString());
   }
 
   private boolean compare(T leftValue, T rightValue) {
@@ -170,6 +173,8 @@ public class BoundValuePredicate<T> implements BoundExpression<Boolean> {
     if (type != null) {
       return Comparators.forType(type.asPrimitiveType());
     } else if (left instanceof Literal<T> literal) {
+      return literal.comparator();
+    } else if (right instanceof Literal<T> literal) {
       return literal.comparator();
     }
 
