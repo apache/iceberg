@@ -38,6 +38,7 @@ import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -1749,137 +1750,104 @@ public class TestMergeAppend extends TestBase {
   }
 
   @TestTemplate
-  public void positionDeleteBeforePromotionCommitsWithRowDelta() {
+  public void positionDeleteBuiltBeforePromotionCommittedAfter() throws IOException {
     assumeThat(formatVersion).isEqualTo(2);
     createIdentityPromotionTable();
-    PartitionSpec specBeforePromotion = table.spec();
-    DataFile dataFile = promotionFile(specBeforePromotion, 5, "data.parquet");
-    DeleteFile deleteFile = promotionDeleteFile(specBeforePromotion, 5, "pos-deletes.parquet");
+    PartitionSpec before = table.spec();
+    DataFile data = promotionFile(before, 5, "data.parquet");
+    // Build delete file BEFORE promotion with Integer partition value
+    DeleteFile deletes = promotionDeleteFile(before, 5, "pos-deletes.parquet");
 
-    table.newRowDelta().addRows(dataFile).addDeletes(deleteFile).commit();
-    long prePromotionSnapshotId = table.currentSnapshot().snapshotId();
+    table.newAppend().appendFile(data).commit();
 
     table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
 
-    DataFile dataFileAfter = promotionFile(table.spec(), 5L, "data-after.parquet");
-    table.newRowDelta().addRows(dataFileAfter).commit();
-    assertThat(table.currentSnapshot()).isNotNull();
-    assertThat(table.currentSnapshot().snapshotId()).isNotEqualTo(prePromotionSnapshotId);
+    // Commit delete file AFTER promotion - writer sees Integer under Long spec
+    table.newRowDelta().addDeletes(deletes).commit();
 
-    // Verify scan planning: iterate tasks and check delete is applied to correct file
-    List<FileScanTask> tasks =
-        Lists.newArrayList(
-            table.newScan().filter(Expressions.equal("region", 5L)).planFiles().iterator());
-    assertThat(tasks).hasSize(2);
-    // Pre-promotion file should have the delete; post-promotion file should not
-    FileScanTask prePromotionTask =
-        tasks.stream()
-            .filter(t -> t.file().path().toString().equals("/data.parquet"))
-            .findFirst()
-            .orElseThrow();
-    FileScanTask postPromotionTask =
-        tasks.stream()
-            .filter(t -> t.file().path().toString().equals("/data-after.parquet"))
-            .findFirst()
-            .orElseThrow();
-    assertThat(prePromotionTask.deletes()).hasSize(1);
-    assertThat(postPromotionTask.deletes()).isEmpty();
+    try (CloseableIterable<FileScanTask> planned =
+        table.newScan().filter(Expressions.equal("region", 5L)).planFiles()) {
+      List<FileScanTask> tasks = Lists.newArrayList(planned);
+      assertThat(tasks).hasSize(1);
+      assertThat(tasks.get(0).deletes()).hasSize(1);
+    }
   }
 
   @TestTemplate
-  public void dataFileBeforePromotionDeleteFileAfter() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+  public void deletionVectorBuiltBeforePromotionCommittedAfter() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     createIdentityPromotionTable();
-    PartitionSpec specBeforePromotion = table.spec();
-    DataFile dataFileBefore = promotionFile(specBeforePromotion, 5, "data-before.parquet");
+    PartitionSpec before = table.spec();
+    DataFile data = promotionFile(before, 5, "data.parquet");
+    // Build deletion vector BEFORE promotion with Integer partition value
+    DeleteFile dv = promotionDeletionVector(before, 5, data.path().toString(), "dv.puffin");
 
-    table.newAppend().appendFile(dataFileBefore).commit();
+    table.newAppend().appendFile(data).commit();
 
     table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
 
-    DeleteFile deleteFileAfter;
+    // Commit deletion vector AFTER promotion - writer sees Integer under Long spec
+    table.newRowDelta().addDeletes(dv).commit();
+
+    try (CloseableIterable<FileScanTask> planned =
+        table.newScan().filter(Expressions.equal("region", 5L)).planFiles()) {
+      List<FileScanTask> tasks = Lists.newArrayList(planned);
+      assertThat(tasks).hasSize(1);
+      assertThat(tasks.get(0).deletes()).hasSize(1);
+    }
+  }
+
+  @TestTemplate
+  public void equalityDeleteBuiltBeforePromotionCommittedAfter() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    createIdentityPromotionTable();
+    PartitionSpec before = table.spec();
+    DataFile data = promotionFile(before, 5, "data.parquet");
+    // Build equality delete BEFORE promotion with Integer partition value
+    DeleteFile deletes = promotionEqualityDeleteFile(before, 5, "eq-deletes.parquet");
+
+    table.newAppend().appendFile(data).commit();
+
+    table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
+
+    // Commit equality delete AFTER promotion - writer sees Integer under Long spec
+    table.newRowDelta().addDeletes(deletes).commit();
+
+    try (CloseableIterable<FileScanTask> planned =
+        table.newScan().filter(Expressions.equal("region", 5L)).planFiles()) {
+      List<FileScanTask> tasks = Lists.newArrayList(planned);
+      assertThat(tasks).hasSize(1);
+      assertThat(tasks.get(0).deletes()).hasSize(1);
+    }
+  }
+
+  @TestTemplate
+  public void positionDeleteAndDVBuiltBeforePromotionCommittedAfter() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    createIdentityPromotionTable();
+    PartitionSpec before = table.spec();
+    DataFile data = promotionFile(before, 5, "data-both.parquet");
+    // Build delete file BEFORE promotion with Integer partition value
+    DeleteFile deletes;
     if (formatVersion >= 3) {
-      deleteFileAfter =
-          promotionDeletionVector(table.spec(), 5L, dataFileBefore.path().toString(), "dv.puffin");
+      deletes = promotionDeletionVector(before, 5, data.path().toString(), "dv-both.puffin");
     } else {
-      deleteFileAfter = promotionDeleteFile(table.spec(), 5L, "pos-deletes-after.parquet");
+      deletes = promotionDeleteFile(before, 5, "pos-deletes-both.parquet");
     }
 
-    table.newRowDelta().addDeletes(deleteFileAfter).commit();
-    assertThat(table.currentSnapshot()).isNotNull();
-
-    // Verify scan planning: iterate tasks and check delete is applied
-    List<FileScanTask> tasks =
-        Lists.newArrayList(
-            table.newScan().filter(Expressions.equal("region", 5L)).planFiles().iterator());
-    assertThat(tasks).hasSize(1);
-    assertThat(tasks.get(0).deletes()).hasSize(1);
-  }
-
-  @TestTemplate
-  public void equalityDeleteBeforePromotionAppliedToDataAfter() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
-    createIdentityPromotionTable();
-    PartitionSpec specBeforePromotion = table.spec();
-
-    // Add data file first, then equality delete after it
-    DataFile dataFileBefore = promotionFile(specBeforePromotion, 5, "data-before-eq.parquet");
-    table.newAppend().appendFile(dataFileBefore).commit();
-
-    DeleteFile eqDelete = promotionEqualityDeleteFile(specBeforePromotion, 5, "eq-deletes.parquet");
-    table.newRowDelta().addDeletes(eqDelete).commit();
+    table.newAppend().appendFile(data).commit();
 
     table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
 
-    // Verify scan planning: the pre-promotion data file should have the equality delete
-    List<FileScanTask> tasks =
-        Lists.newArrayList(
-            table.newScan().filter(Expressions.equal("region", 5L)).planFiles().iterator());
-    assertThat(tasks).hasSize(1);
-    assertThat(tasks.get(0).deletes()).hasSize(1);
-  }
+    // Commit delete file AFTER promotion - writer sees Integer under Long spec
+    table.newRowDelta().addDeletes(deletes).commit();
 
-  @TestTemplate
-  public void bothDataAndDeleteFilesBeforePromotion() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
-    createIdentityPromotionTable();
-    PartitionSpec specBeforePromotion = table.spec();
-    DataFile dataFile = promotionFile(specBeforePromotion, 5, "data-both.parquet");
-    DeleteFile deleteFile;
-    if (formatVersion >= 3) {
-      deleteFile =
-          promotionDeletionVector(
-              specBeforePromotion, 5, dataFile.path().toString(), "dv-both.puffin");
-    } else {
-      deleteFile = promotionDeleteFile(specBeforePromotion, 5, "pos-deletes-both.parquet");
+    try (CloseableIterable<FileScanTask> planned =
+        table.newScan().filter(Expressions.equal("region", 5L)).planFiles()) {
+      List<FileScanTask> tasks = Lists.newArrayList(planned);
+      assertThat(tasks).hasSize(1);
+      assertThat(tasks.get(0).deletes()).hasSize(1);
     }
-
-    table.newRowDelta().addRows(dataFile).addDeletes(deleteFile).commit();
-
-    table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
-
-    DataFile dataFileAfter = promotionFile(table.spec(), 5L, "data-after-both.parquet");
-    table.newAppend().appendFile(dataFileAfter).commit();
-    assertThat(table.currentSnapshot()).isNotNull();
-
-    // Verify scan planning: delete should apply to pre-promotion file only
-    List<FileScanTask> tasks =
-        Lists.newArrayList(
-            table.newScan().filter(Expressions.equal("region", 5L)).planFiles().iterator());
-    assertThat(tasks).hasSize(2);
-    // Pre-promotion file should have the delete; post-promotion file should not
-    FileScanTask prePromotionTask =
-        tasks.stream()
-            .filter(t -> t.file().path().toString().equals("/data-both.parquet"))
-            .findFirst()
-            .orElseThrow();
-    FileScanTask postPromotionTask =
-        tasks.stream()
-            .filter(t -> t.file().path().toString().equals("/data-after-both.parquet"))
-            .findFirst()
-            .orElseThrow();
-    assertThat(prePromotionTask.deletes()).hasSize(1);
-    assertThat(postPromotionTask.deletes()).isEmpty();
   }
 
   private DeleteFile promotionDeleteFile(
