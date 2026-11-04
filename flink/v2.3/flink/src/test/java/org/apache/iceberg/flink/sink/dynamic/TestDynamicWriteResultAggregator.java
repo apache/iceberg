@@ -64,7 +64,8 @@ class TestDynamicWriteResultAggregator {
     CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table2"), new Schema());
 
     DynamicWriteResultAggregator aggregator =
-        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
+        new DynamicWriteResultAggregator(
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId");
     try (OneInputStreamOperatorTestHarness<
             CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>>
         testHarness = new OneInputStreamOperatorTestHarness<>(aggregator)) {
@@ -107,7 +108,8 @@ class TestDynamicWriteResultAggregator {
     // Disable caching of ManifestOutputFileFactory.
     final int zeroCacheSize = 0;
     DynamicWriteResultAggregator aggregator =
-        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), zeroCacheSize);
+        new DynamicWriteResultAggregator(
+            CATALOG_EXTENSION.catalogLoader(), zeroCacheSize, "sinkId");
     try (OneInputStreamOperatorTestHarness<
             CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>>
         testHarness = new OneInputStreamOperatorTestHarness<>(aggregator)) {
@@ -161,7 +163,7 @@ class TestDynamicWriteResultAggregator {
         testHarness =
             new OneInputStreamOperatorTestHarness<>(
                 new DynamicWriteResultAggregator(
-                    CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize))) {
+                    CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId"))) {
       testHarness.open();
 
       TableKey tableKey = new TableKey("table", "branch");

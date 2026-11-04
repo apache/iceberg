@@ -461,6 +461,37 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @Test
+  void testAllTablesShareTheSinkId() throws Exception {
+    List<String> tableNames = List.of("t1", "t2", "t3", "t4");
+    List<DynamicIcebergDataImpl> rows = Lists.newArrayList();
+    for (String tableName : tableNames) {
+      rows.add(
+          new DynamicIcebergDataImpl(
+              SimpleDataUtil.SCHEMA,
+              tableName,
+              SnapshotRef.MAIN_BRANCH,
+              PartitionSpec.unpartitioned()));
+    }
+
+    executeDynamicSink(rows, env, true, 2, null);
+
+    Set<String> sinkIds = Sets.newHashSet();
+    for (String tableName : tableNames) {
+      Map<String, String> summary =
+          CATALOG_EXTENSION
+              .catalog()
+              .loadTable(TableIdentifier.of(DATABASE, tableName))
+              .currentSnapshot()
+              .summary();
+      assertThat(summary).containsKey("flink.sink-id");
+      assertThat(summary.get("flink.sink-id")).isNotEqualTo(summary.get("flink.job-id"));
+      sinkIds.add(summary.get("flink.sink-id"));
+    }
+
+    assertThat(sinkIds).hasSize(1);
+  }
+
+  @Test
   void testNoShuffleTopology() throws Exception {
     DataStream<DynamicIcebergDataImpl> dataStream =
         env.fromData(
@@ -2040,10 +2071,12 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .toBranch(original.key().branch())
           .commit();
 
+      // Committables restored from older state use the jobId as sinkId
       DynamicCommittable replayed =
           new DynamicCommittable(
               original.key(),
               original.manifests(),
+              PREVIOUS_JOB_ID,
               PREVIOUS_JOB_ID,
               original.operatorId(),
               replayedCheckpointId);
