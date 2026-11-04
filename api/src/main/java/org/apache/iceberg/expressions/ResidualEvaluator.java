@@ -309,5 +309,16 @@ public class ResidualEvaluator implements Serializable {
       // if binding didn't result in a Predicate, return the expression
       return bound;
     }
+
+    @Override
+    public <T> Expression predicate(UnboundValuePredicate<T> pred) {
+      UnboundPredicate<T> termPredicate = pred.asTermPredicate();
+      if (termPredicate != null) {
+        Expression residual = predicate(termPredicate);
+        return residual == termPredicate ? pred : residual;
+      }
+
+      return pred;
+    }
   }
 }

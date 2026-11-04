@@ -55,8 +55,13 @@ public class UnboundValuePredicate<T> implements Expression {
   }
 
   UnboundValuePredicate(Operation op, ValueExpression<T> child, List<Literal<T>> values) {
-    this(op, child, null, List.copyOf(values));
+    this(op, child, null, copyOf(values));
     Preconditions.checkArgument(isSetTest(op), "Invalid operation for set test: %s", op);
+  }
+
+  private static <X> List<Literal<X>> copyOf(List<Literal<X>> values) {
+    Preconditions.checkArgument(values != null, "Invalid literals: null");
+    return Lists.newArrayList(values);
   }
 
   private UnboundValuePredicate(
@@ -143,20 +148,36 @@ public class UnboundValuePredicate<T> implements Expression {
     }
 
     BoundExpression<T> boundRight = bindOperand(right, struct, caseSensitive, functionBinder);
+    if (op == Operation.STARTS_WITH || op == Operation.NOT_STARTS_WITH) {
+      ValidationException.check(
+          isStringOrUnknown(boundLeft) && isStringOrUnknown(boundRight),
+          "%s operands must be strings: %s, %s",
+          op,
+          boundLeft,
+          boundRight);
+    }
+
     return bindComparison(convert(boundLeft, boundRight), convert(boundRight, boundLeft));
   }
 
-  private UnboundPredicate<T> asTermPredicate() {
-    if (!(left instanceof UnboundTerm<T> term)) {
-      return null;
-    }
+  /**
+   * Returns the equivalent term predicate if this predicate tests a term against literals, or null.
+   */
+  UnboundPredicate<T> asTermPredicate() {
+    if (left instanceof UnboundTerm<T> term) {
+      if (isUnaryTest(op)) {
+        return new UnboundPredicate<>(op, term);
+      } else if (isSetTest(op)) {
+        return new UnboundPredicate<>(op, term, literals);
+      } else if (right instanceof Literal<T> literal) {
+        return new UnboundPredicate<>(op, term, literal);
+      }
 
-    if (isUnaryTest(op)) {
-      return new UnboundPredicate<>(op, term);
-    } else if (isSetTest(op)) {
-      return new UnboundPredicate<>(op, term, Lists.transform(literals, Literal::value));
-    } else if (right instanceof Literal<T> literal) {
-      return new UnboundPredicate<>(op, term, literal);
+    } else if (left instanceof Literal<T> literal
+        && right instanceof UnboundTerm<T> term
+        && op != Operation.STARTS_WITH
+        && op != Operation.NOT_STARTS_WITH) {
+      return new UnboundPredicate<>(op.flipLR(), term, literal);
     }
 
     return null;
@@ -177,10 +198,14 @@ public class UnboundValuePredicate<T> implements Expression {
 
   private Expression bindSet(BoundExpression<T> child) {
     Type type = typeOf(child);
-    List<Literal<T>> converted =
-        type != null
-            ? Lists.newArrayList(Lists.transform(literals, lit -> toType(lit, type)))
-            : literals;
+    List<Literal<T>> converted = Lists.newArrayList();
+    for (Literal<T> literal : literals) {
+      Literal<T> lit = type != null ? toType(literal, type) : literal;
+      if (!isOutOfRange(lit)) {
+        converted.add(lit);
+      }
+    }
+
     if (converted.isEmpty()) {
       return op == Operation.IN ? Expressions.alwaysFalse() : Expressions.alwaysTrue();
     }
@@ -188,23 +213,53 @@ public class UnboundValuePredicate<T> implements Expression {
     Set<T> literalSet = UnboundPredicate.setOf(converted);
     if (literalSet.size() == 1) {
       Operation eqOp = op == Operation.IN ? Operation.EQ : Operation.NOT_EQ;
-      return new BoundValuePredicate<>(eqOp, child, Iterables.getOnlyElement(converted));
+      return new BoundValuePredicate<>(eqOp, child, Iterables.get(converted, 0));
     }
 
     return new BoundValuePredicate<>(op, child, literalSet);
   }
 
   private Expression bindComparison(BoundExpression<T> boundLeft, BoundExpression<T> boundRight) {
-    if (op == Operation.STARTS_WITH || op == Operation.NOT_STARTS_WITH) {
-      Type type = typeOf(boundLeft);
-      ValidationException.check(
-          type == null || type.equals(Types.StringType.get()),
-          "%s must be applied to a string expression: %s",
-          op,
-          boundLeft);
+    Type leftType = typeOf(boundLeft);
+    Type rightType = typeOf(boundRight);
+    ValidationException.check(
+        leftType == null || rightType == null || leftType.equals(rightType),
+        "Cannot compare %s (%s) with %s (%s)",
+        boundLeft,
+        leftType,
+        boundRight,
+        rightType);
+
+    if (isOutOfRange(boundRight)) {
+      return outOfRange(op, boundRight == Literals.<T>aboveMax());
+    } else if (isOutOfRange(boundLeft)) {
+      return outOfRange(op.flipLR(), boundLeft == Literals.<T>aboveMax());
     }
 
     return new BoundValuePredicate<>(op, boundLeft, boundRight);
+  }
+
+  private static Expression outOfRange(Operation op, boolean aboveMax) {
+    return switch (op) {
+      case LT, LT_EQ -> aboveMax ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
+      case GT, GT_EQ -> aboveMax ? Expressions.alwaysFalse() : Expressions.alwaysTrue();
+      case EQ -> Expressions.alwaysFalse();
+      case NOT_EQ -> Expressions.alwaysTrue();
+      default -> throw new ValidationException("Invalid operation for literal: %s", op);
+    };
+  }
+
+  private static boolean isOutOfRange(BoundExpression<?> expr) {
+    return expr == Literals.aboveMax() || expr == Literals.belowMin();
+  }
+
+  private static boolean isStringOrUnknown(BoundExpression<?> expr) {
+    Type type = typeOf(expr);
+    if (type != null) {
+      return type.equals(Types.StringType.get());
+    }
+
+    return !(expr instanceof Literal<?> literal) || literal.value() instanceof CharSequence;
   }
 
   private static <X> BoundExpression<X> bindOperand(
@@ -220,6 +275,8 @@ public class UnboundValuePredicate<T> implements Expression {
       ValidationException.check(
           functionBinder != null, "Cannot bind function without a function binder: %s", apply);
       return apply.bind(functionBinder, struct, caseSensitive);
+    } else if (operand instanceof BoundExpression) {
+      throw new IllegalStateException("Found already bound operand: " + operand);
     }
 
     throw new ValidationException("Cannot bind value expression: %s", operand);
@@ -238,12 +295,7 @@ public class UnboundValuePredicate<T> implements Expression {
   private static <X> Literal<X> toType(Literal<X> literal, Type type) {
     Literal<X> converted = literal.to(type);
     ValidationException.check(
-        converted != null
-            && converted != Literals.<X>aboveMax()
-            && converted != Literals.<X>belowMin(),
-        "Invalid value for conversion to type %s: %s",
-        type,
-        literal);
+        converted != null, "Invalid value for conversion to type %s: %s", type, literal);
     return converted;
   }
 

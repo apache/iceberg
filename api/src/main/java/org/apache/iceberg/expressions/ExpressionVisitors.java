@@ -56,11 +56,21 @@ public class ExpressionVisitors {
       return null;
     }
 
+    /**
+     * Visits a bound predicate with value expression operands.
+     *
+     * @throws UnsupportedOperationException unless overridden
+     */
     public <T> R predicate(BoundValuePredicate<T> pred) {
       throw new UnsupportedOperationException(
           getClass().getName() + " does not support value predicates: " + pred);
     }
 
+    /**
+     * Visits an unbound predicate with value expression operands.
+     *
+     * @throws UnsupportedOperationException unless overridden
+     */
     public <T> R predicate(UnboundValuePredicate<T> pred) {
       throw new UnsupportedOperationException(
           getClass().getName() + " does not support value predicates: " + pred);
@@ -215,6 +225,11 @@ public class ExpressionVisitors {
     public <T> R predicate(UnboundPredicate<T> pred) {
       throw new UnsupportedOperationException("Not a bound predicate: " + pred);
     }
+
+    @Override
+    public <T> R predicate(UnboundValuePredicate<T> pred) {
+      throw new UnsupportedOperationException("Not a bound predicate: " + pred);
+    }
   }
 
   public abstract static class BoundVisitor<R> extends ExpressionVisitor<R> {
@@ -334,6 +349,11 @@ public class ExpressionVisitors {
 
     @Override
     public <T> R predicate(UnboundPredicate<T> pred) {
+      throw new UnsupportedOperationException("Not a bound predicate: " + pred);
+    }
+
+    @Override
+    public <T> R predicate(UnboundValuePredicate<T> pred) {
       throw new UnsupportedOperationException("Not a bound predicate: " + pred);
     }
   }
@@ -463,6 +483,11 @@ public class ExpressionVisitors {
       throw new UnsupportedOperationException("Not a bound predicate: " + pred);
     }
 
+    /**
+     * Visits a bound predicate with value expression operands.
+     *
+     * @throws UnsupportedOperationException unless overridden
+     */
     public <T> R predicate(BoundValuePredicate<T> pred) {
       throw new UnsupportedOperationException(
           getClass().getName() + " does not support value predicates: " + pred);
