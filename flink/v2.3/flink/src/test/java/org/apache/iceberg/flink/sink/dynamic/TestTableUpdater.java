@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -28,6 +27,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
+import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
@@ -44,7 +44,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.Mockito;
 
 public class TestTableUpdater extends TestFlinkIcebergSinkBase {
 
@@ -494,24 +493,25 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
   }
 
   @Test
-  void testTableCreationFailsForCatalogWithoutNamespaceSupport() {
-    Catalog catalog = Mockito.mock(Catalog.class);
-    TableIdentifier tableIdentifier = TableIdentifier.of("some_namespace", "myTable");
-    Mockito.when(catalog.loadTable(tableIdentifier))
-        .thenThrow(new NoSuchTableException("Table does not exist: %s", tableIdentifier));
+  void testTableCreatedForCatalogWithoutNamespaceSupport() {
+    InMemoryCatalog inMemoryCatalog = new InMemoryCatalog();
+    inMemoryCatalog.initialize("catalog", Map.of());
+    Namespace namespace = Namespace.of("some_namespace");
+    inMemoryCatalog.createNamespace(namespace);
+    Catalog catalog = CachingCatalog.wrap(inMemoryCatalog);
+    assertThat(catalog).isNotInstanceOf(SupportsNamespaces.class);
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, "myTable");
     TableMetadataCache cache =
         new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
     TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
 
-    assertThatThrownBy(
-            () ->
-                tableUpdater.update(
-                    tableIdentifier,
-                    SnapshotRef.MAIN_BRANCH,
-                    SCHEMA,
-                    PartitionSpec.unpartitioned(),
-                    TableCreator.DEFAULT))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("does not support namespaces");
+    tableUpdater.update(
+        tableIdentifier,
+        SnapshotRef.MAIN_BRANCH,
+        SCHEMA,
+        PartitionSpec.unpartitioned(),
+        TableCreator.DEFAULT);
+
+    assertThat(catalog.tableExists(tableIdentifier)).isTrue();
   }
 }
