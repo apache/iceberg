@@ -18,9 +18,13 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.Comparator;
 import java.util.Set;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.util.NaNUtil;
 
 /**
  * A bound predicate whose operands are bound value expressions, such as function applications or
@@ -33,6 +37,7 @@ public class BoundValuePredicate<T> implements BoundExpression<Boolean> {
   private final BoundExpression<T> left;
   private final BoundExpression<T> right;
   private final Set<T> literalSet;
+  private transient volatile Comparator<T> comparator = null;
 
   BoundValuePredicate(Operation op, BoundExpression<T> child) {
     this(op, child, null, null);
@@ -118,13 +123,61 @@ public class BoundValuePredicate<T> implements BoundExpression<Boolean> {
   }
 
   /**
-   * Evaluating value predicates is not supported.
+   * Evaluates this predicate against a struct.
    *
-   * @throws UnsupportedOperationException always
+   * @throws UnsupportedOperationException if an operand cannot be evaluated
    */
   @Override
   public Boolean eval(StructLike struct) {
-    throw new UnsupportedOperationException("Cannot evaluate value predicate: " + this);
+    T leftValue = left.eval(struct);
+    return switch (op) {
+      case IS_NULL -> leftValue == null;
+      case NOT_NULL -> leftValue != null;
+      case IS_NAN -> NaNUtil.isNaN(leftValue);
+      case NOT_NAN -> !NaNUtil.isNaN(leftValue);
+      case IN -> literalSet.contains(leftValue);
+      case NOT_IN -> !literalSet.contains(leftValue);
+      case STARTS_WITH -> String.valueOf(leftValue).startsWith(String.valueOf(right.eval(struct)));
+      case NOT_STARTS_WITH ->
+          !String.valueOf(leftValue).startsWith(String.valueOf(right.eval(struct)));
+      default -> compare(leftValue, right.eval(struct));
+    };
+  }
+
+  private boolean compare(T leftValue, T rightValue) {
+    int cmp = comparator().compare(leftValue, rightValue);
+    return switch (op) {
+      case LT -> cmp < 0;
+      case LT_EQ -> cmp <= 0;
+      case GT -> cmp > 0;
+      case GT_EQ -> cmp >= 0;
+      case EQ -> cmp == 0;
+      case NOT_EQ -> cmp != 0;
+      default -> throw new IllegalStateException("Invalid operation for comparison: " + op);
+    };
+  }
+
+  private Comparator<T> comparator() {
+    if (comparator == null) {
+      this.comparator = Comparators.<T>nullsFirst().thenComparing(valueComparator());
+    }
+
+    return comparator;
+  }
+
+  private Comparator<T> valueComparator() {
+    Type type = typeOf(left) != null ? typeOf(left) : typeOf(right);
+    if (type != null) {
+      return Comparators.forType(type.asPrimitiveType());
+    } else if (left instanceof Literal<T> literal) {
+      return literal.comparator();
+    }
+
+    throw new UnsupportedOperationException("Cannot compare untyped operands: " + this);
+  }
+
+  private static Type typeOf(BoundExpression<?> expr) {
+    return expr instanceof BoundValueExpression<?> typed ? typed.type() : null;
   }
 
   @Override

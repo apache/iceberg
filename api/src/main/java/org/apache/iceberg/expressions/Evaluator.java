@@ -82,6 +82,11 @@ public class Evaluator implements Serializable {
     }
 
     @Override
+    public <T> Boolean predicate(BoundValuePredicate<T> pred) {
+      return pred.eval(struct);
+    }
+
+    @Override
     public <T> Boolean isNull(Bound<T> valueExpr) {
       return valueExpr.eval(struct) == null;
     }

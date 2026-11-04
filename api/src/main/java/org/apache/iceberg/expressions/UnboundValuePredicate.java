@@ -28,6 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.NaNUtil;
 
 /**
  * A predicate whose operands are value expressions, such as function applications or references on
@@ -61,12 +62,26 @@ public class UnboundValuePredicate<T> implements Expression {
 
   private static <X> List<Literal<X>> copyOf(List<Literal<X>> values) {
     Preconditions.checkArgument(values != null, "Invalid literals: null");
+    for (Literal<X> value : values) {
+      Preconditions.checkArgument(value != null, "Invalid literal: null");
+      checkLiteral(value);
+    }
+
     return Lists.newArrayList(values);
+  }
+
+  private static void checkLiteral(ValueExpression<?> operand) {
+    if (operand instanceof Literal<?> literal) {
+      Preconditions.checkArgument(
+          !NaNUtil.isNaN(literal.value()), "Invalid literal: NaN, use isNaN or notNaN instead");
+    }
   }
 
   private UnboundValuePredicate(
       Operation op, ValueExpression<T> left, ValueExpression<T> right, List<Literal<T>> literals) {
     Preconditions.checkArgument(left != null, "Invalid operand: null");
+    checkLiteral(left);
+    checkLiteral(right);
     this.op = op;
     this.left = left;
     this.right = right;
@@ -132,7 +147,9 @@ public class UnboundValuePredicate<T> implements Expression {
    * @param caseSensitive whether references are resolved case sensitively
    * @param functionBinder a function binder, or null if the predicate has no function applications
    * @return a bound expression
-   * @throws ValidationException if an operand cannot be bound or a literal cannot be converted
+   * @throws ValidationException if an operand cannot be bound, a literal cannot be converted, typed
+   *     operands have different types, or operands are invalid for the operation
+   * @throws IllegalStateException if an operand is already bound
    */
   Expression bind(StructType struct, boolean caseSensitive, FunctionBinder functionBinder) {
     UnboundPredicate<T> termPredicate = asTermPredicate();

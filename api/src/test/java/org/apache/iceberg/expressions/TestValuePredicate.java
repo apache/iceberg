@@ -23,8 +23,10 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers.Row;
@@ -36,7 +38,9 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class TestValuePredicate {
   private static final Schema SCHEMA =
@@ -47,7 +51,9 @@ class TestValuePredicate {
           required(4, "ts", Types.TimestampType.withoutZone()));
   private static final Types.StructType STRUCT = SCHEMA.asStruct();
   private static final PartitionSpec ID_SPEC =
-      PartitionSpec.builderFor(SCHEMA).identity("id").build();
+      PartitionSpec.builderFor(SCHEMA).identity("id", "id_part").build();
+  private static final Types.StructType INT_STRUCT =
+      Types.StructType.of(required(5, "i", Types.IntegerType.get()));
   private static final FunctionReference FUNCTION =
       new FunctionReference("cat", CatalogObjectIdentifier.of("ns", "f"));
 
@@ -183,12 +189,37 @@ class TestValuePredicate {
         .hasMessageStartingWith("Invalid value for conversion to type long");
   }
 
-  @Test
-  void outOfRangeComparisonFoldsToConstant() {
-    UnboundValuePredicate<Long> pred =
-        new UnboundValuePredicate<>(Operation.LT, applyToId(), Literal.of(Long.MAX_VALUE));
+  private static Stream<Arguments> outOfRangeComparisons() {
+    return Stream.of(
+            Operation.LT,
+            Operation.LT_EQ,
+            Operation.GT,
+            Operation.GT_EQ,
+            Operation.EQ,
+            Operation.NOT_EQ)
+        .flatMap(
+            op -> Stream.of(Arguments.of(op, Long.MAX_VALUE), Arguments.of(op, Long.MIN_VALUE)));
+  }
 
-    assertThat(bind(pred, Types.IntegerType.get())).isEqualTo(Expressions.alwaysTrue());
+  @ParameterizedTest
+  @MethodSource("outOfRangeComparisons")
+  void outOfRangeRightLiteralFoldsLikeLegacyPredicate(Operation op, long value) {
+    UnboundValuePredicate<Long> pred =
+        new UnboundValuePredicate<>(op, applyToId(), Literal.of(value));
+    Expression expected = Binder.bind(INT_STRUCT, Expressions.predicate(op, "i", value), true);
+
+    assertThat(bind(pred, Types.IntegerType.get())).isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @MethodSource("outOfRangeComparisons")
+  void outOfRangeLeftLiteralFoldsLikeFlippedLegacyPredicate(Operation op, long value) {
+    UnboundValuePredicate<Long> pred =
+        new UnboundValuePredicate<>(op, Literal.of(value), applyToId());
+    Expression expected =
+        Binder.bind(INT_STRUCT, Expressions.predicate(op.flipLR(), "i", value), true);
+
+    assertThat(bind(pred, Types.IntegerType.get())).isEqualTo(expected);
   }
 
   @Test
@@ -225,6 +256,43 @@ class TestValuePredicate {
         .isEqualTo(expected ? Expressions.alwaysTrue() : Expressions.alwaysFalse());
   }
 
+  @ParameterizedTest
+  @CsvSource({"IN, false", "NOT_IN, true"})
+  void setWithAllValuesOutOfRangeBindsToConstant(Operation setOp, boolean expected) {
+    UnboundValuePredicate<Long> pred =
+        new UnboundValuePredicate<>(setOp, applyToId(), List.of(Literal.of(1L << 40)));
+
+    assertThat(bind(pred, Types.IntegerType.get()))
+        .isEqualTo(expected ? Expressions.alwaysTrue() : Expressions.alwaysFalse());
+  }
+
+  @Test
+  void nanComparisonLiteralIsRejected() {
+    assertThatThrownBy(
+            () -> new UnboundValuePredicate<>(Operation.LT, Literal.of(Double.NaN), applyToId()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid literal: NaN, use isNaN or notNaN instead");
+  }
+
+  @Test
+  void nanSetLiteralIsRejected() {
+    assertThatThrownBy(
+            () ->
+                new UnboundValuePredicate<>(
+                    Operation.IN, Expressions.ref("id"), List.of(Literal.of(Double.NaN))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid literal: NaN, use isNaN or notNaN instead");
+  }
+
+  @Test
+  void nullSetLiteralIsRejected() {
+    List<Literal<Long>> values = Arrays.asList(Literal.of(1L), null);
+
+    assertThatThrownBy(() -> new UnboundValuePredicate<>(Operation.IN, applyToId(), values))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid literal: null");
+  }
+
   @Test
   void mismatchedOperandTypesFail() {
     UnboundValuePredicate<Object> pred =
@@ -251,6 +319,41 @@ class TestValuePredicate {
         new UnboundValuePredicate<>(Operation.STARTS_WITH, applyToId(), Literal.of("abc"));
 
     assertThatThrownBy(() -> bind(pred, Types.LongType.get()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("operands must be strings");
+  }
+
+  @Test
+  void startsWithOnStringFunctionBindsToValuePredicate() {
+    UnboundValuePredicate<CharSequence> pred =
+        new UnboundValuePredicate<>(Operation.STARTS_WITH, applyToId(), Literal.of("abc"));
+
+    Expression bound = bind(pred, Types.StringType.get());
+
+    assertThat(bound).isInstanceOf(BoundValuePredicate.class);
+    assertThat(bound.op()).isEqualTo(Operation.STARTS_WITH);
+  }
+
+  @Test
+  void startsWithLiteralOnLeftIsNotFlipped() {
+    UnboundValuePredicate<CharSequence> pred =
+        new UnboundValuePredicate<>(
+            Operation.STARTS_WITH, Literal.of("abc"), Expressions.ref("data"));
+
+    Expression bound = Binder.bind(STRUCT, pred, true);
+
+    assertThat(bound).isInstanceOf(BoundValuePredicate.class);
+    assertThat(((BoundValuePredicate<?>) bound).left()).isInstanceOf(Literal.class);
+    assertThat(((BoundValuePredicate<?>) bound).right()).isInstanceOf(BoundReference.class);
+  }
+
+  @Test
+  void startsWithRejectsNonStringReference() {
+    UnboundValuePredicate<Object> pred =
+        new UnboundValuePredicate<>(
+            Operation.STARTS_WITH, Expressions.ref("data"), Expressions.<Object>ref("id"));
+
+    assertThatThrownBy(() -> Binder.bind(STRUCT, pred, true))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("operands must be strings");
   }
@@ -372,13 +475,33 @@ class TestValuePredicate {
     assertThat(mustMatch).isFalse();
   }
 
-  @Test
-  void evaluatorRejectsValuePredicate() {
+  @ParameterizedTest
+  @CsvSource({"1, 2, true", "2, 2, false", "3, 2, false"})
+  void evaluatorComparesReferences(long id, long other, boolean expected) {
     Evaluator evaluator = new Evaluator(STRUCT, idLessThanOther());
 
-    assertThatThrownBy(() -> evaluator.eval(Row.of(1L, 2L, "a", 0L)))
+    assertThat(evaluator.eval(Row.of(id, other, "a", 0L))).isEqualTo(expected);
+  }
+
+  @Test
+  void evaluatorComparesLiteralToReference() {
+    UnboundValuePredicate<CharSequence> pred =
+        new UnboundValuePredicate<>(
+            Operation.STARTS_WITH, Literal.of("abc"), Expressions.ref("data"));
+    Evaluator evaluator = new Evaluator(STRUCT, pred);
+
+    assertThat(evaluator.eval(Row.of(1L, 2L, "ab", 0L))).isTrue();
+    assertThat(evaluator.eval(Row.of(1L, 2L, "abd", 0L))).isFalse();
+  }
+
+  @Test
+  void boundVisitorRejectsUnboundValuePredicate() {
+    assertThatThrownBy(
+            () ->
+                ExpressionVisitors.visitEvaluator(
+                    idLessThanOther(), new ExpressionVisitors.BoundVisitor<Boolean>() {}))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("does not support value predicates");
+        .hasMessageStartingWith("Not a bound predicate");
   }
 
   @Test
@@ -395,6 +518,24 @@ class TestValuePredicate {
   }
 
   @Test
+  void strictProjectionOfFunctionPredicateIsAlwaysFalse() {
+    Expression filter = new UnboundValuePredicate<>(Operation.LT, applyToId(), Literal.of(5));
+
+    assertThat(Projections.strict(ID_SPEC).project(filter)).isEqualTo(Expressions.alwaysFalse());
+  }
+
+  @Test
+  void strictProjectionOfTermValuePredicateUsesPartitionField() {
+    Expression filter =
+        new UnboundValuePredicate<>(Operation.EQ, Expressions.ref("id"), Literal.of(5L));
+
+    Expression projected = Projections.strict(ID_SPEC).project(filter);
+
+    assertThat(projected).isInstanceOf(UnboundPredicate.class);
+    assertThat(((UnboundPredicate<?>) projected).ref().name()).isEqualTo("id_part");
+  }
+
+  @Test
   void inclusiveProjectionOfTermValuePredicateUsesPartitionField() {
     Expression filter =
         new UnboundValuePredicate<>(Operation.EQ, Expressions.ref("id"), Literal.of(5L));
@@ -402,7 +543,7 @@ class TestValuePredicate {
     Expression projected = Projections.inclusive(ID_SPEC).project(filter);
 
     assertThat(projected).isInstanceOf(UnboundPredicate.class);
-    assertThat(((UnboundPredicate<?>) projected).ref().name()).isEqualTo("id");
+    assertThat(((UnboundPredicate<?>) projected).ref().name()).isEqualTo("id_part");
   }
 
   @Test
@@ -423,6 +564,16 @@ class TestValuePredicate {
     Expression residual = ResidualEvaluator.of(ID_SPEC, filter, true).residualFor(Row.of(5L));
 
     assertThat(residual).isEqualTo(Expressions.alwaysTrue());
+  }
+
+  @Test
+  void residualKeepsTermValuePredicateOnNonPartitionField() {
+    UnboundValuePredicate<Long> pred =
+        new UnboundValuePredicate<>(Operation.EQ, Expressions.ref("other"), Literal.of(5L));
+
+    Expression residual = ResidualEvaluator.of(ID_SPEC, pred, true).residualFor(Row.of(5L));
+
+    assertThat(residual).isSameAs(pred);
   }
 
   private static Types.TimestampNanoType nanos() {
