@@ -187,6 +187,12 @@ public class Projections {
       return bound;
     }
 
+    @Override
+    public <T> Expression predicate(UnboundValuePredicate<T> pred) {
+      return ExpressionVisitors.visit(
+          pred.bind(spec.schema().asStruct(), caseSensitive, null), this);
+    }
+
     PartitionSpec spec() {
       return spec;
     }
@@ -224,6 +230,11 @@ public class Projections {
 
       return result;
     }
+
+    @Override
+    public <T> Expression predicate(BoundValuePredicate<T> pred) {
+      return Expressions.alwaysTrue();
+    }
   }
 
   private static class StrictProjection extends BaseProjectionEvaluator {
@@ -255,6 +266,11 @@ public class Projections {
       }
 
       return result;
+    }
+
+    @Override
+    public <T> Expression predicate(BoundValuePredicate<T> pred) {
+      return Expressions.alwaysFalse();
     }
   }
 }

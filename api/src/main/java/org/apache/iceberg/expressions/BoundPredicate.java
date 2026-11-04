@@ -21,33 +21,25 @@ package org.apache.iceberg.expressions;
 import org.apache.iceberg.StructLike;
 
 public abstract class BoundPredicate<T> extends Predicate<T, BoundTerm<T>>
-    implements Bound<Boolean>, BoundExpression<Boolean> {
+    implements BoundExpression<Boolean> {
   protected BoundPredicate(Operation op, BoundTerm<T> term) {
     super(op, term);
   }
 
-  protected BoundPredicate(Operation op) {
-    super(op);
-  }
-
   public boolean test(StructLike struct) {
-    return test(requireTerm().eval(struct));
+    return test(term().eval(struct));
   }
 
   public abstract boolean test(T value);
 
   @Override
   public Boolean eval(StructLike struct) {
-    return test(requireTerm().eval(struct));
+    return test(term().eval(struct));
   }
 
   @Override
   public BoundReference<?> ref() {
-    return requireTerm().ref();
-  }
-
-  static boolean termsEquivalent(BoundTerm<?> term, BoundTerm<?> other) {
-    return term != null && other != null && term.isEquivalentTo(other);
+    return term().ref();
   }
 
   public boolean isUnaryPredicate() {

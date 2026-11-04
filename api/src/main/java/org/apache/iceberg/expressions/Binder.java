@@ -57,7 +57,27 @@ public class Binder {
    * @throws IllegalStateException if any references are already bound
    */
   public static Expression bind(StructType struct, Expression expr, boolean caseSensitive) {
-    return ExpressionVisitors.visit(expr, new BindVisitor(struct, caseSensitive));
+    return ExpressionVisitors.visit(expr, new BindVisitor(struct, caseSensitive, null));
+  }
+
+  /**
+   * Replaces all unbound/named references with bound references to fields in the given struct and
+   * resolves function applications using the given function binder.
+   *
+   * @param struct The {@link StructType struct type} to resolve references by name.
+   * @param expr An {@link Expression expression} to rewrite with bound references.
+   * @param caseSensitive A boolean flag to control whether the bind should enforce case
+   *     sensitivity.
+   * @param functionBinder a {@link FunctionBinder} used to resolve function applications
+   * @return the expression rewritten with bound references
+   * @throws ValidationException if literals do not match bound references or a function cannot be
+   *     bound
+   * @throws IllegalStateException if any references are already bound
+   */
+  public static Expression bind(
+      StructType struct, Expression expr, boolean caseSensitive, FunctionBinder functionBinder) {
+    Preconditions.checkArgument(functionBinder != null, "Invalid function binder: null");
+    return ExpressionVisitors.visit(expr, new BindVisitor(struct, caseSensitive, functionBinder));
   }
 
   /**
@@ -123,10 +143,12 @@ public class Binder {
   private static class BindVisitor extends ExpressionVisitor<Expression> {
     private final StructType struct;
     private final boolean caseSensitive;
+    private final FunctionBinder functionBinder;
 
-    private BindVisitor(StructType struct, boolean caseSensitive) {
+    private BindVisitor(StructType struct, boolean caseSensitive, FunctionBinder functionBinder) {
       this.struct = struct;
       this.caseSensitive = caseSensitive;
+      this.functionBinder = functionBinder;
     }
 
     @Override
@@ -162,6 +184,16 @@ public class Binder {
     @Override
     public <T> Expression predicate(UnboundPredicate<T> pred) {
       return pred.bind(struct, caseSensitive);
+    }
+
+    @Override
+    public <T> Expression predicate(BoundValuePredicate<T> pred) {
+      throw new IllegalStateException("Found already bound predicate: " + pred);
+    }
+
+    @Override
+    public <T> Expression predicate(UnboundValuePredicate<T> pred) {
+      return pred.bind(struct, caseSensitive, functionBinder);
     }
 
     @Override
@@ -208,6 +240,28 @@ public class Binder {
       references.add(pred.ref().fieldId());
       return references;
     }
+
+    @Override
+    public <T> Set<Integer> predicate(BoundValuePredicate<T> pred) {
+      if (UnboundValuePredicate.isComparison(pred.op())) {
+        addReferences(pred.left());
+        addReferences(pred.right());
+      } else {
+        addReferences(pred.child());
+      }
+
+      return references;
+    }
+
+    private void addReferences(BoundExpression<?> expr) {
+      if (expr instanceof BoundTerm<?> term) {
+        references.add(term.ref().fieldId());
+      } else if (expr instanceof BoundApply<?> apply) {
+        apply.arguments().forEach(this::addReferences);
+      } else if (expr instanceof BoundPredicate<?> || expr instanceof BoundValuePredicate<?>) {
+        ExpressionVisitors.visit(expr, this);
+      }
+    }
   }
 
   private static class IsBoundVisitor extends ExpressionVisitor<Boolean> {
@@ -233,6 +287,16 @@ public class Binder {
 
     @Override
     public <T> Boolean predicate(UnboundPredicate<T> pred) {
+      return false;
+    }
+
+    @Override
+    public <T> Boolean predicate(BoundValuePredicate<T> pred) {
+      return true;
+    }
+
+    @Override
+    public <T> Boolean predicate(UnboundValuePredicate<T> pred) {
       return false;
     }
 

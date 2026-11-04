@@ -30,6 +30,7 @@ import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Bound;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
+import org.apache.iceberg.expressions.BoundValuePredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
@@ -104,6 +105,11 @@ public class ParquetMetricsRowGroupFilter {
       }
 
       return ExpressionVisitors.visitEvaluator(expr, this);
+    }
+
+    @Override
+    public <T> Boolean predicate(BoundValuePredicate<T> pred) {
+      return ROWS_MIGHT_MATCH;
     }
 
     @Override

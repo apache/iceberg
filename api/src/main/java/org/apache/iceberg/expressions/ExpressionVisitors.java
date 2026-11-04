@@ -56,6 +56,16 @@ public class ExpressionVisitors {
       return null;
     }
 
+    public <T> R predicate(BoundValuePredicate<T> pred) {
+      throw new UnsupportedOperationException(
+          getClass().getName() + " does not support value predicates: " + pred);
+    }
+
+    public <T> R predicate(UnboundValuePredicate<T> pred) {
+      throw new UnsupportedOperationException(
+          getClass().getName() + " does not support value predicates: " + pred);
+    }
+
     public <T, C> R aggregate(BoundAggregate<T, C> agg) {
       throw new UnsupportedOperationException("Cannot visit aggregate expression");
     }
@@ -346,6 +356,10 @@ public class ExpressionVisitors {
       } else {
         return visitor.predicate((UnboundPredicate<?>) expr);
       }
+    } else if (expr instanceof BoundValuePredicate<?> pred) {
+      return visitor.predicate(pred);
+    } else if (expr instanceof UnboundValuePredicate<?> pred) {
+      return visitor.predicate(pred);
     } else if (expr instanceof Aggregate) {
       if (expr instanceof BoundAggregate) {
         return visitor.aggregate((BoundAggregate<?, ?>) expr);
@@ -391,6 +405,10 @@ public class ExpressionVisitors {
       } else {
         return visitor.predicate((UnboundPredicate<?>) expr);
       }
+    } else if (expr instanceof BoundValuePredicate<?> pred) {
+      return visitor.predicate(pred);
+    } else if (expr instanceof UnboundValuePredicate<?> pred) {
+      return visitor.predicate(pred);
     } else {
       switch (expr.op()) {
         case TRUE:
@@ -442,6 +460,15 @@ public class ExpressionVisitors {
     }
 
     public <T> R predicate(UnboundPredicate<T> pred) {
+      throw new UnsupportedOperationException("Not a bound predicate: " + pred);
+    }
+
+    public <T> R predicate(BoundValuePredicate<T> pred) {
+      throw new UnsupportedOperationException(
+          getClass().getName() + " does not support value predicates: " + pred);
+    }
+
+    public <T> R predicate(UnboundValuePredicate<T> pred) {
       throw new UnsupportedOperationException("Not a bound predicate: " + pred);
     }
 
@@ -582,6 +609,10 @@ public class ExpressionVisitors {
       } else {
         return () -> visitor.predicate((UnboundPredicate<?>) expr);
       }
+    } else if (expr instanceof BoundValuePredicate<?> pred) {
+      return () -> visitor.predicate(pred);
+    } else if (expr instanceof UnboundValuePredicate<?> pred) {
+      return () -> visitor.predicate(pred);
     } else {
       switch (expr.op()) {
         case TRUE:

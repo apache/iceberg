@@ -143,6 +143,11 @@ public class ResidualEvaluator implements Serializable {
     }
 
     @Override
+    public <T> Expression predicate(BoundValuePredicate<T> pred) {
+      return pred;
+    }
+
+    @Override
     public <T> Expression isNull(BoundReference<T> ref) {
       return (ref.eval(struct) == null) ? alwaysTrue() : alwaysFalse();
     }
