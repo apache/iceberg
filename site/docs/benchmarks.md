@@ -26,6 +26,7 @@ Also note that JMH benchmarks run within the same JVM as the system-under-test, 
 ## Running Benchmarks on GitHub
 
 It is possible to run one or more Benchmarks via the **JMH Benchmarks** GH action on your own fork of the Iceberg repo. This GH action takes the following inputs:
+
 * The repository name where those benchmarks should be run against, such as `apache/iceberg` or `<user>/iceberg`
 * The branch name to run benchmarks against, such as `main` or `my-cool-feature-branch`
 * The Spark version to use, such as `4.1` (default: `4.1`)
@@ -102,7 +103,7 @@ A benchmark that evaluates the performance of writing nested Parquet data using 
 `./gradlew -DsparkVersions=4.1 -DscalaVersion=2.13 :iceberg-spark:iceberg-spark-4.1_2.13:jmh -PjmhIncludeRegex=IcebergSourceNestedParquetDataWriteBenchmark -PjmhOutputPath=benchmark/iceberg-source-nested-parquet-data-write-benchmark-result.txt`
 
 ### IcebergSourceNestedParquetDataReadBenchmark
-* A benchmark that evaluates the performance of reading nested Parquet data using Iceberg and the built-in file source in Spark. To run this benchmark for either spark-2 or spark-3:
+A benchmark that evaluates the performance of reading nested Parquet data using Iceberg and the built-in file source in Spark. To run this benchmark for either spark-2 or spark-3:
 
 `./gradlew -DsparkVersions=4.1 -DscalaVersion=2.13 :iceberg-spark:iceberg-spark-4.1_2.13:jmh -PjmhIncludeRegex=IcebergSourceNestedParquetDataReadBenchmark -PjmhOutputPath=benchmark/iceberg-source-nested-parquet-data-read-benchmark-result.txt`
 
@@ -128,5 +129,5 @@ column used in the filter predicate. The performance is compared to the built-in
 `./gradlew -DsparkVersions=4.1 -DscalaVersion=2.13 :iceberg-spark:iceberg-spark-4.1_2.13:jmh -PjmhIncludeRegex=IcebergSourceNestedParquetDataFilterBenchmark -PjmhOutputPath=benchmark/iceberg-source-nested-parquet-data-filter-benchmark-result.txt`
 
 ### SparkParquetWritersNestedDataBenchmark
-* A benchmark that evaluates the performance of writing nested Parquet data using Iceberg and Spark Parquet writers. To run this benchmark for either spark-2 or spark-3:
+A benchmark that evaluates the performance of writing nested Parquet data using Iceberg and Spark Parquet writers. To run this benchmark for either spark-2 or spark-3:
   `./gradlew -DsparkVersions=4.1 -DscalaVersion=2.13 :iceberg-spark:iceberg-spark-4.1_2.13:jmh -PjmhIncludeRegex=SparkParquetWritersNestedDataBenchmark -PjmhOutputPath=benchmark/spark-parquet-writers-nested-data-benchmark-result.txt`
