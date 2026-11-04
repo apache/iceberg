@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortDirection;
@@ -41,6 +42,7 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.types.StructField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,6 +78,7 @@ class SparkZOrderFileRewriteRunner extends SparkShufflingFileRewriteRunner {
   private final List<String> zOrderColNames;
   private int maxOutputSize;
   private int varLengthContribution;
+  private int quantizationBits;
 
   SparkZOrderFileRewriteRunner(SparkSession spark, Table table, List<String> zOrderColNames) {
     super(spark, table);
@@ -102,6 +105,10 @@ class SparkZOrderFileRewriteRunner extends SparkShufflingFileRewriteRunner {
     super.init(options);
     this.maxOutputSize = maxOutputSize(options);
     this.varLengthContribution = varLengthContribution(options);
+    this.quantizationBits = CurveQuantization.quantizationBits(options);
+    if (quantizationBits > 0) {
+      CurveQuantization.validateColumns(table(), zOrderColNames);
+    }
   }
 
   @Override
@@ -133,7 +140,24 @@ class SparkZOrderFileRewriteRunner extends SparkShufflingFileRewriteRunner {
 
   @Override
   protected Dataset<Row> sortedDF(Dataset<Row> df, Function<Dataset<Row>, Dataset<Row>> sortFunc) {
-    Dataset<Row> zValueDF = df.withColumn(Z_COLUMN, zValue(df));
+    return sortedByZValue(df, sortFunc, zValue(df));
+  }
+
+  @Override
+  protected Dataset<Row> sortedDF(
+      Dataset<Row> df, Function<Dataset<Row>, Dataset<Row>> sortFunc, List<FileScanTask> group) {
+    if (quantizationBits == 0) {
+      return sortedDF(df, sortFunc);
+    }
+
+    List<CurveQuantization.ColumnRange> ranges =
+        CurveQuantization.ranges(group, table(), zOrderColNames);
+    return sortedByZValue(df, sortFunc, quantizedZValue(df, ranges));
+  }
+
+  private Dataset<Row> sortedByZValue(
+      Dataset<Row> df, Function<Dataset<Row>, Dataset<Row>> sortFunc, Column zValue) {
+    Dataset<Row> zValueDF = df.withColumn(Z_COLUMN, zValue);
     Dataset<Row> sortedDF = sortFunc.apply(zValueDF);
     return sortedDF.drop(Z_COLUMN);
   }
@@ -147,6 +171,21 @@ class SparkZOrderFileRewriteRunner extends SparkShufflingFileRewriteRunner {
             .map(df.schema()::apply)
             .map(col -> zOrderUDF.sortedLexicographically(df.col(col.name()), col.dataType()))
             .toArray(Column[]::new);
+
+    return zOrderUDF.interleaveBytes(array(zOrderCols));
+  }
+
+  private Column quantizedZValue(Dataset<Row> df, List<CurveQuantization.ColumnRange> ranges) {
+    SparkZOrderUDF zOrderUDF =
+        new SparkZOrderUDF(zOrderColNames.size(), varLengthContribution, maxOutputSize);
+
+    Column[] zOrderCols = new Column[zOrderColNames.size()];
+    for (int i = 0; i < zOrderCols.length; i++) {
+      StructField field = df.schema().apply(zOrderColNames.get(i));
+      zOrderCols[i] =
+          zOrderUDF.quantizedOrderedBytes(
+              df.col(field.name()), field.dataType(), ranges.get(i), quantizationBits);
+    }
 
     return zOrderUDF.interleaveBytes(array(zOrderCols));
   }

@@ -436,12 +436,14 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 |------|---------------|-------------|
 | `var-length-contribution` | 8 | Number of bytes considered from an input column of a type with variable length (String, Binary) |
 | `max-output-size` | 2147483647 | Amount of bytes interleaved in the ZOrder algorithm |
+| `quantization-bits` | 0 | 0 (default) disables. 8, 16, 24 or 32 maps each zorder or hilbert column linearly from the min and max of the files in each rewrite group onto that many bits before building the curve, so columns with different ranges carry equal weight. Each group uses its own range. Requires column bounds (metrics mode `truncate` or `full`) on the clustered columns; a column with an infinite bound fails the rewrite. 16 is a good start. |
 
 ##### Options for sort strategy with hilbert sort_order
 
-The Hilbert sort order accepts the [general options](#general-options) and the
-[sort strategy options](#options-for-sort-strategy), but has no options of its own. Unlike ZOrder,
-every column contributes its full primitive width (8 bytes) to the Hilbert index, so
+The Hilbert sort order accepts the [general options](#general-options), the
+[sort strategy options](#options-for-sort-strategy) and `quantization-bits` from the
+[zorder options](#options-for-sort-strategy-with-zorder-sort_order). Unless `quantization-bits` is
+set, every column contributes its full primitive width (8 bytes) to the Hilbert index.
 `var-length-contribution` and `max-output-size` do not apply.
 
 Note that `hilbert()` and `zorder()` cannot be combined with each other, nor with plain column sort

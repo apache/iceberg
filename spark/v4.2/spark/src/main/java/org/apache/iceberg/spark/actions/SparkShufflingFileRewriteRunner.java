@@ -92,6 +92,11 @@ abstract class SparkShufflingFileRewriteRunner extends SparkDataFileRewriteRunne
   protected abstract Dataset<Row> sortedDF(
       Dataset<Row> df, Function<Dataset<Row>, Dataset<Row>> sortFunc);
 
+  protected Dataset<Row> sortedDF(
+      Dataset<Row> df, Function<Dataset<Row>, Dataset<Row>> sortFunc, List<FileScanTask> group) {
+    return sortedDF(df, sortFunc);
+  }
+
   @Override
   public Set<String> validOptions() {
     return ImmutableSet.<String>builder()
@@ -120,7 +125,8 @@ abstract class SparkShufflingFileRewriteRunner extends SparkDataFileRewriteRunne
             sortFunction(
                 fileGroup.fileScanTasks(),
                 spec(fileGroup.outputSpecId()),
-                fileGroup.expectedOutputFiles()));
+                fileGroup.expectedOutputFiles()),
+            fileGroup.fileScanTasks());
 
     org.apache.iceberg.SortOrder sortOrderInJobSpec = sortOrder();
 

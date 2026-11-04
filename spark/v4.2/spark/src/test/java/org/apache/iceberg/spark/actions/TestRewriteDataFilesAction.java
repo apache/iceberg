@@ -41,6 +41,8 @@ import static org.mockito.Mockito.spy;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -48,6 +50,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -103,6 +106,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -118,14 +122,19 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBase;
+import org.apache.iceberg.spark.actions.CurveQuantization.ColumnRange;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.ZOrderByteUtils;
+import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -134,6 +143,7 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -157,6 +167,20 @@ public class TestRewriteDataFilesAction extends TestBase {
           optional(3, "c3", Types.StringType.get()));
 
   private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
+
+  private static final Schema NARROW_AND_WIDE_SCHEMA =
+      new Schema(optional(1, "a", Types.IntegerType.get()), optional(2, "b", Types.LongType.get()));
+  private static final Schema PARTITIONED_CURVE_SCHEMA =
+      new Schema(
+          optional(1, "p", Types.IntegerType.get()),
+          optional(2, "a", Types.IntegerType.get()),
+          optional(3, "b", Types.LongType.get()));
+  private static final int CURVE_INPUT_FILES = 20;
+  private static final int CURVE_ROWS = 10_000;
+  private static final int NARROW_VALUES = 10;
+  private static final int NARROW_POINT = 3;
+  private static final long WIDE_MAX = 10_000_000L;
+  private static final String QUANTIZATION_BITS = "16";
 
   @Parameter private int formatVersion;
 
@@ -2479,6 +2503,215 @@ public class TestRewriteDataFilesAction extends TestBase {
         });
   }
 
+  @TestTemplate
+  void hilbertWithQuantizationNeedsFewerFilesForNarrowColumn() {
+    Table raw = createNarrowAndWideTable("raw", ImmutableMap.of());
+    Table quantized = createNarrowAndWideTable("quantized", ImmutableMap.of());
+    List<Object[]> originalData = currentData(quantized);
+
+    splitInHalfRewrite(raw).hilbert("a", "b").execute();
+    splitInHalfRewrite(quantized)
+        .hilbert("a", "b")
+        .option(CurveQuantization.QUANTIZATION_BITS, QUANTIZATION_BITS)
+        .execute();
+
+    assertEquals("We shouldn't have changed the data", originalData, currentData(quantized));
+    assertThat(percentFilesRequired(quantized, "a", NARROW_POINT))
+        .as("Quantized Hilbert keys should cluster the narrow column")
+        .isLessThan(percentFilesRequired(raw, "a", NARROW_POINT));
+  }
+
+  @TestTemplate
+  void zOrderWithQuantizationNeedsFewerFilesForNarrowColumn() {
+    Table raw = createNarrowAndWideTable("raw", ImmutableMap.of());
+    Table quantized = createNarrowAndWideTable("quantized", ImmutableMap.of());
+    List<Object[]> originalData = currentData(quantized);
+
+    splitInHalfRewrite(raw).zOrder("a", "b").execute();
+    splitInHalfRewrite(quantized)
+        .zOrder("a", "b")
+        .option(CurveQuantization.QUANTIZATION_BITS, QUANTIZATION_BITS)
+        .execute();
+
+    assertEquals("We shouldn't have changed the data", originalData, currentData(quantized));
+    assertThat(percentFilesRequired(quantized, "a", NARROW_POINT))
+        .as("Quantized Z-order keys should cluster the narrow column")
+        .isLessThan(percentFilesRequired(raw, "a", NARROW_POINT));
+  }
+
+  @TestTemplate
+  void quantizedRewriteClustersTemporalColumn() {
+    int firstDay = DateTimeUtil.daysFromDate(LocalDate.of(2025, 1, 1));
+    long firstMicros = DateTimeUtil.microsFromTimestamp(LocalDateTime.of(2025, 1, 1, 0, 0));
+    long dayMicros = TimeUnit.DAYS.toMicros(1);
+    long pointMicros = firstMicros + NARROW_POINT * dayMicros + dayMicros / 2;
+
+    assertQuantizedHilbertClustersColumn(
+        "date",
+        Types.DateType.get(),
+        "date_from_unix_date(CAST(a AS INT)) AS a",
+        firstDay,
+        NARROW_VALUES,
+        firstDay + NARROW_POINT);
+    assertQuantizedHilbertClustersColumn(
+        "timestamp",
+        Types.TimestampType.withZone(),
+        "timestamp_micros(a) AS a",
+        firstMicros,
+        NARROW_VALUES * dayMicros,
+        pointMicros);
+    assertQuantizedHilbertClustersColumn(
+        "timestamp_ntz",
+        Types.TimestampType.withoutZone(),
+        "CAST(timestamp_micros(a) AS TIMESTAMP_NTZ) AS a",
+        firstMicros,
+        NARROW_VALUES * dayMicros,
+        pointMicros);
+  }
+
+  @TestTemplate
+  void quantizedRewriteUsesEachPartitionsOwnRange() {
+    int secondPartitionMin = 1000;
+    Dataset<Row> rows =
+        randomRows(0, NARROW_VALUES)
+            .selectExpr("1 AS p", "CAST(a AS INT) AS a", "b")
+            .union(
+                randomRows(secondPartitionMin, NARROW_VALUES)
+                    .selectExpr("2 AS p", "CAST(a AS INT) AS a", "b"));
+    Table table =
+        createCurveTable(
+            "partitioned",
+            PARTITIONED_CURVE_SCHEMA,
+            PartitionSpec.builderFor(PARTITIONED_CURVE_SCHEMA).identity("p").build(),
+            ImmutableMap.of(),
+            rows);
+
+    RewriteDataFiles.Result result =
+        splitInHalfRewrite(table)
+            .hilbert("a", "b")
+            .option(CurveQuantization.QUANTIZATION_BITS, QUANTIZATION_BITS)
+            .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "2")
+            .execute();
+
+    assertThat(result.rewriteResults()).as("Should rewrite each partition separately").hasSize(2);
+    double partitionFiles = percentFilesRequired(table, "p", 2);
+    double pointFiles =
+        percentFilesRequired(
+            table, new String[] {"p", "a"}, new Object[] {2, secondPartitionMin + NARROW_POINT});
+    assertThat(pointFiles / partitionFiles)
+        .as("A point query should need less than half of its partition's files")
+        .isLessThan(0.5);
+  }
+
+  @TestTemplate
+  void quantizedRewriteKeepsRowsWithNulls() {
+    Dataset<Row> rows =
+        randomRows(0, NARROW_VALUES)
+            .selectExpr("1 AS p", "IF(b % 10 < 3, NULL, CAST(a AS INT)) AS a", "b")
+            .union(
+                randomRows(0, NARROW_VALUES).selectExpr("2 AS p", "CAST(NULL AS INT) AS a", "b"));
+    Table table =
+        createCurveTable(
+            "nulls",
+            PARTITIONED_CURVE_SCHEMA,
+            PartitionSpec.builderFor(PARTITIONED_CURVE_SCHEMA).identity("p").build(),
+            ImmutableMap.of(),
+            rows);
+    List<Object[]> originalData = currentData(table);
+    int originalFiles = Iterables.size(table.newScan().planFiles());
+
+    RewriteDataFiles.Result result =
+        splitInHalfRewrite(table)
+            .zOrder("a", "b")
+            .option(CurveQuantization.QUANTIZATION_BITS, QUANTIZATION_BITS)
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(originalFiles);
+    assertEquals("We shouldn't have changed the data", originalData, currentData(table));
+  }
+
+  @TestTemplate
+  void quantizedRewriteFailsWhenColumnHasNoBounds() {
+    Table table =
+        createNarrowAndWideTable(
+            "counts", ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts"));
+
+    assertThatThrownBy(
+            () ->
+                basicRewrite(table)
+                    .hilbert("a", "b")
+                    .option(CurveQuantization.QUANTIZATION_BITS, QUANTIZATION_BITS)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("column a")
+        .hasMessageContaining("write.metadata.metrics");
+  }
+
+  @TestTemplate
+  void quantizedKeysHaveFixedWidth() throws IOException {
+    Table table =
+        createCurveTable(
+            "keys",
+            NARROW_AND_WIDE_SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(),
+            spark.sql("SELECT * FROM VALUES (0, 1L), (NULL, 2L), (9, NULL), (4, 5L) AS t(a, b)"));
+    List<FileScanTask> tasks;
+    try (CloseableIterable<FileScanTask> files = table.newScan().includeColumnStats().planFiles()) {
+      tasks = Lists.newArrayList(files);
+    }
+
+    ColumnRange range = CurveQuantization.ranges(tasks, table, ImmutableList.of("a")).get(0);
+    int bits = Integer.parseInt(QUANTIZATION_BITS);
+    SparkZOrderUDF udf =
+        new SparkZOrderUDF(2, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE, Integer.MAX_VALUE);
+    List<Row> keys =
+        spark
+            .read()
+            .format("iceberg")
+            .load(table.location())
+            .select(
+                udf.quantizedOrderedBytes(col("a"), DataTypes.IntegerType, range, bits),
+                udf.quantizedOrderedBytes(col("b"), DataTypes.LongType, ColumnRange.NONE, bits))
+            .collectAsList();
+
+    assertThat(keys).hasSize(4);
+    assertThat(keys)
+        .allSatisfy(
+            row -> {
+              assertThat(row.<byte[]>getAs(0)).hasSize(bits / Byte.SIZE);
+              assertThat(row.<byte[]>getAs(1)).hasSize(bits / Byte.SIZE);
+            });
+  }
+
+  @TestTemplate
+  void quantizedRewriteRejectsStringColumn() {
+    Table table = createTable(4);
+
+    assertThatThrownBy(
+            () ->
+                basicRewrite(table)
+                    .zOrder("c1", "c2")
+                    .option(CurveQuantization.QUANTIZATION_BITS, QUANTIZATION_BITS)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot quantize column c2 of type string");
+  }
+
+  @TestTemplate
+  void quantizedRewriteRejectsInvalidBits() {
+    Table table = createTable(4);
+
+    assertThatThrownBy(
+            () ->
+                basicRewrite(table)
+                    .hilbert("c1")
+                    .option(CurveQuantization.QUANTIZATION_BITS, "12")
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot use quantization-bits 12");
+  }
+
   protected void shouldRewriteDataFilesWithPartitionSpec(Table table, int outputSpecId) {
     List<DataFile> rewrittenFiles = currentDataFiles(table);
     assertThat(rewrittenFiles).allMatch(file -> file.specId() == outputSpecId);
@@ -2506,6 +2739,21 @@ public class TestRewriteDataFilesAction extends TestBase {
             .load(tableLocation)
             .coalesce(1)
             .sort("c1", "c2", "c3")
+            .collectAsList());
+  }
+
+  private List<Object[]> currentData(Table table) {
+    Column[] columns =
+        table.schema().columns().stream().map(field -> col(field.name())).toArray(Column[]::new);
+    return rowsToJava(
+        spark
+            .read()
+            .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
+            .option(SparkReadOptions.FILE_OPEN_COST, 0)
+            .format("iceberg")
+            .load(table.location())
+            .coalesce(1)
+            .sort(columns)
             .collectAsList());
   }
 
@@ -2770,6 +3018,82 @@ public class TestRewriteDataFilesAction extends TestBase {
             .getAsDouble();
   }
 
+  private Table createNarrowAndWideTable(String name, Map<String, String> properties) {
+    return createCurveTable(
+        name,
+        NARROW_AND_WIDE_SCHEMA,
+        PartitionSpec.unpartitioned(),
+        properties,
+        randomRows(0, NARROW_VALUES).selectExpr("CAST(a AS INT) AS a", "b"));
+  }
+
+  private Table createCurveTable(
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      Map<String, String> properties,
+      Dataset<Row> rows) {
+    Map<String, String> options =
+        ImmutableMap.<String, String>builder()
+            .putAll(properties)
+            .put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
+            .build();
+    String location = tableLocation + name;
+    Table table = TABLES.create(schema, spec, options, location);
+    rows.repartition(CURVE_INPUT_FILES)
+        .write()
+        .format("iceberg")
+        .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
+        .option(SparkWriteOptions.FANOUT_ENABLED, "true")
+        .mode("append")
+        .save(location);
+    table.refresh();
+    return table;
+  }
+
+  private Dataset<Row> randomRows(long narrowMin, long narrowSpan) {
+    Random random = new Random(42);
+    List<Row> rows = Lists.newArrayListWithExpectedSize(CURVE_ROWS);
+    for (int i = 0; i < CURVE_ROWS; i++) {
+      rows.add(
+          RowFactory.create(narrowMin + random.nextLong(narrowSpan), random.nextLong(WIDE_MAX)));
+    }
+
+    StructType type = new StructType().add("a", DataTypes.LongType).add("b", DataTypes.LongType);
+    return spark.createDataFrame(rows, type);
+  }
+
+  private RewriteDataFilesSparkAction splitInHalfRewrite(Table table) {
+    return basicRewrite(table)
+        .option(
+            SizeBasedFileRewritePlanner.MAX_FILE_SIZE_BYTES,
+            Integer.toString((averageFileSize(table) / 2) + 2))
+        .option(
+            RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table) / 2));
+  }
+
+  private void assertQuantizedHilbertClustersColumn(
+      String name, Type type, String narrowExpr, long narrowMin, long narrowSpan, Object point) {
+    Schema schema = new Schema(optional(1, "a", type), optional(2, "b", Types.LongType.get()));
+    Table table =
+        createCurveTable(
+            name,
+            schema,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(),
+            randomRows(narrowMin, narrowSpan).selectExpr(narrowExpr, "b"));
+    double filesBefore = percentFilesRequired(table, "a", point);
+
+    splitInHalfRewrite(table)
+        .hilbert("a", "b")
+        .option(CurveQuantization.QUANTIZATION_BITS, QUANTIZATION_BITS)
+        .execute();
+
+    assertThat(percentFilesRequired(table, "a", point))
+        .as("A point query on a %s column should need less than half of the files", name)
+        .isLessThan(filesBefore / 2);
+  }
+
   private void writeRecords(List<ThreeColumnRecord> records) {
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);
     writeDF(df);
@@ -2984,11 +3308,11 @@ public class TestRewriteDataFilesAction extends TestBase {
         .build();
   }
 
-  private double percentFilesRequired(Table table, String col, String value) {
-    return percentFilesRequired(table, new String[] {col}, new String[] {value});
+  private double percentFilesRequired(Table table, String col, Object value) {
+    return percentFilesRequired(table, new String[] {col}, new Object[] {value});
   }
 
-  private double percentFilesRequired(Table table, String[] cols, String[] values) {
+  private double percentFilesRequired(Table table, String[] cols, Object[] values) {
     Preconditions.checkArgument(cols.length == values.length);
     Expression restriction = Expressions.alwaysTrue();
     for (int i = 0; i < cols.length; i++) {
