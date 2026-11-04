@@ -168,7 +168,7 @@ interface TrackedFile {
   ContentStats contentStats();
 
   /** Returns whether the file's statistics are tight. */
-  boolean hasTightStats();
+  boolean tightStats();
 
   /** Returns the ID of the sort order for this file, or null. */
   Integer sortOrderId();

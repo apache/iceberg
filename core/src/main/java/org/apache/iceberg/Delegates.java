@@ -248,8 +248,8 @@ class Delegates {
     }
 
     @Override
-    public boolean hasTightStats() {
-      return wrapped.hasTightStats();
+    public boolean tightStats() {
+      return wrapped.tightStats();
     }
 
     @Override

@@ -235,7 +235,7 @@ class TestTrackedFileAdapters {
     assertThat(dataFile.splitOffsets()).containsExactly(50L, 100L);
     assertThat(dataFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
     assertThat(dataFile.deletionVector()).isSameAs(dv);
-    assertThat(dataFile.hasTightStats()).isTrue();
+    assertThat(dataFile.tightStats()).isTrue();
     assertThat(dataFile.equalityFieldIds()).isNull();
     assertThat(dataFile.columnSizes()).isNull();
     assertThat(dataFile.valueCounts())
@@ -340,7 +340,7 @@ class TestTrackedFileAdapters {
     assertThat(dvFile.nanValueCounts()).isNull();
     assertThat(dvFile.lowerBounds()).isNull();
     assertThat(dvFile.upperBounds()).isNull();
-    assertThat(dvFile.hasTightStats()).isFalse();
+    assertThat(dvFile.tightStats()).isFalse();
   }
 
   @Test
@@ -649,7 +649,7 @@ class TestTrackedFileAdapters {
   @Test
   void dataTrackedFileAdapterFromDataFile() {
     DataFile file = Mockito.spy(DATA_FILE);
-    when(file.hasTightStats()).thenReturn(true);
+    when(file.tightStats()).thenReturn(true);
     TrackedFile result = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(file);
 
     assertThat(result.tracking()).isNull();
@@ -835,7 +835,7 @@ class TestTrackedFileAdapters {
     assertThat(result.recordCount()).isEqualTo(file.recordCount());
     assertThat(result.fileSizeInBytes()).isEqualTo(file.fileSizeInBytes());
     assertThat(result.specId()).isEqualTo(file.specId());
-    assertThat(result.hasTightStats()).isEqualTo(file.hasTightStats());
+    assertThat(result.tightStats()).isEqualTo(file.tightStats());
     assertThat(result.sortOrderId()).isEqualTo(file.sortOrderId());
     assertThat(result.keyMetadata()).isEqualTo(file.keyMetadata());
     assertThat(result.splitOffsets()).isEqualTo(file.splitOffsets());
