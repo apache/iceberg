@@ -19,6 +19,7 @@
 package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.CharsetEncoder;
@@ -28,6 +29,8 @@ import java.util.Random;
 import org.apache.iceberg.relocated.com.google.common.primitives.UnsignedBytes;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestZOrderByteUtil {
   private static final byte IIIIIIII = (byte) 255;
@@ -39,6 +42,9 @@ public class TestZOrderByteUtil {
 
   private static final int NUM_TESTS = 100000;
   private static final int NUM_INTERLEAVE_TESTS = 1000;
+  private static final int NUM_QUANTIZE_TESTS = 1000;
+  private static final double QUANTIZE_MIN = -3.5;
+  private static final double QUANTIZE_MAX = 1234.25;
 
   private final Random random = new Random(42);
 
@@ -417,5 +423,142 @@ public class TestZOrderByteUtil {
     Arrays.fill(expected.array(), 0, 128, (byte) 0x00);
 
     assertThat(actualBytes).isEqualTo(expected.array());
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {8, 16, 24, 32})
+  void quantizedBytesPreserveOrder(int bits) {
+    double[] values = new double[NUM_QUANTIZE_TESTS];
+    for (int i = 0; i < values.length; i++) {
+      values[i] = QUANTIZE_MIN + random.nextDouble() * (QUANTIZE_MAX - QUANTIZE_MIN);
+    }
+
+    Arrays.sort(values);
+
+    byte[] previous = quantize(values[0], bits);
+    for (int i = 1; i < values.length; i++) {
+      byte[] current = quantize(values[i], bits);
+      assertThat(UnsignedBytes.lexicographicalComparator().compare(previous, current))
+          .as(
+              "Quantized bytes of %s must not sort after those of %s: %s vs %s",
+              values[i - 1], values[i], Arrays.toString(previous), Arrays.toString(current))
+          .isLessThanOrEqualTo(0);
+      previous = current;
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {8, 16, 24, 32})
+  void quantizedBytesMapEndpointsToFirstAndLastBucket(int bits) {
+    assertThat(quantize(QUANTIZE_MIN, bits)).isEqualTo(filledBytes(bits / 8, (byte) 0x00));
+    assertThat(quantize(QUANTIZE_MAX, bits)).isEqualTo(filledBytes(bits / 8, (byte) 0xFF));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {8, 16, 24, 32})
+  void quantizedBytesClampOutOfRange(int bits) {
+    assertThat(quantize(QUANTIZE_MIN - 1, bits)).isEqualTo(quantize(QUANTIZE_MIN, bits));
+    assertThat(quantize(QUANTIZE_MAX + 1, bits)).isEqualTo(quantize(QUANTIZE_MAX, bits));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {8, 16, 24, 32})
+  void quantizedBytesOfConstantRangeAreZero(int bits) {
+    byte[] actual =
+        ZOrderByteUtils.quantizedOrderedBytes(5.0, 5.0, 5.0, bits, ByteBuffer.allocate(bits / 8))
+            .array();
+
+    assertThat(actual).isEqualTo(filledBytes(bits / 8, (byte) 0x00));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {8, 16, 24, 32})
+  void quantizedBytesOfNaNUseLastBucket(int bits) {
+    assertThat(quantize(Double.NaN, bits)).isEqualTo(filledBytes(bits / 8, (byte) 0xFF));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, 7, 12, 40})
+  void quantizedBytesRejectInvalidBits(int bits) {
+    assertThatThrownBy(
+            () ->
+                ZOrderByteUtils.quantizedOrderedBytes(
+                    1.0, QUANTIZE_MIN, QUANTIZE_MAX, bits, ByteBuffer.allocate(8)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(String.valueOf(bits));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {8, 16, 24, 32})
+  void quantizedBytesMapInteriorValuesLinearly(int bits) {
+    double[] fractions = {0.25, 0.5, 0.75};
+    for (double fraction : fractions) {
+      double value = QUANTIZE_MIN + fraction * (QUANTIZE_MAX - QUANTIZE_MIN);
+      long expectedBucket = (long) Math.floor(fraction * (1L << bits));
+
+      assertThat(quantize(value, bits))
+          .as("Quantized bytes of %s at fraction %s", value, fraction)
+          .isEqualTo(bigEndianBytes(expectedBucket, bits / Byte.SIZE));
+    }
+  }
+
+  @Test
+  void quantizedBytesRejectMinGreaterThanMax() {
+    assertThatThrownBy(
+            () ->
+                ZOrderByteUtils.quantizedOrderedBytes(
+                    1.0, QUANTIZE_MAX, QUANTIZE_MIN, 16, ByteBuffer.allocate(2)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(String.valueOf(QUANTIZE_MAX))
+        .hasMessageContaining(String.valueOf(QUANTIZE_MIN));
+  }
+
+  @Test
+  void quantizedBytesRejectNaNMin() {
+    assertThatThrownBy(
+            () ->
+                ZOrderByteUtils.quantizedOrderedBytes(
+                    1.0, Double.NaN, QUANTIZE_MAX, 16, ByteBuffer.allocate(2)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("NaN");
+  }
+
+  @Test
+  void quantizedBytesRejectNaNMax() {
+    assertThatThrownBy(
+            () ->
+                ZOrderByteUtils.quantizedOrderedBytes(
+                    1.0, QUANTIZE_MIN, Double.NaN, 16, ByteBuffer.allocate(2)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("NaN");
+  }
+
+  @Test
+  void quantizedBytesRejectRangeWiderThanDouble() {
+    double min = -1e308;
+    double max = 1e308;
+
+    assertThatThrownBy(
+            () -> ZOrderByteUtils.quantizedOrderedBytes(0.0, min, max, 16, ByteBuffer.allocate(2)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(String.valueOf(min))
+        .hasMessageContaining(String.valueOf(max));
+  }
+
+  private static byte[] bigEndianBytes(long value, int length) {
+    byte[] longBytes = ByteBuffer.allocate(Long.BYTES).putLong(value).array();
+    return Arrays.copyOfRange(longBytes, Long.BYTES - length, Long.BYTES);
+  }
+
+  private static byte[] quantize(double value, int bits) {
+    return ZOrderByteUtils.quantizedOrderedBytes(
+            value, QUANTIZE_MIN, QUANTIZE_MAX, bits, ByteBuffer.allocate(bits / 8))
+        .array();
+  }
+
+  private static byte[] filledBytes(int length, byte value) {
+    byte[] bytes = new byte[length];
+    Arrays.fill(bytes, value);
+    return bytes;
   }
 }
