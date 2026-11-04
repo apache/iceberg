@@ -40,7 +40,7 @@ info:
     The header is a whitespace-separated list of `product/version` tokens,
     optionally followed by a parenthesized comment:
 
-    - When the header is sent, the token of the Iceberg client library MUST be
+    - When the header is sent, the token of the Iceberg client library SHOULD be
       present, for example `iceberg-java`, `pyiceberg`, `iceberg-rust`,
       `iceberg-go`, or `iceberg-cpp`. This list is illustrative, not
       exhaustive: any other Iceberg library, or a proprietary or custom
