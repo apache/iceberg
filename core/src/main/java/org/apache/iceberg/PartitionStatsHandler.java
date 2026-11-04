@@ -23,8 +23,11 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Deque;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -33,16 +36,17 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.AbstractIterator;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.PeekingIterator;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.StructType;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionMap;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -102,43 +106,58 @@ public class PartitionStatsHandler {
     Snapshot snapshot = table.snapshot(snapshotId);
     Preconditions.checkArgument(snapshot != null, "Snapshot not found: %s", snapshotId);
 
-    Collection<PartitionStatistics> stats;
+    StructType partitionType = Partitioning.partitionType(table);
+    Schema schema = PartitionStatistics.schema(partitionType, TableUtil.formatVersion(table));
+    Comparator<StructLike> partitionComparator = Comparators.forType(partitionType);
+    Comparator<PartitionStatistics> statsComparator =
+        Comparator.comparing(PartitionStatistics::partition, partitionComparator)
+            .thenComparing(PartitionStatistics::specId);
+
     PartitionStatisticsFile statisticsFile = latestStatsFile(table, snapshot.snapshotId());
+    if (statisticsFile != null && statisticsFile.snapshotId() == snapshotId) {
+      // no-op
+      LOG.info("Returning existing statistics file for snapshot {}", snapshotId);
+      return statisticsFile;
+    }
+
     if (statisticsFile == null) {
       LOG.info(
           "Using full compute as previous statistics file is not present for incremental compute.");
-      stats =
-          computeStats(table, snapshot.allManifests(table.io()), false /* incremental */).values();
+    } else if (!partitionType.equals(Partitioning.unionPartitionTypes(table.specs().values()))) {
+      // projecting out dropped partition fields can break the sort order of the previous file
+      LOG.info("Using full compute as a partition source column was dropped.");
     } else {
-      if (statisticsFile.snapshotId() == snapshotId) {
-        // no-op
-        LOG.info("Returning existing statistics file for snapshot {}", snapshotId);
-        return statisticsFile;
+      PartitionMap<PartitionStatistics> incrementalStats =
+          computeStatsDiff(table, table.snapshot(statisticsFile.snapshotId()), snapshot);
+      if (incrementalStats.isEmpty()) {
+        return null;
       }
 
-      try {
-        stats = computeAndMergeStatsIncremental(table, snapshot, statisticsFile.snapshotId());
+      List<PartitionStatistics> sortedIncremental =
+          sortStats(incrementalStats.values(), statsComparator);
+      try (CloseableIterable<PartitionStatistics> baseStats =
+          openBaseStats(table, statisticsFile.snapshotId())) {
+        Iterator<PartitionStatistics> merged =
+            new MergeIterator(
+                new GroupSortedIterator(
+                    new BaseStatsIterator(baseStats), partitionComparator, statsComparator),
+                sortedIncremental.iterator(),
+                statsComparator);
+        return writePartitionStatsFile(table, snapshotId, schema, () -> merged);
       } catch (InvalidStatsFileException exception) {
         LOG.warn(
             "Using full compute as previous statistics file is corrupted for incremental compute.");
-        stats =
-            computeStats(table, snapshot.allManifests(table.io()), false /* incremental */)
-                .values();
       }
     }
 
+    Collection<PartitionStatistics> stats =
+        computeStats(table, snapshot.allManifests(table.io()), false /* incremental */).values();
     if (stats.isEmpty()) {
       // empty branch case
       return null;
     }
 
-    StructType partitionType = Partitioning.partitionType(table);
-    List<PartitionStatistics> sortedStats = sortStatsByPartition(stats, partitionType);
-    return writePartitionStatsFile(
-        table,
-        snapshot.snapshotId(),
-        PartitionStatistics.schema(partitionType, TableUtil.formatVersion(table)),
-        sortedStats);
+    return writePartitionStatsFile(table, snapshotId, schema, sortStats(stats, statsComparator));
   }
 
   @VisibleForTesting
@@ -178,45 +197,6 @@ public class PartitionStatsHandler {
                     fileFormat.addExtension(
                         String.format(
                             Locale.ROOT, "partition-stats-%d-%s", snapshotId, UUID.randomUUID()))));
-  }
-
-  private static Collection<PartitionStatistics> computeAndMergeStatsIncremental(
-      Table table, Snapshot snapshot, long lastSnapshotWithStats) {
-    PartitionMap<PartitionStatistics> statsMap = PartitionMap.create(table.specs());
-    try (CloseableIterable<PartitionStatistics> oldStats =
-        table.newPartitionStatisticsScan().useSnapshot(lastSnapshotWithStats).scan()) {
-      oldStats.forEach(
-          partitionStats ->
-              statsMap.put(partitionStats.specId(), partitionStats.partition(), partitionStats));
-    } catch (Exception exception) {
-      throw new InvalidStatsFileException(exception);
-    }
-
-    // incrementally compute the new stats, partition field will be written as PartitionData
-    PartitionMap<PartitionStatistics> incrementalStatsMap =
-        computeStatsDiff(table, table.snapshot(lastSnapshotWithStats), snapshot);
-
-    // convert PartitionData into GenericRecord and merge stats
-    incrementalStatsMap.forEach(
-        (key, value) ->
-            statsMap.merge(
-                Pair.of(key.first(), partitionDataToRecord((PartitionData) key.second())),
-                value,
-                (existingEntry, newEntry) -> {
-                  appendStats(existingEntry, newEntry);
-                  return existingEntry;
-                }));
-
-    return statsMap.values();
-  }
-
-  private static GenericRecord partitionDataToRecord(PartitionData data) {
-    GenericRecord record = GenericRecord.create(data.getPartitionType());
-    for (int index = 0; index < record.size(); index++) {
-      record.set(index, data.get(index));
-    }
-
-    return record;
   }
 
   @VisibleForTesting
@@ -336,11 +316,10 @@ public class PartitionStatsHandler {
                 }));
   }
 
-  private static List<PartitionStatistics> sortStatsByPartition(
-      Collection<PartitionStatistics> stats, StructType partitionType) {
+  private static List<PartitionStatistics> sortStats(
+      Collection<PartitionStatistics> stats, Comparator<PartitionStatistics> comparator) {
     List<PartitionStatistics> entries = Lists.newArrayList(stats);
-    entries.sort(
-        Comparator.comparing(PartitionStatistics::partition, Comparators.forType(partitionType)));
+    entries.sort(comparator);
     return entries;
   }
 
@@ -531,10 +510,130 @@ public class PartitionStatsHandler {
     }
   }
 
+  private static CloseableIterable<PartitionStatistics> openBaseStats(
+      Table table, long snapshotId) {
+    try {
+      return table.newPartitionStatisticsScan().useSnapshot(snapshotId).scan();
+    } catch (RuntimeException exception) {
+      throw new InvalidStatsFileException(exception);
+    }
+  }
+
   private static class InvalidStatsFileException extends RuntimeException {
 
     InvalidStatsFileException(Throwable cause) {
       super(cause);
+    }
+  }
+
+  /** Rethrows read failures of the previous stats file as {@link InvalidStatsFileException}. */
+  private static class BaseStatsIterator implements Iterator<PartitionStatistics> {
+    private final Iterable<PartitionStatistics> source;
+    private Iterator<PartitionStatistics> delegate;
+
+    BaseStatsIterator(Iterable<PartitionStatistics> source) {
+      this.source = source;
+    }
+
+    @Override
+    public boolean hasNext() {
+      try {
+        if (delegate == null) {
+          this.delegate = source.iterator();
+        }
+
+        return delegate.hasNext();
+      } catch (RuntimeException exception) {
+        throw new InvalidStatsFileException(exception);
+      }
+    }
+
+    @Override
+    public PartitionStatistics next() {
+      try {
+        return delegate.next();
+      } catch (RuntimeException exception) {
+        throw new InvalidStatsFileException(exception);
+      }
+    }
+  }
+
+  /**
+   * Orders a stream sorted only by partition by (partition, spec ID), buffering one partition group
+   * at a time.
+   */
+  private static class GroupSortedIterator extends AbstractIterator<PartitionStatistics> {
+    private final PeekingIterator<PartitionStatistics> delegate;
+    private final Comparator<StructLike> partitionComparator;
+    private final Comparator<PartitionStatistics> statsComparator;
+    private final Deque<PartitionStatistics> buffer = new ArrayDeque<>();
+
+    GroupSortedIterator(
+        Iterator<PartitionStatistics> delegate,
+        Comparator<StructLike> partitionComparator,
+        Comparator<PartitionStatistics> statsComparator) {
+      this.delegate = Iterators.peekingIterator(delegate);
+      this.partitionComparator = partitionComparator;
+      this.statsComparator = statsComparator;
+    }
+
+    @Override
+    protected PartitionStatistics computeNext() {
+      if (buffer.isEmpty()) {
+        if (!delegate.hasNext()) {
+          return endOfData();
+        }
+
+        List<PartitionStatistics> group = Lists.newArrayList();
+        StructLike partition = delegate.peek().partition();
+        while (delegate.hasNext()
+            && partitionComparator.compare(delegate.peek().partition(), partition) == 0) {
+          group.add(delegate.next());
+        }
+
+        group.sort(statsComparator);
+        buffer.addAll(group);
+      }
+
+      return buffer.poll();
+    }
+  }
+
+  /** Merges two iterators sorted by the comparator, combining entries that compare equal. */
+  private static class MergeIterator extends AbstractIterator<PartitionStatistics> {
+    private final PeekingIterator<PartitionStatistics> base;
+    private final PeekingIterator<PartitionStatistics> incremental;
+    private final Comparator<PartitionStatistics> comparator;
+
+    MergeIterator(
+        Iterator<PartitionStatistics> base,
+        Iterator<PartitionStatistics> incremental,
+        Comparator<PartitionStatistics> comparator) {
+      this.base = Iterators.peekingIterator(base);
+      this.incremental = Iterators.peekingIterator(incremental);
+      this.comparator = comparator;
+    }
+
+    @Override
+    protected PartitionStatistics computeNext() {
+      if (!base.hasNext()) {
+        return incremental.hasNext() ? incremental.next() : endOfData();
+      }
+
+      if (!incremental.hasNext()) {
+        return base.next();
+      }
+
+      int result = comparator.compare(base.peek(), incremental.peek());
+      if (result < 0) {
+        return base.next();
+      } else if (result > 0) {
+        return incremental.next();
+      }
+
+      PartitionStatistics merged = base.next();
+      appendStats(merged, incremental.next());
+      return merged;
     }
   }
 }
