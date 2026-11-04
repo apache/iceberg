@@ -1225,7 +1225,7 @@ A simple (and recommended) way for writers to adapt existing metadata for table 
 
 #### Inheritance
 
-Values for `snapshot_id`, `sequence_number`, and `file_sequence_number` are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the snapshot root file. In v4 and later, `snapshot_timestamp` is also inherited when `null`; see [Snapshot Timestamp Inheritance](#snapshot-timestamp-inheritance).
+Values for `snapshot_id`, `sequence_number`, `file_sequence_number`, and `snapshot_timestamp` are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the snapshot root file.
 
 ##### Sequence Number Inheritance
 
