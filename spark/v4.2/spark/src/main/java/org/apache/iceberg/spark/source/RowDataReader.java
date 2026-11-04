@@ -24,7 +24,6 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -72,11 +71,6 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
     return new CustomTaskMetric[] {
       new TaskNumSplits(numSplits), new TaskNumDeletes(counter().get())
     };
-  }
-
-  @Override
-  protected InputFilesDecryptor newInputFilesDecryptor() {
-    return InputFilesDecryptor.fromTasks(taskGroup().tasks(), encryptingFileIO());
   }
 
   @Override

@@ -22,13 +22,12 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.AddedRowsScanTask;
-import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ContentFile;
-import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.DeletedDataFileScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PositionDeletesScanTask;
+import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -54,19 +53,8 @@ public class InputFilesDecryptor {
   }
 
   public static InputFilesDecryptor fromTasks(
-      Iterable<FileScanTask> tasks, EncryptingFileIO encryptingIO) {
+      Iterable<? extends ScanTask> tasks, EncryptingFileIO encryptingIO) {
     return new InputFilesDecryptor(() -> referencedFiles(tasks).iterator(), encryptingIO);
-  }
-
-  public static InputFilesDecryptor fromChangelogTasks(
-      Iterable<ChangelogScanTask> tasks, EncryptingFileIO encryptingIO) {
-    return new InputFilesDecryptor(() -> changelogReferencedFiles(tasks).iterator(), encryptingIO);
-  }
-
-  public static InputFilesDecryptor fromPositionDeletesTasks(
-      Iterable<PositionDeletesScanTask> tasks, EncryptingFileIO encryptingIO) {
-    return new InputFilesDecryptor(
-        () -> positionDeletesReferencedFiles(tasks).iterator(), encryptingIO);
   }
 
   private InputFilesDecryptor(
@@ -87,44 +75,28 @@ public class InputFilesDecryptor {
     return lazyInputFiles;
   }
 
-  private static Collection<ContentFile<?>> referencedFiles(Iterable<FileScanTask> tasks) {
+  private static Collection<ContentFile<?>> referencedFiles(Iterable<? extends ScanTask> tasks) {
     Map<String, ContentFile<?>> files = Maps.newHashMap();
-    for (FileScanTask task : tasks) {
-      files.put(task.file().location(), task.file());
-      for (DeleteFile delete : task.deletes()) {
-        files.put(delete.location(), delete);
-      }
-    }
-
-    return files.values();
-  }
-
-  private static Collection<ContentFile<?>> changelogReferencedFiles(
-      Iterable<ChangelogScanTask> tasks) {
-    Map<String, ContentFile<?>> files = Maps.newHashMap();
-    for (ChangelogScanTask task : tasks) {
-      if (task instanceof AddedRowsScanTask addedRowsTask) {
-        Stream.concat(Stream.of(addedRowsTask.file()), addedRowsTask.deletes().stream())
-            .forEach(file -> files.put(file.location(), file));
+    for (ScanTask task : tasks) {
+      Stream<? extends ContentFile<?>> taskFiles;
+      if (task instanceof FileScanTask fileTask) {
+        taskFiles = Stream.concat(Stream.of(fileTask.file()), fileTask.deletes().stream());
+      } else if (task instanceof AddedRowsScanTask addedRowsTask) {
+        taskFiles =
+            Stream.concat(Stream.of(addedRowsTask.file()), addedRowsTask.deletes().stream());
       } else if (task instanceof DeletedDataFileScanTask deletedDataFileTask) {
-        Stream.concat(
+        taskFiles =
+            Stream.concat(
                 Stream.of(deletedDataFileTask.file()),
-                deletedDataFileTask.existingDeletes().stream())
-            .forEach(file -> files.put(file.location(), file));
+                deletedDataFileTask.existingDeletes().stream());
+      } else if (task instanceof PositionDeletesScanTask positionDeletesTask) {
+        taskFiles = Stream.of(positionDeletesTask.file());
       } else {
         throw new IllegalArgumentException(
-            "Unsupported changelog scan task type: " + task.getClass().getName());
+            "Unsupported scan task type: " + task.getClass().getName());
       }
-    }
 
-    return files.values();
-  }
-
-  private static Collection<ContentFile<?>> positionDeletesReferencedFiles(
-      Iterable<PositionDeletesScanTask> tasks) {
-    Map<String, ContentFile<?>> files = Maps.newHashMap();
-    for (PositionDeletesScanTask task : tasks) {
-      files.put(task.file().location(), task.file());
+      taskFiles.forEach(file -> files.put(file.location(), file));
     }
 
     return files.values();

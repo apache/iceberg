@@ -23,7 +23,6 @@ import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.io.CloseableIterator;
@@ -62,11 +61,6 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
 
     int numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} position delete file split(s) for table {}", numSplits, table.name());
-  }
-
-  @Override
-  protected InputFilesDecryptor newInputFilesDecryptor() {
-    return InputFilesDecryptor.fromPositionDeletesTasks(taskGroup().tasks(), encryptingFileIO());
   }
 
   @SuppressWarnings("resource") // handled by BaseReader

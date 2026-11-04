@@ -41,7 +41,6 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
@@ -90,11 +89,6 @@ public class TestBaseReader {
 
     ClosureTrackingReader(Table table, List<FileScanTask> tasks) {
       super(table, table.io(), new BaseCombinedScanTask(tasks), null, false, true);
-    }
-
-    @Override
-    protected InputFilesDecryptor newInputFilesDecryptor() {
-      return InputFilesDecryptor.fromTasks(taskGroup().tasks(), encryptingFileIO());
     }
 
     @Override

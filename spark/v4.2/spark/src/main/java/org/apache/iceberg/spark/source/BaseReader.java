@@ -68,11 +68,9 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(BaseReader.class);
 
   private final Table table;
-  private final EncryptingFileIO fileIO;
   private final Schema expectedSchema;
   private final boolean caseSensitive;
   private final NameMapping nameMapping;
-  private final ScanTaskGroup<TaskT> taskGroup;
   private final Iterator<TaskT> tasks;
   private final DeleteCounter counter;
   private final boolean cacheDeleteFilesOnExecutors;
@@ -90,8 +88,6 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
     this.table = table;
-    this.fileIO = EncryptingFileIO.combine(fileIO, table().encryption());
-    this.taskGroup = taskGroup;
     this.tasks = taskGroup.tasks().iterator();
     this.currentIterator = CloseableIterator.empty();
     this.expectedSchema = expectedSchema;
@@ -101,12 +97,12 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
     this.counter = new DeleteCounter();
     this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
-    this.inputFilesDecryptor = newInputFilesDecryptor();
+    this.inputFilesDecryptor =
+        InputFilesDecryptor.fromTasks(
+            taskGroup.tasks(), EncryptingFileIO.combine(fileIO, table.encryption()));
   }
 
   protected abstract CloseableIterator<T> open(TaskT task);
-
-  protected abstract InputFilesDecryptor newInputFilesDecryptor();
 
   protected Schema expectedSchema() {
     return expectedSchema;
@@ -174,14 +170,6 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   protected InputFile getInputFile(String location) {
     return inputFilesDecryptor.getInputFile(location);
-  }
-
-  protected ScanTaskGroup<TaskT> taskGroup() {
-    return taskGroup;
-  }
-
-  protected EncryptingFileIO encryptingFileIO() {
-    return fileIO;
   }
 
   protected Map<Integer, ?> constantsMap(ContentScanTask<?> task, Schema readSchema) {
