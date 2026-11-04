@@ -18,11 +18,17 @@
  */
 package org.apache.iceberg.expressions;
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+
 public class And implements Expression {
   private final Expression left;
   private final Expression right;
 
   And(Expression left, Expression right) {
+    Preconditions.checkArgument(
+        !(left instanceof ValueExpression), "Invalid left operand, not a predicate: %s", left);
+    Preconditions.checkArgument(
+        !(right instanceof ValueExpression), "Invalid right operand, not a predicate: %s", right);
     this.left = left;
     this.right = right;
   }

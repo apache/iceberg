@@ -188,7 +188,8 @@ public class Projections {
     }
 
     Expression projectValuePredicate(UnboundValuePredicate<?> pred, Expression unprojectable) {
-      UnboundPredicate<?> termPredicate = pred.asTermPredicate();
+      UnboundPredicate<?> termPredicate =
+          pred.asTermPredicate(spec.schema().asStruct(), caseSensitive);
       return termPredicate != null ? predicate(termPredicate) : unprojectable;
     }
 

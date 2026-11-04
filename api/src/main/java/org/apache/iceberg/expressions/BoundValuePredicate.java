@@ -20,10 +20,12 @@ package org.apache.iceberg.expressions;
 
 import java.util.Comparator;
 import java.util.Set;
+import java.util.UUID;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.NaNUtil;
 
 /**
@@ -119,7 +121,28 @@ public class BoundValuePredicate<T> implements BoundExpression<Boolean> {
 
   @Override
   public Expression negate() {
-    return new BoundValuePredicate<>(op.negate(), left, right, literalSet);
+    if (!UnboundValuePredicate.isOrdering(op)) {
+      return new BoundValuePredicate<>(op.negate(), left, right, literalSet);
+    }
+
+    return UnboundValuePredicate.negateOrdering(
+        op,
+        new BoundValuePredicate<>(op.negate(), left, right),
+        new BoundValuePredicate<>(Operation.NOT_EQ, left, right),
+        Expressions.or(unordered(left), unordered(right)));
+  }
+
+  private static <X> Expression unordered(BoundExpression<X> operand) {
+    if (operand instanceof Literal) {
+      return Expressions.alwaysFalse();
+    }
+
+    Expression isNull = new BoundValuePredicate<>(Operation.IS_NULL, operand);
+    if (!UnboundValuePredicate.mayBeNaN(operand)) {
+      return isNull;
+    }
+
+    return Expressions.or(isNull, new BoundValuePredicate<>(Operation.IS_NAN, operand));
   }
 
   /**
@@ -148,37 +171,88 @@ public class BoundValuePredicate<T> implements BoundExpression<Boolean> {
   }
 
   private boolean compare(T leftValue, T rightValue) {
-    int cmp = comparator().compare(leftValue, rightValue);
     return switch (op) {
-      case LT -> cmp < 0;
-      case LT_EQ -> cmp <= 0;
-      case GT -> cmp > 0;
-      case GT_EQ -> cmp >= 0;
-      case EQ -> cmp == 0;
-      case NOT_EQ -> cmp != 0;
+      case EQ -> isEqual(leftValue, rightValue);
+      case NOT_EQ -> !isEqual(leftValue, rightValue);
+      case LT -> isOrdered(leftValue, rightValue) && cmp(leftValue, rightValue) < 0;
+      case LT_EQ ->
+          isEqual(leftValue, rightValue)
+              || (isOrdered(leftValue, rightValue) && cmp(leftValue, rightValue) < 0);
+      case GT -> isOrdered(leftValue, rightValue) && cmp(leftValue, rightValue) > 0;
+      case GT_EQ ->
+          isEqual(leftValue, rightValue)
+              || (isOrdered(leftValue, rightValue) && cmp(leftValue, rightValue) > 0);
       default -> throw new IllegalStateException("Invalid operation for comparison: " + op);
     };
   }
 
+  private boolean isEqual(T leftValue, T rightValue) {
+    if (leftValue == null || rightValue == null) {
+      return leftValue == null && rightValue == null;
+    } else if (NaNUtil.isNaN(leftValue) || NaNUtil.isNaN(rightValue)) {
+      return NaNUtil.isNaN(leftValue) && NaNUtil.isNaN(rightValue);
+    }
+
+    return cmp(leftValue, rightValue) == 0;
+  }
+
+  private static boolean isOrdered(Object leftValue, Object rightValue) {
+    return leftValue != null
+        && rightValue != null
+        && !NaNUtil.isNaN(leftValue)
+        && !NaNUtil.isNaN(rightValue);
+  }
+
+  @SuppressWarnings("unchecked")
+  private int cmp(T leftValue, T rightValue) {
+    if (leftValue instanceof Float || leftValue instanceof Double) {
+      double leftDouble = ((Number) leftValue).doubleValue();
+      double rightDouble = ((Number) rightValue).doubleValue();
+      return leftDouble < rightDouble ? -1 : (leftDouble > rightDouble ? 1 : 0);
+    } else if (leftValue instanceof UUID leftUUID && rightValue instanceof UUID rightUUID) {
+      int cmp =
+          Long.compareUnsigned(
+              leftUUID.getMostSignificantBits(), rightUUID.getMostSignificantBits());
+      return cmp != 0
+          ? cmp
+          : Long.compareUnsigned(
+              leftUUID.getLeastSignificantBits(), rightUUID.getLeastSignificantBits());
+    } else if (leftValue instanceof Integer leftInt && rightValue instanceof Long) {
+      return comparator().compare((T) Long.valueOf(leftInt), rightValue);
+    } else if (leftValue instanceof Long && rightValue instanceof Integer rightInt) {
+      return comparator().compare(leftValue, (T) Long.valueOf(rightInt));
+    }
+
+    return comparator().compare(leftValue, rightValue);
+  }
+
   private Comparator<T> comparator() {
     if (comparator == null) {
-      this.comparator = Comparators.<T>nullsFirst().thenComparing(valueComparator());
+      Type type = alignedType(typeOf(left), typeOf(right));
+      if (type != null) {
+        this.comparator = Comparators.forType(type.asPrimitiveType());
+      } else if (left instanceof Literal<T> literal) {
+        this.comparator = literal.comparator();
+      } else if (right instanceof Literal<T> literal) {
+        this.comparator = literal.comparator();
+      } else {
+        throw new UnsupportedOperationException("Cannot compare untyped operands: " + this);
+      }
     }
 
     return comparator;
   }
 
-  private Comparator<T> valueComparator() {
-    Type type = typeOf(left) != null ? typeOf(left) : typeOf(right);
-    if (type != null) {
-      return Comparators.forType(type.asPrimitiveType());
-    } else if (left instanceof Literal<T> literal) {
-      return literal.comparator();
-    } else if (right instanceof Literal<T> literal) {
-      return literal.comparator();
+  private static Type alignedType(Type leftType, Type rightType) {
+    if (leftType == null) {
+      return rightType;
+    } else if (rightType != null
+        && rightType.isPrimitiveType()
+        && TypeUtil.isPromotionAllowed(leftType, rightType.asPrimitiveType())) {
+      return rightType;
     }
 
-    throw new UnsupportedOperationException("Cannot compare untyped operands: " + this);
+    return leftType;
   }
 
   private static Type typeOf(BoundExpression<?> expr) {

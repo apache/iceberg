@@ -75,10 +75,15 @@ public class UnboundApply<T> implements Apply<T>, Unbound<T, BoundApply<T>> {
       boolean caseSensitive) {
     if (argument instanceof Literal<?> literal) {
       return literal;
-    } else if (argument instanceof NamedReference<?> reference) {
-      return reference.bind(struct, caseSensitive);
+    } else if (argument instanceof UnboundTerm<?> term) {
+      return term.bind(struct, caseSensitive);
     } else if (argument instanceof UnboundApply<?> apply) {
       return apply.bind(functionBinder, struct, caseSensitive);
+    } else if (!(argument instanceof ValueExpression)
+        && !(argument instanceof Aggregate)
+        && !(argument instanceof BoundExpression)) {
+      return new BoundPredicateArgument(
+          Binder.bind(struct, argument, caseSensitive, functionBinder));
     } else {
       throw new UnsupportedOperationException("Cannot bind argument: " + argument);
     }

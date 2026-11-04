@@ -24,9 +24,11 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Stream;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -58,11 +60,39 @@ class TestValuePredicate {
           optional(1, "x", Types.LongType.get()),
           optional(2, "y", Types.LongType.get()),
           optional(3, "s", Types.StringType.get()),
-          optional(4, "t", Types.StringType.get()));
+          optional(4, "t", Types.StringType.get()),
+          optional(5, "d", Types.DoubleType.get()),
+          optional(6, "e", Types.DoubleType.get()));
   private static final Types.StructType INT_STRUCT =
       Types.StructType.of(required(5, "i", Types.IntegerType.get()));
+  private static final Types.StructType PROMOTION_STRUCT =
+      Types.StructType.of(
+          optional(1, "i", Types.IntegerType.get()),
+          optional(2, "l", Types.LongType.get()),
+          optional(3, "f", Types.FloatType.get()),
+          optional(4, "d", Types.DoubleType.get()),
+          optional(5, "dec", Types.DecimalType.of(9, 2)),
+          optional(6, "wide_dec", Types.DecimalType.of(18, 2)),
+          optional(7, "scaled_dec", Types.DecimalType.of(18, 3)));
+  private static final Types.StructType UUID_STRUCT =
+      Types.StructType.of(optional(1, "u", Types.UUIDType.get()));
   private static final FunctionReference FUNCTION =
       new FunctionReference("cat", CatalogObjectIdentifier.of("ns", "f"));
+  private static final Object[][] LONG_VALUES = {
+    {null, null}, {null, 1L}, {1L, null}, {1L, 1L}, {1L, 2L}, {2L, 1L}
+  };
+  private static final Object[][] DOUBLE_VALUES = {
+    {null, null},
+    {null, 1.0},
+    {Double.NaN, null},
+    {Double.NaN, Double.NaN},
+    {Double.NaN, 1.0},
+    {1.0, Double.NaN},
+    {1.0, 1.0},
+    {1.0, 2.0},
+    {2.0, 1.0},
+    {-0.0, 0.0}
+  };
 
   private static FunctionBinder returning(Type type) {
     return (ref, args) -> new BoundFunctionReference<>(ref.catalog(), ref.identifier(), type);
@@ -75,6 +105,12 @@ class TestValuePredicate {
   private static UnboundValuePredicate<Long> idLessThanOther() {
     return new UnboundValuePredicate<>(
         Operation.LT, Expressions.ref("id"), Expressions.<Long>ref("other"));
+  }
+
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  private static UnboundValuePredicate<Object> literals(
+      Operation op, Literal<?> left, Literal<?> right) {
+    return new UnboundValuePredicate<>(op, (Literal) left, (Literal) right);
   }
 
   private static <T> Expression bind(UnboundValuePredicate<T> pred, Type functionType) {
@@ -315,6 +351,43 @@ class TestValuePredicate {
         .hasMessageStartingWith("Cannot compare non-primitive type");
   }
 
+  @ParameterizedTest
+  @CsvSource({"LT, true", "EQ, false", "GT_EQ, false"})
+  void literalComparisonWithPromotionFoldsToConstant(Operation op, boolean expected) {
+    UnboundValuePredicate<Object> pred = literals(op, Literal.of(1), Literal.of(2L));
+
+    assertThat(Binder.bind(STRUCT, pred, true))
+        .isEqualTo(expected ? Expressions.alwaysTrue() : Expressions.alwaysFalse());
+  }
+
+  @Test
+  void literalStartsWithFoldsToConstant() {
+    UnboundValuePredicate<Object> pred =
+        literals(Operation.STARTS_WITH, Literal.of("abc"), Literal.of("ab"));
+
+    assertThat(Binder.bind(STRUCT, pred, true)).isEqualTo(Expressions.alwaysTrue());
+  }
+
+  @Test
+  void literalComparisonWithIncompatibleTypesFails() {
+    UnboundValuePredicate<Object> pred = literals(Operation.LT, Literal.of(1), Literal.of("a"));
+
+    assertThatThrownBy(() -> Binder.bind(STRUCT, pred, true))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot compare");
+  }
+
+  @Test
+  void setTestOnNonPrimitiveFunctionFails() {
+    UnboundValuePredicate<Integer> pred =
+        new UnboundValuePredicate<>(Operation.IN, applyToId(), List.of(Literal.of(1)));
+    Type structType = Types.StructType.of(optional(10, "x", Types.LongType.get()));
+
+    assertThatThrownBy(() -> bind(pred, structType))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot test set membership of non-primitive type");
+  }
+
   @Test
   void nullSetLiteralIsRejected() {
     List<Literal<Long>> values = Arrays.asList(Literal.of(1L), null);
@@ -444,11 +517,105 @@ class TestValuePredicate {
 
     Expression negated = ExpressionVisitors.visit(Expressions.not(bound), RewriteNot.get());
 
-    assertThat(negated).isInstanceOf(BoundValuePredicate.class);
-    BoundValuePredicate<?> negatedPred = (BoundValuePredicate<?>) negated;
+    assertThat(negated).isInstanceOf(Or.class);
+    BoundValuePredicate<?> negatedPred = (BoundValuePredicate<?>) ((Or) negated).left();
     assertThat(negatedPred.op()).isEqualTo(Operation.GT_EQ);
     assertThat(negatedPred.left()).isSameAs(bound.left());
     assertThat(negatedPred.right()).isSameAs(bound.right());
+  }
+
+  @Test
+  void rewriteNotMarksUnboundOrderingAsNegated() {
+    Expression negated = Expressions.rewriteNot(Expressions.not(idLessThanOther()));
+
+    assertThat(negated).isInstanceOf(UnboundValuePredicate.class);
+    assertThat(negated.op()).isEqualTo(Operation.LT);
+    assertThat(((UnboundValuePredicate<?>) negated).isNegated()).isTrue();
+    assertThat(negated).hasToString("not(ref(name=\"id\") < ref(name=\"other\"))");
+  }
+
+  @Test
+  void doubleNegationRestoresOrdering() {
+    Expression negated = idLessThanOther().negate().negate();
+
+    assertThat(((UnboundValuePredicate<?>) negated).isNegated()).isFalse();
+    assertThat(negated.op()).isEqualTo(Operation.LT);
+  }
+
+  @Test
+  void negatedTermComparisonIsNotProjected() {
+    Expression filter =
+        new UnboundValuePredicate<>(Operation.LT, Expressions.ref("id"), Literal.of(5L)).negate();
+
+    assertThat(Projections.inclusive(ID_SPEC).project(filter)).isEqualTo(Expressions.alwaysTrue());
+    assertThat(ResidualEvaluator.of(ID_SPEC, filter, true).residualFor(Row.of(5L)))
+        .isSameAs(filter);
+  }
+
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  private static UnboundValuePredicate<Object> comparedToOne(Operation op, String name) {
+    Literal one = name.equals("x") ? Literal.of(1L) : Literal.of(1.0);
+    return new UnboundValuePredicate<>(op, Expressions.ref(name), one);
+  }
+
+  private static Stream<Arguments> orderingNegations() {
+    return Stream.of(Operation.LT, Operation.LT_EQ, Operation.GT, Operation.GT_EQ)
+        .flatMap(
+            op ->
+                Stream.concat(
+                    Arrays.stream(LONG_VALUES)
+                        .map(values -> Arguments.of(op, "x", "y", values[0], values[1])),
+                    Arrays.stream(DOUBLE_VALUES)
+                        .map(values -> Arguments.of(op, "d", "e", values[0], values[1]))));
+  }
+
+  private static Row optionalRow(String left, Object leftValue, Object rightValue) {
+    return left.equals("x")
+        ? Row.of(leftValue, rightValue, null, null, null, null)
+        : Row.of(null, null, null, null, leftValue, rightValue);
+  }
+
+  @ParameterizedTest
+  @MethodSource("orderingNegations")
+  void unboundNegationIsExact(
+      Operation op, String left, String right, Object leftValue, Object rightValue) {
+    UnboundValuePredicate<Object> pred =
+        new UnboundValuePredicate<>(op, Expressions.ref(left), Expressions.ref(right));
+    Row row = optionalRow(left, leftValue, rightValue);
+    boolean expected = !new Evaluator(OPTIONAL_STRUCT, pred).eval(row);
+
+    Expression negated = Expressions.rewriteNot(Expressions.not(pred));
+
+    assertThat(new Evaluator(OPTIONAL_STRUCT, negated).eval(row)).isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @MethodSource("orderingNegations")
+  void unboundNegationWithLiteralIsExact(
+      Operation op, String left, String right, Object leftValue, Object rightValue) {
+    UnboundValuePredicate<Object> pred = comparedToOne(op, left);
+    Row row = optionalRow(left, leftValue, rightValue);
+    boolean expected = !new Evaluator(OPTIONAL_STRUCT, pred).eval(row);
+
+    Expression negated = Expressions.rewriteNot(Expressions.not(pred));
+
+    assertThat(new Evaluator(OPTIONAL_STRUCT, negated).eval(row)).isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @MethodSource("orderingNegations")
+  void boundNegationIsExact(
+      Operation op, String left, String right, Object leftValue, Object rightValue) {
+    Expression bound =
+        Binder.bind(
+            OPTIONAL_STRUCT,
+            new UnboundValuePredicate<>(op, Expressions.ref(left), Expressions.ref(right)));
+    Row row = optionalRow(left, leftValue, rightValue);
+    boolean expected = !Evaluator.ofBound(bound).eval(row);
+
+    Expression negated = Expressions.rewriteNot(Expressions.not(bound));
+
+    assertThat(Evaluator.ofBound(negated).eval(row)).isEqualTo(expected);
   }
 
   @Test
@@ -514,26 +681,74 @@ class TestValuePredicate {
     assertThat(evaluator.eval(Row.of(id, other, "a", 0L))).isEqualTo(expected);
   }
 
-  private static Stream<Arguments> comparisonsWithNullableLeft() {
-    return Stream.of(
-            Operation.LT,
-            Operation.LT_EQ,
-            Operation.GT,
-            Operation.GT_EQ,
-            Operation.EQ,
-            Operation.NOT_EQ)
-        .flatMap(op -> Stream.of(1L, 2L, 3L, null).map(value -> Arguments.of(op, value)));
-  }
-
   @ParameterizedTest
-  @MethodSource("comparisonsWithNullableLeft")
-  void evaluatorComparesReferencesLikeLegacyPredicate(Operation op, Long value) {
-    Row row = Row.of(value, 2L, null, null);
-    boolean expected = new Evaluator(OPTIONAL_STRUCT, Expressions.predicate(op, "x", 2L)).eval(row);
+  @CsvSource({
+    "EQ, , , true",
+    "EQ, 34, , false",
+    "EQ, , 34, false",
+    "EQ, 1, 1, true",
+    "EQ, 1, 2, false",
+    "NOT_EQ, , , false",
+    "NOT_EQ, 34, , true",
+    "NOT_EQ, 1, 2, true",
+    "LT, , , false",
+    "LT, 34, , false",
+    "LT, , 34, false",
+    "LT, 1, 2, true",
+    "LT, 2, 1, false",
+    "LT_EQ, , , true",
+    "LT_EQ, 34, , false",
+    "LT_EQ, , 34, false",
+    "LT_EQ, 1, 1, true",
+    "LT_EQ, 2, 1, false",
+    "GT, , , false",
+    "GT, , 34, false",
+    "GT, 2, 1, true",
+    "GT_EQ, , , true",
+    "GT_EQ, , 34, false",
+    "GT_EQ, 1, 1, true",
+    "GT_EQ, 1, 2, false"
+  })
+  void evaluatorComparisonsAreNullSafe(Operation op, Long left, Long right, boolean expected) {
     UnboundValuePredicate<Long> pred =
         new UnboundValuePredicate<>(op, Expressions.ref("x"), Expressions.<Long>ref("y"));
 
-    assertThat(new Evaluator(OPTIONAL_STRUCT, pred).eval(row)).isEqualTo(expected);
+    assertThat(
+            new Evaluator(OPTIONAL_STRUCT, pred).eval(Row.of(left, right, null, null, null, null)))
+        .isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "EQ, NaN, NaN, true",
+    "EQ, NaN, 1.0, false",
+    "NOT_EQ, NaN, NaN, false",
+    "LT, NaN, 1.0, false",
+    "LT, 1.0, NaN, false",
+    "GT, NaN, 1.0, false",
+    "LT_EQ, NaN, NaN, true",
+    "GT_EQ, NaN, 1.0, false",
+    "EQ, -0.0, 0.0, true",
+    "LT, -0.0, 0.0, false"
+  })
+  void evaluatorComparisonsFollowNaNRules(
+      Operation op, double left, double right, boolean expected) {
+    UnboundValuePredicate<Double> pred =
+        new UnboundValuePredicate<>(op, Expressions.ref("d"), Expressions.<Double>ref("e"));
+
+    assertThat(
+            new Evaluator(OPTIONAL_STRUCT, pred).eval(Row.of(null, null, null, null, left, right)))
+        .isEqualTo(expected);
+  }
+
+  @Test
+  void evaluatorTestsNaNLiteral() {
+    UnboundValuePredicate<Double> pred =
+        new UnboundValuePredicate<>(Operation.IS_NAN, Literal.of(Double.NaN));
+
+    assertThat(
+            new Evaluator(OPTIONAL_STRUCT, pred).eval(Row.of(null, null, null, null, null, null)))
+        .isTrue();
   }
 
   @ParameterizedTest
@@ -552,7 +767,9 @@ class TestValuePredicate {
     UnboundValuePredicate<CharSequence> pred =
         new UnboundValuePredicate<>(op, Expressions.ref("s"), Expressions.ref("t"));
 
-    assertThat(new Evaluator(OPTIONAL_STRUCT, pred).eval(Row.of(null, null, value, prefix)))
+    assertThat(
+            new Evaluator(OPTIONAL_STRUCT, pred)
+                .eval(Row.of(null, null, value, prefix, null, null)))
         .isEqualTo(expected);
   }
 
@@ -562,7 +779,8 @@ class TestValuePredicate {
     UnboundValuePredicate<CharSequence> pred =
         new UnboundValuePredicate<>(Operation.STARTS_WITH, Literal.of("abc"), Expressions.ref("t"));
 
-    assertThat(new Evaluator(OPTIONAL_STRUCT, pred).eval(Row.of(null, null, null, prefix)))
+    assertThat(
+            new Evaluator(OPTIONAL_STRUCT, pred).eval(Row.of(null, null, null, prefix, null, null)))
         .isEqualTo(expected);
   }
 
@@ -646,6 +864,244 @@ class TestValuePredicate {
     Expression residual = ResidualEvaluator.of(ID_SPEC, pred, true).residualFor(Row.of(5L));
 
     assertThat(residual).isSameAs(pred);
+  }
+
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  private static UnboundValuePredicate<Object> comparedTo(
+      Operation op, String name, Literal<?> literal) {
+    return new UnboundValuePredicate<>(op, Expressions.ref(name), (Literal) literal);
+  }
+
+  private static Stream<Arguments> zeroLiterals() {
+    return Stream.of(Literal.of(0.0), Literal.of(-0.0), Literal.of(0L)).map(Arguments::of);
+  }
+
+  @ParameterizedTest
+  @MethodSource("zeroLiterals")
+  void zeroComparisonOnDoubleTermBindsToValuePredicate(Literal<?> zero) {
+    Expression bound = Binder.bind(OPTIONAL_STRUCT, comparedTo(Operation.EQ, "d", zero));
+
+    assertThat(bound).isInstanceOf(BoundValuePredicate.class);
+  }
+
+  @ParameterizedTest
+  @MethodSource("zeroLiterals")
+  void zeroEqualityOnDoubleTermMatchesBothZeros(Literal<?> zero) {
+    Evaluator evaluator = new Evaluator(OPTIONAL_STRUCT, comparedTo(Operation.EQ, "d", zero));
+
+    assertThat(evaluator.eval(Row.of(null, null, null, null, 0.0, null))).isTrue();
+    assertThat(evaluator.eval(Row.of(null, null, null, null, -0.0, null))).isTrue();
+  }
+
+  @ParameterizedTest
+  @MethodSource("zeroLiterals")
+  void negativeZeroIsNotLessThanZeroLiteral(Literal<?> zero) {
+    Evaluator evaluator = new Evaluator(OPTIONAL_STRUCT, comparedTo(Operation.LT, "d", zero));
+
+    assertThat(evaluator.eval(Row.of(null, null, null, null, -0.0, null))).isFalse();
+  }
+
+  @Test
+  void nonZeroComparisonOnDoubleTermBindsToLegacyPredicate() {
+    Expression bound = Binder.bind(OPTIONAL_STRUCT, comparedTo(Operation.LT, "d", Literal.of(1.0)));
+
+    assertThat(bound).isInstanceOf(BoundLiteralPredicate.class);
+  }
+
+  @Test
+  void zeroComparisonOnDoubleTermIsNotProjected() {
+    Schema schema = new Schema(optional(1, "d", Types.DoubleType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("d").build();
+    Expression filter = comparedTo(Operation.LT_EQ, "d", Literal.of(-0.0));
+
+    assertThat(Projections.inclusive(spec).project(filter)).isEqualTo(Expressions.alwaysTrue());
+  }
+
+  @ParameterizedTest
+  @CsvSource({"0.0, -0.0", "-0.0, 0.0"})
+  void setWithZeroOnDoubleTermMatchesBothZeros(double literal, double value) {
+    UnboundValuePredicate<Double> pred =
+        new UnboundValuePredicate<>(
+            Operation.IN, Expressions.ref("d"), List.of(Literal.of(literal), Literal.of(2.0)));
+
+    assertThat(Binder.bind(OPTIONAL_STRUCT, pred)).isInstanceOf(BoundValuePredicate.class);
+    assertThat(new Evaluator(OPTIONAL_STRUCT, pred).eval(Row.of(null, null, null, null, value)))
+        .isTrue();
+  }
+
+  @Test
+  void setWithZeroOnDoubleFunctionContainsBothZeros() {
+    UnboundValuePredicate<Double> pred =
+        new UnboundValuePredicate<>(
+            Operation.IN, applyToId(), List.of(Literal.of(0.0), Literal.of(2.0)));
+
+    BoundValuePredicate<Double> bound =
+        (BoundValuePredicate<Double>) bind(pred, Types.DoubleType.get());
+
+    assertThat(bound.literalSet()).containsExactlyInAnyOrder(0.0, -0.0, 2.0);
+  }
+
+  @Test
+  void uuidOrderingBindsToValuePredicate() {
+    Expression bound =
+        Binder.bind(UUID_STRUCT, comparedTo(Operation.GT, "u", Literal.of(UUID.randomUUID())));
+
+    assertThat(bound).isInstanceOf(BoundValuePredicate.class);
+  }
+
+  @Test
+  void uuidEqualityBindsToLegacyPredicate() {
+    Expression bound =
+        Binder.bind(UUID_STRUCT, comparedTo(Operation.EQ, "u", Literal.of(UUID.randomUUID())));
+
+    assertThat(bound).isInstanceOf(BoundLiteralPredicate.class);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "GT, 80000000-0000-0000-0000-000000000000, 00000000-0000-0000-0000-000000000001, true",
+    "LT, 80000000-0000-0000-0000-000000000000, 00000000-0000-0000-0000-000000000001, false",
+    "GT, 00000000-0000-0000-8000-000000000000, 00000000-0000-0000-0000-000000000001, true"
+  })
+  void uuidOrderingIsUnsigned(Operation op, UUID value, UUID literal, boolean expected) {
+    Evaluator evaluator = new Evaluator(UUID_STRUCT, comparedTo(op, "u", Literal.of(literal)));
+
+    assertThat(evaluator.eval(Row.of(value))).isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "LT, 1, 2, true",
+    "LT, 2, 2, false",
+    "LT, , 2, false",
+    "LT, 1, , false",
+    "LT_EQ, , , true",
+    "EQ, 2, 2, true",
+    "GT, 3, 2, true"
+  })
+  void intComparesWithPromotedLong(
+      Operation op, Integer intValue, Long longValue, boolean expected) {
+    UnboundValuePredicate<Object> pred =
+        new UnboundValuePredicate<>(op, Expressions.ref("i"), Expressions.ref("l"));
+
+    assertThat(new Evaluator(PROMOTION_STRUCT, pred).eval(Row.of(intValue, longValue)))
+        .isEqualTo(expected);
+  }
+
+  @Test
+  void longComparesWithPromotedInt() {
+    UnboundValuePredicate<Object> pred =
+        new UnboundValuePredicate<>(Operation.LT, Expressions.ref("l"), Expressions.ref("i"));
+
+    assertThat(new Evaluator(PROMOTION_STRUCT, pred).eval(Row.of(2, 1L))).isTrue();
+  }
+
+  @ParameterizedTest
+  @CsvSource({"1.5, 1.5, true", "-0.0, 0.0, true", "1.5, 2.5, false"})
+  void floatComparesWithPromotedDouble(float floatValue, double doubleValue, boolean expected) {
+    UnboundValuePredicate<Object> pred =
+        new UnboundValuePredicate<>(Operation.EQ, Expressions.ref("f"), Expressions.ref("d"));
+
+    assertThat(
+            new Evaluator(PROMOTION_STRUCT, pred).eval(Row.of(null, null, floatValue, doubleValue)))
+        .isEqualTo(expected);
+  }
+
+  @Test
+  void decimalComparesWithWiderPrecision() {
+    UnboundValuePredicate<Object> pred =
+        new UnboundValuePredicate<>(
+            Operation.EQ, Expressions.ref("dec"), Expressions.ref("wide_dec"));
+    Row row = Row.of(null, null, null, null, new BigDecimal("1.50"), new BigDecimal("1.50"));
+
+    assertThat(new Evaluator(PROMOTION_STRUCT, pred).eval(row)).isTrue();
+  }
+
+  @Test
+  void decimalWithDifferentScaleFails() {
+    UnboundValuePredicate<Object> pred =
+        new UnboundValuePredicate<>(
+            Operation.EQ, Expressions.ref("dec"), Expressions.ref("scaled_dec"));
+
+    assertThatThrownBy(() -> Binder.bind(PROMOTION_STRUCT, pred))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot compare");
+  }
+
+  @Test
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  void mixedSetLiteralTypesAreRejected() {
+    List values = List.of(Literal.of(1), Literal.of(2L));
+
+    assertThatThrownBy(() -> new UnboundValuePredicate<>(Operation.IN, applyToId(), values))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid literals: mixed types IntegerLiteral and LongLiteral");
+  }
+
+  @Test
+  void andRejectsValueExpression() {
+    assertThatThrownBy(() -> Expressions.and(Expressions.ref("id"), Expressions.equal("other", 3L)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Invalid left operand, not a predicate");
+  }
+
+  @Test
+  void orRejectsValueExpression() {
+    assertThatThrownBy(() -> Expressions.or(Expressions.equal("other", 3L), Literal.of(true)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Invalid right operand, not a predicate");
+  }
+
+  @Test
+  void notRejectsValueExpression() {
+    assertThatThrownBy(() -> Expressions.not(applyToId()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Invalid operand, not a predicate");
+  }
+
+  private static UnboundApply<Long> ifElse() {
+    return new UnboundApply<>(
+        FUNCTION, List.of(Expressions.lessThan("id", 5L), Literal.of(1L), Literal.of(0L)));
+  }
+
+  private static BoundPredicateArgument boundCondition() {
+    BoundValuePredicate<?> bound =
+        (BoundValuePredicate<?>)
+            bind(
+                new UnboundValuePredicate<>(Operation.EQ, ifElse(), Literal.of(1L)),
+                Types.LongType.get());
+    return (BoundPredicateArgument) ((BoundApply<?>) bound.left()).arguments().get(0);
+  }
+
+  @Test
+  void predicateFunctionArgumentIsBound() {
+    assertThat(boundCondition().predicate()).isInstanceOf(BoundLiteralPredicate.class);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"4, true", "5, false"})
+  void predicateFunctionArgumentEvaluatesPredicate(long id, boolean expected) {
+    assertThat(boundCondition().eval(Row.of(id, 0L, "a", 0L))).isEqualTo(expected);
+  }
+
+  @Test
+  void boundReferencesIncludePredicateFunctionArguments() {
+    Expression bound =
+        bind(
+            new UnboundValuePredicate<>(Operation.EQ, ifElse(), Literal.of(1L)),
+            Types.LongType.get());
+
+    assertThat(Binder.boundReferences(STRUCT, bound, true)).containsExactly(1);
+  }
+
+  @Test
+  void transformFunctionArgumentIsBound() {
+    UnboundApply<Integer> apply =
+        new UnboundApply<>(FUNCTION, List.of(Expressions.bucket("id", 16)));
+
+    BoundApply<Integer> bound = apply.bind(returning(Types.IntegerType.get()), STRUCT, true);
+
+    assertThat(bound.arguments().get(0)).isInstanceOf(BoundTransform.class);
   }
 
   private static Types.TimestampNanoType nanos() {

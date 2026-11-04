@@ -258,6 +258,8 @@ public class Binder {
         references.add(term.ref().fieldId());
       } else if (expr instanceof BoundApply<?> apply) {
         apply.arguments().forEach(this::addReferences);
+      } else if (expr instanceof BoundPredicateArgument arg) {
+        ExpressionVisitors.visit(arg.predicate(), this);
       } else if (expr instanceof BoundPredicate<?> || expr instanceof BoundValuePredicate<?>) {
         ExpressionVisitors.visit(expr, this);
       }
