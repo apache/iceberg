@@ -548,7 +548,7 @@ In v4 and later, `_last_updated_time` is set in the same way as `_last_updated_s
 
 When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `first_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `first_row_id` is assigned when writing the snapshot root file and is documented in [Snapshot Root File First Row ID Assignment](#snapshot-root-file-first-row-id-assignment). Starting in v4, a data file in the root manifest is assigned a `first_row_id` in the same way. A snapshot's `first-row-id` is set to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
 
-When an existing row is moved to a different data file for any reason, writers should write `_row_id`, `_last_updated_sequence_number`, and in v4 and later `_last_updated_time` according to the following rules:
+When an existing row is moved to a different data file for any reason, writers should write `_row_id`, `_last_updated_sequence_number`, and `_last_updated_time` according to the following rules:
 
 1. The row's existing non-null `_row_id` must be copied into the new data file
 2. If the write has modified the row, the `_last_updated_sequence_number` field and, in v4 and later, the `_last_updated_time` field must be set to `null` (so that the modification's sequence number and snapshot timestamp replace the current values)
