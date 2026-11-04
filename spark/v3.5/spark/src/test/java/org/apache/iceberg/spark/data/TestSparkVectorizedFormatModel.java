@@ -48,7 +48,7 @@ class TestSparkVectorizedFormatModel extends ReadFormatModelTests<ColumnarBatch>
 
   private static final FileFormat[] FILE_FORMATS = {FileFormat.ORC, FileFormat.PARQUET};
 
-  // Spark 3.5 has no TIME, TIMESTAMP_NANO or VARIANT type; supportedSchema() filters these columns out.
+  // Spark 3.5 has no TIME, TIMESTAMP_NANO or VARIANT type
   private static final Set<Type.TypeID> SPARK_UNSUPPORTED_TYPE_IDS =
       Set.of(Type.TypeID.TIME, Type.TypeID.TIMESTAMP_NANO, Type.TypeID.VARIANT);
 
