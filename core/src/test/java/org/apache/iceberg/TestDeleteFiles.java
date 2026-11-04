@@ -99,15 +99,22 @@ public class TestDeleteFiles extends TestBase {
 
   @TestTemplate
   void deleteLessThanKeepsNullDateInSharedManifest() throws Exception {
-    deleteLessThanKeepsNullDatePartition(true);
+    deleteKeepsNullDatePartition(true, Expressions.lessThan("d", "2026-10-27"));
   }
 
   @TestTemplate
   void deleteLessThanKeepsNullDateInSeparateManifest() throws Exception {
-    deleteLessThanKeepsNullDatePartition(false);
+    deleteKeepsNullDatePartition(false, Expressions.lessThan("d", "2026-10-27"));
   }
 
-  private void deleteLessThanKeepsNullDatePartition(boolean sharedManifest) throws Exception {
+  @TestTemplate
+  void deleteNegatedGreaterThanOrEqualKeepsNullDateInSharedManifest() throws Exception {
+    deleteKeepsNullDatePartition(
+        true, Expressions.not(Expressions.greaterThanOrEqual("d", "2026-10-27")));
+  }
+
+  private void deleteKeepsNullDatePartition(boolean sharedManifest, Expression filter)
+      throws Exception {
     Schema schema = new Schema(Types.NestedField.optional(1, "d", Types.DateType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("d").build();
     Table dateTable = TestTables.create(tableDir, "dates", schema, spec, formatVersion);
@@ -135,10 +142,7 @@ public class TestDeleteFiles extends TestBase {
 
     Snapshot beforeDelete = latestSnapshot(dateTable, branch);
     assertThat(beforeDelete.dataManifests(dateTable.io())).hasSize(sharedManifest ? 1 : 2);
-    commit(
-        dateTable,
-        dateTable.newDelete().deleteFromRowFilter(Expressions.lessThan("d", "2026-10-27")),
-        branch);
+    commit(dateTable, dateTable.newDelete().deleteFromRowFilter(filter), branch);
 
     try (CloseableIterable<FileScanTask> tasks = dateTable.newScan().useRef(branch).planFiles()) {
       assertThat(tasks)
