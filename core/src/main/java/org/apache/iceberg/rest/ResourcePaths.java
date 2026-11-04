@@ -19,8 +19,6 @@
 package org.apache.iceberg.rest;
 
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -29,8 +27,6 @@ import org.apache.iceberg.util.PropertyUtil;
 public class ResourcePaths {
   private static final Joiner SLASH = Joiner.on("/").skipNulls();
   private static final String PREFIX = "prefix";
-  private static final Pattern V1_TABLE_PATH =
-      Pattern.compile("v1/(.*namespaces/[^/]+/tables/[^/]+)");
   public static final String V1_NAMESPACES = "/v1/{prefix}/namespaces";
   public static final String V1_NAMESPACE = "/v1/{prefix}/namespaces/{namespace}";
   public static final String V1_NAMESPACE_PROPERTIES =
@@ -75,17 +71,6 @@ public class ResourcePaths {
 
   public static String tokens() {
     return "v1/oauth/tokens";
-  }
-
-  /**
-   * Maps a v1 table path, as produced by {@link #table(TableIdentifier)}, to the same table's v2
-   * load path.
-   *
-   * @return the v2 path, or null if the path is not a v1 table path
-   */
-  static String v2TableFromV1(String v1TablePath) {
-    Matcher matcher = V1_TABLE_PATH.matcher(v1TablePath);
-    return matcher.matches() ? "v2/" + matcher.group(1) : null;
   }
 
   private final String prefix;

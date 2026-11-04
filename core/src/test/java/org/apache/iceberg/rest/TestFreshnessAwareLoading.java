@@ -778,8 +778,18 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
           FileIO io,
           TableMetadata current,
           Set<Endpoint> endpoints,
-          Map<String, String> readQueryParams) {
-        super(client, path, readHeaders, mutationHeaders, io, current, endpoints, readQueryParams);
+          Map<String, String> readQueryParams,
+          String loadPath) {
+        super(
+            client,
+            path,
+            loadPath,
+            readHeaders,
+            mutationHeaders,
+            io,
+            current,
+            endpoints,
+            readQueryParams);
       }
     }
 
@@ -799,7 +809,8 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
           FileIO fileIO,
           TableMetadata current,
           Set<Endpoint> supportedEndpoints,
-          Map<String, String> readQueryParams) {
+          Map<String, String> readQueryParams,
+          String loadPath) {
         return new CustomTableOps(
             restClient,
             path,
@@ -808,7 +819,8 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
             fileIO,
             current,
             supportedEndpoints,
-            readQueryParams);
+            readQueryParams,
+            loadPath);
       }
     }
 

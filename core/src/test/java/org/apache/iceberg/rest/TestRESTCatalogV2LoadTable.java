@@ -167,9 +167,14 @@ class TestRESTCatalogV2LoadTable extends TestBaseWithRESTServer {
   }
 
   @Test
-  void refreshUsesV2PathWhenAdvertised() {
+  void refreshUsesLoadPath() {
     RESTClient client = clientReturning(newTableMetadata());
-    opsWithPath(client, RESOURCE_PATHS.table(TBL)).refresh();
+    ops(
+            client,
+            RESOURCE_PATHS.table(TBL),
+            RESOURCE_PATHS.tableV2(TBL),
+            Set.of(Endpoint.V1_LOAD_TABLE, Endpoint.V2_LOAD_TABLE))
+        .refresh();
 
     Mockito.verify(client)
         .get(
@@ -178,16 +183,23 @@ class TestRESTCatalogV2LoadTable extends TestBaseWithRESTServer {
             eq(LoadTableResponse.class),
             any(Supplier.class),
             any());
+    Mockito.verify(client, never())
+        .get(
+            eq(RESOURCE_PATHS.table(TBL)),
+            anyMap(),
+            eq(LoadTableResponse.class),
+            any(Supplier.class),
+            any());
   }
 
   @Test
-  void refreshFallsBackToCustomPathWhenV2Advertised() {
-    String customPath = "custom/tables/tbl";
+  void refreshUsesLoadPathWhenServerListsOnlyV2() {
+    String loadPath = "custom/v2/tables/tbl";
     RESTClient client = clientReturning(newTableMetadata());
-    opsWithPath(client, customPath).refresh();
+    ops(client, "custom/tables/tbl", loadPath, Set.of(Endpoint.V2_LOAD_TABLE)).refresh();
 
     Mockito.verify(client)
-        .get(eq(customPath), anyMap(), eq(LoadTableResponse.class), any(Supplier.class), any());
+        .get(eq(loadPath), anyMap(), eq(LoadTableResponse.class), any(Supplier.class), any());
   }
 
   private RESTCatalogAdapter adapterAdvertising(Predicate<Route> advertised) {
@@ -240,14 +252,10 @@ class TestRESTCatalogV2LoadTable extends TestBaseWithRESTServer {
     return client;
   }
 
-  private static RESTTableOperations opsWithPath(RESTClient client, String path) {
+  private static RESTTableOperations ops(
+      RESTClient client, String path, String loadPath, Set<Endpoint> endpoints) {
     return new RESTTableOperations(
-        client,
-        path,
-        Map::of,
-        null,
-        newTableMetadata(),
-        Set.of(Endpoint.V1_LOAD_TABLE, Endpoint.V2_LOAD_TABLE));
+        client, path, loadPath, Map::of, Map::of, null, newTableMetadata(), endpoints, Map.of());
   }
 
   private static TableMetadata newTableMetadata() {
