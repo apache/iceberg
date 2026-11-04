@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.spark.sql.functions.array;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.NullOrder;
@@ -30,6 +31,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
@@ -74,6 +76,21 @@ class SparkHilbertFileRewriteRunner extends SparkShufflingFileRewriteRunner {
   @Override
   public String description() {
     return "HILBERT";
+  }
+
+  @Override
+  public Set<String> validOptions() {
+    return ImmutableSet.<String>builder()
+        .addAll(super.validOptions())
+        .add(CurveQuantization.QUANTIZATION_BITS)
+        .build();
+  }
+
+  @Override
+  List<String> statsColumns(Map<String, String> options) {
+    return CurveQuantization.quantizationBits(options) > 0
+        ? ImmutableList.copyOf(hilbertColNames)
+        : ImmutableList.of();
   }
 
   @Override
@@ -153,7 +170,7 @@ class SparkHilbertFileRewriteRunner extends SparkShufflingFileRewriteRunner {
       if (identityPartitionFieldIds.contains(field.fieldId())) {
         LOG.warn("Ignoring '{}' as such values are constant within a partition", colName);
       } else {
-        validHilbertColNames.add(colName);
+        validHilbertColNames.add(schema.findColumnName(field.fieldId()));
       }
     }
 

@@ -28,6 +28,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFunctionCatalog;
@@ -103,6 +104,10 @@ abstract class SparkShufflingFileRewriteRunner extends SparkDataFileRewriteRunne
   public void init(Map<String, String> options) {
     super.init(options);
     this.numShufflePartitionsPerFile = numShufflePartitionsPerFile(options);
+  }
+
+  List<String> statsColumns(Map<String, String> options) {
+    return ImmutableList.of();
   }
 
   @Override

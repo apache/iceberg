@@ -21,7 +21,15 @@ package org.apache.iceberg.spark.actions;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -29,9 +37,12 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.TestBase;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
@@ -90,5 +101,45 @@ public class TestSparkShufflingDataRewritePlanner extends TestBase {
         ImmutableMap.of(SparkShufflingDataRewritePlanner.COMPRESSION_FACTOR, "0");
     assertThatThrownBy(() -> planner.init(invalidCompressionFactorOptions))
         .hasMessageContaining("'compression-factor' is set to 0.0 but must be > 0");
+  }
+
+  @Test
+  void plannedTasksCarryStatsForQuantizedColumns() {
+    Table table = catalog.createTable(TABLE_IDENT, SCHEMA);
+    table.newAppend().appendFile(dataFileWithBounds()).appendFile(dataFileWithBounds()).commit();
+    SparkShufflingDataRewritePlanner planner =
+        new SparkShufflingDataRewritePlanner(
+            table,
+            Expressions.alwaysTrue(),
+            table.currentSnapshot().snapshotId(),
+            false /* caseSensitive */,
+            ImmutableList.of("id"));
+    planner.init(ImmutableMap.of(SparkShufflingDataRewritePlanner.REWRITE_ALL, "true"));
+
+    List<FileScanTask> tasks =
+        Lists.newArrayList(planner.plan().groups()).stream()
+            .flatMap(group -> group.fileScanTasks().stream())
+            .collect(Collectors.toList());
+
+    int idFieldId = table.schema().findField("id").fieldId();
+    assertThat(tasks).hasSize(2);
+    assertThat(tasks)
+        .allSatisfy(
+            task -> {
+              assertThat(task.file().lowerBounds()).containsOnlyKeys(idFieldId);
+              assertThat(task.file().upperBounds()).containsOnlyKeys(idFieldId);
+            });
+  }
+
+  private static DataFile dataFileWithBounds() {
+    Map<Integer, ByteBuffer> bounds =
+        ImmutableMap.of(
+            1, Conversions.toByteBuffer(IntegerType.get(), 1),
+            2, Conversions.toByteBuffer(StringType.get(), "a"));
+    return DataFiles.builder(PartitionSpec.unpartitioned())
+        .withPath("/path/to/data-" + UUID.randomUUID() + ".parquet")
+        .withFileSizeInBytes(10)
+        .withMetrics(new Metrics(1L, null, null, null, null, bounds, bounds))
+        .build();
   }
 }

@@ -93,6 +93,7 @@ class SparkZOrderFileRewriteRunner extends SparkShufflingFileRewriteRunner {
         .addAll(super.validOptions())
         .add(MAX_OUTPUT_SIZE)
         .add(VAR_LENGTH_CONTRIBUTION)
+        .add(CurveQuantization.QUANTIZATION_BITS)
         .build();
   }
 
@@ -101,6 +102,13 @@ class SparkZOrderFileRewriteRunner extends SparkShufflingFileRewriteRunner {
     super.init(options);
     this.maxOutputSize = maxOutputSize(options);
     this.varLengthContribution = varLengthContribution(options);
+  }
+
+  @Override
+  List<String> statsColumns(Map<String, String> options) {
+    return CurveQuantization.quantizationBits(options) > 0
+        ? ImmutableList.copyOf(zOrderColNames)
+        : ImmutableList.of();
   }
 
   @Override
