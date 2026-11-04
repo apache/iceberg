@@ -619,6 +619,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       assertThat(harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM))
           .isNullOrEmpty();
       assertThat(planner(harness).reindexCount()).isZero();
+      assertThat(planner(harness).incrementalReindexCount()).isEqualTo(1);
     }
   }
 
@@ -661,6 +662,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNullOrEmpty();
       assertThat(harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM)).hasSize(1);
       assertThat(planner(harness).reindexCount()).isEqualTo(1);
+      assertThat(planner(harness).incrementalReindexCount()).isZero();
 
       List<ReadCommand> all = harness.extractOutputValues();
       List<ReadCommand> trigger2 = all.subList(afterFirst, all.size());
@@ -795,6 +797,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
           .containsExactlyInAnyOrder(
               tuple(ReadCommand.Type.DATA_FILE, compacted.location()),
               tuple(ReadCommand.Type.REMOVED_DATA_FILE, replaced.location()));
+      assertThat(planner(harness).incrementalReindexCount()).isEqualTo(1);
     }
   }
 

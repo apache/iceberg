@@ -110,6 +110,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   private static final String PROCESSED_STAGING_SNAPSHOT_NUM_METRIC = "processedStagingSnapshotNum";
   private static final String SKIPPED_NO_OP_CYCLES_METRIC = "skippedNoOpCycles";
   private static final String REINDEX_COUNT_METRIC = "reindexCount";
+  private static final String INCREMENTAL_REINDEX_COUNT_METRIC = "incrementalReindexCount";
 
   private static final int STATE_VERSION = 1;
 
@@ -150,6 +151,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   private transient Counter processedStagingSnapshotNumCounter;
   private transient Counter skippedNoOpCyclesCounter;
   private transient Counter reindexCounter;
+  private transient Counter incrementalReindexCounter;
   private transient Counter errorCounter;
 
   public EqualityConvertPlanner(
@@ -187,6 +189,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
         taskMetricGroup.counter(PROCESSED_STAGING_SNAPSHOT_NUM_METRIC);
     this.skippedNoOpCyclesCounter = taskMetricGroup.counter(SKIPPED_NO_OP_CYCLES_METRIC);
     this.reindexCounter = taskMetricGroup.counter(REINDEX_COUNT_METRIC);
+    this.incrementalReindexCounter = taskMetricGroup.counter(INCREMENTAL_REINDEX_COUNT_METRIC);
     this.errorCounter = taskMetricGroup.counter(TableMaintenanceMetrics.ERROR_COUNTER);
   }
 
@@ -512,6 +515,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
       return;
     }
 
+    incrementalReindexCounter.inc();
     LOG.info(
         "Incrementally reindexing worker index to main snapshot {} for field IDs {}: {} added and "
             + "{} removed data files.",
@@ -1064,6 +1068,11 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   @VisibleForTesting
   long reindexCount() {
     return reindexCounter.getCount();
+  }
+
+  @VisibleForTesting
+  long incrementalReindexCount() {
+    return incrementalReindexCounter.getCount();
   }
 
   @VisibleForTesting
