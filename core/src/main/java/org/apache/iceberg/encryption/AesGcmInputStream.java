@@ -46,8 +46,6 @@ public class AesGcmInputStream extends SeekableInputStream {
     this.sourceStream = sourceStream;
     this.fileAADPrefix = fileAADPrefix;
     this.decryptor = new Ciphers.AesGcmDecryptor(aesKey);
-    this.cipherBlockBuffer = new byte[Ciphers.CIPHER_BLOCK_SIZE];
-    this.currentPlainBlock = new byte[Ciphers.PLAIN_BLOCK_SIZE];
     this.plainStreamPosition = 0;
     this.currentPlainBlockIndex = -1;
     this.currentPlainBlockSize = 0;
@@ -65,6 +63,11 @@ public class AesGcmInputStream extends SeekableInputStream {
         (long) lastCipherBlockSize - Ciphers.NONCE_LENGTH - Ciphers.GCM_TAG_LENGTH;
     this.plainStreamSize =
         numFullBlocks * Ciphers.PLAIN_BLOCK_SIZE + (fullBlocksOnly ? 0 : lastPlainBlockSize);
+    // Small metadata files do not need full-block buffers.
+    int plainBufferSize = Math.toIntExact(Math.min(plainStreamSize, Ciphers.PLAIN_BLOCK_SIZE));
+    this.cipherBlockBuffer =
+        new byte[plainBufferSize + Ciphers.NONCE_LENGTH + Ciphers.GCM_TAG_LENGTH];
+    this.currentPlainBlock = new byte[plainBufferSize];
     this.singleByte = new byte[1];
   }
 
