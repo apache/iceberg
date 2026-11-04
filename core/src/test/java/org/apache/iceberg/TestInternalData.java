@@ -194,7 +194,7 @@ public class TestInternalData {
                   writeBuilder.set(writeParquet(isolated));
                 } catch (InvocationTargetException e) {
                   failure.set(e.getCause());
-                } catch (ReflectiveOperationException e) {
+                } catch (Throwable e) {
                   failure.set(e);
                 }
               });
