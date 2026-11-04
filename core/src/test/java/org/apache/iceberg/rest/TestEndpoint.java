@@ -105,4 +105,12 @@ public class TestEndpoint {
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Server does not support endpoint: %s", Endpoint.V1_LOAD_TABLE);
   }
+
+  @Test
+  public void v2LoadTableEndpoint() {
+    assertThat(Endpoint.V2_LOAD_TABLE.toString())
+        .isEqualTo("GET /v2/{prefix}/namespaces/{namespace}/tables/{table}");
+    assertThat(Endpoint.fromString(Endpoint.V2_LOAD_TABLE.toString()))
+        .isEqualTo(Endpoint.V2_LOAD_TABLE);
+  }
 }

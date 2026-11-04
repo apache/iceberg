@@ -42,6 +42,7 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
@@ -56,6 +57,7 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.UnprocessableEntityException;
+import org.apache.iceberg.exceptions.UnsupportedFormatVersionException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -109,6 +111,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           .put(CommitStateUnknownException.class, 500)
           .put(NoSuchPlanIdException.class, 404)
           .put(NoSuchPlanTaskException.class, 404)
+          .put(BadRequestException.class, 400)
+          .put(UnsupportedFormatVersionException.class, 400)
           .buildOrThrow();
 
   private final Catalog catalog;
@@ -314,12 +318,14 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         }
 
       case LOAD_TABLE:
+      case LOAD_TABLE_V2:
         {
+          TableIdentifier ident = tableIdentFromPathVars(vars);
+          SnapshotMode mode = snapshotModeFromQueryParams(httpRequest.queryParameters());
           LoadTableResponse response =
-              CatalogHandlers.loadTable(
-                  catalog,
-                  tableIdentFromPathVars(vars),
-                  snapshotModeFromQueryParams(httpRequest.queryParameters()));
+              route == Route.LOAD_TABLE
+                  ? CatalogHandlers.loadTable(catalog, ident, mode)
+                  : CatalogHandlers.loadTableV2(catalog, ident, mode);
 
           Optional<HTTPHeaders.HTTPHeader> ifNoneMatchHeader =
               httpRequest.headers().firstEntry(HttpHeaders.IF_NONE_MATCH);

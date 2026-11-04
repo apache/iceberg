@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.rest.responses;
 
+import javax.annotation.Nullable;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTResponse;
+import org.apache.iceberg.util.LocationUtil;
 import org.immutables.value.Value;
 
 /**
@@ -33,11 +35,23 @@ import org.immutables.value.Value;
 public interface UnregisterTableResponse extends RESTResponse {
   String metadataLocation();
 
+  @Nullable
+  String tableLocation();
+
   TableMetadata metadata();
+
+  /** Returns the table metadata with {@link #tableLocation()} applied when it is present. */
+  default TableMetadata tableMetadata() {
+    return LoadTableResponse.resolveTableLocation(metadata(), tableLocation());
+  }
 
   @Override
   default void validate() {
     Preconditions.checkArgument(metadataLocation() != null, "Invalid metadata location: null");
     Preconditions.checkArgument(metadata() != null, "Invalid metadata: null");
+    Preconditions.checkArgument(
+        tableLocation() == null || LocationUtil.hasScheme(tableLocation()),
+        "Invalid table location: %s, must be absolute with a URI scheme",
+        tableLocation());
   }
 }

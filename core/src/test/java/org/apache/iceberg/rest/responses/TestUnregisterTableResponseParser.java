@@ -89,4 +89,78 @@ public class TestUnregisterTableResponseParser {
     assertThat(parsed.metadata().metadataFileLocation()).isEqualTo("metadataTestLocation");
     assertThat(UnregisterTableResponseParser.toJson(parsed)).isEqualTo(expectedJson);
   }
+
+  @Test
+  public void roundTripSerdeWithTableLocation() {
+    TableMetadata metadata =
+        TableMetadata.buildFromEmpty(4)
+            .assignUUID("386b9f01-002b-4d8c-b77f-42c3fd3b7c9b")
+            .setCurrentSchema(
+                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+            .addPartitionSpec(PartitionSpec.unpartitioned())
+            .addSortOrder(SortOrder.unsorted())
+            .discardChanges()
+            .build();
+
+    UnregisterTableResponse response =
+        ImmutableUnregisterTableResponse.builder()
+            .metadataLocation("metadataTestLocation")
+            .tableLocation("s3://bucket/table")
+            .metadata(metadata)
+            .build();
+
+    String json = UnregisterTableResponseParser.toJson(response);
+    assertThat(json).contains("\"table-location\":\"s3://bucket/table\"");
+
+    UnregisterTableResponse parsed = UnregisterTableResponseParser.fromJson(json);
+    assertThat(parsed.tableLocation()).isEqualTo("s3://bucket/table");
+    assertThat(parsed.metadata().location()).isNull();
+    assertThat(parsed.tableMetadata().location()).isEqualTo("s3://bucket/table");
+    assertThat(parsed.tableMetadata().changes()).isEmpty();
+    assertThat(parsed.tableMetadata().metadataFileLocation()).isEqualTo("metadataTestLocation");
+    assertThat(UnregisterTableResponseParser.toJson(parsed)).isEqualTo(json);
+  }
+
+  @Test
+  public void absentTableLocationStaysAbsent() {
+    String json =
+        "{\"metadata-location\":\"metadataTestLocation\",\"metadata\":"
+            + TableMetadataParser.toJson(
+                TableMetadata.buildFromEmpty(1)
+                    .assignUUID("386b9f01-002b-4d8c-b77f-42c3fd3b7c9b")
+                    .setLocation("location")
+                    .setCurrentSchema(
+                        new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+                    .addPartitionSpec(PartitionSpec.unpartitioned())
+                    .addSortOrder(SortOrder.unsorted())
+                    .discardChanges()
+                    .build())
+            + "}";
+
+    UnregisterTableResponse parsed = UnregisterTableResponseParser.fromJson(json);
+    assertThat(parsed.tableLocation()).isNull();
+    assertThat(parsed.metadata().location()).isEqualTo("location");
+    assertThat(UnregisterTableResponseParser.toJson(parsed)).doesNotContain("table-location");
+  }
+
+  @Test
+  public void invalidTableLocationIsRejected() {
+    String json =
+        "{\"metadata-location\":\"metadataTestLocation\",\"table-location\":\"relative/table\","
+            + "\"metadata\":"
+            + TableMetadataParser.toJson(
+                TableMetadata.buildFromEmpty(4)
+                    .assignUUID("386b9f01-002b-4d8c-b77f-42c3fd3b7c9b")
+                    .setCurrentSchema(
+                        new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+                    .addPartitionSpec(PartitionSpec.unpartitioned())
+                    .addSortOrder(SortOrder.unsorted())
+                    .discardChanges()
+                    .build())
+            + "}";
+
+    assertThatThrownBy(() -> UnregisterTableResponseParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid table location: relative/table, must be absolute with a URI scheme");
+  }
 }

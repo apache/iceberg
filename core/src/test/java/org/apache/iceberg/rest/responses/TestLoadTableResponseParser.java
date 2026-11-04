@@ -31,6 +31,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.ImmutableRemoteSigningConfig;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
@@ -673,5 +674,114 @@ public class TestLoadTableResponseParser {
     String json = LoadTableResponseParser.toJson(response, true);
     assertThat(json).doesNotContain("labels");
     assertThat(LoadTableResponseParser.fromJson(json).labels().isEmpty()).isTrue();
+  }
+
+  @Test
+  public void roundTripSerdeWithTableLocation() {
+    TableMetadata metadata = v4MetadataWithoutLocation("metadata-location");
+    LoadTableResponse response =
+        LoadTableResponse.builder()
+            .withTableMetadata(metadata)
+            .withTableLocation("s3://bucket/table")
+            .build();
+
+    String expectedJson =
+        String.format(
+            "{\"metadata-location\":\"metadata-location\",\"table-location\":\"s3://bucket/table\","
+                + "\"metadata\":%s}",
+            TableMetadataParser.toJson(metadata));
+    assertThat(LoadTableResponseParser.toJson(response)).isEqualTo(expectedJson);
+
+    LoadTableResponse parsed = LoadTableResponseParser.fromJson(expectedJson);
+    assertThat(parsed.tableLocation()).isEqualTo("s3://bucket/table");
+    assertThat(LoadTableResponseParser.toJson(parsed)).isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void absentTableLocationStaysAbsent() {
+    TableMetadata metadata = v4MetadataWithoutLocation("metadata-location");
+    LoadTableResponse response = LoadTableResponse.builder().withTableMetadata(metadata).build();
+
+    String json = LoadTableResponseParser.toJson(response);
+    assertThat(json).doesNotContain("table-location");
+    assertThat(LoadTableResponseParser.fromJson(json).tableLocation()).isNull();
+  }
+
+  @Test
+  public void tableMetadataTakesLocationFromTableLocationWithoutChanges() {
+    LoadTableResponse response =
+        LoadTableResponse.builder()
+            .withTableMetadata(v4MetadataWithoutLocation("metadata-location"))
+            .withTableLocation("s3://bucket/table")
+            .build();
+
+    LoadTableResponse parsed =
+        LoadTableResponseParser.fromJson(LoadTableResponseParser.toJson(response));
+    TableMetadata effective = parsed.tableMetadata();
+    assertThat(effective.location()).isEqualTo("s3://bucket/table");
+    assertThat(effective.changes()).isEmpty();
+    assertThat(effective.metadataFileLocation()).isEqualTo("metadata-location");
+  }
+
+  @Test
+  public void tableMetadataRequiresALocation() {
+    LoadTableResponse response =
+        LoadTableResponse.builder()
+            .withTableMetadata(v4MetadataWithoutLocation("metadata-location"))
+            .build();
+
+    assertThatThrownBy(response::tableMetadata)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid table metadata: location must be set in metadata or in table-location");
+  }
+
+  @Test
+  public void tableLocationOverridesMetadataLocation() {
+    TableMetadata metadata =
+        TableMetadata.buildFrom(v4MetadataWithoutLocation("metadata-location"))
+            .setLocation("s3://bucket/metadata-location-table")
+            .discardChanges()
+            .withMetadataLocation("metadata-location")
+            .build();
+    LoadTableResponse response =
+        LoadTableResponse.builder()
+            .withTableMetadata(metadata)
+            .withTableLocation("s3://bucket/table")
+            .build();
+
+    TableMetadata effective = response.tableMetadata();
+    assertThat(effective.location()).isEqualTo("s3://bucket/table");
+    assertThat(effective.changes()).isEmpty();
+    assertThat(effective.metadataFileLocation()).isEqualTo("metadata-location");
+    assertThat(response.metadata().location()).isEqualTo("s3://bucket/metadata-location-table");
+  }
+
+  @Test
+  public void invalidTableLocationIsRejected() {
+    assertThatThrownBy(() -> LoadTableResponse.builder().withTableLocation("relative/table"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid table location: relative/table, must be absolute with a URI scheme");
+
+    assertThatThrownBy(
+            () ->
+                LoadTableResponseParser.fromJson(
+                    String.format(
+                        "{\"table-location\":\"relative/table\",\"metadata\":%s}",
+                        TableMetadataParser.toJson(
+                            v4MetadataWithoutLocation("metadata-location")))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid table location: relative/table, must be absolute with a URI scheme");
+  }
+
+  private static TableMetadata v4MetadataWithoutLocation(String metadataLocation) {
+    return TableMetadata.buildFromEmpty(4)
+        .assignUUID("386b9f01-002b-4d8c-b77f-42c3fd3b7c9b")
+        .setCurrentSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+        .addPartitionSpec(PartitionSpec.unpartitioned())
+        .addSortOrder(SortOrder.unsorted())
+        .discardChanges()
+        .withMetadataLocation(metadataLocation)
+        .build();
   }
 }

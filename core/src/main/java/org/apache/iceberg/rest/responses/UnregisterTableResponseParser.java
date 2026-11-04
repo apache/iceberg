@@ -25,10 +25,12 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
+import org.apache.iceberg.util.LocationUtil;
 
 public class UnregisterTableResponseParser {
 
   private static final String METADATA_LOCATION = "metadata-location";
+  private static final String TABLE_LOCATION = "table-location";
   private static final String METADATA = "metadata";
 
   private UnregisterTableResponseParser() {}
@@ -49,6 +51,10 @@ public class UnregisterTableResponseParser {
 
     gen.writeStringField(METADATA_LOCATION, response.metadataLocation());
 
+    if (null != response.tableLocation()) {
+      gen.writeStringField(TABLE_LOCATION, response.tableLocation());
+    }
+
     gen.writeFieldName(METADATA);
     TableMetadataParser.toJson(response.metadata(), gen);
 
@@ -64,6 +70,11 @@ public class UnregisterTableResponseParser {
         null != json, "Cannot parse unregister table response from null object");
 
     String metadataLocation = JsonUtil.getString(METADATA_LOCATION, json);
+    String tableLocation = JsonUtil.getStringOrNull(TABLE_LOCATION, json);
+    Preconditions.checkArgument(
+        null == tableLocation || LocationUtil.hasScheme(tableLocation),
+        "Invalid table location: %s, must be absolute with a URI scheme",
+        tableLocation);
     TableMetadata metadata = TableMetadataParser.fromJson(JsonUtil.get(METADATA, json));
 
     if (null == metadata.metadataFileLocation()) {
@@ -72,6 +83,7 @@ public class UnregisterTableResponseParser {
 
     return ImmutableUnregisterTableResponse.builder()
         .metadataLocation(metadataLocation)
+        .tableLocation(tableLocation)
         .metadata(metadata)
         .build();
   }

@@ -33,6 +33,7 @@ public class ResourcePaths {
       "/v1/{prefix}/namespaces/{namespace}/properties";
   public static final String V1_TABLES = "/v1/{prefix}/namespaces/{namespace}/tables";
   public static final String V1_TABLE = "/v1/{prefix}/namespaces/{namespace}/tables/{table}";
+  public static final String V2_TABLE = "/v2/{prefix}/namespaces/{namespace}/tables/{table}";
   public static final String V1_TABLE_CREDENTIALS =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials";
   public static final String V1_TABLE_REMOTE_SIGN =
@@ -99,6 +100,16 @@ public class ResourcePaths {
   public String table(TableIdentifier ident) {
     return SLASH.join(
         "v1",
+        prefix,
+        "namespaces",
+        pathEncode(ident.namespace()),
+        "tables",
+        RESTUtil.encodePathSegment(ident.name()));
+  }
+
+  public String tableV2(TableIdentifier ident) {
+    return SLASH.join(
+        "v2",
         prefix,
         "namespaces",
         pathEncode(ident.namespace()),
