@@ -20,6 +20,6 @@ package org.apache.iceberg.expressions;
 
 import org.apache.iceberg.types.Type;
 
-public interface BoundValueExpression<T> extends BoundExpression<T> {
+public interface BoundValueExpression<T> extends ValueExpression<T>, BoundExpression<T> {
   Type type();
 }
