@@ -26,8 +26,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -542,6 +546,136 @@ public class TestCoordinator extends ChannelTestBase {
     coordinator.process();
 
     return commitId;
+  }
+
+  @Test
+  public void testCommitWithEventsFromWorkersBeforeAndAfterTableUuid() throws IOException {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+    coordinator.process();
+    UUID commitId =
+        ((StartCommit) AvroUtil.decode(producer.history().get(0).value()).payload()).commitId();
+
+    // During a rolling upgrade, a worker still on 1.10 answers without the table uuid...
+    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", dataWrittenFrom110()));
+
+    // ...and an upgraded worker answers for the same table with its uuid
+    Event dataWritten =
+        new Event(
+            config.connectGroupId(),
+            new DataWritten(
+                StructType.of(),
+                commitId,
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), table.uuid()),
+                ImmutableList.of(EventTestUtil.createDataFile()),
+                ImmutableList.of()));
+    consumer.addRecord(
+        new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", AvroUtil.encode(dataWritten)));
+
+    OffsetDateTime ts = EventTestUtil.now();
+    Event dataComplete =
+        new Event(
+            config.connectGroupId(),
+            new DataComplete(
+                commitId, ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, ts))));
+    consumer.addRecord(
+        new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 3, "key", AvroUtil.encode(dataComplete)));
+
+    coordinator.process();
+
+    // Both workers' files are committed in one snapshot
+    table.refresh();
+    List<Snapshot> snapshots = ImmutableList.copyOf(table.snapshots());
+    assertThat(snapshots).hasSize(1);
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshots.get(0)).build();
+    assertThat(changes.addedDataFiles())
+        .hasSize(2)
+        .extracting(DataFile::location)
+        .contains("file:/legacy/data-1.parquet");
+
+    assertThat(producer.history()).hasSize(3);
+    assertCommitTable(1, commitId, ts);
+    assertCommitComplete(2, commitId, ts);
+  }
+
+  @Test
+  public void testCommitSkipsEventsForAnotherTableUuid() {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+    coordinator.process();
+    UUID commitId =
+        ((StartCommit) AvroUtil.decode(producer.history().get(0).value()).payload()).commitId();
+
+    // a file written for a table of the same name that has since been dropped and re-created...
+    DataFile staleFile = EventTestUtil.createDataFile();
+    Event stale =
+        new Event(
+            config.connectGroupId(),
+            new DataWritten(
+                StructType.of(),
+                commitId,
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), UUID.randomUUID()),
+                ImmutableList.of(staleFile),
+                ImmutableList.of()));
+    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", AvroUtil.encode(stale)));
+
+    // ...and a file written for the current table
+    DataFile currentFile = EventTestUtil.createDataFile();
+    Event current =
+        new Event(
+            config.connectGroupId(),
+            new DataWritten(
+                StructType.of(),
+                commitId,
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), table.uuid()),
+                ImmutableList.of(currentFile),
+                ImmutableList.of()));
+    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", AvroUtil.encode(current)));
+
+    OffsetDateTime ts = EventTestUtil.now();
+    Event dataComplete =
+        new Event(
+            config.connectGroupId(),
+            new DataComplete(
+                commitId, ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, ts))));
+    consumer.addRecord(
+        new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 3, "key", AvroUtil.encode(dataComplete)));
+
+    coordinator.process();
+
+    table.refresh();
+    List<Snapshot> snapshots = ImmutableList.copyOf(table.snapshots());
+    assertThat(snapshots).hasSize(1);
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshots.get(0)).build();
+    assertThat(changes.addedDataFiles())
+        .extracting(DataFile::location)
+        .containsExactly(currentFile.location());
+  }
+
+  /**
+   * A DataWritten event as a 1.10.0 worker puts it on the control topic: encoded with {@code
+   * AvroUtil.encode} from iceberg-kafka-connect-events 1.10.0, so its table reference has no table
+   * uuid. It references one data file, {@code file:/legacy/data-1.parquet} with 5 records, for
+   * table {@code catalog.db.tbl}.
+   */
+  private static byte[] dataWrittenFrom110() throws IOException {
+    try (InputStream in =
+        TestCoordinator.class.getClassLoader().getResourceAsStream("data-written-1.10.0.b64")) {
+      return Base64.getDecoder()
+          .decode(new String(in.readAllBytes(), StandardCharsets.UTF_8).trim());
+    }
   }
 
   @Test
