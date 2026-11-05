@@ -113,6 +113,7 @@ class V4TestHelpers {
         specId,
         partition,
         stats,
+        null, // tightStats
         null, // sortOrderId
         dv,
         manifestInfo,
