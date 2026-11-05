@@ -22,15 +22,21 @@ import java.util.Objects;
 
 class JobOperatorKey {
   private final String jobId;
+  private final String sinkId;
   private final String operatorId;
 
   JobOperatorKey(DynamicCommittable committable) {
     this.jobId = committable.jobId();
+    this.sinkId = committable.sinkId();
     this.operatorId = committable.operatorId();
   }
 
   String jobId() {
     return jobId;
+  }
+
+  String sinkId() {
+    return sinkId;
   }
 
   String operatorId() {
@@ -47,11 +53,13 @@ class JobOperatorKey {
       return false;
     }
 
-    return Objects.equals(jobId, that.jobId) && Objects.equals(operatorId, that.operatorId);
+    return Objects.equals(jobId, that.jobId)
+        && Objects.equals(sinkId, that.sinkId)
+        && Objects.equals(operatorId, that.operatorId);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(jobId, operatorId);
+    return Objects.hash(jobId, sinkId, operatorId);
   }
 }
