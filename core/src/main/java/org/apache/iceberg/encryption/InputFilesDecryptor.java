@@ -49,6 +49,12 @@ public class InputFilesDecryptor {
         EncryptingFileIO.combine(io, encryption));
   }
 
+  /**
+   * Returns a decryptor for the file referenced by the given tasks.
+   *
+   * <p>Resolution of referenced files are performed lazily on the first call of {@link
+   * #getInputFile(String)}.
+   */
   public static InputFilesDecryptor fromTasks(
       Iterable<? extends ScanTask> tasks, EncryptingFileIO encryptingIO) {
     return new InputFilesDecryptor(() -> referencedFiles(tasks).iterator(), encryptingIO);

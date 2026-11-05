@@ -27,8 +27,10 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.HasReferencedFiles;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.ScanTask;
@@ -48,6 +50,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.SparkExecutorCache;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
@@ -144,8 +147,11 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         }
       }
     } catch (IOException | RuntimeException e) {
-      if (currentTask instanceof ContentScanTask<?> contentTask && !currentTask.isDataTask()) {
-        LOG.error("Error reading file: {}", contentTask.file().location(), e);
+      if (currentTask instanceof HasReferencedFiles referencing && !currentTask.isDataTask()) {
+        String filePaths =
+            String.join(
+                ", ", Iterables.transform(referencing.referencedFiles(), ContentFile::location));
+        LOG.error("Error reading file(s): {}", filePaths, e);
       }
       throw e;
     }
