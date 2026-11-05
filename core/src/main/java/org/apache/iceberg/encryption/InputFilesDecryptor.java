@@ -50,7 +50,7 @@ public class InputFilesDecryptor {
   }
 
   /**
-   * Returns a decryptor for the file referenced by the given tasks.
+   * Returns a decryptor for the files referenced by the given tasks.
    *
    * <p>Resolution of referenced files are performed lazily on the first call of {@link
    * #getInputFile(String)}.
