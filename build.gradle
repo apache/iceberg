@@ -121,7 +121,7 @@ allprojects {
       forRepository {
         maven {
           name = "ApacheParquetStaging"
-          url = uri("https://repository.apache.org/content/repositories/orgapacheparquet-1092/")
+          url = uri("https://repository.apache.org/content/repositories/orgapacheparquet-1093/")
         }
       }
       filter {
