@@ -54,6 +54,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.ScanMetrics;
@@ -718,6 +719,32 @@ class TestV4ManifestReader {
     assertThat(actual)
         .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
         .isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void inheritanceFirstRowIdIsIndependentBetweenIterators(FileFormat format) throws IOException {
+    TrackedFile fileA = dataFile(ADDED_TRACKING, "s3://bucket/table/file-a.parquet");
+    TrackedFile fileB = dataFile(ADDED_TRACKING, "s3://bucket/table/file-b.parquet");
+
+    ManifestFile manifest =
+        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(fileA, fileB));
+    when(manifest.firstRowId()).thenReturn(10_000L);
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
+            .metricsConfig(METRICS_CONFIG);
+
+    try (V4ManifestReader reader = builder.build();
+        CloseableIterator<TrackedFile> first = reader.iterator();
+        CloseableIterator<TrackedFile> second = reader.iterator()) {
+      assertThat(first.next().tracking().firstRowId()).isEqualTo(10_000L);
+      assertThat(second.next().tracking().firstRowId())
+          .as("a second iterator assigns from the manifest's first row ID, not the first's counter")
+          .isEqualTo(10_000L);
+      assertThat(first.next().tracking().firstRowId()).isEqualTo(10_000L + RECORD_COUNT);
+      assertThat(second.next().tracking().firstRowId()).isEqualTo(10_000L + RECORD_COUNT);
+    }
   }
 
   @ParameterizedTest

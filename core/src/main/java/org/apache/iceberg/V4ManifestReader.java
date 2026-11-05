@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
@@ -80,8 +81,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private final boolean isUncommitted;
   private final ScanMetrics scanMetrics;
 
-  private Long nextRowId = null;
-
   private V4ManifestReader(
       ManifestFile manifest,
       FileIO io,
@@ -104,9 +103,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     this.requestedStatsFieldIds = requestedStatsFieldIds;
     this.isUncommitted = isUncommitted;
     this.scanMetrics = scanMetrics;
-
-    // initialize the next row ID to the manifest's first row ID
-    this.nextRowId = manifest.firstRowId();
   }
 
   @VisibleForTesting
@@ -118,8 +114,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   public CloseableIterator<TrackedFile> iterator() {
     // first row ID assignment must happen first to maintain consistent assignment when files are
     // removed or filtered
-    CloseableIterable<TrackedFile> files =
-        CloseableIterable.transform(open(), this::applyInheritance);
+    CloseableIterable<TrackedFile> files = CloseableIterable.transform(open(), applyInheritance());
 
     files = CloseableIterable.transform(files, this::projectPartition);
 
@@ -151,20 +146,41 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return CloseableIterable.transform(files, this::copyResolved).iterator();
   }
 
-  private TrackedFile applyInheritance(TrackedFile file) {
-    // the reader uses TrackingStruct to read tracking so this cast is safe
-    TrackingStruct tracking = (TrackingStruct) file.tracking();
+  private Function<TrackedFile, TrackedFile> applyInheritance() {
     if (isUncommitted) {
       // uncommitted files cannot have a sequence number or assign first row ID
-      tracking.inherit(manifest.snapshotId());
-    } else {
-      tracking.inherit(manifest.snapshotId(), manifest.sequenceNumber());
-      if (tracking.assignFirstRowId(nextRowId)) {
-        this.nextRowId += file.recordCount();
-      }
+      return file -> {
+        // the reader uses TrackingStruct to read tracking so this cast is safe
+        ((TrackingStruct) file.tracking()).inherit(manifest.snapshotId());
+        return file;
+      };
     }
 
-    return file;
+    Long firstRowId = manifest.firstRowId();
+    if (firstRowId != null) {
+      return new Function<>() {
+        private long nextRowId = firstRowId;
+
+        @Override
+        public TrackedFile apply(TrackedFile file) {
+          TrackingStruct tracking = (TrackingStruct) file.tracking();
+          tracking.inherit(manifest.snapshotId(), manifest.sequenceNumber());
+          if (tracking.assignFirstRowId(nextRowId)) {
+            nextRowId += file.recordCount();
+          }
+
+          return file;
+        }
+      };
+    }
+
+    // committed manifest with null manifest-level first row ID (pre-v3 upgrade path)
+    return file -> {
+      TrackingStruct tracking = (TrackingStruct) file.tracking();
+      tracking.inherit(manifest.snapshotId(), manifest.sequenceNumber());
+      tracking.assignFirstRowId(null);
+      return file;
+    };
   }
 
   private TrackedFile projectPartition(TrackedFile file) {
