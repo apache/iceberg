@@ -64,6 +64,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -787,7 +788,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       DataFile compacted = writeDataFile(table, createRecord(2, "b"));
       table.newRewrite().deleteFile(replaced).addFile(compacted).commit();
       table.refresh();
-      dropSummaryFileCounts(table);
+      dropSummaryFileCounts(table, table.currentSnapshot().snapshotId());
 
       sendTrigger(harness);
       List<ReadCommand> all = harness.extractOutputValues();
@@ -798,6 +799,127 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
               tuple(ReadCommand.Type.DATA_FILE, compacted.location()),
               tuple(ReadCommand.Type.REMOVED_DATA_FILE, replaced.location()));
       assertThat(planner(harness).incrementalReindexCount()).isEqualTo(1);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void convertsEqualityDeleteWithoutSummaryFileCounts(boolean sharedBranch) throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    String branch = sharedBranch ? SnapshotRef.MAIN_BRANCH : STAGING_BRANCH;
+    if (!sharedBranch) {
+      table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+      table.refresh();
+    }
+
+    DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(branch).commit();
+    table.refresh();
+    dropSummaryFileCounts(table, table.snapshot(branch).snapshotId());
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness = createHarness(branch)) {
+      harness.open();
+      sendTrigger(harness);
+
+      assertThat(countEqDeleteTasks(harness.extractOutputValues())).isEqualTo(1);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void skipsSnapshotThatReportsNoAddedFiles(boolean sharedBranch) throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    String branch = sharedBranch ? SnapshotRef.MAIN_BRANCH : STAGING_BRANCH;
+    if (!sharedBranch) {
+      table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+      table.refresh();
+    }
+
+    DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(branch).commit();
+    table.refresh();
+    // The summary reports all its counts, so it decides without reading the manifest list.
+    setSummaryFileCounts(
+        table,
+        table.snapshot(branch).snapshotId(),
+        ImmutableMap.of(
+            SnapshotSummary.ADDED_FILES_PROP, "0", SnapshotSummary.ADDED_DELETE_FILES_PROP, "0"));
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness = createHarness(branch)) {
+      harness.open();
+      sendTrigger(harness);
+
+      assertThat(countEqDeleteTasks(harness.extractOutputValues())).isZero();
+      assertThat(planner(harness).skippedNoOpCycles()).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void skipsSharedBranchSnapshotThatReportsNoEqualityDeletes() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).commit();
+    table.refresh();
+    setSummaryFileCounts(
+        table,
+        table.currentSnapshot().snapshotId(),
+        ImmutableMap.of(
+            SnapshotSummary.ADDED_DELETE_FILES_PROP,
+            "1",
+            SnapshotSummary.ADD_EQ_DELETE_FILES_PROP,
+            "0"));
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(SnapshotRef.MAIN_BRANCH)) {
+      harness.open();
+      sendTrigger(harness);
+
+      assertThat(countEqDeleteTasks(harness.extractOutputValues())).isZero();
+    }
+  }
+
+  @Test
+  void skipsExternalCommitThatReportsNoFileChanges() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+    DataFile replaced = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    insert(table, 3, "c");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      sendTrigger(harness);
+      int afterFirst = harness.extractOutputValues().size();
+
+      DataFile compacted = writeDataFile(table, createRecord(2, "b"));
+      table.newRewrite().deleteFile(replaced).addFile(compacted).commit();
+      table.refresh();
+      setSummaryFileCounts(
+          table,
+          table.currentSnapshot().snapshotId(),
+          ImmutableMap.of(
+              SnapshotSummary.ADDED_FILES_PROP,
+              "0",
+              SnapshotSummary.ADDED_DELETE_FILES_PROP,
+              "0",
+              SnapshotSummary.DELETED_FILES_PROP,
+              "0"));
+
+      sendTrigger(harness);
+
+      assertThat(harness.extractOutputValues()).hasSize(afterFirst);
+      assertThat(planner(harness).incrementalReindexCount()).isZero();
     }
   }
 
@@ -1872,23 +1994,37 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
     return commands.stream().filter(c -> c.task() instanceof FileScanTask).count();
   }
 
-  // Keeps only the operation in the summary of the current snapshot, like a writer that leaves the
-  // file counts out. The planner reads the rewritten metadata file on its next refresh.
-  private static void dropSummaryFileCounts(Table table) throws IOException {
+  // Keeps only the operation in the summary of the snapshot, like a writer that leaves the file
+  // counts out.
+  private static void dropSummaryFileCounts(Table table, long snapshotId) throws IOException {
+    setSummaryFileCounts(table, snapshotId, ImmutableMap.of());
+  }
+
+  // Keeps only the operation and the given counts in the summary of the snapshot. The planner reads
+  // the rewritten metadata file on its next refresh.
+  private static void setSummaryFileCounts(Table table, long snapshotId, Map<String, String> counts)
+      throws IOException {
     String location = ((HasTableOperations) table).operations().current().metadataFileLocation();
     ObjectNode metadata;
     try (InputStream in = table.io().newInputFile(location).newStream()) {
       metadata = (ObjectNode) JsonUtil.mapper().readTree(in);
     }
 
-    JsonNode snapshots = metadata.get("snapshots");
-    ((ObjectNode) snapshots.get(snapshots.size() - 1).get("summary")).retain("operation");
+    for (JsonNode snapshot : metadata.get("snapshots")) {
+      if (snapshot.get("snapshot-id").asLong() == snapshotId) {
+        ObjectNode summary = (ObjectNode) snapshot.get("summary");
+        summary.retain("operation");
+        counts.forEach(summary::put);
+      }
+    }
+
     try (OutputStream out = table.io().newOutputFile(location).createOrOverwrite()) {
       JsonUtil.mapper().writeValue(out, metadata);
     }
 
-    assertThat(TableMetadataParser.read(table.io(), location).currentSnapshot().summary())
-        .doesNotContainKeys(SnapshotSummary.ADDED_FILES_PROP, SnapshotSummary.DELETED_FILES_PROP);
+    assertThat(TableMetadataParser.read(table.io(), location).snapshot(snapshotId).summary())
+        .hasSize(counts.size())
+        .containsAllEntriesOf(counts);
   }
 
   // Keeps the operator state entries that the version before the stateVersion entry wrote.

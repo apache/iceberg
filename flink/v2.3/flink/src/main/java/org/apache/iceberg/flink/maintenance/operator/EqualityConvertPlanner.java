@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.state.ListState;
@@ -528,7 +529,12 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
 
   private void collectDataFileChanges(
       Snapshot snapshot, Map<String, DataFile> added, Map<String, DataFile> removed) {
-    if (!changesFiles(snapshot)) {
+    if (!writesFiles(
+        snapshot,
+        manifest -> manifest.hasAddedFiles() || manifest.hasDeletedFiles(),
+        SnapshotSummary.ADDED_FILES_PROP,
+        SnapshotSummary.ADDED_DELETE_FILES_PROP,
+        SnapshotSummary.DELETED_FILES_PROP)) {
       // E.g. a manifest rewrite, for which SnapshotChanges would read every manifest to find no
       // file change.
       return;
@@ -692,21 +698,24 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
       stopAt = findCommonAncestor(stagingHead, mainSnapshot);
     }
 
+    List<Snapshot> unprocessed = Lists.newArrayList();
     Snapshot current = stagingHead;
-    Snapshot oldestUnprocessed = null;
     while (current != null) {
       if (stopAt != null && current.snapshotId() == stopAt) {
         break;
       }
 
-      if (!shouldSkip(current)) {
-        oldestUnprocessed = current;
-      }
-
+      unprocessed.add(current);
       current = parentOf(current);
     }
 
-    return oldestUnprocessed;
+    for (Snapshot snapshot : Lists.reverse(unprocessed)) {
+      if (!shouldSkip(snapshot)) {
+        return snapshot;
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -961,38 +970,58 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
    *       #ensureIndexCurrent} when the next eq-delete arrives.
    * </ul>
    *
-   * <p>Filter checks read per-snapshot counts from {@link Snapshot#summary()}; we don't parse
-   * manifests here. Manifest parsing happens later in {@link #retrieveStagingFiles} only for the
+   * <p>The checks use the summary counts of the snapshot when it reports them. Otherwise they read
+   * the manifest list of the snapshot and, on a shared branch, the delete manifests the snapshot
+   * wrote. Reading the data files happens later in {@link #retrieveStagingFiles} only for the
    * chosen snapshot.
    */
   private boolean shouldSkip(Snapshot snapshot) {
-    Map<String, String> summary = snapshot.summary();
-    if (summary.containsKey(EqualityConvertCommitter.COMMITTED_STAGING_SNAPSHOT_PROPERTY)) {
+    if (snapshot
+        .summary()
+        .containsKey(EqualityConvertCommitter.COMMITTED_STAGING_SNAPSHOT_PROPERTY)) {
       return true;
     }
 
-    long addedDataFiles = summaryCount(summary, SnapshotSummary.ADDED_FILES_PROP);
-    long addedDeleteFiles = summaryCount(summary, SnapshotSummary.ADDED_DELETE_FILES_PROP);
-    if (addedDataFiles == 0 && addedDeleteFiles == 0) {
+    if (!writesFiles(
+        snapshot,
+        ManifestFile::hasAddedFiles,
+        SnapshotSummary.ADDED_FILES_PROP,
+        SnapshotSummary.ADDED_DELETE_FILES_PROP)) {
       LOG.info(
           "Skipping staging snapshot {}: no added data or delete files.", snapshot.snapshotId());
       return true;
     }
 
-    if (stagingOnTargetBranch
-        && summaryCount(summary, SnapshotSummary.ADD_EQ_DELETE_FILES_PROP) == 0) {
+    if (stagingOnTargetBranch && !addsEqualityDeletes(snapshot)) {
       return true;
     }
 
     return false;
   }
 
-  // Reads the manifest list, as the summary properties are optional and a missing one reads as no
-  // change. A manifest without file counts counts as a change.
-  private boolean changesFiles(Snapshot snapshot) {
+  // A count above zero in the summary decides. Zero decides only when every count is reported:
+  // Iceberg Java leaves out zero counts, and other writers may leave out counts of any value, so a
+  // missing count falls back to the manifest list.
+  private boolean writesFiles(
+      Snapshot snapshot, Predicate<ManifestFile> manifestCheck, String... countProperties) {
+    boolean allReported = true;
+    for (String property : countProperties) {
+      String count = snapshot.summary().get(property);
+      if (count == null) {
+        allReported = false;
+      } else if (Long.parseLong(count) > 0) {
+        return true;
+      }
+    }
+
+    return !allReported && writesManifest(snapshot, manifestCheck);
+  }
+
+  // A manifest without file counts matches hasAddedFiles and hasDeletedFiles.
+  private boolean writesManifest(Snapshot snapshot, Predicate<ManifestFile> predicate) {
     for (ManifestFile manifest : snapshot.allManifests(table.io())) {
       if (Objects.equals(manifest.snapshotId(), snapshot.snapshotId())
-          && (manifest.hasAddedFiles() || manifest.hasDeletedFiles())) {
+          && predicate.test(manifest)) {
         return true;
       }
     }
@@ -1000,9 +1029,20 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     return false;
   }
 
-  private static long summaryCount(Map<String, String> summary, String key) {
-    String value = summary.get(key);
-    return value == null ? 0L : Long.parseLong(value);
+  private boolean addsEqualityDeletes(Snapshot snapshot) {
+    String count = snapshot.summary().get(SnapshotSummary.ADD_EQ_DELETE_FILES_PROP);
+    if (count != null) {
+      return Long.parseLong(count) > 0;
+    }
+
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+    for (DeleteFile deleteFile : changes.addedDeleteFiles()) {
+      if (deleteFile.content() == FileContent.EQUALITY_DELETES) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
