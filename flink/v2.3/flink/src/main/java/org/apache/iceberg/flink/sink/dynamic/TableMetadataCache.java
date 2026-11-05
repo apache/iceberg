@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import java.time.Clock;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
@@ -32,6 +33,12 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -123,7 +130,10 @@ class TableMetadataCache {
             cacheRefreshClock.millis(),
             true,
             table.refs().keySet(),
-            table.schemas(),
+            schemaTiers(
+                orderSchemas(table.schemas(), table.schema().schemaId()),
+                table.schema(),
+                caseSensitive),
             table.specs(),
             inputSchemasPerTableCacheMaximumSize));
   }
@@ -177,15 +187,24 @@ class TableMetadataCache {
   private ResolvedSchemaInfo resolveSchema(
       TableIdentifier identifier, CacheItem cached, Schema input, boolean allowRefresh) {
     Schema compatible = null;
-    for (Schema tableSchema : cached.tableSchemas.values()) {
-      CompareSchemasVisitor.Result result =
-          CompareSchemasVisitor.visit(input, tableSchema, caseSensitive, dropUnusedColumns);
-      if (result == CompareSchemasVisitor.Result.SAME) {
-        return new ResolvedSchemaInfo(
-            tableSchema, CompareSchemasVisitor.Result.SAME, DataConverter.identity());
-      } else if (compatible == null
-          && result == CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED) {
-        compatible = tableSchema;
+    // The schemas of a tier are only used if no schema of the previous tiers matched the input.
+    // Within a tier, the first schema which is the same as the input wins, otherwise the first
+    // schema which the input can be converted to. See schemaTiers for the order of the schemas.
+    for (List<Schema> tableSchemas : cached.schemaTiers) {
+      for (Schema tableSchema : tableSchemas) {
+        CompareSchemasVisitor.Result result =
+            CompareSchemasVisitor.visit(input, tableSchema, caseSensitive, dropUnusedColumns);
+        if (result == CompareSchemasVisitor.Result.SAME) {
+          return new ResolvedSchemaInfo(
+              tableSchema, CompareSchemasVisitor.Result.SAME, DataConverter.identity());
+        } else if (compatible == null
+            && result == CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED) {
+          compatible = tableSchema;
+        }
+      }
+
+      if (compatible != null) {
+        break;
       }
     }
 
@@ -259,12 +278,69 @@ class TableMetadataCache {
     tableCache.remove(identifier);
   }
 
+  /**
+   * Orders the schemas with the current schema first, followed by the rest from newest to oldest.
+   * The current schema is not necessarily the one with the highest id, for example after a
+   * rollback.
+   */
+  static Map<Integer, Schema> orderSchemas(Map<Integer, Schema> tableSchemas, int currentSchemaId) {
+    Map<Integer, Schema> ordered = Maps.newLinkedHashMapWithExpectedSize(tableSchemas.size());
+    Schema current = tableSchemas.get(currentSchemaId);
+    Preconditions.checkArgument(current != null, "Current schema %s not found", currentSchemaId);
+    ordered.put(currentSchemaId, current);
+
+    tableSchemas.entrySet().stream()
+        .filter(e -> e.getKey() != currentSchemaId)
+        .sorted(Map.Entry.<Integer, Schema>comparingByKey().reversed())
+        .forEach(e -> ordered.put(e.getKey(), e.getValue()));
+    return ordered;
+  }
+
+  /**
+   * Splits the ordered schemas into two tiers, keeping their order within each tier.
+   *
+   * <p>The second tier holds the schemas which use a field name that belongs to a different field
+   * id in the current schema, for example after a column was dropped and added again, or renamed
+   * and its name reused. Data written with such a schema is stored under field ids which are not
+   * read through the current schema, so these schemas are only used when no schema of the first
+   * tier matches the input.
+   */
+  static List<List<Schema>> schemaTiers(
+      Map<Integer, Schema> orderedSchemas, Schema currentSchema, boolean caseSensitive) {
+    List<Schema> preferred = Lists.newArrayList();
+    List<Schema> fallback = Lists.newArrayList();
+    for (Schema schema : orderedSchemas.values()) {
+      if (reusesFieldNames(schema, currentSchema, caseSensitive)) {
+        fallback.add(schema);
+      } else {
+        preferred.add(schema);
+      }
+    }
+
+    return ImmutableList.of(preferred, fallback);
+  }
+
+  private static boolean reusesFieldNames(
+      Schema schema, Schema currentSchema, boolean caseSensitive) {
+    for (Map.Entry<Integer, String> field : TypeUtil.indexNameById(schema.asStruct()).entrySet()) {
+      Types.NestedField currentField =
+          caseSensitive
+              ? currentSchema.findField(field.getValue())
+              : currentSchema.caseInsensitiveFindField(field.getValue());
+      if (currentField != null && currentField.fieldId() != field.getKey()) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   /** Handles timeout for missing items only. Caffeine performance causes noticeable delays. */
   static class CacheItem {
     private final long createdTimestampMillis;
     private final boolean tableExists;
     private final Set<String> branches;
-    private final Map<Integer, Schema> tableSchemas;
+    private final List<List<Schema>> schemaTiers;
     private final Map<Integer, PartitionSpec> specs;
     private final Map<Schema, ResolvedSchemaInfo> inputSchemas;
 
@@ -272,13 +348,13 @@ class TableMetadataCache {
         long createdTimestampMillis,
         boolean tableExists,
         Set<String> branches,
-        Map<Integer, Schema> tableSchemas,
+        List<List<Schema>> schemaTiers,
         Map<Integer, PartitionSpec> specs,
         int inputSchemaCacheMaximumSize) {
       this.createdTimestampMillis = createdTimestampMillis;
       this.tableExists = tableExists;
       this.branches = branches;
-      this.tableSchemas = tableSchemas;
+      this.schemaTiers = schemaTiers;
       this.specs = specs;
       this.inputSchemas =
           new LRUCache<>(inputSchemaCacheMaximumSize, CacheItem::inputSchemaEvictionListener);
