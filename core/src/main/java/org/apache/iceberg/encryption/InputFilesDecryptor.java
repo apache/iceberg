@@ -81,12 +81,13 @@ public class InputFilesDecryptor {
   private static Collection<ContentFile<?>> referencedFiles(Iterable<? extends ScanTask> tasks) {
     Map<String, ContentFile<?>> files = Maps.newHashMap();
     for (ScanTask task : tasks) {
-      if (!(task instanceof HasReferencedFiles referencing)) {
-        throw new IllegalArgumentException(
-            "Unsupported scan task type: " + task.getClass().getName());
-      }
-
-      referencing.referencedFiles().forEach(file -> files.put(file.location(), file));
+      Preconditions.checkArgument(
+          task instanceof HasReferencedFiles,
+          "Unsupported scan task type: %s",
+          task.getClass().getName());
+      ((HasReferencedFiles) task)
+          .referencedFiles()
+          .forEach(file -> files.put(file.location(), file));
     }
 
     return files.values();

@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg;
 
-/** A {@link ScanTask} that can list the content files it reads. */
+/** An object that references content files. */
 public interface HasReferencedFiles {
   /**
-   * Returns all content files that must be read to process this task
+   * Returns the content files referenced by this object.
    *
-   * @return the content files referenced by this task
+   * @return the referenced content files
    */
   Iterable<ContentFile<?>> referencedFiles();
 }
