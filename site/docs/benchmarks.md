@@ -126,8 +126,10 @@ column used in the filter predicate. The performance is compared to the built-in
 ### IcebergSourceNestedParquetDataFilterBenchmark
 A benchmark that evaluates the file skipping capabilities in the Spark data source for Iceberg. This class uses a dataset with nested data, where the records are clustered according to the
 column used in the filter predicate. The performance is compared to the built-in file source in Spark. To run this benchmark for either spark-2 or spark-3:
+
 `./gradlew -DsparkVersions=4.1 -DscalaVersion=2.13 :iceberg-spark:iceberg-spark-4.1_2.13:jmh -PjmhIncludeRegex=IcebergSourceNestedParquetDataFilterBenchmark -PjmhOutputPath=benchmark/iceberg-source-nested-parquet-data-filter-benchmark-result.txt`
 
 ### SparkParquetWritersNestedDataBenchmark
 A benchmark that evaluates the performance of writing nested Parquet data using Iceberg and Spark Parquet writers. To run this benchmark for either spark-2 or spark-3:
-  `./gradlew -DsparkVersions=4.1 -DscalaVersion=2.13 :iceberg-spark:iceberg-spark-4.1_2.13:jmh -PjmhIncludeRegex=SparkParquetWritersNestedDataBenchmark -PjmhOutputPath=benchmark/spark-parquet-writers-nested-data-benchmark-result.txt`
+
+`./gradlew -DsparkVersions=4.1 -DscalaVersion=2.13 :iceberg-spark:iceberg-spark-4.1_2.13:jmh -PjmhIncludeRegex=SparkParquetWritersNestedDataBenchmark -PjmhOutputPath=benchmark/spark-parquet-writers-nested-data-benchmark-result.txt`
