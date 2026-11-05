@@ -407,7 +407,7 @@ public class Parquet {
               });
     }
 
-    private int parseCompressionLevel(String colName, String level) {
+    private static int parseCompressionLevel(String colName, String level) {
       try {
         return Integer.parseInt(level);
       } catch (NumberFormatException e) {

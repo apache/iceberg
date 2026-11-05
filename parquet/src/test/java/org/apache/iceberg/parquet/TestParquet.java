@@ -782,15 +782,6 @@ public class TestParquet {
   }
 
   @Test
-  void globalCompressionCodecAppliesToAllColumns() throws Exception {
-    File file = writeIntAndStringFields(ImmutableMap.of(PARQUET_COMPRESSION, "snappy"), 5);
-
-    assertThat(readColumnCodecs(file))
-        .containsEntry("int_field", CompressionCodecName.SNAPPY)
-        .containsEntry("string_field", CompressionCodecName.SNAPPY);
-  }
-
-  @Test
   void perColumnCompressionCodec() throws Exception {
     File file =
         writeIntAndStringFields(
@@ -828,7 +819,6 @@ public class TestParquet {
     File highLevelFile = writeWithStringFieldZstdLevel(19);
 
     assertThat(readColumnCodecs(highLevelFile))
-        .containsEntry("int_field", CompressionCodecName.SNAPPY)
         .containsEntry("string_field", CompressionCodecName.ZSTD);
     assertThat(readColumnSizes(highLevelFile).get("string_field"))
         .isLessThan(readColumnSizes(lowLevelFile).get("string_field"));
@@ -838,8 +828,6 @@ public class TestParquet {
     Random random = new Random(0);
     return writeIntAndStringFields(
         ImmutableMap.of(
-            PARQUET_COMPRESSION,
-            "snappy",
             PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "string_field",
             "zstd",
             PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "string_field",
@@ -861,6 +849,18 @@ public class TestParquet {
                     1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Invalid compression level for column int_field: not-a-number");
+  }
+
+  @Test
+  void invalidCompressionCodecThrows() {
+    assertThatThrownBy(
+            () ->
+                writeIntAndStringFields(
+                    ImmutableMap.of(
+                        PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "int_field", "not-a-codec"),
+                    1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unsupported compression codec: not-a-codec");
   }
 
   private File writeIntAndStringFields(Map<String, String> properties, int recordCount)
