@@ -67,8 +67,7 @@ public class RESTServerExtension implements BeforeAllCallback, AfterAllCallback 
       this.localServer.start(false);
       if (findFreePort) {
         // The server binds port 0 itself, so the OS picks the port at bind time; the client uses
-        // the
-        // port it reports. Picking a free port first and binding it later raced with other forks.
+        // the port it reports.
         config.put(RESTCatalogServer.REST_PORT, String.valueOf(localServer.port()));
       }
 

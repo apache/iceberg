@@ -28,11 +28,11 @@ import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 
-public class TestRESTCatalogServer {
+class TestRESTCatalogServer {
   private static final HttpClient HTTP = HttpClient.newHttpClient();
 
   @Test
-  public void serversOnFreePortBindDistinctPorts() throws Exception {
+  void serversOnFreePortBindDistinctPorts() throws Exception {
     RESTCatalogServer first = startOnFreePort();
     RESTCatalogServer second = startOnFreePort();
     try {

@@ -24,14 +24,14 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
-public class TestRESTServerExtension {
+class TestRESTServerExtension {
 
   @RegisterExtension
   private static final RESTServerExtension EXTENSION =
       new RESTServerExtension(Map.of(RESTCatalogServer.REST_PORT, RESTServerExtension.FREE_PORT));
 
   @Test
-  public void freePortReportsTheBoundPort() {
+  void freePortReportsTheBoundPort() {
     String port = EXTENSION.config().get(RESTCatalogServer.REST_PORT);
 
     assertThat(port).isNotEqualTo(RESTServerExtension.FREE_PORT);
