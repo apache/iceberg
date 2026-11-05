@@ -225,7 +225,7 @@ public class EqualityConvertPKIndex
             Long storedGeneration = generationState.value();
             if (storedGeneration != null && storedGeneration < broadcastGeneration) {
               clearKeyState();
-              generationState.update(broadcastGeneration);
+              generationState.clear();
               eagerlyEvictedKeyNumCounter.inc();
             }
           });
@@ -249,6 +249,7 @@ public class EqualityConvertPKIndex
         resolveTimestamp.clear();
         resolveSequenceNumber.clear();
         resolveSpecIds.clear();
+        clearGenerationIfEmpty();
       } else {
         applyBufferedRows();
       }
@@ -284,6 +285,7 @@ public class EqualityConvertPKIndex
 
     if (found) {
       dataRowPositions.update(kept);
+      clearGenerationIfEmpty();
     }
   }
 
@@ -324,5 +326,16 @@ public class EqualityConvertPKIndex
     resolveTimestamp.clear();
     resolveSequenceNumber.clear();
     resolveSpecIds.clear();
+  }
+
+  // Drops the generation of a key without rows, to prevent leaking state. Buffered rows and a
+  // pending resolve are still needed in this cycle, and without the generation, the next command
+  // clears them as stale.
+  private void clearGenerationIfEmpty() throws Exception {
+    if (!dataRowPositions.get().iterator().hasNext()
+        && !bufferedRows.get().iterator().hasNext()
+        && resolveTimestamp.value() == null) {
+      indexGeneration.clear();
+    }
   }
 }

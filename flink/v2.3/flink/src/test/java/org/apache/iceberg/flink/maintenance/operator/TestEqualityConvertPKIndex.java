@@ -305,6 +305,30 @@ class TestEqualityConvertPKIndex {
   }
 
   @Test
+  void resolveArrivingBeforeRemoveAndAddOfEarlierPhaseStillResolves() throws Exception {
+    try (KeyedBroadcastOperatorTestHarness<
+            SerializedEqualityValues, IndexCommand, IndexCommand, DVPosition>
+        harness = createHarness()) {
+      harness.open();
+
+      harness.processElement(new StreamRecord<>(addRow("old.parquet", 0, 0), 0));
+      // The delete (ts 2) reaches the worker before the compaction's commands (ts 1), as parallel
+      // readers do not keep the order of the phases. Its resolve waits for the watermark.
+      harness.processElement(
+          new StreamRecord<>(
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 2));
+      harness.processElement(new StreamRecord<>(removeRow("old.parquet", 0), 1));
+      harness.processElement(new StreamRecord<>(addRow("compacted.parquet", 3, 0), 1));
+      harness.watermark(2);
+
+      List<DVPosition> output = harness.extractOutputValues();
+      assertThat(output).hasSize(1);
+      assertThat(output.get(0).dataFilePath()).isEqualTo("compacted.parquet");
+      assertThat(output.get(0).position()).isEqualTo(3);
+    }
+  }
+
+  @Test
   void removeDataRowOfUnindexedKeyKeepsNoState() throws Exception {
     try (KeyedBroadcastOperatorTestHarness<
             SerializedEqualityValues, IndexCommand, IndexCommand, DVPosition>
@@ -312,6 +336,54 @@ class TestEqualityConvertPKIndex {
       harness.open();
 
       harness.processElement(new StreamRecord<>(removeRow("file1.parquet", 0), 0));
+
+      assertThat(keyedStateEntries(harness)).isZero();
+    }
+  }
+
+  @Test
+  void removeOfLastDataRowKeepsNoState() throws Exception {
+    try (KeyedBroadcastOperatorTestHarness<
+            SerializedEqualityValues, IndexCommand, IndexCommand, DVPosition>
+        harness = createHarness()) {
+      harness.open();
+
+      harness.processElement(new StreamRecord<>(addRow("file1.parquet", 0, 0), 0));
+      harness.processElement(new StreamRecord<>(removeRow("file1.parquet", 0), 0));
+
+      assertThat(keyedStateEntries(harness)).isZero();
+    }
+  }
+
+  @Test
+  void resolveOfLastDataRowKeepsNoState() throws Exception {
+    try (KeyedBroadcastOperatorTestHarness<
+            SerializedEqualityValues, IndexCommand, IndexCommand, DVPosition>
+        harness = createHarness()) {
+      harness.open();
+
+      harness.processElement(new StreamRecord<>(addRow("file1.parquet", 0, 0), 0));
+      harness.processElement(
+          new StreamRecord<>(
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 1));
+      harness.watermark(1);
+
+      assertThat(harness.extractOutputValues()).hasSize(1);
+      assertThat(keyedStateEntries(harness)).isZero();
+    }
+  }
+
+  @Test
+  void resolveWithoutMatchKeepsNoState() throws Exception {
+    try (KeyedBroadcastOperatorTestHarness<
+            SerializedEqualityValues, IndexCommand, IndexCommand, DVPosition>
+        harness = createHarness()) {
+      harness.open();
+
+      harness.processElement(
+          new StreamRecord<>(
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 1));
+      harness.watermark(1);
 
       assertThat(keyedStateEntries(harness)).isZero();
     }
@@ -401,6 +473,23 @@ class TestEqualityConvertPKIndex {
       harness.watermark(2);
 
       assertThat(harness.extractOutputValues()).isEmpty();
+    }
+  }
+
+  @Test
+  void clearBeforeReindexKeepsNoStateForEvictedKey() throws Exception {
+    try (KeyedBroadcastOperatorTestHarness<
+            SerializedEqualityValues, IndexCommand, IndexCommand, DVPosition>
+        harness = createHarness()) {
+      harness.open();
+
+      harness.processElement(new StreamRecord<>(addRow("file1.parquet", 0, 0), 0));
+
+      // The reindex does not re-emit the row, e.g. after a copy-on-write commit removed its file.
+      harness.processBroadcastElement(
+          new StreamRecord<>(IndexCommand.clearBeforeReindex(NEW_MAIN_SNAPSHOT, NEW_MAIN_SEQ), 1));
+
+      assertThat(keyedStateEntries(harness)).isZero();
     }
   }
 
