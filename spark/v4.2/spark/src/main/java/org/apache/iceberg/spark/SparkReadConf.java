@@ -145,6 +145,14 @@ public class SparkReadConf {
         .parse();
   }
 
+  public String partitionReaderFactoryProvider() {
+    return confParser
+        .stringConf()
+        .option(SparkReadOptions.PARTITION_READER_FACTORY_PROVIDER)
+        .sessionConf(SparkSQLProperties.PARTITION_READER_FACTORY_PROVIDER)
+        .parseOptional();
+  }
+
   public Long splitSizeOption() {
     return confParser
         .longConf()
