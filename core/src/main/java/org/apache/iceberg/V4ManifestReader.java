@@ -146,25 +146,39 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   }
 
   private Function<TrackedFile, TrackedFile> applyInheritance() {
-    return new Function<>() {
-      private Long nextRowId = manifest.firstRowId();
-
-      @Override
-      public TrackedFile apply(TrackedFile file) {
+    if (isUncommitted) {
+      // uncommitted files cannot have a sequence number or assign first row ID
+      return file -> {
         // the reader uses TrackingStruct to read tracking so this cast is safe
-        TrackingStruct tracking = (TrackingStruct) file.tracking();
-        if (isUncommitted) {
-          // uncommitted files cannot have a sequence number or assign first row ID
-          tracking.inherit(manifest.snapshotId());
-        } else {
+        ((TrackingStruct) file.tracking()).inherit(manifest.snapshotId());
+        return file;
+      };
+    }
+
+    Long firstRowId = manifest.firstRowId();
+    if (firstRowId != null) {
+      return new Function<>() {
+        private long nextRowId = firstRowId;
+
+        @Override
+        public TrackedFile apply(TrackedFile file) {
+          TrackingStruct tracking = (TrackingStruct) file.tracking();
           tracking.inherit(manifest.snapshotId(), manifest.sequenceNumber());
           if (tracking.assignFirstRowId(nextRowId)) {
             nextRowId += file.recordCount();
           }
-        }
 
-        return file;
-      }
+          return file;
+        }
+      };
+    }
+
+    // committed manifest with null manifest-level first row ID (pre-v3 upgrade path)
+    return file -> {
+      TrackingStruct tracking = (TrackingStruct) file.tracking();
+      tracking.inherit(manifest.snapshotId(), manifest.sequenceNumber());
+      tracking.assignFirstRowId(null);
+      return file;
     };
   }
 

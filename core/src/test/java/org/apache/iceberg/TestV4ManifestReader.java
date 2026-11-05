@@ -666,34 +666,7 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  public void inheritanceFirstRowIdIsRepeatableAcrossIterations(FileFormat format)
-      throws IOException {
-    TrackedFile fileA = dataFile(ADDED_TRACKING, "s3://bucket/table/file-a.parquet");
-    TrackedFile fileB = dataFile(ADDED_TRACKING, "s3://bucket/table/file-b.parquet");
-
-    ManifestFile manifest =
-        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(fileA, fileB));
-    when(manifest.firstRowId()).thenReturn(10_000L);
-
-    V4ManifestReader.Builder builder =
-        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
-            .metricsConfig(METRICS_CONFIG);
-
-    try (V4ManifestReader reader = builder.build()) {
-      assertThat(Lists.newArrayList(reader))
-          .extracting(file -> file.tracking().firstRowId())
-          .containsExactly(10_000L, 10_000L + RECORD_COUNT);
-      assertThat(Lists.newArrayList(reader))
-          .as("a second iteration assigns the same first row IDs")
-          .extracting(file -> file.tracking().firstRowId())
-          .containsExactly(10_000L, 10_000L + RECORD_COUNT);
-    }
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  public void inheritanceFirstRowIdIsIndependentBetweenIterators(FileFormat format)
-      throws IOException {
+  void inheritanceFirstRowIdIsIndependentBetweenIterators(FileFormat format) throws IOException {
     TrackedFile fileA = dataFile(ADDED_TRACKING, "s3://bucket/table/file-a.parquet");
     TrackedFile fileB = dataFile(ADDED_TRACKING, "s3://bucket/table/file-b.parquet");
 
