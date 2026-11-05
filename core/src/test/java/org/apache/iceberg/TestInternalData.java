@@ -25,8 +25,6 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -184,7 +182,7 @@ public class TestInternalData {
   void registersParquetWhenTheContextClassLoaderCannotSeeIceberg() throws Exception {
     // formats are registered once per loaded copy of InternalData, so this needs a fresh copy
     try (URLClassLoader isolated =
-        new URLClassLoader(testClasspath(), ClassLoader.getPlatformClassLoader())) {
+        new URLClassLoader(TestHelpers.testClasspath(), ClassLoader.getPlatformClassLoader())) {
       AtomicReference<Object> writeBuilder = new AtomicReference<>();
       AtomicReference<Throwable> failure = new AtomicReference<>();
       Thread thread =
@@ -220,15 +218,6 @@ public class TestInternalData {
             .invoke(null, tempDir.resolve("internal.parquet").toFile());
 
     return internalData.getMethod("write", fileFormat, outputFile).invoke(null, parquet, file);
-  }
-
-  private static URL[] testClasspath() throws MalformedURLException {
-    List<URL> urls = Lists.newArrayList();
-    for (String path : System.getProperty("java.class.path").split(File.pathSeparator)) {
-      urls.add(new File(path).toURI().toURL());
-    }
-
-    return urls.toArray(new URL[0]);
   }
 
   private static void register(String className) throws ReflectiveOperationException {

@@ -20,19 +20,16 @@ package org.apache.iceberg.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.formats.FormatModelRegistry;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.junit.jupiter.api.Test;
 
@@ -88,7 +85,7 @@ class TestGenericFormatModel extends BaseFormatModelTests<Record> {
   void registersModelsWhenTheContextClassLoaderCannotSeeIceberg() throws Exception {
     // models are registered once per loaded copy of FormatModelRegistry, so this needs a fresh copy
     try (URLClassLoader isolated =
-        new URLClassLoader(testClasspath(), ClassLoader.getPlatformClassLoader())) {
+        new URLClassLoader(TestHelpers.testClasspath(), ClassLoader.getPlatformClassLoader())) {
       AtomicReference<Map<?, ?>> models = new AtomicReference<>();
       AtomicReference<Throwable> failure = new AtomicReference<>();
       Thread thread =
@@ -120,14 +117,5 @@ class TestGenericFormatModel extends BaseFormatModelTests<Record> {
     Method models = registry.getDeclaredMethod("models");
     models.setAccessible(true);
     return (Map<?, ?>) models.invoke(null);
-  }
-
-  private static URL[] testClasspath() throws MalformedURLException {
-    List<URL> urls = Lists.newArrayList();
-    for (String path : System.getProperty("java.class.path").split(File.pathSeparator)) {
-      urls.add(new File(path).toURI().toURL());
-    }
-
-    return urls.toArray(new URL[0]);
   }
 }
