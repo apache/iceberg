@@ -20,10 +20,7 @@ package org.apache.iceberg.functions;
 
 import org.apache.iceberg.util.SerializableFunction;
 
-/**
- * Base for masking functions where null input must pass through as null unchanged (spec: "For all
- * actions, if the input column value is NULL, the output MUST be NULL.").
- */
+/** Base for masking functions that return null for null input. */
 abstract class NullSafeFunction<S, T> implements SerializableFunction<S, T> {
   @Override
   public final T apply(S value) {

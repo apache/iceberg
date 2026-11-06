@@ -39,9 +39,7 @@ public interface IcebergFunction<S, T> extends Serializable {
    * @throws IllegalArgumentException if the type is not supported by this function.
    * @throws UnsupportedOperationException if this function cannot be bound with a type alone.
    */
-  default SerializableFunction<S, T> bind(Type type) {
-    throw new UnsupportedOperationException("bind is not implemented for " + getClass().getName());
-  }
+  SerializableFunction<S, T> bind(Type type);
 
   /** Returns true if this function can be bound to the given {@link Type}. */
   boolean canBind(Type type);
