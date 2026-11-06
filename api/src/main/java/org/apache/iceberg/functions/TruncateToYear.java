@@ -25,7 +25,7 @@ import org.apache.iceberg.util.SerializableFunction;
 
 /** Truncates date or timestamp values to the first instant of their year. */
 final class TruncateToYear<T> implements IcebergFunction<T, T> {
-  static final String NAME = "truncate_to_year";
+  static final String NAME = "truncate-to-year";
 
   private static final TruncateToYear<?> INSTANCE = new TruncateToYear<>();
 
@@ -61,7 +61,7 @@ final class TruncateToYear<T> implements IcebergFunction<T, T> {
   @Override
   public SerializableFunction<T, T> bind(Type type) {
     Preconditions.checkArgument(
-        canBind(type), "truncate_to_year is not supported for type: %s", type);
+        canBind(type), "truncate-to-year is not supported for type: %s", type);
     return (SerializableFunction<T, T>) TruncateTemporal.forType(TruncateTemporal.Unit.YEAR, type);
   }
 }

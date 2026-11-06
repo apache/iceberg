@@ -249,7 +249,7 @@ public class TestIcebergFunctions {
     assertThat(IcebergFunctions.maskToFixedValue().canBind(struct)).isFalse();
     assertThatThrownBy(() -> IcebergFunctions.maskToFixedValue().bind(struct))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("mask_to_fixed_value is not supported for type: " + struct);
+        .hasMessage("mask-to-fixed-value is not supported for type: " + struct);
   }
 
   @Test
@@ -430,15 +430,15 @@ public class TestIcebergFunctions {
 
   @Test
   public void toStringReturnsFunctionName() {
-    assertThat(IcebergFunctions.maskAlphanum().toString()).isEqualTo("mask_alphanum");
-    assertThat(IcebergFunctions.maskToFixedValue().toString()).isEqualTo("mask_to_fixed_value");
-    assertThat(IcebergFunctions.replaceWithNull().toString()).isEqualTo("replace_with_null");
-    assertThat(IcebergFunctions.showFirst4().toString()).isEqualTo("show_first_4");
-    assertThat(IcebergFunctions.showLast4().toString()).isEqualTo("show_last_4");
-    assertThat(IcebergFunctions.truncateToYear().toString()).isEqualTo("truncate_to_year");
-    assertThat(IcebergFunctions.truncateToMonth().toString()).isEqualTo("truncate_to_month");
-    assertThat(IcebergFunctions.sha256Global().toString()).isEqualTo("sha_256_global");
-    assertThat(IcebergFunctions.sha256QueryLocal().toString()).isEqualTo("sha_256_query_local");
+    assertThat(IcebergFunctions.maskAlphanum().toString()).isEqualTo("mask-alphanum");
+    assertThat(IcebergFunctions.maskToFixedValue().toString()).isEqualTo("mask-to-fixed-value");
+    assertThat(IcebergFunctions.replaceWithNull().toString()).isEqualTo("replace-with-null");
+    assertThat(IcebergFunctions.showFirst4().toString()).isEqualTo("show-first-4");
+    assertThat(IcebergFunctions.showLast4().toString()).isEqualTo("show-last-4");
+    assertThat(IcebergFunctions.truncateToYear().toString()).isEqualTo("truncate-to-year");
+    assertThat(IcebergFunctions.truncateToMonth().toString()).isEqualTo("truncate-to-month");
+    assertThat(IcebergFunctions.sha256Global().toString()).isEqualTo("sha-256-global");
+    assertThat(IcebergFunctions.sha256QueryLocal().toString()).isEqualTo("sha-256-query-local");
   }
 
   @Test
@@ -463,7 +463,7 @@ public class TestIcebergFunctions {
 
   @Test
   public void fromStringIsCaseInsensitive() {
-    assertThat(IcebergFunctions.fromString("SHOW_LAST_4")).isSameAs(IcebergFunctions.showLast4());
+    assertThat(IcebergFunctions.fromString("SHOW-LAST-4")).isSameAs(IcebergFunctions.showLast4());
   }
 
   @Test
@@ -476,9 +476,9 @@ public class TestIcebergFunctions {
 
   @Test
   public void fromStringReturnsSaltedFunctionForQueryLocalSha256() {
-    assertThat(IcebergFunctions.fromString("sha_256_query_local"))
+    assertThat(IcebergFunctions.fromString("sha-256-query-local"))
         .isInstanceOf(SaltedFunction.class);
-    assertThat(IcebergFunctions.fromString("sha_256_global")).isNotInstanceOf(SaltedFunction.class);
+    assertThat(IcebergFunctions.fromString("sha-256-global")).isNotInstanceOf(SaltedFunction.class);
   }
 
   @Test

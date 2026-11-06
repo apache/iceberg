@@ -23,9 +23,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
-/** Redacts all but the last 4 code points of a string via mask_alphanum rules. */
+/** Redacts all but the last 4 code points of a string via mask-alphanum rules. */
 final class ShowLast4 implements IcebergFunction<CharSequence, CharSequence> {
-  static final String NAME = "show_last_4";
+  static final String NAME = "show-last-4";
 
   private static final ShowLast4 INSTANCE = new ShowLast4();
 
@@ -51,7 +51,7 @@ final class ShowLast4 implements IcebergFunction<CharSequence, CharSequence> {
 
   @Override
   public SerializableFunction<CharSequence, CharSequence> bind(Type type) {
-    Preconditions.checkArgument(canBind(type), "show_last_4 requires STRING type, got %s", type);
+    Preconditions.checkArgument(canBind(type), "show-last-4 requires STRING type, got %s", type);
     return ShowLast4Fn.INSTANCE;
   }
 
