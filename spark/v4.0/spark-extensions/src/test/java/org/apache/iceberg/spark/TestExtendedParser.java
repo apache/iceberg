@@ -30,9 +30,11 @@ import java.util.List;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.SortDirection;
 import org.apache.iceberg.expressions.Term;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.parser.AbstractSqlParser;
 import org.apache.spark.sql.catalyst.parser.AstBuilder;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser;
 import org.junit.jupiter.api.AfterAll;
@@ -182,6 +184,32 @@ public class TestExtendedParser {
         ExtendedParser.parseSortOrder(spark, "id ASC NULLS FIRST");
     assertThat(result).isSameAs(expected);
     verify(icebergParser).parseSortOrder("id ASC NULLS FIRST");
+  }
+
+  @Test
+  public void parseQueryRejectsNonQuery() {
+    IcebergSparkSqlExtensionsParser parser = new IcebergSparkSqlExtensionsParser(originalParser);
+
+    assertThatThrownBy(() -> parser.parseQuery("DROP VIEW v"))
+        .isInstanceOf(ParseException.class)
+        .hasMessageContaining("PARSE_SYNTAX_ERROR");
+  }
+
+  @Test
+  public void createSqlFunctionWithParameters() throws Exception {
+    IcebergSparkSqlExtensionsParser parser = new IcebergSparkSqlExtensionsParser(originalParser);
+    setSessionStateParser(spark.sessionState(), parser);
+
+    try {
+      spark.sql("CREATE TEMPORARY FUNCTION f(a INT) RETURNS INT RETURN a");
+
+      List<Row> rows = spark.sql("SELECT f(1)").collectAsList();
+
+      assertThat(rows).hasSize(1);
+      assertThat(rows.get(0).get(0)).isEqualTo(1);
+    } finally {
+      spark.sql("DROP TEMPORARY FUNCTION IF EXISTS f");
+    }
   }
 
   private static void setSessionStateParser(Object sessionState, ParserInterface parser)

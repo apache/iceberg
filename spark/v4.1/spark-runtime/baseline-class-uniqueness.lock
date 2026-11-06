@@ -102,9 +102,17 @@
 [dev.vortex:vortex-jni (classifier=all), org.roaringbitmap:RoaringBitmap]
   - org.roaringbitmap.ArrayContainer
   - org.roaringbitmap.ArrayContainerCharIterator
+  - org.roaringbitmap.BitSetUtil
   - org.roaringbitmap.BitmapContainer
   - org.roaringbitmap.BitmapContainerCharIterator
   - org.roaringbitmap.BitmapContainerCharRankIterator
+  - org.roaringbitmap.ConstantMemoryContainerAppender
+  - org.roaringbitmap.FastAggregation
+  - org.roaringbitmap.FastAggregation$1
+  - org.roaringbitmap.FastAggregation$2
+  - org.roaringbitmap.FastAggregation$3
+  - org.roaringbitmap.FastRankRoaringBitmap
+  - org.roaringbitmap.FastRankRoaringBitmap$FastRoaringIntRankIterator
   - org.roaringbitmap.ImmutableBitmapDataProvider
   - org.roaringbitmap.IntIteratorFlyweight
   - org.roaringbitmap.ReverseArrayContainerCharIterator
@@ -117,15 +125,22 @@
   - org.roaringbitmap.RoaringBitmap$2
   - org.roaringbitmap.RoaringBitmap$RoaringReverseIntIterator
   - org.roaringbitmap.RunContainer
+  - org.roaringbitmap.RunContainer$1
   - org.roaringbitmap.RunContainerCharIterator
   - org.roaringbitmap.RunContainerCharRankIterator
   - org.roaringbitmap.Util
   - org.roaringbitmap.art.AbstractShuttle
   - org.roaringbitmap.art.AbstractShuttle$1
   - org.roaringbitmap.art.AbstractShuttle$NodeEntry
+  - org.roaringbitmap.buffer.BufferFastAggregation
+  - org.roaringbitmap.buffer.BufferFastAggregation$2
+  - org.roaringbitmap.buffer.BufferFastAggregation$3
+  - org.roaringbitmap.buffer.BufferFastAggregation$4
   - org.roaringbitmap.buffer.BufferIntIteratorFlyweight
   - org.roaringbitmap.buffer.BufferReverseIntIteratorFlyweight
   - org.roaringbitmap.buffer.BufferUtil
+  - org.roaringbitmap.buffer.CopyOnWriteRoaringBitmap
+  - org.roaringbitmap.buffer.ImmutableRoaringArray
   - org.roaringbitmap.buffer.ImmutableRoaringBitmap
   - org.roaringbitmap.buffer.ImmutableRoaringBitmap$1
   - org.roaringbitmap.buffer.ImmutableRoaringBitmap$2
@@ -136,9 +151,11 @@
   - org.roaringbitmap.buffer.MappeableBitmapContainerCharIterator
   - org.roaringbitmap.buffer.MappeableContainer
   - org.roaringbitmap.buffer.MappeableRunContainer
+  - org.roaringbitmap.buffer.MappeableRunContainer$1
   - org.roaringbitmap.buffer.MappeableRunContainerCharIterator
   - org.roaringbitmap.buffer.MutableRoaringArray
   - org.roaringbitmap.buffer.MutableRoaringBitmap
+  - org.roaringbitmap.buffer.MutableRoaringBitmap$1
   - org.roaringbitmap.buffer.RawArrayContainerCharIterator
   - org.roaringbitmap.buffer.RawMappeableRunContainerCharIterator
   - org.roaringbitmap.buffer.RawReverseArrayContainerCharIterator
