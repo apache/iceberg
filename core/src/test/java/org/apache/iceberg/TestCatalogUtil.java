@@ -43,6 +43,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsStorageCredentials;
+import org.apache.iceberg.metrics.FilteringMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -264,6 +265,28 @@ public class TestCatalogUtil {
                         TestFileIONotImpl.class.getName())))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("does not implement MetricsReporter");
+  }
+
+  @Test
+  public void loadMetricsReporter_wrappedWhenTableNameFilterPresent() {
+    MetricsReporter metricsReporter =
+        CatalogUtil.loadMetricsReporter(
+            ImmutableMap.of(
+                CatalogProperties.METRICS_REPORTER_IMPL,
+                TestMetricsReporterDefault.class.getName(),
+                CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE,
+                "prod\\..*"));
+    assertThat(metricsReporter).isInstanceOf(FilteringMetricsReporter.class);
+  }
+
+  @Test
+  public void loadMetricsReporter_notWrappedWhenFilterAbsent() {
+    MetricsReporter metricsReporter =
+        CatalogUtil.loadMetricsReporter(
+            ImmutableMap.of(
+                CatalogProperties.METRICS_REPORTER_IMPL,
+                TestMetricsReporterDefault.class.getName()));
+    assertThat(metricsReporter).isInstanceOf(TestMetricsReporterDefault.class);
   }
 
   @Test
