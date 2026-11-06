@@ -114,7 +114,7 @@ public class TestManifestEntriesTableTaskParser {
         + "\"first-row-id\":10},"
         + "\"projection\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":[{"
         + "\"id\":4,\"name\":\"data\",\"required\":true,\"type\":\"string\"}]},"
-        + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}";
+        + "\"residual-filter\":{\"type\":\"eq\",\"left\":{\"type\":\"reference\",\"name\":\"id\"},\"right\":1}}";
   }
 
   private void assertTaskEquals(
