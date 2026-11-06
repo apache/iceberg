@@ -114,11 +114,13 @@ Inheriting the sequence number from manifest metadata allows writing a new manif
 
 Row-level deletes are stored in delete files.
 
-There are two types of row-level deletes:
+The current representation is [_deletion vectors_](#deletion-vectors) (v3 or above), which encode deleted positions of a single file in a bitmap.
 
-* **Position deletes** -- Mark a row deleted by data file path and the row position in the data file. Position deletes are encoded in a [_position delete file_](#position-delete-files) (V2) or [_deletion vector_](#deletion-vectors) (V3 or above).
+Legacy representations:
 
-* **Equality deletes** -- Mark a row deleted by one or more column values, like id = 5. Equality deletes are encoded in [_equality delete file_](#equality-delete-files) (may be created in v2 and v3 tables only).
+* **Position deletes** -- Mark a row deleted by data file path and the row position in the data file. Position deletes are encoded in a [_position delete file_](#position-delete-files), which may be created in v2 tables only.
+
+* **Equality deletes** -- Mark a row deleted by one or more column values, like id = 5. Equality deletes are encoded in an [_equality delete file_](#equality-delete-files), which may be created in v2 and v3 tables only.
 
 Like data files, delete files are tracked by partition. In general, a delete file must be applied to older data files with the same partition; see [Scan Planning](#scan-planning) for details. Column metrics can be used to determine whether a delete file's rows overlap the contents of a data file or a scan range.
 
@@ -315,8 +317,9 @@ The default CRS value `OGC:CRS84` means that the objects must be stored in longi
 
 Non-default CRS values are specified by any string that uniquely identifies a coordinate reference system associated with this type.
 To maximize interoperability, suggested formats for CRS include, but are not limited to:
+
 * `<context>:<identifier>`: Identifies a CRS by name or other identifier in some well-documented context. Examples: `OGC:CRS84`, `EPSG:4326`, `IGNF:ATI` and `SRID:0`
-* `projjson:<property-name>` - where <property-name> refers to a table property where CRS definition in [PROJJSON](https://proj.org/en/stable/specifications/projjson.html) format is stored.
+* `projjson:<property-name>` - where `<property-name>` refers to a table property where CRS definition in [PROJJSON](https://proj.org/en/stable/specifications/projjson.html) format is stored.
 
 CRS value must not contain inlined PROJJSON definitions and implementations must not parse the contents of the CRS as PROJJSON. PROJJSON definitions are very verbose, hence inlining them as part of schema would cause significant performance degradation. If the intention is for a PROJJSON definition to be part of the table metadata, then it must be stored in a table property and referenced from the CRS field using the `projjson:<property-name>` form described above.
 
@@ -478,6 +481,27 @@ Two rows are the "same"---that is, the rows represent the same entity---if the i
 Identifier fields may be nested in structs but cannot be nested within maps or lists. Float, double, and optional fields cannot be used as identifier fields and a nested field cannot be used as an identifier field if it is nested in an optional struct, to avoid null values in identifiers.
 
 Identifier field IDs are replaced by a [`primary-key` constraint](#constraints) in v4 and must not be set in a v4 table schema.
+
+#### Stats-only Fields
+
+Stats are tracked in manifests by field ID. Schema fields have assigned IDs, but additional field IDs may be assigned to track stats for derived values. For instance, lower and upper bounds for `to_lower_case(name)` are useful for case-insensitive file pruning.
+
+These additional _stats-only fields_ are used to track stats for derived values that are not part of the table schema and are not materialized. A stats-only field consists of:
+
+* A **`field-id`** assigned by incrementing the table's `last-column-id`
+* A **`type`** that can be `partition-value` or `expr-value`
+* An optional **`data-type`** that determines the bound type; must be a primitive or variant
+* Type-specific fields that define how derived values are produced
+
+The `partition-value` type stores stats for the output of a partition field, identified by a `partition-field-id` type-specific field. The bound type is the partition field's result type and `data-type` is omitted. This may be used to store bucket partition values in stats for filtering.
+
+The `expr-value` type stores stats for the result of a [value expression](expressions-spec.md#value-expressions), stored in the `expr` field. Expressions must use only ID references. The output type of the value expression must be stored in the `data-type` field.
+
+Readers must not fail when an unsupported stats-only field `type` is found; stats for unsupported types must be ignored.
+
+Writers must preserve existing stats for stats-only fields listed in a table's `stats-fields` if the `data-type` is known (either set or specified by a supported type). Writers should produce stats when possible for stats-only fields. A writer should set the field stats struct to null if an expression is unsupported, produces an incompatible output type when bound, or binding fails.
+
+The data type of a stats-only field may only change according to the type promotion rules above.
 
 #### Reserved Field IDs
 
@@ -1478,6 +1502,7 @@ Table metadata consists of the following fields:
     | _optional_ | _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
     |            |            | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot’s `first-row-id`. See [Row Lineage](#row-lineage). |
     |            |            | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
+    |            |            | _optional_ | **`stats-fields`**          | A list (optional) of [stats-only fields](#stats-only-fields) used to track stats for derived values. |
 
 === "v4"
     | v4         | Field                       | Description |
@@ -1507,6 +1532,7 @@ Table metadata consists of the following fields:
     | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
     | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot's `first-row-id`. See [Row Lineage](#row-lineage). |
     | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
+    | _optional_ | **`stats-fields`**          | A list (optional) of [stats-only fields](#stats-only-fields) used to track stats for derived values. |
     | _optional_ | **`last-constraint-id`**    | An integer; the highest assigned constraint ID for the table. This is used to ensure constraints are always assigned an unused ID. See [Constraints](#constraints). |
     | _optional_ | **`constraints`**           | A list of [constraints](#constraints) for the table. |
 
@@ -1668,7 +1694,14 @@ Notes:
 
 ### Delete Formats
 
-This section details how to encode row-level deletes in Iceberg delete files. Row-level deletes are added by v2 and are not supported in v1. Deletion vectors are added in v3 and are not supported in v2 or earlier. Position delete files must not be added to v3 tables, but existing position delete files are valid. Equality delete files must not be added to v4 tables, but existing equality delete files are valid.
+This section details how to encode row-level deletes in Iceberg delete files.
+
+Row-level deletes have changed across Iceberg versions:
+
+* v1 does not support row-level deletes
+* v2 allows position delete files and equality delete files stored as entries in delete manifests
+* v3 forbids new position delete files and allows deletion vectors as a replacement
+* v4 forbids new equality deletes and delete manifests. Deletion vector metadata is now part of the manifest entries of the data files they modify
 
 There are different formats for encoding row-level deletes:
 
@@ -2136,6 +2169,7 @@ A metadata JSON file may be compressed with [GZIP](https://datatracker.ietf.org/
 |**`default-sort-order-id`**|`JSON int`|`0`|
 |**`refs`**|`JSON map with string key and object value:`<br />`{`<br />&nbsp;&nbsp;`"<name>": {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"type": <type>,`<br />&nbsp;&nbsp;`"max-ref-age-ms": <long>,`<br />&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"test": {`<br />&nbsp;&nbsp;`"snapshot-id": 123456789000,`<br />&nbsp;&nbsp;`"type": "tag",`<br />&nbsp;&nbsp;`"max-ref-age-ms": 10000000`<br />&nbsp;&nbsp;`}`<br />`}`|
 |**`encryption-keys`**|`JSON list of encryption key objects`|`[ {"key-id": "5f819b", "key-metadata": "aWNlYmVyZwo="} ]`|
+|**`stats-fields`**|`JSON list of stats-only field objects`|`[ {"field-id": 102, "type": "partition-value", "partition-field-id": 1001} ]`|
 |**`last-constraint-id`**|`JSON int`|`2`|
 |**`constraints`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"constraint-id": <id>,`<br />&nbsp;&nbsp;`"type": "check",`<br />&nbsp;&nbsp;`"name": "<name>",`<br />&nbsp;&nbsp;`"enforced": <boolean>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"expression": { ... }`<br />`}, {`<br />&nbsp;&nbsp;`"constraint-id": <id>,`<br />&nbsp;&nbsp;`"type": "primary-key",`<br />&nbsp;&nbsp;`"name": "<name>",`<br />&nbsp;&nbsp;`"enforced": <boolean>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"field-ids": [ ... ]`<br />`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"constraint-id": 1,`<br />&nbsp;&nbsp;`"type": "check",`<br />&nbsp;&nbsp;`"name": "chk_amount",`<br />&nbsp;&nbsp;`"enforced": true,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"expression": { ... }`<br />`}, {`<br />&nbsp;&nbsp;`"constraint-id": 2,`<br />&nbsp;&nbsp;`"type": "primary-key",`<br />&nbsp;&nbsp;`"name": "pk_sales",`<br />&nbsp;&nbsp;`"enforced": false,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"field-ids": [1]`<br />`} ]`|
 
@@ -2266,8 +2300,8 @@ Snapshot timestamp changes:
 Equality deletes are prohibited in v4.
 
 * Writers must not add equality delete files to v4 tables; equality deletes cannot be added as an entry to a v4 manifest
-* Upgrading a v2 or v3 table to v4 does not require rewriting data or delete files
-* Readers must continue to apply equality deletes for v2 and v3 tables and for equality deletes carried over into upgraded v4 tables
+* In a table upgraded to v4, existing delete manifests and the delete files they track remain valid and must be applied at read time
+* Readers must continue to apply equality deletes for v2 and v3 tables
 
 Constraints are added in v4:
 

@@ -524,6 +524,8 @@ The dynamic sink tries to match the schema provided in `DynamicRecord` with the 
 - If there is no direct match, DynamicSink tries to adapt the provided schema such that it matches one of table schemas. For example, if there is an additional optional column in the table schema, a null value will be added to the RowData provided via DynamicRecord.
 - Otherwise, we evolve the table schema to match the input schema, within the constraints described below.
 
+Schemas are matched by column name. The table schemas are checked starting with the current schema, then from newest to oldest. A table schema which matches the record exactly is preferred over one which needs a conversion (for example `Integer` to `Long`), so a record which has the shape of an older table schema is written with that schema, even if it would also fit the current one. The exceptions are older table schemas which use a column name that belongs to a different column in the current schema, for example after a column was dropped and added again, or renamed and its name reused. Data written with such a schema is stored under column IDs which queries on the current schema do not read, so these schemas are only used when the record fits no other table schema, not even with a conversion. In that case the affected values are not visible through the current schema.
+
 The dynamic sink maintains an LRU cache for both table metadata and incoming schemas, with eviction based on size and time constraints. When a DynamicRecord contains a schema that is incompatible with the current table schema, a schema update is triggered. This update can occur either immediately or via a centralized executor, depending on the `immediateTableUpdate` configuration. While centralized updates reduce load on the Catalog, they may introduce backpressure on the sink.
 
 #### Supported schema updates
@@ -540,6 +542,8 @@ technically still possible to write data to that column because Iceberg maintain
 regular queries won't be able to reference the column. If the field was to re-appear as part of a new schema, an
 entirely new column would be added, which apart from the name, has nothing in common with the old column, i.e. queries
 for the new column will never return data of the old column.
+
+Records which still carry the old column are written to the new column when their values can be converted to its type. If they cannot be converted (for example because the column was re-added with an incompatible type), they are still written using the older table schema.
 
 ##### Unsupported schema updates
 
@@ -607,3 +611,4 @@ Forward and regular records can be mixed in the same pipeline. The processor rou
 - **Range distribution mode**: Currently, the dynamic sink does not support the `RANGE` distribution mode, if set, it will fall back to `HASH`.
 - **Property Precedence Note**: When conflicts occur between table properties and sink properties, the sink properties will override the table properties configuration.
 - **Table Format Version upgrade**: Dynamic sink does not support upgrading a table with dynamic records. The job should not be running while the V2 to V3 upgrade is in progress.
+- **Snapshot summary**: Commits record `flink.sink-id` in the snapshot summary. It identifies the sink run that wrote the snapshot and is used to skip already committed checkpoints. Snapshots from older releases without it are identified by `flink.job-id`.

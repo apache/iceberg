@@ -461,6 +461,37 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @Test
+  void testAllTablesShareTheSinkId() throws Exception {
+    List<String> tableNames = List.of("t1", "t2", "t3", "t4");
+    List<DynamicIcebergDataImpl> rows = Lists.newArrayList();
+    for (String tableName : tableNames) {
+      rows.add(
+          new DynamicIcebergDataImpl(
+              SimpleDataUtil.SCHEMA,
+              tableName,
+              SnapshotRef.MAIN_BRANCH,
+              PartitionSpec.unpartitioned()));
+    }
+
+    executeDynamicSink(rows, env, true, 2, null);
+
+    Set<String> sinkIds = Sets.newHashSet();
+    for (String tableName : tableNames) {
+      Map<String, String> summary =
+          CATALOG_EXTENSION
+              .catalog()
+              .loadTable(TableIdentifier.of(DATABASE, tableName))
+              .currentSnapshot()
+              .summary();
+      assertThat(summary).containsKey("flink.sink-id");
+      assertThat(summary.get("flink.sink-id")).isNotEqualTo(summary.get("flink.job-id"));
+      sinkIds.add(summary.get("flink.sink-id"));
+    }
+
+    assertThat(sinkIds).hasSize(1);
+  }
+
+  @Test
   void testNoShuffleTopology() throws Exception {
     DataStream<DynamicIcebergDataImpl> dataStream =
         env.fromData(
@@ -2040,10 +2071,12 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .toBranch(original.key().branch())
           .commit();
 
+      // Committables restored from older state use the jobId as sinkId
       DynamicCommittable replayed =
           new DynamicCommittable(
               original.key(),
               original.manifests(),
+              PREVIOUS_JOB_ID,
               PREVIOUS_JOB_ID,
               original.operatorId(),
               replayedCheckpointId);
@@ -2075,6 +2108,39 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
               .build();
       table.newAppend().appendFile(dataFile).commit();
     }
+  }
+
+  @Test
+  void testWriteOldShapeRecordAfterColumnReAddedWithWiderType() throws Exception {
+    Schema base =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+    Schema oldShape =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()),
+            Types.NestedField.optional(3, "c", Types.IntegerType.get()));
+
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.of(DATABASE, "t1");
+    Table table = catalog.createTable(tableIdentifier, base);
+    table.updateSchema().addColumn("c", Types.IntegerType.get()).commit();
+    table.updateSchema().deleteColumn("c").commit();
+    table.updateSchema().addColumn("c", Types.LongType.get()).commit();
+
+    DynamicIcebergDataImpl record =
+        new DynamicIcebergDataImpl(
+            oldShape, "t1", SnapshotRef.MAIN_BRANCH, PartitionSpec.unpartitioned());
+    record.rowProvided = Row.of(1, "a", 5);
+
+    executeDynamicSink(Lists.newArrayList(record), env, true, 1, null);
+
+    table.refresh();
+    List<Record> records = Lists.newArrayList(IcebergGenerics.read(table).build());
+    assertThat(records).hasSize(1);
+    assertThat(records.get(0).getField("data")).isEqualTo("a");
+    assertThat(records.get(0).getField("c")).isEqualTo(5L);
   }
 
   private void runTest(List<DynamicIcebergDataImpl> dynamicData) throws Exception {
