@@ -77,6 +77,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
         .applyMutation(this::applyAssumeRoleConfigurations)
         .applyMutation(httpClientProperties::applyHttpClientConfigurations)
         .applyMutation(awsProperties::applyGlueEndpointConfigurations)
+        .applyMutation(awsProperties::applyGlueCatalogIdConfigurations)
         .applyMutation(awsClientProperties::applyRetryConfigurations)
         .build();
   }
