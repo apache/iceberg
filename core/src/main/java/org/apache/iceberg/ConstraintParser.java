@@ -54,16 +54,18 @@ public class ConstraintParser {
     generator.writeBooleanField(ENFORCED, constraint.enforced());
     generator.writeNumberField(TIMESTAMP_MS, constraint.timestampMillis());
 
-    if (constraint instanceof BaseConstraint.Check) {
-      generator.writeFieldName(EXPRESSION);
-      JsonUtil.mapper()
-          .writeTree(
-              generator,
-              JsonUtil.mapper().readTree(((BaseConstraint.Check) constraint).expressionJson()));
-    } else if (constraint instanceof KeyConstraint) {
-      JsonUtil.writeIntegerArray(FIELD_IDS, ((KeyConstraint) constraint).fieldIds(), generator);
-    } else {
-      throw new IllegalArgumentException("Cannot serialize constraint: " + constraint);
+    switch (constraint.type()) {
+      case CHECK:
+        String expressionJson = ((BaseConstraint.Check) constraint).expressionJson();
+        generator.writeFieldName(EXPRESSION);
+        JsonUtil.mapper().writeTree(generator, JsonUtil.mapper().readTree(expressionJson));
+        break;
+      case UNIQUE:
+      case PRIMARY_KEY:
+        JsonUtil.writeIntegerArray(FIELD_IDS, ((KeyConstraint) constraint).fieldIds(), generator);
+        break;
+      default:
+        throw new IllegalArgumentException("Unsupported constraint type: " + constraint.type());
     }
 
     generator.writeEndObject();

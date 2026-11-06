@@ -23,11 +23,14 @@ import java.io.Serializable;
 /**
  * A constraint declares a property that a table's rows are expected to satisfy.
  *
- * <p>A constraint's definition is stored in table metadata and references the fields it applies to
- * by field ID, so it keeps applying after columns are renamed or reordered. The concrete subtype is
- * determined by {@link #type()}: a {@link CheckConstraint} carries a predicate, and a {@link
- * KeyConstraint} ({@link UniqueConstraint} or {@link PrimaryKeyConstraint}) carries field IDs.
- * Iceberg does not evaluate constraints; enforcement and validation are done by engines.
+ * <p>A constraint's definition is stored in <a
+ * href="https://iceberg.apache.org/spec/#table-metadata-fields">table metadata</a> ({@code
+ * TableMetadata}). The concrete subtype is determined by {@link #type()}: a {@link CheckConstraint}
+ * carries a predicate, and a {@link KeyConstraint} ({@link UniqueConstraint} or {@link
+ * PrimaryKeyConstraint}) carries field IDs.
+ *
+ * <p>Iceberg core does not evaluate constraints. Writers, such as Spark, Flink, or PyIceberg, are
+ * responsible for enforcing and validating them.
  *
  * <p>Constraints are supported in format v4 and later.
  */
