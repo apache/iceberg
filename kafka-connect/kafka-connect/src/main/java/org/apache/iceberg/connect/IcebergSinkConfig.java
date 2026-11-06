@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -404,11 +403,14 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   @VisibleForTesting
   static List<String> stringToList(String value, String regex) {
-    if (value == null || value.isEmpty()) {
+    if (value == null || value.trim().isEmpty()) {
       return ImmutableList.of();
     }
 
-    return Arrays.stream(value.split(regex)).map(String::trim).collect(Collectors.toList());
+    return Arrays.stream(value.split(regex))
+        .map(String::trim)
+        .filter(string -> !string.isEmpty())
+        .toList();
   }
 
   public String controlTopic() {
