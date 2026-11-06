@@ -350,7 +350,7 @@ public class SparkReadConf {
   }
 
   public PlanningMode dataPlanningMode() {
-    if (driverMaxResultSize() < DISTRIBUTED_PLANNING_MIN_RESULT_SIZE) {
+    if (!driverMaxResultSizeAllowsDistributedPlanning()) {
       return LOCAL;
     }
 
@@ -363,7 +363,7 @@ public class SparkReadConf {
   }
 
   public PlanningMode deletePlanningMode() {
-    if (driverMaxResultSize() < DISTRIBUTED_PLANNING_MIN_RESULT_SIZE) {
+    if (!driverMaxResultSizeAllowsDistributedPlanning()) {
       return LOCAL;
     }
 
@@ -380,6 +380,12 @@ public class SparkReadConf {
   private long driverMaxResultSize() {
     SparkConf sparkConf = spark.sparkContext().conf();
     return sparkConf.getSizeAsBytes(DRIVER_MAX_RESULT_SIZE, DRIVER_MAX_RESULT_SIZE_DEFAULT);
+  }
+
+  private boolean driverMaxResultSizeAllowsDistributedPlanning() {
+    long maxResultSize = driverMaxResultSize();
+    // Spark uses 0 to disable the result size limit.
+    return maxResultSize == 0 || maxResultSize >= DISTRIBUTED_PLANNING_MIN_RESULT_SIZE;
   }
 
   public boolean executorCacheLocalityEnabled() {
