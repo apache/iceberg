@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.function.BiFunction;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
@@ -38,8 +39,13 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitioningDVWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
+
+  private static final Logger LOG = LoggerFactory.getLogger(BaseDeltaTaskWriter.class);
 
   private final Schema schema;
   private final Schema deleteSchema;
@@ -47,7 +53,14 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
   private final RowDataWrapper keyWrapper;
   private final RowDataProjection keyProjection;
   private final boolean upsert;
+  private final BiFunction<StructLike, Types.StructType, InsertedRowTracker> insertedRowTrackers;
 
+  /**
+   * @param insertedRowTrackers resolves the inserted-row tracker to share for a partition (null for
+   *     unpartitioned tables) and equality-key type, so that writers of the same table within one
+   *     checkpoint retire re-writes of a key with position deletes; null to keep a private tracker
+   *     per writer
+   */
   BaseDeltaTaskWriter(
       PartitionSpec spec,
       FileFormat format,
@@ -59,7 +72,8 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
       RowType flinkSchema,
       Set<Integer> equalityFieldIds,
       boolean upsert,
-      boolean useDv) {
+      boolean useDv,
+      BiFunction<StructLike, Types.StructType, InsertedRowTracker> insertedRowTrackers) {
     super(spec, format, fileWriterFactory, fileFactory, io, targetFileSize, useDv);
     this.schema = schema;
     this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
@@ -69,6 +83,29 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     this.keyProjection =
         RowDataProjection.create(flinkSchema, schema.asStruct(), deleteSchema.asStruct());
     this.upsert = upsert;
+    this.insertedRowTrackers = insertedRowTrackers;
+  }
+
+  private InsertedRowTracker sharedInsertedRows(StructLike partition) {
+    if (insertedRowTrackers == null) {
+      return null;
+    }
+
+    Types.StructType keyType = deleteSchema.asStruct();
+    InsertedRowTracker tracker = insertedRowTrackers.apply(partition, keyType);
+    if (tracker != null && !tracker.acceptsKeyType(keyType)) {
+      LOG.warn(
+          "Not sharing inserted-row tracker for partition {}: its key type {} does not accept "
+              + "equality-delete schema {}. Re-writes of a key across these schema versions within "
+              + "one checkpoint will produce equality deletes that cannot apply to data written in "
+              + "the same commit",
+          partition,
+          tracker.keyType(),
+          keyType);
+      return null;
+    }
+
+    return tracker;
   }
 
   abstract RowDataDeltaWriter route(RowData row);
@@ -112,7 +149,13 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
 
   protected class RowDataDeltaWriter extends BaseEqualityDeltaWriter {
     RowDataDeltaWriter(PartitionKey partition, PartitioningDVWriter<RowData> dvFileWriter) {
-      super(partition, schema, deleteSchema, DeleteGranularity.FILE, dvFileWriter);
+      super(
+          partition,
+          schema,
+          deleteSchema,
+          DeleteGranularity.FILE,
+          dvFileWriter,
+          sharedInsertedRows(partition));
     }
 
     @Override
