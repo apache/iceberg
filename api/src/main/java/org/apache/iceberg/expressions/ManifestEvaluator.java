@@ -179,7 +179,7 @@ public class ManifestEvaluator {
 
       T lower = Conversions.fromByteBuffer(ref.type(), lowerBound);
 
-      int cmp = lit.comparator().compare(lower, lit.value());
+      int cmp = PredicateComparisons.compare(lower, lit.value(), lit.comparator());
       if (cmp >= 0) {
         return ROWS_CANNOT_MATCH;
       }
@@ -197,7 +197,7 @@ public class ManifestEvaluator {
 
       T lower = Conversions.fromByteBuffer(ref.type(), lowerBound);
 
-      int cmp = lit.comparator().compare(lower, lit.value());
+      int cmp = PredicateComparisons.compare(lower, lit.value(), lit.comparator());
       if (cmp > 0) {
         return ROWS_CANNOT_MATCH;
       }
@@ -215,7 +215,7 @@ public class ManifestEvaluator {
 
       T upper = Conversions.fromByteBuffer(ref.type(), upperBound);
 
-      int cmp = lit.comparator().compare(upper, lit.value());
+      int cmp = PredicateComparisons.compare(upper, lit.value(), lit.comparator());
       if (cmp <= 0) {
         return ROWS_CANNOT_MATCH;
       }
@@ -233,7 +233,7 @@ public class ManifestEvaluator {
 
       T upper = Conversions.fromByteBuffer(ref.type(), upperBound);
 
-      int cmp = lit.comparator().compare(upper, lit.value());
+      int cmp = PredicateComparisons.compare(upper, lit.value(), lit.comparator());
       if (cmp < 0) {
         return ROWS_CANNOT_MATCH;
       }
@@ -250,13 +250,13 @@ public class ManifestEvaluator {
       }
 
       T lower = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
-      int cmp = lit.comparator().compare(lower, lit.value());
+      int cmp = PredicateComparisons.compare(lower, lit.value(), lit.comparator());
       if (cmp > 0) {
         return ROWS_CANNOT_MATCH;
       }
 
       T upper = Conversions.fromByteBuffer(ref.type(), fieldStats.upperBound());
-      cmp = lit.comparator().compare(upper, lit.value());
+      cmp = PredicateComparisons.compare(upper, lit.value(), lit.comparator());
       if (cmp < 0) {
         return ROWS_CANNOT_MATCH;
       }
@@ -272,7 +272,8 @@ public class ManifestEvaluator {
       // prune if that value equals the literal.
       T value = uniqueValue(ref);
 
-      if (value != null && lit.comparator().compare(value, lit.value()) == 0) {
+      if (value != null
+          && PredicateComparisons.compare(value, lit.value(), lit.comparator()) == 0) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -299,8 +300,8 @@ public class ManifestEvaluator {
 
       // rows might match if any literal falls within the manifest's [lower, upper] bounds
       for (T literal : literals) {
-        if (ref.comparator().compare(lower, literal) <= 0
-            && ref.comparator().compare(upper, literal) >= 0) {
+        if (PredicateComparisons.compare(lower, literal, ref.comparator()) <= 0
+            && PredicateComparisons.compare(upper, literal, ref.comparator()) >= 0) {
           return ROWS_MIGHT_MATCH;
         }
       }
@@ -316,7 +317,7 @@ public class ManifestEvaluator {
       // prune if that value is in the exclusion set.
       T value = uniqueValue(ref);
 
-      if (value != null && literalSet.contains(value)) {
+      if (value != null && PredicateComparisons.contains(literalSet, value)) {
         return ROWS_CANNOT_MATCH;
       }
 

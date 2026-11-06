@@ -58,6 +58,32 @@ import org.apache.iceberg.util.UnicodeUtil;
 import org.junit.jupiter.api.Test;
 
 public class TestInclusiveMetricsEvaluator<F> {
+
+  @Test
+  public void testSignedZeroPruning() {
+    Schema schema = new Schema(required(1, "x", Types.DoubleType.get()));
+
+    ByteBuffer negativeZero = toByteBuffer(Types.DoubleType.get(), -0.0D);
+
+    DataFile file =
+        new TestDataFile(
+            "signed-zero.parquet",
+            Row.of(),
+            10,
+            Map.of(1, 10L),
+            Map.of(1, 0L),
+            Map.of(1, 0L),
+            Map.of(1, negativeZero),
+            Map.of(1, negativeZero));
+
+    assertThat(new InclusiveMetricsEvaluator(schema, equal("x", 0.0D)).eval(file)).isTrue();
+
+    assertThat(new InclusiveMetricsEvaluator(schema, in("x", 0.0D, 1.0D)).eval(file)).isTrue();
+
+    assertThat(new InclusiveMetricsEvaluator(schema, greaterThanOrEqual("x", 0.0D)).eval(file))
+        .isTrue();
+  }
+
   protected static final Schema SCHEMA =
       new Schema(
           required(1, "id", IntegerType.get()),

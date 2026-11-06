@@ -1108,6 +1108,38 @@ public class TestExpressionUtil {
   }
 
   @Test
+  public void testSignedZeroSetEquivalence() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "x", Types.DoubleType.get()),
+            Types.NestedField.required(2, "y", Types.DoubleType.get()));
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                Expressions.in("x", -0.0D, 0.0D, 1.0D),
+                Expressions.in("x", 0.0D, 1.0D),
+                schema.asStruct(),
+                true))
+        .isTrue();
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                Expressions.notIn("x", -0.0D, 0.0D, 1.0D),
+                Expressions.notIn("x", 0.0D, 1.0D),
+                schema.asStruct(),
+                true))
+        .isTrue();
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                Expressions.in("x", 0.0D, 1.0D),
+                Expressions.in("y", 0.0D, 1.0D),
+                schema.asStruct(),
+                true))
+        .isFalse();
+  }
+
+  @Test
   public void testInequalityEquivalence() {
     String[] cols = new String[] {"id", "val", "ts", "date", "time"};
 

@@ -104,31 +104,31 @@ public class Evaluator implements Serializable {
     @Override
     public <T> Boolean lt(Bound<T> valueExpr, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return cmp.compare(valueExpr.eval(struct), lit.value()) < 0;
+      return PredicateComparisons.compare(valueExpr.eval(struct), lit.value(), cmp) < 0;
     }
 
     @Override
     public <T> Boolean ltEq(Bound<T> valueExpr, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return cmp.compare(valueExpr.eval(struct), lit.value()) <= 0;
+      return PredicateComparisons.compare(valueExpr.eval(struct), lit.value(), cmp) <= 0;
     }
 
     @Override
     public <T> Boolean gt(Bound<T> valueExpr, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return cmp.compare(valueExpr.eval(struct), lit.value()) > 0;
+      return PredicateComparisons.compare(valueExpr.eval(struct), lit.value(), cmp) > 0;
     }
 
     @Override
     public <T> Boolean gtEq(Bound<T> valueExpr, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return cmp.compare(valueExpr.eval(struct), lit.value()) >= 0;
+      return PredicateComparisons.compare(valueExpr.eval(struct), lit.value(), cmp) >= 0;
     }
 
     @Override
     public <T> Boolean eq(Bound<T> valueExpr, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return cmp.compare(valueExpr.eval(struct), lit.value()) == 0;
+      return PredicateComparisons.compare(valueExpr.eval(struct), lit.value(), cmp) == 0;
     }
 
     @Override
@@ -139,7 +139,7 @@ public class Evaluator implements Serializable {
     @Override
     public <T> Boolean in(Bound<T> valueExpr, Set<T> literalSet) {
       T value = valueExpr.eval(struct);
-      return value != null && literalSet.contains(value);
+      return PredicateComparisons.contains(literalSet, value);
     }
 
     @Override
