@@ -18,15 +18,33 @@
  */
 package org.apache.iceberg.expressions;
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.NaNUtil;
 
 public class BoundUnaryPredicate<T> extends BoundPredicate<T> {
+  private final BoundExpression<T> child;
+
   BoundUnaryPredicate(Operation op, BoundTerm<T> term) {
     super(op, term);
+    this.child = term;
+  }
+
+  BoundUnaryPredicate(Operation op, BoundExpression<T> child) {
+    super(op);
+    Preconditions.checkNotNull(child, "Child expression cannot be null");
+    this.child = child;
+  }
+
+  public BoundExpression<T> child() {
+    return child;
   }
 
   @Override
   public Expression negate() {
+    if (term() == null) {
+      return super.negate();
+    }
+
     return new BoundUnaryPredicate<>(op().negate(), term());
   }
 
@@ -59,7 +77,7 @@ public class BoundUnaryPredicate<T> extends BoundPredicate<T> {
   @Override
   public boolean isEquivalentTo(Expression other) {
     if (op() == other.op()) {
-      return term().isEquivalentTo(((BoundUnaryPredicate<?>) other).term());
+      return termsEquivalent(term(), ((BoundUnaryPredicate<?>) other).term());
     }
 
     return false;
@@ -69,13 +87,13 @@ public class BoundUnaryPredicate<T> extends BoundPredicate<T> {
   public String toString() {
     switch (op()) {
       case IS_NULL:
-        return "is_null(" + term() + ")";
+        return "is_null(" + child + ")";
       case NOT_NULL:
-        return "not_null(" + term() + ")";
+        return "not_null(" + child + ")";
       case IS_NAN:
-        return "is_nan(" + term() + ")";
+        return "is_nan(" + child + ")";
       case NOT_NAN:
-        return "not_nan(" + term() + ")";
+        return "not_nan(" + child + ")";
       default:
         return "Invalid unary predicate: operation = " + op();
     }
