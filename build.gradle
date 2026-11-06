@@ -119,7 +119,7 @@ def projectVersion = getProjectVersion()
 final REVAPI_PROJECTS = ["iceberg-api", "iceberg-core", "iceberg-parquet", "iceberg-orc", "iceberg-common", "iceberg-data"]
 
 allprojects {
-  group = "org.apache.iceberg"
+  group = "com.spiraldb"
   version = projectVersion
   repositories {
     if (System.getenv("GITHUB_ACTIONS") != null) {
@@ -153,7 +153,7 @@ subprojects {
   if (project.name in REVAPI_PROJECTS) {
     apply plugin: 'org.revapi.revapi-gradle-plugin'
     revapi {
-      oldGroup = project.group
+      oldGroup = 'org.apache.iceberg'
       oldName = project.name
       oldVersion = "1.12.0"
     }
@@ -1305,9 +1305,9 @@ String getProjectVersion() {
   }
 
   try {
-    // we're fetching the version from the latest tag (prefixed with 'apache-iceberg-'),
+    // we're fetching the version from the latest tag (prefixed with 'spiraldb-iceberg-'),
     // which can look like this: '0.13.0-2-g805400f0.dirty' but we're only interested in the MAJOR.MINOR.PATCH part
-    String version = gitVersion(prefix: 'apache-iceberg-')
+    String version = gitVersion(prefix: 'spiraldb-iceberg-')
     Pattern pattern = Pattern.compile("^([0-9]+)\\.([0-9]+)\\.([0-9]+)(.*)?\$")
     Matcher matcher = pattern.matcher(version)
     if (matcher.matches()) {
