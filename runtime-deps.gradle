@@ -32,7 +32,8 @@
 //
 //   generateRuntimeDeps  - resolves runtimeClasspath and writes a sorted
 //                          baseline of group:artifact:major.minor coordinates
-//                          to runtime-deps.txt in the project directory.
+//                          to runtime-deps.txt in the project directory
+//                          (both configurable, see Options below).
 //                          Patch versions are omitted so that routine
 //                          Dependabot bumps never cause baseline drift.
 //
@@ -46,8 +47,16 @@
 //   2. ./gradlew generateRuntimeDeps -DallModules               -- auto-updates all baselines
 //   3. Update LICENSE and NOTICE if dependency licenses changed -- This is a Manual Step
 //   4. Commit
+//
+// Options, set via ext before applying:
+//   runtimeDepsFile           - baseline path relative to the project directory
+//                               (default: runtime-deps.txt)
+//   runtimeDepsConfiguration  - configuration to resolve (default: runtimeClasspath)
+//
+// Apply once per baseline; each apply adds that baseline to the same two tasks.
 
-def depsFile = file("${projectDir}/runtime-deps.txt")
+def depsFile = file("${projectDir}/${project.findProperty('runtimeDepsFile') ?: 'runtime-deps.txt'}")
+def depsConfiguration = project.findProperty('runtimeDepsConfiguration') ?: configurations.runtimeClasspath
 
 def majorMinor = { version ->
   def parts = version.split('\\.')
@@ -55,7 +64,7 @@ def majorMinor = { version ->
 }
 
 def resolveRuntimeDeps = {
-  configurations.runtimeClasspath.resolvedConfiguration
+  depsConfiguration.resolvedConfiguration
     .resolvedArtifacts
     .collect {
       def id = it.moduleVersion.id
@@ -66,7 +75,7 @@ def resolveRuntimeDeps = {
     .toUnique()
 }
 
-tasks.register('generateRuntimeDeps') {
+tasks.maybeCreate('generateRuntimeDeps').configure {
   group = 'verification'
   description = 'Regenerate the runtime dependency baseline after intentional dependency changes'
   outputs.file(depsFile)
@@ -78,14 +87,14 @@ tasks.register('generateRuntimeDeps') {
   }
 }
 
-tasks.register('checkRuntimeDeps') {
+tasks.maybeCreate('checkRuntimeDeps').configure {
   group = 'verification'
   description = 'Verify runtime dependencies match the checked-in baseline'
-  inputs.files(configurations.runtimeClasspath)
+  inputs.files(depsConfiguration)
   outputs.file(depsFile)
   doLast {
     if (!depsFile.exists()) {
-      logger.warn("WARNING: Missing ${depsFile.name} in ${projectDir}. " +
+      logger.warn("WARNING: Missing ${relativePath(depsFile)} in ${projectDir}. " +
         "Run: ./gradlew ${project.path}:generateRuntimeDeps")
       return
     }
@@ -106,7 +115,7 @@ tasks.register('checkRuntimeDeps') {
 
     if (added || removed || versionChanged) {
       def msg = new StringBuilder()
-      msg.append("Runtime dependency baseline mismatch for ${project.name}!\n")
+      msg.append("Runtime dependency baseline mismatch for ${project.name} (${relativePath(depsFile)})!\n")
       if (versionChanged) {
         msg.append("\n  Version changed (${versionChanged.size()}):\n")
         versionChanged.toSorted().each { module ->
