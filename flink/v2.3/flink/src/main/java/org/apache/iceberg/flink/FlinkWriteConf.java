@@ -27,6 +27,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * A class for common Iceberg configs for Flink writes.
@@ -66,6 +67,45 @@ public class FlinkWriteConf {
         .flinkConfig(FlinkWriteOptions.OVERWRITE_MODE)
         .defaultValue(FlinkWriteOptions.OVERWRITE_MODE.defaultValue())
         .parse();
+  }
+
+  /**
+   * Whether an overwrite replaces every row in the table instead of only the partitions that
+   * receive new rows.
+   *
+   * @throws IllegalArgumentException if the table property requires a full overwrite and the write
+   *     option or Flink config asks for a different mode
+   */
+  public boolean fullOverwrite() {
+    String tableValue =
+        confParser
+            .stringConf()
+            .tableProperty(FlinkWriteOptions.OVERWRITE_STRATEGY_TABLE_PROPERTY)
+            .parseOptional();
+    String jobValue =
+        confParser
+            .stringConf()
+            .option(FlinkWriteOptions.OVERWRITE_STRATEGY.key())
+            .flinkConfig(FlinkWriteOptions.OVERWRITE_STRATEGY)
+            .parseOptional();
+    OverwriteStrategy tableStrategy =
+        tableValue != null ? OverwriteStrategy.fromName(tableValue) : null;
+    OverwriteStrategy jobStrategy = jobValue != null ? OverwriteStrategy.fromName(jobValue) : null;
+    Preconditions.checkArgument(
+        tableStrategy != OverwriteStrategy.FULL
+            || jobStrategy == null
+            || jobStrategy == OverwriteStrategy.FULL,
+        "Invalid %s=%s: table property %s=%s requires a full overwrite",
+        FlinkWriteOptions.OVERWRITE_STRATEGY.key(),
+        jobValue,
+        FlinkWriteOptions.OVERWRITE_STRATEGY_TABLE_PROPERTY,
+        tableValue);
+
+    if (jobStrategy != null) {
+      return jobStrategy == OverwriteStrategy.FULL;
+    }
+
+    return tableStrategy == OverwriteStrategy.FULL;
   }
 
   public boolean upsertMode() {

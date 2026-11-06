@@ -64,8 +64,10 @@ import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFile;
@@ -75,10 +77,12 @@ import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestBase;
@@ -313,6 +317,92 @@ class TestIcebergCommitter extends TestBase {
     assertSnapshotSize(1);
     assertMaxCommittedCheckpointId(jobId, 5);
     SimpleDataUtil.assertTableRows(table, ImmutableList.of(rowFromPreviousRun), branch);
+  }
+
+  @TestTemplate
+  public void testDynamicOverwriteKeepsPartitionsWithoutNewRows() throws Exception {
+    appendPartitions("a", "b");
+    IcebergCommitter committer = getCommitter(true, false);
+
+    RowData row = SimpleDataUtil.createRowData(3, "a");
+    committer.commit(
+        Lists.newArrayList(
+            buildCommitRequestFor(
+                jobId, 1, Lists.newArrayList(of(writePartitionedDataFile("data-3", row))))));
+
+    SimpleDataUtil.assertTableRows(
+        table, ImmutableList.of(row, SimpleDataUtil.createRowData(2, "b")), branch);
+    Snapshot snapshot = SimpleDataUtil.latestSnapshot(table, branch);
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+    assertThat(snapshot.summary())
+        .containsEntry(SnapshotSummary.REPLACE_PARTITIONS_PROP, "true")
+        .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "1")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "2");
+  }
+
+  @TestTemplate
+  public void testFullOverwriteReplacesAllPartitions() throws Exception {
+    appendPartitions("a", "b");
+    IcebergCommitter committer = getCommitter(true, true);
+
+    RowData row = SimpleDataUtil.createRowData(3, "a");
+    committer.commit(
+        Lists.newArrayList(
+            buildCommitRequestFor(
+                jobId, 1, Lists.newArrayList(of(writePartitionedDataFile("data-3", row))))));
+
+    SimpleDataUtil.assertTableRows(table, ImmutableList.of(row), branch);
+    Snapshot snapshot = SimpleDataUtil.latestSnapshot(table, branch);
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+    assertThat(snapshot.summary())
+        .doesNotContainKey(SnapshotSummary.REPLACE_PARTITIONS_PROP)
+        .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "2")
+        .containsEntry(SnapshotSummary.ADDED_FILES_PROP, "1")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "1");
+    assertMaxCommittedCheckpointId(jobId, 1);
+  }
+
+  @TestTemplate
+  public void testFullOverwriteWithoutNewRowsIsSkipped() throws Exception {
+    appendPartitions("a", "b");
+    IcebergCommitter committer = getCommitter(true, true);
+
+    // the table allows an empty commit on every checkpoint, a full overwrite still skips it
+    committer.commit(Lists.newArrayList(buildCommitRequestFor(jobId, 1, Lists.newArrayList())));
+
+    assertSnapshotSize(1);
+    SimpleDataUtil.assertTableRows(
+        table,
+        ImmutableList.of(
+            SimpleDataUtil.createRowData(1, "a"), SimpleDataUtil.createRowData(2, "b")),
+        branch);
+  }
+
+  @TestTemplate
+  public void testFullOverwriteReplacesFilesWrittenUnderOlderSpec() throws Exception {
+    RowData unpartitionedRow = SimpleDataUtil.createRowData(0, "z");
+    table
+        .newAppend()
+        .appendFile(writeDataFile("data-0", ImmutableList.of(unpartitionedRow)))
+        .toBranch(branch)
+        .commit();
+    appendPartitions("a", "b");
+    IcebergCommitter committer = getCommitter(true, true);
+
+    RowData row = SimpleDataUtil.createRowData(3, "a");
+    committer.commit(
+        Lists.newArrayList(
+            buildCommitRequestFor(
+                jobId, 1, Lists.newArrayList(of(writePartitionedDataFile("data-3", row))))));
+
+    SimpleDataUtil.assertTableRows(table, ImmutableList.of(row), branch);
+    Snapshot snapshot = SimpleDataUtil.latestSnapshot(table, branch);
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+    assertThat(snapshot.summary())
+        .doesNotContainKey(SnapshotSummary.REPLACE_PARTITIONS_PROP)
+        .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "3")
+        .containsEntry(SnapshotSummary.ADDED_FILES_PROP, "1")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "1");
   }
 
   @TestTemplate
@@ -1388,6 +1478,34 @@ class TestIcebergCommitter extends TestBase {
         rows);
   }
 
+  /** Partitions the table by {@code data} and appends one row per partition value. */
+  private void appendPartitions(String... partitionValues) throws IOException {
+    table.updateSpec().addField("data").commit();
+    AppendFiles append = table.newAppend();
+    int id = 1;
+    for (String value : partitionValues) {
+      RowData row = SimpleDataUtil.createRowData(id, value);
+      append.appendFile(writePartitionedDataFile("data-" + id, row));
+      id++;
+    }
+
+    append.toBranch(branch).commit();
+  }
+
+  private DataFile writePartitionedDataFile(String filename, RowData row) throws IOException {
+    StructLike partition = new PartitionData(table.spec().partitionType());
+    partition.set(0, row.getString(1).toString());
+    return SimpleDataUtil.writeFile(
+        table,
+        table.schema(),
+        table.spec(),
+        new Configuration(),
+        table.location(),
+        FileFormat.PARQUET.addExtension(filename),
+        ImmutableList.of(row),
+        partition);
+  }
+
   private DeleteFile writeEqDeleteFile(
       FileWriterFactory<RowData> writerFactory,
       String filename,
@@ -1424,21 +1542,22 @@ class TestIcebergCommitter extends TestBase {
   // ------------------------------- Utility Methods --------------------------------
 
   private IcebergCommitter getCommitter() {
-    return getCommitter(true);
+    return getCommitter(false, false);
   }
 
-  private IcebergCommitter getCommitter(boolean isRestored) {
+  private IcebergCommitter getCommitter(boolean replacePartitions, boolean fullOverwrite) {
     IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
     return new IcebergCommitter(
         tableLoader,
         branch,
         Collections.singletonMap("flink.test", TestIcebergCommitter.class.getName()),
-        false,
+        replacePartitions,
+        fullOverwrite,
         10,
         "sinkId",
         metric,
         false,
-        isRestored,
+        true,
         0);
   }
 

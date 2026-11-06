@@ -538,6 +538,7 @@ public class FlinkSink {
           new IcebergFilesCommitterFactory(
               tableLoader,
               flinkWriteConf.overwriteMode(),
+              flinkWriteConf.fullOverwrite(),
               snapshotProperties,
               flinkWriteConf.workerPoolSize(),
               flinkWriteConf.branch(),

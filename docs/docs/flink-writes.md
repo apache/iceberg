@@ -55,6 +55,14 @@ INSERT OVERWRITE `hive_catalog`.`default`.`sample` PARTITION(data='a') SELECT 6;
 For a partitioned iceberg table, when all the partition columns are set a value in `PARTITION` clause, it is inserting into a static partition, otherwise if partial partition columns (prefix part of all partition columns) are set a value in `PARTITION` clause, it is writing the query result into a dynamic partition.
 For an unpartitioned iceberg table, its data will be completely overwritten by `INSERT OVERWRITE`.
 
+To replace every row of a partitioned table, including partitions that receive no new rows, set `overwrite-mode` to `full`:
+
+```sql
+INSERT OVERWRITE sample /*+ OPTIONS('overwrite-mode'='full') */ SELECT id, data FROM other_table;
+```
+
+The table property `write.flink.overwrite-mode` sets the mode for every job that writes the table. When it is `full`, a job that sets `overwrite-mode` to `dynamic` fails, and `INSERT OVERWRITE` with a `PARTITION` clause fails. A full overwrite is one snapshot with operation `overwrite` whose `total-data-files` equals its `added-data-files`.
+
 ### `UPSERT`
 
 Iceberg supports `UPSERT` based on the primary key when writing data into v2 table format. There are two ways to enable upsert.
