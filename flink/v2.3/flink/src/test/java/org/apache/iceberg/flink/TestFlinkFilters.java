@@ -26,6 +26,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -52,6 +53,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.Pair;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestFlinkFilters {
 
@@ -68,7 +72,9 @@ public class TestFlinkFilters {
           Column.physical("field9", DataTypes.DATE()),
           Column.physical("field10", DataTypes.TIME()),
           Column.physical("field11", DataTypes.TIMESTAMP()),
-          Column.physical("field12", DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE()));
+          Column.physical("field12", DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE()),
+          Column.physical("timestamp_ns", DataTypes.TIMESTAMP(9)),
+          Column.physical("timestamptz_ns", DataTypes.TIMESTAMP_LTZ(9)));
 
   // A map list of fields and values used to verify the conversion of flink expression to iceberg
   // expression
@@ -109,6 +115,41 @@ public class TestFlinkFilters {
 
     Instant instant = Instant.parse("2020-12-23T12:13:14.00Z");
     matchLiteral("field12", instant, DateTimeUtil.microsFromInstant(instant));
+  }
+
+  @ParameterizedTest
+  @MethodSource("timestampLiterals")
+  void timestampEqualityPreservesPrecision(String fieldName, Object timestamp, long expected) {
+    matchLiteral(fieldName, timestamp, expected);
+  }
+
+  @ParameterizedTest
+  @MethodSource("timestampLiterals")
+  @SuppressWarnings("unchecked")
+  void timestampRangePreservesPrecision(String fieldName, Object timestamp, long expected) {
+    Expression expression = resolve(Expressions.lit(timestamp).isGreater(Expressions.$(fieldName)));
+    UnboundPredicate<Long> converted =
+        (UnboundPredicate<Long>) FlinkFilters.convert(expression).orElseThrow();
+    BoundLiteralPredicate<Long> predicate =
+        (BoundLiteralPredicate<Long>)
+            converted.bind(FlinkSchemaUtil.convert(RESOLVED_SCHEMA).asStruct(), false);
+
+    assertThat(predicate.test(expected - 1)).isTrue();
+    assertThat(predicate.test(expected)).isFalse();
+  }
+
+  private static List<Arguments> timestampLiterals() {
+    LocalDateTime nanos = LocalDateTime.parse("2024-01-01T00:00:00.123456789");
+    LocalDateTime micros = nanos.withNano(123456000);
+    return List.of(
+        Arguments.of("field11", micros, DateTimeUtil.microsFromTimestamp(micros)),
+        Arguments.of(
+            "field12", micros.toInstant(ZoneOffset.UTC), DateTimeUtil.microsFromTimestamp(micros)),
+        Arguments.of("timestamp_ns", nanos, DateTimeUtil.nanosFromTimestamp(nanos)),
+        Arguments.of(
+            "timestamptz_ns",
+            nanos.toInstant(ZoneOffset.UTC),
+            DateTimeUtil.nanosFromTimestamp(nanos)));
   }
 
   @Test

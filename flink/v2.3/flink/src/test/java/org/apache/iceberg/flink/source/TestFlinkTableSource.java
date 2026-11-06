@@ -86,6 +86,21 @@ public class TestFlinkTableSource extends TableSourceTestBase {
   }
 
   @TestTemplate
+  void nanosecondTimestampFilterReturnsMatchingRows() {
+    sql("DROP TABLE %s", TABLE_NAME);
+    sql(
+        "CREATE TABLE %s (id INT, ts TIMESTAMP(9)) "
+            + "WITH ('format-version'='3', 'write.format.default'='parquet')",
+        TABLE_NAME);
+    String timestamp = "2024-01-01 00:00:00.123456789";
+    sql("INSERT INTO %s VALUES (1, CAST('%s' AS TIMESTAMP(9)))", TABLE_NAME, timestamp);
+
+    assertThat(
+            sql("SELECT id FROM %s WHERE ts = CAST('%s' AS TIMESTAMP(9))", TABLE_NAME, timestamp))
+        .containsExactly(Row.of(1));
+  }
+
+  @TestTemplate
   public void testFilterPushDownEqualNull() {
     String sqlEqualNull = String.format("SELECT * FROM %s WHERE data = NULL ", TABLE_NAME);
 
