@@ -42,10 +42,18 @@ project(":iceberg-azure-bundle") {
   shadowJar {
     archiveClassifier.set(null)
     zip64 true
+    mergeServiceFiles()
 
     // relocate Azure-specific versions
     relocate 'io.netty', 'org.apache.iceberg.azure.shaded.io.netty'
     relocate 'com.fasterxml.jackson', 'org.apache.iceberg.azure.shaded.com.fasterxml.jackson'
+  }
+
+  test {
+    useJUnitPlatform()
+    dependsOn shadowJar
+    inputs.file shadowJar.archiveFile
+    systemProperty 'azure.test.bundle.jar', shadowJar.archiveFile.get().asFile.absolutePath
   }
 
   jar {
