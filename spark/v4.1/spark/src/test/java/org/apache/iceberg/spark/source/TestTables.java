@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.File;
+import java.net.URI;
 import java.util.Map;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.Files;
@@ -177,7 +178,8 @@ class TestTables {
 
     @Override
     public String metadataFileLocation(String fileName) {
-      return new File(new File(current.location(), "metadata"), fileName).getAbsolutePath();
+      File tableLocation = new File(URI.create(current.location()));
+      return new File(new File(tableLocation, "metadata"), fileName).getAbsolutePath();
     }
 
     @Override
