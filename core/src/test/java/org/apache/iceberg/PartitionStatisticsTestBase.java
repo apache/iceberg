@@ -33,7 +33,6 @@ import static org.apache.iceberg.PartitionStatistics.TOTAL_RECORD_COUNT;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.Random;
@@ -44,7 +43,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 public abstract class PartitionStatisticsTestBase {
 
-  @TempDir private File temp;
+  @TempDir protected File tempDir;
 
   protected static final Schema SCHEMA =
       new Schema(
@@ -88,10 +87,6 @@ public abstract class PartitionStatisticsTestBase {
     stats.set(
         PartitionStatistics.TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION, 1024L * RANDOM.nextInt(20));
     return stats;
-  }
-
-  protected File tempDir(String folderName) throws IOException {
-    return java.nio.file.Files.createTempDirectory(temp.toPath(), folderName).toFile();
   }
 
   protected static StructLike partitionRecord(
