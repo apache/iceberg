@@ -43,6 +43,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
@@ -290,6 +292,46 @@ class TestGCSFileIOCredentialRefresh {
       // Round-trip through Kryo and verify the credentials still match
       try (GCSFileIO deserialized = TestHelpers.KryoHelpers.roundTripSerialize(fileIO)) {
         assertThat(deserialized.credentials()).isEqualTo(fileIO.credentials());
+      }
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  void deserializedCopyDoesNotScheduleRefresh(
+      TestHelpers.RoundTripSerializer<GCSFileIO> roundTripSerializer) throws Exception {
+    String nearExpiryMs = Long.toString(Instant.now().plus(3, ChronoUnit.MINUTES).toEpochMilli());
+    StorageCredential initialCredential =
+        StorageCredential.create(
+            "gs://bucket/path",
+            ImmutableMap.of(
+                GCPProperties.GCS_OAUTH2_TOKEN,
+                "initialToken",
+                GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT,
+                nearExpiryMs));
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+
+    Map<String, String> properties =
+        ImmutableMap.of(
+            GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
+            credentialsUri,
+            CatalogProperties.URI,
+            catalogUri);
+
+    try (GCSFileIO fileIO = new GCSFileIO()) {
+      fileIO.initialize(properties);
+      fileIO.setCredentials(List.of(initialCredential));
+
+      try (GCSFileIO copy = roundTripSerializer.apply(fileIO)) {
+        assertThat(copy.credentials()).containsExactly(initialCredential);
+        // Near-expiry credentials schedule an immediate refresh in an instance that
+        // initialize() sets up.
+        copy.client();
+
+        Awaitility.await()
+            .during(2, TimeUnit.SECONDS)
+            .atMost(3, TimeUnit.SECONDS)
+            .untilAsserted(() -> mockServer.verify(mockRequest, VerificationTimes.never()));
       }
     }
   }

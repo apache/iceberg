@@ -113,6 +113,9 @@ public class S3FileIO
   private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
   private transient volatile Map<String, PrefixedS3Client> clientByPrefix;
   private transient volatile ScheduledFuture<?> refreshFuture;
+  // Set only in initialize(). The field is transient, so deserialized copies do not schedule a
+  // refresh of storageCredentials. The storage clients of a copy refresh their own credentials.
+  private transient boolean refreshCredentialsInBackground;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -439,6 +442,10 @@ public class S3FileIO
   }
 
   private void scheduleCredentialRefresh() {
+    if (!refreshCredentialsInBackground) {
+      return;
+    }
+
     storageCredentials.stream()
         .map(
             storageCredential ->
@@ -501,6 +508,7 @@ public class S3FileIO
   @Override
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
+    this.refreshCredentialsInBackground = true;
 
     this.createStack =
         PropertyUtil.propertyAsBoolean(properties, "init-creation-stacktrace", true)
