@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.encryption.EncryptedKey;
@@ -1116,7 +1117,8 @@ public class TableMetadata implements Serializable {
 
       this.currentSchemaId = schemaId;
 
-      if (lastAddedSchemaId != null && lastAddedSchemaId == schemaId) {
+      if (isLastAddedChange(
+          MetadataUpdate.AddSchema.class, added -> added.schema().schemaId(), schemaId)) {
         changes.add(new MetadataUpdate.SetCurrentSchema(LAST_ADDED));
       } else {
         changes.add(new MetadataUpdate.SetCurrentSchema(schemaId));
@@ -1148,7 +1150,8 @@ public class TableMetadata implements Serializable {
       }
 
       this.defaultSpecId = specId;
-      if (lastAddedSpecId != null && lastAddedSpecId == specId) {
+      if (isLastAddedChange(
+          MetadataUpdate.AddPartitionSpec.class, added -> added.spec().specId(), specId)) {
         changes.add(new MetadataUpdate.SetDefaultPartitionSpec(LAST_ADDED));
       } else {
         changes.add(new MetadataUpdate.SetDefaultPartitionSpec(specId));
@@ -1217,7 +1220,8 @@ public class TableMetadata implements Serializable {
       }
 
       this.defaultSortOrderId = sortOrderId;
-      if (lastAddedOrderId != null && lastAddedOrderId == sortOrderId) {
+      if (isLastAddedChange(
+          MetadataUpdate.AddSortOrder.class, added -> added.sortOrder().orderId(), sortOrderId)) {
         changes.add(new MetadataUpdate.SetDefaultSortOrder(LAST_ADDED));
       } else {
         changes.add(new MetadataUpdate.SetDefaultSortOrder(sortOrderId));
@@ -1627,14 +1631,7 @@ public class TableMetadata implements Serializable {
       int newSchemaId = reuseOrCreateNewSchemaId(schema);
       boolean schemaFound = schemasById.containsKey(newSchemaId);
       if (schemaFound && newLastColumnId == lastColumnId) {
-        // the new spec and last column id is already current and no change is needed
-        // update lastAddedSchemaId if the schema was added in this set of changes (since it is now
-        // the last)
-        boolean isNewSchema =
-            lastAddedSchemaId != null
-                && changes(MetadataUpdate.AddSchema.class)
-                    .anyMatch(added -> added.schema().schemaId() == newSchemaId);
-        this.lastAddedSchemaId = isNewSchema ? newSchemaId : null;
+        this.lastAddedSchemaId = newSchemaId;
         return newSchemaId;
       }
 
@@ -1675,13 +1672,7 @@ public class TableMetadata implements Serializable {
     private int addPartitionSpecInternal(PartitionSpec spec) {
       int newSpecId = reuseOrCreateNewSpecId(spec);
       if (specsById.containsKey(newSpecId)) {
-        // update lastAddedSpecId if the spec was added in this set of changes (since it is now the
-        // last)
-        boolean isNewSpec =
-            lastAddedSpecId != null
-                && changes(MetadataUpdate.AddPartitionSpec.class)
-                    .anyMatch(added -> added.spec().specId() == lastAddedSpecId);
-        this.lastAddedSpecId = isNewSpec ? newSpecId : null;
+        this.lastAddedSpecId = newSpecId;
         return newSpecId;
       }
 
@@ -1722,13 +1713,7 @@ public class TableMetadata implements Serializable {
     private int addSortOrderInternal(SortOrder order) {
       int newOrderId = reuseOrCreateNewSortOrderId(order);
       if (sortOrdersById.containsKey(newOrderId)) {
-        // update lastAddedOrderId if the order was added in this set of changes (since it is now
-        // the last)
-        boolean isNewOrder =
-            lastAddedOrderId != null
-                && changes(MetadataUpdate.AddSortOrder.class)
-                    .anyMatch(added -> added.sortOrder().orderId() == lastAddedOrderId);
-        this.lastAddedOrderId = isNewOrder ? newOrderId : null;
+        this.lastAddedOrderId = newOrderId;
         return newOrderId;
       }
 
@@ -1918,6 +1903,18 @@ public class TableMetadata implements Serializable {
     private boolean isAddedSnapshot(long snapshotId) {
       return changes(MetadataUpdate.AddSnapshot.class)
           .anyMatch(add -> add.snapshot().snapshotId() == snapshotId);
+    }
+
+    private <U extends MetadataUpdate> boolean isLastAddedChange(
+        Class<U> addClass, ToIntFunction<U> addedId, int id) {
+      for (int i = changes.size() - 1; i >= 0; i -= 1) {
+        MetadataUpdate change = changes.get(i);
+        if (addClass.isInstance(change)) {
+          return addedId.applyAsInt(addClass.cast(change)) == id;
+        }
+      }
+
+      return false;
     }
 
     private <U extends MetadataUpdate> Stream<U> changes(Class<U> updateClass) {
