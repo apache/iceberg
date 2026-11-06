@@ -37,7 +37,6 @@ buildscript {
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.7'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:4.3.0'
     classpath 'org.openapitools:openapi-generator-gradle-plugin:7.26.0'
-    classpath 'de.undercouch:gradle-download-task:5.6.0'
   }
 }
 
@@ -688,54 +687,9 @@ project(':iceberg-azure') {
 }
 
 project(':iceberg-delta-lake') {
-  apply plugin: 'de.undercouch.download'
-
-  def datVersion = "0.0.3"
-  def datOutputDir = layout.buildDirectory.dir("dat")
-
-  tasks.register('downloadDatTables') {
-    def cachedTarball = new File(new File(repositories.mavenLocal().url),
-        "io/delta/deltalake-dat/${datVersion}/deltalake-dat-${datVersion}.tar.gz")
-    outputs.dir(datOutputDir)
-
-    doLast {
-      try {
-        if (!cachedTarball.exists() && !gradle.startParameter.offline) {
-          download.run {
-            // Delta lake golden tables used as source in unit-tests
-            src "https://github.com/delta-incubator/dat/releases/download/v${datVersion}/deltalake-dat-v${datVersion}.tar.gz"
-            dest cachedTarball
-            overwrite false
-          }
-        }
-        verifyChecksum.run {
-          src cachedTarball
-          algorithm 'SHA-256'
-          checksum '19c045bc6f4e8531d1985d0f7bb156d788e65078b435d613c8e4a9c753b4a982'
-        }
-        def outputDir = datOutputDir.get().asFile
-        outputDir.deleteDir()
-        tarTree(resources.gzip(cachedTarball)).visit { FileVisitDetails details ->
-          def target = new File(outputDir, details.relativePath.pathString)
-          if (details.directory) {
-            target.mkdirs()
-          } else {
-            target.parentFile.mkdirs()
-            target.withOutputStream { details.copyTo(it) }
-          }
-        }
-      } catch (Exception e) {
-        cachedTarball.delete()
-        logger.warn("Skipping DAT tables setup: ${e.message}")
-      }
-    }
-  }
-
   // use integration test since we can take advantages of spark 3.3 to read datafiles of delta lake table
   // and create some tests involving sql query.
   test {
-    dependsOn downloadDatTables
-    classpath += files(datOutputDir)
     useJUnitPlatform()
   }
   configurations {
@@ -762,6 +716,8 @@ project(':iceberg-delta-lake') {
       exclude group: 'javax.servlet', module: 'servlet-api'
       exclude group: 'com.google.code.gson', module: 'gson'
     }
+
+    testImplementation libs.delta.verification
 
     // The newest version of delta-core uses Spark 3.5.*. Since its only for test, we do
     // not need to include older version of delta-core

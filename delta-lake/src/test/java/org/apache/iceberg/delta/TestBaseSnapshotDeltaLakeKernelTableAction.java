@@ -18,9 +18,9 @@
  */
 package org.apache.iceberg.delta;
 
+import static org.apache.iceberg.delta.DeltaGoldenTables.SKIPPED_GOLDEN_TABLES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.delta.kernel.Operation;
 import io.delta.kernel.Snapshot;
@@ -33,20 +33,13 @@ import io.delta.kernel.types.IntegerType;
 import io.delta.kernel.types.StringType;
 import io.delta.kernel.types.StructType;
 import io.delta.kernel.utils.CloseableIterable;
+import io.github.vladislavsidorovich.deltaverification.DeltaVerificationTables;
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
@@ -55,7 +48,6 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,15 +57,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestBaseSnapshotDeltaLakeKernelTableAction {
-  private static final String DELTA_GOLDEN_TABLES_ROOT = "out/reader_tests/generated/";
-  private static final String DELTA_TABLE_SUBDIR = "/delta";
-  private static final ImmutableSet<String> SKIPPED_GOLDEN_TABLES =
-      ImmutableSet.of(
-          "column_mapping",
-          "iceberg_compat_v1",
-          "with_schema_change",
-          "check_constraints",
-          "multi_partitioned_2");
 
   @TempDir private File sourceDeltaFolder;
   @TempDir private File icebergWarehouseFolder;
@@ -186,7 +169,7 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
 
   @Test
   public void testTableCreated() throws Exception {
-    loadDeltaLakeGoldenTable("all_primitive_types");
+    loadDeltaLakeGoldenTable("basic-decimal-table");
 
     TableIdentifier icebergTable = TableIdentifier.of("iceberg_table");
     SnapshotDeltaLakeTable testAction =
@@ -205,7 +188,7 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
 
   @Test
   public void testDefaultTableProperties() throws Exception {
-    loadDeltaLakeGoldenTable("all_primitive_types");
+    loadDeltaLakeGoldenTable("basic-decimal-table");
 
     TableIdentifier icebergTableIdentifier = TableIdentifier.of("iceberg_table");
     SnapshotDeltaLakeTable testAction =
@@ -230,7 +213,7 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
 
   @Test
   public void testCustomTableProperties() throws Exception {
-    loadDeltaLakeGoldenTable("all_primitive_types");
+    loadDeltaLakeGoldenTable("basic-decimal-table");
 
     TableIdentifier icebergTableIdentifier = TableIdentifier.of("iceberg_table");
     SnapshotDeltaLakeTable testAction =
@@ -261,7 +244,7 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
 
   @Test
   public void testCustomTablePropertiesOverlap() throws Exception {
-    loadDeltaLakeGoldenTable("all_primitive_types");
+    loadDeltaLakeGoldenTable("basic-decimal-table");
 
     TableIdentifier icebergTableIdentifier = TableIdentifier.of("iceberg_table");
     SnapshotDeltaLakeTable testAction =
@@ -298,7 +281,7 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
 
   @Test
   public void testDeltaTableDVSupported() throws Exception {
-    loadDeltaLakeGoldenTable("deletion_vectors");
+    loadDeltaLakeGoldenTable("dv-partitioned-with-checkpoint");
     Engine engine = DefaultEngine.create(testHadoopConf);
     Table deltaTable = Table.forPath(engine, sourceTableLocation);
 
@@ -333,25 +316,10 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
     }
   }
 
-  static List<String> deltaGoldenTableNames() throws Exception {
-    URL resourceUrl =
-        TestBaseSnapshotDeltaLakeKernelTableAction.class
-            .getClassLoader()
-            .getResource(DELTA_GOLDEN_TABLES_ROOT);
-    assumeTrue(
-        resourceUrl != null,
-        "DAT tables are not available on classpath; skipping Delta golden table conversion tests: "
-            + DELTA_GOLDEN_TABLES_ROOT);
-    Path rootPath = Paths.get(resourceUrl.toURI());
-
-    try (Stream<Path> stream = Files.list(rootPath)) {
-      return stream
-          .filter(Files::isDirectory)
-          .map(path -> path.getFileName().toString())
-          .filter(name -> !SKIPPED_GOLDEN_TABLES.contains(name))
-          .sorted()
-          .collect(Collectors.toList());
-    }
+  static List<String> deltaGoldenTableNames() {
+    return DeltaVerificationTables.tableNames().stream()
+        .filter(name -> !SKIPPED_GOLDEN_TABLES.contains(name))
+        .toList();
   }
 
   @ParameterizedTest
@@ -379,40 +347,7 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
         .withSchema(engine, schema);
   }
 
-  private void loadDeltaLakeGoldenTable(String tablename) throws Exception {
-    String goldenTableFolderPath = DELTA_GOLDEN_TABLES_ROOT + tablename + DELTA_TABLE_SUBDIR;
-    URL resourceUrl = getClass().getClassLoader().getResource(goldenTableFolderPath);
-    assumeTrue(
-        resourceUrl != null,
-        "DAT (golden) table is not available on classpath; skipping test: "
-            + goldenTableFolderPath);
-
-    Path source = Paths.get(resourceUrl.toURI());
-    Path target = sourceDeltaFolder.toPath();
-    copyDirectory(source, target);
-  }
-
-  private void copyDirectory(Path source, Path target) throws IOException {
-    Files.walkFileTree(
-        source,
-        new SimpleFileVisitor<>() {
-          @Override
-          public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
-              throws IOException {
-            Path targetDir = target.resolve(source.relativize(dir));
-            if (!Files.exists(targetDir)) {
-              Files.createDirectory(targetDir);
-            }
-            return FileVisitResult.CONTINUE;
-          }
-
-          @Override
-          public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
-              throws IOException {
-            Files.copy(
-                file, target.resolve(source.relativize(file)), StandardCopyOption.REPLACE_EXISTING);
-            return FileVisitResult.CONTINUE;
-          }
-        });
+  private void loadDeltaLakeGoldenTable(String goldenTableName) throws IOException {
+    DeltaVerificationTables.copyTableContents(goldenTableName, sourceDeltaFolder.toPath());
   }
 }
