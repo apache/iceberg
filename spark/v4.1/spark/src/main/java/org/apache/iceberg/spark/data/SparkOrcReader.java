@@ -123,7 +123,7 @@ public class SparkOrcReader implements OrcRowReader<InternalRow> {
         case STRING:
           return SparkOrcValueReaders.utf8String();
         case BINARY:
-          if (iPrimitive != null && Type.TypeID.UUID == iPrimitive.typeId()) {
+          if (Type.TypeID.UUID == iPrimitive.typeId()) {
             return SparkOrcValueReaders.uuids();
           }
           return OrcValueReaders.bytes();
