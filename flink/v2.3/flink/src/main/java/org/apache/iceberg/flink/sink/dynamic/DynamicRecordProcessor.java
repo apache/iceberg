@@ -132,7 +132,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     DynamicRecordWithConfig data = dynamicRecordWithConfig.wrap(inputData);
 
     boolean isForward = isForwardEligible(data);
-    boolean exists = tableCache.exists(data.tableIdentifier()).f0;
+    boolean exists = tableCache.exists(data.tableIdentifier());
     String foundBranch = exists ? tableCache.branch(data.tableIdentifier(), data.branch()) : null;
 
     TableMetadataCache.ResolvedSchemaInfo foundSchema =

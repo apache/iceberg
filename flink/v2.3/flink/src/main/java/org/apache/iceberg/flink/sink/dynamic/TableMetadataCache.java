@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -51,8 +50,6 @@ import org.slf4j.LoggerFactory;
 class TableMetadataCache {
 
   private static final Logger LOG = LoggerFactory.getLogger(TableMetadataCache.class);
-  private static final Tuple2<Boolean, Exception> EXISTS = Tuple2.of(true, null);
-  private static final Tuple2<Boolean, Exception> NOT_EXISTS = Tuple2.of(false, null);
   static final ResolvedSchemaInfo NOT_FOUND =
       new ResolvedSchemaInfo(
           null, CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED, DataConverter.identity());
@@ -100,14 +97,14 @@ class TableMetadataCache {
     this.cacheRefreshClock = cacheRefreshClock;
   }
 
-  Tuple2<Boolean, Exception> exists(TableIdentifier identifier) {
+  boolean exists(TableIdentifier identifier) {
     CacheItem cached = tableCache.get(identifier);
     if (cached != null && Boolean.TRUE.equals(cached.tableExists)) {
-      return EXISTS;
+      return true;
     } else if (needsRefresh(identifier, cached, true)) {
       return refreshTable(identifier);
     } else {
-      return NOT_EXISTS;
+      return false;
     }
   }
 
@@ -241,16 +238,16 @@ class TableMetadataCache {
     }
   }
 
-  private Tuple2<Boolean, Exception> refreshTable(TableIdentifier identifier) {
+  private boolean refreshTable(TableIdentifier identifier) {
     try {
       Table table = catalog.loadTable(identifier);
       update(identifier, table);
-      return EXISTS;
+      return true;
     } catch (NoSuchTableException | NoSuchNamespaceException e) {
       LOG.debug("Table or namespace doesn't exist {}", identifier, e);
       tableCache.put(
           identifier, new CacheItem(cacheRefreshClock.millis(), false, null, null, null, 1));
-      return Tuple2.of(false, e);
+      return false;
     }
   }
 
