@@ -1020,6 +1020,65 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result4.orphanFilesCount()).as("Action should find nothing").isEqualTo(0L);
   }
 
+  @TestTemplate
+  public void testCompareToFileListExcludesSiblingPaths() throws IOException {
+    assumeThat(usePrefixListing)
+        .as("Should not test both prefix listing and Hadoop file listing (redundant)")
+        .isEqualTo(false);
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
+
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    // create a sibling directory whose name shares the same prefix as the table directory
+    File siblingDir = new File(tableDir.getParentFile(), tableDir.getName() + "-backup");
+    siblingDir.mkdirs();
+    new File(siblingDir, "data").mkdirs();
+    File siblingFile = new File(new File(siblingDir, "data"), "sibling.parquet");
+    siblingFile.createNewFile();
+    String siblingLocation = siblingDir.toURI().toString();
+
+    // build a file list containing both the real orphan and the sibling file
+    Path dataPath = new Path(tableLocation + "/data");
+    FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
+    List<FilePathLastModifiedRecord> allFiles = Lists.newArrayList();
+    for (FileStatus file : fs.listStatus(dataPath, HiddenPathFilter.get())) {
+      if (file.isFile()) {
+        allFiles.add(
+            new FilePathLastModifiedRecord(
+                file.getPath().toString(), new Timestamp(file.getModificationTime())));
+      }
+    }
+
+    allFiles.add(
+        new FilePathLastModifiedRecord("file:" + siblingFile.getAbsolutePath(), new Timestamp(0L)));
+
+    Dataset<Row> compareToFileList =
+        spark
+            .createDataFrame(allFiles, FilePathLastModifiedRecord.class)
+            .withColumnRenamed("filePath", "file_path")
+            .withColumnRenamed("lastModified", "last_modified");
+
+    DeleteOrphanFiles.Result result =
+        SparkActions.get()
+            .deleteOrphanFiles(table)
+            .compareToFileList(compareToFileList)
+            .olderThan(System.currentTimeMillis() + 1000)
+            .deleteWith(s -> {})
+            .execute();
+
+    // the sibling file must NOT appear in orphan results
+    for (String orphan : result.orphanFileLocations()) {
+      assertThat(orphan)
+          .as("Sibling path should not be treated as orphan")
+          .doesNotContain("-backup");
+    }
+
+    assertThat(siblingFile.exists()).as("Sibling file should still exist").isTrue();
+  }
+
   protected long waitUntilAfter(long timestampMillis) {
     long current = System.currentTimeMillis();
     while (current <= timestampMillis) {
