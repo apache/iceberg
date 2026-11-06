@@ -142,6 +142,44 @@ public class TestInclusiveMetricsEvaluatorWithExtract<F> {
         new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds));
   }
 
+  protected F fileWithNonNullVariantBounds(String path, VariantValue value) {
+    Map<Integer, ByteBuffer> bounds = Map.of(2, VariantTestUtil.variantBuffer(Map.of(path, value)));
+    return asFile(
+        new TestDataFile(
+            "file.parquet", Row.of(), 2, Map.of(2, 2L), Map.of(2, 0L), null, bounds, bounds));
+  }
+
+  @Test
+  public void notInWithMissingExtractedField() {
+    F file = fileWithNonNullVariantBounds("$['event_id']", Variants.of(34));
+    assertThat(shouldRead(notIn(extract("variant", "$.event_id", "int"), 34, 35), file))
+        .as("A non-null variant may be missing event_id")
+        .isTrue();
+  }
+
+  @Test
+  public void notEqualWithMissingExtractedField() {
+    F file = fileWithNonNullVariantBounds("$['event_id']", Variants.of(34));
+    assertThat(shouldRead(notEqual(extract("variant", "$.event_id", "int"), 34), file))
+        .as("A non-null variant may be missing event_id")
+        .isTrue();
+  }
+
+  @Test
+  public void notStartsWithWithMissingExtractedField() {
+    F file = fileWithNonNullVariantBounds("$['str']", Variants.of("abc"));
+    assertThat(shouldRead(notStartsWith(extract("variant", "$.str", "string"), "ab"), file))
+        .as("A non-null variant may be missing str")
+        .isTrue();
+  }
+
+  @Test
+  public void equalWithMissingExtractedField() {
+    F file = fileWithNonNullVariantBounds("$['event_id']", Variants.of(34));
+    assertThat(shouldRead(equal(extract("variant", "$.event_id", "int"), 34), file)).isTrue();
+    assertThat(shouldRead(equal(extract("variant", "$.event_id", "int"), 35), file)).isFalse();
+  }
+
   @SuppressWarnings("unchecked")
   private F asFile(DataFile dataFile) {
     return (F) dataFile;
@@ -574,17 +612,17 @@ public class TestInclusiveMetricsEvaluatorWithExtract<F> {
   }
 
   @Test
-  public void testStringNotStartsWith() {
+  public void notStartsWithCannotSkipFilesWithExtractedFields() {
     assertThat(shouldRead(notStartsWith(extract("variant", "$.str", "string"), "a")))
-        .as("Should skip: prefix of lower and upper, all values must match")
-        .isFalse();
+        .as("Should read: matching bounds do not rule out a missing extracted field")
+        .isTrue();
 
     assertThat(shouldRead(notStartsWith(extract("variant", "$.str", "string"), "ab")))
-        .as("Should skip: prefix of lower and upper, all values must match")
-        .isFalse();
+        .as("Should read: matching bounds do not rule out a missing extracted field")
+        .isTrue();
 
     assertThat(shouldRead(notStartsWith(extract("variant", "$.str", "string"), "abcd")))
-        .as("Should skip: lower is prefix of value, some values do not match")
+        .as("Should read: lower is prefix of value, some values do not match")
         .isTrue();
 
     assertThat(shouldRead(notStartsWith(extract("variant", "$.str", "string"), "abd")))
