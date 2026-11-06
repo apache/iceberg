@@ -69,6 +69,11 @@ interface DataConverter {
     return nullable(get(sourceType, targetType, caseSensitive));
   }
 
+  static DataConverter getNonNullable(
+      LogicalType sourceType, LogicalType targetType, boolean caseSensitive, String fieldName) {
+    return nonNullable(get(sourceType, targetType, caseSensitive), fieldName);
+  }
+
   static DataConverter get(LogicalType sourceType, LogicalType targetType, boolean caseSensitive) {
     switch (targetType.getTypeRoot()) {
       case BOOLEAN:
@@ -134,6 +139,15 @@ interface DataConverter {
     return value -> value == null ? null : converter.convert(value);
   }
 
+  static DataConverter nonNullable(DataConverter converter, String fieldName) {
+    return value -> {
+      if (value == null) {
+        throw new IllegalArgumentException("Null value for non-nullable field: " + fieldName);
+      }
+      return converter.convert(value);
+    };
+  }
+
   class RowDataConverter implements DataConverter {
     private final RowData.FieldGetter[] fieldGetters;
     private final DataConverter[] dataConverters;
@@ -161,8 +175,14 @@ interface DataConverter {
           RowType.RowField sourceField = sourceType.getFields().get(sourceFieldIndex);
           fieldGetter = RowData.createFieldGetter(sourceField.getType(), sourceFieldIndex);
           dataConverter =
-              DataConverter.getNullable(
-                  sourceField.getType(), targetField.getType(), caseSensitive);
+              targetField.getType().isNullable()
+                  ? DataConverter.getNullable(
+                      sourceField.getType(), targetField.getType(), caseSensitive)
+                  : DataConverter.getNonNullable(
+                      sourceField.getType(),
+                      targetField.getType(),
+                      caseSensitive,
+                      targetField.getName());
         }
 
         this.fieldGetters[i] = fieldGetter;

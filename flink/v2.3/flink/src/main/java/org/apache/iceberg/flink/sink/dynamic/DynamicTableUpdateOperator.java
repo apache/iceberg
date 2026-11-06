@@ -21,9 +21,13 @@ package org.apache.iceberg.flink.sink.dynamic;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.functions.OpenContext;
-import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.typeutils.TupleTypeInfo;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.util.Collector;
+import org.apache.flink.util.OutputTag;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
@@ -38,10 +42,15 @@ import org.apache.iceberg.types.Types;
  * way. Records must be keyed / routed to this operator by table name to ensure non-concurrent
  * updates. The operator itself forwards the record after updating schema / spec of the table. The
  * update is also reflected in the record.
+ *
+ * <p>When an error stream is configured on the sink, a record whose update fails is routed to the
+ * {@link DynamicRecordProcessor#ERROR_STREAM} side output if the configured {@link
+ * DynamicRecordExceptionFilter} whitelists the failure; otherwise the failure propagates and fails
+ * the job.
  */
 @Internal
 class DynamicTableUpdateOperator
-    extends RichMapFunction<DynamicRecordInternal, DynamicRecordInternal> {
+    extends ProcessFunction<DynamicRecordInternal, DynamicRecordInternal> {
   private final CatalogLoader catalogLoader;
   private final boolean dropUnusedColumns;
   private final int cacheMaximumSize;
@@ -49,19 +58,24 @@ class DynamicTableUpdateOperator
   private final int inputSchemasPerTableCacheMaximumSize;
   private final TableCreator tableCreator;
   private final boolean caseSensitive;
+  private final DynamicRecordExceptionFilter errorFilter;
 
   private transient TableUpdater updater;
+  private transient OutputTag<Tuple2<DynamicRecordInternal, Exception>> errorStream;
 
   DynamicTableUpdateOperator(
-      CatalogLoader catalogLoader, TableCreator tableCreator, FlinkDynamicSinkConf configuration) {
+      CatalogLoader catalogLoader,
+      TableCreator tableCreator,
+      FlinkDynamicSinkConf configuration,
+      DynamicRecordExceptionFilter errorFilter) {
     this.catalogLoader = catalogLoader;
     this.tableCreator = tableCreator;
-
     this.cacheMaximumSize = configuration.cacheMaxSize();
     this.cacheRefreshMs = configuration.cacheRefreshMs();
     this.inputSchemasPerTableCacheMaximumSize = configuration.inputSchemasPerTableCacheMaxSize();
     this.caseSensitive = configuration.caseSensitive();
     this.dropUnusedColumns = configuration.dropUnusedColumns();
+    this.errorFilter = errorFilter;
   }
 
   @Override
@@ -80,10 +94,35 @@ class DynamicTableUpdateOperator
             catalog,
             caseSensitive,
             dropUnusedColumns);
+
+    if (errorFilter != null) {
+      errorStream =
+          new OutputTag<>(
+              DynamicRecordProcessor.ERROR_STREAM,
+              new TupleTypeInfo<>(
+                  new DynamicRecordInternalType(
+                      catalogLoader, true, cacheMaximumSize, inputSchemasPerTableCacheMaximumSize),
+                  TypeInformation.of(Exception.class)));
+    }
   }
 
   @Override
-  public DynamicRecordInternal map(DynamicRecordInternal data) throws Exception {
+  public void processElement(
+      DynamicRecordInternal record, Context ctx, Collector<DynamicRecordInternal> out)
+      throws Exception {
+    try {
+      out.collect(processRecord(record));
+    } catch (RuntimeException e) {
+      // Divert only failures the filter whitelists; otherwise propagate so Flink can retry.
+      if (errorFilter != null && errorFilter.shouldDivert(e)) {
+        ctx.output(errorStream, Tuple2.of(record, e));
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  private DynamicRecordInternal processRecord(DynamicRecordInternal data) {
     Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> newData =
         updater.update(
             TableIdentifier.parse(data.tableName()),
@@ -97,6 +136,10 @@ class DynamicTableUpdateOperator
     data.setEqualityFieldIds(remapFieldIds(data.equalityFields(), data.schema(), tableSchema));
     data.setSchema(tableSchema);
     data.setSpec(newData.f1);
+
+    // Validate before writing: a bad upsert config or a record that cannot be converted to the
+    // resolved schema throws here and is diverted/failed at this stage, never reaching the writer.
+    DynamicSinkUtil.validateUpsert(data.upsertMode(), newData.f1, data.equalityFields());
 
     RowData newRowData = (RowData) newData.f0.recordConverter().convert(data.rowData());
     data.setRowData(newRowData);
