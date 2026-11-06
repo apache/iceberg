@@ -24,6 +24,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.File;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -42,6 +43,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsTestBase {
@@ -336,6 +338,79 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
     // stats must be decremented to zero as all the files removed from table.
     assertThat(testTable.newPartitionStatisticsScan().scan())
         .allMatch(s -> (s.dataRecordCount() == 0 && s.dataFileCount() == 0));
+  }
+
+  @Test
+  void incrementalStatsStaySortedByPartition(@TempDir File tempDir) throws Exception {
+    Table testTable = TestTables.create(tempDir, "sorted", SCHEMA, SPEC, 2, fileFormatProperty);
+
+    testTable.newAppend().appendFile(dataFile("/df1.parquet", "c2=b/c3=b")).commit();
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(testTable))
+        .commit();
+
+    // a new partition sorting before the existing one, plus a file in the existing partition
+    testTable
+        .newAppend()
+        .appendFile(dataFile("/df2.parquet", "c2=a/c3=a"))
+        .appendFile(dataFile("/df3.parquet", "c2=b/c3=b"))
+        .commit();
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(testTable))
+        .commit();
+
+    List<PartitionStatistics> stats =
+        Lists.newArrayList(testTable.newPartitionStatisticsScan().scan());
+    assertThat(stats).hasSize(2);
+    assertThat(stats)
+        .isSortedAccordingTo(
+            Comparator.comparing(
+                PartitionStatistics::partition,
+                Comparators.forType(Partitioning.partitionType(testTable))));
+    assertThat(stats).extracting(PartitionStatistics::dataFileCount).containsExactly(1, 2);
+  }
+
+  @Test
+  void incrementalStatsAfterDroppingPartitionSourceColumn(@TempDir File tempDir) throws Exception {
+    Table testTable = TestTables.create(tempDir, "dropped", SCHEMA, SPEC, 2, fileFormatProperty);
+
+    testTable.newAppend().appendFile(dataFile("/df1.parquet", "c2=b/c3=a")).commit();
+    testTable
+        .newAppend()
+        .appendFile(dataFile("/df2.parquet", "c2=a/c3=b"))
+        .appendFile(dataFile("/df3.parquet", "c2=c/c3=a"))
+        .commit();
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(testTable))
+        .commit();
+
+    testTable.updateSpec().removeField("c2").commit();
+    testTable.updateSchema().deleteColumn("c2").commit();
+    testTable.newAppend().appendFile(dataFile("/df4.parquet", "c2=a/c3=b")).commit();
+
+    PartitionStatisticsFile incremental = PartitionStatsHandler.computeAndWriteStatsFile(testTable);
+    testTable.updatePartitionStatistics().setPartitionStatistics(incremental).commit();
+
+    List<PartitionStatistics> stats =
+        Lists.newArrayList(testTable.newPartitionStatisticsScan().scan());
+    assertThat(stats)
+        .isSortedAccordingTo(
+            Comparator.comparing(
+                PartitionStatistics::partition,
+                Comparators.forType(Partitioning.partitionType(testTable))));
+    assertThat(stats).extracting(PartitionStatistics::dataFileCount).containsOnly(1);
+  }
+
+  private static DataFile dataFile(String path, String partitionPath) {
+    return DataFiles.builder(SPEC)
+        .withPath(path)
+        .withPartitionPath(partitionPath)
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .build();
   }
 
   @Test
