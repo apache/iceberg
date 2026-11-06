@@ -25,7 +25,7 @@ public class IcebergFunctions {
   private IcebergFunctions() {}
 
   /**
-   * Returns the function with the given name, such as {@code show_last_4}, or an {@link
+   * Returns the function with the given name, such as {@code show-last-4}, or an {@link
    * UnknownFunction} if the name is not recognized.
    */
   public static IcebergFunction<?, ?> fromString(String function) {
@@ -53,47 +53,47 @@ public class IcebergFunctions {
     }
   }
 
-  /** Returns a {@code mask_alphanum} {@link IcebergFunction} for string types. */
+  /** Returns a {@code mask-alphanum} {@link IcebergFunction} for string types. */
   public static IcebergFunction<CharSequence, CharSequence> maskAlphanum() {
     return MaskAlphanum.get();
   }
 
-  /** Returns a {@code mask_to_fixed_value} {@link IcebergFunction}. */
+  /** Returns a {@code mask-to-fixed-value} {@link IcebergFunction}. */
   public static <T> IcebergFunction<T, T> maskToFixedValue() {
     return MaskToFixedValue.get();
   }
 
-  /** Returns a {@code replace_with_null} {@link IcebergFunction} for any type. */
+  /** Returns a {@code replace-with-null} {@link IcebergFunction} for any type. */
   public static <T> IcebergFunction<T, T> replaceWithNull() {
     return ReplaceWithNull.get();
   }
 
-  /** Returns a {@code show_first_4} {@link IcebergFunction} for string types. */
+  /** Returns a {@code show-first-4} {@link IcebergFunction} for string types. */
   public static IcebergFunction<CharSequence, CharSequence> showFirst4() {
     return ShowFirst4.get();
   }
 
-  /** Returns a {@code show_last_4} {@link IcebergFunction} for string types. */
+  /** Returns a {@code show-last-4} {@link IcebergFunction} for string types. */
   public static IcebergFunction<CharSequence, CharSequence> showLast4() {
     return ShowLast4.get();
   }
 
-  /** Returns a {@code truncate_to_year} {@link IcebergFunction} for date and timestamp types. */
+  /** Returns a {@code truncate-to-year} {@link IcebergFunction} for date and timestamp types. */
   public static <T> IcebergFunction<T, T> truncateToYear() {
     return TruncateToYear.get();
   }
 
-  /** Returns a {@code truncate_to_month} {@link IcebergFunction} for date and timestamp types. */
+  /** Returns a {@code truncate-to-month} {@link IcebergFunction} for date and timestamp types. */
   public static <T> IcebergFunction<T, T> truncateToMonth() {
     return TruncateToMonth.get();
   }
 
-  /** Returns a {@code sha_256_global} {@link IcebergFunction} for string, int, long and binary. */
+  /** Returns a {@code sha-256-global} {@link IcebergFunction} for string, int, long and binary. */
   public static <T> IcebergFunction<T, T> sha256Global() {
     return Sha256Global.get();
   }
 
-  /** Returns a {@code sha_256_query_local} {@link SaltedFunction}, salted per query. */
+  /** Returns a {@code sha-256-query-local} {@link SaltedFunction}, salted per query. */
   public static <T> SaltedFunction<T, T> sha256QueryLocal() {
     return Sha256QueryLocal.get();
   }

@@ -25,7 +25,7 @@ import org.apache.iceberg.util.SerializableFunction;
 
 /** Hashes values with SHA-256 using a fixed (unsalted) digest. Output is deterministic. */
 final class Sha256Global<T> implements IcebergFunction<T, T> {
-  static final String NAME = "sha_256_global";
+  static final String NAME = "sha-256-global";
 
   private static final Sha256Global<?> INSTANCE = new Sha256Global<>();
 

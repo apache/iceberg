@@ -23,9 +23,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
-/** Preserves the first 4 code points of a string, redacts the rest via mask_alphanum rules. */
+/** Preserves the first 4 code points of a string, redacts the rest via mask-alphanum rules. */
 final class ShowFirst4 implements IcebergFunction<CharSequence, CharSequence> {
-  static final String NAME = "show_first_4";
+  static final String NAME = "show-first-4";
 
   private static final ShowFirst4 INSTANCE = new ShowFirst4();
 
@@ -51,7 +51,7 @@ final class ShowFirst4 implements IcebergFunction<CharSequence, CharSequence> {
 
   @Override
   public SerializableFunction<CharSequence, CharSequence> bind(Type type) {
-    Preconditions.checkArgument(canBind(type), "show_first_4 requires STRING type, got %s", type);
+    Preconditions.checkArgument(canBind(type), "show-first-4 requires STRING type, got %s", type);
     return ShowFirst4Fn.INSTANCE;
   }
 

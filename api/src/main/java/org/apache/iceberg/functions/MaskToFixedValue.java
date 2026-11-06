@@ -62,7 +62,7 @@ final class MaskToFixedValue<T> implements IcebergFunction<T, T> {
           ByteBuffer.wrap(new byte[] {0x01, 0x00, 0x00, 0x02, 0x00, 0x00})
               .order(ByteOrder.LITTLE_ENDIAN));
 
-  static final String NAME = "mask_to_fixed_value";
+  static final String NAME = "mask-to-fixed-value";
 
   private static final MaskToFixedValue<?> INSTANCE = new MaskToFixedValue<>();
 
@@ -114,7 +114,7 @@ final class MaskToFixedValue<T> implements IcebergFunction<T, T> {
   @Override
   public SerializableFunction<T, T> bind(Type type) {
     Preconditions.checkArgument(
-        canBind(type), "mask_to_fixed_value is not supported for type: %s", type);
+        canBind(type), "mask-to-fixed-value is not supported for type: %s", type);
     Object defaultValue = defaultValueFor(type);
     return (SerializableFunction<T, T>)
         (defaultValue instanceof byte[] bytes

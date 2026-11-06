@@ -25,12 +25,12 @@ import org.apache.iceberg.util.SerializableFunction;
 /**
  * Returns null for every non-null input. Works for any type.
  *
- * <p>Per spec, replace_with_null is only valid for optional (nullable) fields. Callers must
+ * <p>Per spec, replace-with-null is only valid for optional (nullable) fields. Callers must
  * validate that the target field is optional before binding; this function cannot check nullability
  * because {@link org.apache.iceberg.types.Type} does not carry the field's required/optional flag.
  */
 final class ReplaceWithNull<T> implements IcebergFunction<T, T> {
-  static final String NAME = "replace_with_null";
+  static final String NAME = "replace-with-null";
 
   private static final ReplaceWithNull<?> INSTANCE = new ReplaceWithNull<>();
 

@@ -23,9 +23,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
-/** Redacts every Unicode code point in a string per the mask_alphanum rules. */
+/** Redacts every Unicode code point in a string per the mask-alphanum rules. */
 final class MaskAlphanum implements IcebergFunction<CharSequence, CharSequence> {
-  static final String NAME = "mask_alphanum";
+  static final String NAME = "mask-alphanum";
 
   private static final MaskAlphanum INSTANCE = new MaskAlphanum();
 
@@ -51,12 +51,12 @@ final class MaskAlphanum implements IcebergFunction<CharSequence, CharSequence> 
 
   @Override
   public SerializableFunction<CharSequence, CharSequence> bind(Type type) {
-    Preconditions.checkArgument(canBind(type), "mask_alphanum requires STRING type, got %s", type);
+    Preconditions.checkArgument(canBind(type), "mask-alphanum requires STRING type, got %s", type);
     return MaskAlphanumFn.INSTANCE;
   }
 
   /**
-   * Maps a code point through the mask_alphanum rules; also used by {@link ShowFirst4} and {@link
+   * Maps a code point through the mask-alphanum rules; also used by {@link ShowFirst4} and {@link
    * ShowLast4} on the code points outside their preserved windows:
    *
    * <ul>

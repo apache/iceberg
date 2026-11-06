@@ -29,7 +29,7 @@ import org.apache.iceberg.util.SerializableFunction;
  * query-local randomness.
  */
 final class Sha256QueryLocal<T> implements SaltedFunction<T, T> {
-  static final String NAME = "sha_256_query_local";
+  static final String NAME = "sha-256-query-local";
 
   private static final Sha256QueryLocal<?> INSTANCE = new Sha256QueryLocal<>();
 
@@ -57,7 +57,7 @@ final class Sha256QueryLocal<T> implements SaltedFunction<T, T> {
   @Override
   public SerializableFunction<T, T> bind(Type type) {
     throw new UnsupportedOperationException(
-        "sha_256_query_local requires a salt; call bind(Type, byte[]) instead");
+        "sha-256-query-local requires a salt; call bind(Type, byte[]) instead");
   }
 
   @SuppressWarnings("unchecked")
@@ -65,7 +65,7 @@ final class Sha256QueryLocal<T> implements SaltedFunction<T, T> {
   public SerializableFunction<T, T> bind(Type type, byte[] salt) {
     Preconditions.checkArgument(canBind(type), "sha-256 is not supported for type: %s", type);
     Preconditions.checkArgument(
-        salt != null && salt.length >= 16, "sha_256_query_local salt must be >= 16 bytes");
+        salt != null && salt.length >= 16, "sha-256-query-local salt must be >= 16 bytes");
     return (SerializableFunction<T, T>) Sha256.forType(type, salt);
   }
 }
