@@ -41,6 +41,7 @@ public class RewriteDataFilesCommitManager {
   private final boolean useStartingSequenceNumber;
   private final Map<String, String> snapshotProperties;
   private final String branch;
+  private final Object commitLock = new Object();
 
   // constructor used for testing
   public RewriteDataFilesCommitManager(Table table) {
@@ -109,7 +110,18 @@ public class RewriteDataFilesCommitManager {
       rewrite.toBranch(branch);
     }
 
-    rewrite.commit();
+    // Commits through this manager conflict with each other, so they are serialized. Calling
+    // apply() first writes manifests outside the lock for commit() to reuse. A failure is left to
+    // commit(), which applies again and either succeeds or fails and cleans up.
+    try {
+      rewrite.apply();
+    } catch (RuntimeException e) {
+      LOG.debug("Failed to apply rewrite before committing, applying again in commit", e);
+    }
+
+    synchronized (commitLock) {
+      rewrite.commit();
+    }
   }
 
   /**
