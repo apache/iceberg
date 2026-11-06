@@ -61,7 +61,7 @@ def resolveRuntimeDeps = {
       def id = it.moduleVersion.id
       "${id.group}:${id.name}:${majorMinor(id.version)}"
     }
-    .findAll { !it.startsWith('org.apache.iceberg:') }
+    .findAll { !it.startsWith("${project.group}:") }
     .toSorted()
     .toUnique()
 }

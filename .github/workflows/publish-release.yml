@@ -17,26 +17,24 @@
 # under the License.
 #
 
-name: "Publish Snapshot to Maven"
+
+name: "Publish Release to Maven Central"
 on:
-  schedule:
-    # * is a special character in YAML so you have to quote this string
-    # this schedules a workflow to run at specific UTC times using POSIX cron syntax -> https://crontab.guru/
-    # we're publishing a new snapshot every night at 00:00 UTC
-    - cron:  '0 0 * * *'
+  push:
+    tags:
+      - 'spiraldb-iceberg-*'
 
 permissions:
   contents: read
 
 jobs:
-  publish-snapshot:
-    if: github.repository_owner == 'apache'
+  publish-release:
+    if: github.repository_owner == 'spiraldb'
     runs-on: ubuntu-24.04
     environment: maven-publish
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # we need to fetch all tags so that getProjectVersion() in build.gradle correctly determines the next SNAPSHOT version from the newest tag
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
@@ -45,16 +43,27 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
-          # Read-only: small job; restore opportunistically from other jobs' caches but never write.
           cache-read-only: true
-      - env:
-          NEXUS_USER: ${{ secrets.NEXUS_USER }}
-          NEXUS_PW: ${{ secrets.NEXUS_PW }}
+      - name: Set release version
+        env:
+          TAG_NAME: ${{ github.ref_name }}
         run: |
+          echo "${TAG_NAME#spiraldb-iceberg-}" > version.txt
           ./gradlew printVersion
-          ./gradlew -DallModules publishApachePublicationToMavenRepository -PmavenUser="$NEXUS_USER" -PmavenPassword="$NEXUS_PW"
-          ./gradlew -DflinkVersions= -DsparkVersions=3.5 -DscalaVersion=2.13 -DkafkaVersions= \
-            :iceberg-spark:iceberg-spark-3.5_2.13:publishApachePublicationToMavenRepository \
-            :iceberg-spark:iceberg-spark-extensions-3.5_2.13:publishApachePublicationToMavenRepository \
-            :iceberg-spark:iceberg-spark-runtime-3.5_2.13:publishApachePublicationToMavenRepository \
-            -PmavenUser="$NEXUS_USER" -PmavenPassword="$NEXUS_PW"
+      - name: Stage binaries
+        env:
+          ORG_GRADLE_PROJECT_mavenUser: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingKey: ${{ secrets.GPG_SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingPassword: ${{ secrets.GPG_SIGNING_PASSWORD }}
+        run: ./dev/stage-binaries.sh
+      # transfers the staged repository to the Central Portal, where it must be published manually
+      - name: Transfer staging repository to Central Portal
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: |
+          TOKEN=$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 -w0)
+          curl --fail-with-body -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/com.spiraldb?publishing_type=user_managed"
