@@ -130,8 +130,6 @@ LEFT JOIN iceberg_catalog.db.user_dim /*+ OPTIONS('lookup.full-cache.reload-stra
 
 A reload reads the current snapshot of the dimension table and replaces the loaded cache atomically, so lookups observe either the previous cache or the new one, never a partially loaded cache. A reload that finds no new snapshot is a no-op, and the reload strategies also run once when the lookup function is opened, which is a no-op as well when the cache has not been loaded yet or the snapshot has not changed. Reloads run on the trigger's own thread while lookups keep being served from the previous cache, so they do not block the job; both caches are held in memory until the reload finishes, so peak memory is about twice the cache size. A reload never falls back to the previous cache: if a reload fails, the next lookup fails the job, so a stale cache is never served silently.
 
-Reloading follows `lookup.full-cache.eager-load`: with the default eager loading the first reload is triggered on startup, and with eager loading disabled the cache is loaded on the first lookup and reloaded on the configured schedule from then on.
-
 No reload is configured unless `lookup.full-cache.reload-strategy` is set. The other reload options only configure the strategy selected by it, so setting an interval or a time of day without the strategy has no effect.
 
 Check out all the options here: [lookup-options](flink-configuration.md#lookup-options)
