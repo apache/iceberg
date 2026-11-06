@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -56,9 +57,11 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
@@ -1165,12 +1168,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     @Override
     public Transaction replaceTransaction() {
       Endpoint.check(endpoints, Endpoint.V1_UPDATE_TABLE);
-      if (viewExists(context, ident)) {
-        throw new AlreadyExistsException("View with same name already exists: %s", ident);
-      }
 
-      LoadTableResponse response =
-          loadInternal(context, ident, snapshotMode, LoadContext.empty(), Map.of(), h -> {});
+      LoadTableResponse response;
+      try {
+        response =
+            loadInternal(context, ident, snapshotMode, LoadContext.empty(), Map.of(), h -> {});
+      } catch (NoSuchTableException e) {
+        // a view can only conflict with the table name if the table doesn't exist
+        if (existsIfPermitted(() -> viewExists(context, ident))) {
+          throw new AlreadyExistsException("View with same name already exists: %s", ident);
+        }
+
+        throw e;
+      }
 
       String fullName = fullTableName(ident);
 
@@ -1535,6 +1545,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
   }
 
+  private static boolean existsIfPermitted(BooleanSupplier exists) {
+    try {
+      return exists.getAsBoolean();
+    } catch (ForbiddenException | NotAuthorizedException e) {
+      // a denied probe is treated as no conflict, the server still rejects a conflicting create
+      return false;
+    }
+  }
+
   public void commitTransaction(SessionContext context, List<TableCommit> commits) {
     Endpoint.check(endpoints, Endpoint.V1_COMMIT_TRANSACTION);
     List<UpdateTableRequest> tableChanges = Lists.newArrayListWithCapacity(commits.size());
@@ -1896,11 +1915,18 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     @Override
     public View replace() {
-      if (tableExists(context, identifier)) {
-        throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
+      LoadViewResponse response;
+      try {
+        response = loadView();
+      } catch (NoSuchViewException e) {
+        if (existsIfPermitted(() -> tableExists(context, identifier))) {
+          throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
+        }
+
+        throw e;
       }
 
-      return replace(loadView());
+      return replace(response);
     }
 
     private LoadViewResponse loadView() {
