@@ -36,6 +36,7 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
   private Expression conflictDetectionFilter = Expressions.alwaysTrue();
   private boolean validateNewDataFiles = false;
   private boolean validateNewDeleteFiles = false;
+  private boolean validateNewDeleteFilesForModifiedDataFiles = false;
 
   protected BaseRowDelta(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -123,6 +124,12 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
   }
 
   @Override
+  public RowDelta validateNoConflictingDeleteFilesForModifiedDataFiles() {
+    this.validateNewDeleteFilesForModifiedDataFiles = true;
+    return this;
+  }
+
+  @Override
   public RowDelta toBranch(String branch) {
     targetBranch(branch);
     return this;
@@ -156,7 +163,7 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
         validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
       }
 
-      if (validateNewDeleteFiles) {
+      if (validateNewDeleteFiles || validateNewDeleteFilesForModifiedDataFiles) {
         // validate that explicitly deleted files have not had added deletes
         if (!removedDataFiles.isEmpty()) {
           validateNoNewDeletesForDataFiles(
@@ -164,7 +171,15 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
         }
 
         // validate that previous deletes do not conflict with added deletes
-        validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
+        CharSequenceSet dataFilesWithAddedDeletes =
+            validateNewDeleteFiles ? null : referencedDataFilesOfAddedDeletes();
+        if (dataFilesWithAddedDeletes != null) {
+          // removed data files were validated above
+          validateNoNewDeleteFiles(
+              base, startingSnapshotId, conflictDetectionFilter, dataFilesWithAddedDeletes, parent);
+        } else {
+          validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
+        }
       }
 
       validateNoConflictingFileAndPositionDeletes();
