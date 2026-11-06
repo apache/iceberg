@@ -110,16 +110,41 @@ The following properties configure the table cache used for freshness-aware tabl
 
 Most deployments require authentication, which is specific to the catalog
 service. The following catalog properties configure the potential
-authentication mechanisms: Basic, OAuth2, SigV4, and Google.
+authentication mechanisms: Basic, Bearer, OAuth2, SigV4, and Google.
 
 ### REST auth properties
 
 | Property                             | Default          | Description                                                                                                       |
 |--------------------------------------|------------------|-------------------------------------------------------------------------------------------------------------------|
-| `rest.auth.type`                     | `none`           | Authentication mechanism for REST catalog access. Supported values: `none`, `basic`, `oauth2`, `sigv4`, `google`. |
+| `rest.auth.type`                     | `none`           | Authentication mechanism for REST catalog access. Supported values: `none`, `basic`, `bearer`, `oauth2`, `sigv4`, `google`. |
 | `rest.auth.basic.username`           | null             | Username for Basic authentication. Required if `rest.auth.type` = `basic`.                                        |
 | `rest.auth.basic.password`           | null             | Password for Basic authentication. Required if `rest.auth.type` = `basic`.                                        |
 | `rest.auth.sigv4.delegate-auth-type` | `oauth2`         | Auth type to delegate to after `sigv4` signing.                                                                   |
+
+### Bearer auth properties
+Required and optional properties to include while using `bearer` authentication
+
+The `bearer` auth manager sets an `Authorization: Bearer <token>` header on every request, as defined in
+[RFC 6750](https://www.rfc-editor.org/rfc/rfc6750). It never contacts an authorization server and never refreshes
+the token: obtaining and renewing the token is the responsibility of an external process, such as a Kubernetes
+[projected service account token](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#launch-a-pod-using-service-account-token-projection),
+a sidecar like Vault Agent, or a script.
+
+| Property                                      | Default | Description                                                                                                                                                                  |
+|-----------------------------------------------|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `rest.auth.bearer.token-file`                 | null    | Path to a local file containing the bearer token. The file is re-read periodically. Exactly one of `rest.auth.bearer.token-file` or `rest.auth.bearer.token` is required.    |
+| `rest.auth.bearer.token`                      | null    | A static bearer token. Exactly one of `rest.auth.bearer.token-file` or `rest.auth.bearer.token` is required.                                                                 |
+| `rest.auth.bearer.token-file.reload-interval` | `PT1M`  | How long a token read from the file is used before the file is read again, as an ISO-8601 duration. Must be at least 1 second (`PT1S`).                                      |
+
+The token file must exist and contain a valid token when the catalog is initialized; leading and trailing whitespace is
+removed. Files larger than 256 KiB, and tokens containing characters not allowed by RFC 6750, are rejected. If a later
+reload fails, the last valid token keeps being used: deleting the file does not revoke the token. Symbolic links are
+followed. The file must be present at the same path on every node that accesses the catalog or its tables, e.g. on Spark
+executors when using the S3 remote signer.
+
+!!! warning
+    Prefer `rest.auth.bearer.token-file` over `rest.auth.bearer.token`: a static token cannot be rotated, and is
+    exposed wherever the catalog configuration is.
 
 ### OAuth2 auth properties
 Required and optional properties to include while using `oauth2` authentication
