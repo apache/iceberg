@@ -60,8 +60,7 @@ import org.slf4j.LoggerFactory;
  * instead of serving the previously loaded cache.
  */
 @Internal
-public class IcebergFullCachingLookupFunction extends LookupFunction
-    implements CacheReloadTrigger.Context {
+public class IcebergFullCachingLookupFunction extends LookupFunction {
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergFullCachingLookupFunction.class);
 
@@ -147,7 +146,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction
     }
 
     if (reloadTrigger != null) {
-      reloadTrigger.open(this);
+      reloadTrigger.open(new ReloadContext(this));
     }
   }
 
@@ -195,8 +194,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction
     }
   }
 
-  @Override
-  public CompletableFuture<Void> triggerReload() {
+  private CompletableFuture<Void> triggerReload() {
     if (cache == null || closed) {
       return CompletableFuture.completedFuture(null);
     }
@@ -217,17 +215,6 @@ public class IcebergFullCachingLookupFunction extends LookupFunction
           failure);
       return CompletableFuture.failedFuture(failure);
     }
-  }
-
-  @Override
-  public long currentProcessingTime() {
-    return System.currentTimeMillis();
-  }
-
-  @Override
-  public long currentWatermark() {
-    throw new UnsupportedOperationException(
-        "Watermarks are currently unsupported in cache reload triggers.");
   }
 
   private synchronized void loadCache() throws IOException {
@@ -313,4 +300,23 @@ public class IcebergFullCachingLookupFunction extends LookupFunction
           failure);
     }
   }
+
+  private record ReloadContext(IcebergFullCachingLookupFunction function) implements CacheReloadTrigger.Context {
+
+    @Override
+      public long currentProcessingTime() {
+        return System.currentTimeMillis();
+      }
+
+      @Override
+      public long currentWatermark() {
+        throw new UnsupportedOperationException(
+                "Watermarks are currently unsupported in cache reload triggers.");
+      }
+
+      @Override
+      public CompletableFuture<Void> triggerReload() {
+        return function.triggerReload();
+      }
+    }
 }
