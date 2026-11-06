@@ -18,15 +18,19 @@
  */
 package org.apache.iceberg;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Tasks;
@@ -74,7 +78,7 @@ abstract class FileCleanupStrategy {
    * @param afterExpiration table metadata after snapshot expiration
    * @param cleanupLevel controls which types of files are eligible for deletion
    */
-  public abstract void cleanFiles(
+  public abstract DeleteSummary cleanFiles(
       TableMetadata beforeExpiration,
       TableMetadata afterExpiration,
       ExpireSnapshots.CleanupLevel cleanupLevel);
@@ -104,17 +108,20 @@ abstract class FileCleanupStrategy {
     }
   }
 
-  protected void deleteFiles(Set<String> pathsToDelete, String fileType) {
+  protected void deleteFiles(
+      Set<String> pathsToDelete, DeletedFileType fileType, DeleteSummary summary) {
     if (deleteFunc == null && fileIO instanceof SupportsBulkOperations) {
       try {
         ((SupportsBulkOperations) fileIO).deleteFiles(pathsToDelete);
+        summary.deletedFiles(fileType, pathsToDelete.size());
       } catch (BulkDeletionFailureException e) {
         LOG.warn(
             "Bulk deletion failed for {} of {} {} file(s)",
             e.numberFailedObjects(),
             pathsToDelete.size(),
-            fileType,
+            fileType.displayName(),
             e);
+        summary.deletedFiles(fileType, Math.max(0, pathsToDelete.size() - e.numberFailedObjects()));
       } catch (RuntimeException e) {
         LOG.warn("Bulk deletion failed", e);
       }
@@ -128,8 +135,69 @@ abstract class FileCleanupStrategy {
           .stopOnFailure()
           .suppressFailureWhenFinished()
           .onFailure(
-              (file, thrown) -> LOG.warn("Delete failed for {} file: {}", fileType, file, thrown))
-          .run(deleteFuncToUse::accept);
+              (file, thrown) ->
+                  LOG.warn("Delete failed for {} file: {}", fileType.displayName(), file, thrown))
+          .run(
+              file -> {
+                deleteFuncToUse.accept(file);
+                summary.deletedFiles(fileType, 1);
+              });
+    }
+  }
+
+  protected void deleteContentFiles(Map<String, FileContent> filesToDelete, DeleteSummary summary) {
+    Map<FileContent, Set<String>> pathsByContent =
+        filesToDelete.entrySet().stream()
+            .collect(
+                Collectors.groupingBy(
+                    Map.Entry::getValue,
+                    Collectors.mapping(Map.Entry::getKey, Collectors.toSet())));
+
+    pathsByContent.forEach(
+        (content, paths) -> {
+          DeletedFileType fileType = DeletedFileType.fromContent(content);
+          LOG.debug("Deleting {} {} files", paths.size(), fileType.displayName());
+          deleteFiles(paths, fileType, summary);
+        });
+  }
+
+  enum DeletedFileType {
+    DATA("data"),
+    POSITION_DELETES("position delete"),
+    EQUALITY_DELETES("equality delete"),
+    MANIFEST("manifest"),
+    MANIFEST_LIST("manifest list"),
+    STATISTICS_FILES("statistics files");
+
+    private final String displayName;
+
+    DeletedFileType(String displayName) {
+      this.displayName = displayName;
+    }
+
+    public String displayName() {
+      return displayName;
+    }
+
+    public static DeletedFileType fromContent(FileContent content) {
+      return switch (content) {
+        case DATA -> DATA;
+        case POSITION_DELETES -> POSITION_DELETES;
+        case EQUALITY_DELETES -> EQUALITY_DELETES;
+        default -> throw new ValidationException("Illegal file content: %s", content);
+      };
+    }
+  }
+
+  static class DeleteSummary {
+    private final Map<DeletedFileType, Long> counts = Maps.newConcurrentMap();
+
+    void deletedFiles(DeletedFileType type, int numFiles) {
+      counts.merge(type, (long) numFiles, Long::sum);
+    }
+
+    long count(DeletedFileType type) {
+      return counts.getOrDefault(type, 0L);
     }
   }
 
