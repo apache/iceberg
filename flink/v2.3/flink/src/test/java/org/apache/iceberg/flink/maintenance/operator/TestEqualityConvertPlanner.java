@@ -21,9 +21,14 @@ package org.apache.iceberg.flink.maintenance.operator;
 import static org.apache.iceberg.flink.SimpleDataUtil.createRecord;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +46,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
@@ -51,15 +57,18 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.JsonUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -532,10 +541,26 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
   }
 
   @Test
-  void reEmitsMainDataAfterCompaction() throws Exception {
+  void incrementallyReindexesAfterCompaction() throws Exception {
     Table table = createTableWithDelete(3);
     insert(table, 1, "a");
     insert(table, 2, "b");
+
+    Set<DataFile> oldDataFiles = Sets.newHashSet();
+    for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
+      try (ManifestReader<DataFile> reader =
+          ManifestFiles.read(manifest, table.io(), table.specs())) {
+        for (DataFile df : reader) {
+          oldDataFiles.add(df.copy());
+        }
+      }
+    }
+
+    assertThat(oldDataFiles).hasSize(2);
+
+    // The compaction leaves these files alone, so its delta stays below a rebuild of main.
+    insert(table, 3, "c");
+    insert(table, 4, "d");
 
     table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
     table.refresh();
@@ -550,22 +575,11 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
 
       sendTrigger(harness);
       int firstTriggerCount = harness.extractOutputValues().size();
-      // 2 DATA_FILE (main) + 1 EQ_DELETE_FILE
-      assertThat(firstTriggerCount).isEqualTo(3);
+      // 4 DATA_FILE (main) + 1 EQ_DELETE_FILE
+      assertThat(firstTriggerCount).isEqualTo(5);
+      simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
 
-      // Compact data files on main: rewrite 2 files into 1
-      Set<DataFile> oldDataFiles = Sets.newHashSet();
-      for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
-        try (ManifestReader<DataFile> reader =
-            ManifestFiles.read(manifest, table.io(), table.specs())) {
-          for (DataFile df : reader) {
-            oldDataFiles.add(df.copy());
-          }
-        }
-      }
-
-      assertThat(oldDataFiles).hasSize(2);
-
+      // Compact the two inserted data files on main into one.
       DataFile compactedFile =
           new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
               .writeFile(Lists.newArrayList(createRecord(1, "a"), createRecord(2, "b")));
@@ -587,18 +601,415 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       List<ReadCommand> trigger2Commands =
           allCommands.subList(firstTriggerCount, allCommands.size());
 
-      // 1 DATA_FILE (compacted main) + 1 EQ_DELETE_FILE
-      assertThat(countDataFileTasks(trigger2Commands)).isEqualTo(1);
-      assertThat(countEqDeleteTasks(trigger2Commands)).isEqualTo(1);
-
-      // DATA_FILE should reference the compacted file
-      List<ReadCommand> dataCmds =
+      // The compaction's delta, not a scan of main.
+      Set<String> added =
           trigger2Commands.stream()
+              .filter(c -> c.type() == ReadCommand.Type.DATA_FILE)
+              .map(TestEqualityConvertPlanner::filePath)
+              .collect(Collectors.toSet());
+      Set<String> removed =
+          trigger2Commands.stream()
+              .filter(c -> c.type() == ReadCommand.Type.REMOVED_DATA_FILE)
+              .map(TestEqualityConvertPlanner::filePath)
+              .collect(Collectors.toSet());
+      assertThat(added).containsExactly(compactedFile.location());
+      assertThat(removed)
+          .isEqualTo(oldDataFiles.stream().map(DataFile::location).collect(Collectors.toSet()));
+      assertThat(countDataFileTasks(trigger2Commands)).isEqualTo(3);
+      assertThat(countEqDeleteTasks(trigger2Commands)).isEqualTo(1);
+      assertThat(harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM))
+          .isNullOrEmpty();
+      assertThat(planner(harness).reindexCount()).isZero();
+      assertThat(planner(harness).incrementalReindexCount()).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void rebuildsIndexWhenDeltaReadsMoreRowsThanRebuild() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    DataFile first = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    insert(table, 2, "b");
+    DataFile second = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete1 = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete1).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      sendTrigger(harness);
+      int afterFirst = harness.extractOutputValues().size();
+      simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+
+      // The compaction rewrites all of main: removing and adding its rows reads more than a scan.
+      DataFile compactedFile =
+          new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
+              .writeFile(Lists.newArrayList(createRecord(1, "a"), createRecord(2, "b")));
+      table.newRewrite().deleteFile(first).deleteFile(second).addFile(compactedFile).commit();
+      table.refresh();
+
+      DeleteFile eqDelete2 = writeEqualityDelete(table, 2, "b");
+      table.newRowDelta().addDeletes(eqDelete2).toBranch(STAGING_BRANCH).commit();
+      table.refresh();
+
+      sendTrigger(harness);
+
+      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNullOrEmpty();
+      assertThat(harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM)).hasSize(1);
+      assertThat(planner(harness).reindexCount()).isEqualTo(1);
+      assertThat(planner(harness).incrementalReindexCount()).isZero();
+
+      List<ReadCommand> all = harness.extractOutputValues();
+      List<ReadCommand> trigger2 = all.subList(afterFirst, all.size());
+      assertThat(trigger2).noneMatch(c -> c.type() == ReadCommand.Type.REMOVED_DATA_FILE);
+      assertThat(
+              trigger2.stream()
+                  .filter(c -> c.task() instanceof FileScanTask)
+                  .map(TestEqualityConvertPlanner::filePath)
+                  .collect(Collectors.toSet()))
+          .isEqualTo(liveDataFiles(table));
+    }
+  }
+
+  @Test
+  void reindexSkipsFileAddedAndRemovedInRange() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    insert(table, 3, "c");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete1 = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete1).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      sendTrigger(harness);
+      int afterFirst = harness.extractOutputValues().size();
+      simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+
+      // An append, then a rewrite replacing the appended file. The appended file was never indexed
+      // and is no longer on main, so it needs neither an add nor a removal.
+      DataFile appended = writeDataFile(table, createRecord(2, "b"));
+      table.newAppend().appendFile(appended).commit();
+      DataFile rewritten = writeDataFile(table, createRecord(2, "b"));
+      table.newRewrite().deleteFile(appended).addFile(rewritten).commit();
+      table.refresh();
+
+      DeleteFile eqDelete2 = writeEqualityDelete(table, 2, "b");
+      table.newRowDelta().addDeletes(eqDelete2).toBranch(STAGING_BRANCH).commit();
+      table.refresh();
+
+      sendTrigger(harness);
+      List<ReadCommand> all = harness.extractOutputValues();
+      List<ReadCommand> dataCommands =
+          all.subList(afterFirst, all.size()).stream()
               .filter(c -> c.task() instanceof FileScanTask)
               .collect(Collectors.toList());
-      for (ReadCommand cmd : dataCmds) {
-        assertThat(cmd.task().file().location()).isEqualTo(compactedFile.location());
-      }
+
+      assertThat(dataCommands).hasSize(1);
+      assertThat(dataCommands.get(0).type()).isEqualTo(ReadCommand.Type.DATA_FILE);
+      assertThat(filePath(dataCommands.get(0))).isEqualTo(rewritten.location());
+    }
+  }
+
+  @Test
+  void reindexesExternalCommitBeforeConversionCommit() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+    DataFile removedFile = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete1 = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete1).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+    long s1SnapshotId = table.snapshot(STAGING_BRANCH).snapshotId();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      sendTrigger(harness);
+      int afterFirst = harness.extractOutputValues().size();
+
+      // An external commit lands during the cycle and does not conflict with it: it removes a data
+      // file the cycle's DVs do not reference. The conversion commit lands on top.
+      table.newDelete().deleteFile(removedFile).commit();
+      simulateConvertCommit(table, s1SnapshotId);
+
+      DeleteFile eqDelete2 = writeEqualityDelete(table, 2, "b");
+      table.newRowDelta().addDeletes(eqDelete2).toBranch(STAGING_BRANCH).commit();
+      table.refresh();
+
+      sendTrigger(harness);
+      List<ReadCommand> all = harness.extractOutputValues();
+      List<ReadCommand> dataCommands =
+          all.subList(afterFirst, all.size()).stream()
+              .filter(c -> c.task() instanceof FileScanTask)
+              .collect(Collectors.toList());
+
+      assertThat(dataCommands).hasSize(1);
+      assertThat(dataCommands.get(0).type()).isEqualTo(ReadCommand.Type.REMOVED_DATA_FILE);
+      assertThat(filePath(dataCommands.get(0))).isEqualTo(removedFile.location());
+    }
+  }
+
+  @Test
+  void reindexesCompactionWithoutSummaryFileCounts() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+    DataFile replaced = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    insert(table, 3, "c");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      sendTrigger(harness);
+      int afterFirst = harness.extractOutputValues().size();
+
+      DataFile compacted = writeDataFile(table, createRecord(2, "b"));
+      table.newRewrite().deleteFile(replaced).addFile(compacted).commit();
+      table.refresh();
+      dropSummaryFileCounts(table, table.currentSnapshot().snapshotId());
+
+      sendTrigger(harness);
+      List<ReadCommand> all = harness.extractOutputValues();
+      assertThat(all.subList(afterFirst, all.size()))
+          .filteredOn(c -> c.task() instanceof FileScanTask)
+          .extracting(ReadCommand::type, TestEqualityConvertPlanner::filePath)
+          .containsExactlyInAnyOrder(
+              tuple(ReadCommand.Type.DATA_FILE, compacted.location()),
+              tuple(ReadCommand.Type.REMOVED_DATA_FILE, replaced.location()));
+      assertThat(planner(harness).incrementalReindexCount()).isEqualTo(1);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void convertsEqualityDeleteWithoutSummaryFileCounts(boolean sharedBranch) throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    String branch = sharedBranch ? SnapshotRef.MAIN_BRANCH : STAGING_BRANCH;
+    if (!sharedBranch) {
+      table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+      table.refresh();
+    }
+
+    DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(branch).commit();
+    table.refresh();
+    dropSummaryFileCounts(table, table.snapshot(branch).snapshotId());
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness = createHarness(branch)) {
+      harness.open();
+      sendTrigger(harness);
+
+      assertThat(countEqDeleteTasks(harness.extractOutputValues())).isEqualTo(1);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void skipsSnapshotThatReportsNoAddedFiles(boolean sharedBranch) throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    String branch = sharedBranch ? SnapshotRef.MAIN_BRANCH : STAGING_BRANCH;
+    if (!sharedBranch) {
+      table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+      table.refresh();
+    }
+
+    DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(branch).commit();
+    table.refresh();
+    // The summary reports all its counts, so it decides without reading the manifest list.
+    setSummaryFileCounts(
+        table,
+        table.snapshot(branch).snapshotId(),
+        ImmutableMap.of(
+            SnapshotSummary.ADDED_FILES_PROP, "0", SnapshotSummary.ADDED_DELETE_FILES_PROP, "0"));
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness = createHarness(branch)) {
+      harness.open();
+      sendTrigger(harness);
+
+      assertThat(countEqDeleteTasks(harness.extractOutputValues())).isZero();
+      assertThat(planner(harness).skippedNoOpCycles()).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void skipsSharedBranchSnapshotThatReportsNoEqualityDeletes() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).commit();
+    table.refresh();
+    setSummaryFileCounts(
+        table,
+        table.currentSnapshot().snapshotId(),
+        ImmutableMap.of(
+            SnapshotSummary.ADDED_DELETE_FILES_PROP,
+            "1",
+            SnapshotSummary.ADD_EQ_DELETE_FILES_PROP,
+            "0"));
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(SnapshotRef.MAIN_BRANCH)) {
+      harness.open();
+      sendTrigger(harness);
+
+      assertThat(countEqDeleteTasks(harness.extractOutputValues())).isZero();
+    }
+  }
+
+  @Test
+  void skipsExternalCommitThatReportsNoFileChanges() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+    DataFile replaced = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    insert(table, 3, "c");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      sendTrigger(harness);
+      int afterFirst = harness.extractOutputValues().size();
+
+      DataFile compacted = writeDataFile(table, createRecord(2, "b"));
+      table.newRewrite().deleteFile(replaced).addFile(compacted).commit();
+      table.refresh();
+      setSummaryFileCounts(
+          table,
+          table.currentSnapshot().snapshotId(),
+          ImmutableMap.of(
+              SnapshotSummary.ADDED_FILES_PROP,
+              "0",
+              SnapshotSummary.ADDED_DELETE_FILES_PROP,
+              "0",
+              SnapshotSummary.DELETED_FILES_PROP,
+              "0"));
+
+      sendTrigger(harness);
+
+      assertThat(harness.extractOutputValues()).hasSize(afterFirst);
+      assertThat(planner(harness).incrementalReindexCount()).isZero();
+    }
+  }
+
+  @Test
+  void failsOnEqualityDeleteLeakedOntoTargetBranch() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete1 = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete1).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      sendTrigger(harness);
+      simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+
+      // An unconverted equality delete on a separate target branch.
+      table.newRowDelta().addDeletes(writeEqualityDelete(table, 1, "a")).commit();
+
+      DeleteFile eqDelete2 = writeEqualityDelete(table, 2, "b");
+      table.newRowDelta().addDeletes(eqDelete2).toBranch(STAGING_BRANCH).commit();
+      table.refresh();
+
+      sendTrigger(harness);
+
+      List<StreamRecord<Exception>> errOutput =
+          Lists.newArrayList(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM));
+      assertThat(errOutput).hasSize(1);
+      assertThat(errOutput.get(0).getValue())
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("adds an equality delete file");
+    }
+  }
+
+  @Test
+  void rebuildsIndexWhenIndexedSnapshotExpired() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    DataFile insertedFile = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete1 = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete1).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      sendTrigger(harness);
+      long indexedSnapshot = table.currentSnapshot().snapshotId();
+      int afterFirst = harness.extractOutputValues().size();
+      simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+
+      // A compaction, then expiration of the indexed snapshot. The conversion commit on top of it
+      // survives, but the commits after the indexed snapshot can no longer be walked.
+      DataFile compactedFile = writeDataFile(table, createRecord(1, "a"));
+      table.newRewrite().deleteFile(insertedFile).addFile(compactedFile).commit();
+      table.expireSnapshots().expireSnapshotId(indexedSnapshot).commit();
+      table.refresh();
+      assertThat(table.snapshot(indexedSnapshot)).isNull();
+
+      DeleteFile eqDelete2 = writeEqualityDelete(table, 2, "b");
+      table.newRowDelta().addDeletes(eqDelete2).toBranch(STAGING_BRANCH).commit();
+      table.refresh();
+
+      sendTrigger(harness);
+
+      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNullOrEmpty();
+      assertThat(harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM)).hasSize(1);
+      assertThat(planner(harness).reindexCount()).isEqualTo(1);
+
+      // The rebuild reads every live data file and removes none.
+      List<ReadCommand> all = harness.extractOutputValues();
+      List<ReadCommand> trigger2 = all.subList(afterFirst, all.size());
+      assertThat(trigger2).noneMatch(c -> c.type() == ReadCommand.Type.REMOVED_DATA_FILE);
+      assertThat(
+              trigger2.stream()
+                  .filter(c -> c.task() instanceof FileScanTask)
+                  .map(TestEqualityConvertPlanner::filePath)
+                  .collect(Collectors.toSet()))
+          .isEqualTo(liveDataFiles(table));
     }
   }
 
@@ -837,7 +1248,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
   }
 
   @Test
-  void rebuildsIndexAfterRestoreWhenExternalCommitIsBelowConversionCommit() throws Exception {
+  void appliesExternalCommitBelowConversionCommitAfterRestore() throws Exception {
     Table table = createTableWithDelete(3);
     insert(table, 1, "a");
 
@@ -850,6 +1261,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
     long s1SnapshotId = table.snapshot(STAGING_BRANCH).snapshotId();
 
     OperatorSubtaskState state;
+    DataFile externalFile;
     try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
         createHarness(STAGING_BRANCH)) {
       harness.open();
@@ -860,6 +1272,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
 
       // An external commit lands, the planner indexes it and the second cycle commits S1 on top.
       insert(table, 2, "b");
+      externalFile = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
       sendTrigger(harness);
       assertThat(planner(harness).reindexCount()).isEqualTo(1);
       simulateConvertCommit(table, s1SnapshotId);
@@ -870,13 +1283,15 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       harness.initializeState(state);
       harness.open();
 
-      // The newest conversion commit is for the planned snapshot, but the external commit below it
-      // is not in the restored index.
+      // The newest conversion commit is for the planned snapshot. The external commit below it is
+      // not in the restored index, so the planner applies it as a delta.
       sendTrigger(harness);
 
-      // Two inserts plus simulateConvertCommit's marker file = 3 data files on the target.
-      assertThat(countDataFileTasks(harness.extractOutputValues())).isEqualTo(3);
-      assertThat(planner(harness).reindexCount()).isEqualTo(1);
+      assertThat(harness.extractOutputValues())
+          .filteredOn(cmd -> cmd.task() instanceof FileScanTask)
+          .extracting(TestEqualityConvertPlanner::filePath)
+          .containsExactly(externalFile.location());
+      assertThat(planner(harness).reindexCount()).isZero();
     }
   }
 
@@ -969,6 +1384,83 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
   }
 
   @Test
+  void repeatsDeltaThatFailed() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      sendTrigger(harness);
+
+      // An external append with an unreadable manifest makes the delta fail.
+      DataFile externalFile = writeDataFile(table, createRecord(2, "b"));
+      table.newAppend().appendFile(externalFile).commit();
+      table.refresh();
+      long appendSnapshotId = table.currentSnapshot().snapshotId();
+      List<File> manifests =
+          table.currentSnapshot().dataManifests(table.io()).stream()
+              .filter(manifest -> manifest.snapshotId() == appendSnapshotId)
+              .map(manifest -> new File(manifest.path().replace("file:", "")))
+              .collect(Collectors.toList());
+      hide(manifests);
+
+      sendTrigger(harness);
+      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
+      restore(manifests);
+      int afterSecond = harness.extractOutputValues().size();
+
+      // The target has not moved, but the failed delta is repeated.
+      sendTrigger(harness);
+      List<ReadCommand> all = harness.extractOutputValues();
+      assertThat(all.subList(afterSecond, all.size()))
+          .filteredOn(c -> c.task() instanceof FileScanTask)
+          .extracting(TestEqualityConvertPlanner::filePath)
+          .containsExactly(externalFile.location());
+    }
+  }
+
+  @Test
+  void appliesDeltaAfterRestore() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    OperatorSubtaskState state;
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      sendTrigger(harness);
+      state = harness.snapshot(1, System.currentTimeMillis());
+    }
+
+    // An external commit lands while the job is down.
+    DataFile externalFile = writeDataFile(table, createRecord(2, "b"));
+    table.newAppend().appendFile(externalFile).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.initializeState(state);
+      harness.open();
+
+      sendTrigger(harness);
+
+      assertThat(harness.extractOutputValues())
+          .extracting(TestEqualityConvertPlanner::filePath)
+          .containsExactly(externalFile.location());
+      assertThat(planner(harness).reindexCount()).isZero();
+    }
+  }
+
+  @Test
   void noMainReEmitAfterOwnCommit() throws Exception {
     Table table = createTableWithDelete(3);
     insert(table, 1, "a");
@@ -1033,6 +1525,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       assertThat(planner(harness).reindexCount()).isZero();
       assertThat(planner(harness).processedStagingSnapshotNum()).isEqualTo(1);
       assertThat(planner(harness).processedEqDeleteFileNum()).isEqualTo(1);
+      simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
 
       // External commit: no COMMITTED_STAGING_SNAPSHOT_PROPERTY
       DataFile externalFile =
@@ -1050,10 +1543,13 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       List<ReadCommand> trigger2Commands =
           allCommands.subList(firstTriggerCount, allCommands.size());
 
-      // External commit triggers re-index: main data files are re-emitted
-      assertThat(countDataFileTasks(trigger2Commands)).isGreaterThan(0);
+      // The external commit is applied as a delta: only its data file is read.
+      assertThat(trigger2Commands)
+          .filteredOn(c -> c.task() instanceof FileScanTask)
+          .extracting(TestEqualityConvertPlanner::filePath)
+          .containsExactly(externalFile.location());
       assertThat(countEqDeleteTasks(trigger2Commands)).isEqualTo(1);
-      assertThat(planner(harness).reindexCount()).isEqualTo(1);
+      assertThat(planner(harness).reindexCount()).isZero();
       assertThat(planner(harness).processedStagingSnapshotNum()).isEqualTo(2);
       assertThat(planner(harness).processedEqDeleteFileNum()).isEqualTo(2);
     }
@@ -1080,8 +1576,8 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       assertThat(harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM))
           .isNullOrEmpty();
 
-      // External commit advances main. The next trigger reindexes and must broadcast CLEAR_INDEX
-      // so workers evict ghost keys (e.g. a PK whose data file was removed by external CoW).
+      // The first cycle did not commit, so the next trigger rebuilds the index and must broadcast
+      // CLEAR_INDEX so workers evict keys the rebuild does not re-add.
       DataFile externalFile =
           new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
               .writeFile(Lists.newArrayList(createRecord(10, "z")));
@@ -1140,15 +1636,18 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       table.refresh();
 
       // Trigger 2: nothing new on staging, but the planner must still notice the
-      // external main change and immediately re-emit main data for index rebuild.
+      // external main change and apply it to the index: only its data file is read.
       sendTrigger(harness);
       List<ReadCommand> allAfterTrigger2 = harness.extractOutputValues();
       List<ReadCommand> trigger2Commands =
           allAfterTrigger2.subList(afterFirst, allAfterTrigger2.size());
-      assertThat(countDataFileTasks(trigger2Commands)).isGreaterThan(0);
+      assertThat(trigger2Commands)
+          .filteredOn(c -> c.task() instanceof FileScanTask)
+          .extracting(TestEqualityConvertPlanner::filePath)
+          .containsExactly(externalFile.location());
 
       // A subsequent staging eq delete should NOT re-emit main data because the index
-      // was already rebuilt in trigger 2.
+      // was already updated in trigger 2.
       int afterSecond = allAfterTrigger2.size();
       DeleteFile eqDelete2 = writeEqualityDelete(table, 10, "z");
       table.newRowDelta().addDeletes(eqDelete2).toBranch(STAGING_BRANCH).commit();
@@ -1495,6 +1994,39 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
     return commands.stream().filter(c -> c.task() instanceof FileScanTask).count();
   }
 
+  // Keeps only the operation in the summary of the snapshot, like a writer that leaves the file
+  // counts out.
+  private static void dropSummaryFileCounts(Table table, long snapshotId) throws IOException {
+    setSummaryFileCounts(table, snapshotId, ImmutableMap.of());
+  }
+
+  // Keeps only the operation and the given counts in the summary of the snapshot. The planner reads
+  // the rewritten metadata file on its next refresh.
+  private static void setSummaryFileCounts(Table table, long snapshotId, Map<String, String> counts)
+      throws IOException {
+    String location = ((HasTableOperations) table).operations().current().metadataFileLocation();
+    ObjectNode metadata;
+    try (InputStream in = table.io().newInputFile(location).newStream()) {
+      metadata = (ObjectNode) JsonUtil.mapper().readTree(in);
+    }
+
+    for (JsonNode snapshot : metadata.get("snapshots")) {
+      if (snapshot.get("snapshot-id").asLong() == snapshotId) {
+        ObjectNode summary = (ObjectNode) snapshot.get("summary");
+        summary.retain("operation");
+        counts.forEach(summary::put);
+      }
+    }
+
+    try (OutputStream out = table.io().newOutputFile(location).createOrOverwrite()) {
+      JsonUtil.mapper().writeValue(out, metadata);
+    }
+
+    assertThat(TableMetadataParser.read(table.io(), location).snapshot(snapshotId).summary())
+        .hasSize(counts.size())
+        .containsAllEntriesOf(counts);
+  }
+
   // Keeps the operator state entries that the version before the stateVersion entry wrote.
   private static OperatorSubtaskState stateOfOlderVersion(OperatorSubtaskState state) {
     Set<String> olderStateNames =
@@ -1528,6 +2060,20 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
 
   private static String filePath(ReadCommand cmd) {
     return cmd.task().file().location();
+  }
+
+  private static Set<String> liveDataFiles(Table table) throws IOException {
+    Set<String> locations = Sets.newHashSet();
+    for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
+      try (ManifestReader<DataFile> reader =
+          ManifestFiles.read(manifest, table.io(), table.specs())) {
+        for (DataFile dataFile : reader) {
+          locations.add(dataFile.location());
+        }
+      }
+    }
+
+    return locations;
   }
 
   private void simulateConvertCommit(Table table, long stagingSnapshotId) throws IOException {
