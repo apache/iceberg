@@ -27,10 +27,10 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.HasReferencedFiles;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.ScanTask;
@@ -44,11 +44,13 @@ import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.DeleteLoader;
 import org.apache.iceberg.deletes.DeleteCounter;
 import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.SparkExecutorCache;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
@@ -69,18 +71,16 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(BaseReader.class);
 
   private final Table table;
-  private final EncryptingFileIO fileIO;
   private final Schema expectedSchema;
   private final boolean caseSensitive;
   private final NameMapping nameMapping;
-  private final ScanTaskGroup<TaskT> taskGroup;
   private final Iterator<TaskT> tasks;
   private final DeleteCounter counter;
   private final boolean cacheDeleteFilesOnExecutors;
   // nanos, not millis: a single split can be read in well under a millisecond
   private long scanDurationNanos = 0L;
 
-  private Map<String, InputFile> lazyInputFiles;
+  private final InputFilesDecryptor inputFilesDecryptor;
   private CloseableIterator<T> currentIterator;
   private T current = null;
   private TaskT currentTask = null;
@@ -93,8 +93,6 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
     this.table = table;
-    this.fileIO = EncryptingFileIO.combine(fileIO, table().encryption());
-    this.taskGroup = taskGroup;
     this.tasks = taskGroup.tasks().iterator();
     this.currentIterator = CloseableIterator.empty();
     this.expectedSchema = expectedSchema;
@@ -104,11 +102,12 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
     this.counter = new DeleteCounter();
     this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
+    this.inputFilesDecryptor =
+        InputFilesDecryptor.fromTasks(
+            taskGroup.tasks(), EncryptingFileIO.combine(fileIO, table.encryption()));
   }
 
   protected abstract CloseableIterator<T> open(TaskT task);
-
-  protected abstract Stream<ContentFile<?>> referencedFiles(TaskT task);
 
   protected Schema expectedSchema() {
     return expectedSchema;
@@ -156,11 +155,10 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         }
       }
     } catch (IOException | RuntimeException e) {
-      if (currentTask != null && !currentTask.isDataTask()) {
+      if (currentTask instanceof HasReferencedFiles referencing && !currentTask.isDataTask()) {
         String filePaths =
-            referencedFiles(currentTask)
-                .map(ContentFile::location)
-                .collect(Collectors.joining(", "));
+            String.join(
+                ", ", Iterables.transform(referencing.referencedFiles(), ContentFile::location));
         LOG.error("Error reading file(s): {}", filePaths, e);
       }
       throw e;
@@ -187,17 +185,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   }
 
   protected InputFile getInputFile(String location) {
-    return inputFiles().get(location);
-  }
-
-  private Map<String, InputFile> inputFiles() {
-    if (lazyInputFiles == null) {
-      this.lazyInputFiles =
-          fileIO.bulkDecrypt(
-              () -> taskGroup.tasks().stream().flatMap(this::referencedFiles).iterator());
-    }
-
-    return lazyInputFiles;
+    return inputFilesDecryptor.getInputFile(location);
   }
 
   protected Map<Integer, ?> constantsMap(ContentScanTask<?> task, Schema readSchema) {

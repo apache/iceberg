@@ -19,6 +19,8 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.ScanTaskUtil;
 
 /**
@@ -41,7 +43,8 @@ import org.apache.iceberg.util.ScanTaskUtil;
  * <p>Readers consuming these tasks should produce added records with metadata like change ordinal
  * and commit snapshot ID.
  */
-public interface AddedRowsScanTask extends ChangelogScanTask, ContentScanTask<DataFile> {
+public interface AddedRowsScanTask
+    extends ChangelogScanTask, ContentScanTask<DataFile>, HasReferencedFiles {
   /**
    * A list of {@link DeleteFile delete files} to apply when reading the data file in this task.
    *
@@ -62,5 +65,10 @@ public interface AddedRowsScanTask extends ChangelogScanTask, ContentScanTask<Da
   @Override
   default int filesCount() {
     return 1 + deletes().size();
+  }
+
+  @Override
+  default Iterable<ContentFile<?>> referencedFiles() {
+    return Iterables.concat(ImmutableList.of(file()), deletes());
   }
 }
