@@ -139,7 +139,7 @@ public class TestDynamoDbCatalog {
             .collect(Collectors.toList());
     catalog.createNamespace(parent);
     namespaceList.forEach(ns -> catalog.createNamespace(ns));
-    assertThat(catalog.listNamespaces(parent)).hasSize(4);
+    assertThat(catalog.listNamespaces(parent)).containsExactlyInAnyOrderElementsOf(namespaceList);
   }
 
   @Test
