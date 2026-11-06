@@ -80,15 +80,6 @@ info:
       advertise the protocol features they support, and servers MUST NOT infer
       from it which features a client supports. Servers advertise the
       endpoints they support in the `endpoints` field of the config response.
-    - Servers MAY refuse specific operations when the header identifies a
-      client version known to be incompatible or unsafe, for example a library
-      version known to emit corrupt statistics. This applies only to a header
-      that names such a version. It is not an exception to the first rule: a
-      header that is absent, incomplete, or malformed is still not a reason to
-      refuse a request. A server that refuses SHOULD return the standard error
-      response with status 400 and a message that names the refused version.
-      Because the value is client-asserted, this is a coarse, best-effort
-      safeguard, not an access-control or capability-negotiation mechanism.
 servers:
   - url: "{scheme}://{host}/{basePath}"
     description: Server URL when the port can be inferred from the scheme
