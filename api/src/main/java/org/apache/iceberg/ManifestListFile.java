@@ -21,6 +21,10 @@ package org.apache.iceberg;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.encryption.EncryptionManager;
 
+/**
+ * @deprecated since 1.13.0, will be removed in 2.0.0; use {@link FileWithEncryptedKey} instead.
+ */
+@Deprecated
 public interface ManifestListFile {
 
   /** Location of manifest list file. */

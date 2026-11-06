@@ -50,6 +50,7 @@ public class SnapshotParser {
   private static final String OPERATION = "operation";
   private static final String MANIFESTS = "manifests";
   private static final String MANIFEST_LIST = "manifest-list";
+  private static final String ROOT_MANIFEST = "root-manifest";
   private static final String SCHEMA_ID = "schema-id";
   private static final String FIRST_ROW_ID = "first-row-id";
   private static final String ADDED_ROWS = "added-rows";
@@ -87,11 +88,16 @@ public class SnapshotParser {
       // write just the location. manifests should not be embedded in JSON along with a list
       generator.writeStringField(MANIFEST_LIST, manifestList);
     } else {
-      // embed the manifest list in the JSON, v1 only
-      JsonUtil.writeStringArray(
-          MANIFESTS,
-          Iterables.transform(snapshot.allManifests(DUMMY_FILE_IO), ManifestFile::path),
-          generator);
+      String rootManifest = snapshot.rootManifestLocation();
+      if (rootManifest != null) {
+        generator.writeStringField(ROOT_MANIFEST, rootManifest);
+      } else {
+        // embed the manifest list in the JSON, v1 only
+        JsonUtil.writeStringArray(
+            MANIFESTS,
+            Iterables.transform(snapshot.allManifests(DUMMY_FILE_IO), ManifestFile::path),
+            generator);
+      }
     }
 
     // schema ID might be null for snapshots written by old writers
@@ -176,9 +182,11 @@ public class SnapshotParser {
 
     String keyId = JsonUtil.getStringOrNull(KEY_ID, node);
 
-    if (node.has(MANIFEST_LIST)) {
-      // the manifest list is stored in a manifest list file
-      String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
+    String manifestList = JsonUtil.getStringOrNull(MANIFEST_LIST, node);
+    String rootManifest = JsonUtil.getStringOrNull(ROOT_MANIFEST, node);
+
+    if (manifestList != null || rootManifest != null) {
+      // manifest-list is used by v1-v3 snapshots, root-manifest by v4 snapshots
       return new BaseSnapshot(
           sequenceNumber,
           snapshotId,
@@ -188,6 +196,7 @@ public class SnapshotParser {
           summary,
           schemaId,
           manifestList,
+          rootManifest,
           firstRowId,
           addedRows,
           keyId);

@@ -18,8 +18,11 @@
  */
 package org.apache.iceberg.encryption;
 
+import java.nio.ByteBuffer;
+import org.apache.iceberg.FileWithEncryptedKey;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,5 +47,14 @@ public class PlaintextEncryptionManager implements EncryptionManager {
   @Override
   public EncryptedOutputFile encrypt(OutputFile rawOutput) {
     return EncryptedFiles.encryptedOutput(rawOutput, EncryptionKeyMetadata.empty());
+  }
+
+  @Override
+  public ByteBuffer decryptKeyMetadata(FileWithEncryptedKey file) {
+    Preconditions.checkState(
+        file.keyId() == null && file.encryptedKey() == null,
+        "Cannot decrypt key metadata of file %s: no encryption has been configured",
+        file.location());
+    return null;
   }
 }

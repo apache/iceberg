@@ -18,32 +18,26 @@
  */
 package org.apache.iceberg;
 
-import java.io.Serializable;
-import java.nio.ByteBuffer;
-import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.EncryptedKey;
 
-class BaseManifestListFile implements ManifestListFile, Serializable {
-  private final String location;
-  private final String encryptionKeyID;
+/**
+ * A file that may be encrypted using an {@link EncryptedKey}.
+ *
+ * <p>The encrypted key is either referenced by its ID from the table metadata encryption keys, or
+ * stored directly with the file's metadata that describe the file. If neither is present, the file
+ * is not encrypted.
+ */
+public interface FileWithEncryptedKey {
 
-  BaseManifestListFile(String location, String encryptionKeyID) {
-    this.location = location;
-    this.encryptionKeyID = encryptionKeyID;
-  }
+  /** Returns the location of the file. */
+  String location();
 
-  @Override
-  public String location() {
-    return location;
-  }
+  /** Returns the length of the file in bytes, or null if unknown. */
+  Long length();
 
-  @Override
-  public String encryptionKeyID() {
-    return encryptionKeyID;
-  }
+  /** Returns the ID of the encrypted key in table metadata, or null if not set. */
+  String keyId();
 
-  @Override
-  public ByteBuffer decryptKeyMetadata(EncryptionManager em) {
-    return EncryptionUtil.decryptManifestListKeyMetadata(this, em);
-  }
+  /** Returns the encrypted key stored directly with the file, or null if not set. */
+  EncryptedKey encryptedKey();
 }

@@ -25,6 +25,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.FileWithEncryptedKey;
 import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
@@ -142,7 +143,10 @@ public class EncryptionUtil {
    * @param manifestList a ManifestListFile
    * @param em the table's EncryptionManager
    * @return a decrypted key metadata buffer
+   * @deprecated since 1.13.0, will be removed in 2.0.0; use {@link
+   *     EncryptionManager#decryptKeyMetadata(FileWithEncryptedKey)} instead.
    */
+  @Deprecated
   public static ByteBuffer decryptManifestListKeyMetadata(
       ManifestListFile manifestList, EncryptionManager em) {
     Preconditions.checkState(
@@ -152,11 +156,19 @@ public class EncryptionUtil {
     String manifestListKeyId = manifestList.encryptionKeyID();
     Map<String, EncryptedKey> encryptionKeys = sem.encryptionKeys();
     EncryptedKey manifestListKey = encryptionKeys.get(manifestListKeyId);
-    ByteBuffer encryptedKeyMetadata = manifestListKey.encryptedKeyMetadata();
-    String keyEncryptionKeyID = manifestListKey.encryptedById();
-    ByteBuffer keyEncryptionKey = sem.encryptedByKey(manifestListKeyId);
+    Preconditions.checkState(
+        manifestListKey != null,
+        "Cannot find manifest list key metadata with id %s",
+        manifestListKeyId);
+    return decryptKeyMetadata(manifestListKey, sem);
+  }
+
+  static ByteBuffer decryptKeyMetadata(EncryptedKey encryptedKey, StandardEncryptionManager sem) {
+    ByteBuffer encryptedKeyMetadata = encryptedKey.encryptedKeyMetadata();
+    String keyEncryptionKeyID = encryptedKey.encryptedById();
+    ByteBuffer keyEncryptionKey = sem.encryptedByKey(encryptedKey);
     String keyEncryptionKeyTimestamp =
-        encryptionKeys
+        sem.encryptionKeys()
             .get(keyEncryptionKeyID)
             .properties()
             .get(StandardEncryptionManager.KEY_TIMESTAMP);
@@ -184,22 +196,22 @@ public class EncryptionUtil {
   }
 
   /**
-   * Encrypts the key metadata for a manifest list.
+   * Encrypts an encryption key metadata.
    *
    * @param key key encryption key bytes
    * @param keyTimestamp timestamp of the key encryption key
-   * @param mlkMetadata manifest list key metadata
+   * @param keyMetadata key metadata
    * @return encrypted key metadata
    */
-  static ByteBuffer encryptManifestListKeyMetadata(
-      ByteBuffer key, String keyTimestamp, EncryptionKeyMetadata mlkMetadata) {
+  static ByteBuffer encryptKeyMetadata(
+      ByteBuffer key, String keyTimestamp, EncryptionKeyMetadata keyMetadata) {
     Ciphers.AesGcmEncryptor encryptor = new Ciphers.AesGcmEncryptor(ByteBuffers.toByteArray(key));
-    byte[] mlkMetadataBytes = ByteBuffers.toByteArray(mlkMetadata.buffer());
+    byte[] keyMetadataBytes = ByteBuffers.toByteArray(keyMetadata.buffer());
 
     // Use key encryption key timestamp as AES GCM signature (AAD) of encryption - in order to
     // prevent timestamp tampering attacks
     byte[] encryptedKeyMetadata =
-        encryptor.encrypt(mlkMetadataBytes, keyTimestamp.getBytes(StandardCharsets.UTF_8));
+        encryptor.encrypt(keyMetadataBytes, keyTimestamp.getBytes(StandardCharsets.UTF_8));
 
     return ByteBuffer.wrap(encryptedKeyMetadata);
   }

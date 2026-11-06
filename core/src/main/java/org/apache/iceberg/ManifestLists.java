@@ -32,7 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 class ManifestLists {
   private ManifestLists() {}
 
-  static InputFile newInputFile(FileIO io, ManifestListFile manifestList) {
+  static InputFile newInputFile(FileIO io, FileWithEncryptedKey manifestList) {
     InputFile input = io.newInputFile(manifestList);
     if (ManifestFiles.cachingEnabled(io)) {
       return ManifestFiles.contentCache(io).tryCache(input);
