@@ -1059,6 +1059,36 @@ acceptedBreaks:
         new: "method void org.apache.iceberg.io.PositionDeltaWriter<T>::delete(java.lang.CharSequence,\
         \ long, org.apache.iceberg.PartitionSpec, org.apache.iceberg.StructLike)"
         justification: "Removing deprecations for 1.13.0"
+      - code: "java.method.parameterTypeChanged"
+        old: "parameter org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DeleteFile> org.apache.iceberg.RewriteTablePathUtil::rewriteDeleteManifest(org.apache.iceberg.ManifestFile, ===java.util.Set<java.lang.Long>===, org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.FileIO, int, java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>, java.lang.String, java.lang.String, java.lang.String) throws java.io.IOException"
+        new: "parameter org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DeleteFile> org.apache.iceberg.RewriteTablePathUtil::rewriteDeleteManifest(org.apache.iceberg.ManifestFile, ===org.apache.iceberg.io.OutputFile===, org.apache.iceberg.io.FileIO, int, java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>, java.lang.String, java.lang.String, java.lang.String, java.util.Map<java.lang.String, java.lang.Long>) throws java.io.IOException"
+        justification: "Deprecated overload was removed for 1.13.0; the new overload with\
+          \ the same arity is an addition"
+      - code: "java.method.parameterTypeChanged"
+        old: "parameter org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DeleteFile> org.apache.iceberg.RewriteTablePathUtil::rewriteDeleteManifest(org.apache.iceberg.ManifestFile, java.util.Set<java.lang.Long>, ===org.apache.iceberg.io.OutputFile===, org.apache.iceberg.io.FileIO, int, java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>, java.lang.String, java.lang.String, java.lang.String) throws java.io.IOException"
+        new: "parameter org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DeleteFile> org.apache.iceberg.RewriteTablePathUtil::rewriteDeleteManifest(org.apache.iceberg.ManifestFile, org.apache.iceberg.io.OutputFile, ===org.apache.iceberg.io.FileIO===, int, java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>, java.lang.String, java.lang.String, java.lang.String, java.util.Map<java.lang.String, java.lang.Long>) throws java.io.IOException"
+        justification: "Deprecated overload was removed for 1.13.0; the new overload with\
+          \ the same arity is an addition"
+      - code: "java.method.parameterTypeChanged"
+        old: "parameter org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DeleteFile> org.apache.iceberg.RewriteTablePathUtil::rewriteDeleteManifest(org.apache.iceberg.ManifestFile, java.util.Set<java.lang.Long>, org.apache.iceberg.io.OutputFile, ===org.apache.iceberg.io.FileIO===, int, java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>, java.lang.String, java.lang.String, java.lang.String) throws java.io.IOException"
+        new: "parameter org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DeleteFile> org.apache.iceberg.RewriteTablePathUtil::rewriteDeleteManifest(org.apache.iceberg.ManifestFile, org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.FileIO, ===int===, java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>, java.lang.String, java.lang.String, java.lang.String, java.util.Map<java.lang.String, java.lang.Long>) throws java.io.IOException"
+        justification: "Deprecated overload was removed for 1.13.0; the new overload with\
+          \ the same arity is an addition"
+      - code: "java.method.parameterTypeChanged"
+        old: "parameter org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DeleteFile> org.apache.iceberg.RewriteTablePathUtil::rewriteDeleteManifest(org.apache.iceberg.ManifestFile, java.util.Set<java.lang.Long>, org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.FileIO, ===int===, java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>, java.lang.String, java.lang.String, java.lang.String) throws java.io.IOException"
+        new: "parameter org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DeleteFile> org.apache.iceberg.RewriteTablePathUtil::rewriteDeleteManifest(org.apache.iceberg.ManifestFile, org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.FileIO, int, ===java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>===, java.lang.String, java.lang.String, java.lang.String, java.util.Map<java.lang.String, java.lang.Long>) throws java.io.IOException"
+        justification: "Deprecated overload was removed for 1.13.0; the new overload with\
+          \ the same arity is an addition"
+      - code: "java.method.parameterTypeChanged"
+        old: "parameter org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DeleteFile> org.apache.iceberg.RewriteTablePathUtil::rewriteDeleteManifest(org.apache.iceberg.ManifestFile, java.util.Set<java.lang.Long>, org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.FileIO, int, ===java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>===, java.lang.String, java.lang.String, java.lang.String) throws java.io.IOException"
+        new: "parameter org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DeleteFile> org.apache.iceberg.RewriteTablePathUtil::rewriteDeleteManifest(org.apache.iceberg.ManifestFile, org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.FileIO, int, java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>, ===java.lang.String===, java.lang.String, java.lang.String, java.util.Map<java.lang.String, java.lang.Long>) throws java.io.IOException"
+        justification: "Deprecated overload was removed for 1.13.0; the new overload with\
+          \ the same arity is an addition"
+      - code: "java.method.parameterTypeChanged"
+        old: "parameter org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DeleteFile> org.apache.iceberg.RewriteTablePathUtil::rewriteDeleteManifest(org.apache.iceberg.ManifestFile, java.util.Set<java.lang.Long>, org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.FileIO, int, java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>, java.lang.String, java.lang.String, ===java.lang.String===) throws java.io.IOException"
+        new: "parameter org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DeleteFile> org.apache.iceberg.RewriteTablePathUtil::rewriteDeleteManifest(org.apache.iceberg.ManifestFile, org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.FileIO, int, java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>, java.lang.String, java.lang.String, java.lang.String, ===java.util.Map<java.lang.String, java.lang.Long>===) throws java.io.IOException"
+        justification: "Deprecated overload was removed for 1.13.0; the new overload with\
+          \ the same arity is an addition"
       - code: "java.method.removed"
         old: "method java.lang.String org.apache.iceberg.encryption.StandardEncryptionManager::addManifestListKeyMetadata(org.apache.iceberg.encryption.NativeEncryptionKeyMetadata)"
         justification: "Removing deprecations for 1.13.0"
