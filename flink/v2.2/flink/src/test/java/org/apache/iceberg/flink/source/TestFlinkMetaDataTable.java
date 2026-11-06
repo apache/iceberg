@@ -612,6 +612,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     assertThat(metadataLog.getField("latest_snapshot_id")).isNull();
     assertThat(metadataLog.getField("latest_schema_id")).isNull();
     assertThat(metadataLog.getField("latest_sequence_number")).isNull();
+    assertThat(metadataLog.getField("properties")).isEqualTo(tableMetadata.properties());
 
     metadataLog = metadataLogs.get(1);
     assertThat(metadataLog.getField("timestamp"))
@@ -621,6 +622,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     assertThat(metadataLog.getField("latest_schema_id")).isEqualTo(parentSnapshot.schemaId());
     assertThat(metadataLog.getField("latest_sequence_number"))
         .isEqualTo(parentSnapshot.sequenceNumber());
+    assertThat(metadataLog.getField("properties")).isEqualTo(tableMetadata.properties());
     assertThat(metadataLog.getField("latest_snapshot_id")).isEqualTo(parentSnapshot.snapshotId());
 
     metadataLog = metadataLogs.get(2);
@@ -632,6 +634,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     assertThat(metadataLog.getField("latest_schema_id")).isEqualTo(currentSnapshot.schemaId());
     assertThat(metadataLog.getField("latest_sequence_number"))
         .isEqualTo(currentSnapshot.sequenceNumber());
+    assertThat(metadataLog.getField("properties")).isEqualTo(tableMetadata.properties());
 
     // test filtering
     List<Row> metadataLogWithFilters =
@@ -650,6 +653,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
         .isEqualTo(tableMetadata.currentSnapshot().schemaId());
     assertThat(metadataLog.getField("latest_sequence_number"))
         .isEqualTo(tableMetadata.currentSnapshot().sequenceNumber());
+    assertThat(metadataLog.getField("properties")).isEqualTo(tableMetadata.properties());
 
     // test projection
     List<String> metadataFiles =
@@ -663,6 +667,23 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     for (int i = 0; i < metadataFiles.size(); i++) {
       assertThat(metadataLogWithProjection.get(i).getField("file")).isEqualTo(metadataFiles.get(i));
     }
+  }
+
+  @TestTemplate
+  public void testMetadataLogEntriesPropertyHistory() {
+    sql("ALTER TABLE %s SET ('key'='v0')", TABLE_NAME);
+    sql("INSERT INTO %s VALUES (5, 'c', 30)", TABLE_NAME);
+    sql("ALTER TABLE %s SET ('key'='v1')", TABLE_NAME);
+    sql("INSERT INTO %s VALUES (6, 'd', 40)", TABLE_NAME);
+
+    List<Row> propertyHistory =
+        sql(
+            "SELECT properties['key'] FROM %s$metadata_log_entries "
+                + "WHERE properties['key'] IN ('v0', 'v1')",
+            TABLE_NAME);
+    assertThat(propertyHistory)
+        .extracting(row -> row.getField(0))
+        .containsExactly("v0", "v0", "v1", "v1");
   }
 
   @TestTemplate
