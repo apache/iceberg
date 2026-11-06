@@ -484,6 +484,37 @@ public class TestHiveViewCommits {
   }
 
   @Test
+  void noLockConcurrentModificationErrorAfterSuccessfulCommit()
+      throws TException, InterruptedException {
+    HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
+    ViewMetadata metadataV1 = ops.current();
+
+    view.updateProperties().set("k1", "v1").commit();
+    ops.refresh();
+    ViewMetadata metadataV2 = ops.current();
+
+    HiveViewOperations spyOps = spy(ops);
+    doReturn(new NoLock()).when(spyOps).lockObject();
+
+    // Simulate the HMS client retrying an alter that was already applied
+    doAnswer(
+            i -> {
+              Table tbl = i.getArgument(0, Table.class);
+              String location = i.getArgument(2, String.class);
+              ops.persistTable(tbl, true, location);
+              throw new RuntimeException(
+                  "MetaException(message:The table has been modified. The parameter value for key 'metadata_location' is");
+            })
+        .when(spyOps)
+        .persistTable(any(), anyBoolean(), any());
+
+    spyOps.commit(metadataV2, metadataV1);
+
+    ops.refresh();
+    assertThat(ops.current().metadataFileLocation()).isEqualTo(metadataV1.metadataFileLocation());
+  }
+
+  @Test
   public void testLockExceptionUnknownSuccessCommit() throws TException, InterruptedException {
     HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
     ViewMetadata metadataV1 = ops.current();
