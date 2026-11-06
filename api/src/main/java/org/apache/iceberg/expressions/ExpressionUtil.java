@@ -243,6 +243,24 @@ public class ExpressionUtil {
       return ((NamedReference<?>) term).name();
     } else if (term instanceof BoundReference) {
       return ((BoundReference<?>) term).name();
+    } else if (term instanceof UnboundExtract) {
+      UnboundExtract<?> unboundExtract = (UnboundExtract<?>) term;
+      return "extract("
+          + describe(unboundExtract.ref())
+          + ", "
+          + unboundExtract.path()
+          + ", "
+          + unboundExtract.type()
+          + ")";
+    } else if (term instanceof BoundExtract) {
+      BoundExtract<?> boundExtract = (BoundExtract<?>) term;
+      return "extract("
+          + describe(boundExtract.ref())
+          + ", "
+          + boundExtract.path()
+          + ", "
+          + boundExtract.type()
+          + ")";
     } else {
       throw new UnsupportedOperationException("Unsupported term: " + term);
     }
@@ -254,6 +272,9 @@ public class ExpressionUtil {
       return Expressions.transform(bound.ref().name(), bound.transform());
     } else if (term instanceof BoundReference) {
       return Expressions.ref(((BoundReference<T>) term).name());
+    } else if (term instanceof BoundExtract) {
+      BoundExtract<T> bound = (BoundExtract<T>) term;
+      return Expressions.extract(bound.ref().name(), bound.path(), bound.type().toString());
     }
 
     throw new UnsupportedOperationException("Cannot unbind unsupported term: " + term);

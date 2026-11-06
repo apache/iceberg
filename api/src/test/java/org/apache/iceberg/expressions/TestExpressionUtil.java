@@ -374,6 +374,96 @@ public class TestExpressionUtil {
   }
 
   @Test
+  public void testSanitizeExtractTerm() {
+    Expression sanitized =
+        ExpressionUtil.sanitize(
+            Expressions.equal(Expressions.extract("var", "$.city", "string"), "Boston"));
+    assertThat(sanitized).isInstanceOf(UnboundPredicate.class);
+    UnboundPredicate<?> pred = (UnboundPredicate<?>) sanitized;
+    assertThat(pred.term()).isInstanceOf(UnboundExtract.class);
+    assertThat(pred.op()).isEqualTo(Expression.Operation.EQ);
+    assertThat(pred.literal().value().toString()).startsWith("(hash-").endsWith(")");
+
+    Expression boundSanitized =
+        ExpressionUtil.sanitize(
+            STRUCT,
+            Expressions.equal(Expressions.extract("var", "$.city", "string"), "Boston"),
+            true);
+    assertThat(boundSanitized).isInstanceOf(UnboundPredicate.class);
+    UnboundPredicate<?> boundPred = (UnboundPredicate<?>) boundSanitized;
+    assertThat(boundPred.term()).isInstanceOf(UnboundExtract.class);
+
+    assertThat(
+            ExpressionUtil.toSanitizedString(
+                Expressions.equal(Expressions.extract("var", "$.city", "string"), "Boston")))
+        .as("Sanitized string for extract term")
+        .startsWith("extract(var, $['city'], string) = (hash-")
+        .endsWith(")");
+
+    // Bound extract uses normalized path $['city'] in describe output
+    assertThat(
+            ExpressionUtil.toSanitizedString(
+                STRUCT,
+                Expressions.equal(Expressions.extract("var", "$.city", "string"), "Boston"),
+                true))
+        .as("Sanitized string for extract term (bound)")
+        .startsWith("extract(var, $['city'], string) = (hash-")
+        .endsWith(")");
+  }
+
+  @Test
+  public void testUnbindBoundExtract() {
+    Expression boundExpr =
+        Expressions.greaterThan(Expressions.extract("var", "$.city", "string"), "Boston")
+            .bind(STRUCT, true);
+    UnboundTerm<?> unbound = ExpressionUtil.unbind(((BoundPredicate<?>) boundExpr).term());
+    assertThat(unbound).isInstanceOf(UnboundExtract.class);
+    UnboundExtract<?> extract = (UnboundExtract<?>) unbound;
+    assertThat(extract.ref().name()).isEqualTo("var");
+    assertThat(extract.path()).isEqualTo("$['city']");
+    assertThat(extract.type().toString()).isEqualTo("string");
+  }
+
+  @Test
+  public void testUnbindBoundExtractBracketStyle() {
+    Expression boundExpr =
+        Expressions.greaterThan(Expressions.extract("var", "$['user.name']", "string"), "x")
+            .bind(STRUCT, true);
+    UnboundTerm<?> unbound = ExpressionUtil.unbind(((BoundPredicate<?>) boundExpr).term());
+    assertThat(unbound).isInstanceOf(UnboundExtract.class);
+    UnboundExtract<?> extract = (UnboundExtract<?>) unbound;
+    assertThat(extract.ref().name()).isEqualTo("var");
+    assertThat(extract.path()).isEqualTo("$['user.name']");
+    assertThat(extract.type().toString()).isEqualTo("string");
+  }
+
+  @Test
+  public void testUnbindBoundExtractMixedStyle() {
+    Expression boundExpr =
+        Expressions.greaterThan(Expressions.extract("var", "$.a['b.c']", "long"), 1L)
+            .bind(STRUCT, true);
+    UnboundTerm<?> unbound = ExpressionUtil.unbind(((BoundPredicate<?>) boundExpr).term());
+    assertThat(unbound).isInstanceOf(UnboundExtract.class);
+    UnboundExtract<?> extract = (UnboundExtract<?>) unbound;
+    assertThat(extract.ref().name()).isEqualTo("var");
+    assertThat(extract.path()).isEqualTo("$['a']['b.c']");
+    assertThat(extract.type().toString()).isEqualTo("long");
+  }
+
+  @Test
+  public void testUnbindBoundExtractArrayIndex() {
+    Expression boundExpr =
+        Expressions.greaterThan(Expressions.extract("var", "$.items[0].tags[1]", "long"), 100L)
+            .bind(STRUCT, true);
+    UnboundTerm<?> unbound = ExpressionUtil.unbind(((BoundPredicate<?>) boundExpr).term());
+    assertThat(unbound).isInstanceOf(UnboundExtract.class);
+    UnboundExtract<?> extract = (UnboundExtract<?>) unbound;
+    assertThat(extract.ref().name()).isEqualTo("var");
+    assertThat(extract.path()).isEqualTo("$['items'][0]['tags'][1]");
+    assertThat(extract.type().toString()).isEqualTo("long");
+  }
+
+  @Test
   public void testSanitizeTransformedTerm() {
     assertEquals(
         Expressions.equal(Expressions.truncate("test", 2), "(2-digit-int)"),
