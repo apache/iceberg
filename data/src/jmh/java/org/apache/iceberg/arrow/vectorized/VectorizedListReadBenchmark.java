@@ -19,7 +19,6 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -80,12 +79,8 @@ import org.openjdk.jmh.infra.Blackhole;
 public class VectorizedListReadBenchmark {
   private static final Schema SCHEMA =
       new Schema(
-          required(1, "id", Types.LongType.get()),
-          optional(2, "name", Types.StringType.get()),
-          optional(3, "intList", Types.ListType.ofOptional(4, Types.IntegerType.get())),
-          optional(5, "strList", Types.ListType.ofOptional(6, Types.StringType.get())));
-
-  private static final Schema PROJECTION = SCHEMA.select("intList", "strList");
+          optional(1, "intList", Types.ListType.ofOptional(2, Types.IntegerType.get())),
+          optional(3, "strList", Types.ListType.ofOptional(4, Types.StringType.get())));
 
   private static final int BATCH_SIZE = 5_000;
   private static final long SEED = -1L;
@@ -138,7 +133,6 @@ public class VectorizedListReadBenchmark {
                 FileFormat.PARQUET,
                 ColumnarBatch.class,
                 org.apache.iceberg.Files.localInput(testFile))
-            .project(PROJECTION)
             .recordsPerBatch(BATCH_SIZE)
             .build()) {
       for (ColumnarBatch batch : batches) {
@@ -157,9 +151,7 @@ public class VectorizedListReadBenchmark {
   public void readRowByRow(Blackhole blackhole) throws IOException {
     try (CloseableIterable<Record> records =
         Parquet.read(org.apache.iceberg.Files.localInput(testFile))
-            .project(PROJECTION)
-            .createReaderFunc(
-                fileSchema -> GenericParquetReaders.buildReader(PROJECTION, fileSchema))
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(SCHEMA, fileSchema))
             .build()) {
       for (Record record : records) {
         List<?> intList = (List<?>) record.get(0);

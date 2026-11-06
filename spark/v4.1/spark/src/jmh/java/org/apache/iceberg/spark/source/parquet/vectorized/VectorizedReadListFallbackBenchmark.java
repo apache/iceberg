@@ -44,8 +44,7 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 
 /**
- * Benchmark comparing vectorized and row-by-row Parquet reads of a wide schema that includes a list
- * column.
+ * Benchmark comparing vectorized and row-by-row Parquet reads focusing on lists
  *
  * <p>To run this benchmark for spark-4.1: <code>
  *   ./gradlew -DsparkVersions=4.1 :iceberg-spark:iceberg-spark-4.1_2.13:jmh \
@@ -53,15 +52,15 @@ import org.openjdk.jmh.annotations.Threads;
  *       -PjmhOutputPath=benchmark/results.txt
  * </code>
  */
-public class VectorizedReadListFallbackBenchmark extends IcebergSourceBenchmark {
+public abstract class VectorizedReadListFallbackBenchmark extends IcebergSourceBenchmark {
 
-  private static final int NUM_INT_COLUMNS = 999;
   private static final String LIST_COLUMN = "list_col";
   private static final int BATCH_SIZE = 5000;
   private static final int NUM_FILES = 1;
   private static final int NUM_ROWS_PER_FILE = 10_000;
 
-  private static final String[] INT_COLUMNS = intColumnNames();
+  /** Number of int columns next to the list column; called from the superclass constructor. */
+  protected abstract int numIntColumns();
 
   @Setup
   public void setupBenchmark() {
@@ -82,16 +81,19 @@ public class VectorizedReadListFallbackBenchmark extends IcebergSourceBenchmark 
 
   @Override
   protected Table initTable() {
-    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(NUM_INT_COLUMNS + 1);
-    for (int i = 0; i < NUM_INT_COLUMNS; i++) {
-      fields.add(optional(i + 1, INT_COLUMNS[i], Types.IntegerType.get()));
+    int numIntColumns = numIntColumns();
+    String[] intColumns = intColumnNames(numIntColumns);
+    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(numIntColumns + 1);
+
+    for (int i = 0; i < numIntColumns; i++) {
+      fields.add(optional(i + 1, intColumns[i], Types.IntegerType.get()));
     }
-    // One unsupported-for-vectorization column: a list of ints.
+
     fields.add(
         optional(
-            NUM_INT_COLUMNS + 1,
+            numIntColumns + 1,
             LIST_COLUMN,
-            Types.ListType.ofOptional(NUM_INT_COLUMNS + 2, Types.IntegerType.get())));
+            Types.ListType.ofOptional(numIntColumns + 2, Types.IntegerType.get())));
     Schema schema = new Schema(fields);
 
     PartitionSpec partitionSpec = PartitionSpec.unpartitioned();
@@ -106,13 +108,17 @@ public class VectorizedReadListFallbackBenchmark extends IcebergSourceBenchmark 
   }
 
   private void appendData() {
+    int numIntColumns = numIntColumns();
+    String[] intColumns = intColumnNames(numIntColumns);
+
     for (int fileNum = 0; fileNum < NUM_FILES; fileNum++) {
-      Column[] columns = new Column[NUM_INT_COLUMNS + 1];
-      for (int i = 0; i < NUM_INT_COLUMNS; i++) {
-        columns[i] = col("id").plus(i).cast("int").as(INT_COLUMNS[i]);
+      Column[] columns = new Column[numIntColumns + 1];
+
+      for (int i = 0; i < numIntColumns; i++) {
+        columns[i] = col("id").plus(i).cast("int").as(intColumns[i]);
       }
-      // Small list so the 999 int columns dominate the read cost being measured.
-      columns[NUM_INT_COLUMNS] =
+
+      columns[numIntColumns] =
           array(col("id").cast("int"), col("id").plus(1).cast("int")).as(LIST_COLUMN);
 
       Dataset<Row> df = spark().range(NUM_ROWS_PER_FILE).select(columns);
@@ -137,7 +143,6 @@ public class VectorizedReadListFallbackBenchmark extends IcebergSourceBenchmark 
     withTableProperties(
         vectorizationProps(true),
         () -> {
-          // The list column is vectorized along with the 999 int columns.
           Dataset<Row> df = spark().read().format("iceberg").load(table().location());
           materialize(df);
         });
@@ -150,11 +155,27 @@ public class VectorizedReadListFallbackBenchmark extends IcebergSourceBenchmark 
     return properties;
   }
 
-  private static String[] intColumnNames() {
-    String[] names = new String[NUM_INT_COLUMNS];
-    for (int i = 0; i < NUM_INT_COLUMNS; i++) {
+  private static String[] intColumnNames(int count) {
+    String[] names = new String[count];
+    for (int i = 0; i < count; i++) {
       names[i] = "int_" + i;
     }
     return names;
+  }
+
+  /** Only the list column. */
+  public static class ListOnly extends VectorizedReadListFallbackBenchmark {
+    @Override
+    protected int numIntColumns() {
+      return 0;
+    }
+  }
+
+  /** The list column plus 999 int columns. */
+  public static class WideSchema extends VectorizedReadListFallbackBenchmark {
+    @Override
+    protected int numIntColumns() {
+      return 999;
+    }
   }
 }
