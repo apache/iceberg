@@ -142,7 +142,8 @@ public class AllManifestsTable extends BaseMetadataTable {
                       io,
                       schema(),
                       specs,
-                      new BaseManifestListFile(snap.manifestListLocation(), snap.keyId()),
+                      new BaseFileWithEncryptedKey(
+                          snap.manifestListLocation(), null, snap.keyId(), null),
                       residual,
                       snap.snapshotId());
                 } else {
@@ -165,7 +166,7 @@ public class AllManifestsTable extends BaseMetadataTable {
     private final FileIO io;
     private final Schema schema;
     private final Map<Integer, PartitionSpec> specs;
-    private final ManifestListFile manifestList;
+    private final FileWithEncryptedKey manifestList;
     private final Expression residual;
     private final long referenceSnapshotId;
     private DataFile lazyDataFile = null;
@@ -175,7 +176,7 @@ public class AllManifestsTable extends BaseMetadataTable {
         FileIO io,
         Schema schema,
         Map<Integer, PartitionSpec> specs,
-        ManifestListFile manifestList,
+        FileWithEncryptedKey manifestList,
         Expression residual,
         long referenceSnapshotId) {
       this.dataTableSchema = dataTableSchema;
@@ -276,7 +277,7 @@ public class AllManifestsTable extends BaseMetadataTable {
       return specs;
     }
 
-    ManifestListFile manifestList() {
+    FileWithEncryptedKey manifestList() {
       return manifestList;
     }
 
