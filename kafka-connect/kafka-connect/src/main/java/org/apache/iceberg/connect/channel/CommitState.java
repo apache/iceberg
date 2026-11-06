@@ -137,10 +137,16 @@ class CommitState {
   }
 
   Map<TableReference, List<Envelope>> tableCommitMap() {
+    // Group by table name only. Workers older than 1.11 send no table uuid, and splitting one table
+    // into a group with and a group without the uuid lets the offsets stored by the first group's
+    // commit filter out the second group's files. The uuid of each event is checked on commit.
     return commitBuffer.stream()
         .collect(
             Collectors.groupingBy(
-                envelope -> ((DataWritten) envelope.event().payload()).tableReference()));
+                envelope -> {
+                  TableReference ref = ((DataWritten) envelope.event().payload()).tableReference();
+                  return TableReference.of(ref.catalog(), ref.identifier(), null);
+                }));
   }
 
   OffsetDateTime validThroughTs(boolean partialCommit) {
