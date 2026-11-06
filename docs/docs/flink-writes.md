@@ -516,7 +516,7 @@ We need the following information (DynamicRecord) for every record:
 | `Parallelism`      | The maximum number of parallel writers for a given table/branch/schema/spec (WriteTarget). |
 | `UpsertMode`       | Overrides this table's write.upsert.enabled (optional).                                   |
 | `EqualityFields`   | The equality fields for the table (optional). When unset, the dynamic sink falls back to the schema's identifier fields for both distribution (records sharing a key route to the same writer) and equality-delete inference. Identifier fields do not auto-enable upsert mode — that flag remains opt-in. |
-| `DistributionFields` | The fields to hash records by when the distribution mode is `HASH` (optional). When set, they replace the partition key and equality fields as the hash key. Ignored for other distribution modes. |
+| `DistributionFields` | The fields to hash records by when the distribution mode is `HASH` (optional). When set, they replace the partition key and equality fields as the hash key. If equality fields are set, the distribution fields must be a subset of them. The same applies to the schema's identifier fields if equality fields are unset. Ignored for other distribution modes. |
 
 ### Schema Evolution
 
@@ -586,7 +586,7 @@ The `DistributionMode` set on each `DynamicRecord` controls how that record is r
 | Mode   | Behavior                                                                                                                                                                                     |
 |--------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `NONE` | Records are distributed across writer subtasks in a round-robin fashion (or by equality fields if set).                                                                                      |
-| `HASH` | Records are distributed by the distribution fields if set, otherwise by partition key (partitioned tables) or equality fields (unpartitioned tables). Ensures that records for the same partition are handled by the same writer subtask. |
+| `HASH` | Records are distributed by the distribution fields if set, otherwise by partition key (partitioned tables) or equality fields (unpartitioned tables). Without distribution fields, records for the same partition are handled by the same writer subtask. |
 | `null` | Forward mode: bypasses distribution entirely and sends records directly via a forward edge (see below).                                                                                      |
 
 #### Forward Mode
