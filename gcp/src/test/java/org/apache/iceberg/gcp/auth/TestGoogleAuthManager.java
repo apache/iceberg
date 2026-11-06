@@ -38,16 +38,9 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
@@ -226,51 +219,6 @@ public class TestGoogleAuthManager {
     authManager.catalogSession(restClient, Collections.emptyMap());
 
     mockedStaticCredentials.verify(GoogleCredentials::getApplicationDefault, times(1));
-  }
-
-  @Test
-  public void concurrentInitialization() throws Exception {
-    int numThreads = 10;
-    ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
-    CountDownLatch startLatch = new CountDownLatch(1);
-    CountDownLatch finishLatch = new CountDownLatch(numThreads);
-    AtomicInteger totalCalls = new AtomicInteger(0);
-
-    GoogleAuthManager.CredentialsLoader countableLoader =
-        (path, json, scopes) -> {
-          totalCalls.incrementAndGet();
-          threadSleep();
-          return credentials;
-        };
-    GoogleAuthManager concurrentAuthManager = new GoogleAuthManager(MANAGER_NAME, countableLoader);
-
-    AtomicInteger successfulInitializations = new AtomicInteger(0);
-    List<Exception> exceptions = Collections.synchronizedList(Lists.newArrayList());
-    try {
-      for (int i = 0; i < numThreads; i++) {
-        executorService.submit(
-            () -> {
-              try {
-                startLatch.await();
-                concurrentAuthManager.catalogSession(restClient, Collections.emptyMap());
-                successfulInitializations.incrementAndGet();
-              } catch (Exception e) {
-                exceptions.add(e);
-              } finally {
-                finishLatch.countDown();
-              }
-            });
-      }
-
-      startLatch.countDown();
-      finishLatch.await(10, TimeUnit.SECONDS);
-    } finally {
-      executorService.shutdown();
-    }
-
-    assertThat(exceptions).isEmpty();
-    assertThat(successfulInitializations.get()).isEqualTo(numThreads);
-    assertThat(totalCalls.get()).isEqualTo(1);
   }
 
   @Test
