@@ -45,6 +45,7 @@ case class IcebergShowCreateV2ViewExec(output: Seq[Attribute], quotedName: Strin
     showComment(view, builder)
     showCollation(view, builder)
     showProperties(view, builder)
+    showSchemaMode(view, builder)
     builder ++= s"AS\n${view.queryText}\n"
 
     Seq(toCatalystRow(builder.toString))
@@ -83,6 +84,14 @@ case class IcebergShowCreateV2ViewExec(output: Seq[Attribute], quotedName: Strin
 
       builder ++= "TBLPROPERTIES "
       builder ++= concatByMultiLines(props)
+    }
+  }
+
+  private def showSchemaMode(view: View, builder: StringBuilder): Unit = {
+    if (conf.viewSchemaBindingEnabled) {
+      Option(view.schemaMode)
+        .map("WITH SCHEMA " + _ + "\n")
+        .foreach(builder.append)
     }
   }
 
