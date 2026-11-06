@@ -188,8 +188,8 @@ class TestIcebergLookupJoinSql extends TestSqlBase {
                 dimRecord(3L, "carol", "guangzhou"))));
 
     TableEnvironment streamEnv = getStreamingTableEnv();
-    // The probe keeps emitting randomized keys for a few seconds, so the reload has time to pick
-    // up the snapshot appended below before the probe ends.
+    // The probe emits randomized keys until the test stops it, so the reload has time to pick up
+    // the snapshot appended below.
     createRepeatingOrdersTable(streamEnv, "orders_reload_new_snapshot", 10);
 
     String joinSql =
@@ -211,7 +211,7 @@ class TestIcebergLookupJoinSql extends TestSqlBase {
 
       long deadline = System.currentTimeMillis() + RELOAD_TIMEOUT_MS;
       boolean reloaded = false;
-      while (!reloaded && System.currentTimeMillis() < deadline && iter.hasNext()) {
+      while (!reloaded && System.currentTimeMillis() < deadline) {
         reloaded = "henry".equals(iter.next().getField(1));
       }
 
@@ -404,7 +404,6 @@ class TestIcebergLookupJoinSql extends TestSqlBase {
             + "  proc_time AS PROCTIME()\n"
             + ") WITH (\n"
             + "  'connector' = 'datagen',\n"
-            + "  'number-of-rows' = '150',\n"
             + "  'fields.user_id.kind' = 'random',\n"
             + "  'fields.user_id.min' = '1',\n"
             + "  'fields.user_id.max' = '%d',\n"
