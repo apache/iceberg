@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.flink.sink.IcebergFilesCommitter.MAX_CONTINUOUS_EMPTY_COMMITS;
 import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -771,6 +772,85 @@ public class TestIcebergFilesCommitter extends TestBase {
       SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1), branch);
       assertMaxCommittedCheckpointId(jobId, operatorId, checkpoint);
       assertFlinkManifests(0);
+    }
+  }
+
+  @TestTemplate
+  void deleteFileWithPreviousSpecAppliesToRowsOfThatSpec() throws Exception {
+    assumeThat(formatVersion)
+        .as("Only support equality-delete in format v2 or later.")
+        .isGreaterThan(1);
+
+    PartitionSpec previousSpec = table.spec();
+    RowData row2 = SimpleDataUtil.createInsert(2, "bbb");
+    commitInNewHarness(
+        WriteResult.builder()
+            .addDataFiles(
+                writeDataFile(
+                    "data-file-1", ImmutableList.of(SimpleDataUtil.createInsert(1, "aaa"), row2)))
+            .build(),
+        10);
+
+    table.refresh();
+    table.updateSpec().addField(bucket("id", 4)).commit();
+    DeleteFile deleteFile =
+        SimpleDataUtil.writeEqDeleteFile(
+            table,
+            previousSpec,
+            "delete-file-1",
+            createWriterFactory(),
+            ImmutableList.of(SimpleDataUtil.createDelete(1, "aaa")));
+    commitInNewHarness(WriteResult.builder().addDeleteFiles(deleteFile).build(), 11);
+
+    SimpleDataUtil.assertTableRows(table, ImmutableList.of(row2), branch);
+  }
+
+  private void commitInNewHarness(WriteResult result, long checkpoint) throws Exception {
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(new JobID())) {
+      harness.setup();
+      harness.open();
+      harness.processElement(new FlinkWriteResult(checkpoint, result), checkpoint);
+      harness.snapshot(checkpoint, checkpoint + 1);
+      harness.notifyOfCompletedCheckpoint(checkpoint);
+    }
+  }
+
+  @TestTemplate
+  void deleteFileForRemovedSpecDoesNotFailCommit() throws Exception {
+    assumeThat(formatVersion)
+        .as("Only support equality-delete in format v2 or later.")
+        .isGreaterThan(1);
+
+    PartitionSpec removedSpec = table.spec();
+    table.updateSpec().addField(bucket("id", 4)).commit();
+    FileWriterFactory<RowData> writerFactory = createWriterFactory();
+    DeleteFile deleteFile =
+        SimpleDataUtil.writeEqDeleteFile(
+            table,
+            removedSpec,
+            "delete-file-1",
+            writerFactory,
+            ImmutableList.of(SimpleDataUtil.createDelete(1, "aaa")));
+    long timestamp = 0;
+    long checkpoint = 10;
+    JobID jobId = new JobID();
+
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobId)) {
+      harness.setup();
+      harness.open();
+      OperatorID operatorId = harness.getOperator().getOperatorID();
+      table.expireSnapshots().cleanExpiredMetadata(true).commit();
+
+      harness.processElement(
+          new FlinkWriteResult(
+              checkpoint, WriteResult.builder().addDeleteFiles(deleteFile).build()),
+          ++timestamp);
+      harness.snapshot(checkpoint, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpoint);
+
+      assertMaxCommittedCheckpointId(jobId, operatorId, checkpoint);
     }
   }
 

@@ -185,6 +185,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       String operatorId)
       throws IOException {
     long checkpointId = commitRequestMap.lastKey();
+    table.refresh();
     List<ManifestFile> manifests = Lists.newArrayList();
     NavigableMap<Long, WriteResult> pendingResults = Maps.newTreeMap();
     for (Map.Entry<Long, CommitRequest<IcebergCommittable>> e : commitRequestMap.entrySet()) {

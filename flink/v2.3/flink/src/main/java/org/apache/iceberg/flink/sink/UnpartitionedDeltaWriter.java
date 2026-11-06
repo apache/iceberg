@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
@@ -43,7 +44,8 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
       RowType flinkSchema,
       Set<Integer> equalityFieldIds,
       boolean upsert,
-      boolean useDv) {
+      boolean useDv,
+      Map<Integer, PartitionSpec> tableSpecs) {
     super(
         spec,
         format,
@@ -55,7 +57,8 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
         flinkSchema,
         equalityFieldIds,
         upsert,
-        useDv);
+        useDv,
+        tableSpecs);
     this.writer = new RowDataDeltaWriter(null, dvFileWriter());
   }
 

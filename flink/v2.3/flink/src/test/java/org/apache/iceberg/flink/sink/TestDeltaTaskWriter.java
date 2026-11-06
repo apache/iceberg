@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.flink.SimpleDataUtil.createDelete;
 import static org.apache.iceberg.flink.SimpleDataUtil.createInsert;
 import static org.apache.iceberg.flink.SimpleDataUtil.createRecord;
@@ -51,9 +52,11 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestBase;
 import org.apache.iceberg.TestHelpers;
@@ -371,6 +374,107 @@ public class TestDeltaTaskWriter extends TestBase {
     expectedRecord.setField("ts", start.withNano(cutPrecisionNano));
 
     assertThat(actualRowSet("*")).isEqualTo(expectedRowSet(expectedRecord));
+  }
+
+  @TestTemplate
+  void upsertReplacesRowWrittenWithPreviousSpec() throws IOException {
+    this.table = create(SCHEMA, PartitionSpec.builderFor(SCHEMA).bucket("id", 2).build());
+    initTable(table);
+    RowType flinkType = FlinkSchemaUtil.convert(table.schema());
+    Set<Integer> equalityFieldIds = Sets.newHashSet(idFieldId());
+    writeAndCommit(
+        createTaskWriterFactory(flinkType, equalityFieldIds),
+        createInsert(1, "aaa"),
+        createInsert(2, "bbb"));
+
+    table.updateSpec().removeField("id_bucket").addField("id_bucket_4", bucket("id", 4)).commit();
+    writeAndCommit(createTaskWriterFactory(flinkType, equalityFieldIds), createInsert(1, "ccc"));
+
+    assertThat(actualRowSet("*"))
+        .isEqualTo(expectedRowSet(createRecord(1, "ccc"), createRecord(2, "bbb")));
+  }
+
+  @TestTemplate
+  void deleteRemovesRowWrittenWithPreviousSpec() throws IOException {
+    createAndInitTable(false);
+    Set<Integer> equalityFieldIds = Sets.newHashSet(idFieldId());
+    writeAndCommit(
+        createTaskWriterFactory(equalityFieldIds), createInsert(1, "aaa"), createInsert(2, "bbb"));
+
+    table.updateSpec().addField(bucket("id", 4)).commit();
+    writeAndCommit(createTaskWriterFactory(equalityFieldIds), createDelete(1, "aaa"));
+
+    assertThat(actualRowSet("*")).isEqualTo(expectedRowSet(createRecord(2, "bbb")));
+  }
+
+  @TestTemplate
+  void deleteKeepsRowsWithSameKeyInOtherPartitions() throws IOException {
+    createAndInitTable(false);
+    table.updateSpec().addField("data").commit();
+    Set<Integer> equalityFieldIds = Sets.newHashSet(idFieldId());
+    writeAndCommit(
+        createTaskWriterFactory(equalityFieldIds), createInsert(1, "aaa"), createInsert(1, "bbb"));
+
+    table.updateSpec().removeField("data").addField(bucket("id", 4)).commit();
+    writeAndCommit(createTaskWriterFactory(equalityFieldIds), createDelete(1, "aaa"));
+
+    assertThat(actualRowSet("*"))
+        .isEqualTo(expectedRowSet(createRecord(1, "aaa"), createRecord(1, "bbb")));
+  }
+
+  @TestTemplate
+  void upsertWithWriterSchemaOlderThanTable() throws IOException {
+    Schema intSchema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()));
+    this.table = create(intSchema, PartitionSpec.builderFor(intSchema).identity("id").build());
+    initTable(table);
+    writeAndCommit(
+        createTaskWriterFactory(FlinkSchemaUtil.convert(intSchema), Sets.newHashSet(1)),
+        createInsert(1, "aaa"));
+    table.updateSchema().updateColumn("id", Types.LongType.get()).commit();
+    table.updateSpec().removeField("id").addField(bucket("id", 4)).commit();
+
+    Table serializableTable = SerializableTable.copyOf(table);
+    writeAndCommit(
+        new RowDataTaskWriterFactory(
+            () -> serializableTable,
+            FlinkSchemaUtil.convert(intSchema),
+            128 * 1024 * 1024,
+            format,
+            table.properties(),
+            Sets.newHashSet(1),
+            true,
+            intSchema,
+            PartitionSpecParser.fromJson(intSchema, PartitionSpecParser.toJson(table.spec()))),
+        createInsert(1, "bbb"));
+
+    assertThat(actualRowSet("*")).hasSize(2);
+  }
+
+  @TestTemplate
+  void cancelledInsertKeepsCommittedRowsWithSameKey() throws IOException {
+    createAndInitTable(false);
+    Set<Integer> equalityFieldIds = Sets.newHashSet(dataFieldId());
+    writeAndCommit(createTaskWriterFactory(equalityFieldIds), createInsert(1, "aaa"));
+
+    table.updateSpec().addField(bucket("data", 4)).commit();
+    writeAndCommit(
+        createTaskWriterFactory(equalityFieldIds), createInsert(2, "aaa"), createDelete(2, "aaa"));
+
+    assertThat(actualRowSet("*")).isEqualTo(expectedRowSet(createRecord(1, "aaa")));
+  }
+
+  private void writeAndCommit(TaskWriterFactory<RowData> taskWriterFactory, RowData... rows)
+      throws IOException {
+    taskWriterFactory.initialize(1, 1);
+    TaskWriter<RowData> writer = taskWriterFactory.create();
+    for (RowData row : rows) {
+      writer.write(row);
+    }
+
+    commitTransaction(writer.complete());
   }
 
   private void commitTransaction(WriteResult result) {

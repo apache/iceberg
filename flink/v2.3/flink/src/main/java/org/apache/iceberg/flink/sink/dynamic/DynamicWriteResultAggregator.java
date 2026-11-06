@@ -179,11 +179,19 @@ class DynamicWriteResultAggregator
 
     Tuple2<ManifestOutputFileFactory, Integer> outputFileFactoryAndVersion =
         outputFileFactoryAndFormatVersion(tableName);
+    Map<Integer, PartitionSpec> deleteSpecs = Maps.newHashMap();
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
             result,
             () -> outputFileFactoryAndVersion.f0.create(checkpointId),
             spec(tableName, specId),
+            deleteSpecId -> {
+              if (!deleteSpecs.containsKey(deleteSpecId)) {
+                deleteSpecs.put(deleteSpecId, spec(tableName, deleteSpecId));
+              }
+
+              return deleteSpecs.get(deleteSpecId);
+            },
             outputFileFactoryAndVersion.f1);
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
@@ -242,7 +250,9 @@ class DynamicWriteResultAggregator
       }
     }
 
-    Table table = catalog.loadTable(TableIdentifier.parse(tableName));
-    return table.specs().get(specId);
+    Map<Integer, PartitionSpec> loadedSpecs =
+        catalog.loadTable(TableIdentifier.parse(tableName)).specs();
+    specs.put(tableName, loadedSpecs);
+    return loadedSpecs.get(specId);
   }
 }

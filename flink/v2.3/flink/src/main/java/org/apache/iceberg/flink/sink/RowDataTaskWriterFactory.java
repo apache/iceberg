@@ -38,6 +38,7 @@ import org.apache.iceberg.io.PartitionedFanoutWriter;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ArrayUtil;
@@ -48,6 +49,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final Schema schema;
   private final RowType flinkSchema;
   private final PartitionSpec spec;
+  private final Map<Integer, PartitionSpec> tableSpecs;
   private final long targetFileSizeBytes;
   private final FileFormat format;
   private final Set<Integer> equalityFieldIds;
@@ -118,6 +120,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.schema = schema;
     this.flinkSchema = flinkSchema;
     this.spec = spec;
+    this.tableSpecs = Maps.newHashMap(table.specs());
     this.targetFileSizeBytes = targetFileSizeBytes;
     this.format = format;
     this.equalityFieldIds = equalityFieldIds != null ? Sets.newHashSet(equalityFieldIds) : null;
@@ -225,7 +228,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
             flinkSchema,
             equalityFieldIds,
             upsert,
-            useDv);
+            useDv,
+            tableSpecs);
       } else {
         return new PartitionedDeltaWriter(
             spec,
@@ -238,7 +242,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
             flinkSchema,
             equalityFieldIds,
             upsert,
-            useDv);
+            useDv,
+            tableSpecs);
       }
     }
   }

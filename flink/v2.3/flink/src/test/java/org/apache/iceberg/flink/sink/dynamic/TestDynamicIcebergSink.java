@@ -1289,6 +1289,46 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     }
   }
 
+  @Test
+  void upsertAfterPartitionSpecEvolution() throws Exception {
+    executeDynamicSink(
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                SnapshotRef.MAIN_BRANCH,
+                PartitionSpec.unpartitioned(),
+                true,
+                Sets.newHashSet("id"),
+                false)),
+        env,
+        true,
+        1,
+        null);
+
+    executeDynamicSink(
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                SnapshotRef.MAIN_BRANCH,
+                PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).bucket("id", 10).build(),
+                true,
+                Sets.newHashSet("id"),
+                true)),
+        env,
+        true,
+        1,
+        null);
+
+    try (CloseableIterable<Record> iterable =
+        IcebergGenerics.read(
+                CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of("default", "t1")))
+            .build()) {
+      assertThat(Lists.newArrayList(iterable)).hasSize(1);
+    }
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void testUpsertV3(boolean immediateUpdate) throws Exception {
