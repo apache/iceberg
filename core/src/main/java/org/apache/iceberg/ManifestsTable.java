@@ -81,8 +81,7 @@ public class ManifestsTable extends BaseMetadataTable {
     Map<Integer, PartitionSpec> specs = Maps.newHashMap(table().specs());
 
     return StaticDataTask.of(
-        io.newInputFile(
-            location != null ? location : table().operations().current().metadataFileLocation()),
+        location != null ? location : table().operations().current().metadataFileLocation(),
         schema(),
         scan.schema(),
         scan.snapshot().allManifests(io),
