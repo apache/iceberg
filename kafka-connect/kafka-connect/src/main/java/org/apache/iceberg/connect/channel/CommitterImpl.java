@@ -175,8 +175,10 @@ public class CommitterImpl implements Committer {
       return;
     }
 
-    // Normal close: if leader partition is lost, stop coordinator.
-    if (hasLeaderPartition(closedPartitions)) {
+    // Normal close: if leader partition is lost, stop coordinator. A group description fetched
+    // mid-rebalance can omit assignments, so use the members seen when this task was elected.
+    if (coordinatorThread != null
+        && closedPartitions.contains(findFirstTopicPartition(membersWhenWorkerIsCoordinator))) {
       LOG.info("Committer {} lost leader partition. Stopping coordinator.", taskId);
       stopCoordinator();
     }
