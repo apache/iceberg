@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.ClosureSerializer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
@@ -34,6 +35,8 @@ import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.lang.invoke.SerializedLambda;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
@@ -48,6 +51,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.junit.jupiter.api.Named;
@@ -92,6 +96,16 @@ public class TestHelpers {
       current = System.currentTimeMillis();
     }
     return current;
+  }
+
+  /** Returns the URLs of the current test classpath, for creating isolated class loaders */
+  public static URL[] testClasspath() throws MalformedURLException {
+    List<URL> urls = Lists.newArrayList();
+    for (String path : System.getProperty("java.class.path").split(File.pathSeparator)) {
+      urls.add(new File(path).toURI().toURL());
+    }
+
+    return urls.toArray(new URL[0]);
   }
 
   public static <T> T assertAndUnwrap(Expression expr, Class<T> expected) {
