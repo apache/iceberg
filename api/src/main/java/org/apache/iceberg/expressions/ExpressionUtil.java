@@ -741,10 +741,15 @@ public class ExpressionUtil {
         break;
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
+        builder.append(
+            sanitizeTimestamp(((Number) fieldValue.asPrimitive().get()).longValue(), now));
+        break;
       case TIMESTAMPTZ_NANOS:
       case TIMESTAMPNTZ_NANOS:
         builder.append(
-            sanitizeTimestamp(((Number) fieldValue.asPrimitive().get()).longValue(), now));
+            sanitizeTimestamp(
+                DateTimeUtil.nanosToMicros(((Number) fieldValue.asPrimitive().get()).longValue()),
+                now));
         break;
       case TIME:
         return "(time)";

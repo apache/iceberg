@@ -23,6 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -48,6 +49,8 @@ import org.apache.iceberg.variants.VariantPrimitive;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 public class TestExpressionUtil {
   private static final Schema SCHEMA =
@@ -1311,6 +1314,43 @@ public class TestExpressionUtil {
                           0x18, (byte) 0xD3, (byte) 0xB1, (byte) 0xD6, 0x07, 0x57, 0x05, 0x00
                         }))));
     assertEquals(Expressions.equal("var", "(timestamp)"), ExpressionUtil.sanitize(timestamp));
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "12, 1, 0, (timestamp-about-now)",
+    "13, 1, 0, (timestamp-about-now)",
+    "18, 1000, 0, (timestamp-about-now)",
+    "19, 1000, 0, (timestamp-about-now)",
+    "12, 1, -90, (timestamp-1-hours-ago)",
+    "13, 1, -90, (timestamp-1-hours-ago)",
+    "18, 1000, -90, (timestamp-1-hours-ago)",
+    "19, 1000, -90, (timestamp-1-hours-ago)",
+    "12, 1, 90, (timestamp-1-hours-from-now)",
+    "13, 1, 90, (timestamp-1-hours-from-now)",
+    "18, 1000, 90, (timestamp-1-hours-from-now)",
+    "19, 1000, 90, (timestamp-1-hours-from-now)"
+  })
+  void sanitizeVariantTimestamp(
+      int primitiveHeader, long unitsPerMicro, int minutesFromNow, String expected) {
+    long micros =
+        DateTimeUtil.microsFromTimestamptz(OffsetDateTime.now().plusMinutes(minutesFromNow));
+    byte[] bytes =
+        ByteBuffer.allocate(Long.BYTES)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .putLong(micros * unitsPerMicro)
+            .array();
+    Variant value =
+        Variant.of(
+            VariantMetadata.empty(),
+            VariantTestUtil.createSerializedPrimitive(primitiveHeader, bytes));
+    Expression unbound = Expressions.equal("var", value);
+    Expression bound = Binder.bind(STRUCT, unbound);
+
+    assertEquals(Expressions.equal("var", expected), ExpressionUtil.sanitize(unbound));
+    assertEquals(Expressions.equal("var", expected), ExpressionUtil.sanitize(bound));
+    assertThat(ExpressionUtil.toSanitizedString(unbound)).isEqualTo("var = " + expected);
+    assertThat(ExpressionUtil.toSanitizedString(bound)).isEqualTo("var = " + expected);
   }
 
   @Test
