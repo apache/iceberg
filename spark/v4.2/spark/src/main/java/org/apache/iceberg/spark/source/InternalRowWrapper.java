@@ -33,6 +33,7 @@ import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.TimeType;
 
 /**
  * Class to adapt a Spark {@code InternalRow} to Iceberg {@link StructLike} for uses like {@link
@@ -97,6 +98,9 @@ class InternalRowWrapper implements StructLike {
           row.getDecimal(pos, decimal.precision(), decimal.scale()).toJavaBigDecimal();
     } else if (type instanceof BinaryType) {
       return (row, pos) -> ByteBuffer.wrap(row.getBinary(pos));
+    } else if (type instanceof TimeType) {
+      // Spark stores time as nanoseconds, but Iceberg stores it as microseconds
+      return (row, pos) -> row.getLong(pos) / 1000;
     } else if (type instanceof StructType) {
       StructType structType = (StructType) type;
       InternalRowWrapper nestedWrapper =

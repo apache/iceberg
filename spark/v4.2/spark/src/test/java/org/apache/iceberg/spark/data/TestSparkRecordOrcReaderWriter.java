@@ -45,6 +45,11 @@ import org.junit.jupiter.api.Test;
 public class TestSparkRecordOrcReaderWriter extends AvroDataTestBase {
   private static final int NUM_RECORDS = 200;
 
+  @Override
+  protected boolean supportsTime() {
+    return true;
+  }
+
   private void writeAndValidate(Schema schema, List<Record> expectedRecords) throws IOException {
     final File originalFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(originalFile.delete()).as("Delete should succeed").isTrue();

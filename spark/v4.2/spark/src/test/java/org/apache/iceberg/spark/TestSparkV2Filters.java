@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
@@ -51,6 +52,7 @@ import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.TimeType$;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.jupiter.api.Test;
 
@@ -436,6 +438,29 @@ public class TestSparkV2Filters {
     assertThat(dateExpression)
         .asString()
         .as("Generated date expression should be correct")
+        .isEqualTo(rawExpression.toString());
+  }
+
+  @Test
+  public void testTimeFilterConversion() {
+    LocalTime localTime = LocalTime.parse("10:20:30.123456");
+    long nanos = localTime.toNanoOfDay();
+    long micros = DateTimeUtil.microsFromTime(localTime);
+
+    NamedReference namedReference = FieldReference.apply("x");
+    // Spark stores time literals as nanoseconds
+    LiteralValue time = new LiteralValue(nanos, TimeType$.MODULE$.apply());
+    org.apache.spark.sql.connector.expressions.Expression[] attrAndValue =
+        new org.apache.spark.sql.connector.expressions.Expression[] {namedReference, time};
+
+    Predicate predicate = new Predicate(">", attrAndValue);
+    Expression timeExpression = SparkV2Filters.convert(predicate);
+    // Iceberg expressions expect time as microseconds
+    Expression rawExpression = Expressions.greaterThan("x", micros);
+
+    assertThat(timeExpression)
+        .asString()
+        .as("Generated time expression should be correct")
         .isEqualTo(rawExpression.toString());
   }
 
