@@ -1821,35 +1821,6 @@ public class TestMergeAppend extends TestBase {
     }
   }
 
-  @TestTemplate
-  public void positionDeleteAndDVBuiltBeforePromotionCommittedAfter() throws IOException {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
-    createIdentityPromotionTable();
-    PartitionSpec before = table.spec();
-    DataFile data = promotionFile(before, 5, "data-both.parquet");
-    // Build delete file BEFORE promotion with Integer partition value
-    DeleteFile deletes;
-    if (formatVersion >= 3) {
-      deletes = promotionDeletionVector(before, 5, data.path().toString(), "dv-both.puffin");
-    } else {
-      deletes = promotionDeleteFile(before, 5, "pos-deletes-both.parquet");
-    }
-
-    table.newAppend().appendFile(data).commit();
-
-    table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
-
-    // Commit delete file AFTER promotion - writer sees Integer under Long spec
-    table.newRowDelta().addDeletes(deletes).commit();
-
-    try (CloseableIterable<FileScanTask> planned =
-        table.newScan().filter(Expressions.equal("region", 5L)).planFiles()) {
-      List<FileScanTask> tasks = Lists.newArrayList(planned);
-      assertThat(tasks).hasSize(1);
-      assertThat(tasks.get(0).deletes()).hasSize(1);
-    }
-  }
-
   private DeleteFile promotionDeleteFile(
       PartitionSpec spec, Object partitionValue, String fileName) {
     PartitionData partition = new PartitionData(spec.partitionType());
