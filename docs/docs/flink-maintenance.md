@@ -114,7 +114,7 @@ Notes:
 **State and restart**
 
 - The PK-index worker keeps a keyed row-position index of the target branch in Flink state, persisted with each Flink checkpoint. Its size scales with the number of live rows in the table for the configured equality columns; size Flink state backend, checkpoint storage, and TaskManager memory accordingly. **RocksDB is the preferred state backend** because the PK index can grow beyond the available heap and RocksDB spills to local disk instead of failing with an `OutOfMemoryError`.
-- The index is **reused across triggers and restored on failover** while it matches the head of the target branch, or while it can be reached from the latest head of the target branch. We refresh the index based on the delta between the index snapshot and the latest snapshot, so it corresponds to the latest table state.
+- The index is **reused across triggers and restored on failover** while it matches the head of the target branch, or while it can be reached from the latest head of the target branch. The planner refreshes the index with the delta between the index snapshot and the latest snapshot, so it corresponds to the latest table state.
 - External commits on the target branch (e.g. compaction or direct writes) are applied to the index as a delta: the planner reads the data files they added and removed, and the worker indexes or evicts their rows. A file that is added and removed within the delta is skipped.
 - In the following cases the next trigger **rebuilds the index** from the target branch head instead, reading the equality columns of every live data file:
     - on cold start without a checkpoint, and on the first trigger after restoring state written by an older Iceberg version
