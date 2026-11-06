@@ -64,6 +64,8 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
   private final int subTaskId;
   private final int attemptId;
   private final Catalog catalog;
+  private final long cacheRefreshMs;
+  private long taskWriterFactoriesClearedNanos;
 
   DynamicWriter(
       Catalog catalog,
@@ -80,6 +82,9 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     this.subTaskId = subTaskId;
     this.attemptId = attemptId;
     this.taskWriterFactories = new LRUCache<>(cacheMaximumSize);
+    this.cacheRefreshMs =
+        new FlinkDynamicSinkConf(commonWriteProperties, flinkConfig).cacheRefreshMs();
+    this.taskWriterFactoriesClearedNanos = System.nanoTime();
     this.writers = Maps.newHashMap();
 
     LOG.debug("DynamicIcebergSinkWriter created for subtask {} attemptId {}", subTaskId, attemptId);
@@ -98,6 +103,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                 element.upsertMode(),
                 element.equalityFields()),
             writerKey -> {
+              expireTaskWriterFactories();
               RowDataTaskWriterFactory taskWriterFactory =
                   taskWriterFactories.computeIfAbsent(
                       writerKey,
@@ -198,6 +204,15 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     writers.clear();
 
     return result;
+  }
+
+  private void expireTaskWriterFactories() {
+    long nowNanos = System.nanoTime();
+    if (TimeUnit.NANOSECONDS.toMillis(nowNanos - taskWriterFactoriesClearedNanos)
+        >= cacheRefreshMs) {
+      taskWriterFactories.clear();
+      taskWriterFactoriesClearedNanos = nowNanos;
+    }
   }
 
   private static Set<Integer> getEqualityFields(Table table, Set<Integer> equalityFieldIds) {
