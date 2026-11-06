@@ -337,6 +337,7 @@ public class S3FileIO
     }
 
     S3URI s3uri = uri;
+    String bucket = new S3URI(prefix).bucket();
     ListObjectsV2Request request =
         ListObjectsV2Request.builder().bucket(s3uri.bucket()).prefix(s3uri.key()).build();
 
@@ -346,7 +347,7 @@ public class S3FileIO
             .map(
                 o ->
                     new FileInfo(
-                        String.format("%s://%s/%s", s3uri.scheme(), s3uri.bucket(), o.key()),
+                        String.format("%s://%s/%s", s3uri.scheme(), bucket, o.key()),
                         o.size(),
                         o.lastModified().toEpochMilli()))
             .iterator();
