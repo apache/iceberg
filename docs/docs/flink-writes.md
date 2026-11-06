@@ -520,6 +520,7 @@ We need the following information (DynamicRecord) for every record:
 ### Schema Evolution
 
 The dynamic sink tries to match the schema provided in `DynamicRecord` with the existing table schemas.
+
 - If there is a direct match with one of the existing table schemas, that table schema will be used for writing to the table.
 - If there is no direct match, DynamicSink tries to adapt the provided schema such that it matches one of table schemas. For example, if there is an additional optional column in the table schema, a null value will be added to the RowData provided via DynamicRecord.
 - Otherwise, we evolve the table schema to match the input schema, within the constraints described below.
