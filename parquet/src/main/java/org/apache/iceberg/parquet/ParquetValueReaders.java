@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.common.DynConstructors;
@@ -197,6 +198,10 @@ public class ParquetValueReaders {
 
   public static ParquetValueReader<Long> int96Timestamps(ColumnDescriptor desc) {
     return new TimestampInt96Reader(desc);
+  }
+
+  public static ParquetValueReader<Long> int96NanosTimestamps(ColumnDescriptor desc) {
+    return new TimestampInt96Reader(desc, ParquetUtil::extractTimestampInt96Nanos);
   }
 
   @SuppressWarnings("unchecked")
@@ -809,9 +814,15 @@ public class ParquetValueReaders {
   }
 
   private static class TimestampInt96Reader extends UnboxedReader<Long> {
+    private final ToLongFunction<ByteBuffer> converter;
 
     private TimestampInt96Reader(ColumnDescriptor desc) {
+      this(desc, ParquetUtil::extractTimestampInt96);
+    }
+
+    private TimestampInt96Reader(ColumnDescriptor desc, ToLongFunction<ByteBuffer> converter) {
       super(desc);
+      this.converter = converter;
     }
 
     @Override
@@ -823,7 +834,7 @@ public class ParquetValueReaders {
     public long readLong() {
       final ByteBuffer byteBuffer =
           column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-      return ParquetUtil.extractTimestampInt96(byteBuffer);
+      return converter.applyAsLong(byteBuffer);
     }
   }
 
