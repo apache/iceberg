@@ -18,17 +18,75 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.Locale;
+import org.apache.iceberg.MicroBatches;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 
 class MicroBatchUtils {
 
   private MicroBatchUtils() {}
+
+  static StreamingOffset determineInitialOffset(
+      Table table, long fromTimestamp, String fromSnapshot) {
+    Snapshot currentSnapshot = table.currentSnapshot();
+    if (fromSnapshot == null) {
+      return currentSnapshot != null && fromTimestamp == Long.MIN_VALUE
+          ? new StreamingOffset(currentSnapshot.snapshotId(), 0L, true)
+          : determineStartingOffset(table, fromTimestamp);
+    }
+
+    Preconditions.checkArgument(
+        fromTimestamp == Long.MIN_VALUE,
+        "Cannot set both %s and %s",
+        SparkReadOptions.STREAM_FROM_SNAPSHOT,
+        SparkReadOptions.STREAM_FROM_TIMESTAMP);
+
+    String option = fromSnapshot.toLowerCase(Locale.ROOT);
+    if (SparkReadOptions.STREAM_FROM_SNAPSHOT_EARLIEST.equals(option)) {
+      return determineStartingOffset(table, fromTimestamp);
+    }
+
+    if (SparkReadOptions.STREAM_FROM_SNAPSHOT_LATEST.equals(option)) {
+      // every file of the current snapshot counts as read, so the stream starts with the next one
+      return currentSnapshot != null
+          ? new StreamingOffset(
+              currentSnapshot.snapshotId(), endPosition(table, currentSnapshot, true), true)
+          : StreamingOffset.START_OFFSET;
+    }
+
+    long snapshotId;
+    try {
+      snapshotId = Long.parseLong(fromSnapshot);
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Invalid value for %s: %s (supported: a snapshot ID, %s, %s)",
+              SparkReadOptions.STREAM_FROM_SNAPSHOT,
+              fromSnapshot,
+              SparkReadOptions.STREAM_FROM_SNAPSHOT_LATEST,
+              SparkReadOptions.STREAM_FROM_SNAPSHOT_EARLIEST),
+          e);
+    }
+
+    Preconditions.checkArgument(
+        table.snapshot(snapshotId) != null,
+        "Cannot find snapshot for %s: %s",
+        SparkReadOptions.STREAM_FROM_SNAPSHOT,
+        snapshotId);
+    Preconditions.checkArgument(
+        currentSnapshot != null && SnapshotUtil.isAncestorOf(table, snapshotId),
+        "Cannot stream from snapshot %s: not an ancestor of the current snapshot",
+        snapshotId);
+    return new StreamingOffset(snapshotId, 0L, false);
+  }
 
   static StreamingOffset determineStartingOffset(Table table, long fromTimestamp) {
     if (table.currentSnapshot() == null) {
@@ -65,5 +123,11 @@ class MicroBatchUtils {
         ? Iterables.size(
             SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles())
         : addedFilesCount;
+  }
+
+  static long endPosition(Table table, Snapshot snapshot, boolean scanAllFiles) {
+    return scanAllFiles
+        ? MicroBatches.from(snapshot, table.io()).fullScanFileCount()
+        : addedFilesCount(table, snapshot);
   }
 }
