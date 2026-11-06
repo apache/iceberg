@@ -48,6 +48,26 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestRewriteManifests extends TestBase {
 
   @TestTemplate
+  void rewriteWithRecomputedTotals() {
+    Table table = load();
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long correctedRecords = FILE_A.recordCount() + 1;
+    long correctedSize = FILE_A.fileSizeInBytes() + 1;
+
+    table
+        .rewriteManifests()
+        .clusterBy(file -> "")
+        .set(SnapshotSummary.TOTAL_RECORDS_PROP, Long.toString(correctedRecords))
+        .set(SnapshotSummary.TOTAL_FILE_SIZE_PROP, Long.toString(correctedSize))
+        .commit();
+
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, Long.toString(correctedRecords))
+        .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, Long.toString(correctedSize))
+        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "1");
+  }
+
+  @TestTemplate
   public void testRewriteManifestsAppendedDirectly() throws IOException {
     Table table = load();
 
