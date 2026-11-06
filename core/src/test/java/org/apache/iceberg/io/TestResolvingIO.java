@@ -121,6 +121,10 @@ public class TestResolvingIO {
     HadoopFileIO delegate = new HadoopFileIO(hadoopConf);
     doReturn(delegate).when(resolvingFileIO).io(anyString());
 
+    String parentLocation = parent.toString();
+    assertThat(resolvingFileIO.supportsPrefixListingWithDelimiter(parentLocation, "/")).isTrue();
+    assertThat(resolvingFileIO.supportsPrefixListingWithDelimiter(parentLocation, "|")).isFalse();
+
     List<Path> paths =
         IntStream.range(1, 10)
             .mapToObj(i -> new Path(parent, "random-" + i + "-" + UUID.randomUUID()))

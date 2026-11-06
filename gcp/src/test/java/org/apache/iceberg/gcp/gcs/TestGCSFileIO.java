@@ -26,11 +26,17 @@ import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
+import com.google.api.gax.paging.Page;
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.OAuth2Credentials;
 import com.google.auth.oauth2.OAuth2CredentialsWithRefresh;
+import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
@@ -45,15 +51,18 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -162,6 +171,63 @@ public class TestGCSFileIO {
 
     assertThat(StreamSupport.stream(io.listPrefix(gsUri(path1)).spliterator(), false).count())
         .isEqualTo(1);
+  }
+
+  @Test
+  void listPrefixWithDelimiterReturnsFilesAndSubPrefixes() {
+    storage.create(BlobInfo.newBuilder(TEST_BUCKET, "delim/data1.dat").build());
+    storage.create(BlobInfo.newBuilder(TEST_BUCKET, "delim/a/data2.dat").build());
+    storage.create(BlobInfo.newBuilder(TEST_BUCKET, "delim/a/b/data3.dat").build());
+    storage.create(BlobInfo.newBuilder(TEST_BUCKET, "delim/c/data4.dat").build());
+    storage.create(BlobInfo.newBuilder(TEST_BUCKET, "delim_sibling/data5.dat").build());
+
+    List<PrefixListingPage> pages =
+        Lists.newArrayList(io.listPrefixWithDelimiter(gsUri("delim/"), "/"));
+
+    assertThat(pages).hasSize(1);
+    assertThat(pages.get(0).files())
+        .extracting(FileInfo::location)
+        .containsExactly(gsUri("delim/data1.dat"));
+    assertThat(pages.get(0).subPrefixes())
+        .containsExactlyInAnyOrder(gsUri("delim/a/"), gsUri("delim/c/"));
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  void listPrefixWithDelimiterReturnsPagePerStoragePage() {
+    storage.create(BlobInfo.newBuilder(TEST_BUCKET, "paged/data1.dat").build());
+    storage.create(BlobInfo.newBuilder(TEST_BUCKET, "paged/a/data2.dat").build());
+    Map<Boolean, List<Blob>> blobsByIsDirectory =
+        StreamSupport.stream(
+                storage
+                    .list(
+                        TEST_BUCKET,
+                        Storage.BlobListOption.prefix("paged/"),
+                        Storage.BlobListOption.currentDirectory())
+                    .getValues()
+                    .spliterator(),
+                false)
+            .collect(Collectors.partitioningBy(Blob::isDirectory));
+
+    Page<Blob> secondPage = mock(Page.class);
+    when(secondPage.getValues()).thenReturn(blobsByIsDirectory.get(true));
+    when(secondPage.hasNextPage()).thenReturn(false);
+    Page<Blob> firstPage = mock(Page.class);
+    when(firstPage.getValues()).thenReturn(blobsByIsDirectory.get(false));
+    when(firstPage.hasNextPage()).thenReturn(true);
+    when(firstPage.getNextPage()).thenReturn(secondPage);
+    doReturn(firstPage).when(storage).list(eq(TEST_BUCKET), any());
+
+    List<PrefixListingPage> pages =
+        Lists.newArrayList(io.listPrefixWithDelimiter(gsUri("paged/"), "/"));
+
+    assertThat(pages).hasSize(2);
+    assertThat(pages.get(0).files())
+        .extracting(FileInfo::location)
+        .containsExactly(gsUri("paged/data1.dat"));
+    assertThat(pages.get(0).subPrefixes()).isEmpty();
+    assertThat(pages.get(1).files()).isEmpty();
+    assertThat(pages.get(1).subPrefixes()).containsExactly(gsUri("paged/a/"));
   }
 
   @Test
