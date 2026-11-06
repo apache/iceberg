@@ -70,6 +70,8 @@ public class TestSerializableTypes {
           Types.GeographyType.crs84(),
           Types.GeographyType.of("srid:4269"),
           Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY),
+          Types.VectorType.of(Types.VectorType.ElementType.FLOAT, 768),
+          Types.VectorType.of(Types.VectorType.ElementType.INT, 4),
         };
 
     for (Type type : equalityPrimitives) {

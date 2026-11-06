@@ -190,7 +190,10 @@ public class TestIdentity {
 
   private static Type[] unsupportedTypesProvider() {
     return new Type[] {
-      Types.VariantType.get(), Types.GeometryType.crs84(), Types.GeographyType.crs84()
+      Types.VariantType.get(),
+      Types.GeometryType.crs84(),
+      Types.GeographyType.crs84(),
+      Types.VectorType.of(Types.VectorType.ElementType.FLOAT, 768)
     };
   }
 }

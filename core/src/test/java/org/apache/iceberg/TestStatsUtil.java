@@ -312,6 +312,37 @@ public class TestStatsUtil {
     assertSameStructure(expected, actual);
   }
 
+  @ParameterizedTest
+  @FieldSource("BOUNDS_MODES")
+  public void vectorBoundsModesKeepCountsOnly(MetricsModes.MetricsMode mode) {
+    Types.VectorType vector = Types.VectorType.of(Types.VectorType.ElementType.INT, 4);
+    Types.StructType expected =
+        Types.StructType.of(
+            Types.NestedField.optional(30_004, "value_count", Types.LongType.get()),
+            Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()));
+
+    Types.StructType actual = StatsUtil.fieldStatsStruct(vector, 30_000, mode);
+
+    assertSameStructure(expected, actual);
+    assertThat(actual.field("lower_bound")).isNull();
+    assertThat(actual.field("upper_bound")).isNull();
+    assertThat(actual.field("tight_bounds")).isNull();
+  }
+
+  @Test
+  public void vectorStatsReadSchemaProjectsCountsOnly() {
+    Types.VectorType vector = Types.VectorType.of(Types.VectorType.ElementType.INT, 4);
+    Schema schema = new Schema(Types.NestedField.required(1, "vec", vector));
+    Types.StructType vectorStats =
+        Types.StructType.of(
+            Types.NestedField.optional(10_204, "value_count", Types.LongType.get()),
+            Types.NestedField.optional(10_205, "null_value_count", Types.LongType.get()));
+    Types.StructType expected =
+        Types.StructType.of(Types.NestedField.optional(10_200, "vec", vectorStats));
+
+    assertSameStructure(expected, StatsUtil.statsReadSchema(schema, List.of(1)));
+  }
+
   @Test
   public void testContentStatsReadSchema() {
     Schema schema =

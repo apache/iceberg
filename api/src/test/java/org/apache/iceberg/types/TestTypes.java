@@ -23,6 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
+import org.apache.iceberg.expressions.Literal;
 import org.junit.jupiter.api.Test;
 
 public class TestTypes {
@@ -62,6 +63,13 @@ public class TestTypes {
     assertThat(Types.fromTypeName("geography ( srid:4269 , karney )"))
         .isEqualTo(Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY));
 
+    assertThat(Types.fromTypeName("vector(int, 768)"))
+        .isEqualTo(Types.VectorType.of(Types.VectorType.ElementType.INT, 768));
+    assertThat(Types.fromTypeName("Vector(Float, 3)"))
+        .isEqualTo(Types.VectorType.of(Types.VectorType.ElementType.FLOAT, 3));
+    assertThat(Types.fromTypeName("vector( double , 1536 )"))
+        .isEqualTo(Types.VectorType.of(Types.VectorType.ElementType.DOUBLE, 1536));
+
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromTypeName("abcdefghij"))
         .withMessage("Cannot parse type string to primitive: abcdefghij");
@@ -84,6 +92,11 @@ public class TestTypes {
     assertThat(Types.fromPrimitiveString("Decimal( 2 , 3 )")).isEqualTo(Types.DecimalType.of(2, 3));
 
     assertThat(Types.fromPrimitiveString("Decimal(2,3)")).isEqualTo(Types.DecimalType.of(2, 3));
+
+    assertThat(Types.fromPrimitiveString("vector(int, 768)"))
+        .isEqualTo(Types.VectorType.of(Types.VectorType.ElementType.INT, 768));
+    assertThat(Types.fromPrimitiveString("Vector( Float , 3 )"))
+        .isEqualTo(Types.VectorType.of(Types.VectorType.ElementType.FLOAT, 3));
 
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("variant"))
@@ -213,6 +226,78 @@ public class TestTypes {
     assertThat(Types.GeographyType.of("ogc:crs84"))
         .isEqualTo(Types.GeographyType.crs84())
         .hasSameHashCodeAs(Types.GeographyType.crs84());
+  }
+
+  @Test
+  public void testVectorType() {
+    Types.VectorType vector = Types.VectorType.of(Types.VectorType.ElementType.FLOAT, 768);
+
+    assertThat(vector.typeId()).isEqualTo(Type.TypeID.VECTOR);
+    assertThat(vector.isPrimitiveType()).isTrue();
+    assertThat(vector.elementType()).isEqualTo(Types.VectorType.ElementType.FLOAT);
+    assertThat(vector.dimension()).isEqualTo(768);
+    assertThat(vector.toString()).isEqualTo("vector(float, 768)");
+  }
+
+  @Test
+  public void testVectorTypeEquality() {
+    assertThat(Types.VectorType.of(Types.VectorType.ElementType.INT, 8))
+        .isEqualTo(Types.VectorType.of(Types.VectorType.ElementType.INT, 8))
+        .hasSameHashCodeAs(Types.VectorType.of(Types.VectorType.ElementType.INT, 8));
+
+    // different element type
+    assertThat(Types.VectorType.of(Types.VectorType.ElementType.INT, 8))
+        .isNotEqualTo(Types.VectorType.of(Types.VectorType.ElementType.LONG, 8));
+
+    // different dimension
+    assertThat(Types.VectorType.of(Types.VectorType.ElementType.INT, 8))
+        .isNotEqualTo(Types.VectorType.of(Types.VectorType.ElementType.INT, 16));
+  }
+
+  @Test
+  public void testVectorTypeToStringRoundTrip() {
+    for (Types.VectorType.ElementType elementType : Types.VectorType.ElementType.values()) {
+      Types.VectorType vector = Types.VectorType.of(elementType, 128);
+      assertThat(Types.fromTypeName(vector.toString())).isEqualTo(vector);
+    }
+  }
+
+  @Test
+  public void testVectorTypeInvalidDimension() {
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.VectorType.of(Types.VectorType.ElementType.FLOAT, 0))
+        .withMessage("Vector dimension must be at least 1: 0");
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.VectorType.of(Types.VectorType.ElementType.FLOAT, -1))
+        .withMessage("Vector dimension must be at least 1: -1");
+  }
+
+  @Test
+  public void testVectorTypeInvalidElementType() {
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.VectorType.ElementType.fromName("string"))
+        .withMessage("Invalid vector element type: string");
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.VectorType.ElementType.fromName(null))
+        .withMessage("Invalid vector element type: null");
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.fromTypeName("vector(string, 8)"))
+        .withMessage("Invalid vector element type: string");
+  }
+
+  @Test
+  public void vectorRejectsNonNullDefault() {
+    Types.VectorType vector = Types.VectorType.of(Types.VectorType.ElementType.INT, 3);
+    Literal<?> defaultValue = Literal.of("unused");
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(
+            () -> required("emb").withId(1).ofType(vector).withInitialDefault(defaultValue).build())
+        .withMessageStartingWith("Invalid default value for vector(int, 3):")
+        .withMessageContaining("must be null");
   }
 
   @Test

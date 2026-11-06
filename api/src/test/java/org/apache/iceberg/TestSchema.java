@@ -50,7 +50,8 @@ public class TestSchema {
           Types.GeometryType.crs84(),
           Types.GeometryType.of("srid:3857"),
           Types.GeographyType.crs84(),
-          Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY));
+          Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY),
+          Types.VectorType.of(Types.VectorType.ElementType.FLOAT, 768));
 
   private static final Schema INITIAL_DEFAULT_SCHEMA =
       new Schema(
