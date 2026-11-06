@@ -248,7 +248,7 @@ public class DateTimeUtil {
     } else {
       // add 1 micro to the value to account for the case where there is exactly 1 unit between
       // the timestamp and epoch because the result will always be decremented.
-      long epochSecond = Math.floorDiv(micros, MICROS_PER_SECOND);
+      long epochSecond = Math.floorDiv(micros + 1, MICROS_PER_SECOND);
       long nanoAdjustment = Math.floorMod(micros + 1, MICROS_PER_SECOND) * 1000;
       return (int) granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment)) - 1;
     }
@@ -278,7 +278,7 @@ public class DateTimeUtil {
     } else {
       // add 1 nano to the value to account for the case where there is exactly 1 unit between
       // the timestamp and epoch because the result will always be decremented.
-      long epochSecond = Math.floorDiv(nanos, NANOS_PER_SECOND);
+      long epochSecond = Math.floorDiv(nanos + 1, NANOS_PER_SECOND);
       long nanoAdjustment = Math.floorMod(nanos + 1, NANOS_PER_SECOND);
       return granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment)) - 1;
     }
