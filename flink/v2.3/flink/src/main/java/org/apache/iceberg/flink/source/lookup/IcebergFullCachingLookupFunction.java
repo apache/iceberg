@@ -83,6 +83,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction
   private transient RowData.FieldGetter[] keyGetters;
   private transient volatile InMemoryLookupCache cache;
   private transient volatile Throwable reloadFailure;
+  private transient volatile boolean closed;
 
   private transient Counter missCounter;
   private transient Counter loadCounter;
@@ -175,6 +176,8 @@ public class IcebergFullCachingLookupFunction extends LookupFunction
 
   @Override
   public void close() throws Exception {
+    this.closed = true;
+
     try {
       if (reloadTrigger != null) {
         reloadTrigger.close();
@@ -194,7 +197,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction
 
   @Override
   public CompletableFuture<Void> triggerReload() {
-    if (cache == null) {
+    if (cache == null || closed) {
       return CompletableFuture.completedFuture(null);
     }
 
@@ -202,6 +205,10 @@ public class IcebergFullCachingLookupFunction extends LookupFunction
       loadCache();
       return CompletableFuture.completedFuture(null);
     } catch (Throwable failure) {
+      if (closed) {
+        return CompletableFuture.completedFuture(null);
+      }
+
       loadFailuresCounter.inc();
       this.reloadFailure = failure;
       LOG.error(
@@ -224,6 +231,10 @@ public class IcebergFullCachingLookupFunction extends LookupFunction
   }
 
   private synchronized void loadCache() throws IOException {
+    if (closed) {
+      return;
+    }
+
     table.refresh();
     Snapshot snapshot = table.currentSnapshot();
     long snapshotId =
@@ -251,20 +262,25 @@ public class IcebergFullCachingLookupFunction extends LookupFunction
         loaded.add(extractKey(row), rowSerializer.toBinaryRow(row).copy());
         rowCnt++;
       }
-    } finally {
-      this.latestLoadTimeMs = System.currentTimeMillis() - start;
+    }
+
+    long loadTimeMs = System.currentTimeMillis() - start;
+
+    if (closed) {
+      return;
     }
 
     this.cache = loaded;
     this.currentSnapshotId = snapshotId;
     this.cachedRecords = rowCnt;
+    this.latestLoadTimeMs = loadTimeMs;
     loadCounter.inc();
 
     LOG.info(
         "IcebergFullCachingLookupFunction loading finished, snapshot={}, rows={}, cost={} ms",
         snapshot == null ? "none" : snapshotId,
         rowCnt,
-        latestLoadTimeMs);
+        loadTimeMs);
   }
 
   private BinaryRowData extractKey(RowData row) {
