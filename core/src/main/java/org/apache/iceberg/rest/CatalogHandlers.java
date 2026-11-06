@@ -62,6 +62,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.Transactions;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -77,9 +78,11 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
+import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
@@ -580,6 +583,44 @@ public class CatalogHandlers {
 
   public static void renameTable(Catalog catalog, RenameTableRequest request) {
     catalog.renameTable(request.source(), request.destination());
+  }
+
+  public static void commitTransaction(Catalog catalog, CommitTransactionRequest request) {
+    synchronized (catalog) {
+      List<Transaction> transactions = Lists.newArrayList();
+      List<UpdateTableRequest> readOnlyChanges = Lists.newArrayList();
+
+      for (UpdateTableRequest tableChange : request.tableChanges()) {
+        Table table = catalog.loadTable(tableChange.identifier());
+        if (table instanceof BaseTable) {
+          Transaction transaction =
+              Transactions.newTransaction(
+                  tableChange.identifier().toString(), ((BaseTable) table).operations());
+          transactions.add(transaction);
+
+          BaseTransaction.TransactionTable txTable =
+              (BaseTransaction.TransactionTable) transaction.table();
+
+          // this performs validations and makes temporary commits that are in-memory
+          commit(txTable.operations(), tableChange);
+          if (tableChange.updates().isEmpty() && !tableChange.requirements().isEmpty()) {
+            readOnlyChanges.add(tableChange);
+          }
+        } else {
+          throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
+        }
+      }
+
+      // Re-validate requirements for tables without updates against refreshed metadata in catalog
+      for (UpdateTableRequest readOnlyChange : readOnlyChanges) {
+        Table currentTable = catalog.loadTable(readOnlyChange.identifier());
+        TableMetadata currentMetadata = ((BaseTable) currentTable).operations().refresh();
+        readOnlyChange.requirements().forEach(requirement -> requirement.validate(currentMetadata));
+      }
+
+      // only commit if validations passed previously
+      transactions.forEach(Transaction::commitTransaction);
+    }
   }
 
   private static boolean isCreate(UpdateTableRequest request) {

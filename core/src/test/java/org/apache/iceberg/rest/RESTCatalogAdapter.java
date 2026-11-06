@@ -22,20 +22,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.http.HttpHeaders;
-import org.apache.iceberg.BaseTable;
-import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Scan;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.Transaction;
-import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -59,7 +53,6 @@ import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -556,34 +549,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         SnapshotMode.ALL.toString().toLowerCase(Locale.US));
   }
 
-  /**
-   * This is a very simplistic approach that only validates the requirements for each table and does
-   * not do any other conflict detection. Therefore, it does not guarantee true transactional
-   * atomicity, which is left to the implementation details of a REST server.
-   */
   private static void commitTransaction(Catalog catalog, CommitTransactionRequest request) {
-    List<Transaction> transactions = Lists.newArrayList();
-
-    for (UpdateTableRequest tableChange : request.tableChanges()) {
-      Table table = catalog.loadTable(tableChange.identifier());
-      if (table instanceof BaseTable) {
-        Transaction transaction =
-            Transactions.newTransaction(
-                tableChange.identifier().toString(), ((BaseTable) table).operations());
-        transactions.add(transaction);
-
-        BaseTransaction.TransactionTable txTable =
-            (BaseTransaction.TransactionTable) transaction.table();
-
-        // this performs validations and makes temporary commits that are in-memory
-        CatalogHandlers.commit(txTable.operations(), tableChange);
-      } else {
-        throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
-      }
-    }
-
-    // only commit if validations passed previously
-    transactions.forEach(Transaction::commitTransaction);
+    CatalogHandlers.commitTransaction(catalog, request);
   }
 
   @Override
