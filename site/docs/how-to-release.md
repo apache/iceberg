@@ -88,6 +88,83 @@ Note, creating a milestone in github requires a committer. However, a non-commit
 
 The release status is discussed during each community sync meeting. Release manager should join the meeting to report status and discuss any release blocker.
 
+### Review bundled dependency licenses
+
+Some Iceberg artifacts, such as the Spark and Flink runtime JARs, bundle third-party dependencies. Each of these [bundled modules](#bundled-modules) has its own `LICENSE` and `NOTICE` files that must cover every dependency it ships. Before building the release candidate, please make sure these files are up to date:
+
+1. Find the dependency changes since the previous release:
+
+    ```bash
+    git fetch apache main --tags
+    git diff apache-iceberg-<PREVIOUS_VERSION> apache/main -- '**/runtime-deps.txt'
+    ```
+
+    Each `runtime-deps.txt` file lists the dependencies bundled by the module in the same directory. Lines starting with `+` are added or upgraded dependencies, and lines starting with `-` are removed or replaced ones.
+
+2. Update the `LICENSE` and `NOTICE` files of each affected module and open a PR against `main`. See [Updating LICENSE and NOTICE](#updating-license-and-notice).
+
+3. Check with PMC members to verify the changes. See [Validating with PMC members](#validating-with-pmc-members).
+
+#### Bundled modules
+
+Each directory contains the `LICENSE` and `NOTICE` files for its artifact.
+
+* Spark runtime
+    * `iceberg-spark-runtime-3.5_2.12` and `iceberg-spark-runtime-3.5_2.13`: `spark/v3.5/spark-runtime`
+    * `iceberg-spark-runtime-4.0_2.13`: `spark/v4.0/spark-runtime`
+    * `iceberg-spark-runtime-4.1_2.13`: `spark/v4.1/spark-runtime`
+    * `iceberg-spark-runtime-4.2_2.13`: `spark/v4.2/spark-runtime`
+* Flink runtime
+    * `iceberg-flink-runtime-1.20`: `flink/v1.20/flink-runtime`
+    * `iceberg-flink-runtime-2.2`: `flink/v2.2/flink-runtime`
+    * `iceberg-flink-runtime-2.3`: `flink/v2.3/flink-runtime`
+* Cloud bundles
+    * `iceberg-aws-bundle`: `aws-bundle`
+    * `iceberg-azure-bundle`: `azure-bundle`
+    * `iceberg-gcp-bundle`: `gcp-bundle`
+* Kafka Connect runtime
+    * `iceberg-kafka-connect-runtime` distribution: `kafka-connect/kafka-connect-runtime/main`
+    * `iceberg-kafka-connect-runtime-hive` distribution: `kafka-connect/kafka-connect-runtime/hive`
+
+#### Updating LICENSE and NOTICE
+
+For each changed dependency, look up its license, its `NOTICE` content, and any third-party code it bundles. You can find these in the dependency's project repository or in its JAR under `META-INF/`. Then update the module's files:
+
+* Added dependency: add a `LICENSE` entry with `Copyright`, `Project URL`, and `License` lines. For licenses other than Apache 2.0, also include the full license text, prefixing each line with a pipe (`|`). If the dependency ships a `NOTICE` file, add a `NOTICE` entry that starts with `This product bundles <NAME> with the following in its NOTICE file:`, followed by its content with each line prefixed with a pipe (`|`).
+
+    Example `LICENSE` entry:
+
+    ```text
+    This product bundles Caffeine by Ben Manes.
+
+    Copyright: 2014-2020 Ben Manes and contributors
+    Project URL: https://github.com/ben-manes/caffeine
+    License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+    ```
+
+* Removed dependency: remove its `LICENSE` and `NOTICE` entries, unless another bundled dependency still includes it.
+* Upgraded dependency: if its license, `NOTICE` content, or the third-party code it bundles changed, update its entries to match.
+
+When editing entries:
+
+* Follow the format of the existing entries and separate them with the existing line of dashes.
+* If the code is included inside another dependency's JAR, name that dependency, for example `This product bundles Apache Thrift (bundled by Parquet).`
+* Apply the same change to every module that bundles the dependency, such as all Spark or Flink versions.
+
+For more information, see the [ASF licensing guide](https://infra.apache.org/licensing-howto.html).
+
+Examples of previous changes:
+
+* Adding a dependency: [#18218](https://github.com/apache/iceberg/pull/18218) (Caffeine in `gcp-bundle`)
+* Removing a dependency: [#16106](https://github.com/apache/iceberg/pull/16106) (JSR 305 from `gcp-bundle`)
+* Upgrading a dependency that changes transitive dependencies: [#16680](https://github.com/apache/iceberg/pull/16680) (Caffeine 3 replaces checker-qual with JSpecify)
+* Adding non-Apache licenses and `NOTICE` content across all modules: [#18227](https://github.com/apache/iceberg/pull/18227) (Schubfach and fast_double_parser bundled by Jackson)
+* Reviewing one module before a release: [#16104](https://github.com/apache/iceberg/pull/16104) (Spark 4.1 for 1.11)
+
+#### Validating with PMC members
+
+Check with PMC members to verify and validate the `LICENSE` and `NOTICE` changes. For example, you can request a PMC review on the PR with the updates, or ask in the release [DISCUSS] thread on the dev mailing list.
+
 ### Build the source release
 
 To create the source release artifacts, run the `source-release.sh` script with the release version and release candidate number:
