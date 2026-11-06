@@ -26,6 +26,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
@@ -305,6 +306,39 @@ public interface Catalog {
    * @return true if the table was dropped, false if the table did not exist
    */
   boolean dropTable(TableIdentifier identifier, boolean purge);
+
+  /**
+   * Drop a namespace and, when requested, all tables in the namespace.
+   *
+   * <p>The default implementation drops tables individually before dropping the namespace. Catalog
+   * implementations may override this method to provide an atomic or server-side implementation.
+   *
+   * @param namespace a namespace
+   * @param cascade if true, drop all tables in the namespace before dropping the namespace
+   * @return true if the namespace was dropped, false if it did not exist
+   * @throws UnsupportedOperationException if namespace operations are not supported
+   * @throws NamespaceNotEmptyException if the namespace is not empty
+   */
+  default boolean dropNamespace(Namespace namespace, boolean cascade) {
+    if (!(this instanceof SupportsNamespaces)) {
+      throw new UnsupportedOperationException("Namespace operations are not supported");
+    }
+
+    SupportsNamespaces namespaceCatalog = (SupportsNamespaces) this;
+    if (!cascade) {
+      return namespaceCatalog.dropNamespace(namespace);
+    }
+
+    if (!namespaceCatalog.namespaceExists(namespace)) {
+      return false;
+    }
+
+    for (TableIdentifier identifier : listTables(namespace)) {
+      dropTable(identifier, true /* purge */);
+    }
+
+    return namespaceCatalog.dropNamespace(namespace);
+  }
 
   /**
    * Rename a table.
