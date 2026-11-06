@@ -241,7 +241,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
-    if (!isValidIdentifier(identifier)) {
+    if (!isValidIdentifier(identifier) || viewExists(identifier)) {
       return false;
     }
 
