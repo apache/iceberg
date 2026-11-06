@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -64,19 +63,13 @@ public class GoogleAuthManager implements AuthManager {
   public static final String GCP_CREDENTIALS_PATH_PROPERTY = "gcp.auth.credentials-path";
   public static final String GCP_CREDENTIALS_JSON_PROPERTY = "gcp.auth.credentials-json";
   public static final String GCP_SCOPES_PROPERTY = "gcp.auth.scopes";
+
   private final String name;
 
-  private final CredentialsLoader credentialsLoader;
   private volatile GoogleCredentials credentials;
 
   public GoogleAuthManager(String managerName) {
-    this(managerName, GoogleAuthManager::loadCredentials);
-  }
-
-  @VisibleForTesting
-  GoogleAuthManager(String managerName, CredentialsLoader credentialsLoader) {
     this.name = managerName;
-    this.credentialsLoader = credentialsLoader;
   }
 
   public String name() {
@@ -98,7 +91,7 @@ public class GoogleAuthManager implements AuthManager {
       String scopesString = properties.getOrDefault(GCP_SCOPES_PROPERTY, DEFAULT_SCOPES);
 
       try {
-        this.credentials = credentialsLoader.load(credentialsPath, credentialsJson, scopesString);
+        this.credentials = loadCredentials(credentialsPath, credentialsJson, scopesString);
       } catch (IOException e) {
         // credentials remains null here and treated as not-initialized. Retries are expected
         throw new UncheckedIOException("Failed to load Google credentials", e);
@@ -185,11 +178,4 @@ public class GoogleAuthManager implements AuthManager {
   /** Closes the manager. This is a no-op for GoogleAuthManager. */
   @Override
   public void close() {}
-
-  @FunctionalInterface
-  @VisibleForTesting
-  interface CredentialsLoader {
-    GoogleCredentials load(String credentialsPath, String credentialsJson, String scopesString)
-        throws IOException;
-  }
 }

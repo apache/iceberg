@@ -241,12 +241,4 @@ public class TestGoogleAuthManager {
             "test", Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_GOOGLE));
     assertThat(manager).isInstanceOf(GoogleAuthManager.class);
   }
-
-  private static void threadSleep() {
-    try {
-      Thread.sleep(50);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
-  }
 }
