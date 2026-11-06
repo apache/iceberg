@@ -61,4 +61,14 @@ class RewriteNot extends ExpressionVisitors.ExpressionVisitor<Expression> {
   public <T> Expression predicate(UnboundPredicate<T> pred) {
     return pred;
   }
+
+  @Override
+  public <T> Expression predicate(BoundValuePredicate<T> pred) {
+    return pred;
+  }
+
+  @Override
+  public <T> Expression predicate(UnboundValuePredicate<T> pred) {
+    return pred;
+  }
 }
