@@ -73,17 +73,17 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
     Comparator<T> cmp = literal.comparator();
     switch (op()) {
       case LT:
-        return cmp.compare(value, literal.value()) < 0;
+        return PredicateComparisons.compare(value, literal.value(), cmp) < 0;
       case LT_EQ:
-        return cmp.compare(value, literal.value()) <= 0;
+        return PredicateComparisons.compare(value, literal.value(), cmp) <= 0;
       case GT:
-        return cmp.compare(value, literal.value()) > 0;
+        return PredicateComparisons.compare(value, literal.value(), cmp) > 0;
       case GT_EQ:
-        return cmp.compare(value, literal.value()) >= 0;
+        return PredicateComparisons.compare(value, literal.value(), cmp) >= 0;
       case EQ:
-        return cmp.compare(value, literal.value()) == 0;
+        return PredicateComparisons.compare(value, literal.value(), cmp) == 0;
       case NOT_EQ:
-        return cmp.compare(value, literal.value()) != 0;
+        return PredicateComparisons.compare(value, literal.value(), cmp) != 0;
       case STARTS_WITH:
         return String.valueOf(value).startsWith((String) literal.value());
       case NOT_STARTS_WITH:
@@ -102,7 +102,7 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
         // because the term is equivalent, the literal must have the same type, T
         Literal<T> otherLiteral = (Literal<T>) other.literal();
         Comparator<T> cmp = literal.comparator();
-        return cmp.compare(literal.value(), otherLiteral.value()) == 0;
+        return PredicateComparisons.compare(literal.value(), otherLiteral.value(), cmp) == 0;
       }
 
     } else if (expr instanceof BoundLiteralPredicate) {

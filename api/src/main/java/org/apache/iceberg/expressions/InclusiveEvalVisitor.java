@@ -172,7 +172,7 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
     // because lower <= a for all values of a in the file, f(lower) <= f(a).
     // when f(lower) >= X then f(a) >= f(lower) >= X, so there is no a such that f(a) < X
     // f(lower) >= X means rows cannot match
-    int cmp = lit.comparator().compare(lower, lit.value());
+    int cmp = PredicateComparisons.compare(lower, lit.value(), lit.comparator());
     if (cmp >= 0) {
       return ROWS_CANNOT_MATCH;
     }
@@ -199,7 +199,7 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
     // because lower <= a for all values of a in the file, f(lower) <= f(a).
     // when f(lower) > X then f(a) >= f(lower) > X, so there is no a such that f(a) <= X
     // f(lower) > X means rows cannot match
-    int cmp = lit.comparator().compare(lower, lit.value());
+    int cmp = PredicateComparisons.compare(lower, lit.value(), lit.comparator());
     if (cmp > 0) {
       return ROWS_CANNOT_MATCH;
     }
@@ -220,7 +220,7 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
       return ROWS_MIGHT_MATCH;
     }
 
-    int cmp = lit.comparator().compare(upper, lit.value());
+    int cmp = PredicateComparisons.compare(upper, lit.value(), lit.comparator());
     if (cmp <= 0) {
       return ROWS_CANNOT_MATCH;
     }
@@ -241,7 +241,7 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
       return ROWS_MIGHT_MATCH;
     }
 
-    int cmp = lit.comparator().compare(upper, lit.value());
+    int cmp = PredicateComparisons.compare(upper, lit.value(), lit.comparator());
     if (cmp < 0) {
       return ROWS_CANNOT_MATCH;
     }
@@ -259,7 +259,7 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
 
     T lower = evalLowerBound(term);
     if (lower != null && !NaNUtil.isNaN(lower)) {
-      int cmp = lit.comparator().compare(lower, lit.value());
+      int cmp = PredicateComparisons.compare(lower, lit.value(), lit.comparator());
       if (cmp > 0) {
         return ROWS_CANNOT_MATCH;
       }
@@ -270,7 +270,7 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
       return ROWS_MIGHT_MATCH;
     }
 
-    int cmp = lit.comparator().compare(upper, lit.value());
+    int cmp = PredicateComparisons.compare(upper, lit.value(), lit.comparator());
     if (cmp < 0) {
       return ROWS_CANNOT_MATCH;
     }
@@ -286,7 +286,7 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
     // if that value equals the literal.
     T value = uniqueValue(term);
 
-    if (value != null && lit.comparator().compare(value, lit.value()) == 0) {
+    if (value != null && PredicateComparisons.compare(value, lit.value(), lit.comparator()) == 0) {
       return ROWS_CANNOT_MATCH;
     }
 
@@ -320,8 +320,8 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
     // rows might match if any literal falls within [lower, upper]; a null upper means no upper
     // bound
     for (T literal : literals) {
-      if (comparator.compare(lower, literal) <= 0
-          && (null == upper || comparator.compare(upper, literal) >= 0)) {
+      if (PredicateComparisons.compare(lower, literal, comparator) <= 0
+          && (null == upper || PredicateComparisons.compare(upper, literal, comparator) >= 0)) {
         return ROWS_MIGHT_MATCH;
       }
     }
@@ -337,7 +337,7 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
     // if that value is in the exclusion set.
     T value = uniqueValue(term);
 
-    if (value != null && literalSet.contains(value)) {
+    if (value != null && PredicateComparisons.contains(literalSet, value)) {
       return ROWS_CANNOT_MATCH;
     }
 

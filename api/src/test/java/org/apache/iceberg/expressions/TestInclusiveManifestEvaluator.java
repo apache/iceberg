@@ -52,6 +52,38 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 public class TestInclusiveManifestEvaluator {
+
+  @Test
+  public void testSignedZeroPruning() {
+    Schema schema = new Schema(required(1, "x", Types.DoubleType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("x").build();
+
+    ByteBuffer negativeZero = toByteBuffer(Types.DoubleType.get(), -0.0D);
+
+    ManifestFile manifest =
+        new TestHelpers.TestManifestFile(
+            "signed-zero.avro",
+            1024,
+            spec.specId(),
+            System.currentTimeMillis(),
+            1,
+            0,
+            0,
+            ImmutableList.of(new TestHelpers.TestFieldSummary(false, negativeZero, negativeZero)),
+            null);
+
+    assertThat(ManifestEvaluator.forRowFilter(equal("x", 0.0D), spec, true).eval(manifest))
+        .isTrue();
+
+    assertThat(ManifestEvaluator.forRowFilter(in("x", 0.0D, 1.0D), spec, true).eval(manifest))
+        .isTrue();
+
+    assertThat(
+            ManifestEvaluator.forRowFilter(greaterThanOrEqual("x", 0.0D), spec, true)
+                .eval(manifest))
+        .isTrue();
+  }
+
   private static final Schema SCHEMA =
       new Schema(
           required(1, "id", Types.IntegerType.get()),
