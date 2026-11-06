@@ -100,6 +100,25 @@ public class TestComparators {
         Comparators.forType(Types.UUIDType.get()),
         UUID.fromString("81873e7d-1374-4493-8e1d-9095eff7046c"),
         UUID.fromString("fd02441d-1423-4a3f-8785-c7dd5647e26b"));
+
+    // UUIDs must be ordered as unsigned 128-bit (16-byte big-endian) values, not via
+    // java.util.UUID.compareTo, which compares the two longs as signed. A UUID whose most
+    // significant byte has the high bit set (negative signed MSB) must still sort AFTER a UUID
+    // with a smaller leading byte. See apache/iceberg#18619.
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("00000000-0000-0000-0000-000000000001"),
+        UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"));
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("7fffffff-ffff-ffff-ffff-ffffffffffff"),
+        UUID.fromString("80000000-0000-0000-0000-000000000000"));
+    // ties on the most significant bits fall through to an unsigned compare of the least
+    // significant bits
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("00000000-0000-0000-0000-000000000000"),
+        UUID.fromString("00000000-0000-0000-8000-000000000000"));
   }
 
   @Test

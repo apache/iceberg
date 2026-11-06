@@ -40,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.ContentFileUtil;
@@ -756,5 +757,88 @@ public abstract class DeleteFileIndexTestBase<
     assertThatThrownBy(() -> index.forDataFile(2, FILE_A))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("must be greater than or equal to data file sequence number");
+  }
+
+  @TestTemplate
+  public void testEqualityDeleteWithUuidKeyAttachesToDataFile() {
+    // Regression test for apache/iceberg#18619. An equality delete keyed on a uuid column (here a
+    // composite (uuid, int) key) must still be attached to a data file whose uuid bounds overlap
+    // the delete's. UUID bounds are stored as 16-byte big-endian values, so they must be compared
+    // as unsigned. Comparing them with java.util.UUID.compareTo (signed) inverts a data file's
+    // stored [lower, upper] when either bound has the high bit of its most significant long set,
+    // which made DeleteFileIndex.canContainEqDeletesForFile wrongly skip the delete so it never
+    // reached FileScanTask.deletes().
+    Schema uuidSchema =
+        new Schema(
+            Types.NestedField.required(1, "u", Types.UUIDType.get()),
+            Types.NestedField.required(2, "n", Types.IntegerType.get()));
+    PartitionSpec uuidSpec = PartitionSpec.builderFor(uuidSchema).build();
+
+    // Data file uuid range [00..01, ff..fe] straddles the signed/unsigned boundary: under signed
+    // ordering the stored lower (small) and upper (negative long) look inverted. n range [0, 4].
+    UUID dataLowerUuid = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    UUID dataUpperUuid = UUID.fromString("ffffffff-ffff-ffff-ffff-fffffffffffe");
+    DataFile dataFile =
+        DataFiles.builder(uuidSpec)
+            .withPath("/path/to/data-uuid.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1000)
+            .withMetrics(
+                new Metrics(
+                    1000L,
+                    null,
+                    ImmutableMap.of(1, 1000L, 2, 1000L),
+                    ImmutableMap.of(1, 0L, 2, 0L),
+                    null,
+                    ImmutableMap.of(
+                        1,
+                        Conversions.toByteBuffer(Types.UUIDType.get(), dataLowerUuid),
+                        2,
+                        Conversions.toByteBuffer(Types.IntegerType.get(), 0)),
+                    ImmutableMap.of(
+                        1,
+                        Conversions.toByteBuffer(Types.UUIDType.get(), dataUpperUuid),
+                        2,
+                        Conversions.toByteBuffer(Types.IntegerType.get(), 4))))
+            .build();
+
+    // Delete keys sit inside the data range only under unsigned ordering: c0.. has the high bit
+    // set, so signed comparison places it below the stored lower bound and the ranges look
+    // disjoint.
+    UUID deleteUuid = UUID.fromString("c0000000-0000-0000-0000-000000000000");
+    DeleteFile uuidEqDeletes =
+        FileMetadata.deleteFileBuilder(uuidSpec)
+            .ofEqualityDeletes(1, 2)
+            .withPath("/path/to/data-uuid-eq-deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withMetrics(
+                new Metrics(
+                    1L,
+                    null,
+                    ImmutableMap.of(1, 1L, 2, 1L),
+                    ImmutableMap.of(1, 0L, 2, 0L),
+                    null,
+                    ImmutableMap.of(
+                        1,
+                        Conversions.toByteBuffer(Types.UUIDType.get(), deleteUuid),
+                        2,
+                        Conversions.toByteBuffer(Types.IntegerType.get(), 0)),
+                    ImmutableMap.of(
+                        1,
+                        Conversions.toByteBuffer(Types.UUIDType.get(), deleteUuid),
+                        2,
+                        Conversions.toByteBuffer(Types.IntegerType.get(), 4))))
+            .build();
+
+    DeleteFile uuidEqDeletesWithSeq = withDataSequenceNumber(2, uuidEqDeletes);
+    DeleteFileIndex index =
+        DeleteFileIndex.builderFor(Collections.singletonList(uuidEqDeletesWithSeq))
+            .specsById(ImmutableMap.of(uuidSpec.specId(), uuidSpec))
+            .build();
+
+    assertThat(index.forDataFile(1, dataFile))
+        .as("The (uuid, int) equality delete must be attached to the overlapping data file")
+        .hasSize(1);
   }
 }
