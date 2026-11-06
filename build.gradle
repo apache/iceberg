@@ -774,6 +774,7 @@ project(':iceberg-bigquery') {
   test {
     useJUnitPlatform()
   }
+
   dependencies {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
@@ -1048,6 +1049,7 @@ project(':iceberg-nessie') {
   test {
     useJUnitPlatform()
   }
+
   dependencies {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
