@@ -471,6 +471,38 @@ public class TestDeleteFiles extends TestBase {
   }
 
   @TestTemplate
+  public void testDeleteByStartsWithKeepsNullPartition() {
+    Schema schema = new Schema(Types.NestedField.optional(1, "x", Types.StringType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("x").build();
+    Table nullPartitionTable =
+        TestTables.create(tableDir, "nullpartition", schema, spec, formatVersion);
+
+    DataFile matchingFile =
+        DataFiles.builder(spec)
+            .withPartition(TestHelpers.Row.of("abc"))
+            .withPath("/abc.parquet")
+            .withFileSizeInBytes(100)
+            .withRecordCount(1)
+            .build();
+
+    DataFile nullFile =
+        DataFiles.builder(spec)
+            .withPartition(TestHelpers.Row.of((Object) null))
+            .withPath("/null.parquet")
+            .withFileSizeInBytes(100)
+            .withRecordCount(1)
+            .build();
+
+    nullPartitionTable.newFastAppend().appendFile(matchingFile).appendFile(nullFile).commit();
+
+    nullPartitionTable.newDelete().deleteFromRowFilter(Expressions.startsWith("x", "a")).commit();
+
+    assertThat(nullPartitionTable.newScan().planFiles())
+        .extracting(task -> task.file().location())
+        .containsExactly("/null.parquet");
+  }
+
+  @TestTemplate
   public void testDeleteValidateFileExistence() {
     Snapshot append = commit(table, table.newFastAppend().appendFile(FILE_B), branch);
     assertThat(append.summary())

@@ -190,5 +190,9 @@ public class TestTruncatesResiduals {
     assertResidualValue(spec, notStartsWith("value", "bcd"), "cd", Expression.Operation.TRUE);
     assertResidualPredicate(spec, notStartsWith("value", "bcd"), "bcd");
     assertResidualPredicate(spec, notStartsWith("value", "bcd"), "bcdd");
+
+    // null partition value
+    assertResidualValue(spec, startsWith("value", "bcd"), null, Expression.Operation.FALSE);
+    assertResidualValue(spec, notStartsWith("value", "bcd"), null, Expression.Operation.TRUE);
   }
 }
