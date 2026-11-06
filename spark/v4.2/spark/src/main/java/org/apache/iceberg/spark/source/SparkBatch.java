@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.source;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Supplier;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
@@ -62,7 +61,7 @@ class SparkBatch implements Batch {
   private final boolean caseSensitive;
   private final boolean localityEnabled;
   private final boolean executorCacheLocalityEnabled;
-  private final int scanHashCode;
+  private final List<Object> scanEqualityKey;
   private final boolean cacheDeleteFilesOnExecutors;
 
   SparkBatch(
@@ -73,7 +72,7 @@ class SparkBatch implements Batch {
       Types.StructType groupingKeyType,
       List<? extends ScanTaskGroup<?>> taskGroups,
       Schema projection,
-      int scanHashCode) {
+      List<Object> scanEqualityKey) {
     this.sparkContext = sparkContext;
     this.table = table;
     this.fileIO = fileIO;
@@ -84,7 +83,7 @@ class SparkBatch implements Batch {
     this.caseSensitive = readConf.caseSensitive();
     this.localityEnabled = readConf.localityEnabled();
     this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
-    this.scanHashCode = scanHashCode;
+    this.scanEqualityKey = scanEqualityKey;
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
   }
 
@@ -252,11 +251,11 @@ class SparkBatch implements Batch {
     }
 
     SparkBatch that = (SparkBatch) o;
-    return table.name().equals(that.table.name()) && scanHashCode == that.scanHashCode;
+    return scanEqualityKey.equals(that.scanEqualityKey);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(table.name(), scanHashCode);
+    return scanEqualityKey.hashCode();
   }
 }
