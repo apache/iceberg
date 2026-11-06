@@ -36,7 +36,6 @@ import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.WriteBuilder;
-import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 /**
@@ -84,15 +83,6 @@ public class RollbackStagedTable
   @Override
   public String name() {
     return table.name();
-  }
-
-  /**
-   * @deprecated since 1.12.0, use {@link #columns()} instead
-   */
-  @Deprecated
-  @Override
-  public StructType schema() {
-    return table.schema();
   }
 
   @Override
