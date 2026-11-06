@@ -68,6 +68,10 @@ public final class RESTCatalogProperties {
       "rest-scan-planning.poll-num-retries";
   public static final int REST_SCAN_PLANNING_POLL_NUM_RETRIES_DEFAULT = 10;
 
+  // Allow requesting delegated storage access while using a client-side KMS.
+  public static final String ALLOW_ACCESS_DELEGATION = "rest.encryption.allow-access-delegation";
+  public static final boolean ALLOW_ACCESS_DELEGATION_DEFAULT = false;
+
   // Properties that control the behaviour of the table cache used for freshness-aware table
   // loading.
   public static final String TABLE_CACHE_EXPIRE_AFTER_WRITE_MS =
