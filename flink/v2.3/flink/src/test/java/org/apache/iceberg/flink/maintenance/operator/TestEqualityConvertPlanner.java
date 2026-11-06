@@ -1425,6 +1425,56 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
   }
 
   @Test
+  void rebuildsIndexWhenDeltaFailsAfterItsFirstChange() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    DataFile replaced = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    // Untouched rows keep the delta smaller than a rebuild.
+    insert(table, 10, "x");
+    insert(table, 11, "y");
+    insert(table, 12, "z");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      sendTrigger(harness);
+
+      // The planner reads the newest external commit first. It replaces a file, so its removal is
+      // sent before the planner reads the older append, which fails.
+      DataFile appended = writeDataFile(table, createRecord(2, "b"));
+      table.newAppend().appendFile(appended).commit();
+      table.refresh();
+      long appendSnapshotId = table.currentSnapshot().snapshotId();
+      List<File> manifests =
+          table.currentSnapshot().dataManifests(table.io()).stream()
+              .filter(manifest -> manifest.snapshotId() == appendSnapshotId)
+              .map(manifest -> new File(manifest.path().replace("file:", "")))
+              .collect(Collectors.toList());
+      DataFile compacted = writeDataFile(table, createRecord(1, "a"));
+      table.newRewrite().deleteFile(replaced).addFile(compacted).commit();
+      table.refresh();
+      hide(manifests);
+
+      sendTrigger(harness);
+      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
+      restore(manifests);
+      int afterSecond = harness.extractOutputValues().size();
+
+      // Part of the delta was sent, so the index is not trusted and the next trigger rebuilds it.
+      sendTrigger(harness);
+      List<ReadCommand> all = harness.extractOutputValues();
+      assertThat(all.subList(afterSecond, all.size()))
+          .filteredOn(c -> c.task() instanceof FileScanTask)
+          .extracting(TestEqualityConvertPlanner::filePath)
+          .containsExactlyInAnyOrderElementsOf(liveDataFiles(table));
+    }
+  }
+
+  @Test
   void appliesDeltaAfterRestore() throws Exception {
     Table table = createTableWithDelete(3);
     insert(table, 1, "a");
