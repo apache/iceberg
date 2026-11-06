@@ -175,18 +175,20 @@ public class IcebergFullCachingLookupFunction extends LookupFunction
 
   @Override
   public void close() throws Exception {
-    if (reloadTrigger != null) {
-      reloadTrigger.close();
-    }
-
     try {
-      tableLoader.close();
-    } finally {
-      if (cache != null) {
-        cache.close();
+      if (reloadTrigger != null) {
+        reloadTrigger.close();
       }
+    } finally {
+      try {
+        tableLoader.close();
+      } finally {
+        if (cache != null) {
+          cache.close();
+        }
 
-      super.close();
+        super.close();
+      }
     }
   }
 
@@ -199,7 +201,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction
     try {
       loadCache();
       return CompletableFuture.completedFuture(null);
-    } catch (Exception failure) {
+    } catch (Throwable failure) {
       loadFailuresCounter.inc();
       this.reloadFailure = failure;
       LOG.error(
@@ -221,7 +223,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction
         "Watermarks are currently unsupported in cache reload triggers.");
   }
 
-  private void loadCache() throws IOException {
+  private synchronized void loadCache() throws IOException {
     table.refresh();
     Snapshot snapshot = table.currentSnapshot();
     long snapshotId =

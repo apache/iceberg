@@ -255,7 +255,7 @@ class TestIcebergLookup {
   }
 
   @Test
-  public void lookupFunctionReloadsCacheFromTrigger() throws Exception {
+  void lookupFunctionReloadsCacheFromTrigger() throws Exception {
     Table table = createTableWithRecords();
     ManualCacheReloadTrigger reloadTrigger = new ManualCacheReloadTrigger();
 
@@ -281,7 +281,7 @@ class TestIcebergLookup {
   }
 
   @Test
-  public void lookupFunctionWithTriggerLoadsCacheLazily() throws Exception {
+  void lookupFunctionWithTriggerLoadsCacheLazily() throws Exception {
     Table table = createTableWithRecords();
     ManualCacheReloadTrigger reloadTrigger = new ManualCacheReloadTrigger();
 
@@ -307,7 +307,7 @@ class TestIcebergLookup {
   }
 
   @Test
-  public void lookupFunctionSkipsReloadWhenSnapshotIsUnchanged() throws Exception {
+  void lookupFunctionSkipsReloadWhenSnapshotIsUnchanged() throws Exception {
     Table table = CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
     DataFile dataFile = appendRecords(table, ImmutableList.of(record(1L, "alice", "A")));
     ManualCacheReloadTrigger reloadTrigger = new ManualCacheReloadTrigger();
@@ -328,7 +328,7 @@ class TestIcebergLookup {
   }
 
   @Test
-  public void lookupFunctionFailsLookupsWhenReloadFails() throws Exception {
+  void lookupFunctionFailsLookupsWhenReloadFails() throws Exception {
     Table table = createTableWithRecords();
     ManualCacheReloadTrigger reloadTrigger = new ManualCacheReloadTrigger();
 
