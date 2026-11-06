@@ -421,8 +421,10 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public Identifier[] listTables(String[] namespace) {
+    Set<Identifier> viewIdents = Sets.newHashSet(listViews(namespace));
     return icebergCatalog.listTables(Namespace.of(namespace)).stream()
         .map(ident -> Identifier.of(ident.namespace().levels(), ident.name()))
+        .filter(ident -> !viewIdents.contains(ident))
         .toArray(Identifier[]::new);
   }
 

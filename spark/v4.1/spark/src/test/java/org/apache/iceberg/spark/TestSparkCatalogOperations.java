@@ -87,8 +87,8 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
             Boolean.toString(USE_NULLABLE_QUERY_SCHEMA)),
       },
       {
-        // HiveCatalog with list-all-tables=true returns views from listTables, exercising the
-        // de-duplication guard in SparkCatalog.listTableSummaries.
+        // HiveCatalog with list-all-tables=true returns views from listTables, exercising view
+        // filtering in SparkCatalog listing methods.
         "testhive_list_all",
         SparkCatalog.class.getName(),
         ImmutableMap.of(
@@ -147,6 +147,33 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
     assertThat(table.properties())
         .as("Iceberg tables should report an EXTERNAL table type")
         .containsEntry(TableCatalog.PROP_TABLE_TYPE, TableSummary.EXTERNAL_TABLE_TYPE);
+  }
+
+  @TestTemplate
+  void listTablesExcludesViews() throws NoSuchNamespaceException {
+    BaseCatalog catalog = (BaseCatalog) spark.sessionState().catalogManager().catalog(catalogName);
+    boolean supportsViews =
+        catalog instanceof SparkCatalog && validationCatalog instanceof ViewCatalog;
+    if (!supportsViews) {
+      return;
+    }
+
+    String[] namespace = tableIdent.namespace().levels();
+    TableIdentifier viewIdent = TableIdentifier.of(tableIdent.namespace(), "list_tables_view");
+    ((ViewCatalog) validationCatalog)
+        .buildView(viewIdent)
+        .withSchema(new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())))
+        .withDefaultNamespace(tableIdent.namespace())
+        .withQuery("spark", "SELECT id FROM " + tableIdent.name())
+        .create();
+
+    try {
+      assertThat(catalog.listTables(namespace))
+          .contains(Identifier.of(namespace, tableIdent.name()))
+          .doesNotContain(Identifier.of(namespace, viewIdent.name()));
+    } finally {
+      ((ViewCatalog) validationCatalog).dropView(viewIdent);
+    }
   }
 
   @TestTemplate
