@@ -403,7 +403,8 @@ class StatsUtil {
       return switch (sourceType.typeId()) {
         case INTEGER -> {
           int lower = (Integer) value;
-          // truncate wraps below MIN to a value that is not a multiple of the width
+          // truncating values near MIN can overflow and wrap around to a value that is not a
+          // multiple of the width
           if (Math.floorMod(lower, width) != 0) {
             yield new PartitionSourceBounds<>(Integer.MIN_VALUE, lower + width - 1);
           }
