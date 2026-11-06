@@ -301,22 +301,23 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
     }
   }
 
-  private record ReloadContext(IcebergFullCachingLookupFunction function) implements CacheReloadTrigger.Context {
+  private record ReloadContext(IcebergFullCachingLookupFunction function)
+      implements CacheReloadTrigger.Context {
 
     @Override
-      public long currentProcessingTime() {
-        return System.currentTimeMillis();
-      }
-
-      @Override
-      public long currentWatermark() {
-        throw new UnsupportedOperationException(
-                "Watermarks are currently unsupported in cache reload triggers.");
-      }
-
-      @Override
-      public CompletableFuture<Void> triggerReload() {
-        return function.triggerReload();
-      }
+    public long currentProcessingTime() {
+      return System.currentTimeMillis();
     }
+
+    @Override
+    public long currentWatermark() {
+      throw new UnsupportedOperationException(
+          "Watermarks are currently unsupported in cache reload triggers.");
+    }
+
+    @Override
+    public CompletableFuture<Void> triggerReload() {
+      return function.triggerReload();
+    }
+  }
 }
