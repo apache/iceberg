@@ -19,7 +19,9 @@
 package org.apache.iceberg.encryption;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatObject;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.InstanceOfAssertFactories.BYTE_ARRAY;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,14 +33,59 @@ import java.util.Arrays;
 import java.util.Random;
 import javax.crypto.AEADBadTagException;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestGcmStreams {
 
   @TempDir private Path temp;
+
+  @ParameterizedTest
+  @ValueSource(
+      ints = {
+        0,
+        1,
+        4096,
+        Ciphers.PLAIN_BLOCK_SIZE - 1,
+        Ciphers.PLAIN_BLOCK_SIZE,
+        Ciphers.PLAIN_BLOCK_SIZE + 1,
+        2 * Ciphers.PLAIN_BLOCK_SIZE + 1
+      })
+  void bufferSizesMatchLargestBlock(int plaintextLength) throws IOException {
+    byte[] content = new byte[plaintextLength];
+    new Random(0).nextBytes(content);
+    byte[] key = new byte[16];
+    byte[] aadPrefix = new byte[16];
+    InMemoryOutputFile outputFile = new InMemoryOutputFile();
+    AesGcmOutputFile encryptedFile = new AesGcmOutputFile(outputFile, key, aadPrefix);
+    try (PositionOutputStream stream = encryptedFile.create()) {
+      stream.write(content);
+    }
+
+    InputFile inputFile = outputFile.toInputFile();
+    AesGcmInputFile decryptedFile =
+        new AesGcmInputFile(inputFile, key, aadPrefix, inputFile.getLength());
+    try (SeekableInputStream stream = decryptedFile.newStream()) {
+      int bufferSize = Math.min(plaintextLength, Ciphers.PLAIN_BLOCK_SIZE);
+      assertThatObject(stream).extracting("currentPlainBlock", BYTE_ARRAY).hasSize(bufferSize);
+      assertThatObject(stream)
+          .extracting("cipherBlockBuffer", BYTE_ARRAY)
+          .hasSize(bufferSize + Ciphers.NONCE_LENGTH + Ciphers.GCM_TAG_LENGTH);
+      assertThat(stream.readAllBytes()).isEqualTo(content);
+
+      stream.seek(plaintextLength / 2);
+      assertThat(stream.readAllBytes())
+          .isEqualTo(Arrays.copyOfRange(content, plaintextLength / 2, plaintextLength));
+      stream.seek(0);
+      assertThat(stream.readAllBytes()).isEqualTo(content);
+    }
+  }
 
   @Test
   public void testEmptyFile() throws IOException {
