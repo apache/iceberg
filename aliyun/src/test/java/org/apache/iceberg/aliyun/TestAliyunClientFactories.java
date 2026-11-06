@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.aliyun.kms20160120.Client;
 import com.aliyun.oss.OSS;
+import com.aliyun.oss.OSSClient;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -123,6 +124,55 @@ public class TestAliyunClientFactories {
     } finally {
       client.shutdown();
     }
+  }
+
+  @Test
+  @SetEnvironmentVariable(
+      key = "ALIBABA_CLOUD_OIDC_PROVIDER_ARN",
+      value = "acs:ram::123456789:oidc-provider/ack-rrsa-test")
+  @SetEnvironmentVariable(
+      key = "ALIBABA_CLOUD_ROLE_ARN",
+      value = "acs:ram::123456789:role/test-rrsa-role")
+  @SetEnvironmentVariable(key = "ALIBABA_CLOUD_OIDC_TOKEN_FILE", value = "/tmp/oidc-token")
+  void ossClientPrefersStaticAccessKeyOverRrsa() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            AliyunProperties.OSS_ENDPOINT,
+            "https://oss-cn-hangzhou.aliyuncs.com",
+            AliyunProperties.CLIENT_ACCESS_KEY_ID,
+            "key",
+            AliyunProperties.CLIENT_ACCESS_KEY_SECRET,
+            "secret");
+
+    OSS client = AliyunClientFactories.from(properties).newOSSClient();
+    try {
+      assertThat(((OSSClient) client).getCredentialsProvider().getCredentials().getAccessKeyId())
+          .isEqualTo("key");
+    } finally {
+      client.shutdown();
+    }
+  }
+
+  @Test
+  @SetEnvironmentVariable(
+      key = "ALIBABA_CLOUD_OIDC_PROVIDER_ARN",
+      value = "acs:ram::123456789:oidc-provider/ack-rrsa-test")
+  @SetEnvironmentVariable(
+      key = "ALIBABA_CLOUD_ROLE_ARN",
+      value = "acs:ram::123456789:role/test-rrsa-role")
+  @SetEnvironmentVariable(key = "ALIBABA_CLOUD_OIDC_TOKEN_FILE", value = "/tmp/oidc-token")
+  void kmsClientPrefersStaticAccessKeyOverRrsa() throws Exception {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            AliyunProperties.CLIENT_REGION,
+            "cn-hangzhou",
+            AliyunProperties.CLIENT_ACCESS_KEY_ID,
+            "key",
+            AliyunProperties.CLIENT_ACCESS_KEY_SECRET,
+            "secret");
+
+    Client kmsClient = AliyunClientFactories.from(properties).newKmsClient();
+    assertThat(kmsClient.getAccessKeyId()).isEqualTo("key");
   }
 
   @Test
