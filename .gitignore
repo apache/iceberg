@@ -57,6 +57,7 @@ coverage.xml
 .pytest_cache/
 
 # vscode/eclipse files
+.vscode/
 .classpath
 .factorypath
 .project
