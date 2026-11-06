@@ -69,6 +69,13 @@ class TestEndpointProvider {
   }
 
   @Test
+  void oidcDiscoveryTrailingSlash() {
+    server.expectOidcDiscoveryWithTrailingSlash();
+    EndpointProvider provider = new EndpointProvider(issuerConfig(), server.runtime());
+    assertThat(provider.tokenEndpoint()).isEqualTo(server.tokenEndpoint());
+  }
+
+  @Test
   void issuerMismatch() {
     server.expectOidcDiscoveryWithWrongIssuer();
     EndpointProvider provider = new EndpointProvider(issuerConfig(), server.runtime());

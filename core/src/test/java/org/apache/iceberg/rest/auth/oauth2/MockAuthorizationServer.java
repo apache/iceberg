@@ -276,6 +276,13 @@ final class MockAuthorizationServer implements AutoCloseable {
     expectDiscovery(OIDC_DISCOVERY_PATH, "http://wrong.example.com/realms/master");
   }
 
+  /**
+   * Expects OpenID Connect discovery requests and replies with the issuer URL and a trailing slash.
+   */
+  void expectOidcDiscoveryWithTrailingSlash() {
+    expectDiscovery(OIDC_DISCOVERY_PATH, issuerUrl() + "/");
+  }
+
   private void expectDiscovery(String path) {
     expectDiscovery(path, issuerUrl().toString());
   }

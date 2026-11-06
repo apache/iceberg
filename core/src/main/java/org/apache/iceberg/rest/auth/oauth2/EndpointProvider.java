@@ -29,7 +29,10 @@ import com.nimbusds.openid.connect.sdk.op.OIDCProviderConfigurationRequest;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Locale;
+import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.RESTUtil;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Resolves the token endpoint, either from the configuration or through metadata discovery on the
@@ -106,12 +109,19 @@ final class EndpointProvider {
 
     // RFC 8414 section 3.3: the issuer in the metadata must match the issuer used to build the URL
     Preconditions.checkState(
-        expected.equals(metadata.getIssuer()),
+        issuersMatch(expected, metadata.getIssuer()),
         "Invalid %s server metadata: issuer %s does not match expected issuer %s",
         type,
         metadata.getIssuer(),
         expected);
 
     return metadata;
+  }
+
+  private static boolean issuersMatch(Issuer expected, @Nullable Issuer actual) {
+    return actual != null
+        && Objects.equals(
+            RESTUtil.stripTrailingSlash(expected.getValue()),
+            RESTUtil.stripTrailingSlash(actual.getValue()));
   }
 }
