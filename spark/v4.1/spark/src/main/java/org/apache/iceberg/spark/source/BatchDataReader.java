@@ -114,7 +114,9 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
     SparkDeleteFilter deleteFilter =
         new SparkDeleteFilter(filePath, task.deletes(), counter(), true);
 
-    Map<Integer, ?> idToConstant = constantsMap(task, deleteFilter.requiredSchema());
+    Map<Integer, ?> idToConstant =
+        findMoreCompoundConstants(
+            expectedSchema(), constantsMap(task, deleteFilter.requiredSchema()));
 
     return newBatchIterable(
             inputFile,
