@@ -19,6 +19,7 @@
 package org.apache.iceberg.expressions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -36,6 +37,7 @@ import java.util.stream.IntStream;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -1450,6 +1452,39 @@ public class TestExpressionUtil {
                 + "(hash-event_timestamp_tz_nanos): (timestamp), "
                 + "(hash-event_uuid): (hash-54e07fa7)}"),
         ExpressionUtil.sanitize(bound));
+  }
+
+  @Test
+  public void unbindBoundApply() {
+    UnboundApply<?> nested =
+        new UnboundApply<>(
+            Expressions.function("inner"),
+            ImmutableList.of(Expressions.ref("val")),
+            Types.IntegerType.get());
+    UnboundApply<?> apply =
+        new UnboundApply<>(
+            Expressions.function("cat", ImmutableList.of("ns", "my_func")),
+            ImmutableList.of(16, Expressions.ref("id"), nested),
+            Types.StringType.get());
+    BoundTerm<?> bound = apply.bind(STRUCT, true);
+
+    UnboundTerm<?> unbound = ExpressionUtil.unbind(bound);
+    assertThat(unbound).isInstanceOf(UnboundApply.class);
+    assertThat(unbound.bind(STRUCT, true).isEquivalentTo(bound)).isTrue();
+  }
+
+  @Test
+  public void unbindBoundApplyWithPredicateArgument() {
+    UnboundApply<?> apply =
+        new UnboundApply<>(
+            Expressions.function("my_func"),
+            ImmutableList.of(Expressions.equal("id", 5L)),
+            Types.StringType.get());
+    BoundTerm<?> bound = apply.bind(STRUCT, true);
+
+    assertThatThrownBy(() -> ExpressionUtil.unbind(bound))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageStartingWith("Cannot unbind unsupported function argument: ");
   }
 
   private static VariantPrimitive<?> createTimestampNanos(int primitiveHeader) {

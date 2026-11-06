@@ -31,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTResponse;
 import org.apache.iceberg.rest.RemoteSigningConfig;
 import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.rest.restrictions.ReadRestrictions;
 
 /**
  * A REST response that is used when a table is successfully loaded.
@@ -49,6 +50,7 @@ public class LoadTableResponse implements RESTResponse {
   private List<Credential> credentials;
   private RemoteSigningConfig remoteSigningConfig;
   private Labels labels;
+  private ReadRestrictions readRestrictions;
 
   public LoadTableResponse() {
     // Required for Jackson deserialization
@@ -60,13 +62,15 @@ public class LoadTableResponse implements RESTResponse {
       Map<String, String> config,
       List<Credential> credentials,
       RemoteSigningConfig remoteSigningConfig,
-      Labels labels) {
+      Labels labels,
+      ReadRestrictions readRestrictions) {
     this.metadataLocation = metadataLocation;
     this.metadata = metadata;
     this.config = config;
     this.credentials = credentials;
     this.remoteSigningConfig = remoteSigningConfig;
     this.labels = labels;
+    this.readRestrictions = readRestrictions;
   }
 
   @Override
@@ -103,6 +107,10 @@ public class LoadTableResponse implements RESTResponse {
     return labels != null ? labels : Labels.EMPTY;
   }
 
+  public ReadRestrictions readRestrictions() {
+    return readRestrictions != null ? readRestrictions : ReadRestrictions.empty();
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
@@ -110,6 +118,7 @@ public class LoadTableResponse implements RESTResponse {
         .add("metadata", metadata)
         .add("config", config)
         .add("labels", labels)
+        .add("readRestrictions", readRestrictions)
         .toString();
   }
 
@@ -124,6 +133,7 @@ public class LoadTableResponse implements RESTResponse {
     private final List<Credential> credentials = Lists.newArrayList();
     private RemoteSigningConfig remoteSigningConfig = RemoteSigningConfig.EMPTY;
     private Labels labels = Labels.EMPTY;
+    private ReadRestrictions readRestrictions;
 
     private Builder() {}
 
@@ -163,10 +173,21 @@ public class LoadTableResponse implements RESTResponse {
       return this;
     }
 
+    public Builder withReadRestrictions(ReadRestrictions restrictions) {
+      this.readRestrictions = restrictions;
+      return this;
+    }
+
     public LoadTableResponse build() {
       Preconditions.checkNotNull(metadata, "Invalid metadata: null");
       return new LoadTableResponse(
-          metadataLocation, metadata, config, credentials, remoteSigningConfig, labels);
+          metadataLocation,
+          metadata,
+          config,
+          credentials,
+          remoteSigningConfig,
+          labels,
+          readRestrictions);
     }
   }
 }
