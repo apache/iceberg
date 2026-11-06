@@ -116,7 +116,7 @@ By default there is no background refresh: each subtask keeps the snapshot it lo
 -- Reload every 5 minutes
 SELECT o.order_id, o.user_id, u.name, u.city
 FROM orders AS o
-LEFT JOIN iceberg_catalog.db.user_dim /*+ OPTIONS('lookup.full-cache.periodic-reload.interval'='5 min') */
+LEFT JOIN iceberg_catalog.db.user_dim /*+ OPTIONS('lookup.full-cache.reload-strategy'='PERIODIC', 'lookup.full-cache.periodic-reload.interval'='5 min') */
   FOR SYSTEM_TIME AS OF o.proc_time AS u
   ON o.user_id = u.user_id;
 
@@ -132,7 +132,7 @@ A reload reads the current snapshot of the dimension table and replaces the load
 
 Reloading follows `lookup.full-cache.eager-load`: with the default eager loading the first reload is triggered on startup, and with eager loading disabled the cache is loaded on the first lookup and reloaded on the configured schedule from then on.
 
-No reload is configured unless the options select one: either `lookup.full-cache.reload-strategy` is set, or the interval or the time of day of a strategy is set, in which case the strategy is inferred. Options that only refine a strategy, like `lookup.full-cache.periodic-reload.schedule-mode`, do not enable reload on their own.
+No reload is configured unless `lookup.full-cache.reload-strategy` is set. The other reload options only configure the strategy selected by it, so setting an interval or a time of day without the strategy has no effect.
 
 Check out all the options here: [lookup-options](flink-configuration.md#lookup-options)
 

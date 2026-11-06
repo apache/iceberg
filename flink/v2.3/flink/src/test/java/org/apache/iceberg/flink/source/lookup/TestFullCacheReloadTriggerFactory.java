@@ -37,8 +37,38 @@ class TestFullCacheReloadTriggerFactory {
   }
 
   @Test
-  void periodicReloadIsEnabledByInterval() {
+  void reloadRequiresTheStrategyOption() {
+    Configuration intervalOnly = new Configuration();
+    intervalOnly.set(LookupOptions.FULL_CACHE_PERIODIC_RELOAD_INTERVAL, Duration.ofMinutes(5));
+    assertThat(FullCacheReloadTriggerFactory.create(intervalOnly))
+        .as("An interval without a strategy must not enable reload")
+        .isNull();
+
+    Configuration isoTimeOnly = new Configuration();
+    isoTimeOnly.set(LookupOptions.FULL_CACHE_TIMED_RELOAD_ISO_TIME, "10:15");
+    assertThat(FullCacheReloadTriggerFactory.create(isoTimeOnly))
+        .as("A time of day without a strategy must not enable reload")
+        .isNull();
+
+    Configuration intervalInDaysOnly = new Configuration();
+    intervalInDaysOnly.set(LookupOptions.FULL_CACHE_TIMED_RELOAD_INTERVAL_IN_DAYS, 2);
+    assertThat(FullCacheReloadTriggerFactory.create(intervalInDaysOnly))
+        .as("An interval in days without a strategy must not enable reload")
+        .isNull();
+
+    Configuration scheduleModeOnly = new Configuration();
+    scheduleModeOnly.set(
+        LookupOptions.FULL_CACHE_PERIODIC_RELOAD_SCHEDULE_MODE,
+        PeriodicCacheReloadTrigger.ScheduleMode.FIXED_RATE);
+    assertThat(FullCacheReloadTriggerFactory.create(scheduleModeOnly))
+        .as("A schedule mode without a strategy must not enable reload")
+        .isNull();
+  }
+
+  @Test
+  void periodicReloadIsEnabledByStrategyAndInterval() {
     Configuration lookupConf = new Configuration();
+    lookupConf.set(LookupOptions.FULL_CACHE_RELOAD_STRATEGY, ReloadStrategy.PERIODIC);
     lookupConf.set(LookupOptions.FULL_CACHE_PERIODIC_RELOAD_INTERVAL, Duration.ofMinutes(5));
 
     assertThat(FullCacheReloadTriggerFactory.create(lookupConf))
@@ -46,20 +76,9 @@ class TestFullCacheReloadTriggerFactory {
   }
 
   @Test
-  void reloadIsDisabledWhenOnlyScheduleModeIsConfigured() {
+  void timedReloadIsEnabledByStrategyAndLocalIsoTime() {
     Configuration lookupConf = new Configuration();
-    lookupConf.set(
-        LookupOptions.FULL_CACHE_PERIODIC_RELOAD_SCHEDULE_MODE,
-        PeriodicCacheReloadTrigger.ScheduleMode.FIXED_RATE);
-
-    assertThat(FullCacheReloadTriggerFactory.create(lookupConf))
-        .as("A schedule mode without an interval must not enable reload")
-        .isNull();
-  }
-
-  @Test
-  void timedReloadIsEnabledByLocalIsoTime() {
-    Configuration lookupConf = new Configuration();
+    lookupConf.set(LookupOptions.FULL_CACHE_RELOAD_STRATEGY, ReloadStrategy.TIMED);
     lookupConf.set(LookupOptions.FULL_CACHE_TIMED_RELOAD_ISO_TIME, "10:15");
 
     assertThat(FullCacheReloadTriggerFactory.create(lookupConf))
@@ -67,8 +86,9 @@ class TestFullCacheReloadTriggerFactory {
   }
 
   @Test
-  void timedReloadIsEnabledByOffsetIsoTime() {
+  void timedReloadIsEnabledByStrategyAndOffsetIsoTime() {
     Configuration lookupConf = new Configuration();
+    lookupConf.set(LookupOptions.FULL_CACHE_RELOAD_STRATEGY, ReloadStrategy.TIMED);
     lookupConf.set(LookupOptions.FULL_CACHE_TIMED_RELOAD_ISO_TIME, "10:15+07:00");
 
     assertThat(FullCacheReloadTriggerFactory.create(lookupConf))
@@ -76,17 +96,7 @@ class TestFullCacheReloadTriggerFactory {
   }
 
   @Test
-  void timedReloadIsInferredByIntervalInDays() {
-    Configuration lookupConf = new Configuration();
-    lookupConf.set(LookupOptions.FULL_CACHE_TIMED_RELOAD_INTERVAL_IN_DAYS, 2);
-
-    assertThatThrownBy(() -> FullCacheReloadTriggerFactory.create(lookupConf))
-        .as("The interval in days selects the timed strategy, which still needs the time of day")
-        .hasMessageContaining(LookupOptions.FULL_CACHE_TIMED_RELOAD_ISO_TIME.key());
-  }
-
-  @Test
-  void reloadStrategyOverridesTheStrategyOfTheConfiguredOptions() {
+  void strategySelectsTheTriggerOverTheOptionsOfTheOtherStrategy() {
     Configuration lookupConf = new Configuration();
     lookupConf.set(LookupOptions.FULL_CACHE_RELOAD_STRATEGY, ReloadStrategy.TIMED);
     lookupConf.set(LookupOptions.FULL_CACHE_PERIODIC_RELOAD_INTERVAL, Duration.ofMinutes(5));

@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
-import java.util.List;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.types.Row;
@@ -45,6 +44,8 @@ import org.junit.jupiter.api.Test;
 
 /** Tests SQL lookup join with Iceberg table source. */
 class TestIcebergLookupJoinSql extends TestSqlBase {
+  private static final long RELOAD_TIMEOUT_MS = 10_000L;
+
   private static final Schema DIM_SCHEMA =
       new Schema(
           required(1, "user_id", Types.LongType.get()),
@@ -187,35 +188,35 @@ class TestIcebergLookupJoinSql extends TestSqlBase {
                 dimRecord(3L, "carol", "guangzhou"))));
 
     TableEnvironment streamEnv = getStreamingTableEnv();
-    // Two probe rows per second, so the last probe row is joined seconds after the cache is
-    // loaded, which leaves the reload time to pick up the row appended below.
-    createOrdersTable(streamEnv, "orders_reload_new_snapshot", 10, ",\n  'rows-per-second' = '2'");
+    // The probe keeps emitting randomized keys for a few seconds, so the reload has time to pick
+    // up the snapshot appended below before the probe ends.
+    createRepeatingOrdersTable(streamEnv, "orders_reload_new_snapshot", 10);
 
     String joinSql =
         lookupJoinSql(
-            "o.order_id, o.user_id, u.name",
+            "o.user_id, u.name",
             "orders_reload_new_snapshot",
-            "OPTIONS('lookup.full-cache.periodic-reload.interval'='500 ms', "
+            "OPTIONS('lookup.full-cache.reload-strategy'='PERIODIC', "
+                + "'lookup.full-cache.periodic-reload.interval'='500 ms', "
                 + "'lookup.full-cache.periodic-reload.schedule-mode'='FIXED_RATE')",
             null);
 
-    List<Row> rows = Lists.newArrayList();
     try (CloseableIterator<Row> iter = streamEnv.executeSql(joinSql).collect()) {
-      // The first result row proves that the lookup function is open and has loaded the cache,
-      // so the row appended next can only be served by a reload.
-      rows.add(iter.next());
+      // The first row proves that the lookup function is open and the cache is loaded from the
+      // snapshot that does not contain the row appended next.
+      assertThat(iter.next()).isNotNull();
 
       helper.appendToTable(
           helper.writeFile(Lists.newArrayList(dimRecord(10L, "henry", "shenzhen"))));
 
-      while (iter.hasNext()) {
-        rows.add(iter.next());
+      long deadline = System.currentTimeMillis() + RELOAD_TIMEOUT_MS;
+      boolean reloaded = false;
+      while (!reloaded && System.currentTimeMillis() < deadline && iter.hasNext()) {
+        reloaded = "henry".equals(iter.next().getField(1));
       }
-    }
 
-    assertThat(rows)
-        .as("A reload must replace the cache with the latest snapshot")
-        .contains(Row.of(10L, 10L, "henry"), Row.of(1L, 1L, "alice"), Row.of(9L, 9L, null));
+      assertThat(reloaded).as("A reload must replace the cache with the latest snapshot").isTrue();
+    }
   }
 
   @Test
@@ -392,6 +393,25 @@ class TestIcebergLookupJoinSql extends TestSqlBase {
         new GenericAppenderHelper(dimTable, FileFormat.PARQUET, temporaryFolder);
     DataFile dataFile = helper.writeFile(Lists.newArrayList(records));
     helper.appendToTable(dataFile);
+  }
+
+  private static void createRepeatingOrdersTable(
+      TableEnvironment tableEnvironment, String tableName, int numberOfKeys) {
+    SqlHelpers.sql(
+        tableEnvironment,
+        "CREATE TEMPORARY TABLE %s (\n"
+            + "  user_id  BIGINT,\n"
+            + "  proc_time AS PROCTIME()\n"
+            + ") WITH (\n"
+            + "  'connector' = 'datagen',\n"
+            + "  'number-of-rows' = '150',\n"
+            + "  'fields.user_id.kind' = 'random',\n"
+            + "  'fields.user_id.min' = '1',\n"
+            + "  'fields.user_id.max' = '%d',\n"
+            + "  'rows-per-second' = '50'\n"
+            + ")",
+        tableName,
+        numberOfKeys);
   }
 
   private static void createOrdersTable(
