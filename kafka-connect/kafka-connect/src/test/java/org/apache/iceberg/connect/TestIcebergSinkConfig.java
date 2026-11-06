@@ -19,6 +19,7 @@
 package org.apache.iceberg.connect;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
@@ -46,6 +47,45 @@ public class TestIcebergSinkConfig {
     assertThatThrownBy(() -> new IcebergSinkConfig(props))
         .isInstanceOf(ConfigException.class)
         .hasMessage("Cannot specify both static and dynamic table names");
+  }
+
+  @Test
+  void cdcFieldIsRejected() {
+    Map<String, String> props =
+        ImmutableMap.of(
+            "topics", "source-topic",
+            "iceberg.catalog.type", "rest",
+            "iceberg.tables", "db.landing",
+            "iceberg.tables.cdc-field", "_cdc.op");
+    assertThatThrownBy(() -> new IcebergSinkConfig(props))
+        .isInstanceOf(ConfigException.class)
+        .hasMessage(
+            "Cannot set iceberg.tables.cdc-field: CDC operations are not applied, all records are appended");
+  }
+
+  @Test
+  void upsertModeIsRejected() {
+    Map<String, String> props =
+        ImmutableMap.of(
+            "topics", "source-topic",
+            "iceberg.catalog.type", "rest",
+            "iceberg.tables", "db.landing",
+            "iceberg.tables.upsert-mode-enabled", "true");
+    assertThatThrownBy(() -> new IcebergSinkConfig(props))
+        .isInstanceOf(ConfigException.class)
+        .hasMessage(
+            "Cannot enable iceberg.tables.upsert-mode-enabled: upsert is not supported, all records are appended");
+  }
+
+  @Test
+  void disabledUpsertModeIsAccepted() {
+    Map<String, String> props =
+        ImmutableMap.of(
+            "topics", "source-topic",
+            "iceberg.catalog.type", "rest",
+            "iceberg.tables", "db.landing",
+            "iceberg.tables.upsert-mode-enabled", "false");
+    assertThatCode(() -> new IcebergSinkConfig(props)).doesNotThrowAnyException();
   }
 
   @Test
