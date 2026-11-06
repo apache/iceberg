@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.function.Predicate;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -48,6 +49,13 @@ final class JdbcUtil {
   static final String METADATA_REFRESH_MAX_RETRIES_PROPERTY =
       JdbcCatalog.PROPERTY_PREFIX + "metadata-refresh-max-retries";
   static final int METADATA_REFRESH_MAX_RETRIES_DEFAULT = 20;
+  // catalog properties that must not be passed to the JDBC driver
+  private static final Set<String> CATALOG_PROPERTIES =
+      Set.of(
+          STRICT_MODE_PROPERTY,
+          SCHEMA_VERSION_PROPERTY,
+          INIT_CATALOG_TABLES_PROPERTY,
+          METADATA_REFRESH_MAX_RETRIES_PROPERTY);
 
   static final String RETRYABLE_STATUS_CODES = "retryable_status_codes";
   private static final String POSTGRES_UNIQUE_VIOLATION_SQLSTATE = "23505";
@@ -526,9 +534,12 @@ final class JdbcUtil {
     return TableIdentifier.of(JdbcUtil.stringToNamespace(tableNamespace), tableName);
   }
 
-  static Properties filterAndRemovePrefix(Map<String, String> properties, String prefix) {
+  static Properties driverProperties(Map<String, String> properties) {
     Properties result = new Properties();
-    result.putAll(PropertyUtil.propertiesWithPrefix(properties, prefix));
+    result.putAll(
+        PropertyUtil.propertiesWithPrefix(
+            PropertyUtil.filterProperties(properties, Predicate.not(CATALOG_PROPERTIES::contains)),
+            JdbcCatalog.PROPERTY_PREFIX));
     return result;
   }
 
