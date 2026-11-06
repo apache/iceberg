@@ -18,13 +18,9 @@
  */
 package org.apache.iceberg.spark.source;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.spark.SparkException;
-import org.junit.jupiter.api.Test;
 
 public class TestORCDataFrameWrite extends DataFrameWriteTestBase {
   @Override
@@ -35,23 +31,8 @@ public class TestORCDataFrameWrite extends DataFrameWriteTestBase {
         .commit();
   }
 
-  @Test
   @Override
-  public void testUnknownListType() {
-    assertThatThrownBy(super::testUnknownListType)
-        .isInstanceOf(SparkException.class)
-        .cause()
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot create ListType with unknown element type");
-  }
-
-  @Test
-  @Override
-  public void testUnknownMapType() {
-    assertThatThrownBy(super::testUnknownMapType)
-        .isInstanceOf(SparkException.class)
-        .cause()
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot create MapType with unknown value type");
+  protected boolean supportsUnknownCollectionElements() {
+    return false;
   }
 }
