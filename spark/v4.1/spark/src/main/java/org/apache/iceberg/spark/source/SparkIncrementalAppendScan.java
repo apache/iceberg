@@ -84,12 +84,13 @@ class SparkIncrementalAppendScan extends SparkRuntimeFilterableScan {
   @Override
   public String description() {
     return String.format(
-        "IcebergIncrementalScan(table=%s, startSnapshotId=%s, endSnapshotId=%s, filters=%s, runtimeFilters=%s, groupedBy=%s)",
+        "IcebergIncrementalScan(table=%s, startSnapshotId=%s, endSnapshotId=%s, filters=%s, runtimeFilters=%s, groupedBy=%s, orderedBy=%s)",
         table(),
         startSnapshotId,
         endSnapshotId,
         filtersDesc(),
         runtimeFiltersDesc(),
-        groupingKeyDesc());
+        groupingKeyDesc(),
+        orderingDesc());
   }
 }

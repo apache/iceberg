@@ -68,6 +68,19 @@ public class TestSparkReadConf extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  void preserveDataOrderingMaxFilesPerTaskMustBeAtLeastTwo() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.PRESERVE_DATA_ORDERING_MAX_FILES_PER_TASK, "1"),
+        () -> {
+          SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
+          assertThatIllegalArgumentException()
+              .isThrownBy(conf::preserveDataOrderingMaxFilesPerTask)
+              .withMessageContaining("must be >= 2: 1");
+        });
+  }
+
+  @TestTemplate
   public void testSplitSizeSessionConf() {
     Table table = validationCatalog.loadTable(tableIdent);
     withSQLConf(

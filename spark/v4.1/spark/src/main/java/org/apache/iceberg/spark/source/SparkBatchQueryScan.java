@@ -98,13 +98,14 @@ class SparkBatchQueryScan extends SparkRuntimeFilterableScan {
   @Override
   public String description() {
     return String.format(
-        "IcebergScan(table=%s, schemaId=%s, snapshotId=%s, branch=%s, filters=%s, runtimeFilters=%s, groupedBy=%s)",
+        "IcebergScan(table=%s, schemaId=%s, snapshotId=%s, branch=%s, filters=%s, runtimeFilters=%s, groupedBy=%s, orderedBy=%s)",
         table(),
         schema().schemaId(),
         snapshotId(),
         branch,
         filtersDesc(),
         runtimeFiltersDesc(),
-        groupingKeyDesc());
+        groupingKeyDesc(),
+        orderingDesc());
   }
 }
