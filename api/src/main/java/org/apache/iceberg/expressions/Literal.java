@@ -23,6 +23,7 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.UUID;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 
 /**
@@ -69,6 +70,17 @@ public interface Literal<T> extends Serializable {
 
   static Literal<BigDecimal> of(BigDecimal value) {
     return new Literals.DecimalLiteral(value);
+  }
+
+  /**
+   * Returns an empty struct literal, used as the non-null default value of a field of struct type.
+   *
+   * <p>The field's default struct is produced from the defaults of the struct's fields.
+   *
+   * @return an empty struct literal
+   */
+  static Literal<StructLike> emptyStruct() {
+    return Literals.emptyStruct();
   }
 
   /** Returns the value wrapped by this literal. */

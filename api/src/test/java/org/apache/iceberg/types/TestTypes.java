@@ -23,6 +23,8 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.expressions.Literal;
 import org.junit.jupiter.api.Test;
 
 public class TestTypes {
@@ -224,5 +226,79 @@ public class TestTypes {
     assertThatExceptionOfType(NullPointerException.class)
         .isThrownBy(() -> required("field").ofType(Types.StringType.get()).build())
         .withMessage("Id cannot be null");
+  }
+
+  @Test
+  void emptyStructDefaultUsesFieldDefaults() {
+    Types.NestedField withDefault =
+        optional("x")
+            .withId(2)
+            .ofType(Types.IntegerType.get())
+            .withInitialDefault(Literal.of(0))
+            .withWriteDefault(Literal.of(1))
+            .build();
+    Types.NestedField withoutDefault = optional(3, "y", Types.IntegerType.get());
+    Types.NestedField point =
+        optional("point")
+            .withId(1)
+            .ofType(Types.StructType.of(withDefault, withoutDefault))
+            .withInitialDefault(Literal.emptyStruct())
+            .withWriteDefault(Literal.emptyStruct())
+            .build();
+
+    StructLike initialDefault = (StructLike) point.initialDefault();
+    assertThat(initialDefault.size()).isEqualTo(2);
+    assertThat(initialDefault.get(0, Integer.class)).isEqualTo(withDefault.initialDefault());
+    assertThat(initialDefault.get(1, Integer.class)).isNull();
+
+    StructLike writeDefault = (StructLike) point.writeDefault();
+    assertThat(writeDefault.size()).isEqualTo(2);
+    assertThat(writeDefault.get(0, Integer.class)).isEqualTo(withDefault.writeDefault());
+    assertThat(writeDefault.get(1, Integer.class)).isNull();
+  }
+
+  @Test
+  void nonEmptyStructDefaultIsRejected() {
+    Types.StructType struct = Types.StructType.of(optional(2, "x", Types.IntegerType.get()));
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(
+            () ->
+                optional("point")
+                    .withId(1)
+                    .ofType(struct)
+                    .withInitialDefault(Literal.of(0))
+                    .build())
+        .withMessage("Invalid default value for %s: 0 (must be null or empty struct)", struct);
+  }
+
+  @Test
+  void emptyStructDefaultIncludesNestedStructDefaults() {
+    Types.NestedField count =
+        optional("count")
+            .withId(4)
+            .ofType(Types.IntegerType.get())
+            .withInitialDefault(Literal.of(0))
+            .build();
+    Types.NestedField defaulted =
+        optional("defaulted")
+            .withId(2)
+            .ofType(Types.StructType.of(count))
+            .withInitialDefault(Literal.emptyStruct())
+            .build();
+    Types.NestedField undefaulted =
+        optional(
+            3, "undefaulted", Types.StructType.of(optional(5, "count", Types.IntegerType.get())));
+    Types.NestedField outer =
+        optional("outer")
+            .withId(1)
+            .ofType(Types.StructType.of(defaulted, undefaulted))
+            .withInitialDefault(Literal.emptyStruct())
+            .build();
+
+    StructLike initialDefault = (StructLike) outer.initialDefault();
+    StructLike nested = initialDefault.get(0, StructLike.class);
+    assertThat(nested.get(0, Integer.class)).isEqualTo(count.initialDefault());
+    assertThat(initialDefault.get(1, StructLike.class)).isNull();
   }
 }

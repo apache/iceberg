@@ -330,7 +330,7 @@ class SchemaUpdate implements UpdateSchema {
     // if the value can be converted to the expected type, check if it is already set
     // if it can't be converted, the builder will throw an exception
     Literal<?> converted = newDefault != null ? newDefault.to(field.type()) : null;
-    if (converted != null && Objects.equals(field.writeDefault(), converted.value())) {
+    if (converted != null && Objects.equals(field.writeDefaultLiteral(), converted)) {
       return this;
     }
 

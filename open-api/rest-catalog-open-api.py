@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Dict, Literal
+from typing import Any, Dict, Literal
 from uuid import UUID
 
 from pydantic import Base64Str, BaseModel, ConfigDict, Field, RootModel
@@ -1273,6 +1273,21 @@ class PrimitiveTypeValue(
     )
 
 
+class StructDefaultValue(RootModel[dict[str, Any]]):
+    """
+    A non-null struct default, always an empty object. The struct's value is produced from the defaults of its fields.
+    """
+
+    root: dict[str, Any] = Field(..., max_length=0)
+
+
+class DefaultValue(RootModel[PrimitiveTypeValue | StructDefaultValue]):
+    root: PrimitiveTypeValue | StructDefaultValue = Field(
+        ...,
+        description="Default value of a field: a primitive value, or for a field of struct type, an empty object whose value is produced from the defaults of the struct's fields.",
+    )
+
+
 class FileFormat(RootModel[Literal['avro', 'orc', 'parquet', 'puffin']]):
     root: Literal['avro', 'orc', 'parquet', 'puffin']
 
@@ -1623,8 +1638,8 @@ class StructField(BaseModel):
     type: Type
     required: bool
     doc: str | None = None
-    initial_default: PrimitiveTypeValue | None = Field(None, alias='initial-default')
-    write_default: PrimitiveTypeValue | None = Field(None, alias='write-default')
+    initial_default: DefaultValue | None = Field(None, alias='initial-default')
+    write_default: DefaultValue | None = Field(None, alias='write-default')
 
 
 class StructType(BaseModel):
