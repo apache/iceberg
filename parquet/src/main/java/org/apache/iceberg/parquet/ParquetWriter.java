@@ -31,7 +31,6 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.column.ParquetProperties;
@@ -63,8 +62,6 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final ParquetConfiguration conf;
   private final InternalFileEncryptor fileEncryptor;
   private final boolean trackUncompressedSize;
-  private final Map<ColumnDescriptor, CompressionCodecFactory.BytesInputCompressor>
-      compressorsByColumn = Maps.newHashMap();
 
   private ColumnChunkPageWriteStore pageStore = null;
   private ColumnWriteStore writeStore;
@@ -274,7 +271,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   private ColumnChunkPageWriteStore newColumnChunkPageWriteStore() {
     return ColumnChunkPageWriteStore.builder()
-        .withCompressorProvider(this::resolveCompressor)
+        .withCompressorProvider(this::newCompressor)
         .withSchema(parquetSchema)
         .withAllocator(props.getAllocator())
         .withColumnIndexTruncateLength(columnIndexTruncateLength)
@@ -282,10 +279,6 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
         .withFileEncryptor(fileEncryptor)
         .withRowGroupOrdinal(rowGroupOrdinal)
         .build();
-  }
-
-  private CompressionCodecFactory.BytesInputCompressor resolveCompressor(ColumnDescriptor column) {
-    return compressorsByColumn.computeIfAbsent(column, this::newCompressor);
   }
 
   private CompressionCodecFactory.BytesInputCompressor newCompressor(ColumnDescriptor column) {

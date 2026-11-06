@@ -91,6 +91,7 @@ import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.statistics.Statistics;
+import org.apache.parquet.hadoop.BadConfigurationException;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
@@ -106,6 +107,8 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 public class TestParquet {
 
@@ -849,6 +852,22 @@ public class TestParquet {
                     1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Invalid compression level for column int_field: not-a-number");
+  }
+
+  @ParameterizedTest
+  @CsvSource({"zstd, 100", "gzip, 99", "brotli, 50"})
+  void outOfRangeCompressionLevelThrows(String codec, String level) {
+    assertThatThrownBy(
+            () ->
+                writeIntAndStringFields(
+                    ImmutableMap.of(
+                        PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "int_field",
+                        codec,
+                        PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "int_field",
+                        level),
+                    1))
+        .isInstanceOf(BadConfigurationException.class)
+        .hasMessageContaining("compression level: " + level);
   }
 
   @Test
