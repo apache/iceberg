@@ -20,9 +20,14 @@ package org.apache.iceberg.connect.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -32,6 +37,8 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import java.util.regex.Pattern;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
@@ -48,6 +55,9 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.errors.DataException;
+import org.apache.kafka.connect.sink.ErrantRecordReporter;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,6 +78,8 @@ public class TestSinkWriter {
           optional(2, "data", Types.StringType.get()),
           optional(3, "date", Types.StringType.get()));
   private static final String ROUTE_FIELD = "fld";
+  private static final Map<String, Object> GOOD_VALUE = ImmutableMap.of("id", 1L);
+  private static final Map<String, Object> BAD_VALUE = ImmutableMap.of("id", "abc");
 
   @BeforeEach
   public void before() {
@@ -386,6 +398,65 @@ public class TestSinkWriter {
     Types.NestedField added = catalog.loadTable(TABLE_IDENTIFIER).schema().findField("amount");
     assertThat(added).isNotNull();
     assertThat(added.type()).isEqualTo(Types.DecimalType.of(3, 0));
+  }
+
+  @Test
+  public void testConversionErrorFailsWithoutReporter() {
+    SinkWriter sinkWriter = new SinkWriter(catalog, staticConfig());
+
+    assertThatThrownBy(() -> sinkWriter.save(ImmutableList.of(record(BAD_VALUE, 100L))))
+        .isInstanceOf(DataException.class)
+        .hasMessage("An error occurred converting record, topic: topic, partition, 1, offset: 100");
+  }
+
+  @Test
+  public void testConversionErrorReportedAndSkipped() throws Exception {
+    ErrantRecordReporter reporter = mock(ErrantRecordReporter.class);
+    @SuppressWarnings("unchecked")
+    Future<Void> report = mock(Future.class);
+    when(reporter.report(any(), any())).thenReturn(report);
+    SinkWriter sinkWriter = new SinkWriter(catalog, staticConfig(), reporter);
+
+    SinkRecord bad = record(BAD_VALUE, 101L);
+    sinkWriter.save(ImmutableList.of(record(GOOD_VALUE, 100L), bad, record(GOOD_VALUE, 102L)));
+    verify(reporter).report(eq(bad), isA(DataException.class));
+    verify(report, never()).get();
+
+    SinkWriterResult result = sinkWriter.completeWrite();
+    // the offsets are only returned once the report is complete
+    verify(report).get();
+    assertThat(result.sourceOffsets().get(new TopicPartition("topic", 1)).offset()).isEqualTo(103L);
+    assertThat(result.writerResults()).hasSize(1);
+    assertThat(result.writerResults().get(0).dataFiles())
+        .singleElement()
+        .extracting(DataFile::recordCount)
+        .isEqualTo(2L);
+  }
+
+  @Test
+  public void testFailedReportReturnsNoOffsets() {
+    ErrantRecordReporter reporter = mock(ErrantRecordReporter.class);
+    when(reporter.report(any(), any()))
+        .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("DLQ unavailable")));
+    SinkWriter sinkWriter = new SinkWriter(catalog, staticConfig(), reporter);
+    sinkWriter.save(ImmutableList.of(record(BAD_VALUE, 100L)));
+
+    assertThatThrownBy(sinkWriter::completeWrite)
+        .isInstanceOf(ConnectException.class)
+        .hasMessage("Failed to report errant records")
+        .hasRootCauseMessage("DLQ unavailable");
+  }
+
+  private static IcebergSinkConfig staticConfig() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    return config;
+  }
+
+  private static SinkRecord record(Map<String, Object> value, long offset) {
+    return new SinkRecord(
+        "topic", 1, null, "key", null, value, offset, 0L, TimestampType.LOG_APPEND_TIME);
   }
 
   private List<IcebergWriterResult> sinkWriterTest(

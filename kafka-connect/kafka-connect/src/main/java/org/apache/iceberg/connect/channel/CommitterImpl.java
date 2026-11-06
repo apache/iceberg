@@ -30,6 +30,7 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.sink.ErrantRecordReporter;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
@@ -214,9 +215,18 @@ public class CommitterImpl implements Committer {
   private void startWorker() {
     if (null == this.worker) {
       LOG.info("Starting commit worker {}", taskId);
-      SinkWriter sinkWriter = new SinkWriter(catalog, config);
+      SinkWriter sinkWriter = new SinkWriter(catalog, config, errantRecordReporter());
       worker = new Worker(config, clientFactory, sinkWriter, context);
       worker.start();
+    }
+  }
+
+  private ErrantRecordReporter errantRecordReporter() {
+    try {
+      return context.errantRecordReporter();
+    } catch (NoSuchMethodError | NoClassDefFoundError e) {
+      // Kafka Connect before 2.6 has no errant record reporter
+      return null;
     }
   }
 
