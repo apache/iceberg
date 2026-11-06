@@ -199,7 +199,15 @@ public class CommitterImpl implements Committer {
     if (coordinatorThread != null && coordinatorThread.isTerminated()) {
       if (coordinatorThread.isFenced()) {
         LOG.warn("Coordinator on committer {} was fenced by a newer coordinator; clearing", taskId);
-        coordinatorThread = null;
+        try {
+          // The thread has already exited and run coordinator.stop(), but only terminate() shuts
+          // down the coordinator's commit thread pool.
+          coordinatorThread.terminate();
+        } catch (RuntimeException e) {
+          LOG.warn("Error terminating fenced coordinator on committer {}", taskId, e);
+        } finally {
+          coordinatorThread = null;
+        }
       } else {
         throw new NotRunningException(
             String.format("Coordinator unexpectedly terminated on committer %s", taskId),
