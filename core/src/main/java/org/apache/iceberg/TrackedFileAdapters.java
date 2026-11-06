@@ -42,6 +42,10 @@ class TrackedFileAdapters {
     return new TrackedDataFile(file, resolveSpecId(file, specsById));
   }
 
+  static TrackedFile asTrackedFile(DataFile file) {
+    return ((TrackedDataFile) file).file();
+  }
+
   static DeleteFile asDVDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(
         file.contentType() == FileContent.DATA,
@@ -649,6 +653,11 @@ class TrackedFileAdapters {
     }
 
     @Override
+    public List<ColumnFile> columnFiles() {
+      return null;
+    }
+
+    @Override
     public TrackedFile copy() {
       throw new UnsupportedOperationException("copy is not implemented");
     }
@@ -767,6 +776,11 @@ class TrackedFileAdapters {
 
     @Override
     public List<Long> splitOffsets() {
+      return null;
+    }
+
+    @Override
+    public List<ColumnFile> columnFiles() {
       return null;
     }
 

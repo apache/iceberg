@@ -32,9 +32,9 @@ import org.apache.iceberg.util.DateTimeUtil;
  * Test data generators for different schema types. Add new generators to ALL array to include them
  * in format model tests.
  */
-class DataGenerators {
+public class DataGenerators {
 
-  static final DataGenerator[] ALL =
+  public static final DataGenerator[] ALL =
       new DataGenerator[] {
         new Primitives(),
         new UUID(),

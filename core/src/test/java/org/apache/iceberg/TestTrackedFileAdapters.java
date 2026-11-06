@@ -214,7 +214,8 @@ class TestTrackedFileAdapters {
             dv,
             null,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
-            ImmutableList.of(50L, 100L));
+            ImmutableList.of(50L, 100L),
+            null);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(PARTITIONED_SPEC));
 
@@ -299,6 +300,7 @@ class TestTrackedFileAdapters {
             null,
             null,
             dv,
+            null,
             null,
             null,
             null);
@@ -431,7 +433,8 @@ class TestTrackedFileAdapters {
         dv, // deletionVector
         null, // manifestInfo
         KEY_METADATA,
-        ImmutableList.of(50L, 100L)); // splitOffsets
+        ImmutableList.of(50L, 100L), // splitOffsets
+        null); // columnFiles
   }
 
   @ParameterizedTest
@@ -473,7 +476,8 @@ class TestTrackedFileAdapters {
             null, // deletionVector
             MANIFEST_INFO,
             MANIFEST_KEY_METADATA,
-            null); // splitOffsets
+            null, // splitOffsets
+            null); // columnFiles
 
     ManifestFile manifest = TrackedFileAdapters.asManifestFile(file);
 
@@ -579,6 +583,7 @@ class TestTrackedFileAdapters {
             deletionVector(),
             null,
             null,
+            null,
             null);
     assertNullTrackingFields(TrackedFileAdapters.asDVDeleteFile(fileWithDV, UNPARTITIONED));
   }
@@ -625,6 +630,7 @@ class TestTrackedFileAdapters {
             0L,
             0L,
             99,
+            null,
             null,
             null,
             null,
@@ -927,6 +933,7 @@ class TestTrackedFileAdapters {
         FileFormat.PARQUET,
         1L,
         1L,
+        null,
         null,
         null,
         null,

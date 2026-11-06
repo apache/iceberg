@@ -22,8 +22,13 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MetricGroup;
+import org.apache.flink.runtime.state.StateInitializationContext;
+import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -36,6 +41,7 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ContentFileUtil;
@@ -66,7 +72,13 @@ import org.slf4j.LoggerFactory;
  * completes cleanly. Errors are reported via {@link TaskResultAggregator#ERROR_STREAM} side output;
  * the Aggregator collects them and surfaces failure on its own watermark.
  *
- * <p>The committer is intentionally stateless: {@code bufferedResults} and {@code planResult} are
+ * <p>The committer keeps the index generation of the last failed cycle as checkpointed state. A
+ * failure in the readers or workers while the index is updated in a cycle with nothing to convert
+ * may have left the index without some rows, but that cycle has no commit to withhold. The
+ * committer withholds the next conversion commit on that generation instead: the next trigger then
+ * plans that staging snapshot again, which makes the planner rebuild the index on a new generation.
+ * The failure was reported where it happened, so the withheld cycle completes without an error.
+ * Apart from that the committer is stateless: {@code bufferedResults} and {@code planResult} are
  * not checkpointed. The maintenance framework ensures mutual exclusive tasks, and on restart the
  * planner re-derives its position from {@link #COMMITTED_STAGING_SNAPSHOT_PROPERTY} on main, so the
  * committer never receives a plan for an already-committed staging snapshot.
@@ -93,6 +105,8 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
   private transient Table table;
   private transient List<DVWriteResult> bufferedResults;
   private transient EqualityConvertPlan planResult;
+  private transient ListState<Long> failedIndexGenerationState;
+  private transient long failedIndexGeneration;
 
   private transient Counter errorCounter;
   private transient Counter addedDataFileNumCounter;
@@ -137,18 +151,53 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
   }
 
   @Override
+  public void initializeState(StateInitializationContext context) throws Exception {
+    super.initializeState(context);
+    failedIndexGenerationState =
+        context
+            .getOperatorStateStore()
+            .getListState(new ListStateDescriptor<>("failedIndexGeneration", Types.LONG));
+
+    failedIndexGeneration = EqualityConvertPlan.NO_INDEX_GENERATION;
+    for (Long stateValue : failedIndexGenerationState.get()) {
+      Preconditions.checkState(
+          failedIndexGeneration == EqualityConvertPlan.NO_INDEX_GENERATION,
+          "failedIndexGeneration state should hold at most one value");
+      failedIndexGeneration = stateValue;
+    }
+  }
+
+  @Override
+  public void snapshotState(StateSnapshotContext context) throws Exception {
+    super.snapshotState(context);
+    failedIndexGenerationState.clear();
+    if (failedIndexGeneration != EqualityConvertPlan.NO_INDEX_GENERATION) {
+      failedIndexGenerationState.add(failedIndexGeneration);
+    }
+  }
+
+  @Override
   public void processElement1(StreamRecord<DVWriteResult> record) {
     bufferedResults.add(record.getValue());
   }
 
   @Override
   public void processElement2(StreamRecord<EqualityConvertPlan> record) {
+    // Includes the cycle-start marker. Its maximal done timestamp holds watermarks until the real
+    // plan replaces it.
     planResult = record.getValue();
   }
 
   @Override
   public void processWatermark(Watermark mark) throws Exception {
-    if (planResult == null || mark.getTimestamp() < planResult.doneTimestamp()) {
+    if (planResult == null) {
+      // No cycle in flight: the watermark comes from another task's trigger or a recovery trigger
+      // sharing the maintenance lock. Holding it back would keep that lock forever.
+      super.processWatermark(mark);
+      return;
+    }
+
+    if (mark.getTimestamp() < planResult.doneTimestamp()) {
       // Hold back watermarks until the cycle commits so the LockRemover keeps the maintenance lock
       // for the whole cycle. Forwarding the planner's mid-cycle phase watermarks will release the
       // lock early and could let the next trigger run a concurrent cycle on the same staging
@@ -187,6 +236,7 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
             "Skipping commit for table {} task {}: a DV writer reported an error.",
             tableName,
             taskName);
+        failedIndexGeneration = planResult.indexGeneration();
         deleteUncommittedDVs();
         return;
       }
@@ -197,6 +247,19 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
     // shouldSkip or there was nothing new on staging. processWatermark still forwards a Trigger to
     // TaskResultAggregator, so the maintenance task completes cleanly.
     if (planResult.noOp()) {
+      return;
+    }
+
+    if (planResult.indexGeneration() == failedIndexGeneration) {
+      LOG.warn(
+          "Not committing staging snapshot {} for table {} task {}: an index update failed on "
+              + "index generation {}, so the next trigger rebuilds the index and converts the "
+              + "snapshot again.",
+          planResult.stagingSnapshotId(),
+          tableName,
+          taskName,
+          failedIndexGeneration);
+      deleteUncommittedDVs();
       return;
     }
 

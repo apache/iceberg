@@ -19,14 +19,17 @@
 package org.apache.iceberg;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveStatsEvaluator;
 import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -78,8 +81,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private final boolean isUncommitted;
   private final ScanMetrics scanMetrics;
 
-  private Long nextRowId = null;
-
   private V4ManifestReader(
       ManifestFile manifest,
       FileIO io,
@@ -102,9 +103,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     this.requestedStatsFieldIds = requestedStatsFieldIds;
     this.isUncommitted = isUncommitted;
     this.scanMetrics = scanMetrics;
-
-    // initialize the next row ID to the manifest's first row ID
-    this.nextRowId = manifest.firstRowId();
   }
 
   @VisibleForTesting
@@ -116,8 +114,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   public CloseableIterator<TrackedFile> iterator() {
     // first row ID assignment must happen first to maintain consistent assignment when files are
     // removed or filtered
-    CloseableIterable<TrackedFile> files =
-        CloseableIterable.transform(open(), this::applyInheritance);
+    CloseableIterable<TrackedFile> files = CloseableIterable.transform(open(), applyInheritance());
 
     files = CloseableIterable.transform(files, this::projectPartition);
 
@@ -149,20 +146,41 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return CloseableIterable.transform(files, this::copyResolved).iterator();
   }
 
-  private TrackedFile applyInheritance(TrackedFile file) {
-    // the reader uses TrackingStruct to read tracking so this cast is safe
-    TrackingStruct tracking = (TrackingStruct) file.tracking();
+  private Function<TrackedFile, TrackedFile> applyInheritance() {
     if (isUncommitted) {
       // uncommitted files cannot have a sequence number or assign first row ID
-      tracking.inherit(manifest.snapshotId());
-    } else {
-      tracking.inherit(manifest.snapshotId(), manifest.sequenceNumber());
-      if (tracking.assignFirstRowId(nextRowId)) {
-        this.nextRowId += file.recordCount();
-      }
+      return file -> {
+        // the reader uses TrackingStruct to read tracking so this cast is safe
+        ((TrackingStruct) file.tracking()).inherit(manifest.snapshotId());
+        return file;
+      };
     }
 
-    return file;
+    Long firstRowId = manifest.firstRowId();
+    if (firstRowId != null) {
+      return new Function<>() {
+        private long nextRowId = firstRowId;
+
+        @Override
+        public TrackedFile apply(TrackedFile file) {
+          TrackingStruct tracking = (TrackingStruct) file.tracking();
+          tracking.inherit(manifest.snapshotId(), manifest.sequenceNumber());
+          if (tracking.assignFirstRowId(nextRowId)) {
+            nextRowId += file.recordCount();
+          }
+
+          return file;
+        }
+      };
+    }
+
+    // committed manifest with null manifest-level first row ID (pre-v3 upgrade path)
+    return file -> {
+      TrackingStruct tracking = (TrackingStruct) file.tracking();
+      tracking.inherit(manifest.snapshotId(), manifest.sequenceNumber());
+      tracking.assignFirstRowId(null);
+      return file;
+    };
   }
 
   private TrackedFile projectPartition(TrackedFile file) {
@@ -226,6 +244,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
             .setCustomType(TrackedFile.TRACKING.fieldId(), TrackingStruct.class)
             .setCustomType(TrackedFile.DELETION_VECTOR.fieldId(), DeletionVectorStruct.class)
             .setCustomType(TrackedFile.MANIFEST_INFO.fieldId(), ManifestInfoStruct.class)
+            .setCustomType(
+                TrackedFile.COLUMN_FILES.type().asListType().elementId(), ColumnFileStruct.class)
             .reuseContainers();
 
     Types.NestedField partitionField = readSchema.findField(TrackedFile.PARTITION_ID);
@@ -239,12 +259,29 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       readBuilder.setCustomType(TrackedFile.CONTENT_STATS_ID, ContentStatsStruct.class);
       for (Types.NestedField fieldStats : statsField.type().asStructType().fields()) {
         readBuilder.setCustomType(fieldStats.fieldId(), FieldStatsStruct.class);
+        registerCustomBoundTypes(readBuilder, fieldStats);
       }
     }
 
     CloseableIterable<TrackedFile> reader = readBuilder.build();
     addCloseable(reader);
     return reader;
+  }
+
+  private static void registerCustomBoundTypes(
+      InternalData.ReadBuilder readBuilder, Types.NestedField fieldStats) {
+    Types.StructType struct = fieldStats.type().asStructType();
+    registerGeoBoundType(readBuilder, struct.field(StatsUtil.LOWER_BOUND_NAME));
+    registerGeoBoundType(readBuilder, struct.field(StatsUtil.UPPER_BOUND_NAME));
+  }
+
+  private static void registerGeoBoundType(
+      InternalData.ReadBuilder readBuilder, Types.NestedField boundField) {
+    // Geometry and geography are the only bound types represented as structs, so a struct bound
+    // is read as GeospatialBound.
+    if (boundField != null && boundField.type().isStructType()) {
+      readBuilder.setCustomType(boundField.fieldId(), GeospatialBound.class);
+    }
   }
 
   // resolves stored locations against the table location
@@ -263,6 +300,16 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     if (deletionVector != null && deletionVector.location() != null) {
       ((DeletionVectorStruct) deletionVector)
           .setLocation(LocationUtil.resolveLocation(tableLocation, deletionVector.location()));
+    }
+
+    List<ColumnFile> columnFiles = copy.columnFiles();
+    if (columnFiles != null) {
+      for (ColumnFile columnFile : columnFiles) {
+        if (columnFile.location() != null) {
+          ((ColumnFileStruct) columnFile)
+              .setLocation(LocationUtil.resolveLocation(tableLocation, columnFile.location()));
+        }
+      }
     }
 
     return copy;
@@ -493,7 +540,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         return RestoreColumns.restore(
             tableManifestSchema,
             requestedProjection,
-            idsToRestore(projectsPartition(includePartition, requestedProjection)));
+            idsToRestore(
+                projectsPartition(includePartition, requestedProjection), requestedProjection));
       }
 
       if (requestedColumns != null) {
@@ -505,7 +553,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         return RestoreColumns.restore(
             tableManifestSchema,
             projection,
-            idsToRestore(projectsPartition(includePartition, projection)));
+            idsToRestore(projectsPartition(includePartition, projection), projection));
       }
 
       return tableManifestSchema;
@@ -516,7 +564,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     /** Return a set of manifest field IDs that should be projected. */
-    private Set<Integer> idsToRestore(boolean includePartition) {
+    private Set<Integer> idsToRestore(boolean includePartition, Schema projection) {
       Set<Integer> ids = Sets.newHashSet(REQUIRED_COLUMN_IDS);
 
       // project the full stats struct that corresponds to each field for which stats are needed
@@ -527,7 +575,34 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         ids.add(TrackedFile.PARTITION_ID);
       }
 
+      // A partial geo bound must be read whole: GeospatialBound positions are fixed and NaN means
+      // absent in the file.
+      addProjectedGeoBounds(projection, ids);
+
       return ids;
+    }
+
+    private static void addProjectedGeoBounds(Schema projection, Set<Integer> ids) {
+      Types.NestedField contentStatsField = projection.findField(TrackedFile.CONTENT_STATS_ID);
+      if (contentStatsField == null || !contentStatsField.type().isStructType()) {
+        return;
+      }
+
+      for (Types.NestedField fieldStats : contentStatsField.type().asStructType().fields()) {
+        if (!fieldStats.type().isStructType()) {
+          continue;
+        }
+
+        Types.StructType struct = fieldStats.type().asStructType();
+        addGeoBoundId(struct.field(StatsUtil.LOWER_BOUND_NAME), ids);
+        addGeoBoundId(struct.field(StatsUtil.UPPER_BOUND_NAME), ids);
+      }
+    }
+
+    private static void addGeoBoundId(Types.NestedField bound, Set<Integer> ids) {
+      if (bound != null && bound.type().isStructType()) {
+        ids.add(bound.fieldId());
+      }
     }
 
     /** Return a set of table field IDs for which stats are needed. */

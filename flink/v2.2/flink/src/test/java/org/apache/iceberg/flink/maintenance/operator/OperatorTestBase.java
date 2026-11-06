@@ -177,12 +177,18 @@ public class OperatorTestBase {
   }
 
   protected static Table createTableWithDelete(int formatVersion) {
+    return createTableWithDelete(
+        formatVersion, SCHEMA_WITH_PRIMARY_KEY, PartitionSpec.unpartitioned());
+  }
+
+  protected static Table createTableWithDelete(
+      int formatVersion, Schema schema, PartitionSpec spec) {
     return CATALOG_EXTENSION
         .catalog()
         .createTable(
             TestFixtures.TABLE_IDENTIFIER,
-            SCHEMA_WITH_PRIMARY_KEY,
-            PartitionSpec.unpartitioned(),
+            schema,
+            spec,
             null,
             ImmutableMap.of(
                 "format-version", String.valueOf(formatVersion), "write.upsert.enabled", "true"));
