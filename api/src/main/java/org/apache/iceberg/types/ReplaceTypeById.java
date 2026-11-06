@@ -37,7 +37,16 @@ class ReplaceTypeById extends TypeUtil.SchemaVisitor<Type> {
 
   @Override
   public Type struct(Types.StructType struct, List<Type> fieldResults) {
-    List<Types.NestedField> fields = struct.fields();
+    return replaceFieldTypes(struct.fields(), fieldResults, struct);
+  }
+
+  @Override
+  public Type file(Types.FileType file, List<Type> fieldResults) {
+    return replaceFieldTypes(file.fields(), fieldResults, file);
+  }
+
+  private Type replaceFieldTypes(
+      List<Types.NestedField> fields, List<Type> fieldResults, Type unchangedResult) {
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(fields.size());
     boolean hasChanged = false;
 
@@ -56,7 +65,7 @@ class ReplaceTypeById extends TypeUtil.SchemaVisitor<Type> {
       return Types.StructType.of(newFields);
     }
 
-    return struct;
+    return unchangedResult;
   }
 
   @Override
