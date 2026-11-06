@@ -42,29 +42,25 @@ public class TestDynConstructors {
 
   @Test
   public void testInterfaceWrongImplString() throws Exception {
-    DynConstructors.Ctor<MyInterface> ctor =
+    DynConstructors.Builder builder =
         DynConstructors.builder(MyInterface.class)
-            // TODO this should throw, since the MyUnrelatedClass does not implement MyInterface
-            .impl("org.apache.iceberg.common.TestDynConstructors$MyUnrelatedClass")
-            .buildChecked();
-    assertThatThrownBy(ctor::newInstance)
-        .isInstanceOf(ClassCastException.class)
-        .hasMessageStartingWith(
-            "class org.apache.iceberg.common.TestDynConstructors$MyUnrelatedClass cannot be cast to class org.apache.iceberg.common.TestDynConstructors$MyInterface");
+            .impl("org.apache.iceberg.common.TestDynConstructors$MyUnrelatedClass");
+    assertThatThrownBy(builder::buildChecked)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Implementation class org.apache.iceberg.common.TestDynConstructors$MyUnrelatedClass"
+                + " does not implement org.apache.iceberg.common.TestDynConstructors$MyInterface");
   }
 
   @Test
   public void testInterfaceWrongImplClass() throws Exception {
-    DynConstructors.Ctor<MyInterface> ctor =
-        DynConstructors.builder(MyInterface.class)
-            // TODO this should throw or not compile at all, since the MyUnrelatedClass does not
-            // implement MyInterface
-            .impl(MyUnrelatedClass.class)
-            .buildChecked();
-    assertThatThrownBy(ctor::newInstance)
-        .isInstanceOf(ClassCastException.class)
-        .hasMessageStartingWith(
-            "class org.apache.iceberg.common.TestDynConstructors$MyUnrelatedClass cannot be cast to class org.apache.iceberg.common.TestDynConstructors$MyInterface");
+    DynConstructors.Builder builder =
+        DynConstructors.builder(MyInterface.class).impl(MyUnrelatedClass.class);
+    assertThatThrownBy(builder::buildChecked)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Implementation class org.apache.iceberg.common.TestDynConstructors$MyUnrelatedClass"
+                + " does not implement org.apache.iceberg.common.TestDynConstructors$MyInterface");
   }
 
   @Test
