@@ -296,6 +296,11 @@ public class BaseTable
   }
 
   @Override
+  public List<Constraint> constraints() {
+    return ops.current().constraints();
+  }
+
+  @Override
   public Map<String, SnapshotRef> refs() {
     return ops.current().refs();
   }

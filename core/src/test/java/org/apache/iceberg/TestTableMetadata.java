@@ -209,6 +209,8 @@ public class TestTableMetadata {
             partitionStatisticsFiles,
             40,
             ImmutableList.of(),
+            ImmutableList.of(),
+            TableMetadata.INITIAL_CONSTRAINT_ID,
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
@@ -314,6 +316,8 @@ public class TestTableMetadata {
             ImmutableList.of(),
             0,
             ImmutableList.of(),
+            ImmutableList.of(),
+            TableMetadata.INITIAL_CONSTRAINT_ID,
             ImmutableList.of());
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
@@ -439,6 +443,8 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     0L,
                     ImmutableList.of(),
+                    ImmutableList.of(),
+                    TableMetadata.INITIAL_CONSTRAINT_ID,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot ID does not match main branch");
@@ -487,6 +493,8 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     0L,
                     ImmutableList.of(),
+                    ImmutableList.of(),
+                    TableMetadata.INITIAL_CONSTRAINT_ID,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot is not set, but main branch exists");
@@ -529,6 +537,8 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     0L,
                     ImmutableList.of(),
+                    ImmutableList.of(),
+                    TableMetadata.INITIAL_CONSTRAINT_ID,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageEndingWith("does not exist in the existing snapshots list");
@@ -646,6 +656,8 @@ public class TestTableMetadata {
             ImmutableList.of(),
             0L,
             ImmutableList.of(),
+            ImmutableList.of(),
+            TableMetadata.INITIAL_CONSTRAINT_ID,
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(base);
@@ -737,6 +749,8 @@ public class TestTableMetadata {
             ImmutableList.of(),
             0L,
             ImmutableList.of(),
+            ImmutableList.of(),
+            TableMetadata.INITIAL_CONSTRAINT_ID,
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -843,6 +857,8 @@ public class TestTableMetadata {
             ImmutableList.of(),
             0L,
             ImmutableList.of(),
+            ImmutableList.of(),
+            TableMetadata.INITIAL_CONSTRAINT_ID,
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -953,6 +969,8 @@ public class TestTableMetadata {
             ImmutableList.of(),
             0L,
             ImmutableList.of(),
+            ImmutableList.of(),
+            TableMetadata.INITIAL_CONSTRAINT_ID,
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -1001,6 +1019,8 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     0L,
                     ImmutableList.of(),
+                    ImmutableList.of(),
+                    TableMetadata.INITIAL_CONSTRAINT_ID,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("UUID is required in format v2");
@@ -1038,6 +1058,8 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     0L,
                     ImmutableList.of(),
+                    ImmutableList.of(),
+                    TableMetadata.INITIAL_CONSTRAINT_ID,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
@@ -1086,6 +1108,8 @@ public class TestTableMetadata {
                 ImmutableList.of(),
                 0L,
                 ImmutableList.of(),
+                ImmutableList.of(),
+                TableMetadata.INITIAL_CONSTRAINT_ID,
                 ImmutableList.of()))
         .isNotNull();
 
@@ -1205,6 +1229,119 @@ public class TestTableMetadata {
                     4))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid table location in format v4, must be absolute: relative/path");
+  }
+
+  private static final String PK_CONSTRAINT =
+      "{\"constraint-id\":1,\"type\":\"primary-key\",\"name\":\"pk\",\"enforced\":false,"
+          + "\"timestamp-ms\":1000,\"field-ids\":[1]}";
+  private static final String CHECK_CONSTRAINT =
+      "{\"constraint-id\":2,\"type\":\"check\",\"name\":\"chk_y\",\"enforced\":true,"
+          + "\"timestamp-ms\":1000,"
+          + "\"expression\":{\"type\":\"gt\",\"left\":{\"type\":\"reference\",\"id\":2},\"right\":0}}";
+
+  private static String metadataJsonWithConstraints(
+      int formatVersion, int lastConstraintId, String... constraints) throws IOException {
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            TEST_LOCATION,
+            ImmutableMap.of(),
+            formatVersion);
+    ObjectNode node = (ObjectNode) JsonUtil.mapper().readTree(TableMetadataParser.toJson(metadata));
+    node.put(TableMetadataParser.LAST_CONSTRAINT_ID, lastConstraintId);
+    node.set(
+        TableMetadataParser.CONSTRAINTS,
+        JsonUtil.mapper().readTree("[" + String.join(",", constraints) + "]"));
+    return JsonUtil.mapper().writeValueAsString(node);
+  }
+
+  @Test
+  public void testConstraintsRoundTrip() throws IOException {
+    TableMetadata metadata =
+        TableMetadataParser.fromJson(
+            metadataJsonWithConstraints(4, 5, PK_CONSTRAINT, CHECK_CONSTRAINT));
+
+    assertThat(metadata.lastConstraintId()).isEqualTo(5);
+    assertThat(metadata.constraints())
+        .containsExactly(
+            ConstraintParser.fromJson(PK_CONSTRAINT), ConstraintParser.fromJson(CHECK_CONSTRAINT));
+
+    TableMetadata parsed = TableMetadataParser.fromJson(TableMetadataParser.toJson(metadata));
+    assertThat(parsed.lastConstraintId()).isEqualTo(metadata.lastConstraintId());
+    assertThat(parsed.constraints()).isEqualTo(metadata.constraints());
+
+    TableMetadata updated =
+        TableMetadata.buildFrom(metadata).setProperties(ImmutableMap.of("k", "v")).build();
+    assertThat(updated.lastConstraintId()).isEqualTo(metadata.lastConstraintId());
+    assertThat(updated.constraints()).isEqualTo(metadata.constraints());
+  }
+
+  @Test
+  public void testNoConstraints() {
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            TEST_LOCATION,
+            ImmutableMap.of(),
+            4);
+    assertThat(metadata.constraints()).isEmpty();
+    assertThat(metadata.lastConstraintId()).isEqualTo(TableMetadata.INITIAL_CONSTRAINT_ID);
+
+    String json = TableMetadataParser.toJson(metadata);
+    assertThat(json).doesNotContain(TableMetadataParser.CONSTRAINTS);
+    assertThat(json).doesNotContain(TableMetadataParser.LAST_CONSTRAINT_ID);
+
+    TableMetadata parsed = TableMetadataParser.fromJson(json);
+    assertThat(parsed.constraints()).isEmpty();
+    assertThat(parsed.lastConstraintId()).isEqualTo(TableMetadata.INITIAL_CONSTRAINT_ID);
+  }
+
+  @Test
+  public void testConstraintsNotSupportedBeforeV4() throws IOException {
+    String json = metadataJsonWithConstraints(3, 1, PK_CONSTRAINT);
+    assertThatThrownBy(() -> TableMetadataParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Constraints are not supported in format v3 (requires v4)");
+  }
+
+  @Test
+  public void testInvalidConstraints() throws IOException {
+    String duplicateId =
+        metadataJsonWithConstraints(4, 2, PK_CONSTRAINT, PK_CONSTRAINT.replace("\"pk\"", "\"a\""));
+    assertThatThrownBy(() -> TableMetadataParser.fromJson(duplicateId))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid constraints: duplicate constraint ID 1");
+
+    String duplicateName =
+        metadataJsonWithConstraints(
+            4,
+            2,
+            CHECK_CONSTRAINT,
+            CHECK_CONSTRAINT.replace("\"constraint-id\":2", "\"constraint-id\":1"));
+    assertThatThrownBy(() -> TableMetadataParser.fromJson(duplicateName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid constraints: duplicate constraint name chk_y");
+
+    String idAboveLast = metadataJsonWithConstraints(4, 1, PK_CONSTRAINT, CHECK_CONSTRAINT);
+    assertThatThrownBy(() -> TableMetadataParser.fromJson(idAboveLast))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid constraint ID 2: greater than last constraint ID 1");
+
+    String twoPrimaryKeys =
+        metadataJsonWithConstraints(
+            4,
+            2,
+            PK_CONSTRAINT,
+            PK_CONSTRAINT
+                .replace("\"constraint-id\":1", "\"constraint-id\":2")
+                .replace("\"pk\"", "\"pk2\""));
+    assertThatThrownBy(() -> TableMetadataParser.fromJson(twoPrimaryKeys))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid constraints: more than one primary-key constraint");
   }
 
   @Test
