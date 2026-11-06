@@ -22,6 +22,7 @@ import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.OAuth2CredentialsWithRefresh;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -46,11 +47,12 @@ public class OAuth2RefreshCredentialsHandler
   private final String credentialsEndpoint;
   // will be used to refresh the OAuth2 token
   private final String catalogEndpoint;
+  private final String storagePrefix;
   private volatile HTTPClient client;
   private AuthManager authManager;
   private AuthSession authSession;
 
-  private OAuth2RefreshCredentialsHandler(Map<String, String> properties) {
+  private OAuth2RefreshCredentialsHandler(Map<String, String> properties, String storagePrefix) {
     Preconditions.checkArgument(
         null != properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT),
         "Invalid credentials endpoint: null");
@@ -60,6 +62,7 @@ public class OAuth2RefreshCredentialsHandler
         properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT);
     this.catalogEndpoint = properties.get(CatalogProperties.URI);
     this.properties = properties;
+    this.storagePrefix = storagePrefix;
   }
 
   @SuppressWarnings("JavaUtilDate") // GCP API uses java.util.Date
@@ -73,17 +76,33 @@ public class OAuth2RefreshCredentialsHandler
             .collect(Collectors.toList());
 
     Preconditions.checkState(!gcsCredentials.isEmpty(), "Invalid GCS Credentials: empty");
-    Preconditions.checkState(
-        gcsCredentials.size() == 1,
-        "Invalid GCS Credentials: only one GCS credential should exist");
 
-    Credential gcsCredential = gcsCredentials.get(0);
+    Credential gcsCredential = selectCredential(gcsCredentials);
     checkCredential(gcsCredential, GCPProperties.GCS_OAUTH2_TOKEN);
     checkCredential(gcsCredential, GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT);
     String token = gcsCredential.config().get(GCPProperties.GCS_OAUTH2_TOKEN);
     String expiresAt = gcsCredential.config().get(GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT);
 
     return new AccessToken(token, new Date(Long.parseLong(expiresAt)));
+  }
+
+  private Credential selectCredential(List<Credential> gcsCredentials) {
+    if (gcsCredentials.size() == 1) {
+      return gcsCredentials.get(0);
+    }
+
+    Preconditions.checkState(
+        null != storagePrefix, "Invalid GCS Credentials: only one GCS credential should exist");
+
+    return gcsCredentials.stream()
+        .filter(credential -> storagePrefix.startsWith(credential.prefix()))
+        .max(Comparator.comparingInt(credential -> credential.prefix().length()))
+        .orElseThrow(
+            () ->
+                new IllegalStateException(
+                    String.format(
+                        "Invalid GCS Credentials: no GCS credential for storage prefix %s",
+                        storagePrefix)));
   }
 
   LoadCredentialsResponse fetchCredentials() {
@@ -104,7 +123,18 @@ public class OAuth2RefreshCredentialsHandler
   }
 
   public static OAuth2RefreshCredentialsHandler create(Map<String, String> properties) {
-    return new OAuth2RefreshCredentialsHandler(properties);
+    return new OAuth2RefreshCredentialsHandler(properties, null);
+  }
+
+  /**
+   * Creates a handler for the storage client of the given prefix. When the catalog returns more
+   * than one GCS credential, the handler uses the one with the longest prefix that the storage
+   * prefix starts with.
+   */
+  public static OAuth2RefreshCredentialsHandler create(
+      Map<String, String> properties, String storagePrefix) {
+    Preconditions.checkArgument(null != storagePrefix, "Invalid storage prefix: null");
+    return new OAuth2RefreshCredentialsHandler(properties, storagePrefix);
   }
 
   private RESTClient httpClient() {
