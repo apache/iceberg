@@ -95,7 +95,7 @@ public class ResidualEvaluator implements Serializable {
 
   private ResidualEvaluator(PartitionSpec spec, Expression expr, boolean caseSensitive) {
     this.spec = spec;
-    this.expr = expr;
+    this.expr = expr != null ? Expressions.rewriteNot(expr) : null;
     this.caseSensitive = caseSensitive;
   }
 
@@ -165,13 +165,15 @@ public class ResidualEvaluator implements Serializable {
     @Override
     public <T> Expression lt(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.eval(struct), lit.value()) < 0) ? alwaysTrue() : alwaysFalse();
+      T value = ref.eval(struct);
+      return value != null && cmp.compare(value, lit.value()) < 0 ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression ltEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.eval(struct), lit.value()) <= 0) ? alwaysTrue() : alwaysFalse();
+      T value = ref.eval(struct);
+      return value != null && cmp.compare(value, lit.value()) <= 0 ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
