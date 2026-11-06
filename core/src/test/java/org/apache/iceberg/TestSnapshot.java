@@ -153,6 +153,7 @@ public class TestSnapshot extends TestBase {
         .addRows(secondSnapshotDataFile)
         .addDeletes(secondSnapshotDeleteFile)
         .commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
 
     DeleteFile thirdSnapshotDeleteFile = newDeletes(secondSnapshotDataFile);
 
@@ -161,6 +162,7 @@ public class TestSnapshot extends TestBase {
 
     table
         .newRewrite()
+        .validateFromSnapshot(secondSnapshot.snapshotId())
         .rewriteFiles(ImmutableSet.of(), replacedDeleteFiles, ImmutableSet.of(), newDeleteFiles)
         .commit();
 
