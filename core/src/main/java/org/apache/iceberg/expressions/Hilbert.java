@@ -18,17 +18,10 @@
  */
 package org.apache.iceberg.expressions;
 
-import java.util.Arrays;
 import java.util.List;
 
-public class Hilbert implements Term {
-  private final NamedReference<?>[] refs;
-
+public class Hilbert extends MultiColumnTerm {
   public Hilbert(List<NamedReference<?>> refs) {
-    this.refs = refs.toArray(new NamedReference[0]);
-  }
-
-  public List<NamedReference<?>> refs() {
-    return Arrays.asList(refs);
+    super(refs);
   }
 }
