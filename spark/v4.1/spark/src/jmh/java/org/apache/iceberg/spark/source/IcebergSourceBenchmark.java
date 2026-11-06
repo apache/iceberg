@@ -94,6 +94,16 @@ public abstract class IcebergSourceBenchmark {
     }
   }
 
+  /**
+   * Returns the Spark master URL used when creating the session.
+   *
+   * <p>Override in subclasses to customize parallelism, e.g. {@code "local[1]"} to force serial
+   * task execution and eliminate inter-task scheduling noise.
+   */
+  protected String sparkMaster() {
+    return "local";
+  }
+
   protected void setupSpark(boolean enableDictionaryEncoding) {
     SparkSession.Builder builder = SparkSession.builder().config(TestBase.DISABLE_UI);
     if (!enableDictionaryEncoding) {
@@ -102,10 +112,10 @@ public abstract class IcebergSourceBenchmark {
           .config("parquet.enable.dictionary", false)
           .config(TableProperties.PARQUET_DICT_SIZE_BYTES, "1");
     }
-    builder.master("local");
+    // propagate the hadoop conf entries as spark.hadoop. entries.
+    hadoopConf.forEach(entry -> builder.config("spark.hadoop." + entry.getKey(), entry.getValue()));
+    builder.master(sparkMaster());
     spark = builder.getOrCreate();
-    Configuration sparkHadoopConf = spark.sessionState().newHadoopConf();
-    hadoopConf.forEach(entry -> sparkHadoopConf.set(entry.getKey(), entry.getValue()));
   }
 
   protected void setupSpark() {
