@@ -47,6 +47,7 @@ import org.slf4j.LoggerFactory;
 abstract class Channel {
 
   private static final Logger LOG = LoggerFactory.getLogger(Channel.class);
+  private static final Duration JOIN_POLL_DURATION = Duration.ofMillis(100);
 
   private final String controlTopic;
   private final String connectGroupId;
@@ -230,6 +231,27 @@ abstract class Channel {
 
     // initial poll with longer duration so the consumer will initialize...
     consumeAvailable(Duration.ofSeconds(1));
+  }
+
+  /**
+   * Polls until the consumer has been assigned the control topic, or until the timeout elapses.
+   *
+   * <p>A classic-protocol member starts its heartbeat thread only after it has handled its
+   * JoinGroup response, which it does only inside poll(). A caller that polls less often than the
+   * session timeout must complete the join here, or the member is evicted before it handles that
+   * response and rejoins on every later poll.
+   */
+  protected void awaitAssignment(Duration timeout) {
+    long deadline = System.nanoTime() + timeout.toNanos();
+    while (consumer.assignment().isEmpty()) {
+      long remaining = deadline - System.nanoTime();
+      if (remaining <= 0) {
+        LOG.warn("Control topic consumer not assigned a partition after {}", timeout);
+        return;
+      }
+
+      consumeAvailable(Duration.ofNanos(Math.min(remaining, JOIN_POLL_DURATION.toNanos())));
+    }
   }
 
   void stop() {

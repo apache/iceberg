@@ -64,12 +64,10 @@ public class KafkaConnectUtils {
     }
   }
 
-  public static void startConnector(Config config) {
+  public static void startConnector(int port, Config config) {
     try {
       HttpPost request =
-          new HttpPost(
-              String.format(
-                  Locale.ROOT, "http://localhost:%d/connectors", TestContext.CONNECT_PORT));
+          new HttpPost(String.format(Locale.ROOT, "http://localhost:%d/connectors", port));
       String body = TestContext.MAPPER.writeValueAsString(config);
       request.setHeader("Content-Type", "application/json");
       request.setEntity(new StringEntity(body));
@@ -79,14 +77,10 @@ public class KafkaConnectUtils {
     }
   }
 
-  public static void ensureConnectorRunning(String name) {
+  public static void ensureConnectorRunning(int port, String name) {
     HttpGet request =
         new HttpGet(
-            String.format(
-                Locale.ROOT,
-                "http://localhost:%d/connectors/%s/status",
-                TestContext.CONNECT_PORT,
-                name));
+            String.format(Locale.ROOT, "http://localhost:%d/connectors/%s/status", port, name));
     Awaitility.await()
         .atMost(60, TimeUnit.SECONDS)
         .until(
@@ -108,15 +102,11 @@ public class KafkaConnectUtils {
                     }));
   }
 
-  public static void stopConnector(String name) {
+  public static void stopConnector(int port, String name) {
     try {
       HttpDelete request =
           new HttpDelete(
-              String.format(
-                  Locale.ROOT,
-                  "http://localhost:%d/connectors/%s",
-                  TestContext.CONNECT_PORT,
-                  name));
+              String.format(Locale.ROOT, "http://localhost:%d/connectors/%s", port, name));
       HTTP.execute(request, response -> null);
     } catch (IOException e) {
       throw new RuntimeException(e);
