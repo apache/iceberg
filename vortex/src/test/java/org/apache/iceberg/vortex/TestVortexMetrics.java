@@ -237,11 +237,16 @@ public class TestVortexMetrics {
     assertThat(metrics.nullValueCounts())
         .hasSize(15)
         .allSatisfy((id, count) -> assertThat(count).isZero());
-    // Vortex does not compute min/max for the arrow.uuid extension dtype, so the UUID column (15)
-    // has counts but no bounds.
-    assertThat(metrics.lowerBounds()).hasSize(14).doesNotContainKey(15);
-    assertThat(metrics.upperBounds()).hasSize(14).doesNotContainKey(15);
+    assertThat(metrics.lowerBounds()).hasSize(15);
+    assertThat(metrics.upperBounds()).hasSize(15);
     assertThat(metrics.nanValueCounts()).containsEntry(4, 0L).containsEntry(5, 0L);
+
+    assertThat(
+            Conversions.<UUID>fromByteBuffer(Types.UUIDType.get(), metrics.lowerBounds().get(15)))
+        .isEqualTo(record.getField("uuid"));
+    assertThat(
+            Conversions.<UUID>fromByteBuffer(Types.UUIDType.get(), metrics.upperBounds().get(15)))
+        .isEqualTo(record.getField("uuid"));
 
     assertThat(
             Conversions.<Integer>fromByteBuffer(Types.DateType.get(), metrics.lowerBounds().get(9)))
