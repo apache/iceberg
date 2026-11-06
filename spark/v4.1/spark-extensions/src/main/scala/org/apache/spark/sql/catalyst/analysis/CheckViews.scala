@@ -21,6 +21,8 @@ package org.apache.spark.sql.catalyst.analysis
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.plans.logical.AlterViewAs
+import org.apache.spark.sql.catalyst.plans.logical.AnalyzeColumn
+import org.apache.spark.sql.catalyst.plans.logical.AnalyzeTable
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
@@ -28,6 +30,7 @@ import org.apache.spark.sql.catalyst.plans.logical.View
 import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
+import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.util.SchemaUtils
 
@@ -59,6 +62,15 @@ object CheckViews extends (LogicalPlan => Unit) {
             resolvedIdent.catalog.name() +: resolvedIdent.identifier.asMultipartIdentifier
           checkCyclicViewReference(viewIdent, query, Seq(viewIdent))
         }
+
+      case AnalyzeTable(ResolvedV2View(catalog, ident), _, _) =>
+        throw QueryCompilationErrors.unsupportedTableOperationError(catalog, ident, "ANALYZE TABLE")
+
+      case AnalyzeColumn(ResolvedV2View(catalog, ident), _, _) =>
+        throw QueryCompilationErrors.unsupportedTableOperationError(
+          catalog,
+          ident,
+          "ANALYZE TABLE ... FOR COLUMNS")
 
       case AlterViewAs(ResolvedV2View(_, _), _, _) =>
         throw new IcebergAnalysisException(
