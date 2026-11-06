@@ -129,6 +129,11 @@ final class LegacyConfigAdapter {
     return migrated;
   }
 
+  /** Returns the legacy OAuth2 properties present in the given map that are not supported. */
+  List<String> unsupportedProperties(Map<String, String> properties) {
+    return IGNORED_LEGACY_PROPERTIES.stream().filter(properties::containsKey).toList();
+  }
+
   /**
    * Resolves the token endpoint against the catalog URI when it is missing or relative, mirroring
    * the behavior of the legacy OAuth2 manager. This fallback targets the deprecated token endpoint

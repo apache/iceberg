@@ -271,10 +271,18 @@ final class MockAuthorizationServer implements AutoCloseable {
     server.stop();
   }
 
+  /** Expects OpenID Connect discovery requests and replies with a mismatching issuer. */
+  void expectOidcDiscoveryWithWrongIssuer() {
+    expectDiscovery(OIDC_DISCOVERY_PATH, "http://wrong.example.com/realms/master");
+  }
+
   private void expectDiscovery(String path) {
+    expectDiscovery(path, issuerUrl().toString());
+  }
+
+  private void expectDiscovery(String path, String issuer) {
     String body =
-        String.format(
-            "{\"issuer\":\"%s\",\"token_endpoint\":\"%s\"}", issuerUrl(), tokenEndpoint());
+        String.format("{\"issuer\":\"%s\",\"token_endpoint\":\"%s\"}", issuer, tokenEndpoint());
     server
         .when(HttpRequest.request().withMethod("GET").withPath(path))
         .respond(

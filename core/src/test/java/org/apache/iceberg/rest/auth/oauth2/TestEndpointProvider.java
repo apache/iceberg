@@ -69,6 +69,20 @@ class TestEndpointProvider {
   }
 
   @Test
+  void issuerMismatch() {
+    server.expectOidcDiscoveryWithWrongIssuer();
+    EndpointProvider provider = new EndpointProvider(issuerConfig(), server.runtime());
+    assertThatThrownBy(provider::tokenEndpoint)
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("Failed to fetch server metadata for issuer " + server.issuerUrl())
+        .hasSuppressedException(
+            new IllegalStateException(
+                "Invalid OpenID Connect server metadata: issuer http://wrong.example.com/realms/master"
+                    + " does not match expected issuer "
+                    + server.issuerUrl()));
+  }
+
+  @Test
   void discoveryFailure() {
     EndpointProvider provider = new EndpointProvider(issuerConfig(), server.runtime());
     assertThatThrownBy(provider::tokenEndpoint)

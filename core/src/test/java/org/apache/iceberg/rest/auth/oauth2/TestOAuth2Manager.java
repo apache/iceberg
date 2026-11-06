@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest.auth.oauth2;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.nimbusds.oauth2.sdk.auth.ClientAuthenticationMethod;
 import java.net.URI;
@@ -137,6 +138,19 @@ class TestOAuth2Manager {
       assertThat(manager.contextualSession(SessionContext.createEmpty(), catalogSession))
           .isSameAs(catalogSession);
       assertThat(manager.cacheById().asMap()).isEmpty();
+    }
+  }
+
+  @Test
+  void contextualSessionWithUnsupportedLegacyProperties() {
+    try (OAuth2Manager manager = new OAuth2Manager("test");
+        AuthSession catalogSession =
+            manager.catalogSession(server.restClient(), catalogProperties())) {
+      SessionContext context =
+          new SessionContext("session1", "user", Map.of(), Map.of(OAuth2Properties.TOKEN, "t0k3n"));
+      assertThatThrownBy(() -> manager.contextualSession(context, catalogSession))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Session context contains unsupported legacy OAuth2 properties [token]");
     }
   }
 

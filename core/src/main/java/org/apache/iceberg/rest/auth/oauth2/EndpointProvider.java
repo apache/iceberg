@@ -21,12 +21,11 @@ package org.apache.iceberg.rest.auth.oauth2;
 import com.nimbusds.oauth2.sdk.AbstractConfigurationRequest;
 import com.nimbusds.oauth2.sdk.ParseException;
 import com.nimbusds.oauth2.sdk.as.AuthorizationServerConfigurationRequest;
-import com.nimbusds.oauth2.sdk.as.AuthorizationServerEndpointMetadata;
+import com.nimbusds.oauth2.sdk.as.AuthorizationServerMetadata;
 import com.nimbusds.oauth2.sdk.as.ReadOnlyAuthorizationServerEndpointMetadata;
 import com.nimbusds.oauth2.sdk.http.HTTPResponse;
 import com.nimbusds.oauth2.sdk.id.Issuer;
 import com.nimbusds.openid.connect.sdk.op.OIDCProviderConfigurationRequest;
-import com.nimbusds.openid.connect.sdk.op.OIDCProviderEndpointMetadata;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Locale;
@@ -73,13 +72,13 @@ final class EndpointProvider {
 
     Exception oidcFailure;
     try {
-      return fetchMetadata(new OIDCProviderConfigurationRequest(issuer), "OpenID Connect");
+      return fetchMetadata(new OIDCProviderConfigurationRequest(issuer), issuer, "OpenID Connect");
     } catch (IOException | ParseException | RuntimeException e) {
       oidcFailure = e;
     }
 
     try {
-      return fetchMetadata(new AuthorizationServerConfigurationRequest(issuer), "OAuth2");
+      return fetchMetadata(new AuthorizationServerConfigurationRequest(issuer), issuer, "OAuth2");
     } catch (IOException | ParseException | RuntimeException e) {
       RuntimeException error =
           new RuntimeException("Failed to fetch server metadata for issuer " + issuerUrl, e);
@@ -89,7 +88,8 @@ final class EndpointProvider {
   }
 
   private ReadOnlyAuthorizationServerEndpointMetadata fetchMetadata(
-      AbstractConfigurationRequest request, String type) throws IOException, ParseException {
+      AbstractConfigurationRequest request, Issuer expected, String type)
+      throws IOException, ParseException {
     HTTPResponse httpResponse = request.toHTTPRequest().send(runtime.httpClient());
     if (!httpResponse.indicatesSuccess()) {
       throw new IOException(
@@ -101,8 +101,17 @@ final class EndpointProvider {
               httpResponse.getBody()));
     }
 
-    return request instanceof OIDCProviderConfigurationRequest
-        ? OIDCProviderEndpointMetadata.parse(httpResponse.getBodyAsJSONObject())
-        : AuthorizationServerEndpointMetadata.parse(httpResponse.getBodyAsJSONObject());
+    AuthorizationServerMetadata metadata =
+        AuthorizationServerMetadata.parse(httpResponse.getBodyAsJSONObject());
+
+    // RFC 8414 section 3.3: the issuer in the metadata must match the issuer used to build the URL
+    Preconditions.checkState(
+        expected.equals(metadata.getIssuer()),
+        "Invalid %s server metadata: issuer %s does not match expected issuer %s",
+        type,
+        metadata.getIssuer(),
+        expected);
+
+    return metadata;
   }
 }

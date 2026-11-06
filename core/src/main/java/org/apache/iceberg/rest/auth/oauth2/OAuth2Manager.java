@@ -21,11 +21,13 @@ package org.apache.iceberg.rest.auth.oauth2;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.SessionCatalog.SessionContext;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.auth.AuthManager;
@@ -83,6 +85,11 @@ public class OAuth2Manager implements AuthManager {
             context.credentials() != null ? context.credentials() : Map.of());
     Map<String, String> migrated = legacyConfigAdapter.migrate(contextProperties);
     if (migrated.isEmpty()) {
+      List<String> unsupported = legacyConfigAdapter.unsupportedProperties(contextProperties);
+      Preconditions.checkArgument(
+          unsupported.isEmpty(),
+          "Session context contains unsupported legacy OAuth2 properties %s",
+          unsupported);
       return parent;
     }
 
