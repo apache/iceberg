@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.maintenance.operator;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -57,7 +56,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.slf4j.Logger;
@@ -419,7 +417,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
 
   private boolean deltaReadsMoreThanRebuild(Snapshot mainSnapshot, List<Snapshot> externalCommits) {
     // The manifest list counts bound the delta before any manifest is read or any DataFile is held.
-    // A file added and removed within the range counts twice, although the delta skips it.
+    // A file added and removed within the range counts twice, although the delta reads it once.
     long deltaRows = 0L;
     for (Snapshot snapshot : externalCommits) {
       for (ManifestFile manifest : snapshot.dataManifests(table.io())) {
@@ -469,46 +467,51 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   /**
    * Applies the data-file changes of {@code externalCommits} to the worker index in one phase.
    *
-   * <p>Clears {@link #indexSnapshotId} before the first command. The caller records the head only
-   * after this returns, so a delta that fails or is emitted in part is not trusted.
+   * <p>Clears {@link #indexSnapshotId} with the first command. The caller records the head only
+   * after this returns, so a delta that fails or is emitted in part is not trusted. A failure
+   * before the first command leaves the index as it is.
    */
   private void emitIncrementalReindex(Snapshot mainSnapshot, List<Snapshot> externalCommits) {
-    Map<String, DataFile> added = Maps.newLinkedHashMap();
-    Map<String, DataFile> removed = Maps.newLinkedHashMap();
-    for (Snapshot snapshot : externalCommits) {
-      collectDataFileChanges(snapshot, added, removed);
-    }
-
-    indexSnapshotId = null;
-
+    int addedFileNum = 0;
     int removedFileNum = 0;
-    // Removed files are still readable, as the indexed snapshot references them.
-    for (DataFile dataFile : removed.values()) {
-      if (!added.containsKey(dataFile.location())) {
-        output.collect(
-            new StreamRecord<>(
-                ReadCommand.removedDataFile(
-                    reindexTask(dataFile),
-                    mainSnapshot.snapshotId(),
-                    indexGeneration,
-                    dataSequenceNumber(dataFile)),
-                nextPhaseTs));
+    Set<String> removedLater = Sets.newHashSet();
+
+    // Traverse from latest to oldest to figure out which files have been added-then-deleted.
+    // We don't have a defined ordering in the parallel reader tasks, which is why we need to
+    // prevent the same file being added and removed. We can only guarantee correctness if we
+    // either add or remove a file, not both.
+    for (Snapshot snapshot : externalCommits) {
+      if (!hasFileChanges(
+          snapshot,
+          manifest -> manifest.hasAddedFiles() || manifest.hasDeletedFiles(),
+          SnapshotSummary.ADDED_FILES_PROP,
+          SnapshotSummary.ADDED_DELETE_FILES_PROP,
+          SnapshotSummary.DELETED_FILES_PROP)) {
+        // No data added or removed, e.g. a manifest rewrite, for which SnapshotChanges would read
+        // every manifest to find no file change. Skip.
+        continue;
+      }
+
+      SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+      validateTargetDeleteFiles(snapshot, changes);
+
+      for (DataFile dataFile : changes.removedDataFiles()) {
+        removedLater.add(dataFile.location());
+        // We need to emit the removed file even if an earlier snapshot in the range added the file.
+        // Otherwise, we would have to traverse the snapshot chain twice. Removing a file which is
+        // never added will not change the index.
+        emitRemovedDataFile(mainSnapshot, dataFile);
         removedFileNum++;
       }
-    }
 
-    int addedFileNum = 0;
-    for (DataFile dataFile : added.values()) {
-      if (!removed.containsKey(dataFile.location())) {
-        output.collect(
-            new StreamRecord<>(
-                ReadCommand.dataFile(
-                    reindexTask(dataFile),
-                    mainSnapshot.snapshotId(),
-                    indexGeneration,
-                    dataSequenceNumber(dataFile)),
-                nextPhaseTs));
-        addedFileNum++;
+      for (DataFile dataFile : changes.addedDataFiles()) {
+        // Make sure to not index a file which has already been removed.
+        if (!removedLater.remove(dataFile.location())) {
+          emitAddedDataFile(
+              mainSnapshot, // Column stats cost memory and the reader doesn't need them.
+              dataFile.copyWithoutStats());
+          addedFileNum++;
+        }
       }
     }
 
@@ -527,30 +530,28 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     advancePhase();
   }
 
-  private void collectDataFileChanges(
-      Snapshot snapshot, Map<String, DataFile> added, Map<String, DataFile> removed) {
-    if (!writesFiles(
-        snapshot,
-        manifest -> manifest.hasAddedFiles() || manifest.hasDeletedFiles(),
-        SnapshotSummary.ADDED_FILES_PROP,
-        SnapshotSummary.ADDED_DELETE_FILES_PROP,
-        SnapshotSummary.DELETED_FILES_PROP)) {
-      // E.g. a manifest rewrite, for which SnapshotChanges would read every manifest to find no
-      // file change.
-      return;
-    }
+  private void emitRemovedDataFile(Snapshot mainSnapshot, DataFile dataFile) {
+    emitIndexUpdate(
+        ReadCommand.removedDataFile(
+            reindexTask(dataFile),
+            mainSnapshot.snapshotId(),
+            indexGeneration,
+            dataSequenceNumber(dataFile)));
+  }
 
-    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
-    validateTargetDeleteFiles(snapshot, changes);
-    for (DataFile dataFile : changes.addedDataFiles()) {
-      // Column stats dominate a DataFile and the reader needs none of them. SnapshotChanges
-      // already strips them from removed files.
-      added.put(dataFile.location(), dataFile.copyWithoutStats());
-    }
+  private void emitAddedDataFile(Snapshot mainSnapshot, DataFile dataFile) {
+    emitIndexUpdate(
+        ReadCommand.dataFile(
+            reindexTask(dataFile),
+            mainSnapshot.snapshotId(),
+            indexGeneration,
+            dataSequenceNumber(dataFile)));
+  }
 
-    for (DataFile dataFile : changes.removedDataFiles()) {
-      removed.put(dataFile.location(), dataFile);
-    }
+  private void emitIndexUpdate(ReadCommand command) {
+    // The first command makes the index untrusted.
+    indexSnapshotId = null;
+    output.collect(new StreamRecord<>(command, nextPhaseTs));
   }
 
   // Mirrors the reader's check on the delete files of a rebuild.
@@ -982,7 +983,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
       return true;
     }
 
-    if (!writesFiles(
+    if (!hasFileChanges(
         snapshot,
         ManifestFile::hasAddedFiles,
         SnapshotSummary.ADDED_FILES_PROP,
@@ -999,10 +1000,11 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     return false;
   }
 
-  // A count above zero in the summary decides. Zero decides only when every count is reported:
-  // Iceberg Java leaves out zero counts, and other writers may leave out counts of any value, so a
-  // missing count falls back to the manifest list.
-  private boolean writesFiles(
+  /**
+   * Iceberg Java leaves out zero counts, and other writers may leave out counts of any value, so a
+   * missing count falls back to the manifest list.
+   */
+  private boolean hasFileChanges(
       Snapshot snapshot, Predicate<ManifestFile> manifestCheck, String... countProperties) {
     boolean allReported = true;
     for (String property : countProperties) {
@@ -1014,11 +1016,10 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
       }
     }
 
-    return !allReported && writesManifest(snapshot, manifestCheck);
+    return !allReported && checkManifestList(snapshot, manifestCheck);
   }
 
-  // A manifest without file counts matches hasAddedFiles and hasDeletedFiles.
-  private boolean writesManifest(Snapshot snapshot, Predicate<ManifestFile> predicate) {
+  private boolean checkManifestList(Snapshot snapshot, Predicate<ManifestFile> predicate) {
     for (ManifestFile manifest : snapshot.allManifests(table.io())) {
       if (Objects.equals(manifest.snapshotId(), snapshot.snapshotId())
           && predicate.test(manifest)) {

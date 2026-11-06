@@ -678,7 +678,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
   }
 
   @Test
-  void reindexSkipsFileAddedAndRemovedInRange() throws Exception {
+  void reindexDoesNotAddFileAddedAndRemovedInRange() throws Exception {
     Table table = createTableWithDelete(3);
     insert(table, 1, "a");
     insert(table, 3, "c");
@@ -699,7 +699,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
 
       // An append, then a rewrite replacing the appended file. The appended file was never indexed
-      // and is no longer on main, so it needs neither an add nor a removal.
+      // and is no longer on main, so it is not added.
       DataFile appended = writeDataFile(table, createRecord(2, "b"));
       table.newAppend().appendFile(appended).commit();
       DataFile rewritten = writeDataFile(table, createRecord(2, "b"));
@@ -714,11 +714,10 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       List<ReadCommand> all = harness.extractOutputValues();
       List<ReadCommand> dataCommands =
           all.subList(afterFirst, all.size()).stream()
-              .filter(c -> c.task() instanceof FileScanTask)
+              .filter(c -> c.type() == ReadCommand.Type.DATA_FILE)
               .collect(Collectors.toList());
 
       assertThat(dataCommands).hasSize(1);
-      assertThat(dataCommands.get(0).type()).isEqualTo(ReadCommand.Type.DATA_FILE);
       assertThat(filePath(dataCommands.get(0))).isEqualTo(rewritten.location());
     }
   }
