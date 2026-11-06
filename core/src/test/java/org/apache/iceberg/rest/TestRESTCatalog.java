@@ -84,6 +84,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RESTException;
@@ -117,6 +118,7 @@ import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.types.Types;
@@ -3555,6 +3557,50 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThatCode(
             () -> env.http.delete(path, null, env.headers, ErrorHandlers.tableErrorHandler()))
         .doesNotThrowAnyException();
+  }
+
+  @Test
+  public void loadCredentialsForExistingTable() {
+    TableIdentifier ident = TableIdentifier.of(Namespace.of("ns"), "table");
+    restCatalog.createNamespace(ident.namespace());
+    restCatalog.createTable(ident, SCHEMA);
+    Pair<RESTClient, Map<String, String>> httpAndHeaders =
+        httpAndHeaders(UUID.randomUUID().toString());
+
+    LoadCredentialsResponse response =
+        httpAndHeaders
+            .first()
+            .get(
+                credentialsPath(ident),
+                LoadCredentialsResponse.class,
+                httpAndHeaders.second(),
+                ErrorHandlers.tableErrorHandler());
+
+    assertThat(response.credentials()).isEmpty();
+  }
+
+  @Test
+  public void loadCredentialsForMissingTable() {
+    TableIdentifier ident = TableIdentifier.of(Namespace.of("ns"), "missing");
+    restCatalog.createNamespace(ident.namespace());
+    Pair<RESTClient, Map<String, String>> httpAndHeaders =
+        httpAndHeaders(UUID.randomUUID().toString());
+
+    assertThatThrownBy(
+            () ->
+                httpAndHeaders
+                    .first()
+                    .get(
+                        credentialsPath(ident),
+                        LoadCredentialsResponse.class,
+                        httpAndHeaders.second(),
+                        ErrorHandlers.tableErrorHandler()))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining("Table does not exist: ns.missing");
+  }
+
+  private static String credentialsPath(TableIdentifier ident) {
+    return ResourcePaths.forCatalogProperties(ImmutableMap.of()).table(ident) + "/credentials";
   }
 
   @Test

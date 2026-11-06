@@ -29,6 +29,8 @@ import org.apache.iceberg.rest.RESTCatalogServer.CatalogContext;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
+import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
+import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.util.PropertyUtil;
@@ -57,6 +59,11 @@ class RESTServerCatalogAdapter extends RESTCatalogAdapter {
         catalogContext.configuration(), INCLUDE_CREDENTIALS, false)) {
       if (restResponse instanceof LoadTableResponse response) {
         applyCredentials(catalogContext.configuration(), response.config());
+      } else if (restResponse instanceof LoadCredentialsResponse) {
+        return (T)
+            ImmutableLoadCredentialsResponse.builder()
+                .addAllCredentials(createStorageCredentials(catalogContext.configuration()))
+                .build();
       } else if (restResponse instanceof PlanTableScanResponse response
           && PlanStatus.COMPLETED == response.planStatus()) {
         return (T)
