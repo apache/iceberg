@@ -84,6 +84,9 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
   private transient volatile Map<String, PrefixedStorage> storageByPrefix;
   private transient volatile ScheduledFuture<?> refreshFuture;
+  // Set only in initialize(). The field is transient, so deserialized copies do not schedule a
+  // refresh of storageCredentials. The storage clients of a copy refresh their own credentials.
+  private transient boolean refreshCredentialsInBackground;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -163,6 +166,7 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   @Override
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
+    this.refreshCredentialsInBackground = true;
     initMetrics(properties);
   }
 
@@ -220,6 +224,10 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   }
 
   private void scheduleCredentialRefresh() {
+    if (!refreshCredentialsInBackground) {
+      return;
+    }
+
     storageCredentials.stream()
         .map(
             storageCredential ->

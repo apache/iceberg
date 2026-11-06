@@ -43,6 +43,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
@@ -342,6 +344,55 @@ public class TestS3FileIOCredentialRefresh {
       // Round-trip through Kryo and verify the credentials still match
       try (S3FileIO deserialized = TestHelpers.KryoHelpers.roundTripSerialize(fileIO)) {
         assertThat(deserialized.credentials()).isEqualTo(fileIO.credentials());
+      }
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  void deserializedCopyDoesNotScheduleRefresh(
+      TestHelpers.RoundTripSerializer<S3FileIO> roundTripSerializer) throws Exception {
+    String nearExpiryMs = Long.toString(Instant.now().plus(3, ChronoUnit.MINUTES).toEpochMilli());
+    StorageCredential initialCredential =
+        StorageCredential.create(
+            "s3://bucket/path",
+            ImmutableMap.of(
+                S3FileIOProperties.ACCESS_KEY_ID,
+                "initialAccessKey",
+                S3FileIOProperties.SECRET_ACCESS_KEY,
+                "initialSecretKey",
+                S3FileIOProperties.SESSION_TOKEN,
+                "initialToken",
+                S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                nearExpiryMs));
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+
+    Map<String, String> properties =
+        ImmutableMap.of(
+            AwsProperties.CLIENT_FACTORY,
+            StaticClientFactory.class.getName(),
+            VendedCredentialsProvider.URI,
+            CREDENTIALS_URI,
+            CatalogProperties.URI,
+            CATALOG_URI,
+            "init-creation-stacktrace",
+            "false");
+
+    StaticClientFactory.client = null;
+    try (S3FileIO fileIO = new S3FileIO()) {
+      fileIO.initialize(properties);
+      fileIO.setCredentials(List.of(initialCredential));
+
+      try (S3FileIO copy = roundTripSerializer.apply(fileIO)) {
+        assertThat(copy.credentials()).containsExactly(initialCredential);
+        // Near-expiry credentials schedule an immediate refresh in an instance that
+        // initialize() sets up.
+        copy.client();
+
+        Awaitility.await()
+            .during(2, TimeUnit.SECONDS)
+            .atMost(3, TimeUnit.SECONDS)
+            .untilAsserted(() -> mockServer.verify(mockRequest, VerificationTimes.never()));
       }
     }
   }
