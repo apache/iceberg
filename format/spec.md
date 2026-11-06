@@ -1275,6 +1275,7 @@ A snapshot consists of the following fields:
     | _required_ | **`sequence-number`**        | A monotonically increasing long that tracks the order of changes to a table |
     | _required_ | **`timestamp-ms`**           | A timestamp when the snapshot was created, used for garbage collection and table inspection |
     | _required_ | **`root-manifest`**          | The location of the root manifest for this snapshot |
+    | _required_ | **`root-size-in-bytes`**     | Size of the root manifest file in bytes |
     | _required_ | **`summary`**                | A string map that summarizes the snapshot changes, including `operation` as a _required_ field (see below) |
     | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created |
     | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
