@@ -371,11 +371,11 @@ Default values can be tracked for struct fields (both nested structs and the top
 
 The `initial-default` is set only when a field is added to an existing schema. The `write-default` is initially set to the same value as `initial-default` and can be changed through schema evolution. If either default is not set for an optional field, then the default value is null for compatibility with older spec versions.
 
-The `initial-default` and `write-default` produce SQL default value behavior, without rewriting data files. SQL default value behavior when a field is added handles all existing rows as though the rows were written with the new field's default value. Default value changes may only affect future records and all known fields are written into data files. Omitting a known field when writing a data file is never allowed. The write default for a field must be written if a field is not supplied to a write. If the write default for a required field is not set, the writer must fail.
+The `initial-default` and `write-default` produce SQL default value behavior, without rewriting data files. SQL default value behavior when a field is added handles all existing rows as though the rows were written with the new field's default value. Default value changes may only affect future records and all known fields are written into data files. Omitting a known field when writing a data file is never allowed. The write default for a field must be written if a field is not supplied to a write. If the write default for a required field is not set or the expression evaluates to `null`, the writer must fail.
 
-In v4, a field's `write-default` may be a [value expression](expressions-spec.md). This allows defaults such as `current_timestamp()` to be evaluated when a row is written. A value expression `write-default` is subject to the following requirements:
+Starting in v4, a field's `write-default` may be a [value expression](expressions-spec.md). This allows defaults such as `current_timestamp()` to be evaluated when a row is written. A value expression `write-default` is subject to the following requirements:
 
-* The expression must be a constant or a function application (apply); [field references](expressions-spec.md#field-reference) are not allowed in a default value expression
+* [Field references](expressions-spec.md#field-reference) are not allowed in a default value expression; the expression must be a constant, a function application (apply), or a combination of the two.
 * The expression must produce a value of the field's type, subject to [type promotion](#schema-evolution)
 * The `write-default` expression is evaluated to populate the field for any record written after the field was added when the writer does not supply the field's value
 
