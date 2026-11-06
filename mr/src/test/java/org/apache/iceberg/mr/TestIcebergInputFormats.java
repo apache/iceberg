@@ -326,7 +326,19 @@ public class TestIcebergInputFormats {
 
     for (InputSplit split : testInputFormat.create(builder.conf()).getSplits()) {
       assertThat(split.getLocations()).containsExactly("localhost");
-      // repeated calls must return the same locations that were computed and cached above
+    }
+  }
+
+  @TestTemplate
+  public void testLocalityIsKeptAcrossCalls() throws Exception {
+    helper.createUnpartitionedTable();
+    List<Record> expectedRecords = helper.generateRandomRecords(1, 0L);
+    helper.appendToTable(null, expectedRecords);
+
+    builder.preferLocality();
+
+    for (InputSplit split : testInputFormat.create(builder.conf()).getSplits()) {
+      assertThat(split.getLocations()).containsExactly("localhost");
       assertThat(split.getLocations()).containsExactly("localhost");
     }
   }
