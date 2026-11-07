@@ -722,6 +722,62 @@ class TestV4ManifestReader {
   }
 
   @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void changesFiltersDataFilesByStats(FileFormat format) throws IOException {
+    // FILE_C has stats {id in [0, 99]}, FILE_D has no stats; both are added in the read snapshot
+    ManifestFile manifest =
+        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(FILE_C, FILE_D));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .forChanges()
+            .filter(Expressions.equal("id", 105));
+
+    assertThat(read(builder))
+        .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
+        .containsExactly(FILE_D);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void changesKeepsManifestReferencesDespiteStatsFilter(FileFormat format)
+      throws IOException {
+    // DATA_MANIFEST_WITH_STATS_REF has aggregate stats {id in [0, 99]} that exclude id = 105
+    ManifestFile manifest =
+        writeManifest(
+            format,
+            UNPARTITIONED_TYPE,
+            ImmutableList.of(DATA_MANIFEST_REF, DATA_MANIFEST_WITH_STATS_REF));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .filter(Expressions.equal("id", 105))
+            .forChanges();
+
+    assertThat(read(builder))
+        .as("manifest references are not pruned by their live-only aggregate stats")
+        .extracting(TrackedFile::location)
+        .containsExactly(DATA_MANIFEST_REF.location(), DATA_MANIFEST_WITH_STATS_REF.location());
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void changesFiltersDataFilesByPartition(FileFormat format) throws IOException {
+    // FILE_A is in partition id=1, FILE_B in partition id=2; both are added in the read snapshot
+    ManifestFile manifest =
+        writeManifest(format, ID_PARTITIONED_TYPE, ImmutableList.of(FILE_A, FILE_B));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
+            .forChanges()
+            .filter(Expressions.equal("id", 1));
+
+    assertThat(read(builder))
+        .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
+        .containsExactly(FILE_A);
+  }
+
+  @ParameterizedTest
   @EnumSource(
       value = EntryStatus.class,
       names = {"EXISTING", "DELETED", "REPLACED"})
@@ -864,27 +920,6 @@ class TestV4ManifestReader {
                     .forChanges())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot use forChanges() with select(Iterable<String>) or project(Schema)");
-  }
-
-  @Test
-  public void forChangesIsExclusiveWithFilter() {
-    assertThatThrownBy(
-            () ->
-                V4ManifestReader.builder(
-                        UNREAD_MANIFEST_FILE, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
-                    .forChanges()
-                    .filter(Expressions.equal("id", 5)))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot use filter(Expression) with forChanges()");
-
-    assertThatThrownBy(
-            () ->
-                V4ManifestReader.builder(
-                        UNREAD_MANIFEST_FILE, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
-                    .filter(Expressions.equal("id", 5))
-                    .forChanges())
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot use forChanges() with filter(Expression)");
   }
 
   @Test

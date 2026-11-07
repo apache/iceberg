@@ -144,11 +144,16 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     if (statsFilter != null) {
+      // a manifest reference holds aggregate bounds for only live files, so we can't prune them
+      // when reading changes because a non-live entry matching the filter could be outside
+      // those aggregate bounds
       files =
           CloseableIterable.filter(
               this::incrementSkipCount,
               files,
-              file -> statsFilter.eval(file.contentStats(), file.recordCount()));
+              file ->
+                  (changes && isManifest(file))
+                      || statsFilter.eval(file.contentStats(), file.recordCount()));
     } else if (!changes) {
       files =
           CloseableIterable.filter(
@@ -461,8 +466,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     /** Sets a filter used to select data files that may contain rows matching the filter. */
     Builder filter(Expression expr) {
       Preconditions.checkArgument(expr != null, "Invalid filter: null");
-      Preconditions.checkState(
-          mode != Mode.CHANGES, "Cannot use filter(Expression) with forChanges()");
       this.rowFilter = expr;
       return this;
     }
@@ -494,8 +497,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       Preconditions.checkState(
           requestedColumns == null && requestedProjection == null,
           "Cannot use forChanges() with select(Iterable<String>) or project(Schema)");
-      Preconditions.checkState(
-          rowFilter == Expressions.alwaysTrue(), "Cannot use forChanges() with filter(Expression)");
       this.mode = Mode.CHANGES;
       return this;
     }
