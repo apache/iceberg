@@ -56,6 +56,15 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect') {
     testImplementation libs.hadoop3.client
     testImplementation(testFixtures(project(':iceberg-parquet')))
     testRuntimeOnly project(':iceberg-orc')
+
+    jmhRuntimeOnly project(':iceberg-aws')
+    jmhRuntimeOnly platform(libs.awssdk.bom)
+    jmhRuntimeOnly 'software.amazon.awssdk:apache5-client'
+    jmhRuntimeOnly 'software.amazon.awssdk:dynamodb'
+    jmhRuntimeOnly 'software.amazon.awssdk:glue'
+    jmhRuntimeOnly 'software.amazon.awssdk:kms'
+    jmhRuntimeOnly 'software.amazon.awssdk:s3'
+    jmhRuntimeOnly 'software.amazon.awssdk:sts'
   }
 
   test {
