@@ -865,13 +865,36 @@ public class TestPruneColumns {
   }
 
   @Test
+  public void acceptsEquivalentWgs84CrsIdentifiers() {
+    MessageType fileSchema =
+        Types.buildMessage()
+            .optional(PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.geometryType("OGC:CRS84"))
+            .id(1)
+            .named("geom")
+            .optional(PrimitiveTypeName.BINARY)
+            .as(
+                LogicalTypeAnnotation.geographyType(
+                    "EPSG:4326", EdgeInterpolationAlgorithm.SPHERICAL))
+            .id(2)
+            .named("geog")
+            .named("table");
+    Schema projection =
+        new Schema(
+            NestedField.optional(1, "geom", GeometryType.of("EPSG:4326")),
+            NestedField.optional(2, "geog", GeographyType.crs84()));
+
+    assertThat(ParquetSchemaUtil.pruneColumns(fileSchema, projection)).isEqualTo(fileSchema);
+  }
+
+  @Test
   public void rejectsGeographyCrsMismatch() {
     MessageType fileSchema =
         Types.buildMessage()
             .optional(PrimitiveTypeName.BINARY)
             .as(
                 LogicalTypeAnnotation.geographyType(
-                    "EPSG:4326", EdgeInterpolationAlgorithm.SPHERICAL))
+                    "EPSG:4269", EdgeInterpolationAlgorithm.SPHERICAL))
             .id(1)
             .named("geog")
             .named("table");

@@ -570,6 +570,33 @@ public class Types {
     }
   }
 
+  /**
+   * Returns true when two CRS identifiers should be treated as the same geospatial reference for
+   * type equality. Matching is case-insensitive. In addition, {@code OGC:CRS84} and {@code
+   * EPSG:4326} are treated as equivalent: Parquet writers that emit the WGS84 lon/lat default as
+   * {@code OGC:CRS84} must be compatible with Iceberg tables declared as {@code EPSG:4326}.
+   *
+   * <p>{@code srid:4326} is <em>not</em> included - that is a different identifier scheme.
+   */
+  static boolean crsEquivalent(String left, String right) {
+    if (left.equalsIgnoreCase(right)) {
+      return true;
+    }
+    return isWgs84LonLatCrs(left) && isWgs84LonLatCrs(right);
+  }
+
+  private static boolean isWgs84LonLatCrs(String crs) {
+    return "OGC:CRS84".equalsIgnoreCase(crs) || "EPSG:4326".equalsIgnoreCase(crs);
+  }
+
+  /** Canonical upper-case key for CRS hashing, aligned with {@link #crsEquivalent}. */
+  static String crsHashKey(String crs) {
+    if (isWgs84LonLatCrs(crs)) {
+      return "OGC:CRS84";
+    }
+    return crs.toUpperCase(Locale.ROOT);
+  }
+
   /** A geometry type, optionally parameterized by a CRS. The default CRS is {@code OGC:CRS84}. */
   public static class GeometryType extends PrimitiveType {
     public static final String DEFAULT_CRS = "OGC:CRS84";
@@ -606,8 +633,9 @@ public class Types {
     }
 
     /**
-     * Two geometry types are equal when their CRS match case-insensitively, so {@code OGC:CRS84}
-     * and {@code ogc:crs84} are equal.
+     * Two geometry types are equal when their CRS are equivalent: case-insensitive match, or the
+     * WGS84 lon/lat pair {@code OGC:CRS84} / {@code EPSG:4326} (see {@link
+     * Types#crsEquivalent(String, String)}).
      */
     @Override
     public boolean equals(Object o) {
@@ -618,13 +646,13 @@ public class Types {
       }
 
       GeometryType that = (GeometryType) o;
-      return crs.equalsIgnoreCase(that.crs);
+      return crsEquivalent(crs, that.crs);
     }
 
     @Override
     public int hashCode() {
-      // hash the upper-cased CRS so it stays consistent with the case-insensitive equals
-      return Objects.hash(GeometryType.class, crs.toUpperCase(Locale.ROOT));
+      // hash via crsHashKey so it stays consistent with crsEquivalent
+      return Objects.hash(GeometryType.class, crsHashKey(crs));
     }
 
     @Override
@@ -683,8 +711,9 @@ public class Types {
     }
 
     /**
-     * Two geography types are equal when their edge algorithms are equal and their CRS match
-     * case-insensitively, so {@code OGC:CRS84} and {@code ogc:crs84} are equal.
+     * Two geography types are equal when their edge algorithms are equal and their CRS are
+     * equivalent: case-insensitive match, or the WGS84 lon/lat pair {@code OGC:CRS84} / {@code
+     * EPSG:4326} (see {@link Types#crsEquivalent(String, String)}).
      */
     @Override
     public boolean equals(Object o) {
@@ -695,13 +724,13 @@ public class Types {
       }
 
       GeographyType that = (GeographyType) o;
-      return crs.equalsIgnoreCase(that.crs) && Objects.equals(algorithm, that.algorithm);
+      return crsEquivalent(crs, that.crs) && Objects.equals(algorithm, that.algorithm);
     }
 
     @Override
     public int hashCode() {
-      // hash the upper-cased CRS so it stays consistent with the case-insensitive equals
-      return Objects.hash(GeographyType.class, crs.toUpperCase(Locale.ROOT), algorithm);
+      // hash via crsHashKey so it stays consistent with crsEquivalent
+      return Objects.hash(GeographyType.class, crsHashKey(crs), algorithm);
     }
 
     @Override

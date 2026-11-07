@@ -213,6 +213,27 @@ public class TestTypes {
     assertThat(Types.GeographyType.of("ogc:crs84"))
         .isEqualTo(Types.GeographyType.crs84())
         .hasSameHashCodeAs(Types.GeographyType.crs84());
+
+    // OGC:CRS84 and EPSG:4326 are interchangeable WGS84 lon/lat identifiers (see #18680).
+    // Parquet writers that emit the default as OGC:CRS84 must match Iceberg EPSG:4326 tables.
+    assertThat(Types.GeometryType.of("EPSG:4326"))
+        .isEqualTo(Types.GeometryType.crs84())
+        .hasSameHashCodeAs(Types.GeometryType.crs84());
+    assertThat(Types.GeometryType.of("epsg:4326"))
+        .isEqualTo(Types.GeometryType.of("OGC:CRS84"))
+        .hasSameHashCodeAs(Types.GeometryType.of("ogc:crs84"));
+    assertThat(Types.GeographyType.of("EPSG:4326"))
+        .isEqualTo(Types.GeographyType.crs84())
+        .hasSameHashCodeAs(Types.GeographyType.crs84());
+    assertThat(Types.GeographyType.of("EPSG:4326", EdgeAlgorithm.KARNEY))
+        .isEqualTo(Types.GeographyType.of("OGC:CRS84", EdgeAlgorithm.KARNEY))
+        .hasSameHashCodeAs(Types.GeographyType.of("ogc:crs84", EdgeAlgorithm.KARNEY));
+    // Different algorithm still differs even when CRS identifiers are equivalent
+    assertThat(Types.GeographyType.of("EPSG:4326", EdgeAlgorithm.KARNEY))
+        .isNotEqualTo(Types.GeographyType.crs84());
+    // srid:4326 is a different identifier scheme and must not be equated
+    assertThat(Types.GeometryType.of("srid:4326")).isNotEqualTo(Types.GeometryType.crs84());
+    assertThat(Types.GeometryType.of("srid:4326")).isNotEqualTo(Types.GeometryType.of("EPSG:4326"));
   }
 
   @Test
