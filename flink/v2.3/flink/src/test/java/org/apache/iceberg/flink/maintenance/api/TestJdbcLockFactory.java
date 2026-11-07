@@ -121,7 +121,9 @@ class TestJdbcLockFactory extends TestLockFactoryBase {
             "failed-initialization",
             props);
 
-    assertThatThrownBy(factory::open).isInstanceOf(UncheckedSQLException.class);
+    assertThatThrownBy(factory::open)
+        .isInstanceOf(UncheckedSQLException.class)
+        .hasMessageContaining("Failed to connect");
   }
 
   @Test
