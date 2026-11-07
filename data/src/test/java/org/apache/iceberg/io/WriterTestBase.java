@@ -19,13 +19,17 @@
 package org.apache.iceberg.io;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestBase;
+import org.apache.iceberg.data.FileFormatTestSupport;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
@@ -34,6 +38,35 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.StructLikeSet;
 
 public abstract class WriterTestBase<T> extends TestBase {
+
+  /**
+   * Parameters of {@code (formatVersion, fileFormat)} for every format the writer tests cover.
+   *
+   * <p>The formats come from {@link FileFormatTestSupport}, so Vortex is only covered when {@code
+   * iceberg-vortex} is on the classpath. The Flink modules inherit these tests without it and have
+   * no Vortex writers, so the Vortex cases are dropped there.
+   */
+  protected static List<Object> formatParameters(int formatVersion) {
+    return Arrays.stream(FileFormatTestSupport.formats())
+        .map(fileFormat -> (Object) new Object[] {formatVersion, fileFormat})
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Parameters of {@code (formatVersion, fileFormat, partitioned)} for every format the writer
+   * tests cover, both partitioned and unpartitioned.
+   *
+   * @see #formatParameters(int)
+   */
+  protected static List<Object> partitionedFormatParameters(int formatVersion) {
+    return Arrays.stream(FileFormatTestSupport.formats())
+        .flatMap(
+            fileFormat ->
+                Stream.of(
+                    (Object) new Object[] {formatVersion, fileFormat, false},
+                    (Object) new Object[] {formatVersion, fileFormat, true}))
+        .collect(Collectors.toList());
+  }
 
   protected abstract FileWriterFactory<T> newWriterFactory(
       Schema dataSchema,
