@@ -45,6 +45,8 @@ import org.apache.iceberg.spark.source.metrics.TotalEqualityDeletes;
 import org.apache.iceberg.spark.source.metrics.TotalFileSizeInBytes;
 import org.apache.iceberg.spark.source.metrics.TotalPositionalDeletes;
 import org.apache.iceberg.spark.source.metrics.TotalRecords;
+import org.apache.iceberg.spark.source.metrics.WriteCloseDuration;
+import org.apache.iceberg.spark.source.metrics.WriteDuration;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -194,6 +196,133 @@ public class TestSparkWriteMetrics extends TestBaseWithCatalog {
       assertThat(metricsMap)
           .hasEntrySatisfying(metric, m -> assertThat(m.value()).as(metric).isEqualTo(0));
     }
+  }
+
+  @TestTemplate
+  public void writeDurationForUnpartitionedTable() {
+    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
+
+    Dataset<Row> result =
+        spark.sql(String.format("INSERT INTO %s SELECT id FROM range(1000)", tableName));
+    result.collect();
+
+    assertWriteDurationsReported(result.queryExecution().executedPlan());
+  }
+
+  @TestTemplate
+  public void writeDurationForPartitionedTable() {
+    sql("CREATE TABLE %s (id BIGINT, data STRING) USING iceberg PARTITIONED BY (data)", tableName);
+
+    Dataset<Row> result =
+        spark.sql(
+            String.format(
+                "INSERT INTO %s SELECT id, CAST(id %% 4 AS STRING) FROM range(1000)", tableName));
+    result.collect();
+
+    // exercises PartitionedDataWriter rather than UnpartitionedDataWriter
+    assertWriteDurationsReported(result.queryExecution().executedPlan());
+  }
+
+  @TestTemplate
+  public void writeDurationForCopyOnWriteDelete() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id BIGINT) USING iceberg TBLPROPERTIES ('write.delete.mode'='copy-on-write')",
+        tableName);
+    spark.range(100).coalesce(1).writeTo(tableName).append();
+
+    Dataset<Row> result = spark.sql(String.format("DELETE FROM %s WHERE id = 1", tableName));
+    result.collect();
+
+    assertWriteDurationsReported(result.queryExecution().executedPlan());
+  }
+
+  @TestTemplate
+  public void writeDurationForMergeOnReadDelete() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id BIGINT) USING iceberg TBLPROPERTIES ('write.delete.mode'='merge-on-read')",
+        tableName);
+    spark.range(100).coalesce(1).writeTo(tableName).append();
+
+    // DeleteOnlyDeltaWriter in SparkPositionDeltaWrite
+    Dataset<Row> result = spark.sql(String.format("DELETE FROM %s WHERE id = 1", tableName));
+    result.collect();
+
+    assertWriteDurationsReported(result.queryExecution().executedPlan());
+  }
+
+  @TestTemplate
+  public void writeDurationForMergeOnReadUpdate() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id BIGINT) USING iceberg TBLPROPERTIES ('write.update.mode'='merge-on-read')",
+        tableName);
+    spark.range(100).coalesce(1).writeTo(tableName).append();
+
+    // UnpartitionedDeltaWriter: an update writes both deletes and data
+    Dataset<Row> result =
+        spark.sql(String.format("UPDATE %s SET id = id + 1000 WHERE id < 10", tableName));
+    result.collect();
+
+    assertWriteDurationsReported(result.queryExecution().executedPlan());
+  }
+
+  @TestTemplate
+  public void writeDurationForPartitionedMergeOnReadUpdate() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id BIGINT, data STRING) USING iceberg PARTITIONED BY (data) "
+            + "TBLPROPERTIES ('write.update.mode'='merge-on-read')",
+        tableName);
+    sql("INSERT INTO %s SELECT id, CAST(id %% 4 AS STRING) FROM range(100)", tableName);
+
+    // PartitionedDeltaWriter
+    Dataset<Row> result =
+        spark.sql(String.format("UPDATE %s SET id = id + 1000 WHERE id < 10", tableName));
+    result.collect();
+
+    assertWriteDurationsReported(result.queryExecution().executedPlan());
+  }
+
+  @TestTemplate
+  public void writeDurationAggregatesAcrossTasks() {
+    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
+
+    Dataset<Row> result =
+        spark.sql(
+            String.format(
+                "INSERT INTO %s SELECT /*+ REPARTITION(4) */ id FROM range(2000)", tableName));
+    result.collect();
+
+    Map<String, SQLMetric> metricsMap = writeMetrics(result.queryExecution().executedPlan());
+
+    // four tasks each wrote a file, so the reported durations are sums over all four
+    assertThat(metricsMap)
+        .hasEntrySatisfying(AddedDataFiles.NAME, metric -> assertThat(metric.value()).isEqualTo(4));
+    assertThat(metricsMap)
+        .hasEntrySatisfying(
+            WriteDuration.NAME, metric -> assertThat(metric.value()).isGreaterThan(0));
+    assertThat(metricsMap)
+        .hasEntrySatisfying(
+            WriteCloseDuration.NAME, metric -> assertThat(metric.value()).isGreaterThan(0));
+  }
+
+  private void assertWriteDurationsReported(SparkPlan plan) {
+    Map<String, SQLMetric> metricsMap = writeMetrics(plan);
+
+    assertThat(metricsMap)
+        .hasEntrySatisfying(
+            WriteDuration.NAME, metric -> assertThat(metric.value()).isGreaterThan(0));
+    assertThat(metricsMap)
+        .hasEntrySatisfying(
+            WriteCloseDuration.NAME, metric -> assertThat(metric.value()).isGreaterThan(0));
+  }
+
+  private Map<String, SQLMetric> writeMetrics(SparkPlan plan) {
+    Map<String, SQLMetric> metricsMap = CollectionConverters.asJava(plan.metrics());
+    if (!metricsMap.containsKey(WriteDuration.NAME)) {
+      metricsMap = findMetrics(plan, WriteDuration.NAME);
+    }
+
+    assertThat(metricsMap).as("write metrics not found in plan").isNotNull();
+    return metricsMap;
   }
 
   private Map<String, SQLMetric> findMetrics(SparkPlan plan, String metricName) {
