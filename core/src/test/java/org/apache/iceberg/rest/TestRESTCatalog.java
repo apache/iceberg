@@ -133,6 +133,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -3882,9 +3883,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  void configuresCredentialsEndpointOnlyWithStorageCredentials(boolean hasCredentials)
-      throws IOException {
+  @CsvSource({"true,true", "true,false", "false,true", "false,false"})
+  void configuresCredentialsEndpointOnlyWhenAdvertisedAndVended(
+      boolean hasCredentials, boolean advertisesCredentialsEndpoint) throws IOException {
     Credential credential =
         ImmutableCredential.builder()
             .prefix("s3://test-bucket/")
@@ -3904,6 +3905,19 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Consumer<Map<String, String>> responseHeaders) {
             T response =
                 super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
+            if (route == Route.CONFIG && response instanceof ConfigResponse configResponse) {
+              List<Endpoint> endpoints = Lists.newArrayList(configResponse.endpoints());
+              endpoints.remove(Endpoint.V1_TABLE_CREDENTIALS);
+              if (advertisesCredentialsEndpoint) {
+                endpoints.add(Endpoint.V1_TABLE_CREDENTIALS);
+              }
+              return (T)
+                  ConfigResponse.builder()
+                      .withDefaults(configResponse.defaults())
+                      .withOverrides(configResponse.overrides())
+                      .withEndpoints(endpoints)
+                      .build();
+            }
             if (route == Route.LOAD_TABLE && response instanceof LoadTableResponse loadResponse) {
               LoadTableResponse.Builder builder =
                   LoadTableResponse.builder()
@@ -3943,12 +3957,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       catalog.createNamespace(NS);
       catalog.createTable(TABLE, SCHEMA);
       catalog.loadTable(TABLE);
+      assertThat(fileIOProperties.get())
+          .containsEntry("client.refresh-credentials-endpoint", "v1/legacy/credentials");
 
-      if (hasCredentials) {
+      if (hasCredentials && advertisesCredentialsEndpoint) {
         assertThat(fileIOProperties.get())
             .containsEntry(
                 RESTCatalogProperties.CREDENTIALS_ENDPOINT,
-                RESTUtil.resolveEndpoint(catalogUri, RESOURCE_PATHS.table(TABLE) + "/credentials"));
+                RESTUtil.resolveEndpoint(catalogUri, RESOURCE_PATHS.credentials(TABLE)));
       } else {
         assertThat(fileIOProperties.get())
             .doesNotContainKey(RESTCatalogProperties.CREDENTIALS_ENDPOINT);
