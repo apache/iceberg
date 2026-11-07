@@ -137,21 +137,23 @@ paths:
         Index endpoints are not part of the default set. A server that supports indexes
         MUST list the index endpoints it supports in the `endpoints` field:
 
+          - GET /v1/{prefix}/namespaces/{namespace}/tables/{table}/indexes
+
+          - POST /v1/{prefix}/namespaces/{namespace}/tables/{table}/indexes
+
+          - GET /v1/{prefix}/namespaces/{namespace}/tables/{table}/indexes/{index}
+
+          - POST /v1/{prefix}/namespaces/{namespace}/tables/{table}/indexes/{index}
+
+          - DELETE /v1/{prefix}/namespaces/{namespace}/tables/{table}/indexes/{index}
+
+          - HEAD /v1/{prefix}/namespaces/{namespace}/tables/{table}/indexes/{index}
+
+
+        Listing all indexes of a namespace is optional, and a server that supports it
+        MUST also list:
+
           - GET /v1/{prefix}/namespaces/{namespace}/indexes
-
-          - POST /v1/{prefix}/namespaces/{namespace}/indexes
-
-          - GET /v1/{prefix}/namespaces/{namespace}/indexes/{index}
-
-          - POST /v1/{prefix}/namespaces/{namespace}/indexes/{index}
-
-          - DELETE /v1/{prefix}/namespaces/{namespace}/indexes/{index}
-
-          - HEAD /v1/{prefix}/namespaces/{namespace}/indexes/{index}
-
-          - POST /v1/{prefix}/namespaces/{namespace}/indexes/{index}/rename
-
-          - POST /v1/{prefix}/namespaces/{namespace}/register-index
         "
       responses:
         200:
@@ -1349,15 +1351,21 @@ paths:
     get:
       tags:
         - Index Catalog API
-      summary: List all indexes in a namespace, optionally filtered by table and index types
-      operationId: listIndexes
+      summary: List the indexes of all tables in a namespace
+      operationId: listNamespaceIndexes
       description:
-        Return summaries of the indexes in the specified namespace, optionally filtered by
-        table and index types. Indexes are not filtered by table snapshot.
+        Return summaries of the indexes of all tables in the specified namespace, optionally
+        filtered by index types. Each summary identifies the table that the index belongs to.
+        Indexes of tables in child namespaces are not returned. Indexes are not filtered by
+        table snapshot.
+
+
+        This endpoint is for maintenance, such as finding every index in a namespace without
+        listing the indexes of each table. Servers are not required to support it; a server
+        that supports it MUST list it in the `endpoints` field of the config response.
       parameters:
         - $ref: '#/components/parameters/page-token'
         - $ref: '#/components/parameters/page-size'
-        - $ref: '#/components/parameters/index-table'
         - $ref: '#/components/parameters/index-types'
       responses:
         200:
@@ -1377,6 +1385,53 @@ paths:
               examples:
                 NoSuchNamespaceError:
                   $ref: '#/components/examples/NoSuchNamespaceError'
+        406:
+          $ref: '#/components/responses/UnsupportedOperationResponse'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/indexes:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+
+    get:
+      tags:
+        - Index Catalog API
+      summary: List the indexes of a table, optionally filtered by index types
+      operationId: listIndexes
+      description:
+        Return summaries of the indexes of the specified table, optionally filtered by index
+        types. Indexes are not filtered by table snapshot.
+      parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
+        - $ref: '#/components/parameters/index-types'
+      responses:
+        200:
+          $ref: '#/components/responses/ListIndexesResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The table or namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchTableError:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NoSuchNamespaceError:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -1390,10 +1445,10 @@ paths:
       summary: Create an index on a table
       operationId: createIndex
       description:
-        Create a new index on the table identified by `table` and `table-uuid`. The server
-        does not read the indexed table; it stores `table` and `table-uuid` as given. The
-        request body carries the full index definition, which cannot be changed after creation.
-        The new index has no extracts until index maintenance adds one.
+        Create a new index on the table in the path. The request carries the `table-uuid` of
+        the indexed table, which the server stores as given without reading the table
+        metadata. The request body carries the full index definition, which cannot be changed
+        after creation. The new index has no extracts until index maintenance adds one.
       parameters:
         - $ref: '#/components/parameters/data-access'
         - $ref: '#/components/parameters/idempotency-key'
@@ -1416,16 +1471,18 @@ paths:
         403:
           $ref: '#/components/responses/ForbiddenResponse'
         404:
-          description: Not Found - The namespace does not exist
+          description: Not Found - The table or namespace does not exist
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
+                NoSuchTableError:
+                  $ref: '#/components/examples/NoSuchTableError'
                 NoSuchNamespaceError:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - An index with the same name already exists
+          description: Conflict - The table already has an index with the same name
           content:
             application/json:
               schema:
@@ -1440,10 +1497,11 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/{prefix}/namespaces/{namespace}/indexes/{index}:
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/indexes/{index}:
     parameters:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
       - $ref: '#/components/parameters/index'
 
     get:
@@ -1466,7 +1524,7 @@ paths:
         403:
           $ref: '#/components/responses/ForbiddenResponse'
         404:
-          description: Not Found - The index or namespace does not exist
+          description: Not Found - The index, table, or namespace does not exist
           content:
             application/json:
               schema:
@@ -1474,6 +1532,8 @@ paths:
               examples:
                 NoSuchIndexError:
                   $ref: '#/components/examples/NoSuchIndexError'
+                NoSuchTableError:
+                  $ref: '#/components/examples/NoSuchTableError'
                 NoSuchNamespaceError:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         419:
@@ -1528,7 +1588,7 @@ paths:
         403:
           $ref: '#/components/responses/ForbiddenResponse'
         404:
-          description: Not Found - The index or namespace does not exist
+          description: Not Found - The index, table, or namespace does not exist
           content:
             application/json:
               schema:
@@ -1536,6 +1596,8 @@ paths:
               examples:
                 NoSuchIndexError:
                   $ref: '#/components/examples/NoSuchIndexError'
+                NoSuchTableError:
+                  $ref: '#/components/examples/NoSuchTableError'
                 NoSuchNamespaceError:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
@@ -1634,7 +1696,7 @@ paths:
         403:
           $ref: '#/components/responses/ForbiddenResponse'
         404:
-          description: Not Found - The index does not exist
+          description: Not Found - The index, table, or namespace does not exist
           content:
             application/json:
               schema:
@@ -1642,6 +1704,8 @@ paths:
               examples:
                 NoSuchIndexError:
                   $ref: '#/components/examples/NoSuchIndexError'
+                NoSuchTableError:
+                  $ref: '#/components/examples/NoSuchTableError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -1654,7 +1718,7 @@ paths:
         - Index Catalog API
       summary: Check if an index exists
       operationId: indexExists
-      description: Check if an index exists in a given namespace. The response does not contain a body.
+      description: Check if an index exists on a given table. The response does not contain a body.
       responses:
         204:
           description: Success, no content - Index exists
@@ -1666,137 +1730,6 @@ paths:
           $ref: '#/components/responses/ForbiddenResponse'
         404:
           description: Not Found - Index not found
-        419:
-          $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
-          $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
-          $ref: '#/components/responses/ServerErrorResponse'
-
-  /v1/{prefix}/namespaces/{namespace}/indexes/{index}/rename:
-    parameters:
-      - $ref: '#/components/parameters/prefix'
-      - $ref: '#/components/parameters/namespace'
-      - $ref: '#/components/parameters/index'
-
-    post:
-      tags:
-        - Index Catalog API
-      summary: Rename an index from its current name to a new name
-      operationId: renameIndex
-      description: >
-        Rename an index. The index name is part of the path because `/indexes/rename` would
-        collide with an index named `rename`. Moving an index to another namespace is optional
-        for servers. The index metadata and the indexed table do not change.
-      parameters:
-        - $ref: '#/components/parameters/idempotency-key'
-      requestBody:
-        description: New index identifier to rename to
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RenameIndexRequest'
-            examples:
-              RenameIndexSameNamespace:
-                $ref: '#/components/examples/RenameIndexRequestExample'
-      responses:
-        204:
-          description: Success, no content
-        400:
-          $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
-          $ref: '#/components/responses/UnauthorizedResponse'
-        403:
-          $ref: '#/components/responses/ForbiddenResponse'
-        404:
-          description:
-            Not Found - NoSuchIndexException, index to rename does not exist, or
-            NoSuchNamespaceException, the source or target namespace does not exist
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/IcebergErrorResponse'
-              examples:
-                NoSuchIndexError:
-                  $ref: '#/components/examples/NoSuchIndexError'
-                NoSuchNamespaceError:
-                  $ref: '#/components/examples/NoSuchNamespaceError'
-        406:
-          $ref: '#/components/responses/UnsupportedOperationResponse'
-        409:
-          description: Conflict - The target identifier to rename to already exists as an index
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/IcebergErrorResponse'
-              examples:
-                IndexAlreadyExists:
-                  $ref: '#/components/examples/IndexAlreadyExistsError'
-        419:
-          $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
-          $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
-          $ref: '#/components/responses/ServerErrorResponse'
-
-  /v1/{prefix}/namespaces/{namespace}/register-index:
-    parameters:
-      - $ref: '#/components/parameters/prefix'
-      - $ref: '#/components/parameters/namespace'
-
-    post:
-      tags:
-        - Index Catalog API
-      summary: Register an index using a metadata file location
-      operationId: registerIndex
-      description:
-        Register an index in the catalog using a given metadata file location. This
-        allows importing an existing index from its metadata file. The index metadata
-        holds only the `table-uuid` of the indexed table, so the request also carries
-        the `table` identifier. The server does not read the indexed table; it stores
-        `table` as given.
-      parameters:
-        - $ref: '#/components/parameters/data-access'
-        - $ref: '#/components/parameters/idempotency-key'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RegisterIndexRequest'
-            examples:
-              RegisterIndex:
-                $ref: '#/components/examples/RegisterIndexRequestExample'
-      responses:
-        200:
-          $ref: '#/components/responses/LoadIndexResponse'
-        400:
-          $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
-          $ref: '#/components/responses/UnauthorizedResponse'
-        403:
-          $ref: '#/components/responses/ForbiddenResponse'
-        404:
-          description: Not Found - The table or namespace does not exist
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/IcebergErrorResponse'
-              examples:
-                NoSuchTableError:
-                  $ref: '#/components/examples/NoSuchTableError'
-                NoSuchNamespaceError:
-                  $ref: '#/components/examples/NoSuchNamespaceError'
-        409:
-          description: Conflict - An index with the same identifier already exists
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/IcebergErrorResponse'
-              examples:
-                IndexAlreadyExists:
-                  $ref: '#/components/examples/IndexAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -2762,17 +2695,6 @@ components:
       schema:
         type: string
       example: "customer_id_index"
-
-    index-table:
-      name: table
-      in: query
-      description: >
-        If set, only the indexes of this table are returned. The table identifier has the format
-        {namespace}{separator}{tableName}, encoded like the view identifiers of `referenced-by`.
-      required: false
-      schema:
-        type: string
-      example: "default%1Fevents"
 
     index-types:
       name: index-types
@@ -6433,21 +6355,25 @@ components:
     IndexIdentifier:
       type: object
       description:
-        Identifies an index within a catalog, scoped to a namespace. An index is
-        addressable by namespace and name without a table name; the indexed table is
-        referenced by `table-uuid` in the index metadata. Index names are not stored in
-        index metadata; the catalog maps each identifier to its current metadata file.
+        Identifies an index within a catalog by the identifier of its table and the index
+        name. An index is in the same namespace as its table, and index names are unique per
+        table. Index names are not stored in index metadata; the catalog maps each identifier
+        to its current metadata file.
       required:
-        - namespace
+        - table
         - name
       properties:
-        namespace:
-          $ref: '#/components/schemas/Namespace'
+        table:
+          allOf:
+            - $ref: '#/components/schemas/TableIdentifier'
+          description: Identifier of the indexed table
         name:
           type: string
-          description: The index name, unique within the namespace
+          description: The index name, unique within the table
       example:
-        namespace: ["accounting", "tax"]
+        table:
+          namespace: ["accounting", "tax"]
+          name: "paid"
         name: "customer_id_index"
 
     IndexType:
@@ -6463,11 +6389,10 @@ components:
     IndexSummary:
       type: object
       description: >
-        Summary of an index for query planning, derived from the current index metadata and the
-        table identifier stored by the catalog.
+        Summary of an index for query planning, derived from the current index metadata. The
+        `identifier` includes the table that the index belongs to.
       required:
         - identifier
-        - table
         - index-type
         - source-ids
         - ordering-source-ids
@@ -6475,10 +6400,6 @@ components:
       properties:
         identifier:
           $ref: '#/components/schemas/IndexIdentifier'
-        table:
-          allOf:
-            - $ref: '#/components/schemas/TableIdentifier'
-          description: Identifier of the indexed table
         index-type:
           $ref: '#/components/schemas/IndexType'
         source-ids:
@@ -6655,7 +6576,6 @@ components:
         `last-updated-ms`. A new index has no extracts.
       required:
         - name
-        - table
         - table-uuid
         - index-type
         - identity-fields
@@ -6664,16 +6584,12 @@ components:
       properties:
         name:
           type: string
-          description: The name for the new index, unique within the namespace
+          description: The name for the new index, unique within the table
           example: "customer_id_index"
-        table:
-          allOf:
-            - $ref: '#/components/schemas/TableIdentifier'
-          description: Identifier of the indexed table, which may be in another namespace
         table-uuid:
           type: string
           format: uuid
-          description: UUID of the table to index
+          description: UUID of the table in the path
         index-type:
           $ref: '#/components/schemas/IndexType'
         identity-fields:
@@ -6698,34 +6614,6 @@ components:
           additionalProperties:
             type: string
           description: Index properties
-
-    RenameIndexRequest:
-      type: object
-      description: Request to rename an index
-      required:
-        - destination
-      properties:
-        destination:
-          $ref: '#/components/schemas/IndexIdentifier'
-
-    RegisterIndexRequest:
-      type: object
-      description: Request to register an existing index by metadata file location
-      required:
-        - name
-        - table
-        - metadata-location
-      properties:
-        name:
-          type: string
-          description: The name to register the index under
-        table:
-          allOf:
-            - $ref: '#/components/schemas/TableIdentifier'
-          description: Identifier of the indexed table, which may be in another namespace
-        metadata-location:
-          type: string
-          description: Location of the index metadata file
 
     CommitIndexRequest:
       type: object
@@ -7415,17 +7303,17 @@ components:
       summary: The requested index does not exist
       value: {
         "error": {
-          "message": "Index does not exist: customer_id_index in accounting.sales",
+          "message": "Index does not exist: customer_id_index on accounting.tax.paid",
           "type": "NoSuchIndexException",
           "code": 404
         }
       }
 
     IndexAlreadyExistsError:
-      summary: An index with the same name already exists
+      summary: The table already has an index with the same name
       value: {
         "error": {
-          "message": "Index already exists: customer_id_index in accounting.sales",
+          "message": "Index already exists: customer_id_index on accounting.tax.paid",
           "type": "AlreadyExistsException",
           "code": 409
         }
@@ -7442,16 +7330,20 @@ components:
       value: {
         "indexes": [
           {
-            "identifier": { "namespace": ["default"], "name": "bucket_index" },
-            "table": { "namespace": ["default"], "name": "events" },
+            "identifier": {
+              "table": { "namespace": ["default"], "name": "events" },
+              "name": "bucket_index"
+            },
             "index-type": "scalar",
             "source-ids": [ 1, 2147483646, 2147483645 ],
             "ordering-source-ids": [ 1 ],
             "source-table-snapshot-ids": [ 3055729675574597004, 5459876531255530170 ]
           },
           {
-            "identifier": { "namespace": ["default"], "name": "event_time_index" },
-            "table": { "namespace": ["default"], "name": "events" },
+            "identifier": {
+              "table": { "namespace": ["default"], "name": "events" },
+              "name": "event_time_index"
+            },
             "index-type": "scalar",
             "source-ids": [ 3, 2147483646, 2147483645 ],
             "ordering-source-ids": [ 3 ],
@@ -7464,7 +7356,6 @@ components:
       summary: Create a scalar index on `user_id`, ordered by `bucket(256, user_id)` and `user_id`
       value: {
         "name": "bucket_index",
-        "table": { "namespace": ["default"], "name": "events" },
         "table-uuid": "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
         "location": "s3://bucket/warehouse/default.db/events/index/bucket_index",
         "index-type": "scalar",
@@ -7496,20 +7387,6 @@ components:
           ]
         },
         "ordering-key": [ 4, 1 ]
-      }
-
-    RenameIndexRequestExample:
-      summary: Rename an index within its namespace
-      value: {
-        "destination": { "namespace": ["default"], "name": "events_user_id_index" }
-      }
-
-    RegisterIndexRequestExample:
-      summary: Register an existing index of the `events` table
-      value: {
-        "name": "bucket_index",
-        "table": { "namespace": ["default"], "name": "events" },
-        "metadata-location": "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-3d2c1b0a-9f8e-4d7c-8b6a-5f4e3d2c1b0a.metadata.json"
       }
 
     LoadIndexExample:

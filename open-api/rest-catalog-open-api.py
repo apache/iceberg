@@ -1396,11 +1396,11 @@ class RemoteSigningConfig(BaseModel):
 
 class IndexIdentifier(BaseModel):
     """
-    Identifies an index within a catalog, scoped to a namespace. An index is addressable by namespace and name without a table name; the indexed table is referenced by `table-uuid` in the index metadata. Index names are not stored in index metadata; the catalog maps each identifier to its current metadata file.
+    Identifies an index within a catalog by the identifier of its table and the index name. An index is in the same namespace as its table, and index names are unique per table. Index names are not stored in index metadata; the catalog maps each identifier to its current metadata file.
     """
 
-    namespace: Namespace
-    name: str = Field(..., description='The index name, unique within the namespace')
+    table: TableIdentifier = Field(..., description='Identifier of the indexed table')
+    name: str = Field(..., description='The index name, unique within the table')
 
 
 class IndexType(RootModel[str]):
@@ -1413,12 +1413,11 @@ class IndexType(RootModel[str]):
 
 class IndexSummary(BaseModel):
     """
-    Summary of an index for query planning, derived from the current index metadata and the table identifier stored by the catalog.
+    Summary of an index for query planning, derived from the current index metadata. The `identifier` includes the table that the index belongs to.
 
     """
 
     identifier: IndexIdentifier
-    table: TableIdentifier = Field(..., description='Identifier of the indexed table')
     index_type: IndexType = Field(..., alias='index-type')
     source_ids: list[int] = Field(
         ..., alias='source-ids', description='The `source-id`s of `identity-fields`'
@@ -1494,31 +1493,6 @@ class IndexExtract(BaseModel):
         None,
         alias='key-id',
         description="ID of the entry in the index's `encryption-keys` that holds the key metadata of the tracking file",
-    )
-
-
-class RenameIndexRequest(BaseModel):
-    """
-    Request to rename an index
-    """
-
-    destination: IndexIdentifier
-
-
-class RegisterIndexRequest(BaseModel):
-    """
-    Request to register an existing index by metadata file location
-    """
-
-    name: str = Field(..., description='The name to register the index under')
-    table: TableIdentifier = Field(
-        ...,
-        description='Identifier of the indexed table, which may be in another namespace',
-    )
-    metadata_location: str = Field(
-        ...,
-        alias='metadata-location',
-        description='Location of the index metadata file',
     )
 
 
@@ -2565,15 +2539,11 @@ class CreateIndexRequest(BaseModel):
 
     name: str = Field(
         ...,
-        description='The name for the new index, unique within the namespace',
+        description='The name for the new index, unique within the table',
         examples=['customer_id_index'],
     )
-    table: TableIdentifier = Field(
-        ...,
-        description='Identifier of the indexed table, which may be in another namespace',
-    )
     table_uuid: UUID = Field(
-        ..., alias='table-uuid', description='UUID of the table to index'
+        ..., alias='table-uuid', description='UUID of the table in the path'
     )
     index_type: IndexType = Field(..., alias='index-type')
     identity_fields: list[IdentityField] = Field(..., alias='identity-fields')
