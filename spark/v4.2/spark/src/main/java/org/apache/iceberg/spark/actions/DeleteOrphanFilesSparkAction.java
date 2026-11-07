@@ -118,6 +118,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private static final int MAX_EXECUTOR_LISTING_DEPTH = 2000;
   private static final int MAX_EXECUTOR_LISTING_DIRECT_SUB_DIRS = Integer.MAX_VALUE;
   private static final int DELETE_GROUP_SIZE = 100000;
+  private static final int MAX_LISTED_FILES_PER_PARTITION = 100000;
 
   private final SerializableConfiguration hadoopConf;
   private final int listingParallelism;
@@ -431,7 +432,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
           predicate,
           matchingFiles::add);
 
-      JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
+      JavaRDD<String> matchingFileRDD = matchingFilesRDD(matchingFiles);
       return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
     } else {
       Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
@@ -447,7 +448,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
           subDirs::add,
           matchingFiles::add);
 
-      JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
+      JavaRDD<String> matchingFileRDD = matchingFilesRDD(matchingFiles);
 
       if (subDirs.isEmpty()) {
         return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
@@ -464,6 +465,15 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
       return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING());
     }
+  }
+
+  private JavaRDD<String> matchingFilesRDD(List<String> matchingFiles) {
+    int numPartitions =
+        Math.max(
+            1,
+            (matchingFiles.size() + MAX_LISTED_FILES_PER_PARTITION - 1)
+                / MAX_LISTED_FILES_PER_PARTITION);
+    return sparkContext().parallelize(matchingFiles, numPartitions);
   }
 
   private static Map<String, String> flattenMap(Map<String, String> map) {
