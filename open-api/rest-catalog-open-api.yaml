@@ -1115,6 +1115,8 @@ paths:
             round-trip for query planning. Defaults to `false`. Catalogs that do not
             support indexes MAY ignore this parameter, and clients that do not
             understand indexes MUST ignore the `indexes` field if it is present.
+            The catalog MUST omit indexes that the caller cannot load, including all
+            indexes when the caller's reads of the table are subject to read restrictions.
           required: false
           schema:
             type: boolean
@@ -1363,6 +1365,10 @@ paths:
         This endpoint is for maintenance, such as finding every index in a namespace without
         listing the indexes of each table. Servers are not required to support it; a server
         that supports it MUST list it in the `endpoints` field of the config response.
+
+
+        The server MUST return only indexes of tables that the caller can load, so that the
+        response does not reveal tables the caller cannot see.
       parameters:
         - $ref: '#/components/parameters/page-token'
         - $ref: '#/components/parameters/page-size'
@@ -1395,6 +1401,12 @@ paths:
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/namespaces/{namespace}/tables/{table}/indexes:
+    description: >
+      Indexes are sub-resources of their table, and access to an index follows access to the
+      table. Servers SHOULD allow loading and listing the indexes of a table only to callers that
+      can load the table, and creating, updating, and dropping them only to callers that can
+      commit to the table. Servers MAY define separate privileges for indexes, but MUST NOT grant
+      access to an index of a table that the caller cannot load.
     parameters:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
@@ -1512,6 +1524,12 @@ paths:
       description:
         Load the full metadata for an index. The response contains the index
         definition, its extracts, and the metadata log.
+
+
+        Index files hold values of table columns and positions of table rows, so reading an
+        index could bypass the read restrictions of the table. If the caller's reads of the table
+        are subject to `ReadRestrictions`, the server MUST NOT return the index metadata or
+        storage credentials for index files, and MUST respond with 403.
       parameters:
         - $ref: '#/components/parameters/data-access'
       responses:
@@ -2921,16 +2939,38 @@ components:
     DerivedColumn:
       type: object
       description: >
-        A column computed by a deterministic expression. `generated-always` columns are stored,
-        `virtual` columns are not. Defined by the derived column proposal, which this definition
-        follows; used by index extract schemas.
+        A column computed by a deterministic expression and stored, like a SQL generated column.
+        Defined by the derived column proposal, which this definition follows; used by index
+        extract schemas. Derived values that are not stored are stats-only fields.
       required:
         - kind
         - expr
       properties:
         kind:
           type: string
-          enum: ["generated-always", "virtual"]
+          enum: ["generated-always"]
+        expr:
+          $ref: '#/components/schemas/ValueExpression'
+
+    StatsOnlyField:
+      type: object
+      description: >
+        A stats-only field, as defined by the table specification, tracks statistics for a derived
+        value that is not stored. An `expr-value` field holds the value expression in `expr` and its
+        result type in `data-type`. Readers MUST NOT fail on an unknown `type`, and MUST ignore
+        the stats of fields they do not support.
+      required:
+        - field-id
+        - type
+      properties:
+        field-id:
+          type: integer
+        type:
+          type: string
+          description: The kind of stats-only field, such as `expr-value`
+          example: "expr-value"
+        data-type:
+          $ref: '#/components/schemas/Type'
         expr:
           $ref: '#/components/schemas/ValueExpression'
 
@@ -6411,8 +6451,8 @@ components:
           type: array
           description: >
             The `source-id`s that the ordering key is computed from, in `ordering-key` order and
-            without duplicates. A derived column contributes the `source-id`s of the identity
-            columns it is computed from.
+            without duplicates. A derived column or stats-only field contributes the `source-id`s
+            of the identity columns it is computed from.
           items:
             type: integer
         source-table-snapshot-ids:
@@ -6493,9 +6533,10 @@ components:
       type: object
       description:
         Index metadata as defined by the index specification. The index definition
-        (`table-uuid`, `index-type`, `identity-fields`, and `ordering-key`) is fixed when
-        the index is created and does not change. Extract schemas may evolve only as the
-        index specification allows. A missing optional list is read as an empty list.
+        (`table-uuid`, `index-type`, `identity-fields`, `stats-fields`, and `ordering-key`) is
+        fixed when the index is created and does not change. Extract schemas, and the
+        `data-type` of stats-only fields, may evolve only as the index specification allows.
+        A missing optional list is read as an empty list.
       required:
         - format-version
         - index-uuid
@@ -6541,11 +6582,19 @@ components:
             or a derived column with a `derived` definition.
           items:
             $ref: '#/components/schemas/Schema'
+        stats-fields:
+          type: array
+          description:
+            Stats-only fields of the index, shared by all extracts. Each MUST be an `expr-value`
+            field whose `expr` references only identity columns, by extract schema field ID.
+            Field IDs MUST be unique across extract schema field IDs and other stats-only fields.
+          items:
+            $ref: '#/components/schemas/StatsOnlyField'
         ordering-key:
           type: array
           description:
-            Non-empty list of extract schema field IDs, each of a primitive type, whose values in
-            list order form the ordering key
+            Non-empty list of extract schema field IDs or stats-only field IDs, each of a
+            primitive type, whose values in list order form the ordering key
           minItems: 1
           items:
             type: integer
@@ -6600,8 +6649,14 @@ components:
           allOf:
             - $ref: '#/components/schemas/Schema'
           description: The first extract schema. Its field IDs are preserved.
+        stats-fields:
+          type: array
+          description: Stats-only fields of the index. Their field IDs are preserved.
+          items:
+            $ref: '#/components/schemas/StatsOnlyField'
         ordering-key:
           type: array
+          description: Extract schema field IDs or stats-only field IDs that form the ordering key
           minItems: 1
           items:
             type: integer

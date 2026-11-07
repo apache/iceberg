@@ -1425,7 +1425,7 @@ class IndexSummary(BaseModel):
     ordering_source_ids: list[int] = Field(
         ...,
         alias='ordering-source-ids',
-        description='The `source-id`s that the ordering key is computed from, in `ordering-key` order and without duplicates. A derived column contributes the `source-id`s of the identity columns it is computed from.\n',
+        description='The `source-id`s that the ordering key is computed from, in `ordering-key` order and without duplicates. A derived column or stats-only field contributes the `source-id`s of the identity columns it is computed from.\n',
     )
     source_table_snapshot_ids: list[int] = Field(
         ...,
@@ -1763,12 +1763,28 @@ class StructField(BaseModel):
 
 class DerivedColumn(BaseModel):
     """
-    A column computed by a deterministic expression. `generated-always` columns are stored, `virtual` columns are not. Defined by the derived column proposal, which this definition follows; used by index extract schemas.
+    A column computed by a deterministic expression and stored, like a SQL generated column. Defined by the derived column proposal, which this definition follows; used by index extract schemas. Derived values that are not stored are stats-only fields.
 
     """
 
-    kind: Literal['generated-always', 'virtual']
+    kind: Literal['generated-always']
     expr: ValueExpression
+
+
+class StatsOnlyField(BaseModel):
+    """
+    A stats-only field, as defined by the table specification, tracks statistics for a derived value that is not stored. An `expr-value` field holds the value expression in `expr` and its result type in `data-type`. Readers MUST NOT fail on an unknown `type`, and MUST ignore the stats of fields they do not support.
+
+    """
+
+    field_id: int = Field(..., alias='field-id')
+    type: str = Field(
+        ...,
+        description='The kind of stats-only field, such as `expr-value`',
+        examples=['expr-value'],
+    )
+    data_type: Type | None = Field(None, alias='data-type')
+    expr: ValueExpression | None = None
 
 
 class StructType(BaseModel):
@@ -2478,7 +2494,7 @@ class FileScanTask(BaseModel):
 
 class IndexMetadata(BaseModel):
     """
-    Index metadata as defined by the index specification. The index definition (`table-uuid`, `index-type`, `identity-fields`, and `ordering-key`) is fixed when the index is created and does not change. Extract schemas may evolve only as the index specification allows. A missing optional list is read as an empty list.
+    Index metadata as defined by the index specification. The index definition (`table-uuid`, `index-type`, `identity-fields`, `stats-fields`, and `ordering-key`) is fixed when the index is created and does not change. Extract schemas, and the `data-type` of stats-only fields, may evolve only as the index specification allows. A missing optional list is read as an empty list.
     """
 
     format_version: int = Field(
@@ -2512,10 +2528,15 @@ class IndexMetadata(BaseModel):
         ...,
         description='Extract schemas. Each field is either an identity column listed in `identity-fields` or a derived column with a `derived` definition.',
     )
+    stats_fields: list[StatsOnlyField] | None = Field(
+        None,
+        alias='stats-fields',
+        description='Stats-only fields of the index, shared by all extracts. Each MUST be an `expr-value` field whose `expr` references only identity columns, by extract schema field ID. Field IDs MUST be unique across extract schema field IDs and other stats-only fields.',
+    )
     ordering_key: list[int] = Field(
         ...,
         alias='ordering-key',
-        description='Non-empty list of extract schema field IDs, each of a primitive type, whose values in list order form the ordering key',
+        description='Non-empty list of extract schema field IDs or stats-only field IDs, each of a primitive type, whose values in list order form the ordering key',
         examples=[[1]],
         min_length=1,
     )
@@ -2552,8 +2573,17 @@ class CreateIndexRequest(BaseModel):
         alias='schema',
         description='The first extract schema. Its field IDs are preserved.',
     )
+    stats_fields: list[StatsOnlyField] | None = Field(
+        None,
+        alias='stats-fields',
+        description='Stats-only fields of the index. Their field IDs are preserved.',
+    )
     ordering_key: list[int] = Field(
-        ..., alias='ordering-key', examples=[[1]], min_length=1
+        ...,
+        alias='ordering-key',
+        description='Extract schema field IDs or stats-only field IDs that form the ordering key',
+        examples=[[1]],
+        min_length=1,
     )
     location: str | None = Field(
         None,
@@ -2828,6 +2858,7 @@ class PlanTableScanResult(
 
 StructField.model_rebuild()
 DerivedColumn.model_rebuild()
+StatsOnlyField.model_rebuild()
 ListType.model_rebuild()
 MapType.model_rebuild()
 AndOrPredicate.model_rebuild()
