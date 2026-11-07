@@ -28,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.junit.jupiter.api.Test;
 
 public class TestGCPProperties {
@@ -89,6 +90,20 @@ public class TestGCPProperties {
         .isPresent()
         .get()
         .isEqualTo("/v1/credentials");
+  }
+
+  @Test
+  void usesCatalogCredentialsEndpoint() {
+    String endpoint = "https://catalog.example/table/credentials";
+    GCPProperties properties =
+        new GCPProperties(
+            ImmutableMap.of(
+                RESTCatalogProperties.CREDENTIALS_ENDPOINT,
+                endpoint,
+                GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
+                "/legacy"));
+
+    assertThat(properties.oauth2RefreshCredentialsEndpoint()).contains(endpoint);
   }
 
   @Test

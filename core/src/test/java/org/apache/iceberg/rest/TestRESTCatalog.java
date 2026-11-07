@@ -133,6 +133,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -3879,6 +3880,96 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             () -> catalog.loadTable(TABLE).newFastAppend().appendFile(anotherFileOnMain).commit())
         .isInstanceOf(CommitFailedException.class)
         .hasMessageContaining("Validation failed, please retry");
+  }
+
+  @ParameterizedTest
+  @CsvSource({"true,true", "true,false", "false,true", "false,false"})
+  void configuresCredentialsEndpointOnlyWhenAdvertisedAndVended(
+      boolean hasCredentials, boolean advertisesCredentialsEndpoint) throws IOException {
+    Credential credential =
+        ImmutableCredential.builder()
+            .prefix("s3://test-bucket/")
+            .putConfig("s3.access-key-id", "test-access-key")
+            .putConfig("s3.secret-access-key", "test-secret-key")
+            .build();
+
+    RESTCatalogAdapter adapter =
+        new RESTCatalogAdapter(backendCatalog) {
+          @SuppressWarnings("unchecked")
+          @Override
+          public <T extends RESTResponse> T handleRequest(
+              Route route,
+              Map<String, String> vars,
+              HTTPRequest httpRequest,
+              Class<T> responseType,
+              Consumer<Map<String, String>> responseHeaders) {
+            T response =
+                super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
+            if (route == Route.CONFIG && response instanceof ConfigResponse configResponse) {
+              List<Endpoint> endpoints = Lists.newArrayList(configResponse.endpoints());
+              endpoints.remove(Endpoint.V1_TABLE_CREDENTIALS);
+              if (advertisesCredentialsEndpoint) {
+                endpoints.add(Endpoint.V1_TABLE_CREDENTIALS);
+              }
+              return (T)
+                  ConfigResponse.builder()
+                      .withDefaults(configResponse.defaults())
+                      .withOverrides(configResponse.overrides())
+                      .withEndpoints(endpoints)
+                      .build();
+            }
+            if (route == Route.LOAD_TABLE && response instanceof LoadTableResponse loadResponse) {
+              LoadTableResponse.Builder builder =
+                  LoadTableResponse.builder()
+                      .withTableMetadata(loadResponse.tableMetadata())
+                      .addAllConfig(loadResponse.config())
+                      .addConfig("client.refresh-credentials-endpoint", "v1/legacy/credentials")
+                      .addConfig(RESTCatalogProperties.CREDENTIALS_ENDPOINT, "unresolved");
+              if (hasCredentials) {
+                builder.addCredential(credential);
+              } else {
+                builder.addConfig("s3.remote-signing-enabled", "true");
+              }
+              return (T) builder.build();
+            }
+            return response;
+          }
+        };
+
+    AtomicReference<Map<String, String>> fileIOProperties = new AtomicReference<>();
+    try (RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), config -> adapter) {
+          @Override
+          protected RESTSessionCatalog newSessionCatalog(
+              Function<Map<String, String>, RESTClient> clientBuilder) {
+            return new RESTSessionCatalog(
+                clientBuilder,
+                (context, config) -> {
+                  fileIOProperties.set(config);
+                  return new TestCatalogUtil.TestFileIOWithStorageCredentials();
+                });
+          }
+        }) {
+      String catalogUri = "https://catalog.example/api/catalog/";
+      catalog.initialize("test", ImmutableMap.of(CatalogProperties.URI, catalogUri));
+      assertThat(fileIOProperties.get())
+          .doesNotContainKey(RESTCatalogProperties.CREDENTIALS_ENDPOINT);
+      catalog.createNamespace(NS);
+      catalog.createTable(TABLE, SCHEMA);
+      catalog.loadTable(TABLE);
+      assertThat(fileIOProperties.get())
+          .containsEntry("client.refresh-credentials-endpoint", "v1/legacy/credentials");
+
+      if (hasCredentials && advertisesCredentialsEndpoint) {
+        assertThat(fileIOProperties.get())
+            .containsEntry(
+                RESTCatalogProperties.CREDENTIALS_ENDPOINT,
+                RESTUtil.resolveEndpoint(catalogUri, RESOURCE_PATHS.credentials(TABLE)));
+      } else {
+        assertThat(fileIOProperties.get())
+            .doesNotContainKey(RESTCatalogProperties.CREDENTIALS_ENDPOINT);
+      }
+    }
   }
 
   @Test
