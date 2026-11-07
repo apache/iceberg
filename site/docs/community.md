@@ -143,7 +143,7 @@ Many contributors have questions about how to become a committer. This section o
 
 ### What are the responsibilities of a committer?
 
-Committers are project reviewers and are able to commit code in Iceberg repositories. Reviewing is the primary responsibility of committers.
+Committers are project members who have the authority to commit code to Iceberg repositories. With this authority comes the responsibility to help maintain the project's quality, stability, and overall direction. Reviewing contributions is therefore their primary responsibility.
 
 Although ASF write access applies across all project repositories, committers are trusted to merge PRs or commit only in areas and Iceberg implementations where they are knowledgeable. When contributing to or reviewing changes outside their area of expertise or in another implementation, committers should work with already experienced committers in that codebase to get a review from someone familiar with the area before merging.
 
