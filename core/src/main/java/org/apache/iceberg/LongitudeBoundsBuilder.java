@@ -102,6 +102,7 @@ class LongitudeBoundsBuilder {
   }
 
   private void compactIntervals() {
+    // Fill gaps to bound memory without discarding covered longitudes.
     while (intervals.size() > MAX_INTERVALS) {
       int mergeIndex = 1;
       double smallestGap = Double.POSITIVE_INFINITY;
