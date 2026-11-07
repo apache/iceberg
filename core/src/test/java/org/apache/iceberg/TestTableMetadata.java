@@ -34,6 +34,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -2071,6 +2073,237 @@ public class TestTableMetadata {
     assertThat(meta.changes()).anyMatch(u -> u instanceof MetadataUpdate.RemoveSchemas);
   }
 
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  void addSnapshotRejectsKeyIdBeforeV3(int formatVersion) {
+    TableMetadata base = newTableMetadata(formatVersion);
+    Snapshot snapshot =
+        snapshot(
+            formatVersion,
+            formatVersion == 1 ? null : "file:/s1.avro",
+            formatVersion == 1 ? null : "append",
+            null,
+            null,
+            "key-id");
+
+    assertThatThrownBy(() -> TableMetadata.buildFrom(base).addSnapshot(snapshot))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("key-id");
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  void addSnapshotRejectsRowLineageBeforeV3(int formatVersion) {
+    TableMetadata base = newTableMetadata(formatVersion);
+    Snapshot snapshot =
+        snapshot(
+            formatVersion,
+            formatVersion == 1 ? null : "file:/s1.avro",
+            formatVersion == 1 ? null : "append",
+            0L,
+            0L,
+            null);
+
+    assertThatThrownBy(() -> TableMetadata.buildFrom(base).addSnapshot(snapshot))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("first-row-id")
+        .hasMessageContaining("added-rows");
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {2, 3})
+  void addSnapshotRequiresManifestListFromV2(int formatVersion) {
+    TableMetadata base = newTableMetadata(formatVersion);
+    Snapshot snapshot =
+        snapshot(
+            formatVersion,
+            null,
+            "append",
+            formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE ? 0L : null,
+            formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE ? 0L : null,
+            null);
+
+    assertThatThrownBy(() -> TableMetadata.buildFrom(base).addSnapshot(snapshot))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("manifest-list");
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {2, 3, 4})
+  void addSnapshotRequiresSummaryFromV2(int formatVersion) {
+    TableMetadata base = newTableMetadata(formatVersion);
+    Snapshot snapshot =
+        snapshot(
+            formatVersion,
+            "file:/s1.avro",
+            null,
+            formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE ? 0L : null,
+            formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE ? 0L : null,
+            null);
+
+    assertThatThrownBy(() -> TableMetadata.buildFrom(base).addSnapshot(snapshot))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("summary");
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2, 3, 4})
+  void addSnapshotAcceptsFieldsAllowedByFormatVersion(int formatVersion) {
+    TableMetadata base = newTableMetadata(formatVersion);
+    Snapshot snapshot =
+        snapshot(
+            formatVersion,
+            formatVersion == 1 ? null : "file:/s1.avro",
+            formatVersion == 1 ? null : "append",
+            formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE ? 0L : null,
+            formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE ? 0L : null,
+            null);
+
+    TableMetadata updated = TableMetadata.buildFrom(base).addSnapshot(snapshot).build();
+
+    assertThat(updated.snapshot(snapshot.snapshotId())).isSameAs(snapshot);
+  }
+
+  @Test
+  void addSnapshotValidationDoesNotMutateBuilder() {
+    TableMetadata base = newTableMetadata(3);
+    TableMetadata.Builder builder = TableMetadata.buildFrom(base);
+    Snapshot invalidSnapshot = snapshot(3, "file:/s1.avro", "append", null, null, null);
+
+    assertThatThrownBy(() -> builder.addSnapshot(invalidSnapshot))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("first-row-id");
+
+    Snapshot validSnapshot = snapshot(3, "file:/s1.avro", "append", 0L, 0L, null);
+    TableMetadata updated = builder.addSnapshot(validSnapshot).build();
+
+    assertThat(updated.snapshot(validSnapshot.snapshotId())).isSameAs(validSnapshot);
+  }
+
+  @Test
+  void addSnapshotRejectsNegativeAddedRowsWithoutMutatingBuilder() {
+    TableMetadata.Builder builder = TableMetadata.buildFrom(newTableMetadata(3));
+    Snapshot invalidSnapshot = spy(snapshot(3, "file:/s1.avro", "append", 0L, 0L, null));
+    doReturn(-1L).when(invalidSnapshot).addedRows();
+
+    assertThatThrownBy(() -> builder.addSnapshot(invalidSnapshot))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("added-rows");
+
+    assertThat(builder.build().nextRowId()).isZero();
+  }
+
+  @Test
+  void addSnapshotRejectsFirstRowIdRangeOverflow() {
+    TableMetadata.Builder builder = TableMetadata.buildFrom(newTableMetadata(3));
+    Snapshot invalidSnapshot = snapshot(3, "file:/s1.avro", "append", Long.MAX_VALUE, 1L, null);
+
+    assertThatThrownBy(() -> builder.addSnapshot(invalidSnapshot))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("row ID range");
+
+    assertThat(builder.build().nextRowId()).isZero();
+  }
+
+  @Test
+  void addSnapshotRejectsFirstRowIdAheadOfNextRowId() {
+    TableMetadata.Builder builder = TableMetadata.buildFrom(newTableMetadata(3));
+    Snapshot invalidSnapshot = snapshot(3, "file:/s1.avro", "append", 1L, 1L, null);
+
+    assertThatThrownBy(() -> builder.addSnapshot(invalidSnapshot))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("first-row-id is ahead of table next-row-id");
+
+    assertThat(builder.build().nextRowId()).isZero();
+  }
+
+  @Test
+  void addSnapshotRejectsNextRowIdOverflowWithoutMutatingBuilder() {
+    TableMetadata.Builder builder = TableMetadata.buildFrom(newTableMetadata(3));
+    Snapshot firstSnapshot = snapshot(3, "file:/s1.avro", "append", 0L, Long.MAX_VALUE, null);
+    builder.addSnapshot(firstSnapshot);
+
+    Snapshot overflowingSnapshot =
+        new BaseSnapshot(
+            2L,
+            2L,
+            1L,
+            2L,
+            "append",
+            ImmutableMap.of(),
+            null,
+            "file:/s2.avro",
+            Long.MAX_VALUE,
+            1L,
+            null);
+
+    assertThatThrownBy(() -> builder.addSnapshot(overflowingSnapshot))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("row ID range");
+
+    assertThat(builder.build().nextRowId()).isEqualTo(Long.MAX_VALUE);
+  }
+
+  @Test
+  void upgradeFormatVersionAdvancesNextRowIdPastExistingSnapshots() throws IOException {
+    TableMetadata base = newTableMetadata(3);
+    Snapshot existingSnapshot = snapshot(3, "file:/s1.avro", "append", 0L, 5L, null);
+    TableMetadata withSnapshot =
+        TableMetadata.buildFrom(base).addSnapshot(existingSnapshot).build();
+
+    TableMetadata legacyMetadata = withFormatVersion(withSnapshot, 2);
+    assertThat(legacyMetadata.nextRowId()).isEqualTo(0L);
+
+    TableMetadata upgraded =
+        TableMetadata.buildFrom(legacyMetadata).upgradeFormatVersion(3).build();
+    assertThat(upgraded.nextRowId()).isEqualTo(5L);
+
+    Snapshot nextSnapshot =
+        new BaseSnapshot(
+            2L, 2L, 1L, 2L, "append", ImmutableMap.of(), null, "file:/s2.avro", 5L, 1L, null);
+    TableMetadata withNextSnapshot =
+        TableMetadata.buildFrom(upgraded).addSnapshot(nextSnapshot).build();
+
+    assertThat(withNextSnapshot.nextRowId()).isEqualTo(6L);
+  }
+
+  private static TableMetadata newTableMetadata(int formatVersion) {
+    return TableMetadata.newTableMetadata(
+        TEST_SCHEMA,
+        PartitionSpec.unpartitioned(),
+        TEST_LOCATION,
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)));
+  }
+
+  private static TableMetadata withFormatVersion(TableMetadata metadata, int formatVersion)
+      throws IOException {
+    ObjectNode node = (ObjectNode) JsonUtil.mapper().readTree(TableMetadataParser.toJson(metadata));
+    node.put(FORMAT_VERSION, formatVersion);
+    node.remove(TableMetadataParser.NEXT_ROW_ID);
+    return TableMetadataParser.fromJson(node);
+  }
+
+  private static Snapshot snapshot(
+      int formatVersion,
+      String manifestList,
+      String operation,
+      Long firstRowId,
+      Long addedRows,
+      String keyId) {
+    return new BaseSnapshot(
+        formatVersion == 1 ? 0L : 1L,
+        1L,
+        null,
+        1L,
+        operation,
+        operation == null ? null : ImmutableMap.of(),
+        null,
+        manifestList,
+        firstRowId,
+        addedRows,
+        keyId);
+  }
+
   @Test
   public void testAddSnapshotWithStaleSequenceNumberIsRetryable() {
     TableMetadata base =
@@ -2084,8 +2317,8 @@ public class TestTableMetadata {
             1L,
             null,
             System.currentTimeMillis(),
-            null,
-            null,
+            "append",
+            ImmutableMap.of(),
             null,
             "file:/s1.avro",
             null,
@@ -2100,8 +2333,8 @@ public class TestTableMetadata {
             2L,
             1L,
             System.currentTimeMillis(),
-            null,
-            null,
+            "append",
+            ImmutableMap.of(),
             null,
             "file:/s2.avro",
             null,
@@ -2129,8 +2362,8 @@ public class TestTableMetadata {
             1L,
             null,
             System.currentTimeMillis(),
-            null,
-            null,
+            "append",
+            ImmutableMap.of(),
             null,
             "file:/s1.avro",
             0L,
@@ -2142,7 +2375,17 @@ public class TestTableMetadata {
     // A snapshot with firstRowId=0 is stale (0 < nextRowId=5)
     Snapshot staleSnapshot =
         new BaseSnapshot(
-            2, 2L, 1L, System.currentTimeMillis(), null, null, null, "file:/s2.avro", 0L, 1L, null);
+            2,
+            2L,
+            1L,
+            System.currentTimeMillis(),
+            "append",
+            ImmutableMap.of(),
+            null,
+            "file:/s2.avro",
+            0L,
+            1L,
+            null);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(withS1).addSnapshot(staleSnapshot))
         .isInstanceOf(RetryableValidationException.class)
@@ -2161,8 +2404,8 @@ public class TestTableMetadata {
             1L,
             null,
             System.currentTimeMillis(),
-            null,
-            null,
+            "append",
+            ImmutableMap.of(),
             null,
             "file:/s1.avro",
             null,
@@ -2198,11 +2441,13 @@ public class TestTableMetadata {
             ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)));
 
     Snapshot parent =
-        new BaseSnapshot(1, 1L, null, 1_000L, null, null, null, "file:/s1.avro", 0L, 0L, null);
+        new BaseSnapshot(
+            1, 1L, null, 1_000L, "append", ImmutableMap.of(), null, "file:/s1.avro", 0L, 0L, null);
     TableMetadata withParent = TableMetadata.buildFrom(base).addSnapshot(parent).build();
 
     Snapshot child =
-        new BaseSnapshot(2, 2L, 1L, 1_000L, null, null, null, "file:/s2.avro", 0L, 0L, null);
+        new BaseSnapshot(
+            2, 2L, 1L, 1_000L, "append", ImmutableMap.of(), null, "file:/s2.avro", 0L, 0L, null);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(withParent).addSnapshot(child))
         .isInstanceOf(ValidationException.class)
@@ -2231,8 +2476,8 @@ public class TestTableMetadata {
             1L,
             null,
             1_000L,
-            null,
-            null,
+            "append",
+            ImmutableMap.of(),
             null,
             "file:/s1.avro",
             parentFirstRowId,
@@ -2251,8 +2496,8 @@ public class TestTableMetadata {
             2L,
             1L,
             999L,
-            null,
-            null,
+            "append",
+            ImmutableMap.of(),
             null,
             "file:/s2.avro",
             childFirstRowId,
@@ -2284,8 +2529,8 @@ public class TestTableMetadata {
             1L,
             null,
             snapshotTs,
-            null,
-            null,
+            "append",
+            ImmutableMap.of(),
             null,
             "file:/s1.avro",
             firstRowId,
