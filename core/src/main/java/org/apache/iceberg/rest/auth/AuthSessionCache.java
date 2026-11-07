@@ -24,11 +24,11 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import java.time.Duration;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.Uninterruptibles;
-import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,6 +36,9 @@ import org.slf4j.LoggerFactory;
 public class AuthSessionCache implements AutoCloseable {
 
   private static final Logger LOG = LoggerFactory.getLogger(AuthSessionCache.class);
+
+  private static final ExecutorService EVICTION_EXECUTOR =
+      Executors.newSingleThreadExecutor(AuthSessionCache::newEvictionThread);
 
   private final Duration sessionTimeout;
   private final Executor executor;
@@ -52,10 +55,7 @@ public class AuthSessionCache implements AutoCloseable {
    *     this duration of inactivity.
    */
   public AuthSessionCache(String name, Duration sessionTimeout) {
-    this(
-        sessionTimeout,
-        ThreadPools.newExitingWorkerPool(name + "-auth-session-evict", 1),
-        Ticker.systemTicker());
+    this(sessionTimeout, EVICTION_EXECUTOR, Ticker.systemTicker());
   }
 
   /**
@@ -98,7 +98,7 @@ public class AuthSessionCache implements AutoCloseable {
         cache.cleanUp();
       }
     } finally {
-      if (executor instanceof ExecutorService) {
+      if (executor instanceof ExecutorService && executor != EVICTION_EXECUTOR) {
         ExecutorService service = (ExecutorService) executor;
         service.shutdown();
         if (!Uninterruptibles.awaitTerminationUninterruptibly(service, 10, TimeUnit.SECONDS)) {
@@ -136,5 +136,15 @@ public class AuthSessionCache implements AutoCloseable {
                 });
 
     return builder.build();
+  }
+
+  @VisibleForTesting
+  static Thread newEvictionThread(Runnable task) {
+    // the thread is shared by all caches and outlives them, so it must not retain the creating
+    // thread's inheritable thread-locals or context class loader
+    Thread thread = new Thread(null, task, "auth-session-evict", 0, false);
+    thread.setDaemon(true);
+    thread.setContextClassLoader(AuthSessionCache.class.getClassLoader());
+    return thread;
   }
 }
