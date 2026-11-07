@@ -42,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.source.metrics.EffectiveSplitTargetSize;
 import org.apache.iceberg.spark.source.metrics.EqualityDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.IndexedDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.NumDeletes;
@@ -56,6 +57,7 @@ import org.apache.iceberg.spark.source.metrics.SkippedDataFiles;
 import org.apache.iceberg.spark.source.metrics.SkippedDataManifests;
 import org.apache.iceberg.spark.source.metrics.SkippedDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.SkippedDeleteManifests;
+import org.apache.iceberg.spark.source.metrics.TaskEffectiveSplitTargetSize;
 import org.apache.iceberg.spark.source.metrics.TaskEqualityDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.TaskIndexedDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.TaskPositionalDeleteFiles;
@@ -114,6 +116,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   // lazy variables
   private StructType readSchema;
+  private Long effectiveSplitTargetSize;
 
   SparkScan(
       SparkSession spark,
@@ -301,12 +304,15 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   @Override
   public CustomTaskMetric[] reportDriverMetrics() {
     ScanReport scanReport = scanReportSupplier != null ? scanReportSupplier.get() : null;
+    List<CustomTaskMetric> driverMetrics = Lists.newArrayList();
 
-    if (scanReport == null) {
-      return new CustomTaskMetric[0];
+    if (effectiveSplitTargetSize != null) {
+      driverMetrics.add(new TaskEffectiveSplitTargetSize(effectiveSplitTargetSize));
     }
 
-    List<CustomTaskMetric> driverMetrics = Lists.newArrayList();
+    if (scanReport == null) {
+      return driverMetrics.toArray(new CustomTaskMetric[0]);
+    }
 
     // common
     driverMetrics.add(TaskTotalPlanningDuration.from(scanReport));
@@ -345,6 +351,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       new NumDeletes(),
 
       // common
+      new EffectiveSplitTargetSize(),
       new TotalPlanningDuration(),
       new ScanDuration(),
 
@@ -374,21 +381,26 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   }
 
   protected long adjustSplitSize(List<? extends ScanTask> tasks, long splitSize) {
+    long effectiveSplitSize = splitSize;
     if (readConf.splitSizeOption() == null && readConf.adaptiveSplitSizeEnabled()) {
       long scanSize = tasks.stream().mapToLong(ScanTask::sizeBytes).sum();
       int parallelism = readConf.splitParallelism();
-      long adjustedSplitSize = TableScanUtil.adjustSplitSize(scanSize, parallelism, splitSize);
-      if (adjustedSplitSize != splitSize) {
+      effectiveSplitSize = TableScanUtil.adjustSplitSize(scanSize, parallelism, splitSize);
+      if (effectiveSplitSize != splitSize) {
         LOG.debug(
             "Adjusted split size from {} to {} for table {} with parallelism {}",
             splitSize,
-            adjustedSplitSize,
+            effectiveSplitSize,
             table().name(),
             parallelism);
       }
-      return adjustedSplitSize;
-    } else {
-      return splitSize;
     }
+
+    recordEffectiveSplitTargetSize(effectiveSplitSize);
+    return effectiveSplitSize;
+  }
+
+  protected void recordEffectiveSplitTargetSize(long splitSize) {
+    this.effectiveSplitTargetSize = splitSize;
   }
 }
