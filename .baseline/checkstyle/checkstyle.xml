@@ -128,7 +128,7 @@
         <property name="file" value="${config_loc}/checkstyle-suppressions.xml"/>
     </module>
     <module name="SuppressionFilter"> <!-- baseline-gradle: README.md -->
-        <!-- custom-suppressions.xml allows users to specify suppresions that will not be overriden by baselineUpdateConfig -->
+        <!-- custom-suppressions.xml allows users to specify suppresions that will not be overridden by baselineUpdateConfig -->
         <property name="file" value="${config_loc}/custom-suppressions.xml"/>
         <property name="optional" value="true"/>
     </module>
