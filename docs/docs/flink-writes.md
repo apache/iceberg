@@ -371,6 +371,25 @@ the state of the Flink job. To avoid that, make sure to keep the last snapshot c
 job (which can be identified by the `flink.job-id` property in the summary), and only delete
 orphan files that are old enough.
 
+Flink upsert and CDC jobs write equality deletes. An equality delete written under a partitioned
+spec cannot delete rows in data files written under a different spec, so after a partition spec
+change, upserts can leave duplicate keys and deletes can leave rows visible, without an error. To
+change the partition spec of such a table:
+
+1. Stop all writers to the table. Stop Flink jobs with a savepoint.
+2. Change the partition spec.
+3. Rewrite all data files into the new spec, for example with
+   [RewriteDataFiles](flink-maintenance.md#rewritedatafiles-configuration) using `rewriteAll(true)`
+   and, for a branch, `branch(...)`. For each branch the jobs write to, this must return 0:
+   `SELECT count(*) FROM <table>$data_files /*+ OPTIONS('branch'='<branch>') */ WHERE spec_id <> <new spec ID>`
+4. Rebuild the Flink jobs, so their writers use the new spec, and restore them from the savepoint.
+
+For tables with equality fields, don't change the spec that the
+[Dynamic Iceberg Sink](#flink-dynamic-iceberg-sink) writes records with while the job runs; use the
+steps above instead, and resume with records that declare the new spec.
+
+These steps don't repair duplicate rows or missed deletes already in the table.
+
 ## Sink V2 based implementation
 
 At the time when the current default, `FlinkSink` implementation was created, Flink Sink's interface had some
