@@ -42,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.source.metrics.EffectiveSplitTargetSize;
 import org.apache.iceberg.spark.source.metrics.EqualityDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.IndexedDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.NumDeletes;
@@ -56,6 +57,7 @@ import org.apache.iceberg.spark.source.metrics.SkippedDataFiles;
 import org.apache.iceberg.spark.source.metrics.SkippedDataManifests;
 import org.apache.iceberg.spark.source.metrics.SkippedDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.SkippedDeleteManifests;
+import org.apache.iceberg.spark.source.metrics.TaskEffectiveSplitTargetSize;
 import org.apache.iceberg.spark.source.metrics.TaskEqualityDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.TaskIndexedDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.TaskPositionalDeleteFiles;
@@ -85,7 +87,6 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.FieldReference;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.metric.CustomMetric;
-import org.apache.spark.sql.connector.metric.CustomSumMetric;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.Scan;
@@ -101,7 +102,6 @@ import org.slf4j.LoggerFactory;
 abstract class SparkScan implements Scan, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(SparkScan.class);
   private static final String NDV_KEY = "ndv";
-  private static final String EFFECTIVE_SPLIT_TARGET_SIZE = "effectiveSplitTargetSize";
 
   private final JavaSparkContext sparkContext;
   private final Table table;
@@ -307,7 +307,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     List<CustomTaskMetric> driverMetrics = Lists.newArrayList();
 
     if (effectiveSplitTargetSize != null) {
-      driverMetrics.add(new SplitTargetSizeMetricValue(effectiveSplitTargetSize));
+      driverMetrics.add(new TaskEffectiveSplitTargetSize(effectiveSplitTargetSize));
     }
 
     if (scanReport == null) {
@@ -402,35 +402,5 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   protected void recordEffectiveSplitTargetSize(long splitSize) {
     this.effectiveSplitTargetSize = splitSize;
-  }
-
-  private static class EffectiveSplitTargetSize extends CustomSumMetric {
-    @Override
-    public String name() {
-      return EFFECTIVE_SPLIT_TARGET_SIZE;
-    }
-
-    @Override
-    public String description() {
-      return "effective target size in bytes used to plan scan task groups";
-    }
-  }
-
-  private static class SplitTargetSizeMetricValue implements CustomTaskMetric {
-    private final long value;
-
-    private SplitTargetSizeMetricValue(long value) {
-      this.value = value;
-    }
-
-    @Override
-    public String name() {
-      return EFFECTIVE_SPLIT_TARGET_SIZE;
-    }
-
-    @Override
-    public long value() {
-      return value;
-    }
   }
 }

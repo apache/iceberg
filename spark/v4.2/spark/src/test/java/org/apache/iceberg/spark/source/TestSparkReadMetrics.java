@@ -34,8 +34,11 @@ import org.apache.iceberg.spark.source.metrics.ScanDuration;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.connector.metric.CustomMetric;
 import org.apache.spark.sql.execution.SparkPlan;
+import org.apache.spark.sql.execution.datasources.v2.BatchScanExec;
 import org.apache.spark.sql.execution.metric.SQLMetric;
+import org.apache.spark.util.Utils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -79,6 +82,29 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
                   .load(tableName);
           assertEffectiveSplitTargetSize(df, 32L * 1024 * 1024);
         });
+  }
+
+  @TestTemplate
+  public void testCustomMetricsAreInstantiableBySpark() {
+    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
+
+    Dataset<Row> df = spark.sql(String.format("SELECT * FROM %s", tableName));
+    SparkPlan scanPlan = df.queryExecution().executedPlan().collectLeaves().head();
+
+    assertThat(scanPlan).isInstanceOf(BatchScanExec.class);
+    CustomMetric[] metrics = ((BatchScanExec) scanPlan).scan().supportedCustomMetrics();
+
+    // Spark's SQLAppStatusListener creates each metric reflectively by class name using a public
+    // zero-argument constructor; a private or nested class silently drops the metric from the UI
+    assertThat(metrics).isNotEmpty();
+    for (CustomMetric metric : metrics) {
+      scala.collection.immutable.Seq<CustomMetric> loaded =
+          Utils.loadExtensions(
+              CustomMetric.class,
+              JavaConverters.asScalaBuffer(List.of(metric.getClass().getName())).toSeq(),
+              spark.sparkContext().conf());
+      assertThat(loaded.size()).as("metric %s", metric.name()).isEqualTo(1);
+    }
   }
 
   private void assertEffectiveSplitTargetSize(long expectedSize) {
