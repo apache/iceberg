@@ -141,6 +141,33 @@ public class JdbcLockFactory implements TriggerLockFactory {
             LOG.info("Creating Flink maintenance lock table {}", LOCK_TABLE_NAME);
             try (PreparedStatement ps = conn.prepareStatement(CREATE_LOCK_TABLE_SQL)) {
               ps.execute();
+            } catch (SQLException createFailure) {
+              String sqlState = createFailure.getSQLState();
+              String message = createFailure.getMessage();
+              boolean tableAlreadyExists =
+                  "42P07".equals(sqlState)
+                      || ("42S01".equals(sqlState) && createFailure.getErrorCode() == 1050)
+                      || (createFailure.getErrorCode() == 1
+                          && message != null
+                          && message.contains("table " + LOCK_TABLE_NAME + " already exists"));
+
+              if (!tableAlreadyExists) {
+                throw createFailure;
+              }
+
+              try (ResultSet rs = conn.getMetaData().getTables(null, null, LOCK_TABLE_NAME, null)) {
+                if (rs.next()) {
+                  LOG.info(
+                      "Flink maintenance lock table {} already exists after concurrent initialization",
+                      LOCK_TABLE_NAME,
+                      createFailure);
+                  return true;
+                }
+              } catch (SQLException verificationFailure) {
+                createFailure.addSuppressed(verificationFailure);
+              }
+
+              throw createFailure;
             }
 
             return true;

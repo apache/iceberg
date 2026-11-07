@@ -25,7 +25,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.sql.SQLTransientConnectionException;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.iceberg.flink.maintenance.api.TriggerLockFactory.Lock;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.jdbc.UncheckedSQLException;
@@ -101,6 +107,78 @@ class TestJdbcLockFactory extends TestLockFactoryBase {
                       }))
           .isInstanceOf(UncheckedSQLException.class)
           .hasMessageContaining("wrapped");
+    }
+  }
+
+  @Test
+  void testLockTableInitializationPropagatesDatabaseFailure() {
+    Map<String, String> props = Maps.newHashMap();
+    props.put(INIT_LOCK_TABLES_PROPERTY, "true");
+
+    JdbcLockFactory factory =
+        new JdbcLockFactory(
+            "jdbc:sqlite:file:/nonexistent-iceberg-lock-test-dir/locks.db",
+            "failed-initialization",
+            props);
+
+    assertThatThrownBy(factory::open).isInstanceOf(UncheckedSQLException.class);
+  }
+
+  @Test
+  void testConcurrentLockTableInitialization() throws Exception {
+    Map<String, String> props = Maps.newHashMap();
+    props.put(INIT_LOCK_TABLES_PROPERTY, "true");
+
+    String uri =
+        "jdbc:sqlite:file:lock-init-"
+            + UUID.randomUUID().toString().replace("-", "")
+            + "?mode=memory&cache=shared";
+
+    JdbcLockFactory first = new JdbcLockFactory(uri, "first", props);
+    JdbcLockFactory second = new JdbcLockFactory(uri, "second", props);
+
+    ExecutorService executor = Executors.newFixedThreadPool(2);
+    CountDownLatch ready = new CountDownLatch(2);
+    CountDownLatch startSignal = new CountDownLatch(1);
+
+    try {
+      Future<?> firstResult =
+          executor.submit(
+              () -> {
+                ready.countDown();
+                startSignal.await();
+                first.open();
+                return null;
+              });
+
+      Future<?> secondResult =
+          executor.submit(
+              () -> {
+                ready.countDown();
+                startSignal.await();
+                second.open();
+                return null;
+              });
+
+      assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+      startSignal.countDown();
+
+      firstResult.get(30, TimeUnit.SECONDS);
+      secondResult.get(30, TimeUnit.SECONDS);
+
+      Lock firstLock = first.createLock();
+      Lock secondLock = second.createLock();
+
+      try {
+        assertThat(firstLock.tryLock()).isTrue();
+        assertThat(secondLock.tryLock()).isTrue();
+      } finally {
+        firstLock.unlock();
+        secondLock.unlock();
+      }
+    } finally {
+      startSignal.countDown();
+      executor.shutdownNow();
     }
   }
 }
