@@ -515,6 +515,11 @@ class TrackedFileAdapters {
     }
 
     @Override
+    public Tracking tracking() {
+      return file.tracking();
+    }
+
+    @Override
     public int formatVersion() {
       return file.manifestInfo().formatVersion();
     }

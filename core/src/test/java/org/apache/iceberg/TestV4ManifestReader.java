@@ -67,9 +67,11 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.FieldSource;
 import org.mockito.Mockito;
 
@@ -415,6 +417,521 @@ class TestV4ManifestReader {
     assertThat(liveFiles)
         .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
         .containsExactly(expectedFiles.get(0), expectedFiles.get(3));
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void changesEmitsWrittenStatusesAndDropsExisting(FileFormat format) throws IOException {
+    List<TrackedFile> files =
+        List.of(
+            dataFile(
+                new TrackingStruct(EntryStatus.ADDED, 42L, null, null, null, null, null, null),
+                "s3://bucket/added.parquet"),
+            dataFile(
+                new TrackingStruct(EntryStatus.MODIFIED, 40L, 5L, 5L, 42L, 5_000L, null, null),
+                "s3://bucket/modified.parquet"),
+            dataFile(
+                new TrackingStruct(EntryStatus.DELETED, 42L, 2L, 2L, null, 1_000L, null, null),
+                "s3://bucket/deleted.parquet"),
+            dataFile(
+                new TrackingStruct(EntryStatus.EXISTING, 38L, 4L, 4L, null, 3_000L, null, null),
+                "s3://bucket/existing.parquet"),
+            dataFile(
+                new TrackingStruct(EntryStatus.REPLACED, 42L, 2L, 2L, 40L, 2_000L, null, null),
+                "s3://bucket/replaced.parquet"));
+
+    ManifestFile manifest = writeManifest(format, UNPARTITIONED_TYPE, files);
+    when(manifest.firstRowId()).thenReturn(10_000L);
+
+    // added, modified, deleted, and replaced entries are emitted; the unchanged existing entry
+    // is dropped since no position bitmap marks it as a change
+    List<TrackedFile> expected =
+        List.of(
+            dataFile(
+                new TrackingStruct(
+                    EntryStatus.ADDED, 42L, MANIFEST_SEQ, MANIFEST_SEQ, null, 10_000L, null, null),
+                "s3://bucket/added.parquet"),
+            dataFile(
+                new TrackingStruct(EntryStatus.MODIFIED, 40L, 5L, 5L, 42L, 5_000L, null, null),
+                "s3://bucket/modified.parquet"),
+            dataFile(
+                new TrackingStruct(EntryStatus.DELETED, 42L, 2L, 2L, null, 1_000L, null, null),
+                "s3://bucket/deleted.parquet"),
+            dataFile(
+                new TrackingStruct(EntryStatus.REPLACED, 42L, 2L, 2L, 40L, 2_000L, null, null),
+                "s3://bucket/replaced.parquet"));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS).forChanges();
+
+    assertThat(read(builder))
+        .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
+        .containsExactly(expected.get(0), expected.get(1), expected.get(2), expected.get(3));
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void changesScopesPhysicalNonLiveEntriesToSnapshot(FileFormat format) throws IOException {
+    List<TrackedFile> files =
+        List.of(
+            dataFile(
+                new TrackingStruct(EntryStatus.DELETED, 99L, 4L, 4L, null, 3_000L, null, null),
+                "s3://bucket/deleted-now.parquet"),
+            dataFile(
+                new TrackingStruct(EntryStatus.DELETED, 40L, 2L, 2L, null, 2_000L, null, null),
+                "s3://bucket/deleted-earlier.parquet"),
+            dataFile(
+                new TrackingStruct(EntryStatus.REPLACED, 40L, 3L, 3L, 38L, 1_000L, null, null),
+                "s3://bucket/replaced-earlier.parquet"));
+
+    ManifestFile manifest = writeManifest(format, UNPARTITIONED_TYPE, files);
+    when(manifest.firstRowId()).thenReturn(10_000L);
+    when(manifest.snapshotId()).thenReturn(99L);
+
+    TrackedFile expected =
+        dataFile(
+            new TrackingStruct(EntryStatus.DELETED, 99L, 4L, 4L, null, 3_000L, null, null),
+            "s3://bucket/deleted-now.parquet");
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS).forChanges();
+
+    assertThat(read(builder))
+        .as("only non-live entries from the snapshot being read are emitted")
+        .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
+        .containsExactly(expected);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void changesKeepsZeroRecordFiles(FileFormat format) throws IOException {
+    TrackedFile emptyAdded =
+        new TrackedFileStruct(
+            new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 7_000L, null, null),
+            FileContent.DATA,
+            "s3://bucket/empty.parquet",
+            FileFormat.PARQUET,
+            0L, // record count
+            FILE_SIZE_IN_BYTES,
+            null, // spec id
+            null, // partition
+            null, // content stats
+            null, // sort order id
+            null, // dv
+            null, // manifest info
+            null, // key metadata
+            null, // split offsets
+            null); // column files
+
+    ManifestFile manifest = writeManifest(format, UNPARTITIONED_TYPE, List.of(emptyAdded));
+    when(manifest.firstRowId()).thenReturn(10_000L);
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS).forChanges();
+
+    // the record-count filter that drops empty files on the scan path must not drop a change
+    assertThat(read(builder))
+        .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
+        .containsExactly(emptyAdded);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void changesOverridesPhysicalLiveStatusWithBitmaps(FileFormat format) throws IOException {
+    List<TrackedFile> files =
+        List.of(
+            dataFile(
+                new TrackingStruct(EntryStatus.ADDED, 42L, 5L, 5L, null, 5_000L, null, null),
+                "s3://bucket/added-then-deleted.parquet"),
+            dataFile(
+                new TrackingStruct(EntryStatus.MODIFIED, 40L, 6L, 6L, 42L, 6_000L, null, null),
+                "s3://bucket/modified-then-replaced.parquet"),
+            dataFile(
+                new TrackingStruct(EntryStatus.ADDED, 42L, 7L, 7L, null, 7_000L, null, null),
+                "s3://bucket/added-still-live.parquet"),
+            dataFile(
+                new TrackingStruct(EntryStatus.MODIFIED, 35L, 8L, 8L, 40L, 8_000L, null, null),
+                "s3://bucket/modified-earlier.parquet"));
+
+    ManifestFile manifest = writeManifest(format, UNPARTITIONED_TYPE, files);
+    when(manifest.firstRowId()).thenReturn(10_000L);
+
+    byte[] deletedPositions = positions(0);
+    byte[] replacedPositions = positions(1);
+    when(manifest.tracking())
+        .thenReturn(
+            new TrackingStruct(
+                EntryStatus.MODIFIED,
+                SNAPSHOT_ID,
+                MANIFEST_SEQ,
+                MANIFEST_SEQ,
+                99L,
+                null,
+                deletedPositions,
+                replacedPositions));
+
+    List<TrackedFile> expected =
+        List.of(
+            // physical ADDED overridden to DELETED, stamped with the reference's snapshot
+            dataFile(
+                new TrackingStruct(EntryStatus.DELETED, 99L, 5L, 5L, null, 5_000L, null, null),
+                "s3://bucket/added-then-deleted.parquet"),
+            // physical MODIFIED overridden to REPLACED, keeping its modified snapshot ID
+            dataFile(
+                new TrackingStruct(EntryStatus.REPLACED, 99L, 6L, 6L, 42L, 6_000L, null, null),
+                "s3://bucket/modified-then-replaced.parquet"));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS).forChanges();
+
+    assertThat(read(builder))
+        .as("unmarked entries whose change snapshot is not the reference's are dropped")
+        .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
+        .containsExactly(expected.get(0), expected.get(1));
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void changesInheritsBeforeReclassifying(FileFormat format) throws IOException {
+    List<TrackedFile> files =
+        List.of(
+            dataFile(
+                new TrackingStruct(EntryStatus.ADDED, null, null, null, null, null, null, null),
+                "s3://bucket/added-deleted-0.parquet"),
+            dataFile(
+                new TrackingStruct(EntryStatus.ADDED, null, null, null, null, null, null, null),
+                "s3://bucket/added-deleted-1.parquet"));
+
+    ManifestFile manifest = writeManifest(format, UNPARTITIONED_TYPE, files);
+    when(manifest.firstRowId()).thenReturn(10_000L);
+    byte[] deletedPositions = positions(0, 1);
+    when(manifest.tracking())
+        .thenReturn(
+            new TrackingStruct(
+                EntryStatus.MODIFIED,
+                SNAPSHOT_ID,
+                MANIFEST_SEQ,
+                MANIFEST_SEQ,
+                99L,
+                null,
+                deletedPositions,
+                null));
+
+    List<TrackedFile> expected =
+        List.of(
+            dataFile(
+                new TrackingStruct(
+                    EntryStatus.DELETED,
+                    99L,
+                    MANIFEST_SEQ,
+                    MANIFEST_SEQ,
+                    null,
+                    10_000L,
+                    null,
+                    null),
+                "s3://bucket/added-deleted-0.parquet"),
+            dataFile(
+                new TrackingStruct(
+                    EntryStatus.DELETED,
+                    99L,
+                    MANIFEST_SEQ,
+                    MANIFEST_SEQ,
+                    null,
+                    10_000L + RECORD_COUNT,
+                    null,
+                    null),
+                "s3://bucket/added-deleted-1.parquet"));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS).forChanges();
+
+    assertThat(read(builder))
+        .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
+        .containsExactly(expected.get(0), expected.get(1));
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void changesPreservesManifestPositionWhenReclassifying(FileFormat format)
+      throws IOException {
+    ManifestFile manifest =
+        writeManifest(
+            format,
+            UNPARTITIONED_TYPE,
+            List.of(
+                dataFile(
+                    new TrackingStruct(EntryStatus.EXISTING, 37L, 2L, 2L, null, 2_000L, null, null),
+                    "s3://bucket/unchanged.parquet"),
+                dataFile(
+                    new TrackingStruct(EntryStatus.EXISTING, 38L, 4L, 4L, null, 3_000L, null, null),
+                    "s3://bucket/reclassified.parquet")));
+    when(manifest.firstRowId()).thenReturn(10_000L);
+    byte[] deletedPositions = positions(1);
+    when(manifest.tracking())
+        .thenReturn(
+            new TrackingStruct(
+                EntryStatus.MODIFIED,
+                SNAPSHOT_ID,
+                MANIFEST_SEQ, // dataSequenceNumber
+                MANIFEST_SEQ, // fileSequenceNumber
+                99L, // modifiedSnapshotId
+                null, // firstRowId
+                deletedPositions,
+                null)); // replacedPositions
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS).forChanges();
+
+    Tracking tracking = readOne(builder).tracking();
+    assertThat(tracking.status()).isEqualTo(EntryStatus.DELETED);
+    assertThat(tracking.manifestPos())
+        .as("reclassified entry keeps its manifest position")
+        .isEqualTo(1L);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void changesReadsBitmapsFromManifestReference(FileFormat format) throws IOException {
+    byte[] deletedPositions = positions(0, 3);
+    byte[] replacedPositions = positions(5);
+    TrackedFile leafRef =
+        dataManifestRef(
+            new TrackingStruct(
+                EntryStatus.MODIFIED,
+                SNAPSHOT_ID,
+                5L,
+                5L,
+                99L,
+                null,
+                deletedPositions,
+                replacedPositions),
+            "s3://bucket/leaf.parquet",
+            FileFormat.PARQUET);
+
+    ManifestFile manifest = writeManifest(format, UNPARTITIONED_TYPE, List.of(leafRef));
+    when(manifest.firstRowId()).thenReturn(10_000L);
+    when(manifest.snapshotId()).thenReturn(99L);
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS).forChanges();
+
+    Tracking tracking = readOne(builder).tracking();
+    assertThat(tracking.modifiedSnapshotId()).isEqualTo(99L);
+    assertThat(tracking.deletedPositions()).isEqualTo(ByteBuffer.wrap(deletedPositions));
+    assertThat(tracking.replacedPositions()).isEqualTo(ByteBuffer.wrap(replacedPositions));
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void changesFiltersDataFilesByStats(FileFormat format) throws IOException {
+    // FILE_C has stats {id in [0, 99]}, FILE_D has no stats; both are added in the read snapshot
+    ManifestFile manifest =
+        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(FILE_C, FILE_D));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .forChanges()
+            .filter(Expressions.equal("id", 105));
+
+    assertThat(read(builder))
+        .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
+        .containsExactly(FILE_D);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void changesKeepsManifestReferencesDespiteStatsFilter(FileFormat format)
+      throws IOException {
+    // DATA_MANIFEST_WITH_STATS_REF has aggregate stats {id in [0, 99]} that exclude id = 105
+    ManifestFile manifest =
+        writeManifest(
+            format,
+            UNPARTITIONED_TYPE,
+            ImmutableList.of(DATA_MANIFEST_REF, DATA_MANIFEST_WITH_STATS_REF));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .filter(Expressions.equal("id", 105))
+            .forChanges();
+
+    assertThat(read(builder))
+        .as("manifest references are not pruned by their live-only aggregate stats")
+        .extracting(TrackedFile::location)
+        .containsExactly(DATA_MANIFEST_REF.location(), DATA_MANIFEST_WITH_STATS_REF.location());
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void changesFiltersDataFilesByPartition(FileFormat format) throws IOException {
+    // FILE_A is in partition id=1, FILE_B in partition id=2; both are added in the read snapshot
+    ManifestFile manifest =
+        writeManifest(format, ID_PARTITIONED_TYPE, ImmutableList.of(FILE_A, FILE_B));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
+            .forChanges()
+            .filter(Expressions.equal("id", 1));
+
+    assertThat(read(builder))
+        .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
+        .containsExactly(FILE_A);
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = EntryStatus.class,
+      names = {"EXISTING", "DELETED", "REPLACED"})
+  public void changesRejectsNonChangeManifestReference(EntryStatus status) {
+    // only ADDED and MODIFIED references record changes; an unchanged (EXISTING) or terminal
+    // (DELETED/REPLACED) reference is rejected, since reading it would re-emit stale changes
+    String location = FileFormat.PARQUET.addExtension("s3://bucket/leaf");
+    TrackedFile reference =
+        dataManifestRef(
+            new TrackingStruct(status, 105L, MANIFEST_SEQ, MANIFEST_SEQ, 99L, null, null, null),
+            location,
+            FileFormat.PARQUET);
+    ManifestFile adapted = TrackedFileAdapters.asManifestFile(reference);
+
+    assertThatThrownBy(
+            () ->
+                V4ManifestReader.builder(adapted, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+                    .forChanges()
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot read changes from a " + status + " manifest reference: " + location);
+  }
+
+  @Test
+  public void changesRejectsModifiedReferenceWithoutModificationSnapshot() {
+    String location = FileFormat.PARQUET.addExtension("s3://bucket/leaf");
+    TrackedFile reference =
+        dataManifestRef(
+            new TrackingStruct(
+                EntryStatus.MODIFIED, 142L, MANIFEST_SEQ, MANIFEST_SEQ, null, null, null, null),
+            location,
+            FileFormat.PARQUET);
+    ManifestFile adapted = TrackedFileAdapters.asManifestFile(reference);
+
+    assertThatThrownBy(
+            () ->
+                V4ManifestReader.builder(adapted, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+                    .forChanges()
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot read changes from a modified manifest without modified_snapshot_id: "
+                + location);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void changesRejectsModifiedEntryWithoutModificationSnapshot(FileFormat format)
+      throws IOException {
+    // a physical MODIFIED leaf entry with a null modified_snapshot_id is malformed; the reader
+    // rejects it while classifying changes, not during construction
+    ManifestFile manifest =
+        writeManifest(
+            format,
+            UNPARTITIONED_TYPE,
+            List.of(
+                dataFile(
+                    new TrackingStruct(EntryStatus.MODIFIED, 40L, 5L, 5L, null, 5_000L, null, null),
+                    "s3://bucket/modified-no-snapshot.parquet")));
+    when(manifest.firstRowId()).thenReturn(10_000L);
+    // a valid MODIFIED reference with no diff bitmaps: the entry is not bitmap-marked, so it
+    // reaches the status switch during iteration
+    when(manifest.tracking())
+        .thenReturn(
+            new TrackingStruct(
+                EntryStatus.MODIFIED,
+                SNAPSHOT_ID,
+                MANIFEST_SEQ,
+                MANIFEST_SEQ,
+                99L,
+                null,
+                null,
+                null));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS).forChanges();
+
+    assertThatThrownBy(() -> read(builder))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid modified entry s3://bucket/modified-no-snapshot.parquet: "
+                + "modified_snapshot_id is null");
+  }
+
+  @Test
+  public void forChangesIsExclusiveWithScanPlanning() {
+    assertThatThrownBy(
+            () ->
+                V4ManifestReader.builder(
+                        UNREAD_MANIFEST_FILE, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
+                    .forScanPlanning()
+                    .forChanges())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot use forChanges() with forScanPlanning()");
+
+    assertThatThrownBy(
+            () ->
+                V4ManifestReader.builder(
+                        UNREAD_MANIFEST_FILE, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
+                    .forChanges()
+                    .forScanPlanning())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot use forScanPlanning() with forChanges()");
+  }
+
+  @Test
+  public void forChangesIsExclusiveWithSelectAndProject() {
+    assertThatThrownBy(
+            () ->
+                V4ManifestReader.builder(
+                        UNREAD_MANIFEST_FILE, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
+                    .forChanges()
+                    .select("location"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot use select(Iterable<String>) with forChanges()");
+
+    assertThatThrownBy(
+            () ->
+                V4ManifestReader.builder(
+                        UNREAD_MANIFEST_FILE, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
+                    .forChanges()
+                    .project(LOCATION_ONLY_SCHEMA))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot use project(Schema) with forChanges()");
+
+    assertThatThrownBy(
+            () ->
+                V4ManifestReader.builder(
+                        UNREAD_MANIFEST_FILE, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
+                    .select("location")
+                    .forChanges())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot use forChanges() with select(Iterable<String>) or project(Schema)");
+
+    assertThatThrownBy(
+            () ->
+                V4ManifestReader.builder(
+                        UNREAD_MANIFEST_FILE, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
+                    .project(LOCATION_ONLY_SCHEMA)
+                    .forChanges())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot use forChanges() with select(Iterable<String>) or project(Schema)");
+  }
+
+  @Test
+  public void forChangesRejectsUncommittedManifest() {
+    assertThatThrownBy(
+            () ->
+                V4ManifestReader.uncommitted(
+                        UNREAD_MANIFEST_FILE, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
+                    .forChanges())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot read changes from uncommitted manifest: " + UNREAD_MANIFEST_FILE.path());
   }
 
   @ParameterizedTest
@@ -2035,6 +2552,30 @@ class TestV4ManifestReader {
     assertThat(file.contentStats().statsFor(fieldId).upperBound())
         .isInstanceOf(GeospatialBound.class)
         .isEqualTo(upper);
+  }
+
+  private static byte[] positions(int... positions) {
+    return ByteBuffers.toByteArray(MumblingTestUtil.build(MumblingTestUtil.sparse(positions)));
+  }
+
+  private static TrackedFile dataManifestRef(
+      Tracking tracking, String location, FileFormat format) {
+    return new TrackedFileStruct(
+        tracking,
+        FileContent.DATA_MANIFEST,
+        location,
+        format,
+        RECORD_COUNT,
+        FILE_SIZE_IN_BYTES,
+        null, // spec id
+        null, // partition
+        null, // content stats
+        null, // sort order id
+        null, // dv
+        MANIFEST_INFO,
+        null, // key metadata
+        null, // split offsets
+        null); // column files
   }
 
   private static TrackedFile unpartitionedFileWithoutStats(String location) {
