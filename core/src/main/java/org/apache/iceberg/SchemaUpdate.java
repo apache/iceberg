@@ -61,6 +61,7 @@ class SchemaUpdate implements UpdateSchema {
   private final Multimap<Integer, Integer> parentToAddedIds =
       Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
   private final Map<String, Integer> addedNameToId = Maps.newHashMap();
+  private final Map<String, Integer> renamedNameToId = Maps.newHashMap();
   private final Multimap<Integer, Move> moves =
       Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
   private int lastColumnId;
@@ -217,6 +218,11 @@ class SchemaUpdate implements UpdateSchema {
     Types.NestedField newField =
         Types.NestedField.from(update != null ? update : field).withName(newName).build();
     updates.put(fieldId, newField);
+
+    // fields in lists and maps can be referenced by a short or a full name, so track both
+    renamedNameToId.values().removeIf(id -> id == fieldId);
+    renamedNameToId.put(renamedName(name, field, newName), fieldId);
+    renamedNameToId.put(renamedName(schema.findColumnName(fieldId), field, newName), fieldId);
 
     if (identifierFieldNames.contains(name)) {
       identifierFieldNames.remove(name);
@@ -397,7 +403,7 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private Types.NestedField findForUpdate(String name) {
-    Types.NestedField existing = findField(name);
+    Types.NestedField existing = findExisting(name);
     if (existing != null) {
       Types.NestedField pendingUpdate = updates.get(existing.fieldId());
       if (pendingUpdate != null) {
@@ -412,6 +418,11 @@ class SchemaUpdate implements UpdateSchema {
       return updates.get(addedId);
     }
 
+    Integer renamedId = renamedNameToId.get(caseSensitivityAwareName(name));
+    if (renamedId != null) {
+      return updates.get(renamedId);
+    }
+
     return null;
   }
 
@@ -421,12 +432,24 @@ class SchemaUpdate implements UpdateSchema {
       return addedId;
     }
 
-    Types.NestedField field = findField(name);
+    Types.NestedField field = findExisting(name);
     if (field != null) {
       return field.fieldId();
     }
 
-    return null;
+    return renamedNameToId.get(caseSensitivityAwareName(name));
+  }
+
+  // a column that will be deleted gives up its name to a column renamed to it
+  private Types.NestedField findExisting(String name) {
+    Types.NestedField field = findField(name);
+    if (field != null
+        && deletes.contains(field.fieldId())
+        && renamedNameToId.containsKey(caseSensitivityAwareName(name))) {
+      return null;
+    }
+
+    return field;
   }
 
   private void internalMove(String name, Move move) {
@@ -875,5 +898,11 @@ class SchemaUpdate implements UpdateSchema {
 
   private String caseSensitivityAwareName(String name) {
     return caseSensitive ? name : name.toLowerCase(Locale.ROOT);
+  }
+
+  private String renamedName(String path, Types.NestedField field, String newName) {
+    String fieldPath = caseSensitivityAwareName(path);
+    int parentLength = fieldPath.length() - caseSensitivityAwareName(field.name()).length();
+    return fieldPath.substring(0, parentLength) + caseSensitivityAwareName(newName);
   }
 }
