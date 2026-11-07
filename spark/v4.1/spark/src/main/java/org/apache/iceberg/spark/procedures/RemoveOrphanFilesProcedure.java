@@ -153,7 +153,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     return withIcebergTable(
         tableIdent,
         table -> {
-          DeleteOrphanFilesSparkAction action = actions().deleteOrphanFiles(table);
+          DeleteOrphanFilesSparkAction action =
+              actions().deleteOrphanFiles(table).catalogName(tableCatalog().name());
 
           if (olderThanMillis != null) {
             boolean isTesting = Boolean.parseBoolean(spark().conf().get("spark.testing", "false"));
