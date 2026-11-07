@@ -145,7 +145,7 @@ Many contributors have questions about how to become a committer. This section o
 
 Committers are project reviewers and are able to commit code in Iceberg repositories. Reviewing is the primary responsibility of committers.
 
-Although ASF write access applies across all project repositories, committers are trusted to merge PRs or commit only in areas and Iceberg implementations where they are knowledgeable. When contributing to or reviewing changes outside their area of expertise or in another implementation, committers should work with maintainers of that codebase and get a review from someone familiar with the area before merging.
+Although ASF write access applies across all project repositories, committers are trusted to merge PRs or commit only in areas and Iceberg implementations where they are knowledgeable. When contributing to or reviewing changes outside their area of expertise or in another implementation, committers should work with already experienced committers in that codebase to get a review from someone familiar with the area before merging.
 
 ### How are new committers added?
 
