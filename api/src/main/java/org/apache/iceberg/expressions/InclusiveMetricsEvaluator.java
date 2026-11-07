@@ -87,11 +87,11 @@ public class InclusiveMetricsEvaluator {
         return ROWS_MIGHT_MATCH;
       }
 
-      this.valueCounts = file.valueCounts();
-      this.nullCounts = file.nullValueCounts();
-      this.nanCounts = file.nanValueCounts();
-      this.lowerBounds = file.lowerBounds();
-      this.upperBounds = file.upperBounds();
+      this.valueCounts = ContentFileStats.forColumns(file, ContentFile::valueCounts);
+      this.nullCounts = ContentFileStats.forColumns(file, ContentFile::nullValueCounts);
+      this.nanCounts = ContentFileStats.forColumns(file, ContentFile::nanValueCounts);
+      this.lowerBounds = ContentFileStats.forColumns(file, ContentFile::lowerBounds);
+      this.upperBounds = ContentFileStats.forColumns(file, ContentFile::upperBounds);
 
       return ExpressionVisitors.visitEvaluator(expr, this);
     }
