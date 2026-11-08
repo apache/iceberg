@@ -38,6 +38,7 @@ import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.util.PropertyUtil;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -125,6 +126,16 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
     String secretAccessKey = properties.get(S3FileIOProperties.SECRET_ACCESS_KEY);
     String sessionToken = properties.get(S3FileIOProperties.SESSION_TOKEN);
     String tokenExpiresAtMillis = properties.get(S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS);
+    if (!Strings.isNullOrEmpty(accessKeyId)
+        && !Strings.isNullOrEmpty(secretAccessKey)
+        && Strings.isNullOrEmpty(sessionToken)
+        && Strings.isNullOrEmpty(tokenExpiresAtMillis)) {
+      return Optional.of(
+          RefreshResult.<AwsCredentials>builder(
+                  AwsBasicCredentials.create(accessKeyId, secretAccessKey))
+              .build());
+    }
+
     if (Strings.isNullOrEmpty(accessKeyId)
         || Strings.isNullOrEmpty(secretAccessKey)
         || Strings.isNullOrEmpty(sessionToken)
@@ -168,14 +179,20 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
     Credential s3Credential = s3Credentials.get(0);
     checkCredential(s3Credential, S3FileIOProperties.ACCESS_KEY_ID);
     checkCredential(s3Credential, S3FileIOProperties.SECRET_ACCESS_KEY);
-    checkCredential(s3Credential, S3FileIOProperties.SESSION_TOKEN);
-    checkCredential(s3Credential, S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS);
-
     String accessKeyId = s3Credential.config().get(S3FileIOProperties.ACCESS_KEY_ID);
     String secretAccessKey = s3Credential.config().get(S3FileIOProperties.SECRET_ACCESS_KEY);
     String sessionToken = s3Credential.config().get(S3FileIOProperties.SESSION_TOKEN);
     String tokenExpiresAtMillis =
         s3Credential.config().get(S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS);
+    if (Strings.isNullOrEmpty(sessionToken) && Strings.isNullOrEmpty(tokenExpiresAtMillis)) {
+      return RefreshResult.<AwsCredentials>builder(
+              AwsBasicCredentials.create(accessKeyId, secretAccessKey))
+          .build();
+    }
+
+    checkCredential(s3Credential, S3FileIOProperties.SESSION_TOKEN);
+    checkCredential(s3Credential, S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS);
+
     Instant expiresAt = Instant.ofEpochMilli(Long.parseLong(tokenExpiresAtMillis));
     Instant prefetchAt = expiresAt.minus(5, ChronoUnit.MINUTES);
 
