@@ -208,7 +208,7 @@ org.slf4j:slf4j-api:2.0
 org.threeten:threeten-extra:1.8
 org.threeten:threetenbp:1.7
 org.xerial.snappy:snappy-java:1.1
-software.amazon.awssdk.crt:aws-crt:0.48
+software.amazon.awssdk.crt:aws-crt:0.49
 software.amazon.awssdk:annotations:2.57
 software.amazon.awssdk:apache5-client:2.57
 software.amazon.awssdk:arns:2.57
