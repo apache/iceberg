@@ -355,13 +355,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
 
     List<Snapshot> externalCommits = externalCommitsSinceIndex(mainSnapshot);
     if (externalCommits == null || deltaReadsMoreThanRebuild(mainSnapshot, externalCommits)) {
-      boolean bootstrap = indexSnapshotId == null;
-      LOG.info(
-          "{} worker index from main snapshot {} for field IDs {}.",
-          bootstrap ? "Bootstrapping" : "Reindexing",
-          mainSnapshot.snapshotId(),
-          eqFieldIds);
-      rebuildIndex(mainSnapshot, !bootstrap);
+      rebuildIndex(mainSnapshot);
     } else {
       emitIncrementalReindex(mainSnapshot, externalCommits);
     }
@@ -582,9 +576,10 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
 
   /**
    * Re-emits every data row on {@code mainSnapshot} so the worker's index holds all their positions
-   * again, optionally preceded by a CLEAR_INDEX broadcast that evicts keyed entries the re-emission
-   * will not re-add (e.g. a PK whose data file was removed by a CoW commit). A bootstrap has no
-   * complete earlier index. Entries of an incomplete one are ignored at the new generation.
+   * again, preceded by a CLEAR_INDEX broadcast that evicts keyed entries the re-emission will not
+   * re-add (e.g. a PK whose data file was removed by a CoW commit). The broadcast also goes out
+   * when the index is not trusted, as restored state of an older version, an emptied target, or a
+   * rebuild or delta that failed part way can leave such entries.
    *
    * <p>The worker detects stale state by comparing the generation stamped on the commands it
    * receives with the one it stored, so every rebuild hands out a higher generation, including a
@@ -594,17 +589,18 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
    * only after this returns. Neither the next trigger nor a restore from a checkpoint taken after a
    * rebuild that failed part way trusts the index it left.
    */
-  private void rebuildIndex(Snapshot mainSnapshot, boolean evictStaleKeys) {
+  private void rebuildIndex(Snapshot mainSnapshot) {
+    LOG.info(
+        "Reindexing worker index from main snapshot {} for field IDs {}.",
+        mainSnapshot.snapshotId(),
+        eqFieldIds);
+
     indexSnapshotId = null;
     long generation = indexGeneration + 1;
-
-    if (evictStaleKeys) {
-      output.collect(
-          CLEAR_BROADCAST_STREAM,
-          new StreamRecord<>(
-              IndexCommand.clearBeforeReindex(mainSnapshot.snapshotId(), generation)));
-      reindexCounter.inc();
-    }
+    output.collect(
+        CLEAR_BROADCAST_STREAM,
+        new StreamRecord<>(IndexCommand.clearBeforeReindex(mainSnapshot.snapshotId(), generation)));
+    reindexCounter.inc();
 
     indexGeneration = generation;
     emitMainDataReadCommands(mainSnapshot);

@@ -399,7 +399,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       assertThat(countEqDeleteTasks(harness.extractOutputValues())).isZero();
       assertThat(harness.getSideOutput(EqualityConvertPlanner.METADATA_STREAM)).hasSize(2);
       assertThat(planner(harness).skippedNoOpCycles()).isEqualTo(1);
-      assertThat(planner(harness).reindexCount()).isZero();
+      assertThat(planner(harness).reindexCount()).isEqualTo(1);
     }
   }
 
@@ -617,9 +617,9 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
           .isEqualTo(oldDataFiles.stream().map(DataFile::location).collect(Collectors.toSet()));
       assertThat(countDataFileTasks(trigger2Commands)).isEqualTo(3);
       assertThat(countEqDeleteTasks(trigger2Commands)).isEqualTo(1);
-      assertThat(harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM))
-          .isNullOrEmpty();
-      assertThat(planner(harness).reindexCount()).isZero();
+      // The first build broadcasts the only CLEAR_INDEX, the delta none.
+      assertThat(harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM)).hasSize(1);
+      assertThat(planner(harness).reindexCount()).isEqualTo(1);
       assertThat(planner(harness).incrementalReindexCount()).isEqualTo(1);
     }
   }
@@ -661,8 +661,9 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       sendTrigger(harness);
 
       assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNullOrEmpty();
-      assertThat(harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM)).hasSize(1);
-      assertThat(planner(harness).reindexCount()).isEqualTo(1);
+      // The first build and the rebuild.
+      assertThat(harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM)).hasSize(2);
+      assertThat(planner(harness).reindexCount()).isEqualTo(2);
       assertThat(planner(harness).incrementalReindexCount()).isZero();
 
       List<ReadCommand> all = harness.extractOutputValues();
@@ -996,8 +997,9 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       sendTrigger(harness);
 
       assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNullOrEmpty();
-      assertThat(harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM)).hasSize(1);
-      assertThat(planner(harness).reindexCount()).isEqualTo(1);
+      // The first build and the rebuild.
+      assertThat(harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM)).hasSize(2);
+      assertThat(planner(harness).reindexCount()).isEqualTo(2);
 
       // The rebuild reads every live data file and removes none.
       List<ReadCommand> all = harness.extractOutputValues();
@@ -1089,7 +1091,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
 
       assertThat(countDataFileTasks(trigger2Commands)).isEqualTo(2);
       assertThat(countEqDeleteTasks(trigger2Commands)).isEqualTo(1);
-      assertThat(planner(harness).reindexCount()).isEqualTo(1);
+      assertThat(planner(harness).reindexCount()).isEqualTo(2);
     }
   }
 
@@ -1273,7 +1275,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       insert(table, 2, "b");
       externalFile = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
       sendTrigger(harness);
-      assertThat(planner(harness).reindexCount()).isEqualTo(1);
+      assertThat(planner(harness).reindexCount()).isEqualTo(2);
       simulateConvertCommit(table, s1SnapshotId);
     }
 
@@ -1470,6 +1472,11 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
           .filteredOn(c -> c.task() instanceof FileScanTask)
           .extracting(TestEqualityConvertPlanner::filePath)
           .containsExactlyInAnyOrderElementsOf(liveDataFiles(table));
+      // The rebuild also evicts the keys the failed delta left, at the generation after the first
+      // build's.
+      assertThat(harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM))
+          .extracting(record -> record.getValue().indexGeneration())
+          .containsExactly(1L, 2L);
     }
   }
 
@@ -1571,7 +1578,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       int firstTriggerCount = harness.extractOutputValues().size();
       // 1 DATA_FILE (main) + 1 EQ_DELETE_FILE
       assertThat(firstTriggerCount).isEqualTo(2);
-      assertThat(planner(harness).reindexCount()).isZero();
+      assertThat(planner(harness).reindexCount()).isEqualTo(1);
       assertThat(planner(harness).processedStagingSnapshotNum()).isEqualTo(1);
       assertThat(planner(harness).processedEqDeleteFileNum()).isEqualTo(1);
       simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
@@ -1598,7 +1605,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
           .extracting(TestEqualityConvertPlanner::filePath)
           .containsExactly(externalFile.location());
       assertThat(countEqDeleteTasks(trigger2Commands)).isEqualTo(1);
-      assertThat(planner(harness).reindexCount()).isZero();
+      assertThat(planner(harness).reindexCount()).isEqualTo(1);
       assertThat(planner(harness).processedStagingSnapshotNum()).isEqualTo(2);
       assertThat(planner(harness).processedEqDeleteFileNum()).isEqualTo(2);
     }
@@ -1620,10 +1627,9 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
         createHarness(STAGING_BRANCH)) {
       harness.open();
 
-      // Trigger 1 bootstraps the index. Bootstrap does not broadcast CLEAR_INDEX.
+      // Trigger 1 builds the index. Its CLEAR_INDEX finds no keys to evict.
       sendTrigger(harness);
-      assertThat(harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM))
-          .isNullOrEmpty();
+      assertThat(harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM)).hasSize(1);
 
       // The first cycle did not commit, so the next trigger rebuilds the index and must broadcast
       // CLEAR_INDEX so workers evict keys the rebuild does not re-add.
@@ -1644,11 +1650,11 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
           harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM).stream()
               .map(StreamRecord::getValue)
               .collect(Collectors.toList());
-      assertThat(clears).hasSize(1);
-      assertThat(clears.get(0).type()).isEqualTo(IndexCommand.Type.CLEAR_INDEX);
-      assertThat(clears.get(0).mainSnapshotId()).isEqualTo(mainAfterExternal);
-      // The bootstrap on the first trigger took generation 1, so the reindex takes the next one.
-      assertThat(clears.get(0).indexGeneration()).isEqualTo(2L);
+      assertThat(clears).hasSize(2);
+      assertThat(clears.get(1).type()).isEqualTo(IndexCommand.Type.CLEAR_INDEX);
+      assertThat(clears.get(1).mainSnapshotId()).isEqualTo(mainAfterExternal);
+      // The first build on the first trigger took generation 1, so the reindex takes the next one.
+      assertThat(clears.get(1).indexGeneration()).isEqualTo(2L);
     }
   }
 
