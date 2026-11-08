@@ -65,6 +65,11 @@ class Worker extends Channel {
   }
 
   @Override
+  protected boolean handles(PayloadType type) {
+    return type == PayloadType.START_COMMIT;
+  }
+
+  @Override
   protected boolean receive(Envelope envelope) {
     Event event = envelope.event();
     if (event.payload().type() != PayloadType.START_COMMIT) {
