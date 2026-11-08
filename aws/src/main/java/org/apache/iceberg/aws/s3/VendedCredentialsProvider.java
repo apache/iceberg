@@ -30,7 +30,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
-import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.auth.AuthManager;
@@ -38,6 +37,7 @@ import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
+import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -59,12 +59,10 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
   private VendedCredentialsProvider(Map<String, String> properties) {
     Preconditions.checkArgument(null != properties, "Invalid properties: null");
     this.credentialsEndpoint =
-        properties.containsKey(RESTCatalogProperties.CREDENTIALS_ENDPOINT)
-            ? properties.get(RESTCatalogProperties.CREDENTIALS_ENDPOINT)
-            : RESTUtil.resolveEndpoint(
-                properties.get(CatalogProperties.URI),
-                properties.getOrDefault(
-                    URI, properties.get(AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT)));
+        RESTUtil.resolveCredentialEndpoint(
+            properties,
+            PropertyUtil.propertyAsString(
+                properties, URI, properties.get(AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT)));
     Preconditions.checkArgument(null != credentialsEndpoint, "Invalid credentials endpoint: null");
     Preconditions.checkArgument(
         null != properties.get(CatalogProperties.URI), "Invalid catalog endpoint: null");

@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hc.core5.net.PercentCodec;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -401,6 +402,15 @@ public class RESTUtil {
     }
 
     return Namespace.of(levels);
+  }
+
+  /** Returns the shared credentials endpoint, falling back to the resolved legacy endpoint. */
+  public static String resolveCredentialEndpoint(
+      Map<String, String> properties, String endpointPath) {
+    return PropertyUtil.propertyAsString(
+        properties,
+        RESTCatalogProperties.CREDENTIALS_ENDPOINT,
+        resolveEndpoint(properties.get(CatalogProperties.URI), endpointPath));
   }
 
   /**

@@ -21,13 +21,11 @@ package org.apache.iceberg.aws;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.function.Predicate;
-import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.VendedCredentialsProvider;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
-import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -119,11 +117,8 @@ public class AwsClientProperties implements Serializable {
                 Predicate.not(property -> property.startsWith(CLIENT_CREDENTIAL_PROVIDER_PREFIX))),
             PropertyUtil.propertiesWithPrefix(properties, CLIENT_CREDENTIAL_PROVIDER_PREFIX));
     this.refreshCredentialsEndpoint =
-        properties.containsKey(RESTCatalogProperties.CREDENTIALS_ENDPOINT)
-            ? properties.get(RESTCatalogProperties.CREDENTIALS_ENDPOINT)
-            : RESTUtil.resolveEndpoint(
-                properties.get(CatalogProperties.URI),
-                properties.get(REFRESH_CREDENTIALS_ENDPOINT));
+        RESTUtil.resolveCredentialEndpoint(
+            properties, properties.get(REFRESH_CREDENTIALS_ENDPOINT));
     this.refreshCredentialsEnabled =
         PropertyUtil.propertyAsBoolean(properties, REFRESH_CREDENTIALS_ENABLED, true);
     this.legacyMd5pluginEnabled =

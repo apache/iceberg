@@ -34,6 +34,7 @@ import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.HttpMethod;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
@@ -75,7 +76,11 @@ class TestGCSFileIOCredentialRefresh {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"rest.credentials.endpoint", "gcs.oauth2.refresh-credentials-endpoint"})
+  @ValueSource(
+      strings = {
+        RESTCatalogProperties.CREDENTIALS_ENDPOINT,
+        GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT
+      })
   void credentialRefreshSchedulesNextRefresh(String endpointProperty) {
     String nearExpiryMs = Long.toString(Instant.now().plus(3, ChronoUnit.MINUTES).toEpochMilli());
 

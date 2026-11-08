@@ -121,7 +121,31 @@ public class TestVendedCredentialsProvider {
   }
 
   @Test
-  public void resolvesRelativeCredentialsUri() {
+  void fetchesCredentialsWithoutSessionTokenOrExpiry() {
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    LoadCredentialsResponse response =
+        ImmutableLoadCredentialsResponse.builder()
+            .addCredentials(
+                ImmutableCredential.builder()
+                    .prefix("s3://bucket/path")
+                    .putConfig(S3FileIOProperties.ACCESS_KEY_ID, "access-key")
+                    .putConfig(S3FileIOProperties.SECRET_ACCESS_KEY, "secret-key")
+                    .build())
+            .build();
+    mockServer
+        .when(mockRequest)
+        .respond(response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200));
+
+    try (VendedCredentialsProvider provider = VendedCredentialsProvider.create(PROPERTIES)) {
+      assertThat(provider.fetchCredentials().credentials())
+          .containsExactlyElementsOf(response.credentials());
+    }
+
+    mockServer.verify(mockRequest, VerificationTimes.once());
+  }
+
+  @Test
+  void resolvesRelativeCredentialsUri() {
     HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
     HttpResponse mockResponse =
         response(
@@ -144,7 +168,7 @@ public class TestVendedCredentialsProvider {
   }
 
   @Test
-  public void usesCatalogCredentialsEndpoint() {
+  void usesCatalogCredentialsEndpoint() {
     HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
     HttpResponse mockResponse =
         response(

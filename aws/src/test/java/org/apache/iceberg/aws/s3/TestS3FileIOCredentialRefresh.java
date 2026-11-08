@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -75,7 +76,11 @@ public class TestS3FileIOCredentialRefresh {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"rest.credentials.endpoint", "client.refresh-credentials-endpoint"})
+  @ValueSource(
+      strings = {
+        RESTCatalogProperties.CREDENTIALS_ENDPOINT,
+        AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT
+      })
   public void credentialRefreshSchedulesNextRefresh(String endpointProperty) {
     String nearExpiryMs = Long.toString(Instant.now().plus(3, ChronoUnit.MINUTES).toEpochMilli());
 

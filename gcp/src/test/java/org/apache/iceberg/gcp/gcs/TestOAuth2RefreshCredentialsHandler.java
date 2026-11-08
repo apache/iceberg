@@ -121,7 +121,7 @@ public class TestOAuth2RefreshCredentialsHandler {
   }
 
   @Test
-  public void resolvesRelativeCredentialsUri() {
+  void resolvesRelativeCredentialsUri() {
     HttpRequest mockRequest =
         HttpRequest.request("/v1/credentials").withMethod(HttpMethod.GET.name());
     HttpResponse mockResponse =
@@ -145,7 +145,7 @@ public class TestOAuth2RefreshCredentialsHandler {
   }
 
   @Test
-  public void usesCatalogCredentialsEndpoint() {
+  void usesCatalogCredentialsEndpoint() {
     HttpRequest mockRequest =
         HttpRequest.request("/v1/credentials").withMethod(HttpMethod.GET.name());
     HttpResponse mockResponse =
