@@ -166,9 +166,12 @@ public class GCPProperties implements Serializable {
           new Date(Long.parseLong(properties.get(GCS_OAUTH2_TOKEN_EXPIRES_AT)));
     }
 
+    // The shared endpoint also serves FileIO refresh and does not opt into client refresh.
+    String clientRefreshEndpoint = properties.get(GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT);
     gcsOauth2RefreshCredentialsEndpoint =
-        RESTUtil.resolveCredentialEndpoint(
-            properties, properties.get(GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT));
+        clientRefreshEndpoint == null
+            ? null
+            : RESTUtil.resolveCredentialEndpoint(properties, clientRefreshEndpoint);
     gcsOauth2RefreshCredentialsEnabled =
         PropertyUtil.propertyAsBoolean(properties, GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED, true);
     gcsNoAuth = Boolean.parseBoolean(properties.getOrDefault(GCS_NO_AUTH, "false"));

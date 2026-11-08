@@ -161,6 +161,21 @@ public class TestAwsClientProperties {
   }
 
   @Test
+  void sharedEndpointDoesNotEnableClientRefresh() {
+    AwsClientProperties properties =
+        new AwsClientProperties(
+            ImmutableMap.of(
+                CatalogProperties.URI, "https://catalog.example",
+                RESTCatalogProperties.CREDENTIALS_ENDPOINT,
+                    "https://catalog.example/table/credentials"));
+
+    AwsCredentialsProvider provider = properties.credentialsProvider("key", "secret", "token");
+    assertThat(provider).isInstanceOf(StaticCredentialsProvider.class);
+    assertThat(provider.resolveCredentials().accessKeyId()).isEqualTo("key");
+    assertThat(provider.resolveCredentials()).isInstanceOf(AwsSessionCredentials.class);
+  }
+
+  @Test
   public void refreshCredentialsEndpointSetButRefreshDisabled() {
     AwsClientProperties awsClientProperties =
         new AwsClientProperties(

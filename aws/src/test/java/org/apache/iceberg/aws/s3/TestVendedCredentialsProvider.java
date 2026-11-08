@@ -221,7 +221,9 @@ public class TestVendedCredentialsProvider {
                 CatalogProperties.URI,
                 CATALOG_URI,
                 RESTCatalogProperties.CREDENTIALS_ENDPOINT,
-                CREDENTIALS_URI));
+                CREDENTIALS_URI,
+                AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
+                "/legacy"));
     try (VendedCredentialsProvider provider =
         (VendedCredentialsProvider) properties.credentialsProvider(null, null, null)) {
       assertThat(provider.resolveCredentials()).isInstanceOf(AwsBasicCredentials.class);
@@ -233,7 +235,7 @@ public class TestVendedCredentialsProvider {
   }
 
   @Test
-  void sharedEndpointPreservesBasicCredentialsFromProperties() {
+  void clientRefreshPreservesBasicCredentialsFromProperties() {
     AwsClientProperties properties =
         new AwsClientProperties(
             ImmutableMap.of(
@@ -241,6 +243,8 @@ public class TestVendedCredentialsProvider {
                 CATALOG_URI,
                 RESTCatalogProperties.CREDENTIALS_ENDPOINT,
                 CREDENTIALS_URI,
+                AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
+                "/legacy",
                 S3FileIOProperties.ACCESS_KEY_ID,
                 "basic-key",
                 S3FileIOProperties.SECRET_ACCESS_KEY,

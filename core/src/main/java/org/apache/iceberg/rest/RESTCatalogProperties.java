@@ -141,6 +141,7 @@ public final class RESTCatalogProperties {
    *
    * <p>The REST catalog client sets this property when creating a table FileIO with vended
    * credentials. FileIO implementations use it in preference to their legacy refresh properties.
+   * This property does not by itself enable credential refresh in storage clients.
    */
   public static final String CREDENTIALS_ENDPOINT = "rest.credentials.endpoint";
 
