@@ -123,6 +123,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
           .build();
 
   /** Constructs a client of the Google BigQuery service. */
+  @SuppressWarnings("deprecation")
   public BigQueryMetastoreClientImpl(BigQueryOptions options)
       throws IOException, GeneralSecurityException {
     // Initialize client that will be used to send requests. This client only needs to be created
