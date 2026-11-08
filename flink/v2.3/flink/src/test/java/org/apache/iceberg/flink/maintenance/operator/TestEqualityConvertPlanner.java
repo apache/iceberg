@@ -1385,7 +1385,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
   }
 
   @Test
-  void repeatsDeltaThatFailed() throws Exception {
+  void rebuildsIndexWhenDeltaFails() throws Exception {
     Table table = createTableWithDelete(3);
     insert(table, 1, "a");
 
@@ -1398,75 +1398,24 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
 
       sendTrigger(harness);
 
-      // An external append with an unreadable manifest makes the delta fail.
-      DataFile externalFile = writeDataFile(table, createRecord(2, "b"));
-      table.newAppend().appendFile(externalFile).commit();
+      // Two external appends. The manifest list of the older one is lost, so every delta fails,
+      // while a rebuild reads only the head.
+      table.newAppend().appendFile(writeDataFile(table, createRecord(2, "b"))).commit();
       table.refresh();
-      long appendSnapshotId = table.currentSnapshot().snapshotId();
-      List<File> manifests =
-          table.currentSnapshot().dataManifests(table.io()).stream()
-              .filter(manifest -> manifest.snapshotId() == appendSnapshotId)
-              .map(manifest -> new File(manifest.path().replace("file:", "")))
-              .collect(Collectors.toList());
-      hide(manifests);
+      List<File> olderManifestList =
+          Lists.newArrayList(
+              new File(table.currentSnapshot().manifestListLocation().replace("file:", "")));
+      table.newAppend().appendFile(writeDataFile(table, createRecord(3, "c"))).commit();
+      table.refresh();
+      hide(olderManifestList);
 
       sendTrigger(harness);
       assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
-      restore(manifests);
       int afterSecond = harness.extractOutputValues().size();
 
-      // The target has not moved, but the failed delta is repeated.
-      sendTrigger(harness);
-      List<ReadCommand> all = harness.extractOutputValues();
-      assertThat(all.subList(afterSecond, all.size()))
-          .filteredOn(c -> c.task() instanceof FileScanTask)
-          .extracting(TestEqualityConvertPlanner::filePath)
-          .containsExactly(externalFile.location());
-    }
-  }
-
-  @Test
-  void rebuildsIndexWhenDeltaFailsAfterItsFirstChange() throws Exception {
-    Table table = createTableWithDelete(3);
-    insert(table, 1, "a");
-    DataFile replaced = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
-    // Untouched rows keep the delta smaller than a rebuild.
-    insert(table, 10, "x");
-    insert(table, 11, "y");
-    insert(table, 12, "z");
-
-    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
-    table.refresh();
-
-    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
-        createHarness(STAGING_BRANCH)) {
-      harness.open();
-
-      sendTrigger(harness);
-
-      // The planner reads the newest external commit first. It replaces a file, so its removal is
-      // sent before the planner reads the older append, which fails.
-      DataFile appended = writeDataFile(table, createRecord(2, "b"));
-      table.newAppend().appendFile(appended).commit();
-      table.refresh();
-      long appendSnapshotId = table.currentSnapshot().snapshotId();
-      List<File> manifests =
-          table.currentSnapshot().dataManifests(table.io()).stream()
-              .filter(manifest -> manifest.snapshotId() == appendSnapshotId)
-              .map(manifest -> new File(manifest.path().replace("file:", "")))
-              .collect(Collectors.toList());
-      DataFile compacted = writeDataFile(table, createRecord(1, "a"));
-      table.newRewrite().deleteFile(replaced).addFile(compacted).commit();
-      table.refresh();
-      hide(manifests);
-
+      // The next trigger rebuilds the index instead of repeating the delta.
       sendTrigger(harness);
       assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
-      restore(manifests);
-      int afterSecond = harness.extractOutputValues().size();
-
-      // Part of the delta was sent, so the index is not trusted and the next trigger rebuilds it.
-      sendTrigger(harness);
       List<ReadCommand> all = harness.extractOutputValues();
       assertThat(all.subList(afterSecond, all.size()))
           .filteredOn(c -> c.task() instanceof FileScanTask)
@@ -1477,6 +1426,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       assertThat(harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM))
           .extracting(record -> record.getValue().indexGeneration())
           .containsExactly(1L, 2L);
+      restore(olderManifestList);
     }
   }
 

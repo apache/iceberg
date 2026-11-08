@@ -354,6 +354,8 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     }
 
     List<Snapshot> externalCommits = externalCommitsSinceIndex(mainSnapshot);
+    // If anything goes wrong, the index will be rebuilt.
+    indexSnapshotId = null;
     if (externalCommits == null || deltaReadsMoreThanRebuild(mainSnapshot, externalCommits)) {
       rebuildIndex(mainSnapshot);
     } else {
@@ -458,13 +460,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
         && manifest.deletedRowsCount() != null;
   }
 
-  /**
-   * Applies the data-file changes of {@code externalCommits} to the worker index in one phase.
-   *
-   * <p>Clears {@link #indexSnapshotId} with the first command. The caller records the head only
-   * after this returns, so a delta that fails or is emitted in part is not trusted. A failure
-   * before the first command leaves the index as it is.
-   */
+  /** Applies the data-file changes of {@code externalCommits} to the worker index in one phase. */
   private void emitIncrementalReindex(Snapshot mainSnapshot, List<Snapshot> externalCommits) {
     int addedFileNum = 0;
     int removedFileNum = 0;
@@ -525,27 +521,25 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   }
 
   private void emitRemovedDataFile(Snapshot mainSnapshot, DataFile dataFile) {
-    emitIndexUpdate(
-        ReadCommand.removedDataFile(
-            reindexTask(dataFile),
-            mainSnapshot.snapshotId(),
-            indexGeneration,
-            dataSequenceNumber(dataFile)));
+    output.collect(
+        new StreamRecord<>(
+            ReadCommand.removedDataFile(
+                reindexTask(dataFile),
+                mainSnapshot.snapshotId(),
+                indexGeneration,
+                dataSequenceNumber(dataFile)),
+            nextPhaseTs));
   }
 
   private void emitAddedDataFile(Snapshot mainSnapshot, DataFile dataFile) {
-    emitIndexUpdate(
-        ReadCommand.dataFile(
-            reindexTask(dataFile),
-            mainSnapshot.snapshotId(),
-            indexGeneration,
-            dataSequenceNumber(dataFile)));
-  }
-
-  private void emitIndexUpdate(ReadCommand command) {
-    // The first command makes the index untrusted.
-    indexSnapshotId = null;
-    output.collect(new StreamRecord<>(command, nextPhaseTs));
+    output.collect(
+        new StreamRecord<>(
+            ReadCommand.dataFile(
+                reindexTask(dataFile),
+                mainSnapshot.snapshotId(),
+                indexGeneration,
+                dataSequenceNumber(dataFile)),
+            nextPhaseTs));
   }
 
   // Mirrors the reader's check on the delete files of a rebuild.
