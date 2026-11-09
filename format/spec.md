@@ -1002,6 +1002,7 @@ The contents of a file are part of a snapshot if its tracking `status` is **live
     - `column_files`:
         - `column_files` may only be set if the tracked file is a data file or a v4 leaf manifest.
         - A field ID may appear in `field_ids` of at most one column file in a tracked file's `column_files`.
+        - If a column file lists a struct, no other column file in the tracked file's `column_files` may list a field nested in that struct.
 
     <a id="updating-tracking-metadata"></a>
     When a file is added to the dataset, its tracked file must set status to ADDED and store the snapshot ID in which the file was added.
@@ -1808,11 +1809,15 @@ Manifests hold the same statistics for delete files and data files. For delete f
 
 Starting in v4, a data file or v4 leaf manifest may store fields in column files listed in [`column_files`](#column-file-fields). A column file can use any supported Iceberg file format and must have rows that align with the file it modifies.
 
-A column file stores the fields listed in its `field_ids`, each as a whole, including all of its nested fields. Each ID must identify a field in the schema of the file it modifies, which is the table schema for a data file and the tracked file schema for a leaf manifest, or a row lineage field required by [Writing Column Files](#writing-column-files). Fields nested within a list or map must not be listed in `field_ids`.
+A column file stores the fields listed in its `field_ids`. A listed struct includes all fields nested in it. In this section, a struct _contains_ a field if the field is nested in the struct at any depth.
+
+When a column file is added, each ID in its `field_ids` must identify a field in the schema of the file it modifies, or a row lineage field required by [Writing Column Files](#writing-column-files). The schema of a data file is the table schema. The schema of a leaf manifest is the tracked file schema. Fields nested in a list or map must not be listed in `field_ids`.
 
 #### Writing Column Files
 
 A column file stores the value of each of its listed fields for every row of the file it modifies. Values that did not change are still included, and values for deleted rows should be null.
+
+The added column files must list each field that the update changes, or a struct that contains that field. If an update changes whether a struct is null, the update changes that struct.
 
 When column files are added to a data file or a leaf manifest, the writer must produce a MODIFIED entry and a REPLACED entry as described in [Updating Tracking Metadata](#updating-tracking-metadata). The MODIFIED entry and the REPLACED entry may be written to different manifests.
 
@@ -1830,14 +1835,18 @@ The `tracking` fields of the MODIFIED entry are set as described in [Updating Tr
 - `deletion_vector`:
     - For a data file, every delete that applied to it before the column files were added must be written into the MODIFIED entry's `deletion_vector`.
 - `column_files`:
-    - Each field ID listed in an added column file must be removed from the `field_ids` of the previous entry's column files, and a column file with no remaining `field_ids` must be removed.
+    - Each field listed in an added column file must be removed from the `field_ids` of the previous entry's column files. Each field that a listed struct contains must also be removed. A column file with no remaining `field_ids` must be removed.
     - For a data file, one of the added column files must take responsibility for `_last_updated_sequence_number` by listing it in its `field_ids`, replacing the data file or previous column file that stored it. In that column file:
         - If the added column files change the row, `_last_updated_sequence_number` must be set to `null` (so that the sequence number of the snapshot that added the column files replaces the current value).
         - If the added column files do not change the row and the row is not deleted, the existing `_last_updated_sequence_number` value, with null resolved as in [Row lineage assignment](#row-lineage-assignment), must be copied to the new column file.
 
 #### Reading Column Files
 
-A projected field whose ID is in a column file's `field_ids` must be read from that column file. All other projected fields are read from the file it modifies, using [Column Projection](#column-projection) for a data file.
+A projected field must be read from the column file that lists the field or a struct that contains it. This applies to each field nested in a projected struct. All other projected fields are read from the file it modifies, using [Column Projection](#column-projection) for a data file. IDs in `field_ids` that are not projected are ignored.
+
+If a struct is null in a row, each field that the struct contains is null in that row. This applies when the struct and the nested field are read from different files.
+
+If a column file does not store a field that must be read from it, the reader must use the field's `initial-default`, or null if no default is set.
 
 A column file and the file it modifies are aligned by row position before the attached deletion vector is applied. The scan schema must be used for field types and nullability. Null values in a column file may represent deleted rows.
 
