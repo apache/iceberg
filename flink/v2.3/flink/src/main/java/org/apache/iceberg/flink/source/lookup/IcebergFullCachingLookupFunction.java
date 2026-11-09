@@ -195,7 +195,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
   }
 
   private CompletableFuture<Void> triggerReload() {
-    if (cache == null || closed) {
+    if (cache == null || closed || reloadFailure != null) {
       return CompletableFuture.completedFuture(null);
     }
 
@@ -246,6 +246,10 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
     long start = System.currentTimeMillis();
     try (CloseableIterable<RowData> rows = reader.read(snapshotId)) {
       for (RowData row : rows) {
+        if (closed) {
+          return;
+        }
+
         loaded.add(extractKey(row), rowSerializer.toBinaryRow(row).copy());
         rowCnt++;
       }
