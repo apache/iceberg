@@ -36,10 +36,10 @@ import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MultisetType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.VarCharType;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -48,8 +48,9 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 class TestFlinkMultisetWrite {
 
@@ -114,83 +115,94 @@ class TestFlinkMultisetWrite {
     assertThat(rows).isExhausted();
   }
 
-  private void assertParquetRoundTrip(RowType flinkType, Map<String, Integer> tags)
+  private void assertRoundTrip(FileFormat format, RowType flinkType, Map<String, Integer> tags)
       throws IOException {
-    InMemoryOutputFile out = new InMemoryOutputFile();
-    try (FileAppender<RowData> writer =
-        Parquet.write(out)
-            .schema(SCHEMA)
-            .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkType, msgType))
-            .build()) {
-      writer.add(rowWithTags(tags));
-    }
+    File file = File.createTempFile("junit", null, temp.toFile());
+    assertThat(file.delete()).isTrue();
+    OutputFile out = Files.localOutput(file);
 
-    try (CloseableIterable<RowData> reader =
-        Parquet.read(out.toInputFile())
-            .project(SCHEMA)
-            .createReaderFunc(type -> FlinkParquetReaders.buildReader(SCHEMA, type))
-            .build()) {
-      assertRoundTrip(reader, tags);
+    switch (format) {
+      case AVRO:
+        try (FileAppender<RowData> writer =
+            Avro.write(out)
+                .schema(SCHEMA)
+                .createWriterFunc(ignored -> new FlinkAvroWriter(flinkType))
+                .build()) {
+          writer.add(rowWithTags(tags));
+        }
+
+        try (CloseableIterable<RowData> reader =
+            Avro.read(Files.localInput(file))
+                .project(SCHEMA)
+                .createResolvingReader(FlinkPlannedAvroReader::create)
+                .build()) {
+          assertRoundTrip(reader, tags);
+        }
+
+        break;
+      case ORC:
+        try (FileAppender<RowData> writer =
+            ORC.write(out)
+                .schema(SCHEMA)
+                .createWriterFunc(
+                    (iSchema, typDesc) -> FlinkOrcWriter.buildWriter(flinkType, iSchema))
+                .build()) {
+          writer.add(rowWithTags(tags));
+        }
+
+        try (CloseableIterable<RowData> reader =
+            ORC.read(Files.localInput(file))
+                .project(SCHEMA)
+                .createReaderFunc(type -> new FlinkOrcReader(SCHEMA, type))
+                .build()) {
+          assertRoundTrip(reader, tags);
+        }
+
+        break;
+      case PARQUET:
+        try (FileAppender<RowData> writer =
+            Parquet.write(out)
+                .schema(SCHEMA)
+                .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkType, msgType))
+                .build()) {
+          writer.add(rowWithTags(tags));
+        }
+
+        try (CloseableIterable<RowData> reader =
+            Parquet.read(Files.localInput(file))
+                .project(SCHEMA)
+                .createReaderFunc(type -> FlinkParquetReaders.buildReader(SCHEMA, type))
+                .build()) {
+          assertRoundTrip(reader, tags);
+        }
+
+        break;
+      default:
+        throw new UnsupportedOperationException("Unsupported file format: " + format);
     }
   }
 
-  @Test
-  void parquetRoundTripsMultiset() throws IOException {
-    assertParquetRoundTrip(MULTISET_OF_REQUIRED_STRING, TAGS);
+  @ParameterizedTest
+  @EnumSource(
+      value = FileFormat.class,
+      names = {"AVRO", "ORC", "PARQUET"})
+  void roundTripsMultiset(FileFormat format) throws IOException {
+    assertRoundTrip(format, MULTISET_OF_REQUIRED_STRING, TAGS);
   }
 
-  @Test
-  void parquetRoundTripsMultisetOfNullableElement() throws IOException {
-    assertParquetRoundTrip(MULTISET_OF_NULLABLE_STRING, TAGS);
+  @ParameterizedTest
+  @EnumSource(
+      value = FileFormat.class,
+      names = {"AVRO", "ORC", "PARQUET"})
+  void roundTripsMultisetOfNullableElement(FileFormat format) throws IOException {
+    assertRoundTrip(format, MULTISET_OF_NULLABLE_STRING, TAGS);
   }
 
-  @Test
-  void parquetRoundTripsNullMultiset() throws IOException {
-    assertParquetRoundTrip(MULTISET_OF_REQUIRED_STRING, null);
-  }
-
-  @Test
-  void avroRoundTripsMultiset() throws IOException {
-    InMemoryOutputFile out = new InMemoryOutputFile();
-    try (FileAppender<RowData> writer =
-        Avro.write(out)
-            .schema(SCHEMA)
-            .createWriterFunc(ignored -> new FlinkAvroWriter(MULTISET_OF_REQUIRED_STRING))
-            .build()) {
-      writer.add(rowWithTags(TAGS));
-    }
-
-    try (CloseableIterable<RowData> reader =
-        Avro.read(out.toInputFile())
-            .project(SCHEMA)
-            .createResolvingReader(FlinkPlannedAvroReader::create)
-            .build()) {
-      assertRoundTrip(reader, TAGS);
-    }
-  }
-
-  @Test
-  void orcRoundTripsMultiset() throws IOException {
-    File orcFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(orcFile.delete()).isTrue();
-
-    OutputFile out = Files.localOutput(orcFile);
-    try (FileAppender<RowData> writer =
-        ORC.write(out)
-            .schema(SCHEMA)
-            .createWriterFunc(
-                (iSchema, typDesc) ->
-                    FlinkOrcWriter.buildWriter(MULTISET_OF_REQUIRED_STRING, iSchema))
-            .build()) {
-      writer.add(rowWithTags(TAGS));
-    }
-
-    try (CloseableIterable<RowData> reader =
-        ORC.read(Files.localInput(orcFile))
-            .project(SCHEMA)
-            .createReaderFunc(type -> new FlinkOrcReader(SCHEMA, type))
-            .build()) {
-      assertRoundTrip(reader, TAGS);
-    }
+  @ParameterizedTest
+  @EnumSource(
+      value = FileFormat.class,
+      names = {"AVRO", "ORC", "PARQUET"})
+  void roundTripsNullMultiset(FileFormat format) throws IOException {
+    assertRoundTrip(format, MULTISET_OF_REQUIRED_STRING, null);
   }
 }

@@ -24,15 +24,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.hadoop.conf.Configuration;
+import org.apache.flink.types.Row;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.data.Record;
-import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.AfterEach;
@@ -61,7 +57,7 @@ class TestFlinkMultisetType extends TestBase {
   }
 
   @TestTemplate
-  void sqlInsertMultiset() throws Exception {
+  void sqlInsertMultiset() {
     String warehouse = "file://" + temporaryDirectory.toAbsolutePath();
     sql(
         "CREATE TABLE %s (id INT, tags MULTISET<STRING>) WITH ("
@@ -75,16 +71,10 @@ class TestFlinkMultisetType extends TestBase {
         "INSERT INTO %s SELECT id, COLLECT(tag) FROM (VALUES %s) AS t (id, tag) GROUP BY id",
         TABLE_NAME, values);
 
-    Table table;
-    try (HadoopCatalog catalog = new HadoopCatalog(new Configuration(), warehouse)) {
-      table = catalog.loadTable(TableIdentifier.of("default_database", TABLE_NAME));
-    }
-
     Map<String, Integer> expectedCounts = Maps.newHashMap();
     TAGS.forEach(tag -> expectedCounts.merge(tag, 1, Integer::sum));
 
-    List<Record> records = SimpleDataUtil.tableRecords(table);
-    assertThat(records).hasSize(1);
-    assertThat(records.get(0).getField("tags")).isEqualTo(expectedCounts);
+    List<Row> rows = sql("SELECT id, tags FROM %s", TABLE_NAME);
+    assertThat(rows).containsExactly(Row.of(1, expectedCounts));
   }
 }
