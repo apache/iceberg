@@ -18,13 +18,13 @@
  */
 package org.apache.iceberg.gcp.bigquery;
 
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.googleapis.json.GoogleJsonError;
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpResponseException;
 import com.google.api.client.http.HttpStatusCodes;
+import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.client.util.Data;
 import com.google.api.services.bigquery.Bigquery;
@@ -48,7 +48,6 @@ import com.google.cloud.bigquery.BigQueryOptions;
 import com.google.cloud.bigquery.BigQueryRetryConfig;
 import com.google.cloud.bigquery.BigQueryRetryHelper;
 import java.io.IOException;
-import java.security.GeneralSecurityException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -123,9 +122,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
           .build();
 
   /** Constructs a client of the Google BigQuery service. */
-  @SuppressWarnings("deprecation")
-  public BigQueryMetastoreClientImpl(BigQueryOptions options)
-      throws IOException, GeneralSecurityException {
+  public BigQueryMetastoreClientImpl(BigQueryOptions options) {
     // Initialize client that will be used to send requests. This client only needs to be created
     // once, and can be reused for multiple requests
 
@@ -134,7 +131,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
     this.client =
         new Bigquery.Builder(
-                GoogleNetHttpTransport.newTrustedTransport(),
+                new NetHttpTransport(),
                 GsonFactory.getDefaultInstance(),
                 httpRequest -> {
                   httpCredentialsAdapter.initialize(httpRequest);
