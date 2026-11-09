@@ -162,7 +162,13 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
   @Override
   public void close() throws IOException {
     if (commitService != null) {
-      commitService.close();
+      try {
+        commitService.close();
+      } catch (Exception e) {
+        LOG.warn("Exception closing commit service for table {} task {}", tableName, taskName, e);
+      } finally {
+        this.commitService = null;
+      }
     }
   }
 
