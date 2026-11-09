@@ -33,7 +33,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
-import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -95,23 +94,6 @@ class TestFileTokenSource {
     assertThatThrownBy(this::newSource)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid bearer token: contains characters not allowed by RFC 6750");
-  }
-
-  @Test
-  void maxSize() throws IOException {
-    String token = Strings.repeat("a", FileTokenSource.MAX_FILE_SIZE);
-    write(tokenFile, token);
-    assertThat(newSource().token()).isEqualTo(token);
-  }
-
-  @Test
-  void tooLarge() throws IOException {
-    write(tokenFile, Strings.repeat("a", FileTokenSource.MAX_FILE_SIZE + 1));
-    assertThatThrownBy(this::newSource)
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Invalid token file: %s is larger than %s bytes",
-            tokenFile, FileTokenSource.MAX_FILE_SIZE);
   }
 
   @Test

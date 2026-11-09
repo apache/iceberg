@@ -137,10 +137,10 @@ a sidecar like Vault Agent, or a script.
 | `rest.auth.bearer.token-file.reload-interval` | `PT1M`  | How long a token read from the file is used before the file is read again, as an ISO-8601 duration. Must be at least 1 second (`PT1S`).                                      |
 
 The token file must exist and contain a valid token when the catalog is initialized; leading and trailing whitespace is
-removed. Files larger than 256 KiB, and tokens containing characters not allowed by RFC 6750, are rejected. If a later
-reload fails, the last valid token keeps being used: deleting the file does not revoke the token. Symbolic links are
-followed. The file must be present at the same path on every node that accesses the catalog or its tables, e.g. on Spark
-executors when using the S3 remote signer.
+removed. Tokens containing characters not allowed by RFC 6750 are rejected. If a later reload fails, the last valid
+token keeps being used: deleting the file does not revoke the token. Symbolic links are followed. The file must be
+present at the same path on every node that accesses the catalog or its tables, e.g. on Spark executors when using the
+S3 remote signer.
 
 !!! warning
     `rest.auth.bearer.token` is a secret. Engines may expose catalog configuration in their UIs and logs —

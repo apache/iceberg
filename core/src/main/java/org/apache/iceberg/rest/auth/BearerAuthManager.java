@@ -43,8 +43,6 @@ public final class BearerAuthManager implements AuthManager {
   private final Cache<BearerAuthConfig, BearerAuthSession> sessionCache =
       Caffeine.newBuilder().expireAfterAccess(Duration.ofHours(1)).executor(Runnable::run).build();
 
-  public BearerAuthManager(String ignored) {}
-
   @Override
   public AuthSession catalogSession(RESTClient sharedClient, Map<String, String> properties) {
     return new BearerAuthSession(BearerAuthConfig.fromProperties(properties).newSource());

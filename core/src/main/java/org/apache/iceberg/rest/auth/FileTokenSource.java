@@ -19,7 +19,6 @@
 package org.apache.iceberg.rest.auth;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -47,28 +46,34 @@ final class FileTokenSource implements BearerTokenSource {
 
   private static final Logger LOG = LoggerFactory.getLogger(FileTokenSource.class);
 
-  /**
-   * Maximum token file size. Large enough for JWTs signed with the largest post-quantum signature
-   * schemes.
-   */
-  static final int MAX_FILE_SIZE = 256 * 1024;
-
   private final Path path;
   private final Duration reloadInterval;
   private final long reloadIntervalNanos;
   private final LongSupplier nanoTime;
   private final AtomicReference<State> state;
 
-  /**
-   * An immutable snapshot of the source's mutable state, swapped atomically.
-   *
-   * @param token the last valid token
-   * @param readAtNanos when the token was last read, or when the last reload attempt failed
-   * @param reloading whether a thread has claimed the current reload
-   * @param lastReloadFailed whether the last reload attempt failed, used to log on transitions only
-   */
-  private record State(
-      String token, long readAtNanos, boolean reloading, boolean lastReloadFailed) {}
+  /** The source's state; instances are never modified, but replaced atomically. */
+  @SuppressWarnings("ClassCanBeRecord")
+  private static final class State {
+    /** The last valid token. */
+    private final String token;
+
+    /** When the token was last read, or when the last reload attempt failed. */
+    private final long readAtNanos;
+
+    /** Whether a thread has claimed the current reload. */
+    private final boolean reloading;
+
+    /** Whether the last reload attempt failed, used to log on transitions only. */
+    private final boolean lastReloadFailed;
+
+    private State(String token, long readAtNanos, boolean reloading, boolean lastReloadFailed) {
+      this.token = token;
+      this.readAtNanos = readAtNanos;
+      this.reloading = reloading;
+      this.lastReloadFailed = lastReloadFailed;
+    }
+  }
 
   FileTokenSource(Path path, Duration reloadInterval) {
     this(path, reloadInterval, System::nanoTime);
@@ -137,31 +142,14 @@ final class FileTokenSource implements BearerTokenSource {
   }
 
   private String readToken() {
+    // also rejects FIFOs and devices, whose reads could block indefinitely
+    Preconditions.checkArgument(
+        Files.isRegularFile(path), "Invalid token file: %s does not exist or is not a file", path);
+    Preconditions.checkArgument(
+        Files.isReadable(path), "Invalid token file: %s is not readable", path);
     try {
-      Preconditions.checkArgument(
-          Files.isRegularFile(path),
-          "Invalid token file: %s does not exist or is not a file",
-          path);
-      Preconditions.checkArgument(
-          Files.isReadable(path), "Invalid token file: %s is not readable", path);
-      Preconditions.checkArgument(
-          Files.size(path) <= MAX_FILE_SIZE,
-          "Invalid token file: %s is larger than %s bytes",
-          path,
-          MAX_FILE_SIZE);
-      byte[] bytes;
-      // Files.newInputStream() follows symlinks by default
-      try (InputStream in = Files.newInputStream(path)) {
-        // read one byte past the limit, so that a file that grew after the size check is rejected
-        // instead of silently truncated
-        bytes = in.readNBytes(MAX_FILE_SIZE + 1);
-      }
-
-      Preconditions.checkArgument(
-          bytes.length <= MAX_FILE_SIZE,
-          "Invalid token file: %s is larger than %s bytes",
-          path,
-          MAX_FILE_SIZE);
+      // Files.readAllBytes() follows symlinks by default
+      byte[] bytes = Files.readAllBytes(path);
       return BearerTokenSource.validate(new String(bytes, StandardCharsets.UTF_8));
     } catch (IOException e) {
       throw new UncheckedIOException(

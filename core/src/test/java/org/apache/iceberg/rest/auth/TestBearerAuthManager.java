@@ -64,7 +64,7 @@ class TestBearerAuthManager {
   void tokenFileMissing() {
     Path missing = tempDir.resolve("missing");
     Map<String, String> properties = Map.of(BearerAuthConfig.BEARER_TOKEN_FILE, missing.toString());
-    try (AuthManager manager = new BearerAuthManager("test")) {
+    try (AuthManager manager = new BearerAuthManager()) {
       assertThatThrownBy(() -> manager.catalogSession(null, properties))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessage("Invalid token file: %s does not exist or is not a file", missing);
@@ -77,7 +77,7 @@ class TestBearerAuthManager {
     // URIs and shell expansions are not interpreted: they resolve to relative paths that don't
     // exist
     Map<String, String> properties = Map.of(BearerAuthConfig.BEARER_TOKEN_FILE, path);
-    try (AuthManager manager = new BearerAuthManager("test")) {
+    try (AuthManager manager = new BearerAuthManager()) {
       assertThatThrownBy(() -> manager.catalogSession(null, properties))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessage(
@@ -89,7 +89,7 @@ class TestBearerAuthManager {
   @Test
   void invalidStaticToken() {
     Map<String, String> properties = Map.of(BearerAuthConfig.BEARER_TOKEN, "s3cr3t\r\nX-Foo: bar");
-    try (AuthManager manager = new BearerAuthManager("test")) {
+    try (AuthManager manager = new BearerAuthManager()) {
       assertThatThrownBy(() -> manager.catalogSession(null, properties))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessage("Invalid bearer token: contains characters not allowed by RFC 6750");
@@ -99,7 +99,7 @@ class TestBearerAuthManager {
   @Test
   void staticToken() {
     Map<String, String> properties = Map.of(BearerAuthConfig.BEARER_TOKEN, "static-token");
-    try (AuthManager manager = new BearerAuthManager("test");
+    try (AuthManager manager = new BearerAuthManager();
         AuthSession session = manager.catalogSession(null, properties)) {
       assertAuthorization(session, "Bearer static-token");
     }
@@ -113,7 +113,7 @@ class TestBearerAuthManager {
             tokenFile.toString(),
             BearerAuthConfig.BEARER_TOKEN_FILE_RELOAD_INTERVAL,
             "PT1S");
-    try (AuthManager manager = new BearerAuthManager("test");
+    try (AuthManager manager = new BearerAuthManager();
         AuthSession session = manager.catalogSession(null, properties)) {
       assertAuthorization(session, "Bearer file-token");
     }
@@ -125,7 +125,7 @@ class TestBearerAuthManager {
     SessionCatalog.SessionContext context =
         new SessionCatalog.SessionContext(
             "id", "user", Map.of(OAuth2Properties.TOKEN, "user-token"), Map.of());
-    try (AuthManager manager = new BearerAuthManager("test");
+    try (AuthManager manager = new BearerAuthManager();
         AuthSession parent = manager.catalogSession(null, properties)) {
       assertThat(manager.contextualSession(context, parent)).isSameAs(parent);
     }
@@ -134,7 +134,7 @@ class TestBearerAuthManager {
   @Test
   void tableSessionReturnsParent() {
     Map<String, String> properties = Map.of(BearerAuthConfig.BEARER_TOKEN, "static-token");
-    try (AuthManager manager = new BearerAuthManager("test");
+    try (AuthManager manager = new BearerAuthManager();
         AuthSession parent = manager.catalogSession(null, properties)) {
       AuthSession tableSession =
           manager.tableSession(
@@ -166,7 +166,7 @@ class TestBearerAuthManager {
 
     RESTClient restClient = Mockito.mock(RESTClient.class);
 
-    try (AuthManager manager = new BearerAuthManager("test")) {
+    try (AuthManager manager = new BearerAuthManager()) {
       AuthSession fileSession = manager.tableSession(restClient, fileProperties);
       assertAuthorization(fileSession, "Bearer file-token");
       assertThat(manager.tableSession(restClient, fileProperties)).isSameAs(fileSession);
@@ -188,7 +188,7 @@ class TestBearerAuthManager {
   void standaloneTableSessionCacheClearedOnClose() {
     Map<String, String> properties = Map.of(BearerAuthConfig.BEARER_TOKEN, "static-token");
     RESTClient restClient = Mockito.mock(RESTClient.class);
-    try (BearerAuthManager manager = new BearerAuthManager("test")) {
+    try (BearerAuthManager manager = new BearerAuthManager()) {
       AuthSession session = manager.tableSession(restClient, properties);
       assertThat(manager.sessionCache().asMap()).hasSize(1);
 

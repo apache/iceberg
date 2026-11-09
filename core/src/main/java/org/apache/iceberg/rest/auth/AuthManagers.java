@@ -114,6 +114,7 @@ public class AuthManagers {
       ctor =
           DynConstructors.builder(AuthManager.class)
               .loader(AuthManagers.class.getClassLoader())
+              .impl(impl) // default constructor, for managers that don't need a name
               .impl(impl, String.class) // with name
               .impl(impl, String.class, AuthManager.class) // with name and delegate
               .buildChecked();
