@@ -159,8 +159,7 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
       if (validateNewDeleteFiles) {
         // validate that explicitly deleted files have not had added deletes
         if (!removedDataFiles.isEmpty()) {
-          validateNoNewDeletesForDataFiles(
-              base, startingSnapshotId, conflictDetectionFilter, removedDataFiles, parent);
+          validateNoNewDeletesForDataFiles(base, startingSnapshotId, removedDataFiles, parent);
         }
 
         // validate that previous deletes do not conflict with added deletes
