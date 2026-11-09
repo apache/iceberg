@@ -143,8 +143,11 @@ followed. The file must be present at the same path on every node that accesses 
 executors when using the S3 remote signer.
 
 !!! warning
-    Prefer `rest.auth.bearer.token-file` over `rest.auth.bearer.token`: a static token cannot be rotated, and is
-    exposed wherever the catalog configuration is.
+    `rest.auth.bearer.token` is a secret. Engines may expose catalog configuration in their UIs and logs —
+    Apache Spark, for example, lists it in the Environment tab and writes it to event logs. Confirm that your engine
+    redacts this value; for Spark, check that it is covered by `spark.redaction.regex` and add it to the pattern if
+    it is not. Prefer `rest.auth.bearer.token-file` when possible: only the file's path appears in the catalog
+    configuration, and the token can be rotated.
 
 ### OAuth2 auth properties
 Required and optional properties to include while using `oauth2` authentication

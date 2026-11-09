@@ -65,9 +65,10 @@ final class FileTokenSource implements BearerTokenSource {
    * @param token the last valid token
    * @param readAtNanos when the token was last read, or when the last reload attempt failed
    * @param reloading whether a thread has claimed the current reload
-   * @param failing whether the last reload attempt failed, used to log on transitions only
+   * @param lastReloadFailed whether the last reload attempt failed, used to log on transitions only
    */
-  private record State(String token, long readAtNanos, boolean reloading, boolean failing) {}
+  private record State(
+      String token, long readAtNanos, boolean reloading, boolean lastReloadFailed) {}
 
   FileTokenSource(Path path, Duration reloadInterval) {
     this(path, reloadInterval, System::nanoTime);
@@ -91,7 +92,7 @@ final class FileTokenSource implements BearerTokenSource {
       return current.token;
     }
 
-    State claimed = new State(current.token, current.readAtNanos, true, current.failing);
+    State claimed = new State(current.token, current.readAtNanos, true, current.lastReloadFailed);
     if (!state.compareAndSet(current, claimed)) {
       // another thread claimed the reload
       return current.token;
@@ -115,7 +116,7 @@ final class FileTokenSource implements BearerTokenSource {
     try {
       token = readToken();
     } catch (RuntimeException e) {
-      if (!current.failing) {
+      if (!current.lastReloadFailed) {
         LOG.warn(
             "Failed to reload bearer token from {}, will keep using the last valid token", path, e);
       }
@@ -124,7 +125,7 @@ final class FileTokenSource implements BearerTokenSource {
       return new State(current.token, nanoTime.getAsLong(), false, true);
     }
 
-    if (current.failing) {
+    if (current.lastReloadFailed) {
       LOG.info("Successfully reloaded bearer token from {}", path);
     }
 
