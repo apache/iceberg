@@ -136,6 +136,16 @@ public class TestSparkStagedScan extends CatalogTestBase {
       assertThat(scanDF.javaRDD().getNumPartitions())
           .as("Num partitions should match")
           .isEqualTo(1);
+
+      // the staged scan reports the larger split size used for this read
+      scanDF.collect();
+      sparkPlans =
+          seqAsJavaListConverter(scanDF.queryExecution().executedPlan().collectLeaves()).asJava();
+      metrics = JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
+      assertThat(metrics)
+          .hasEntrySatisfying(
+              "effectiveSplitTargetSize",
+              metric -> assertThat(metric.value()).isEqualTo(Long.MAX_VALUE));
     }
   }
 }

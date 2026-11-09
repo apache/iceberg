@@ -233,11 +233,14 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
   @Override
   protected synchronized List<ScanTaskGroup<T>> taskGroups() {
     if (taskGroups == null) {
+      long splitSize = adjustSplitSize(tasks(), scan.targetSplitSize());
+      setEffectiveSplitTargetSize(splitSize);
+
       if (groupingKeyType().fields().isEmpty()) {
         CloseableIterable<ScanTaskGroup<T>> plannedTaskGroups =
             TableScanUtil.planTaskGroups(
                 CloseableIterable.withNoopClose(tasks()),
-                adjustSplitSize(tasks(), scan.targetSplitSize()),
+                splitSize,
                 scan.splitLookback(),
                 scan.splitOpenFileCost());
         this.taskGroups = Lists.newArrayList(plannedTaskGroups);
@@ -251,7 +254,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
         List<ScanTaskGroup<T>> plannedTaskGroups =
             TableScanUtil.planTaskGroups(
                 tasks(),
-                adjustSplitSize(tasks(), scan.targetSplitSize()),
+                splitSize,
                 scan.splitLookback(),
                 scan.splitOpenFileCost(),
                 groupingKeyType());

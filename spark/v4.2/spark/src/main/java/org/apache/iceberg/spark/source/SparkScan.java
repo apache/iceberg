@@ -113,7 +113,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private final Schema projection;
   private final List<Expression> filters;
   private final Supplier<ScanReport> scanReportSupplier;
-  private long effectiveSplitTargetSize;
+  private volatile long effectiveSplitTargetSize;
 
   // lazy variables
   private StructType readSchema;
@@ -379,23 +379,26 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     };
   }
 
+  protected void setEffectiveSplitTargetSize(long splitSize) {
+    this.effectiveSplitTargetSize = splitSize;
+  }
+
   protected long adjustSplitSize(List<? extends ScanTask> tasks, long splitSize) {
-    long effectiveSplitSize = splitSize;
     if (readConf.splitSizeOption() == null && readConf.adaptiveSplitSizeEnabled()) {
       long scanSize = tasks.stream().mapToLong(ScanTask::sizeBytes).sum();
       int parallelism = readConf.splitParallelism();
-      effectiveSplitSize = TableScanUtil.adjustSplitSize(scanSize, parallelism, splitSize);
-      if (effectiveSplitSize != splitSize) {
+      long adjustedSplitSize = TableScanUtil.adjustSplitSize(scanSize, parallelism, splitSize);
+      if (adjustedSplitSize != splitSize) {
         LOG.debug(
             "Adjusted split size from {} to {} for table {} with parallelism {}",
             splitSize,
-            effectiveSplitSize,
+            adjustedSplitSize,
             table().name(),
             parallelism);
       }
+      return adjustedSplitSize;
+    } else {
+      return splitSize;
     }
-
-    this.effectiveSplitTargetSize = effectiveSplitSize;
-    return effectiveSplitSize;
   }
 }
