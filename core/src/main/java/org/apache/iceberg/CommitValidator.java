@@ -161,10 +161,8 @@ class CommitValidator {
             conflictDetectionPartitions != null
                 ? "partitions " + conflictDetectionPartitions
                 : conflictDetectionFilter,
-            Iterators.toString(
-                Iterators.transform(conflicts, entry -> entry.file().location().toString())));
+            Iterators.toString(Iterators.transform(conflicts, entry -> entry.file().location())));
       }
-
     } catch (IOException e) {
       throw new UncheckedIOException(
           String.format(
@@ -350,10 +348,8 @@ class CommitValidator {
             conflictDetectionPartitions != null
                 ? "apply to records matching " + conflictDetectionPartitions
                 : "contain records matching " + conflictDetectionFilter,
-            Iterators.toString(
-                Iterators.transform(conflicts, entry -> entry.file().location().toString())));
+            Iterators.toString(Iterators.transform(conflicts, entry -> entry.file().location())));
       }
-
     } catch (IOException e) {
       throw new UncheckedIOException(
           String.format(
@@ -445,10 +441,8 @@ class CommitValidator {
       if (deletes.hasNext()) {
         throw new ValidationException(
             "Cannot commit, missing data files: %s",
-            Iterators.toString(
-                Iterators.transform(deletes, entry -> entry.file().location().toString())));
+            Iterators.toString(Iterators.transform(deletes, entry -> entry.file().location())));
       }
-
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to validate required files exist", e);
     }
