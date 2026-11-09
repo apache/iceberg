@@ -23,13 +23,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockserver.integration.ClientAndServer.startClientAndServer;
 
 import com.google.auth.oauth2.AccessToken;
+import com.google.auth.oauth2.OAuth2Credentials;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.gcp.GCPProperties;
+import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.HttpMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties;
@@ -41,6 +44,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
@@ -274,6 +279,149 @@ public class TestOAuth2RefreshCredentialsHandler {
     assertThatThrownBy(handler::refreshAccessToken)
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Invalid GCS Credentials: only one GCS credential should exist");
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void mostSpecificCredentialForPrefix(boolean reversed) {
+    Credential parent = credential("gs://bucket/", "parent");
+    Credential selected = credential("gs://bucket/table/", "selected");
+    Credential child = credential("gs://bucket/table/child/", "child");
+    Credential unrelated = credential("gs://another-bucket/longer-prefix/", "unrelated");
+    if (reversed) {
+      respondWithCredentials(unrelated, child, selected, parent);
+    } else {
+      respondWithCredentials(parent, selected, child, unrelated);
+    }
+
+    try (OAuth2RefreshCredentialsHandler handler =
+        OAuth2RefreshCredentialsHandler.create(propertiesForPrefix("gs://bucket/table/data/"))) {
+      assertThat(handler.refreshAccessToken().getTokenValue())
+          .isEqualTo(selected.config().get(GCPProperties.GCS_OAUTH2_TOKEN));
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"gs://another-bucket/", "gs://bucket/table/child/"})
+  void noCredentialForPrefix(String credentialPrefix) {
+    respondWithCredentials(credential(credentialPrefix, "unrelated"));
+
+    try (OAuth2RefreshCredentialsHandler handler =
+        OAuth2RefreshCredentialsHandler.create(propertiesForPrefix("gs://bucket/table/"))) {
+      assertThatThrownBy(handler::refreshAccessToken)
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage(
+              "Invalid GCS Credentials: no credential matches storage prefix gs://bucket/table/");
+    }
+  }
+
+  @Test
+  void ambiguousCredentialsForPrefix() {
+    respondWithCredentials(
+        credential("gs://bucket/", "parent"),
+        credential("gs://bucket/table/", "first"),
+        credential("gs://bucket/table/", "second"));
+
+    try (OAuth2RefreshCredentialsHandler handler =
+        OAuth2RefreshCredentialsHandler.create(propertiesForPrefix("gs://bucket/table/"))) {
+      assertThatThrownBy(handler::refreshAccessToken)
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage(
+              "Invalid GCS Credentials: multiple credentials match storage prefix gs://bucket/table/");
+    }
+  }
+
+  @Test
+  void prefixedClientsRefreshIndependently() throws Exception {
+    Credential first = credential("gs://bucket/first/", "first");
+    Credential second = credential("gs://bucket/second/", "second");
+    respondWithCredentials(first, second);
+    Map<String, String> properties =
+        ImmutableMap.<String, String>builder()
+            .putAll(PROPERTIES)
+            .put(GCPProperties.GCS_PROJECT_ID, "project")
+            .put(GCPProperties.GCS_OAUTH2_TOKEN, "initial")
+            .put(
+                GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT,
+                Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli()))
+            .build();
+
+    try (GCSFileIO fileIO = new GCSFileIO()) {
+      fileIO.initialize(properties);
+      fileIO.setCredentials(
+          List.of(
+              StorageCredential.create(
+                  first.prefix(), Map.of(GCPProperties.GCS_OAUTH2_TOKEN, "initial")),
+              StorageCredential.create(
+                  second.prefix(), Map.of(GCPProperties.GCS_OAUTH2_TOKEN, "initial"))));
+      OAuth2Credentials firstCredentials =
+          (OAuth2Credentials) fileIO.client(first.prefix()).getOptions().getCredentials();
+      OAuth2Credentials secondCredentials =
+          (OAuth2Credentials) fileIO.client(second.prefix()).getOptions().getCredentials();
+      firstCredentials.refresh();
+      secondCredentials.refresh();
+
+      assertThat(firstCredentials.getAccessToken().getTokenValue())
+          .isEqualTo(first.config().get(GCPProperties.GCS_OAUTH2_TOKEN));
+      assertThat(secondCredentials.getAccessToken().getTokenValue())
+          .isEqualTo(second.config().get(GCPProperties.GCS_OAUTH2_TOKEN));
+    }
+  }
+
+  @Test
+  void unscopedFileIORefreshesSingleCredential() throws Exception {
+    Credential credential = credential("gs://bucket/table/", "refreshed");
+    respondWithCredentials(credential);
+    Map<String, String> properties =
+        ImmutableMap.<String, String>builder()
+            .putAll(PROPERTIES)
+            .put(GCPProperties.GCS_PROJECT_ID, "project")
+            .put(GCPProperties.GCS_OAUTH2_TOKEN, "initial")
+            .put(
+                GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT,
+                Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli()))
+            .build();
+
+    try (GCSFileIO fileIO = new GCSFileIO()) {
+      fileIO.initialize(properties);
+      OAuth2Credentials credentials =
+          (OAuth2Credentials) fileIO.client().getOptions().getCredentials();
+      credentials.refresh();
+
+      assertThat(credentials.getAccessToken().getTokenValue())
+          .isEqualTo(credential.config().get(GCPProperties.GCS_OAUTH2_TOKEN));
+    }
+  }
+
+  private static Map<String, String> propertiesForPrefix(String prefix) {
+    return ImmutableMap.<String, String>builder()
+        .putAll(PROPERTIES)
+        .put(OAuth2RefreshCredentialsHandler.STORAGE_PREFIX, prefix)
+        .build();
+  }
+
+  private static Credential credential(String prefix, String token) {
+    return ImmutableCredential.builder()
+        .prefix(prefix)
+        .config(
+            ImmutableMap.of(
+                GCPProperties.GCS_OAUTH2_TOKEN,
+                token,
+                GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT,
+                Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli())))
+        .build();
+  }
+
+  private static void respondWithCredentials(Credential... credentials) {
+    mockServer
+        .when(HttpRequest.request("/v1/credentials").withMethod(HttpMethod.GET.name()))
+        .respond(
+            HttpResponse.response(
+                    LoadCredentialsResponseParser.toJson(
+                        ImmutableLoadCredentialsResponse.builder()
+                            .addCredentials(credentials)
+                            .build()))
+                .withStatusCode(200));
   }
 
   @Test

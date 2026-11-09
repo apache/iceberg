@@ -201,6 +201,9 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
                         ImmutableMap.<String, String>builder()
                             .putAll(properties)
                             .putAll(storageCredential.config())
+                            .put(
+                                OAuth2RefreshCredentialsHandler.STORAGE_PREFIX,
+                                storageCredential.prefix())
                             .buildKeepingLast();
 
                     localStorageByPrefix.put(
