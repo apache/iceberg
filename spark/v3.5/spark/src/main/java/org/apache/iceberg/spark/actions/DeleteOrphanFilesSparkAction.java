@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -41,6 +42,7 @@ import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.actions.FileURI;
 import org.apache.iceberg.actions.ImmutableDeleteOrphanFiles;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
@@ -136,7 +138,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   DeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
 
-    this.hadoopConf = new SerializableConfiguration(spark.sessionState().newHadoopConf());
+    Configuration listingConf =
+        table.io() instanceof HadoopConfigurable configurable
+            ? configurable.getConf()
+            : spark.sessionState().newHadoopConf();
+    this.hadoopConf = new SerializableConfiguration(listingConf);
     this.listingParallelism = spark.sessionState().conf().parallelPartitionDiscoveryParallelism();
     this.table = table;
     this.location = table.location();
