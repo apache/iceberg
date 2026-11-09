@@ -102,7 +102,17 @@ jobs:
         # Read-only: java-ci's build-checks (17) is the global canonical writer.
         cache-read-only: true
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-    - run: ./gradlew -DsparkVersions= -DkafkaVersions= -DflinkVersions=${{ matrix.flink }} :iceberg-flink:iceberg-flink-${{ matrix.flink }}:check :iceberg-flink:iceberg-flink-runtime-${{ matrix.flink }}:check -Pquick=true -x javadoc -DtestParallelism=auto
+    - run: |
+        # Dump threads of all JVMs if the build hangs, before the job timeout kills them
+        (
+          sleep $((40 * 60))
+          for pid in $(jcmd -l | awk '$2 != "jdk.jcmd/sun.tools.jcmd.JCmd" {print $1}'); do
+            echo "=== Thread dump of $(jcmd "$pid" VM.command_line | head -n 5)"
+            jcmd "$pid" Thread.print -l
+          done
+        ) &
+        trap 'kill $!' EXIT
+        ./gradlew -DsparkVersions= -DkafkaVersions= -DflinkVersions=${{ matrix.flink }} :iceberg-flink:iceberg-flink-${{ matrix.flink }}:check :iceberg-flink:iceberg-flink-runtime-${{ matrix.flink }}:check -Pquick=true -x javadoc -DtestParallelism=auto
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       if: failure()
       with:
