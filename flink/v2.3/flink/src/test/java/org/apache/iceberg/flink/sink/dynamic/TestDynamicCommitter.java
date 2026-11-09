@@ -1023,6 +1023,63 @@ class TestDynamicCommitter {
                 .build());
   }
 
+  @Test
+  void replacePartitionsRejectsDeleteFiles() throws Exception {
+    Table table1 = catalog.loadTable(TableIdentifier.of(TABLE1));
+    assertThat(table1.snapshots()).isEmpty();
+
+    boolean overwriteMode = true;
+    int workerPoolSize = 1;
+    String sinkId = "sinkId";
+    UnregisteredMetricsGroup metricGroup = new UnregisteredMetricsGroup();
+    DynamicCommitterMetrics committerMetrics = new DynamicCommitterMetrics(metricGroup);
+    DynamicWriteResultAggregator aggregator =
+        new DynamicWriteResultAggregator(
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId");
+
+    try (DynamicCommitter dynamicCommitter =
+            new DynamicCommitter(
+                CATALOG_EXTENSION.catalog(),
+                Maps.newHashMap(),
+                overwriteMode,
+                workerPoolSize,
+                sinkId,
+                committerMetrics);
+        OneInputStreamOperatorTestHarness aggregatorHarness =
+            new OneInputStreamOperatorTestHarness(aggregator)) {
+      aggregatorHarness.open();
+
+      TableKey tableKey = new TableKey(TABLE1, "branch");
+      String jobId = JobID.generate().toHexString();
+      String operatorId = new OperatorID().toHexString();
+      int checkpointId = 10;
+
+      byte[][] deltaManifests =
+          aggregator.writeToManifests(
+              tableKey.tableName(),
+              Map.of(
+                  DATA_FILE.specId(),
+                  Sets.newHashSet(
+                      WriteResult.builder()
+                          .addDataFiles(DATA_FILE)
+                          .addDeleteFiles(DELETE_FILE)
+                          .build())),
+              checkpointId);
+
+      CommitRequest<DynamicCommittable> commitRequest =
+          new MockCommitRequest<>(
+              new DynamicCommittable(
+                  tableKey, deltaManifests, jobId, jobId, operatorId, checkpointId));
+
+      assertThatThrownBy(() -> dynamicCommitter.commit(Sets.newHashSet(commitRequest)))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage("Cannot overwrite partitions of table %s with delete files.", table1.name());
+    }
+
+    table1.refresh();
+    assertThat(table1.snapshots()).isEmpty();
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void testThrowsValidationExceptionOnDuplicateCommit(boolean overwriteMode) throws Exception {
