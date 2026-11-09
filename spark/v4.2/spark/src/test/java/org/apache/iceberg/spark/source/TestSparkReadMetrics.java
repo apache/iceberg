@@ -19,16 +19,20 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.spark.source.SparkSQLExecutionHelper.lastExecutedMetricValue;
+import static org.apache.spark.sql.functions.date_add;
+import static org.apache.spark.sql.functions.expr;
 import static org.assertj.core.api.Assertions.assertThat;
 import static scala.collection.JavaConverters.seqAsJavaListConverter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.iceberg.spark.source.metrics.ScanDuration;
 import org.apache.spark.sql.Dataset;
@@ -38,6 +42,7 @@ import org.apache.spark.sql.connector.metric.CustomMetric;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec;
 import org.apache.spark.sql.execution.metric.SQLMetric;
+import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.util.Utils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -50,27 +55,43 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
   @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS dim");
   }
 
   @TestTemplate
-  public void testEffectiveSplitTargetSize() throws NoSuchTableException {
+  public void effectiveSplitTargetSize() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (id BIGINT) USING iceberg TBLPROPERTIES ('read.split.target-size'='134217728')",
         tableName);
     spark.range(100).coalesce(1).writeTo(tableName).append();
 
+    // adaptive sizing lowers the table target to the 16 MB minimum for a small scan
     withSQLConf(
         ImmutableMap.of(
             SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_ENABLED,
             "true",
             SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_PARALLELISM,
             "1000"),
-        () -> assertEffectiveSplitTargetSize(16L * 1024 * 1024));
+        () -> {
+          Dataset<Row> df = spark.sql(String.format("SELECT * FROM %s", tableName));
+          df.collect();
+          SparkPlan scan = df.queryExecution().executedPlan().collectLeaves().head();
+          assertThat(scan.metrics().get("effectiveSplitTargetSize").get().value())
+              .isEqualTo(16L * 1024 * 1024);
+        });
 
+    // without adaptive sizing, the table property is the target
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_ENABLED, "false"),
-        () -> assertEffectiveSplitTargetSize(128L * 1024 * 1024));
+        () -> {
+          Dataset<Row> df = spark.sql(String.format("SELECT * FROM %s", tableName));
+          df.collect();
+          SparkPlan scan = df.queryExecution().executedPlan().collectLeaves().head();
+          assertThat(scan.metrics().get("effectiveSplitTargetSize").get().value())
+              .isEqualTo(128L * 1024 * 1024);
+        });
 
+    // an explicit read option is used as is, even with adaptive sizing enabled
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_ENABLED, "true"),
         () -> {
@@ -80,50 +101,69 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
                   .format("iceberg")
                   .option(SparkReadOptions.SPLIT_SIZE, String.valueOf(32L * 1024 * 1024))
                   .load(tableName);
-          assertEffectiveSplitTargetSize(df, 32L * 1024 * 1024);
+          df.collect();
+          SparkPlan scan = df.queryExecution().executedPlan().collectLeaves().head();
+          assertThat(scan.metrics().get("effectiveSplitTargetSize").get().value())
+              .isEqualTo(32L * 1024 * 1024);
         });
   }
 
   @TestTemplate
-  public void testCustomMetricsAreInstantiableBySpark() {
-    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
+  public void effectiveSplitTargetSizeWithRuntimeFilter() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id BIGINT, date DATE) USING iceberg PARTITIONED BY (date) "
+            + "TBLPROPERTIES ('read.split.target-size'='134217728')",
+        tableName);
+    spark
+        .range(1, 100)
+        .withColumn("date", date_add(expr("DATE '1970-01-01'"), expr("CAST(id % 4 AS INT)")))
+        .coalesce(1)
+        .writeTo(tableName)
+        .option(SparkWriteOptions.FANOUT_ENABLED, "true")
+        .append();
 
-    Dataset<Row> df = spark.sql(String.format("SELECT * FROM %s", tableName));
-    SparkPlan scanPlan = df.queryExecution().executedPlan().collectLeaves().head();
+    sql("CREATE TABLE dim (id BIGINT, date DATE) USING parquet");
+    spark
+        .range(1, 10)
+        .withColumn("date", expr("DATE '1970-01-02'"))
+        .coalesce(1)
+        .write()
+        .mode("append")
+        .insertInto("dim");
 
-    assertThat(scanPlan).isInstanceOf(BatchScanExec.class);
-    CustomMetric[] metrics = ((BatchScanExec) scanPlan).scan().supportedCustomMetrics();
+    // the runtime filter prunes the scan to one partition and re-plans its task groups
+    withSQLConf(
+        ImmutableMap.of(
+            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(),
+            "false",
+            SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_ENABLED,
+            "true",
+            SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_PARALLELISM,
+            "1000"),
+        () -> {
+          Dataset<Row> df =
+              spark.sql(
+                  String.format(
+                      "SELECT f.* FROM %s f JOIN dim d ON f.date = d.date AND d.id = 1",
+                      tableName));
+          assertThat(df.collectAsList()).hasSize(25);
 
-    // Spark's SQLAppStatusListener creates each metric reflectively by class name using a public
-    // zero-argument constructor; a private or nested class silently drops the metric from the UI
-    assertThat(metrics).isNotEmpty();
-    for (CustomMetric metric : metrics) {
-      scala.collection.immutable.Seq<CustomMetric> loaded =
-          Utils.loadExtensions(
-              CustomMetric.class,
-              JavaConverters.asScalaBuffer(List.of(metric.getClass().getName())).toSeq(),
-              spark.sparkContext().conf());
-      assertThat(loaded.size()).as("metric %s", metric.name()).isEqualTo(1);
-    }
-  }
+          List<SparkPlan> scans =
+              seqAsJavaListConverter(df.queryExecution().executedPlan().collectLeaves())
+                  .asJava()
+                  .stream()
+                  .filter(BatchScanExec.class::isInstance)
+                  .collect(Collectors.toList());
+          assertThat(scans).hasSize(1);
+          assertThat(((BatchScanExec) scans.get(0)).runtimeFilters().nonEmpty()).isTrue();
 
-  private void assertEffectiveSplitTargetSize(long expectedSize) {
-    Dataset<Row> df = spark.sql(String.format("SELECT * FROM %s", tableName));
-    assertEffectiveSplitTargetSize(df, expectedSize);
-  }
-
-  private void assertEffectiveSplitTargetSize(Dataset<Row> df, long expectedSize) {
-    df.collect();
-
-    List<SparkPlan> sparkPlans =
-        seqAsJavaListConverter(df.queryExecution().executedPlan().collectLeaves()).asJava();
-    Map<String, SQLMetric> metricsMap =
-        JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
-
-    assertThat(metricsMap)
-        .hasEntrySatisfying(
-            "effectiveSplitTargetSize",
-            sqlMetric -> assertThat(sqlMetric.value()).isEqualTo(expectedSize));
+          Map<String, SQLMetric> metricsMap =
+              JavaConverters.mapAsJavaMapConverter(scans.get(0).metrics()).asJava();
+          assertThat(metricsMap)
+              .hasEntrySatisfying(
+                  "effectiveSplitTargetSize",
+                  sqlMetric -> assertThat(sqlMetric.value()).isEqualTo(16L * 1024 * 1024));
+        });
   }
 
   @TestTemplate
@@ -142,7 +182,25 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
         seqAsJavaListConverter(df.queryExecution().executedPlan().collectLeaves()).asJava();
     Map<String, SQLMetric> metricsMap =
         JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
+
+    // Spark's SQL listener loads each metric reflectively by class name, which requires a public
+    // top-level class with a public zero-argument constructor
+    for (CustomMetric metric :
+        ((BatchScanExec) sparkPlans.get(0)).scan().supportedCustomMetrics()) {
+      assertThat(
+              Utils.loadExtensions(
+                      CustomMetric.class,
+                      JavaConverters.asScalaBuffer(List.of(metric.getClass().getName())).toSeq(),
+                      spark.sparkContext().conf())
+                  .size())
+          .as("Spark should load metric %s", metric.name())
+          .isEqualTo(1);
+    }
     // Common
+    assertThat(metricsMap)
+        .hasEntrySatisfying(
+            "effectiveSplitTargetSize",
+            sqlMetric -> assertThat(sqlMetric.value()).isGreaterThan(0));
     assertThat(metricsMap)
         .hasEntrySatisfying(
             "totalPlanningDuration", sqlMetric -> assertThat(sqlMetric.value()).isNotEqualTo(0));
@@ -221,7 +279,25 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
     Map<String, SQLMetric> metricsMap =
         JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
 
+    // Spark's SQL listener loads each metric reflectively by class name, which requires a public
+    // top-level class with a public zero-argument constructor
+    for (CustomMetric metric :
+        ((BatchScanExec) sparkPlans.get(0)).scan().supportedCustomMetrics()) {
+      assertThat(
+              Utils.loadExtensions(
+                      CustomMetric.class,
+                      JavaConverters.asScalaBuffer(List.of(metric.getClass().getName())).toSeq(),
+                      spark.sparkContext().conf())
+                  .size())
+          .as("Spark should load metric %s", metric.name())
+          .isEqualTo(1);
+    }
+
     // Common
+    assertThat(metricsMap)
+        .hasEntrySatisfying(
+            "effectiveSplitTargetSize",
+            sqlMetric -> assertThat(sqlMetric.value()).isGreaterThan(0));
     assertThat(metricsMap)
         .hasEntrySatisfying(
             "totalPlanningDuration", sqlMetric -> assertThat(sqlMetric.value()).isNotEqualTo(0));

@@ -113,10 +113,10 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private final Schema projection;
   private final List<Expression> filters;
   private final Supplier<ScanReport> scanReportSupplier;
+  private long effectiveSplitTargetSize;
 
   // lazy variables
   private StructType readSchema;
-  private Long effectiveSplitTargetSize;
 
   SparkScan(
       SparkSession spark,
@@ -137,6 +137,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.projection = projection;
     this.filters = filters != null ? filters : Collections.emptyList();
     this.scanReportSupplier = scanReportSupplier;
+    this.effectiveSplitTargetSize = readConf.splitSize();
     SparkSchemaUtil.validateMetadataColumnReferences(schema, projection);
   }
 
@@ -306,9 +307,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     ScanReport scanReport = scanReportSupplier != null ? scanReportSupplier.get() : null;
     List<CustomTaskMetric> driverMetrics = Lists.newArrayList();
 
-    if (effectiveSplitTargetSize != null) {
-      driverMetrics.add(new TaskEffectiveSplitTargetSize(effectiveSplitTargetSize));
-    }
+    driverMetrics.add(new TaskEffectiveSplitTargetSize(effectiveSplitTargetSize));
 
     if (scanReport == null) {
       return driverMetrics.toArray(new CustomTaskMetric[0]);
@@ -396,11 +395,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       }
     }
 
-    recordEffectiveSplitTargetSize(effectiveSplitSize);
+    this.effectiveSplitTargetSize = effectiveSplitSize;
     return effectiveSplitSize;
-  }
-
-  protected void recordEffectiveSplitTargetSize(long splitSize) {
-    this.effectiveSplitTargetSize = splitSize;
   }
 }

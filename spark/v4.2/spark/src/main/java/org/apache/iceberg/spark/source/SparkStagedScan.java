@@ -66,7 +66,6 @@ class SparkStagedScan extends SparkScan {
           taskSetId);
 
       this.taskGroups = TableScanUtil.planTaskGroups(tasks, splitSize, splitLookback, openFileCost);
-      recordEffectiveSplitTargetSize(splitSize);
     }
     return taskGroups;
   }

@@ -113,6 +113,8 @@ public class TestSparkStagedScan extends CatalogTestBase {
       assertThat(scanDF.javaRDD().getNumPartitions())
           .as("Num partitions should match")
           .isEqualTo(2);
+
+      // the staged scan reports the split size it used to plan its task groups
       scanDF.collect();
       List<SparkPlan> sparkPlans =
           seqAsJavaListConverter(scanDF.queryExecution().executedPlan().collectLeaves()).asJava();
