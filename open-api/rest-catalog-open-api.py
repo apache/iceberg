@@ -1371,7 +1371,7 @@ class RemoteSignRequest(BaseModel):
     plan_id: str | None = Field(
         None,
         alias='plan-id',
-        description='Optional identifier of the server side scan plan, supplied for audit and correlation. A server MUST NOT fail a request because the referenced plan is unknown, expired, or cancelled.\n',
+        description='Optional identifier of the server side scan plan, supplied for audit and correlation.\n',
     )
 
 
