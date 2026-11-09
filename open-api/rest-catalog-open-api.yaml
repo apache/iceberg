@@ -55,9 +55,9 @@ info:
       identifiers, the HTTP library, the language runtime, or the operating
       system. These items SHOULD be grouped into a single comment after all
       product tokens and separated by `; `, for example
-      `(jvm 17.0.9; ubuntu 26.04)` or
-      `(cpython 3.11.4; urllib3 2.2.1; macos 15.1)`. The comment is free-form:
-      servers SHOULD treat it as opaque and MUST NOT depend on its contents.
+      `(jvm 17.0.9; ubuntu 26.04)` or `(cpython 3.11.4; urllib3 2.2.1; macos 15.1)`.
+      The comment is free-form: servers SHOULD treat it as opaque and MUST NOT
+      depend on its contents.
 
     Examples:
 
