@@ -55,7 +55,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.ExpireSnapshots;
-import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -1448,17 +1447,17 @@ public class TestExpireSnapshotsAction extends TestBase {
 
     Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
 
-    assertThatThrownBy(
-            () ->
-                SparkActions.get()
-                    .expireSnapshots(table)
-                    .expireOlderThan(end)
-                    .deleteWith(deletedFiles::add)
-                    .execute())
-        .isInstanceOf(NotFoundException.class)
-        .hasMessageContaining(missingLocation);
+    ExpireSnapshots.Result result =
+        SparkActions.get()
+            .expireSnapshots(table)
+            .expireOlderThan(end)
+            .deleteWith(deletedFiles::add)
+            .execute();
 
     assertThat(table.snapshots()).as("Expiration should still commit").hasSize(1);
+    assertThat(result.deletedDataFilesCount())
+        .as("Should report the files deleted despite the missing metadata")
+        .isEqualTo(1L);
     assertThat(deletedFiles)
         .as("Should delete files resolved from other expired snapshots")
         .contains(FILE_B.location());
@@ -1487,15 +1486,11 @@ public class TestExpireSnapshotsAction extends TestBase {
 
     Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
 
-    assertThatThrownBy(
-            () ->
-                SparkActions.get()
-                    .expireSnapshots(table)
-                    .expireOlderThan(end)
-                    .deleteWith(deletedFiles::add)
-                    .execute())
-        .isInstanceOf(NotFoundException.class)
-        .hasMessageContaining(firstSnapshot.manifestListLocation());
+    SparkActions.get()
+        .expireSnapshots(table)
+        .expireOlderThan(end)
+        .deleteWith(deletedFiles::add)
+        .execute();
 
     assertThat(deletedFiles)
         .as("Should delete the statistics file even though the manifest list is missing")

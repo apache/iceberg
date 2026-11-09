@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -45,6 +46,7 @@ import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
+import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
@@ -85,12 +87,8 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   private Dataset<FileInfo> expiredFileDS = null;
   private Boolean cleanExpiredMetadata = null;
 
-  private final Set<String> missingManifestListLocations = Sets.newConcurrentHashSet();
-  private final SetAccumulator<String> missingManifests = new SetAccumulator<>();
-
   ExpireSnapshotsSparkAction(SparkSession spark, Table table) {
     super(spark);
-    spark.sparkContext().register(missingManifests, "expire-snapshots-missing-manifests");
     this.table = table;
     this.ops = ((HasTableOperations) table).operations();
 
@@ -230,24 +228,10 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   }
 
   private ExpireSnapshots.Result doExecute() {
-    Dataset<FileInfo> expiredFiles = expireFiles();
-    Iterator<FileInfo> filesToDelete =
-        streamResults() ? expiredFiles.toLocalIterator() : expiredFiles.collectAsList().iterator();
-    ExpireSnapshots.Result result = deleteFiles(filesToDelete);
-    failIfMissingMetadata();
-    return result;
-  }
-
-  private void failIfMissingMetadata() {
-    Set<String> missingFiles = Sets.newTreeSet(missingManifestListLocations);
-    missingFiles.addAll(missingManifests.value());
-
-    if (!missingFiles.isEmpty()) {
-      throw new NotFoundException(
-          "Expired snapshots and deleted all fully-resolved files, but %s metadata file(s) "
-              + "reachable only from expired snapshots are missing from storage and were skipped. "
-              + "Missing files: %s",
-          missingFiles.size(), COMMA_JOINER.join(missingFiles));
+    if (streamResults()) {
+      return deleteFiles(expireFiles().toLocalIterator());
+    } else {
+      return deleteFiles(expireFiles().collectAsList().iterator());
     }
   }
 
@@ -269,7 +253,7 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
     Set<Long> resolvableSnapshotIds = resolvableSnapshotIds(metadata, deletedSnapshotIds);
 
-    return contentFileDS(staticTable, resolvableSnapshotIds, missingManifests)
+    return contentFileDS(staticTable, resolvableSnapshotIds, SkipMissingManifest::new)
         .union(manifestDS(staticTable, resolvableSnapshotIds))
         .union(manifestListDS(staticTable, resolvableSnapshotIds))
         .union(statisticsFileDS(staticTable, deletedSnapshotIds));
@@ -293,7 +277,6 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
                     "Manifest list {} of expired snapshot {} is missing; skipping its files",
                     manifestListLocation,
                     snapshotId);
-                missingManifestListLocations.add(manifestListLocation);
                 resolvable.remove(snapshotId);
               }
             });
@@ -338,5 +321,26 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
         .deletedManifestListsCount(summary.manifestListsCount())
         .deletedStatisticsFilesCount(summary.statisticsFilesCount())
         .build();
+  }
+
+  /**
+   * Skips manifests that are missing from storage. Only used for files reachable from expired
+   * snapshots: skipping a manifest that a retained snapshot references would let that snapshot's
+   * files look unreferenced, so every other scan fails on a missing manifest.
+   */
+  private static class SkipMissingManifest extends ReadManifest {
+    SkipMissingManifest(Broadcast<Table> table) {
+      super(table);
+    }
+
+    @Override
+    public Iterator<FileInfo> call(ManifestFileBean manifest) {
+      try {
+        return super.call(manifest);
+      } catch (NotFoundException e) {
+        LOG.warn("Skipping manifest missing from storage: {}", manifest.path(), e);
+        return Collections.emptyIterator();
+      }
+    }
   }
 }
