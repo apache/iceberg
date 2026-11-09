@@ -122,6 +122,7 @@ Notes:
     - after restoring a checkpoint that predates the latest conversion commit
     - when the last planned conversion did not commit
     - when an earlier index update (rebuild or delta) failed
+    - when a data file that was removed since the last trigger is added again
     - when the delta would read more rows than a rebuild
 - The `equalityFieldColumns` set is persisted in operator state. Reconfiguring it across a restart from savepoint is **not supported** and the job will fail fast on restore. Restart from a clean state (no savepoint) if the equality columns change.
 - On restart, the planner rediscovers its position by walking the target branch for the marker property `equality-convert-staging-snapshot` written by the committer. If that marker is no longer reachable on the target branch (target was rolled back, replaced, or the marker snapshot was expired) the planner fails and requires manual intervention.

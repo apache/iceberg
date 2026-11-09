@@ -1430,6 +1430,56 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void rebuildsIndexWhenDeltaAddsRemovedFileAgain(boolean sameCommit) throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    DataFile reused = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    // Untouched rows keep the delta smaller than a rebuild.
+    insert(table, 10, "x");
+    insert(table, 11, "y");
+    insert(table, 12, "z");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      sendTrigger(harness);
+
+      // Removes the indexed file and adds it again, in two commits or in one.
+      if (sameCommit) {
+        table.newOverwrite().deleteFile(reused).addFile(reused).commit();
+      } else {
+        table.newDelete().deleteFile(reused).commit();
+        table.newAppend().appendFile(reused).commit();
+      }
+
+      table.refresh();
+
+      sendTrigger(harness);
+      List<StreamRecord<Exception>> errors =
+          Lists.newArrayList(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM));
+      assertThat(errors).hasSize(1);
+      assertThat(errors.get(0).getValue())
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("is removed and added again");
+      int afterSecond = harness.extractOutputValues().size();
+
+      // The next trigger rebuilds the index.
+      sendTrigger(harness);
+      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
+      List<ReadCommand> all = harness.extractOutputValues();
+      assertThat(all.subList(afterSecond, all.size()))
+          .filteredOn(c -> c.task() instanceof FileScanTask)
+          .extracting(TestEqualityConvertPlanner::filePath)
+          .containsExactlyInAnyOrderElementsOf(liveDataFiles(table));
+    }
+  }
+
   @Test
   void appliesDeltaAfterRestore() throws Exception {
     Table table = createTableWithDelete(3);

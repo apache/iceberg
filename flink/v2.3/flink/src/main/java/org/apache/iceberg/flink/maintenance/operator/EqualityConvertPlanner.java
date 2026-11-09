@@ -465,11 +465,11 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     int addedFileNum = 0;
     int removedFileNum = 0;
     Set<String> removedLater = Sets.newHashSet();
+    Set<String> addedLater = Sets.newHashSet();
 
     // Traverse from latest to oldest to figure out which files have been added-then-deleted.
     // We don't have a defined ordering in the parallel reader tasks, which is why we need to
-    // prevent the same file being added and removed. We can only guarantee correctness if we
-    // either add or remove a file, not both.
+    // prevent the same file being added and removed. We can simply skip processing it in that case.
     for (Snapshot snapshot : externalCommits) {
       if (!hasFileChanges(
           snapshot,
@@ -485,23 +485,31 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
       SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
       validateTargetDeleteFiles(snapshot, changes);
 
-      for (DataFile dataFile : changes.removedDataFiles()) {
-        removedLater.add(dataFile.location());
-        // We need to emit the removed file even if an earlier snapshot in the range added the file.
-        // Otherwise, we would have to traverse the snapshot chain twice. Removing a file which is
-        // never added will not change the index.
-        emitRemovedDataFile(mainSnapshot, dataFile);
-        removedFileNum++;
-      }
-
       for (DataFile dataFile : changes.addedDataFiles()) {
         // Make sure to not index a file which has already been removed.
         if (!removedLater.remove(dataFile.location())) {
+          addedLater.add(dataFile.location());
           emitAddedDataFile(
               mainSnapshot, // Column stats cost memory and the reader doesn't need them.
               dataFile.copyWithoutStats());
           addedFileNum++;
         }
+      }
+
+      for (DataFile dataFile : changes.removedDataFiles()) {
+        // The worker could apply this removal after the newer add of the same file and lose its
+        // rows. Failing makes the next trigger rebuild the index.
+        Preconditions.checkState(
+            !addedLater.contains(dataFile.location()),
+            "Data file %s is removed and added again within the delta to main snapshot %s. The next trigger rebuilds the worker index",
+            dataFile.location(),
+            mainSnapshot.snapshotId());
+        removedLater.add(dataFile.location());
+        // We need to emit the removed file even if an earlier snapshot in the range adds the
+        // file, which we will detect and skip. Removing a file which is never added will not change
+        // the index. Otherwise, we would have to traverse the snapshot chain twice.
+        emitRemovedDataFile(mainSnapshot, dataFile);
+        removedFileNum++;
       }
     }
 
