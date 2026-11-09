@@ -320,6 +320,8 @@ public class TableProperties {
   public static final String WRITE_PARTITION_SUMMARY_LIMIT = "write.summary.partition-limit";
   public static final int WRITE_PARTITION_SUMMARY_LIMIT_DEFAULT = 0;
 
+  public static final String WRITE_SUMMARY_CARRY_FORWARD_KEYS = "write.summary.carry-forward-keys";
+
   public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
   public static final String METADATA_COMPRESSION_DEFAULT = "none";
 
