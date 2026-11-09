@@ -663,6 +663,11 @@ class TrackedFileAdapters {
     }
 
     @Override
+    public List<ColumnFile> columnFiles() {
+      return null;
+    }
+
+    @Override
     public TrackedFile copy() {
       throw new UnsupportedOperationException("copy is not implemented");
     }
@@ -786,6 +791,11 @@ class TrackedFileAdapters {
 
     @Override
     public List<Long> splitOffsets() {
+      return null;
+    }
+
+    @Override
+    public List<ColumnFile> columnFiles() {
       return null;
     }
 

@@ -21,11 +21,13 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
@@ -60,7 +62,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
           TrackedFile.DELETION_VECTOR,
           TrackedFile.MANIFEST_INFO,
           TrackedFile.KEY_METADATA,
-          TrackedFile.SPLIT_OFFSETS);
+          TrackedFile.SPLIT_OFFSETS,
+          TrackedFile.COLUMN_FILES);
 
   private FileContent contentType = null;
   private String location = null;
@@ -79,6 +82,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private ManifestInfo manifestInfo = null;
   private byte[] keyMetadata = null;
   private long[] splitOffsets = null;
+  private List<ColumnFile> columnFiles = null;
 
   private transient StructProjection partitionProjection = null;
 
@@ -107,7 +111,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       DeletionVector deletionVector,
       ManifestInfo manifestInfo,
       ByteBuffer keyMetadata,
-      List<Long> splitOffsets) {
+      List<Long> splitOffsets,
+      List<ColumnFile> columnFiles) {
     super(BASE_TYPE.fields().size());
     this.tracking = tracking;
     this.contentType = contentType;
@@ -124,9 +129,11 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.manifestInfo = manifestInfo;
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
     this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
+    this.columnFiles = columnFiles != null ? Lists.newArrayList(columnFiles) : null;
   }
 
   /** Copy constructor. */
+  @SuppressWarnings("CyclomaticComplexity")
   private TrackedFileStruct(TrackedFileStruct toCopy, Set<Integer> statsIds) {
     super(toCopy);
     this.contentType = toCopy.contentType;
@@ -158,6 +165,14 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         toCopy.splitOffsets != null
             ? Arrays.copyOf(toCopy.splitOffsets, toCopy.splitOffsets.length)
             : null;
+    if (toCopy.columnFiles != null) {
+      this.columnFiles = Lists.newArrayListWithCapacity(toCopy.columnFiles.size());
+      for (ColumnFile columnFile : toCopy.columnFiles) {
+        this.columnFiles.add(columnFile.copy());
+      }
+    } else {
+      this.columnFiles = null;
+    }
   }
 
   @Override
@@ -256,6 +271,11 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   }
 
   @Override
+  public List<ColumnFile> columnFiles() {
+    return columnFiles != null ? Collections.unmodifiableList(columnFiles) : null;
+  }
+
+  @Override
   public TrackedFile copy() {
     return new TrackedFileStruct(this, null);
   }
@@ -287,6 +307,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       case 12 -> manifestInfo;
       case 13 -> keyMetadata();
       case 14 -> splitOffsets();
+      case 15 -> columnFiles();
       default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     };
   }
@@ -311,6 +332,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       case 12 -> this.manifestInfo = (ManifestInfo) value;
       case 13 -> this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
       case 14 -> this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
+      case 15 -> this.columnFiles = (List<ColumnFile>) value;
       default -> {
         // ignore the object, it must be from a newer version of the format
       }
@@ -335,6 +357,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         .add("manifest_info", manifestInfo)
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
+        .add("column_files", columnFiles)
         .toString();
   }
 }
