@@ -33,15 +33,10 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 /**
- * Serializer for {@link StructLike} tuples. Two entry points:
- *
- * <ul>
- *   <li>{@link #serializeKey} builds a Flink keyed-state key ({@link SerializedEqualityValues})
- *       from the equality values alone, so all rows with the same key co-locate on one shard
- *       regardless of partition spec. Spec scoping of a delete is applied at resolve time, not in
- *       the key.
- *   <li>{@link #encodePartition} / {@link #decodePartition} serialize partition tuples into bytes.
- * </ul>
+ * Serializer for partition tuples. {@link #encodePartition} / {@link #decodePartition} convert
+ * {@link StructLike}s holding Iceberg's internal representation, such as {@link
+ * org.apache.iceberg.ContentFile#partition()}, to and from bytes. Equality keys are serialized by
+ * {@link RecordSerializer}.
  */
 class StructLikeSerializer {
 
@@ -49,36 +44,6 @@ class StructLikeSerializer {
 
   private final ByteArrayOutputStream baos = new ByteArrayOutputStream();
   private final DataOutputStream dos = new DataOutputStream(baos);
-
-  /**
-   * Serializes the equality values of {@code key} into a keyed-state key.
-   *
-   * <p>Field values must use Iceberg's internal representation, as expected by {@link
-   * Conversions#toByteBuffer(Type, Object)}: for example days as {@code int} for {@code date},
-   * microseconds as {@code long} for {@code time} and {@code timestamp}. Generic {@link
-   * org.apache.iceberg.data.Record}s hold {@code java.time} values instead and must be wrapped with
-   * {@link org.apache.iceberg.data.InternalRecordWrapper} first.
-   */
-  public SerializedEqualityValues serializeKey(StructLike key, Types.StructType keyType) {
-    baos.reset();
-    try {
-      List<Types.NestedField> fields = keyType.fields();
-      dos.writeInt(fields.size());
-      for (Types.NestedField field : fields) {
-        dos.writeInt(field.fieldId());
-      }
-
-      for (int i = 0; i < fields.size(); i++) {
-        writeField(key, i, fields.get(i).type());
-      }
-
-      dos.flush();
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to serialize PK index key", e);
-    }
-
-    return new SerializedEqualityValues(baos.toByteArray());
-  }
 
   public byte[] encodePartition(StructLike partition, Types.StructType partitionType) {
     List<Types.NestedField> fields = partitionType.fields();
@@ -89,7 +54,7 @@ class StructLikeSerializer {
     baos.reset();
     try {
       for (int i = 0; i < fields.size(); i++) {
-        writeField(partition, i, fields.get(i).type());
+        writeField(dos, partition, i, fields.get(i).type());
       }
 
       dos.flush();
@@ -133,7 +98,12 @@ class StructLikeSerializer {
     return partition;
   }
 
-  private void writeField(StructLike struct, int pos, Type fieldType) throws IOException {
+  /**
+   * Writes a null marker, then the length-prefixed {@link Conversions#toByteBuffer(Type, Object)}
+   * bytes of the field at {@code pos}, which must hold Iceberg's internal representation.
+   */
+  static void writeField(DataOutputStream dos, StructLike struct, int pos, Type fieldType)
+      throws IOException {
     Object value = struct.get(pos, Object.class);
     if (value == null) {
       dos.writeBoolean(true);
