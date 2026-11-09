@@ -5562,7 +5562,7 @@ components:
           type: string
           description: Optional body of the request to send to the signing API, as in `RemoteSignRequest`.
 
-    CompletedSignResult:
+    CompletedRemoteSignBatchElement:
       description: A successfully signed batch element
       allOf:
         - $ref: '#/components/schemas/RemoteSignResult'
@@ -5575,7 +5575,7 @@ components:
               minimum: 0
               description: The 0-based position of the element in `requests`
 
-    FailedSignResult:
+    FailedRemoteSignBatchElement:
       description: A batch element that could not be signed
       type: object
       required:
@@ -5589,7 +5589,7 @@ components:
         error:
           $ref: '#/components/schemas/ErrorModel'
 
-    RemoteSignBatchResponse:
+    RemoteSignBatchResult:
       description: The result of a batch remote request signing operation.
       type: object
       required:
@@ -5600,12 +5600,12 @@ components:
           description: Elements that were signed
           type: array
           items:
-            $ref: '#/components/schemas/CompletedSignResult'
+            $ref: '#/components/schemas/CompletedRemoteSignBatchElement'
         failed:
           description: Elements that could not be signed
           type: array
           items:
-            $ref: '#/components/schemas/FailedSignResult'
+            $ref: '#/components/schemas/FailedRemoteSignBatchElement'
 
     RemoteSigningConfig:
       description: Configuration for the remote signer client.
@@ -5966,7 +5966,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/RemoteSignBatchResponse'
+            $ref: '#/components/schemas/RemoteSignBatchResult'
 
   #######################################
   # Common examples of different values #

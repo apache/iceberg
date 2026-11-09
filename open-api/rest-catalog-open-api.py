@@ -1188,7 +1188,7 @@ class RemoteSignBatchElement(BaseModel):
     )
 
 
-class CompletedSignResult(RemoteSignResult):
+class CompletedRemoteSignBatchElement(RemoteSignResult):
     """
     A successfully signed batch element
     """
@@ -1198,7 +1198,7 @@ class CompletedSignResult(RemoteSignResult):
     )
 
 
-class FailedSignResult(BaseModel):
+class FailedRemoteSignBatchElement(BaseModel):
     """
     A batch element that could not be signed
     """
@@ -1209,15 +1209,15 @@ class FailedSignResult(BaseModel):
     error: ErrorModel
 
 
-class RemoteSignBatchResponse(BaseModel):
+class RemoteSignBatchResult(BaseModel):
     """
     The result of a batch remote request signing operation.
     """
 
-    completed: list[CompletedSignResult] = Field(
+    completed: list[CompletedRemoteSignBatchElement] = Field(
         ..., description='Elements that were signed'
     )
-    failed: list[FailedSignResult] = Field(
+    failed: list[FailedRemoteSignBatchElement] = Field(
         ..., description='Elements that could not be signed'
     )
 
