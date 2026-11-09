@@ -206,9 +206,15 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
         });
   }
 
-  // Spark's SQL listener loads each metric by class name, which requires a public class with a
-  // public zero-argument constructor
-  private static void assertMetricsLoadableBySpark(SparkPlan scan) {
+  @TestTemplate
+  void customMetricsAreLoadableBySpark() {
+    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
+
+    Dataset<Row> df = spark.sql(String.format("SELECT * FROM %s", tableName));
+    SparkPlan scan = df.queryExecution().executedPlan().collectLeaves().head();
+
+    // Spark's SQL listener loads each metric by class name, which requires a public class with a
+    // public zero-argument constructor
     for (CustomMetric metric : ((BatchScanExec) scan).scan().supportedCustomMetrics()) {
       Class<?> metricClass = metric.getClass();
       assertThat(Modifier.isPublic(metricClass.getModifiers()))
@@ -237,7 +243,6 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
     Map<String, SQLMetric> metricsMap =
         JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
 
-    assertMetricsLoadableBySpark(sparkPlans.get(0));
     // Common
     assertThat(metricsMap)
         .hasEntrySatisfying(
@@ -320,8 +325,6 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
         seqAsJavaListConverter(df.queryExecution().executedPlan().collectLeaves()).asJava();
     Map<String, SQLMetric> metricsMap =
         JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
-
-    assertMetricsLoadableBySpark(sparkPlans.get(0));
 
     // Common
     assertThat(metricsMap)
