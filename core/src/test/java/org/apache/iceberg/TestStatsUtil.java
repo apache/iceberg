@@ -683,6 +683,12 @@ public class TestStatsUtil {
   }
 
   @Test
+  void truncateStringUpperBoundIsNextPrefix() {
+    assertThat(sourceBounds(Types.StringType.get(), Transforms.truncate(3), "abc"))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>("abc", "abd"));
+  }
+
+  @Test
   void truncateStringShorterThanWidth() {
     assertThat(sourceBounds(Types.StringType.get(), Transforms.truncate(3), "ab"))
         .isEqualTo(new StatsUtil.PartitionSourceBounds<>("ab", "ab"));
@@ -696,12 +702,6 @@ public class TestStatsUtil {
 
     assertThat(sourceBounds(Types.StringType.get(), Transforms.truncate(4), value))
         .isEqualTo(new StatsUtil.PartitionSourceBounds<>(value, value));
-  }
-
-  @Test
-  void truncateStringUpperBoundIsNextPrefix() {
-    assertThat(sourceBounds(Types.StringType.get(), Transforms.truncate(3), "abc"))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds<>("abc", "abd"));
   }
 
   @Test
@@ -733,7 +733,7 @@ public class TestStatsUtil {
   }
 
   @Test
-  void truncateBinaryBounds() {
+  void truncateBinaryUpperBoundIsNextPrefix() {
     ByteBuffer prefix = ByteBuffer.wrap(new byte[] {1, 2});
 
     assertThat(sourceBounds(Types.BinaryType.get(), Transforms.truncate(2), prefix))
@@ -742,11 +742,27 @@ public class TestStatsUtil {
   }
 
   @Test
-  void truncateShortBinary() {
+  void truncateBinaryShorterThanWidth() {
     ByteBuffer value = ByteBuffer.wrap(new byte[] {1});
 
     assertThat(sourceBounds(Types.BinaryType.get(), Transforms.truncate(2), value))
         .isEqualTo(new StatsUtil.PartitionSourceBounds<>(value, value));
+  }
+
+  @Test
+  void truncateBinaryUpperBoundSkipsMaxByte() {
+    ByteBuffer prefix = ByteBuffer.wrap(new byte[] {1, (byte) 0xFF});
+
+    assertThat(sourceBounds(Types.BinaryType.get(), Transforms.truncate(2), prefix))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(prefix, ByteBuffer.wrap(new byte[] {2})));
+  }
+
+  @Test
+  void truncateBinaryNoUpperBoundAtMaxBytes() {
+    ByteBuffer prefix = ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF});
+
+    assertThat(sourceBounds(Types.BinaryType.get(), Transforms.truncate(2), prefix))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(prefix, null));
   }
 
   private static final List<Transform<?, ?>> BINARY_TRANSFORMS =
@@ -769,24 +785,9 @@ public class TestStatsUtil {
     assertThat(value.position()).isZero();
   }
 
-  @Test
-  void truncateBinaryUpperBoundSkipsMaxByte() {
-    ByteBuffer prefix = ByteBuffer.wrap(new byte[] {1, (byte) 0xFF});
-
-    assertThat(sourceBounds(Types.BinaryType.get(), Transforms.truncate(2), prefix))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(prefix, ByteBuffer.wrap(new byte[] {2})));
-  }
-
-  @Test
-  void truncateBinaryNoUpperBoundAtMaxBytes() {
-    ByteBuffer prefix = ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF});
-
-    assertThat(sourceBounds(Types.BinaryType.get(), Transforms.truncate(2), prefix))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(prefix, null));
-  }
-
   private static Stream<Partition> timePartitionValues() {
     Type date = Types.DateType.get();
+    // a given partition value has the same bounds with or without a zone, so only zoned is tested
     Type timestamp = Types.TimestampType.withZone();
     Type timestampNano = Types.TimestampNanoType.withZone();
     return Stream.of(
