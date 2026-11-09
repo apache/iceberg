@@ -95,15 +95,11 @@ Writers must write `index-type` in lower case. Readers must match it case-insens
 #### Extract Schema
 
 The extract schema is an Iceberg [schema](spec.md#schemas-and-data-types) and follows the same rules as a table schema.
-It defines the fields of an index entry and is used to read region files. It contains:
-
-* Identity columns, which store a value of the indexed row as is. [`identity-fields`](#identity-fields) maps each
-  source field to its identity column. A source field is a source table field or a
-  [metadata column](spec.md#reserved-field-ids), except `_deleted`, `_partition`, the changelog columns
-  (`_change_type`, `_change_ordinal`, `_commit_snapshot_id`), and the delete file columns (`file_path`, `pos`, `row`).
-* [Derived columns](https://docs.google.com/document/d/1u93kyIrTc8bt9VSTB4O0GM9S7zuXekqixJR6Id2FZC4), which are
-  computed only from identity columns by a deterministic expression and stored in region files. Derived columns must
-  be `generated-always`. Derived values that are not stored are defined as [stats-only fields](#stats-only-fields).
+It defines the fields of an index entry and is used to read region files. It contains identity columns, which store a
+value of the indexed row as is. [`identity-fields`](#identity-fields) maps each source field to its identity column. A
+source field is a source table field or a [metadata column](spec.md#reserved-field-ids), except `_deleted`,
+`_partition`, the changelog columns (`_change_type`, `_change_ordinal`, `_commit_snapshot_id`), and the delete file
+columns (`file_path`, `pos`, `row`).
 
 Extract schemas are stored in `schemas`, and each extract references one by `extract-schema-id`. Each identity column
 must have the type of its source field: for a table field, as defined by the schema of the extract's source table
@@ -113,10 +109,10 @@ If the source field of an identity column is dropped, no new extracts can be cre
 
 ##### Extract Schema Evolution
 
-Extract schemas of an index may differ only in field types and optionality. Field IDs, names, order, nesting, and
-derived column definitions must be the same in every extract schema. Compared to the most recently added extract
-schema, each field in a new extract schema must have the same type or a valid
-[type promotion](spec.md#schema-evolution), and may change from required to optional but not from optional to required.
+Extract schemas of an index may differ only in field types and optionality. Field IDs, names, order, and nesting must
+be the same in every extract schema. Compared to the most recently added extract schema, each field in a new extract
+schema must have the same type or a valid [type promotion](spec.md#schema-evolution), and may change from required to
+optional but not from optional to required.
 
 Stats-only fields are shared by all extracts. The `data-type` of a stats-only field may change only by a valid type
 promotion, when a new extract schema promotes the result type of its `expr`. No other stats-only field property may
@@ -337,11 +333,11 @@ Iceberg standardizes the index lifecycle, the snapshot relationship, and the min
 cross-engine use. Engines remain free to skip index types they do not implement, use exact snapshot matches only, or
 implement more advanced stale-index logic.
 
-### Identity, Derived, and Stats-only Fields
+### Identity and Stats-only Fields
 
-Derived expressions must be deterministic so that entries land at reproducible positions. Computing them only from
-identity columns keeps a region file self-contained: maintenance can recompute stats-only fields when it rewrites region
-files, and entries that share an ordering key are told apart by its inputs, such as `user_id` under
+Stats-only field expressions must be deterministic so that entries land at reproducible positions. Computing them only
+from identity columns keeps a region file self-contained: maintenance can recompute stats-only fields when it rewrites
+region files, and entries that share an ordering key are told apart by its inputs, such as `user_id` under
 `bucket(256, user_id)`.
 
 The extract schema then describes exactly the columns of a region file, and statistics for unstored values are tracked
@@ -410,8 +406,7 @@ Without any of these, an index cannot return source rows, only the values of its
 
 A stats-only field suits an expression that is order preserving over a stored identity column, such as `day(ts)`: the
 statistics of `ts` bound `day(ts)`, so a reader can still seek within a region file. Other expressions, such as
-`bucket(256, user_id)`, must be evaluated over every row of an opened region file, so a `generated-always` derived
-column suits them better, unless storing the values costs more than recomputing them.
+`bucket(256, user_id)`, must be evaluated over every row of an opened region file.
 
 ### Choosing an Ordering Key
 
@@ -439,16 +434,16 @@ format, record count, size, and the ordering key upper bound used for pruning.
 
 The extract schema has identity columns for `user_id` (source field `1`) and for the `_file` and `_pos` metadata
 columns, which record the source row location. `identity-fields` maps them to extract schema field IDs `1`, `2`, and
-`3`, so the metadata columns take ordinary IDs instead of their reserved ones. The bucket is a `generated-always`
-derived column computed from the `user_id` identity column and stored in region files, rather than a stats-only field,
-because `bucket` is not order preserving and its `int` values are cheap to store. The extract schema is:
+`3`, so the metadata columns take ordinary IDs instead of their reserved ones. The extract schema is:
 
-| Field id, name   | Type     | Column                                     | Description                                |
-|------------------|----------|--------------------------------------------|--------------------------------------------|
-| **`1  user_id`** | `long`   | Identity of source field `1`               | The indexed source column                  |
-| **`2  file`**    | `string` | Identity of `_file`                        | The source data file that contains the row |
-| **`3  pos`**     | `long`   | Identity of `_pos`                         | The row position within that data file     |
-| **`4  bucket`**  | `int`    | `generated-always`, `bucket(256, user_id)` | The hash bucket of `user_id`               |
+| Field id, name   | Type     | Column                       | Description                                |
+|------------------|----------|------------------------------|--------------------------------------------|
+| **`1  user_id`** | `long`   | Identity of source field `1` | The indexed source column                  |
+| **`2  file`**    | `string` | Identity of `_file`          | The source data file that contains the row |
+| **`3  pos`**     | `long`   | Identity of `_pos`           | The row position within that data file     |
+
+The bucket is a stats-only field with ID `4`, computed from the `user_id` identity column by `bucket(256, user_id)`. It
+is not stored in region files, and `ordering-key` references it by its ID.
 
 The location columns are not part of the ordering key, so entries that fall in the same bucket with the same `user_id`
 are ordered by source location only because the writer chose to store them that way.
@@ -494,20 +489,17 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
       "name" : "pos",
       "required" : true,
       "type" : "long"
-    }, {
-      "id" : 4,
-      "name" : "bucket",
-      "required" : true,
-      "type" : "int",
-      "derived" : {
-        "kind" : "generated-always",
-        "expr" : {
-          "type" : "apply",
-          "function" : { "catalog" : "iceberg_functions", "identifier" : [ "bucket" ] },
-          "arguments" : [ 256, { "type" : "reference", "id" : 1 } ]
-        }
-      }
     } ]
+  } ],
+  "stats-fields" : [ {
+    "field-id" : 4,
+    "type" : "expr-value",
+    "data-type" : "int",
+    "expr" : {
+      "type" : "apply",
+      "function" : { "catalog" : "iceberg_functions", "identifier" : [ "bucket" ] },
+      "arguments" : [ 256, { "type" : "reference", "id" : 1 } ]
+    }
   } ],
   "ordering-key" : [ 4, 1 ],
   "extracts" : [ {
@@ -546,13 +538,14 @@ A lookup for `user_id = 55310` evaluates the ordering expressions for that value
 `{ bucket: 88, user_id: 55310 }`. That key is not greater than the upper bound of `region-00001.parquet`, the first
 tracking file entry, so only the first region file is read.
 
-The rows of `region-00001.parquet` follow the extract schema and are stored in index order:
+The rows of `region-00001.parquet` follow the extract schema and are stored in index order, which is the order of their
+buckets, `3`, `41`, and `88`:
 
-| user_id | file                            | pos | bucket |
-|---------|---------------------------------|-----|--------|
-| 84721   | .../data/00000-0-(uuid).parquet | 14  | 3      |
-| 12094   | .../data/00001-0-(uuid).parquet | 3   | 41     |
-| 55310   | .../data/00000-0-(uuid).parquet | 92  | 88     |
+| user_id | file                            | pos |
+|---------|---------------------------------|-----|
+| 84721   | .../data/00000-0-(uuid).parquet | 14  |
+| 12094   | .../data/00001-0-(uuid).parquet | 3   |
+| 55310   | .../data/00000-0-(uuid).parquet | 92  |
 
 Reading the matched row gives the source data file and row position of the indexed row, which the engine uses to read
 `user_id = 55310` from the `events` table without scanning it.
@@ -609,15 +602,15 @@ the same `max_ordering_key`, `{ bucket: 88, user_id: 55310 }`. The entry for `re
 the previous tracking file.
 
 The rows of `region-00003.parquet` interleave the entries of the rewritten region file with the entries added for the
-new data file, keeping the index order:
+new data file, keeping the index order of their buckets, `3`, `17`, `41`, `62`, and `88`:
 
-| user_id | file                            | pos | bucket |
-|---------|---------------------------------|-----|--------|
-| 84721   | .../data/00000-0-(uuid).parquet | 14  | 3      |
-| 71004   | .../data/00002-0-(uuid).parquet | 5   | 17     |
-| 12094   | .../data/00001-0-(uuid).parquet | 3   | 41     |
-| 40318   | .../data/00002-0-(uuid).parquet | 22  | 62     |
-| 55310   | .../data/00000-0-(uuid).parquet | 92  | 88     |
+| user_id | file                            | pos |
+|---------|---------------------------------|-----|
+| 84721   | .../data/00000-0-(uuid).parquet | 14  |
+| 71004   | .../data/00002-0-(uuid).parquet | 5   |
+| 12094   | .../data/00001-0-(uuid).parquet | 3   |
+| 40318   | .../data/00002-0-(uuid).parquet | 22  |
+| 55310   | .../data/00000-0-(uuid).parquet | 92  |
 
 `region-00001.parquet` is no longer referenced by the second extract, but it is still referenced by the first and
 must be retained while that extract exists.
