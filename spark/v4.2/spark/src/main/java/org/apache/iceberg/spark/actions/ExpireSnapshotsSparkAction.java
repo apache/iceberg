@@ -253,7 +253,8 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
     Set<Long> resolvableSnapshotIds = resolvableSnapshotIds(metadata, deletedSnapshotIds);
 
-    return contentFileDS(staticTable, resolvableSnapshotIds, SkipMissingManifest::new)
+    return manifestBeanDS(staticTable, resolvableSnapshotIds)
+        .flatMap(new SkipMissingManifest(broadcastTable(staticTable)), FileInfo.ENCODER)
         .union(manifestDS(staticTable, resolvableSnapshotIds))
         .union(manifestListDS(staticTable, resolvableSnapshotIds))
         .union(statisticsFileDS(staticTable, deletedSnapshotIds));
