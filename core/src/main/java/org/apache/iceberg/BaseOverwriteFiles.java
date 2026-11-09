@@ -177,13 +177,8 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
       }
 
       if (!deletedDataFiles.isEmpty()) {
-        if (conflictDetectionFilter != null) {
-          validateNoNewDeletesForDataFiles(
-              base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles, parent);
-        } else {
-          // direct deletes: validate no rows were deleted from deleted files
-          validateNoNewDeletesForDataFiles(base, startingSnapshotId, deletedDataFiles, parent);
-        }
+        // direct deletes: validate no rows were deleted from deleted files
+        validateNoNewDeletesForDataFiles(base, startingSnapshotId, deletedDataFiles, parent);
       }
     }
   }
