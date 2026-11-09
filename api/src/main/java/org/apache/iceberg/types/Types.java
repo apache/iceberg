@@ -1166,6 +1166,17 @@ public class Types {
     private static final String CHECKSUM = "checksum";
     private static final String INLINE = "inline";
 
+    /**
+     * Returns a file type for the field with the given ID.
+     *
+     * <p>The nested fields of the file use the {@link #NUM_NESTED_FIELDS} IDs that follow {@code
+     * baseId}. {@code baseId} must be the ID of the field that holds this type. UpdateSchema
+     * assigns new IDs to each column that it adds. A file type for a new column can use any {@code
+     * baseId}.
+     *
+     * @param baseId the ID of the field that holds this type
+     * @return a file type with nested field IDs derived from baseId
+     */
     public static FileType of(int baseId) {
       return new FileType(baseId);
     }
