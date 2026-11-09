@@ -41,8 +41,18 @@ import software.amazon.awssdk.services.s3.S3ClientBuilder;
 public class TestAwsClientProperties {
 
   public static class CustomCredentialProvider implements AwsCredentialsProvider {
+    private final Map<String, String> properties;
+
+    private CustomCredentialProvider(Map<String, String> properties) {
+      this.properties = properties;
+    }
+
     public static AwsCredentialsProvider create(Map<String, String> properties) {
-      return new CustomCredentialProvider();
+      return new CustomCredentialProvider(properties);
+    }
+
+    Map<String, String> properties() {
+      return properties;
     }
 
     @Override
@@ -261,5 +271,21 @@ public class TestAwsClientProperties {
     AwsCredentialsProvider provider =
         awsClientProperties.credentialsProvider("key", "secret", "token");
     assertThat(provider).isInstanceOf(CustomCredentialProvider.class);
+    assertThat(((CustomCredentialProvider) provider).properties())
+        .containsEntry(VendedCredentialsProvider.URI, "http://localhost:1234/v1/credentials");
+  }
+
+  @Test
+  void customCredentialsProviderWithoutRefreshEndpoint() {
+    AwsClientProperties awsClientProperties =
+        new AwsClientProperties(
+            ImmutableMap.of(
+                AwsClientProperties.CLIENT_CREDENTIALS_PROVIDER,
+                CustomCredentialProvider.class.getName()));
+    AwsCredentialsProvider provider =
+        awsClientProperties.credentialsProvider("key", "secret", "token");
+    assertThat(provider).isInstanceOf(CustomCredentialProvider.class);
+    assertThat(((CustomCredentialProvider) provider).properties())
+        .doesNotContainKey(VendedCredentialsProvider.URI);
   }
 }

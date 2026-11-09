@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
@@ -66,7 +67,8 @@ class V4TestComparators {
             .thenComparing(TrackedFile::deletionVector, DELETION_VECTOR)
             .thenComparing(TrackedFile::manifestInfo, MANIFEST_INFO)
             .thenComparing(TrackedFile::keyMetadata, BYTES)
-            .thenComparing(TrackedFile::splitOffsets, SPLIT_OFFSETS));
+            .thenComparing(TrackedFile::splitOffsets, SPLIT_OFFSETS)
+            .thenComparing(TrackedFile::columnFiles, COLUMN_FILES));
   }
 
   // convenience method for a null-safe natural order comparator
@@ -80,6 +82,22 @@ class V4TestComparators {
       Comparator.nullsFirst(Comparator.comparing(ManifestBitmap::buffer, BYTES));
   private static final Comparator<List<Long>> SPLIT_OFFSETS =
       Comparator.nullsFirst(Comparators.forType(TrackedFile.SPLIT_OFFSETS.type().asListType()));
+
+  // field IDs are a set, so compare them in sorted order to ignore iteration order
+  private static final Comparator<Set<Integer>> FIELD_IDS =
+      Comparator.nullsFirst(
+          Comparator.comparing(
+              ids -> Lists.newArrayList(Sets.newTreeSet(ids)),
+              Comparators.forType(ColumnFile.FIELD_IDS.type().asListType())));
+  private static final Comparator<ColumnFile> COLUMN_FILE =
+      Comparator.nullsFirst(
+          Comparator.comparing(ColumnFile::location, natural())
+              .thenComparing(ColumnFile::fieldIds, FIELD_IDS)
+              .thenComparing(ColumnFile::fileFormat, natural())
+              .thenComparingLong(ColumnFile::fileSizeInBytes)
+              .thenComparing(ColumnFile::keyMetadata, BYTES));
+  private static final Comparator<List<ColumnFile>> COLUMN_FILES =
+      Comparator.nullsFirst(columnFilesComparator());
 
   static final Comparator<Tracking> TRACKING =
       Comparator.nullsFirst(
@@ -143,6 +161,24 @@ class V4TestComparators {
 
       return 0;
     }
+  }
+
+  private static Comparator<List<ColumnFile>> columnFilesComparator() {
+    return (left, right) -> {
+      int sizeCmp = Integer.compare(left.size(), right.size());
+      if (sizeCmp != 0) {
+        return sizeCmp;
+      }
+
+      for (int i = 0; i < left.size(); i += 1) {
+        int cmp = COLUMN_FILE.compare(left.get(i), right.get(i));
+        if (cmp != 0) {
+          return cmp;
+        }
+      }
+
+      return 0;
+    };
   }
 
   private static Map<Integer, FieldStats<?>> statsById(ContentStats stats) {
