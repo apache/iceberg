@@ -349,28 +349,29 @@ class StatsUtil {
    *   <li>For string and binary truncate, upper is the next prefix when it exists, so upper can
    *       truncate to the next partition. That still covers every value that truncates to the
    *       partition.
-   *   <li>For time transforms, lower starts one unit earlier when the partition value is <= 1970 to
-   *       handle older writers that rounded pre-1970 values toward zero.
+   *   <li>For date and timestamp transforms, lower is one period earlier when the partition value
+   *       is 0 or negative. A bug in 0.10.0 and earlier caused negative values to be transformed to
+   *       1 larger than the correct value. For example, day(1969-12-31 10:00:00) produced 0 instead
+   *       of -1. Day partitions of date columns were not affected. See
+   *       https://github.com/apache/iceberg/pull/1981.
    * </ul>
    */
   record PartitionSourceBounds<T>(T lower, T upper) {}
 
   /**
-   * Returns the source column bounds for a partition value, or null for a NaN identity value.
-   *
-   * @throws IllegalArgumentException if the transform does not preserve order or the value is null
+   * Returns the bounds for non-null, non-NaN source values in a partition, or null if the partition
+   * value is null or NaN or the transform does not preserve order.
    */
   static PartitionSourceBounds<?> sourceBoundsFor(
       Schema schema, PartitionField field, Object partitionValue) {
-    Preconditions.checkArgument(
-        field.transform().preservesOrder(),
-        "Cannot derive source column bounds from partition field that does not preserve order: %s",
-        field);
-    Preconditions.checkArgument(
-        partitionValue != null, "Cannot derive source column bounds from null partition value");
+    if (partitionValue == null || !field.transform().preservesOrder()) {
+      return null;
+    }
+
     Type sourceType = schema.findType(field.sourceId());
     Preconditions.checkArgument(
         sourceType != null, "Cannot find source column for partition field: %s", field);
+
     return PartitionSpecVisitor.visit(
         schema, field, new PartitionSourceBoundsVisitor(sourceType, partitionValue));
   }
@@ -392,8 +393,11 @@ class StatsUtil {
         return null;
       }
 
-      return new PartitionSourceBounds<>(
-          value, value instanceof ByteBuffer buffer ? buffer.duplicate() : value);
+      if (value instanceof ByteBuffer buffer) {
+        return new PartitionSourceBounds<>(buffer.duplicate(), buffer.duplicate());
+      }
+
+      return new PartitionSourceBounds<>(value, value);
     }
 
     @Override
@@ -450,13 +454,14 @@ class StatsUtil {
     private static PartitionSourceBounds<ByteBuffer> truncatedBinary(ByteBuffer prefix, int width) {
       if (prefix.remaining() < width) {
         // a prefix shorter than the width was not truncated, so every value equals it
-        return new PartitionSourceBounds<>(prefix, prefix.duplicate());
+        return new PartitionSourceBounds<>(prefix.duplicate(), prefix.duplicate());
       }
 
       // add a byte so truncateBinaryMax returns the next higher prefix
       ByteBuffer extended = ByteBuffer.allocate(prefix.remaining() + 1);
       extended.put(prefix.duplicate()).put((byte) 0).flip();
-      return new PartitionSourceBounds<>(prefix, BinaryUtil.truncateBinaryMax(extended, width));
+      return new PartitionSourceBounds<>(
+          prefix.duplicate(), BinaryUtil.truncateBinaryMax(extended, width));
     }
 
     @Override
@@ -481,8 +486,7 @@ class StatsUtil {
 
     private PartitionSourceBounds<?> timeBoundsFor(ChronoUnit unit) {
       long periods = (Integer) value;
-      // the lower bound starts one unit earlier for 0 or less since older writers had a bug that
-      // rounded pre-1970 values toward zero, except for day transforms on dates
+      // 0.10.0 and earlier transformed negative values to 1 larger than the correct value
       long lowerPeriods = periods <= 0 ? periods - 1 : periods;
       return switch (sourceType.typeId()) {
         case DATE -> {

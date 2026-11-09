@@ -750,17 +750,23 @@ public class TestStatsUtil {
   }
 
   private static final List<Transform<?, ?>> BINARY_TRANSFORMS =
-      List.of(Transforms.identity(), Transforms.truncate(2));
+      List.of(Transforms.identity(), Transforms.truncate(1), Transforms.truncate(2));
 
   @ParameterizedTest
   @FieldSource("BINARY_TRANSFORMS")
   void binaryBoundsDoNotSharePosition(Transform<?, ?> transform) {
+    ByteBuffer value = ByteBuffer.wrap(new byte[] {1});
     StatsUtil.PartitionSourceBounds<?> bounds =
-        sourceBounds(Types.BinaryType.get(), transform, ByteBuffer.wrap(new byte[] {1}));
+        sourceBounds(Types.BinaryType.get(), transform, value);
+    ByteBuffer lower = (ByteBuffer) bounds.lower();
+    ByteBuffer upper = (ByteBuffer) bounds.upper();
 
-    ((ByteBuffer) bounds.lower()).get();
+    lower.get();
+    upper.get();
 
-    assertThat((ByteBuffer) bounds.upper()).isEqualTo(ByteBuffer.wrap(new byte[] {1}));
+    assertThat(lower.position()).isOne();
+    assertThat(upper.position()).isOne();
+    assertThat(value.position()).isZero();
   }
 
   @Test
@@ -933,22 +939,13 @@ public class TestStatsUtil {
   }
 
   @Test
-  void nullPartitionValueRejected() {
-    assertThatThrownBy(() -> sourceBounds(Types.TimestampType.withZone(), Transforms.hour(), null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot derive source column bounds from null partition value");
+  void nullPartitionValueHasNoBounds() {
+    assertThat(sourceBounds(Types.TimestampType.withZone(), Transforms.hour(), null)).isNull();
   }
 
   @Test
-  void nonOrderPreservingTransformsRejected() {
-    assertThatThrownBy(() -> sourceBounds(Types.StringType.get(), Transforms.bucket(16), 3))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Cannot derive source column bounds from partition field that does not preserve order: 1000: part: bucket[16](1)");
-    assertThatThrownBy(() -> sourceBounds(Types.StringType.get(), Transforms.alwaysNull(), null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Cannot derive source column bounds from partition field that does not preserve order: 1000: part: void(1)");
+  void nonOrderPreservingTransformHasNoBounds() {
+    assertThat(sourceBounds(Types.StringType.get(), Transforms.bucket(16), 3)).isNull();
   }
 
   private static StatsUtil.PartitionSourceBounds<?> sourceBounds(
