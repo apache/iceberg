@@ -672,7 +672,9 @@ class TestV4TrackedFileWrappers {
             Types.StructType.of() /* contentStatsType */);
     assertThatThrownBy(() -> wrapper.wrap(manifest, manifest.tracking(), FIRST_ROW_ID))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot assign first-row-id to delete manifest: %s", manifest.location());
+        .hasMessage(
+            "Cannot assign first-row-id to %s: %s",
+            FileContent.DELETE_MANIFEST, manifest.location());
   }
 
   @ParameterizedTest

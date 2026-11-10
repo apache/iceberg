@@ -825,10 +825,12 @@ class V4Metadata {
             trackedFile.location());
       }
 
-      if (trackedFile.contentType() == FileContent.DELETE_MANIFEST) {
+      FileContent content = trackedFile.contentType();
+      if (content != FileContent.DATA && content != FileContent.DATA_MANIFEST) {
         Preconditions.checkState(
             firstRowId == null,
-            "Cannot assign first-row-id to delete manifest: %s",
+            "Cannot assign first-row-id to %s: %s",
+            content,
             trackedFile.location());
       } else if (firstRowId != null) {
         Preconditions.checkState(
@@ -887,7 +889,8 @@ class V4Metadata {
     }
 
     private Long firstRowId() {
-      if (file.contentType() == FileContent.DELETE_MANIFEST) {
+      FileContent content = file.contentType();
+      if (content != FileContent.DATA && content != FileContent.DATA_MANIFEST) {
         return null;
       }
 
@@ -963,43 +966,6 @@ class V4Metadata {
     }
   }
 
-  /** Wrapper used to write {@link ContentStats} using a manifest's content stats type. */
-  private static class ContentStatsWrapper implements StructLike {
-    private final int[] posToFieldId;
-    private final FieldStatsWrapper[] fieldStats;
-    private ContentStats wrapped = null;
-
-    private ContentStatsWrapper(Types.StructType type) {
-      List<Types.NestedField> fields = type.fields();
-      this.posToFieldId = ContentStatsStruct.posToId(type);
-      this.fieldStats = new FieldStatsWrapper[fields.size()];
-      for (int pos = 0; pos < fields.size(); pos += 1) {
-        fieldStats[pos] = new FieldStatsWrapper(fields.get(pos).type().asStructType());
-      }
-    }
-
-    private ContentStatsWrapper wrap(ContentStats stats) {
-      this.wrapped = stats;
-      return this;
-    }
-
-    @Override
-    public int size() {
-      return posToFieldId.length;
-    }
-
-    @Override
-    public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("Cannot modify ContentStatsWrapper wrapper via set");
-    }
-
-    @Override
-    public <T> T get(int pos, Class<T> javaClass) {
-      FieldStats<?> stats = wrapped.statsFor(posToFieldId[pos]);
-      return stats != null ? javaClass.cast(fieldStats[pos].wrap(stats)) : null;
-    }
-  }
-
   /** Wrapper used to write {@link DeletionVector} using the v4 deletion vector schema. */
   private static class DeletionVectorWrapper implements StructLike {
     private static final int SIZE = DeletionVector.schema().fields().size();
@@ -1067,12 +1033,49 @@ class V4Metadata {
     private Object get(int pos) {
       return switch (pos) {
         case 0 -> wrapped.location();
-        case 1 -> ImmutableList.copyOf(wrapped.fieldIds());
+        case 1 -> wrapped.fieldIds();
         case 2 -> wrapped.fileFormat().toString();
         case 3 -> wrapped.fileSizeInBytes();
         case 4 -> wrapped.keyMetadata();
         default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       };
+    }
+  }
+
+  /** Wrapper used to write {@link ContentStats} using a manifest's content stats type. */
+  private static class ContentStatsWrapper implements StructLike {
+    private final int[] posToFieldId;
+    private final FieldStatsWrapper[] fieldStats;
+    private ContentStats wrapped = null;
+
+    private ContentStatsWrapper(Types.StructType type) {
+      List<Types.NestedField> fields = type.fields();
+      this.posToFieldId = ContentStatsStruct.posToId(type);
+      this.fieldStats = new FieldStatsWrapper[fields.size()];
+      for (int pos = 0; pos < fields.size(); pos += 1) {
+        fieldStats[pos] = new FieldStatsWrapper(fields.get(pos).type().asStructType());
+      }
+    }
+
+    private ContentStatsWrapper wrap(ContentStats stats) {
+      this.wrapped = stats;
+      return this;
+    }
+
+    @Override
+    public int size() {
+      return posToFieldId.length;
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Cannot modify ContentStatsWrapper wrapper via set");
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      FieldStats<?> stats = wrapped.statsFor(posToFieldId[pos]);
+      return stats != null ? javaClass.cast(fieldStats[pos].wrap(stats)) : null;
     }
   }
 
