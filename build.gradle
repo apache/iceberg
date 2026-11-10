@@ -1142,6 +1142,10 @@ project(':iceberg-open-api') {
     testImplementation libs.junit.suite.engine
     testImplementation libs.assertj.core
 
+    testImplementation project(':iceberg-aws-bundle')
+    testImplementation project(':iceberg-gcp-bundle')
+    testImplementation project(':iceberg-azure-bundle')
+
     testFixturesImplementation project(':iceberg-api')
     testFixturesImplementation project(':iceberg-core')
     testFixturesImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
@@ -1182,19 +1186,10 @@ project(':iceberg-open-api') {
     testFixturesImplementation libs.sqlite.jdbc
 
     testFixturesCompileOnly libs.apiguardian
-  }
 
-  afterEvaluate {
-    def awsBundle = evaluationDependsOn(':iceberg-aws-bundle')
-    def gcpBundle = evaluationDependsOn(':iceberg-gcp-bundle')
-    def azureBundle = evaluationDependsOn(':iceberg-azure-bundle')
-
-    dependencies {
-      // Use loose SDK JARs, as in the Kafka Connect distribution, without the shaded bundles.
-      awsBundle.configurations.runtimeClasspath.allDependencies.each { add('testFixturesRuntimeOnly', it.copy()) }
-      gcpBundle.configurations.runtimeClasspath.allDependencies.each { add('testFixturesRuntimeOnly', it.copy()) }
-      azureBundle.configurations.runtimeClasspath.allDependencies.each { add('testFixturesRuntimeOnly', it.copy()) }
-    }
+    testFixturesRuntimeOnly project(':iceberg-aws-bundle')
+    testFixturesRuntimeOnly project(':iceberg-azure-bundle')
+    testFixturesRuntimeOnly project(':iceberg-gcp-bundle')
   }
 
   test {
