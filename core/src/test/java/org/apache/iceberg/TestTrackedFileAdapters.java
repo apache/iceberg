@@ -654,12 +654,10 @@ class TestTrackedFileAdapters {
 
   @Test
   void dataTrackedFileAdapterFromDataFile() {
-    DataFile file = Mockito.spy(DATA_FILE);
-    when(file.tightStats()).thenReturn(true);
-    TrackedFile result = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(file);
+    TrackedFile result = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(DATA_FILE);
 
     assertThat(result.tracking()).isNull();
-    assertWrappedDataFileMatchesFileFields(result, file);
+    assertWrappedDataFileMatchesFileFields(result, DATA_FILE);
   }
 
   @Test
