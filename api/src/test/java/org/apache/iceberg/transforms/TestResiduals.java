@@ -290,6 +290,51 @@ public class TestResiduals {
   }
 
   @Test
+  public void testSignedZeroIdentityResiduals() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(50, "double", Types.DoubleType.get()),
+            Types.NestedField.optional(51, "float", Types.FloatType.get()));
+
+    assertSignedZeroResiduals(
+        PartitionSpec.builderFor(schema).identity("double").build(), "double", 0.0D, -0.0D);
+
+    assertSignedZeroResiduals(
+        PartitionSpec.builderFor(schema).identity("float").build(), "float", 0.0F, -0.0F);
+  }
+
+  private void assertSignedZeroResiduals(
+      PartitionSpec spec, String field, Number positiveZero, Number negativeZero) {
+    assertSignedZeroDirection(spec, field, positiveZero, negativeZero);
+    assertSignedZeroDirection(spec, field, negativeZero, positiveZero);
+  }
+
+  private void assertSignedZeroDirection(
+      PartitionSpec spec, String field, Number literal, Number partitionValue) {
+    Expression[] predicates = {
+      equal(field, literal),
+      Expressions.notEqual(field, literal),
+      lessThan(field, literal),
+      Expressions.lessThanOrEqual(field, literal),
+      greaterThan(field, literal),
+      Expressions.greaterThanOrEqual(field, literal),
+      in(field, literal),
+      notIn(field, literal)
+    };
+
+    boolean[] expected = {true, false, false, true, false, true, true, false};
+
+    for (int i = 0; i < predicates.length; i++) {
+      Expression residual =
+          ResidualEvaluator.of(spec, predicates[i], true).residualFor(Row.of(partitionValue));
+
+      assertThat(residual)
+          .as("Predicate %s with partition value %s", predicates[i], partitionValue)
+          .isEqualTo(expected[i] ? alwaysTrue() : alwaysFalse());
+    }
+  }
+
+  @Test
   public void testIsNaN() {
     Schema schema =
         new Schema(

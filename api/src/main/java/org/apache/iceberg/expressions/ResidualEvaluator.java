@@ -165,49 +165,65 @@ public class ResidualEvaluator implements Serializable {
     @Override
     public <T> Expression lt(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.eval(struct), lit.value()) < 0) ? alwaysTrue() : alwaysFalse();
+      return (PredicateComparisons.compare(ref.eval(struct), lit.value(), cmp) < 0)
+          ? alwaysTrue()
+          : alwaysFalse();
     }
 
     @Override
     public <T> Expression ltEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.eval(struct), lit.value()) <= 0) ? alwaysTrue() : alwaysFalse();
+      return (PredicateComparisons.compare(ref.eval(struct), lit.value(), cmp) <= 0)
+          ? alwaysTrue()
+          : alwaysFalse();
     }
 
     @Override
     public <T> Expression gt(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.eval(struct), lit.value()) > 0) ? alwaysTrue() : alwaysFalse();
+      return (PredicateComparisons.compare(ref.eval(struct), lit.value(), cmp) > 0)
+          ? alwaysTrue()
+          : alwaysFalse();
     }
 
     @Override
     public <T> Expression gtEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.eval(struct), lit.value()) >= 0) ? alwaysTrue() : alwaysFalse();
+      return (PredicateComparisons.compare(ref.eval(struct), lit.value(), cmp) >= 0)
+          ? alwaysTrue()
+          : alwaysFalse();
     }
 
     @Override
     public <T> Expression eq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.eval(struct), lit.value()) == 0) ? alwaysTrue() : alwaysFalse();
+      return (PredicateComparisons.compare(ref.eval(struct), lit.value(), cmp) == 0)
+          ? alwaysTrue()
+          : alwaysFalse();
     }
 
     @Override
     public <T> Expression notEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.eval(struct), lit.value()) != 0) ? alwaysTrue() : alwaysFalse();
+      return (PredicateComparisons.compare(ref.eval(struct), lit.value(), cmp) != 0)
+          ? alwaysTrue()
+          : alwaysFalse();
     }
 
     @Override
     public <T> Expression in(BoundReference<T> ref, Set<T> literalSet) {
       T value = ref.eval(struct);
-      return value != null && literalSet.contains(value) ? alwaysTrue() : alwaysFalse();
+      return value != null && PredicateComparisons.contains(literalSet, value)
+          ? alwaysTrue()
+          : alwaysFalse();
     }
 
     @Override
     public <T> Expression notIn(BoundReference<T> ref, Set<T> literalSet) {
       T value = ref.eval(struct);
-      return value == null || !literalSet.contains(value) ? alwaysTrue() : alwaysFalse();
+      return value == null || !PredicateComparisons.contains(literalSet, value)
+          ? alwaysTrue()
+          : alwaysFalse();
     }
 
     @Override
