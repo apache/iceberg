@@ -575,6 +575,7 @@ class V4Metadata {
     private final Map<Integer, PartitionSpec> specsById;
     private final Map<Integer, StructProjection> partitionProjections;
     private final ContentStatsWrapper contentStats;
+    private final DeletionVectorWrapper deletionVector = new DeletionVectorWrapper();
 
     private TrackedFile wrapped = null;
     private Integer specId = null;
@@ -633,11 +634,12 @@ class V4Metadata {
         case 7 -> unionPartition();
         case 8 -> wrapped.contentStats() != null ? contentStats.wrap(wrapped.contentStats()) : null;
         case 9 -> wrapped.sortOrderId();
-        case 10 -> wrapped.deletionVector();
+        case 10 ->
+            wrapped.deletionVector() != null ? deletionVector.wrap(wrapped.deletionVector()) : null;
         case 11 -> manifestInfo;
         case 12 -> wrapped.keyMetadata();
         case 13 -> wrapped.splitOffsets();
-        case 14 -> wrapped.columnFiles();
+        case 14 -> wrapColumnFiles(wrapped.columnFiles());
         default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       };
     }
@@ -766,6 +768,19 @@ class V4Metadata {
       }
 
       return copies;
+    }
+
+    private static List<StructLike> wrapColumnFiles(List<ColumnFile> columnFiles) {
+      if (columnFiles == null) {
+        return null;
+      }
+
+      List<StructLike> wrappers = Lists.newArrayListWithCapacity(columnFiles.size());
+      for (ColumnFile columnFile : columnFiles) {
+        wrappers.add(new ColumnFileWrapper(columnFile));
+      }
+
+      return wrappers;
     }
 
     private StructLike unionPartition() {
@@ -1240,6 +1255,82 @@ class V4Metadata {
     public <T> T get(int pos, Class<T> javaClass) {
       FieldStats<?> stats = wrapped.statsFor(posToFieldId[pos]);
       return stats != null ? javaClass.cast(fieldStats[pos].wrap(stats)) : null;
+    }
+  }
+
+  /** Wrapper used to write {@link DeletionVector} using the v4 deletion vector schema. */
+  private static class DeletionVectorWrapper implements StructLike {
+    private static final int SIZE = DeletionVector.schema().fields().size();
+
+    private DeletionVector wrapped = null;
+
+    private DeletionVectorWrapper wrap(DeletionVector dv) {
+      this.wrapped = dv;
+      return this;
+    }
+
+    @Override
+    public int size() {
+      return SIZE;
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException(
+          "Cannot modify DeletionVectorWrapper wrapper via set");
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(get(pos));
+    }
+
+    private Object get(int pos) {
+      return switch (pos) {
+        case 0 -> wrapped.location();
+        case 1 -> wrapped.offset();
+        case 2 -> wrapped.sizeInBytes();
+        case 3 -> wrapped.cardinality();
+        case 4 -> wrapped.keyMetadata();
+        default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      };
+    }
+  }
+
+  /** Wrapper used to write {@link ColumnFile} using the v4 column file schema. */
+  private static class ColumnFileWrapper implements StructLike {
+    private static final int SIZE = ColumnFile.schema().fields().size();
+
+    private final ColumnFile wrapped;
+
+    private ColumnFileWrapper(ColumnFile columnFile) {
+      this.wrapped = columnFile;
+    }
+
+    @Override
+    public int size() {
+      return SIZE;
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Cannot modify ColumnFileWrapper wrapper via set");
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(get(pos));
+    }
+
+    private Object get(int pos) {
+      return switch (pos) {
+        case 0 -> wrapped.location();
+        case 1 -> ImmutableList.copyOf(wrapped.fieldIds());
+        case 2 -> wrapped.fileFormat().toString();
+        case 3 -> wrapped.fileSizeInBytes();
+        case 4 -> wrapped.keyMetadata();
+        default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      };
     }
   }
 
