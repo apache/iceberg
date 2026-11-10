@@ -1993,21 +1993,21 @@ Iceberg would build the desired reader schema with their schema evolution rules 
 
 The 32-bit hash implementation is 32-bit Murmur3 hash, x86 variant, seeded with 0.
 
-| Primitive type     | Hash specification                        | Test value                                 |
-|--------------------|-------------------------------------------|--------------------------------------------|
-| **`int`**          | `hashLong(long(v))`          [1]          | `34` ￫ `2017239379`                        |
-| **`long`**         | `hashBytes(littleEndianBytes(v))`         | `34L` ￫ `2017239379`                       |
-| **`decimal(P,S)`** | `hashBytes(minBigEndian(unscaled(v)))`[2] | `14.20` ￫ `-500754589`                     |
-| **`date`**         | `hashInt(daysFromUnixEpoch(v))`           | `2017-11-16` ￫ `-653330422`                |
-| **`time`**         | `hashLong(microsecsFromMidnight(v))`      | `22:31:08` ￫ `-662762989`                  |
-| **`timestamp`**    | `hashLong(microsecsFromUnixEpoch(v))`     | `2017-11-16T22:31:08` ￫ `-2047944441`<br />`2017-11-16T22:31:08.000001` ￫ `-1207196810` |
-| **`timestamptz`**  | `hashLong(microsecsFromUnixEpoch(v))`     | `2017-11-16T14:31:08-08:00` ￫ `-2047944441`<br />`2017-11-16T14:31:08.000001-08:00` ￫ `-1207196810` |
-| **`timestamp_ns`** | `hashLong(microsecsFromUnixEpoch(v))` [3] | `2017-11-16T22:31:08` ￫ `-2047944441`<br />`2017-11-16T22:31:08.000001001` ￫ `-1207196810`<br />`1969-12-31T23:59:59.999999999` ￫ `1651860712` |
-| **`timestamptz_ns`** | `hashLong(microsecsFromUnixEpoch(v))` [3]| `2017-11-16T14:31:08-08:00` ￫ `-2047944441`<br />`2017-11-16T14:31:08.000001001-08:00` ￫ `-1207196810`<br />`1969-12-31T23:59:59.999999999+00:00` ￫ `1651860712` |
-| **`string`**       | `hashBytes(utf8Bytes(v))`                 | `iceberg` ￫ `1210000089`                   |
-| **`uuid`**         | `hashBytes(uuidBytes(v))`        [4]      | `f79c3e09-677c-4bbd-a479-3f349cb785e7` ￫ `1488055340`               |
-| **`fixed(L)`**     | `hashBytes(v)`                            | `00 01 02 03` ￫ `-188683207`               |
-| **`binary`**       | `hashBytes(v)`                            | `00 01 02 03` ￫ `-188683207`               |
+| Primitive type       | Hash specification                        | Test value                                 |
+|----------------------|-------------------------------------------|--------------------------------------------|
+| **`int`**            | `hashLong(long(v))`          [1]          | `34` ￫ `2017239379`                        |
+| **`long`**           | `hashBytes(littleEndianBytes(v))`         | `34L` ￫ `2017239379`                       |
+| **`decimal(P,S)`**   | `hashBytes(minBigEndian(unscaled(v)))`[2] | `14.20` ￫ `-500754589`                     |
+| **`date`**           | `hashInt(daysFromUnixEpoch(v))`           | `2017-11-16` ￫ `-653330422`                |
+| **`time`**           | `hashLong(microsecsFromMidnight(v))`      | `22:31:08` ￫ `-662762989`                  |
+| **`timestamp`**      | `hashLong(microsecsFromUnixEpoch(v))`     | `2017-11-16T22:31:08` ￫ `-2047944441`<br />`2017-11-16T22:31:08.000001` ￫ `-1207196810` |
+| **`timestamptz`**    | `hashLong(microsecsFromUnixEpoch(v))`     | `2017-11-16T14:31:08-08:00` ￫ `-2047944441`<br />`2017-11-16T14:31:08.000001-08:00` ￫ `-1207196810` |
+| **`timestamp_ns`**   | `hashLong(microsecsFromUnixEpoch(v))` [3] | `2017-11-16T22:31:08` ￫ `-2047944441`<br />`2017-11-16T22:31:08.000001001` ￫ `-1207196810`<br />`1969-12-31T23:59:59.999999999` ￫ `1651860712` |
+| **`timestamptz_ns`** | `hashLong(microsecsFromUnixEpoch(v))` [3] | `2017-11-16T14:31:08-08:00` ￫ `-2047944441`<br />`2017-11-16T14:31:08.000001001-08:00` ￫ `-1207196810`<br />`1969-12-31T23:59:59.999999999+00:00` ￫ `1651860712` |
+| **`string`**         | `hashBytes(utf8Bytes(v))`                 | `iceberg` ￫ `1210000089`                   |
+| **`uuid`**           | `hashBytes(uuidBytes(v))`        [4]      | `f79c3e09-677c-4bbd-a479-3f349cb785e7` ￫ `1488055340`               |
+| **`fixed(L)`**       | `hashBytes(v)`                            | `00 01 02 03` ￫ `-188683207`               |
+| **`binary`**         | `hashBytes(v)`                            | `00 01 02 03` ￫ `-188683207`               |
 
 The types below are not currently valid for bucketing, and so are not hashed. However, if that changes and a hash value is needed, the following table shall apply:
 
