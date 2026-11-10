@@ -39,10 +39,12 @@ class TestSphericalGeographyBoundsBuilder {
     SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
     bounds.addEdge(0.0, 60.0, 90.0, 60.0);
 
+    double midpointLatitude =
+        Math.toDegrees(Math.atan(Math.tan(Math.toRadians(60.0)) / Math.cos(Math.PI / 4.0)));
     BoundingBox box = bounds.build();
     assertThat(box.min()).isEqualTo(GeospatialBound.createXY(0.0, 60.0));
     assertThat(box.max().x()).isEqualTo(90.0);
-    assertThat(box.max().y()).isGreaterThan(67.79234427).isLessThan(67.793);
+    assertThat(box.max().y()).isGreaterThanOrEqualTo(midpointLatitude).isLessThan(67.793);
   }
 
   @Test
@@ -50,9 +52,11 @@ class TestSphericalGeographyBoundsBuilder {
     SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
     bounds.addEdge(0.0, -60.0, 90.0, -60.0);
 
+    double midpointLatitude =
+        Math.toDegrees(Math.atan(Math.tan(Math.toRadians(-60.0)) / Math.cos(Math.PI / 4.0)));
     BoundingBox box = bounds.build();
     assertThat(box.min().x()).isEqualTo(0.0);
-    assertThat(box.min().y()).isLessThan(-67.79234427).isGreaterThan(-67.793);
+    assertThat(box.min().y()).isLessThanOrEqualTo(midpointLatitude).isGreaterThan(-67.793);
     assertThat(box.max()).isEqualTo(GeospatialBound.createXY(90.0, -60.0));
   }
 
@@ -231,6 +235,40 @@ class TestSphericalGeographyBoundsBuilder {
     assertThat(bounds.build()).isEqualTo(box(-180.0, -90.0, 180.0, 90.0));
   }
 
+  @ParameterizedTest
+  @ValueSource(doubles = {2e-5, -2e-5})
+  void usesFullWorldBelowAntipodalFallbackThreshold(double latitude) {
+    // The cross-product length is about 0.987e-6, just below the 1e-6 fallback threshold.
+    double longitude = 90.0 - Math.abs(latitude);
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
+    bounds.addEdge(-longitude, latitude, longitude, latitude);
+
+    assertThat(bounds.build()).isEqualTo(box(-180.0, -90.0, 180.0, 90.0));
+  }
+
+  @ParameterizedTest
+  @ValueSource(doubles = {2.1e-5, -2.1e-5})
+  void boundsNearlyAntipodalEdgesAboveFallbackThreshold(double latitude) {
+    // The cross-product length is about 1.037e-6, just above the 1e-6 fallback threshold.
+    double longitude = 90.0 - Math.abs(latitude);
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
+    bounds.addEdge(-longitude, latitude, longitude, latitude);
+
+    // Symmetric endpoints reach their extremum at the midpoint. Use sin of the complement
+    // instead of cos near pi/2 to avoid cancellation in this independent expected value.
+    double midpointLatitude =
+        Math.toDegrees(
+            Math.atan2(
+                Math.tan(Math.toRadians(latitude)), Math.sin(Math.toRadians(90.0 - longitude))));
+    double south = Math.min(latitude, midpointLatitude);
+    double north = Math.max(latitude, midpointLatitude);
+    BoundingBox box = bounds.build();
+    assertThat(box.min().x()).isEqualTo(-longitude);
+    assertThat(box.max().x()).isEqualTo(longitude);
+    assertThat(box.min().y()).isBetween(south - 1e-5, south);
+    assertThat(box.max().y()).isBetween(north, north + 1e-5);
+  }
+
   @Test
   void explicitlyIncludesWorld() {
     SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
@@ -346,9 +384,6 @@ class TestSphericalGeographyBoundsBuilder {
   void coversSampledPointsAlongRandomMinorArcs() {
     Random random = new Random(42L);
     for (int edge = 0; edge < 2_000; edge += 1) {
-      // Draw latitudes across the full range and separations up to a near-antimeridian span, so
-      // sampled arcs pass near and over the poles where longitude sweeps fastest; the central-angle
-      // guard below drops the near-antipodal edges whose minor arc is undetermined
       double longitude1 = random.nextDouble() * 360.0 - 180.0;
       double latitude1 = random.nextDouble() * 180.0 - 90.0;
       double longitude2 = normalizeLongitude(longitude1 + random.nextDouble() * 360.0 - 180.0);
@@ -357,6 +392,8 @@ class TestSphericalGeographyBoundsBuilder {
       double[] point1 = toUnitVector(longitude1, latitude1);
       double[] point2 = toUnitVector(longitude2, latitude2);
       double centralAngle = centralAngle(longitude1, latitude1, longitude2, latitude2);
+      // Keep the interpolation oracle away from its near-antipodal singularity.
+      // Dedicated analytical cases cover the fallback threshold.
       if (centralAngle > Math.toRadians(179.0)) {
         continue;
       }
