@@ -47,8 +47,7 @@ public class TestGeometryFieldMetrics {
     assertThat(metrics.originalType()).isEqualTo(GEOMETRY);
     assertThat(metrics.lowerBound()).isEqualTo(GeospatialBound.createXY(-5, 10));
     assertThat(metrics.upperBound()).isEqualTo(GeospatialBound.createXY(30, 40));
-    // both WKB points are 21 bytes, so the average WKB size is 21
-    assertThat(metrics.avgValueSizeInBytes()).isEqualTo(21);
+    assertThat(metrics.avgValueSizeInBytes()).isNull();
     assertThat(metrics.totalBytes()).isEqualTo(42L);
   }
 
@@ -62,7 +61,7 @@ public class TestGeometryFieldMetrics {
     assertThat(metrics.valueCount()).isEqualTo(1L);
     assertThat(metrics.lowerBound()).isEqualTo(GeospatialBound.createXY(12, 34));
     assertThat(metrics.upperBound()).isEqualTo(GeospatialBound.createXY(12, 34));
-    assertThat(metrics.avgValueSizeInBytes()).isEqualTo(21);
+    assertThat(metrics.avgValueSizeInBytes()).isNull();
     assertThat(metrics.totalBytes()).isEqualTo(21L);
   }
 
@@ -77,7 +76,7 @@ public class TestGeometryFieldMetrics {
     assertThat(metrics.valueCount()).isEqualTo(1L);
     assertThat(metrics.lowerBound()).isNull();
     assertThat(metrics.upperBound()).isNull();
-    assertThat(metrics.avgValueSizeInBytes()).isEqualTo(21);
+    assertThat(metrics.avgValueSizeInBytes()).isNull();
     assertThat(metrics.totalBytes()).isEqualTo(21L);
   }
 

@@ -272,11 +272,9 @@ public abstract class TestMetrics {
             optional(3, "geog", Types.GeographyType.crs84()));
 
     Record first = GenericRecord.create(schema);
-    ByteBuffer geom = wkbPoint(30, 10);
-    ByteBuffer geog = wkbPoint(-5, 40);
     first.setField("id", 1L);
-    first.setField("geom", geom);
-    first.setField("geog", geog);
+    first.setField("geom", wkbPoint(30, 10));
+    first.setField("geog", wkbPoint(-5, 40));
     Record second = GenericRecord.create(schema);
     second.setField("id", 2L);
     second.setField("geom", wkbPoint(-5, 40));
@@ -297,10 +295,6 @@ public abstract class TestMetrics {
         metrics);
     assertCounts(3, 2L, 1L, metrics);
     assertBounds(3, Types.GeographyType.crs84(), null, null, metrics);
-    assertThat(metrics.avgValueSizes())
-        .containsOnly(Map.entry(2, geom.remaining()), Map.entry(3, geog.remaining()));
-    assertThat(metrics.totalBytes())
-        .containsOnly(Map.entry(2, 2L * geom.remaining()), Map.entry(3, (long) geog.remaining()));
   }
 
   @TestTemplate

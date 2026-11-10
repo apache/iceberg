@@ -70,7 +70,6 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   private Map<Integer, Long> nanValueCounts = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
-  private Map<Integer, Long> totalBytes = null;
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
   private byte[] keyMetadata = null;
@@ -149,7 +148,6 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       Map<Integer, Long> nanValueCounts,
       Map<Integer, ByteBuffer> lowerBounds,
       Map<Integer, ByteBuffer> upperBounds,
-      Map<Integer, Long> totalBytes,
       List<Long> splitOffsets,
       int[] equalityFieldIds,
       Integer sortOrderId,
@@ -182,7 +180,6 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.nanValueCounts = nanValueCounts;
     this.lowerBounds = SerializableByteBufferMap.wrap(lowerBounds);
     this.upperBounds = SerializableByteBufferMap.wrap(upperBounds);
-    this.totalBytes = totalBytes;
     this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
     this.equalityIds = equalityFieldIds;
     this.sortOrderId = sortOrderId;
@@ -228,7 +225,6 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       this.nanValueCounts = copyMap(toCopy.nanValueCounts, requestedColumnIds);
       this.lowerBounds = copyByteBufferMap(toCopy.lowerBounds, requestedColumnIds);
       this.upperBounds = copyByteBufferMap(toCopy.upperBounds, requestedColumnIds);
-      this.totalBytes = copyTotalBytes(toCopy.totalBytes, requestedColumnIds);
     } else {
       this.columnSizes = null;
       this.valueCounts = null;
@@ -236,7 +232,6 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       this.nanValueCounts = null;
       this.lowerBounds = null;
       this.upperBounds = null;
-      this.totalBytes = null;
     }
     this.keyMetadata =
         toCopy.keyMetadata == null
@@ -535,11 +530,6 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   }
 
   @Override
-  public Map<Integer, Long> totalBytes() {
-    return toReadableMap(totalBytes);
-  }
-
-  @Override
   public ByteBuffer keyMetadata() {
     return keyMetadata != null ? ByteBuffer.wrap(keyMetadata) : null;
   }
@@ -593,11 +583,6 @@ abstract class BaseFile<F> extends SupportsIndexProjection
 
   private static <K, V> Map<K, V> copyMap(Map<K, V> map, Set<K> keys) {
     return keys == null ? SerializableMap.copyOf(map) : SerializableMap.filteredCopyOf(map, keys);
-  }
-
-  private static Map<Integer, Long> copyTotalBytes(Map<Integer, Long> map, Set<Integer> keys) {
-    Map<Integer, Long> copy = copyMap(map, keys);
-    return copy == null || copy.isEmpty() ? null : copy;
   }
 
   private static Map<Integer, ByteBuffer> copyByteBufferMap(
@@ -673,7 +658,6 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         .add("nan_value_counts", nanValueCounts)
         .add("lower_bounds", lowerBounds)
         .add("upper_bounds", upperBounds)
-        .add("total_bytes", totalBytes)
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .add("equality_ids", equalityIds == null ? "null" : equalityFieldIds())

@@ -39,7 +39,6 @@ class MapBackedContentStats implements ContentStats {
   private Map<Integer, Long> valueCounts;
   private Map<Integer, Long> nullValueCounts;
   private Map<Integer, Long> nanValueCounts;
-  private Map<Integer, Long> totalBytes;
   private Map<Integer, ByteBuffer> lowerBounds;
   private Map<Integer, ByteBuffer> upperBounds;
 
@@ -52,7 +51,6 @@ class MapBackedContentStats implements ContentStats {
     this.valueCounts = file.valueCounts();
     this.nullValueCounts = file.nullValueCounts();
     this.nanValueCounts = file.nanValueCounts();
-    this.totalBytes = file.totalBytes();
     this.lowerBounds = file.lowerBounds();
     this.upperBounds = file.upperBounds();
     this.type = null;
@@ -122,7 +120,6 @@ class MapBackedContentStats implements ContentStats {
     return containsId(valueCounts, fieldId)
         || containsId(nullValueCounts, fieldId)
         || containsId(nanValueCounts, fieldId)
-        || containsId(totalBytes, fieldId)
         || containsId(lowerBounds, fieldId)
         || containsId(upperBounds, fieldId);
   }
@@ -133,7 +130,6 @@ class MapBackedContentStats implements ContentStats {
     addKeys(ids, valueCounts);
     addKeys(ids, nullValueCounts);
     addKeys(ids, nanValueCounts);
-    addKeys(ids, totalBytes);
     addKeys(ids, lowerBounds);
     addKeys(ids, upperBounds);
     return ids;
@@ -225,16 +221,6 @@ class MapBackedContentStats implements ContentStats {
     @Override
     public long nanValueCount() {
       return count(nanValueCounts);
-    }
-
-    @Override
-    public boolean hasTotalBytes() {
-      return count(totalBytes) != null;
-    }
-
-    @Override
-    public long totalBytes() {
-      return count(totalBytes);
     }
 
     @Override

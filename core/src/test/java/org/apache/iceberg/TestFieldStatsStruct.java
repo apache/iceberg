@@ -159,6 +159,7 @@ public class TestFieldStatsStruct {
     assertThat(stats.valueCount()).isEqualTo(28L);
     assertThat(stats.nullValueCount()).isEqualTo(2L);
     assertThat(stats.totalBytes()).isEqualTo(4L);
+    assertThat(stats.avgValueSizeInBytes()).isNull();
   }
 
   @Test
