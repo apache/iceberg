@@ -233,12 +233,12 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       String operatorId) {
     long totalFiles = summary.dataFilesCount() + summary.deleteFilesCount();
     continuousEmptyCheckpoints = totalFiles == 0 ? continuousEmptyCheckpoints + 1 : 0;
-    if (totalFiles == 0 && replacePartitions && fullOverwrite) {
-      // an empty full overwrite would delete every row of the table
-      long checkpointId = pendingResults.lastKey();
-      LOG.info("Skip full table overwrite for checkpoint {} due to no data files.", checkpointId);
-    } else if (totalFiles != 0 || continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0) {
-      if (replacePartitions && fullOverwrite) {
+    // a full overwrite with no new files still commits, because it removes every row of the table
+    boolean fullTableOverwrite = replacePartitions && fullOverwrite;
+    if (totalFiles != 0
+        || fullTableOverwrite
+        || continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0) {
+      if (fullTableOverwrite) {
         overwriteTable(pendingResults, summary, newFlinkJobId, operatorId);
       } else if (replacePartitions) {
         replacePartitions(pendingResults, summary, newFlinkJobId, operatorId);

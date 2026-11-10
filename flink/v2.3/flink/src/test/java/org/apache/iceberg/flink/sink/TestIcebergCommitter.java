@@ -363,19 +363,21 @@ class TestIcebergCommitter extends TestBase {
   }
 
   @TestTemplate
-  public void testFullOverwriteWithoutNewRowsIsSkipped() throws Exception {
+  public void testFullOverwriteWithoutNewRowsRemovesAllRows() throws Exception {
+    // other empty commits are skipped until the third empty checkpoint
+    table.updateProperties().set(IcebergCommitter.MAX_CONTINUOUS_EMPTY_COMMITS, "3").commit();
     appendPartitions("a", "b");
     IcebergCommitter committer = getCommitter(true, true);
 
-    // the table allows an empty commit on every checkpoint, a full overwrite still skips it
     committer.commit(Lists.newArrayList(buildCommitRequestFor(jobId, 1, Lists.newArrayList())));
 
-    assertSnapshotSize(1);
-    SimpleDataUtil.assertTableRows(
-        table,
-        ImmutableList.of(
-            SimpleDataUtil.createRowData(1, "a"), SimpleDataUtil.createRowData(2, "b")),
-        branch);
+    SimpleDataUtil.assertTableRows(table, ImmutableList.of(), branch);
+    Snapshot snapshot = SimpleDataUtil.latestSnapshot(table, branch);
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.DELETE);
+    assertThat(snapshot.summary())
+        .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "2")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "0");
+    assertMaxCommittedCheckpointId(jobId, 1);
   }
 
   @TestTemplate

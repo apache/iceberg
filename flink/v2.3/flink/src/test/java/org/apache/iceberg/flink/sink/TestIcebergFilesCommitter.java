@@ -1116,6 +1116,39 @@ public class TestIcebergFilesCommitter extends TestBase {
   }
 
   @TestTemplate
+  public void testFullOverwriteWithoutNewRowsRemovesAllRows() throws Exception {
+    // other empty commits are skipped until the third empty checkpoint
+    table.updateProperties().set(MAX_CONTINUOUS_EMPTY_COMMITS, "3").commit();
+    table.updateSpec().addField("data").commit();
+    table
+        .newAppend()
+        .appendFile(writePartitionedDataFile("data-1", SimpleDataUtil.createRowData(1, "a")))
+        .appendFile(writePartitionedDataFile("data-2", SimpleDataUtil.createRowData(2, "b")))
+        .toBranch(branch)
+        .commit();
+
+    JobID jobId = new JobID();
+    long checkpointId = 1;
+    long timestamp = 0;
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobId, true, true)) {
+      harness.setup();
+      harness.open();
+
+      harness.snapshot(checkpointId, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(), branch);
+      Snapshot snapshot = SimpleDataUtil.latestSnapshot(table, branch);
+      assertThat(snapshot.operation()).isEqualTo(DataOperations.DELETE);
+      assertThat(snapshot.summary())
+          .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "2")
+          .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "0");
+      assertMaxCommittedCheckpointId(jobId, harness.getOperator().getOperatorID(), checkpointId);
+    }
+  }
+
+  @TestTemplate
   public void testDynamicOverwriteKeepsPartitionsWithoutNewRows() throws Exception {
     table.updateSpec().addField("data").commit();
     RowData rowA = SimpleDataUtil.createRowData(1, "a");

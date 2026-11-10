@@ -63,6 +63,8 @@ INSERT OVERWRITE sample /*+ OPTIONS('overwrite-mode'='full') */ SELECT id, data 
 
 The table property `write.flink.overwrite-mode` sets the mode for every job that writes the table. When it is `full`, a job that sets `overwrite-mode` to `dynamic` fails, and `INSERT OVERWRITE` with a `PARTITION` clause fails. A full overwrite is one snapshot with operation `overwrite` whose `total-data-files` equals its `added-data-files`.
 
+A full overwrite whose query returns no rows removes every row of the table. A DataStream job commits one overwrite per checkpoint, so in `full` mode a checkpoint with no new rows also removes every row.
+
 ### `UPSERT`
 
 Iceberg supports `UPSERT` based on the primary key when writing data into v2 table format. There are two ways to enable upsert.

@@ -285,6 +285,39 @@ public class TestFlinkTableSink extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testFullOverwriteFromEmptySourceRemovesAllRows() throws Exception {
+    assumeThat(isStreamingJob)
+        .as("Flink unbounded streaming does not support overwrite operation")
+        .isFalse();
+    String tableName = "test_full_overwrite_empty_source";
+    String sourceName = "test_full_overwrite_empty_source_input";
+    sql(
+        "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) "
+            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='full')",
+        tableName, format.name());
+    sql("CREATE TABLE %s(id INT, data VARCHAR)", sourceName);
+
+    try {
+      Table partitionedTable =
+          validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, tableName));
+      sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
+
+      sql("INSERT OVERWRITE %s SELECT id, data FROM %s", tableName, sourceName);
+
+      SimpleDataUtil.assertTableRecords(partitionedTable, Lists.newArrayList());
+      partitionedTable.refresh();
+      Snapshot snapshot = partitionedTable.currentSnapshot();
+      assertThat(snapshot.operation()).isEqualTo(DataOperations.DELETE);
+      assertThat(snapshot.summary())
+          .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "3")
+          .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "0");
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, sourceName);
+    }
+  }
+
+  @TestTemplate
   public void testDynamicOverwriteOptionRejectedWhenTablePropertyIsFull() {
     assumeThat(isStreamingJob)
         .as("Flink unbounded streaming does not support overwrite operation")
