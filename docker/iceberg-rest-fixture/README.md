@@ -99,14 +99,16 @@ docker image rm -f apache/iceberg-rest-fixture && docker build -t apache/iceberg
 
 The staging task writes the test-fixtures JAR and its runtime dependencies to
 `open-api/build/iceberg-rest-server/libs/`, with the existing OpenAPI `LICENSE`
-and `NOTICE` alongside `libs/`. It builds only the required runtime dependencies,
-including the cloud bundles, rather than every project's `shadowJar`.
+and `NOTICE` alongside `libs/`. Like the Kafka Connect distribution, it uses the
+cloud bundles' dependency declarations to stage individual SDK JARs, not the
+shaded cloud bundle JARs. This avoids mixing shaded and unshaded SDK classes.
+Only the required runtime dependencies are built, including bundled Guava.
 Staging is explicit: the normal OpenAPI `build` does not create this directory.
 
 The image starts `RESTCatalogServer` with `libs/*` on the Java classpath; it does
 not use an OpenAPI shaded runtime JAR. The published test-fixtures JAR remains
-available to test consumers. Changing this packaging does not prune runtime
-dependencies or complete the LICENSE/NOTICE audit; those are separate follow-ups.
+available to test consumers. Backend dependency pruning and the LICENSE/NOTICE
+audit remain separate follow-ups.
 
 ## Browse
 
