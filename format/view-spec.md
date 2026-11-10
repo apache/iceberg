@@ -565,7 +565,7 @@ FROM event_agg_mv
 
 ### Example 1: Fresh if refreshed recently
 
-Freshness criteria: an MV is fresh if its last refresh started within a user-defined staleness window, regardless of changes to its sources.
+Freshness criteria: an MV is fresh if its last refresh started within a user-defined staleness window, regardless of changes to its sources. PostgreSQL materialized views follow this approach.
 
 Recorded state: the criteria never inspect sources, so `source-states` is empty.
 
@@ -579,7 +579,7 @@ Recorded state: the criteria never inspect sources, so `source-states` is empty.
 
 ### Example 2: Fresh if dependencies are unchanged
 
-Freshness criteria: an MV is fresh if none of its dependencies changed since its last refresh. A reader serves a fresh MV from its storage table and evaluates a stale one, applying the same test to each nested MV.
+Freshness criteria: an MV is fresh if none of its dependencies changed since its last refresh. A reader serves a fresh MV from its storage table and evaluates a stale one, applying the same test to each nested MV. Proof-of-concept implementations in Spark and Trino follow this approach.
 
 Recorded state: `event_agg_30_day_mv` records `event_agg_mv` by its view `version-id`, and `events` by its `snapshot-id`. It does not record `event_agg_mv`'s storage table. That table advances only when `event_agg_mv` is refreshed, so relying on it would leave `event_agg_30_day_mv` looking fresh even after `events` changed.
 
