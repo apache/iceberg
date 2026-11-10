@@ -42,4 +42,3 @@ Different FileIO implementations are used depending on the type of storage. Iceb
 - Custom backends via the FileIO SPI
 
 Set the implementation with catalog properties such as `io-impl` (see [Catalog properties](catalog-properties.md) and [Configuration](configuration.md)). Engines still read and write data files during task execution; FileIO is used when planning and committing metadata.
-
