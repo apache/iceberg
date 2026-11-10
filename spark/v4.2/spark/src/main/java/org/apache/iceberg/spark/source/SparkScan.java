@@ -113,6 +113,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private final Schema projection;
   private final List<Expression> filters;
   private final Supplier<ScanReport> scanReportSupplier;
+  // split target used to plan task groups; 0 until task groups are planned
   private volatile long effectiveSplitTargetSize;
 
   // lazy variables
@@ -137,7 +138,6 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.projection = projection;
     this.filters = filters != null ? filters : Collections.emptyList();
     this.scanReportSupplier = scanReportSupplier;
-    this.effectiveSplitTargetSize = readConf.splitSize();
     SparkSchemaUtil.validateMetadataColumnReferences(schema, projection);
   }
 
@@ -309,35 +309,33 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
     driverMetrics.add(new TaskEffectiveSplitTargetSize(effectiveSplitTargetSize));
 
-    if (scanReport == null) {
-      return driverMetrics.toArray(new CustomTaskMetric[0]);
+    if (scanReport != null) {
+      // common
+      driverMetrics.add(TaskTotalPlanningDuration.from(scanReport));
+
+      // data manifests
+      driverMetrics.add(TaskTotalDataManifests.from(scanReport));
+      driverMetrics.add(TaskScannedDataManifests.from(scanReport));
+      driverMetrics.add(TaskSkippedDataManifests.from(scanReport));
+
+      // data files
+      driverMetrics.add(TaskResultDataFiles.from(scanReport));
+      driverMetrics.add(TaskSkippedDataFiles.from(scanReport));
+      driverMetrics.add(TaskTotalDataFileSize.from(scanReport));
+
+      // delete manifests
+      driverMetrics.add(TaskTotalDeleteManifests.from(scanReport));
+      driverMetrics.add(TaskScannedDeleteManifests.from(scanReport));
+      driverMetrics.add(TaskSkippedDeleteManifests.from(scanReport));
+
+      // delete files
+      driverMetrics.add(TaskTotalDeleteFileSize.from(scanReport));
+      driverMetrics.add(TaskResultDeleteFiles.from(scanReport));
+      driverMetrics.add(TaskEqualityDeleteFiles.from(scanReport));
+      driverMetrics.add(TaskIndexedDeleteFiles.from(scanReport));
+      driverMetrics.add(TaskPositionalDeleteFiles.from(scanReport));
+      driverMetrics.add(TaskSkippedDeleteFiles.from(scanReport));
     }
-
-    // common
-    driverMetrics.add(TaskTotalPlanningDuration.from(scanReport));
-
-    // data manifests
-    driverMetrics.add(TaskTotalDataManifests.from(scanReport));
-    driverMetrics.add(TaskScannedDataManifests.from(scanReport));
-    driverMetrics.add(TaskSkippedDataManifests.from(scanReport));
-
-    // data files
-    driverMetrics.add(TaskResultDataFiles.from(scanReport));
-    driverMetrics.add(TaskSkippedDataFiles.from(scanReport));
-    driverMetrics.add(TaskTotalDataFileSize.from(scanReport));
-
-    // delete manifests
-    driverMetrics.add(TaskTotalDeleteManifests.from(scanReport));
-    driverMetrics.add(TaskScannedDeleteManifests.from(scanReport));
-    driverMetrics.add(TaskSkippedDeleteManifests.from(scanReport));
-
-    // delete files
-    driverMetrics.add(TaskTotalDeleteFileSize.from(scanReport));
-    driverMetrics.add(TaskResultDeleteFiles.from(scanReport));
-    driverMetrics.add(TaskEqualityDeleteFiles.from(scanReport));
-    driverMetrics.add(TaskIndexedDeleteFiles.from(scanReport));
-    driverMetrics.add(TaskPositionalDeleteFiles.from(scanReport));
-    driverMetrics.add(TaskSkippedDeleteFiles.from(scanReport));
 
     return driverMetrics.toArray(new CustomTaskMetric[0]);
   }

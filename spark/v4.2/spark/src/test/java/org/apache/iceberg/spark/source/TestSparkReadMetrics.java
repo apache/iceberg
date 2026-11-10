@@ -128,6 +128,17 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  void effectiveSplitTargetSizeWithoutSnapshot() {
+    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
+
+    // no task groups are planned for a table without a snapshot
+    Dataset<Row> df = spark.sql(String.format("SELECT * FROM %s", tableName));
+    df.collect();
+    SparkPlan scan = df.queryExecution().executedPlan().collectLeaves().head();
+    assertThat(scan.metrics().get("effectiveSplitTargetSize").get().value()).isZero();
+  }
+
+  @TestTemplate
   void effectiveSplitTargetSizeWithRuntimeFilter() throws NoSuchTableException, IOException {
     long tableSplitSize = 128L * 1024 * 1024;
     int parallelism = 1000;
