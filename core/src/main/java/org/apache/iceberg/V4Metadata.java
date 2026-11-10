@@ -642,14 +642,15 @@ class V4Metadata {
         case 6 -> specId;
         case 7 -> unionPartition();
         case 8 -> wrapped.contentStats() != null ? contentStats.wrap(wrapped.contentStats()) : null;
-        case 9 -> wrapped.sortOrderId();
-        case 10 ->
-            wrapped.deletionVector() != null ? deletionVector.wrap(wrapped.deletionVector()) : null;
+        case 9 -> wrapped.tightStats();
+        case 10 -> wrapped.sortOrderId();
         case 11 ->
+            wrapped.deletionVector() != null ? deletionVector.wrap(wrapped.deletionVector()) : null;
+        case 12 ->
             wrapped.manifestInfo() != null ? manifestInfo.wrap(wrapped.manifestInfo()) : null;
-        case 12 -> wrapped.keyMetadata();
-        case 13 -> wrapped.splitOffsets();
-        case 14 -> wrapColumnFiles(wrapped.columnFiles());
+        case 13 -> wrapped.keyMetadata();
+        case 14 -> wrapped.splitOffsets();
+        case 15 -> wrapColumnFiles(wrapped.columnFiles());
         default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       };
     }
@@ -1108,7 +1109,6 @@ class V4Metadata {
       return switch (offset) {
         case StatsUtil.LOWER_BOUND_OFFSET -> wrapped.lowerBound();
         case StatsUtil.UPPER_BOUND_OFFSET -> wrapped.upperBound();
-        case StatsUtil.TIGHT_BOUNDS_OFFSET -> wrapped.tightBounds();
         case StatsUtil.VALUE_COUNT_OFFSET -> wrapped.hasValueCount() ? wrapped.valueCount() : null;
         case StatsUtil.NULL_VALUE_COUNT_OFFSET ->
             wrapped.hasNullValueCount() ? wrapped.nullValueCount() : null;

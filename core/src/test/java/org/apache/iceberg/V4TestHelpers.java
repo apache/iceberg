@@ -151,6 +151,7 @@ class V4TestHelpers {
         file.specId(),
         file.partition(),
         file.contentStats(),
+        file.tightStats(),
         file.sortOrderId(),
         file.deletionVector(),
         file.manifestInfo(),
