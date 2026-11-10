@@ -239,7 +239,7 @@ A source table record captures the state of a source table (including a source m
 | _optional_  | `snapshot-id` | The snapshot-id of the source table that was read during the refresh operation. Omitted when the source table had no snapshots at refresh time (e.g. a newly created, empty table) |
 | _optional_  | `ref`         | Branch or tag name of the source table being referenced in the view query |
 
-When `ref` is set, the source table is tracked against that branch or tag, and the materialized view is stale once the ref advances past the recorded `snapshot-id`. When `ref` is not set, the source table is pinned to the recorded `snapshot-id` (e.g. `FOR VERSION AS OF <snapshot-id>`); the materialized view remains fresh with respect to this source as long as that snapshot exists. Writers that read a branch should record the branch name in `ref`.
+When `ref` is set, the source table is tracked against that branch or tag. When `ref` is not set, the source table is pinned to the recorded `snapshot-id` (e.g. `FOR VERSION AS OF <snapshot-id>`). Writers that read a branch or tag should record its name in `ref`.
 
 #### Source view state
 
@@ -453,7 +453,7 @@ FROM events
 GROUP BY 2
 ```
 
-The materialized view metadata JSON file looks as follows:
+The writer creates the storage table `event_agg_mv__storage` and then commits the materialized view metadata, which looks as follows:
 
 ```
 s3://bucket/warehouse/default.db/event_agg_mv/metadata/00001-(uuid).metadata.json
