@@ -23,6 +23,8 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.StringJoiner;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
@@ -36,6 +38,23 @@ import org.apache.iceberg.types.Types;
 
 public class PartitionData
     implements IndexedRecord, StructLike, SpecificData.SchemaConstructable, Serializable {
+
+  /**
+   * {@link #equals(Object)}/{@link #hashCode()} ignore {@link #schema}, so independently created
+   * {@link PartitionData} instances for the same partition type (e.g. from unrelated scans, or from
+   * Avro reflection when reading different manifests) are value-equal even when each one initially
+   * carries its own, structurally-equivalent but distinct {@code Schema} instance. Without
+   * canonicalizing here, {@link #INTERNER} would non-deterministically pick whichever instance
+   * happened to intern first, so copies sharing a partition value could end up with a schema object
+   * that didn't come from the caller's own template. Callers like {@code PartitionsTable} rely on
+   * every partition from one scan sharing the exact same schema instance, so the schema is cached
+   * per partition type instead and reused everywhere.
+   *
+   * <p>Declared before {@link #EMPTY} since its initializer constructs a {@link PartitionData} that
+   * reads from this cache.
+   */
+  private static final ConcurrentMap<Types.StructType, Schema> SCHEMA_CACHE =
+      new ConcurrentHashMap<>();
 
   static final PartitionData EMPTY =
       new PartitionData(Types.StructType.of()) {
@@ -56,7 +75,13 @@ public class PartitionData
   private static final Interner<PartitionData> INTERNER = Interners.newWeakInterner();
 
   static Schema partitionDataSchema(Types.StructType partitionType) {
-    return AvroSchemaUtil.convert(partitionType, PartitionData.class.getName());
+    return SCHEMA_CACHE.computeIfAbsent(
+        partitionType, type -> AvroSchemaUtil.convert(type, PartitionData.class.getName()));
+  }
+
+  private static Schema canonicalSchema(Types.StructType partitionType, Schema schema) {
+    Schema canonical = SCHEMA_CACHE.putIfAbsent(partitionType, schema);
+    return canonical != null ? canonical : schema;
   }
 
   private final Types.StructType partitionType;
@@ -70,8 +95,8 @@ public class PartitionData
     this.partitionType = AvroSchemaUtil.convert(schema).asNestedType().asStructType();
     this.size = partitionType.fields().size();
     this.data = new Object[size];
-    this.stringSchema = schema.toString();
-    this.schema = schema;
+    this.schema = canonicalSchema(partitionType, schema);
+    this.stringSchema = this.schema.toString();
   }
 
   public PartitionData(Types.StructType partitionType) {

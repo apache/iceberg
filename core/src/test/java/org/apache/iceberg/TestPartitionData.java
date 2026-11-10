@@ -115,4 +115,28 @@ public class TestPartitionData {
     assertThat(first).isNotEqualTo(second);
     assertThat(second).isNotSameAs(first);
   }
+
+  @Test
+  public void independentTemplatesForEqualPartitionTypesShareSchema() {
+    // two unrelated scans/readers build their own template for the same partition type; they
+    // must not end up with two different (though structurally equal) Avro schema instances,
+    // since callers like PartitionsTable rely on reference equality of the schema across a scan
+    PartitionData first = new PartitionData(PARTITION_TYPE);
+    PartitionData second = new PartitionData(PARTITION_TYPE);
+
+    assertThat(first.getSchema()).isSameAs(second.getSchema());
+  }
+
+  @Test
+  public void copyForFromIndependentTemplatesSharesSchema() {
+    PartitionData templateOne = new PartitionData(PARTITION_TYPE);
+    PartitionData templateTwo = new PartitionData(PARTITION_TYPE);
+
+    // different partition values, so the interner cannot collapse these to the same instance
+    PartitionData first = templateOne.copyFor(newData(1, "a"));
+    PartitionData second = templateTwo.copyFor(newData(2, "b"));
+
+    assertThat(first).isNotSameAs(second);
+    assertThat(first.getSchema()).isSameAs(second.getSchema());
+  }
 }
