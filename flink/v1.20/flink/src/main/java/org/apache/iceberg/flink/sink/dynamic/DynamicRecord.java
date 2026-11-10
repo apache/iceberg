@@ -39,6 +39,7 @@ public class DynamicRecord {
   private int writeParallelism;
   private boolean upsertMode;
   @Nullable private Set<String> equalityFields;
+  @Nullable private Set<String> distributionFields;
 
   @Internal
   DynamicRecord() {}
@@ -164,5 +165,13 @@ public class DynamicRecord {
 
   public void setEqualityFields(Set<String> equalityFields) {
     this.equalityFields = equalityFields;
+  }
+
+  public Set<String> distributionFields() {
+    return distributionFields;
+  }
+
+  public void setDistributionFields(Set<String> distributionFields) {
+    this.distributionFields = distributionFields;
   }
 }

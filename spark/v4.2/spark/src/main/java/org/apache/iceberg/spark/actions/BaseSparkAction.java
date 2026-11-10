@@ -149,25 +149,29 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   protected Dataset<FileInfo> contentFileDS(Table table, Set<Long> snapshotIds) {
-    Table serializableTable = SerializableTableWithSize.copyOf(table);
-    Broadcast<Table> tableBroadcast = sparkContext.broadcast(serializableTable);
+    return manifestBeanDS(table, snapshotIds)
+        .flatMap(new ReadManifest(broadcastTable(table)), FileInfo.ENCODER);
+  }
+
+  protected Dataset<ManifestFileBean> manifestBeanDS(Table table, Set<Long> snapshotIds) {
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
 
-    Dataset<ManifestFileBean> manifestBeanDS =
-        manifestDF(table, snapshotIds)
-            .selectExpr(
-                "content",
-                "path",
-                "length",
-                "0 as sequenceNumber",
-                "partition_spec_id as partitionSpecId",
-                "added_snapshot_id as addedSnapshotId",
-                "key_metadata as keyMetadata")
-            .dropDuplicates("path")
-            .repartition(numShufflePartitions) // avoid adaptive execution combining tasks
-            .as(ManifestFileBean.ENCODER);
+    return manifestDF(table, snapshotIds)
+        .selectExpr(
+            "content",
+            "path",
+            "length",
+            "0 as sequenceNumber",
+            "partition_spec_id as partitionSpecId",
+            "added_snapshot_id as addedSnapshotId",
+            "key_metadata as keyMetadata")
+        .dropDuplicates("path")
+        .repartition(numShufflePartitions) // avoid adaptive execution combining tasks
+        .as(ManifestFileBean.ENCODER);
+  }
 
-    return manifestBeanDS.flatMap(new ReadManifest(tableBroadcast), FileInfo.ENCODER);
+  protected Broadcast<Table> broadcastTable(Table table) {
+    return sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
   }
 
   protected Dataset<FileInfo> manifestDS(Table table) {
@@ -405,7 +409,7 @@ abstract class BaseSparkAction<ThisT> {
     }
   }
 
-  private static class ReadManifest implements FlatMapFunction<ManifestFileBean, FileInfo> {
+  static class ReadManifest implements FlatMapFunction<ManifestFileBean, FileInfo> {
     private final Broadcast<Table> table;
 
     ReadManifest(Broadcast<Table> table) {

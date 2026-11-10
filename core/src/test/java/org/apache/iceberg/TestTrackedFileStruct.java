@@ -79,12 +79,13 @@ class TestTrackedFileStruct {
             FileContent.DATA,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
-            50L,
-            512L,
-            1,
+            50L, // recordCount
+            512L, // fileSizeInBytes
+            1, // specId
             PARTITION,
             CONTENT_STATS,
-            5,
+            true, // tightStats
+            5, // sortOrderId
             DELETION_VECTOR,
             MANIFEST_INFO,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
@@ -100,6 +101,7 @@ class TestTrackedFileStruct {
     assertThat(file.fileSizeInBytes()).isEqualTo(512L);
     assertThat(file.specId()).isEqualTo(1);
     assertThat(file.contentStats()).isSameAs(CONTENT_STATS);
+    assertThat(file.tightStats()).isTrue();
     assertThat(file.sortOrderId()).isEqualTo(5);
     assertThat(file.deletionVector()).isSameAs(DELETION_VECTOR);
     assertThat(file.manifestInfo()).isSameAs(MANIFEST_INFO);
@@ -120,6 +122,7 @@ class TestTrackedFileStruct {
     file.set(pos("spec_id"), 1);
     file.set(pos("partition"), PARTITION);
     file.set(pos("content_stats"), CONTENT_STATS);
+    file.set(pos("tight_stats"), true);
     file.set(pos("sort_order_id"), 5);
     file.set(pos("deletion_vector"), DELETION_VECTOR);
     file.set(pos("manifest_info"), MANIFEST_INFO);
@@ -135,6 +138,7 @@ class TestTrackedFileStruct {
     assertThat(file.specId()).isEqualTo(1);
     assertThat(file.partition()).isSameAs(PARTITION);
     assertThat(file.contentStats()).isSameAs(CONTENT_STATS);
+    assertThat(file.tightStats()).isTrue();
     assertThat(file.sortOrderId()).isEqualTo(5);
     assertThat(file.deletionVector()).isSameAs(DELETION_VECTOR);
     assertThat(file.manifestInfo()).isSameAs(MANIFEST_INFO);
@@ -155,6 +159,7 @@ class TestTrackedFileStruct {
             1,
             PARTITION,
             CONTENT_STATS,
+            true,
             5,
             DELETION_VECTOR,
             MANIFEST_INFO,
@@ -172,6 +177,7 @@ class TestTrackedFileStruct {
     assertThat(file.get(pos("spec_id"), Integer.class)).isEqualTo(1);
     assertThat(file.get(pos("partition"), PartitionData.class)).isSameAs(PARTITION);
     assertThat(file.get(pos("content_stats"), ContentStats.class)).isSameAs(CONTENT_STATS);
+    assertThat(file.get(pos("tight_stats"), Boolean.class)).isTrue();
     assertThat(file.get(pos("sort_order_id"), Integer.class)).isEqualTo(5);
     assertThat(file.get(pos("deletion_vector"), DeletionVector.class)).isSameAs(DELETION_VECTOR);
     assertThat(file.get(pos("manifest_info"), ManifestInfo.class)).isSameAs(MANIFEST_INFO);
@@ -193,6 +199,7 @@ class TestTrackedFileStruct {
             1,
             PARTITION,
             CONTENT_STATS,
+            true,
             5,
             DELETION_VECTOR,
             MANIFEST_INFO,
@@ -211,6 +218,7 @@ class TestTrackedFileStruct {
     assertThat(copy.fileSizeInBytes()).isEqualTo(512L);
     assertThat(copy.specId()).isEqualTo(1);
     assertThat(copy.contentStats()).isSameAs(CONTENT_STATS_COPY);
+    assertThat(copy.tightStats()).isTrue();
     assertThat(copy.sortOrderId()).isEqualTo(5);
     assertThat(copy.deletionVector()).isSameAs(DELETION_VECTOR_COPY);
     assertThat(copy.manifestInfo()).isSameAs(MANIFEST_INFO_COPY);
@@ -240,6 +248,7 @@ class TestTrackedFileStruct {
             1,
             PARTITION,
             stats,
+            true,
             5,
             DELETION_VECTOR,
             MANIFEST_INFO,
@@ -258,6 +267,7 @@ class TestTrackedFileStruct {
     assertThat(copy.fileSizeInBytes()).isEqualTo(512L);
     assertThat(copy.specId()).isEqualTo(1);
     assertThat(copy.contentStats()).isSameAs(statsCopy);
+    assertThat(copy.tightStats()).isTrue();
     assertThat(copy.sortOrderId()).isEqualTo(5);
     assertThat(copy.deletionVector()).isSameAs(DELETION_VECTOR_COPY);
     assertThat(copy.manifestInfo()).isSameAs(MANIFEST_INFO_COPY);
@@ -285,6 +295,7 @@ class TestTrackedFileStruct {
             1,
             PARTITION,
             stats,
+            true,
             5,
             DELETION_VECTOR,
             MANIFEST_INFO,
@@ -306,6 +317,7 @@ class TestTrackedFileStruct {
     assertThat(copy.fileSizeInBytes()).isEqualTo(512L);
     assertThat(copy.specId()).isEqualTo(1);
     assertThat(copy.contentStats()).isNull();
+    assertThat(copy.tightStats()).isFalse();
     assertThat(copy.sortOrderId()).isEqualTo(5);
     assertThat(copy.deletionVector()).isSameAs(DELETION_VECTOR_COPY);
     assertThat(copy.manifestInfo()).isSameAs(MANIFEST_INFO_COPY);
@@ -434,6 +446,7 @@ class TestTrackedFileStruct {
             7,
             partition,
             null,
+            true,
             1,
             null, // DeletionVector has its own serialization tests
             null, // ManifestInfo has its own serialization tests
@@ -453,6 +466,7 @@ class TestTrackedFileStruct {
     assertThat(deserialized.recordCount()).isEqualTo(100L);
     assertThat(deserialized.fileSizeInBytes()).isEqualTo(1024L);
     assertThat(deserialized.specId()).isEqualTo(7);
+    assertThat(deserialized.tightStats()).isTrue();
     assertThat(deserialized.sortOrderId()).isEqualTo(1);
     assertThat(deserialized.deletionVector()).isNull();
     assertThat(deserialized.manifestInfo()).isNull();
@@ -509,6 +523,7 @@ class TestTrackedFileStruct {
         specId,
         partition,
         null, // contentStats
+        false, // tightStats
         null, // sortOrderId
         null, // deletionVector
         null, // manifestInfo
