@@ -289,7 +289,7 @@ class TestV4ManifestReader {
             null, // spec id
             null, // partition
             CONTENT_STATS,
-            null, // tight stats
+            false, // tight stats
             null, // sort order id
             null, // dv
             MANIFEST_INFO,
@@ -1220,7 +1220,7 @@ class TestV4ManifestReader {
             null,
             null,
             null,
-            null,
+            false,
             SortOrder.unsorted().orderId(),
             null,
             null,
@@ -1257,7 +1257,7 @@ class TestV4ManifestReader {
             null,
             null,
             null,
-            null,
+            false,
             SortOrder.unsorted().orderId(),
             null,
             null,
@@ -1469,7 +1469,7 @@ class TestV4ManifestReader {
             bucketSpec.specId(),
             partition(bucketSpec, fileBucketNum),
             CONTENT_STATS,
-            null, // tight stats
+            false, // tight stats
             SortOrder.unsorted().orderId(),
             null, // dv
             null, // manifest info

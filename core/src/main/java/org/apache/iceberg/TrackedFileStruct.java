@@ -76,7 +76,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   // optional fields
   private Integer specId = null;
   private ContentStats contentStats = null;
-  private Boolean tightStats = null;
+  private boolean tightStats = false;
   private Integer sortOrderId = null;
   private DeletionVector deletionVector = null;
   private ManifestInfo manifestInfo = null;
@@ -106,7 +106,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       Integer specId,
       PartitionData partition,
       ContentStats contentStats,
-      Boolean tightStats,
+      boolean tightStats,
       Integer sortOrderId,
       DeletionVector deletionVector,
       ManifestInfo manifestInfo,
@@ -153,7 +153,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       this.tightStats = toCopy.tightStats;
     } else {
       this.contentStats = null;
-      this.tightStats = null;
+      this.tightStats = false;
     }
 
     this.manifestInfo = toCopy.manifestInfo != null ? toCopy.manifestInfo.copy() : null;
@@ -242,7 +242,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
 
   @Override
   public boolean tightStats() {
-    return Boolean.TRUE.equals(tightStats);
+    return tightStats;
   }
 
   @Override
@@ -326,7 +326,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       case 6 -> this.specId = (Integer) value;
       case 7 -> this.partition = (StructLike) value;
       case 8 -> this.contentStats = (ContentStats) value;
-      case 9 -> this.tightStats = (Boolean) value;
+      case 9 -> this.tightStats = value != null && (Boolean) value;
       case 10 -> this.sortOrderId = (Integer) value;
       case 11 -> this.deletionVector = (DeletionVector) value;
       case 12 -> this.manifestInfo = (ManifestInfo) value;

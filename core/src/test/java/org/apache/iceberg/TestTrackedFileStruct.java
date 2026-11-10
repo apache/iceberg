@@ -523,7 +523,7 @@ class TestTrackedFileStruct {
         specId,
         partition,
         null, // contentStats
-        null, // tightStats
+        false, // tightStats
         null, // sortOrderId
         null, // deletionVector
         null, // manifestInfo

@@ -36,7 +36,7 @@ class StatsTestUtil {
         0,
         null,
         stats,
-        null,
+        false, // tightStats
         null,
         null,
         null,
