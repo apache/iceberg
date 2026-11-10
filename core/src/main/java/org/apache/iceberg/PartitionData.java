@@ -18,13 +18,13 @@
  */
 package org.apache.iceberg;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.StringJoiner;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
@@ -50,11 +50,16 @@ public class PartitionData
    * every partition from one scan sharing the exact same schema instance, so the schema is cached
    * per partition type instead and reused everywhere.
    *
+   * <p>Weak values mean an entry is collected once nothing - no live {@link PartitionData}, no
+   * other caller - still references that {@code Schema}, the same cleanup story as {@link
+   * #INTERNER} below, and the same weak-values pattern {@link SchemaParser} and {@link
+   * PartitionSpecParser} already use to cache their own parsed results.
+   *
    * <p>Declared before {@link #EMPTY} since its initializer constructs a {@link PartitionData} that
    * reads from this cache.
    */
-  private static final ConcurrentMap<Types.StructType, Schema> SCHEMA_CACHE =
-      new ConcurrentHashMap<>();
+  private static final Cache<Types.StructType, Schema> SCHEMA_CACHE =
+      Caffeine.newBuilder().weakValues().build();
 
   static final PartitionData EMPTY =
       new PartitionData(Types.StructType.of()) {
@@ -75,13 +80,12 @@ public class PartitionData
   private static final Interner<PartitionData> INTERNER = Interners.newWeakInterner();
 
   static Schema partitionDataSchema(Types.StructType partitionType) {
-    return SCHEMA_CACHE.computeIfAbsent(
+    return SCHEMA_CACHE.get(
         partitionType, type -> AvroSchemaUtil.convert(type, PartitionData.class.getName()));
   }
 
   private static Schema canonicalSchema(Types.StructType partitionType, Schema schema) {
-    Schema canonical = SCHEMA_CACHE.putIfAbsent(partitionType, schema);
-    return canonical != null ? canonical : schema;
+    return SCHEMA_CACHE.get(partitionType, type -> schema);
   }
 
   private final Types.StructType partitionType;
