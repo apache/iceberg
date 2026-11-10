@@ -29,7 +29,7 @@ import static org.apache.iceberg.V4TestHelpers.manifestRef;
 import static org.apache.iceberg.V4TestHelpers.manifestRefWithStats;
 import static org.apache.iceberg.V4TestHelpers.partition;
 import static org.apache.iceberg.V4TestHelpers.readTrackedFiles;
-import static org.apache.iceberg.V4TestHelpers.writeTrackedFiles;
+import static org.apache.iceberg.V4TestHelpers.writeRows;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -303,24 +303,6 @@ class TestV4TrackedFileWrappers {
   }
 
   @Test
-  void leafReturnsPartitionWithSpecType() {
-    Map<Integer, PartitionSpec> specs =
-        ImmutableMap.of(ID_SPEC.specId(), ID_SPEC, DATA_SPEC.specId(), DATA_SPEC);
-    Types.StructType unionType = Partitioning.unionPartitionTypes(specs.values());
-    PartitionData partition = partition(DATA_SPEC, "a");
-    TrackedFile file =
-        dataFile("s3://bucket/table/data=a/file.parquet", DATA_SPEC.specId(), partition);
-
-    LeafTrackedFileWrapper wrapper =
-        new LeafTrackedFileWrapper(specs, unionType, Types.StructType.of() /* contentStatsType */);
-    TrackedFile wrapped = wrapper.wrap(file, file.tracking());
-
-    assertThat(wrapped.partition())
-        .usingComparator(Comparators.forType(DATA_SPEC.partitionType()))
-        .isEqualTo(partition);
-  }
-
-  @Test
   void leafRejectsUnassignedDataSequenceNumberForExistingFile() {
     Tracking tracking =
         new TrackingStruct(
@@ -373,7 +355,7 @@ class TestV4TrackedFileWrappers {
   }
 
   @Test
-  void leafAllowsUnassignedDataSequenceNumberForModifiedFile() {
+  void leafAllowsUnassignedDataSequenceNumberForModifiedFile() throws IOException {
     Tracking tracking =
         TrackingBuilder.from(EXISTING_TRACKING, COMMIT_SNAPSHOT_ID).columnFilesUpdated().build();
     TrackedFile file =
@@ -388,9 +370,9 @@ class TestV4TrackedFileWrappers {
             UNPARTITIONED_SPECS,
             Types.StructType.of() /* partitionType */,
             Types.StructType.of() /* contentStatsType */);
-    TrackedFile wrapped = wrapper.wrap(file, file.tracking());
+    TrackedFile actual = writeAndRead(Types.StructType.of(), wrapper.wrap(file, file.tracking()));
 
-    assertThat(wrapped.tracking().dataSequenceNumber()).isNull();
+    assertThat(actual.tracking().dataSequenceNumber()).isNull();
   }
 
   @ParameterizedTest
@@ -490,7 +472,7 @@ class TestV4TrackedFileWrappers {
   }
 
   @Test
-  void rootAssignsCommitDataSequenceNumberToModifiedDataFile() {
+  void rootAssignsCommitDataSequenceNumberToModifiedDataFile() throws IOException {
     Tracking tracking =
         TrackingBuilder.from(EXISTING_TRACKING, COMMIT_SNAPSHOT_ID).columnFilesUpdated().build();
     TrackedFile file =
@@ -507,10 +489,13 @@ class TestV4TrackedFileWrappers {
             UNPARTITIONED_SPECS,
             Types.StructType.of() /* partitionType */,
             Types.StructType.of() /* contentStatsType */);
-    TrackedFile wrapped = wrapper.wrap(file, file.tracking(), null /* assignedFirstRowId */);
+    TrackedFile actual =
+        writeAndRead(
+            Types.StructType.of(),
+            wrapper.wrap(file, file.tracking(), null /* assignedFirstRowId */));
 
-    assertThat(wrapped.tracking().dataSequenceNumber()).isEqualTo(COMMIT_SEQUENCE_NUMBER);
-    assertThat(wrapped.tracking().fileSequenceNumber()).isEqualTo(PREVIOUS_SEQUENCE_NUMBER);
+    assertThat(actual.tracking().dataSequenceNumber()).isEqualTo(COMMIT_SEQUENCE_NUMBER);
+    assertThat(actual.tracking().fileSequenceNumber()).isEqualTo(PREVIOUS_SEQUENCE_NUMBER);
   }
 
   @Test
@@ -720,7 +705,7 @@ class TestV4TrackedFileWrappers {
   }
 
   @Test
-  void rootAssignsCommitSequenceNumberToNewManifest() {
+  void rootAssignsCommitSequenceNumberToNewManifest() throws IOException {
     ManifestFile manifest = newManifest(ManifestContent.DATA, COMMIT_SNAPSHOT_ID);
     TrackedFile file = TrackedFileAdapters.forManifestFile().wrap(manifest);
 
@@ -731,15 +716,16 @@ class TestV4TrackedFileWrappers {
             UNPARTITIONED_SPECS,
             Types.StructType.of() /* partitionType */,
             Types.StructType.of() /* contentStatsType */);
-    TrackedFile wrapped = wrapper.wrap(file, file.tracking(), FIRST_ROW_ID);
+    TrackedFile actual =
+        writeAndRead(Types.StructType.of(), wrapper.wrap(file, file.tracking(), FIRST_ROW_ID));
 
-    assertThat(wrapped.tracking().dataSequenceNumber()).isEqualTo(COMMIT_SEQUENCE_NUMBER);
-    assertThat(wrapped.tracking().fileSequenceNumber()).isEqualTo(COMMIT_SEQUENCE_NUMBER);
-    assertThat(wrapped.manifestInfo().minSequenceNumber()).isEqualTo(COMMIT_SEQUENCE_NUMBER);
+    assertThat(actual.tracking().dataSequenceNumber()).isEqualTo(COMMIT_SEQUENCE_NUMBER);
+    assertThat(actual.tracking().fileSequenceNumber()).isEqualTo(COMMIT_SEQUENCE_NUMBER);
+    assertThat(actual.manifestInfo().minSequenceNumber()).isEqualTo(COMMIT_SEQUENCE_NUMBER);
   }
 
   @Test
-  void rootReturnsNullFirstRowIdForDeleteManifest() {
+  void rootReturnsNullFirstRowIdForDeleteManifest() throws IOException {
     TrackedFile manifest =
         manifestRef(FileContent.DELETE_MANIFEST, "s3://bucket/table/deletes.avro", MANIFEST_INFO);
     Tracking tracking =
@@ -760,10 +746,12 @@ class TestV4TrackedFileWrappers {
             UNPARTITIONED_SPECS,
             Types.StructType.of() /* partitionType */,
             Types.StructType.of() /* contentStatsType */);
-    TrackedFile wrapped = wrapper.wrap(manifest, tracking, null /* assignedFirstRowId */);
+    TrackedFile actual =
+        writeAndRead(
+            Types.StructType.of(), wrapper.wrap(manifest, tracking, null /* assignedFirstRowId */));
 
     // a stray first-row-id on a delete manifest is dropped rather than rejected, matching v3
-    assertThat(wrapped.tracking().firstRowId()).isNull();
+    assertThat(actual.tracking().firstRowId()).isNull();
   }
 
   @Test
@@ -872,40 +860,6 @@ class TestV4TrackedFileWrappers {
   }
 
   @Test
-  void rootCopyIsIndependentOfWrapperReuse() {
-    TrackedFile file = dataFile(ADDED_TRACKING, "s3://bucket/table/file.parquet");
-    TrackedFile expected =
-        copyWithTracking(
-            file,
-            new TrackingStruct(
-                EntryStatus.ADDED,
-                COMMIT_SNAPSHOT_ID,
-                COMMIT_SEQUENCE_NUMBER,
-                COMMIT_SEQUENCE_NUMBER,
-                null /* modifiedSnapshotId */,
-                FIRST_ROW_ID,
-                null /* deletedPositions */,
-                null /* replacedPositions */));
-
-    RootTrackedFileWrapper wrapper =
-        new RootTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            COMMIT_SEQUENCE_NUMBER,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    TrackedFile copy = wrapper.wrap(file, file.tracking(), FIRST_ROW_ID).copy();
-    wrapper.wrap(
-        manifestRef(FileContent.DELETE_MANIFEST, "s3://bucket/table/deletes.avro", MANIFEST_INFO),
-        EXISTING_TRACKING,
-        null /* assignedFirstRowId */);
-
-    assertThat(copy)
-        .usingComparator(V4TestComparators.trackedFile(Types.StructType.of()))
-        .isEqualTo(expected);
-  }
-
-  @Test
   void rootRejectsNullFile() {
     RootTrackedFileWrapper wrapper =
         new RootTrackedFileWrapper(
@@ -961,16 +915,16 @@ class TestV4TrackedFileWrappers {
         null /* firstRowId */);
   }
 
-  private TrackedFile writeAndRead(Types.StructType partitionType, TrackedFile file)
+  private TrackedFile writeAndRead(Types.StructType partitionType, StructLike row)
       throws IOException {
-    return writeAndRead(partitionType, Types.StructType.of(), file);
+    return writeAndRead(partitionType, Types.StructType.of(), row);
   }
 
   private TrackedFile writeAndRead(
-      Types.StructType partitionType, Types.StructType statsType, TrackedFile file)
+      Types.StructType partitionType, Types.StructType statsType, StructLike row)
       throws IOException {
     OutputFile out =
-        writeTrackedFiles(io, FileFormat.PARQUET, partitionType, statsType, ImmutableList.of(file));
+        writeRows(io, FileFormat.PARQUET, partitionType, statsType, ImmutableList.of(row));
     return Iterables.getOnlyElement(
         readTrackedFiles(out.toInputFile(), FileFormat.PARQUET, partitionType, statsType));
   }

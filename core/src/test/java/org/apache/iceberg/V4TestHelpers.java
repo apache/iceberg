@@ -238,15 +238,35 @@ class V4TestHelpers {
       Types.StructType statsType,
       Iterable<TrackedFile> files)
       throws IOException {
-    Schema writeSchema = TrackedFile.schema(partitionType, statsType);
-    try (FileAppender<StructLike> appender =
-        InternalData.write(format, out).schema(writeSchema).named("tracked_file").build()) {
+    try (FileAppender<StructLike> appender = newAppender(out, format, partitionType, statsType)) {
       for (TrackedFile file : files) {
         appender.add((StructLike) file);
       }
     }
 
     return out;
+  }
+
+  static OutputFile writeRows(
+      FileIO io,
+      FileFormat format,
+      Types.StructType partitionType,
+      Types.StructType statsType,
+      Iterable<StructLike> rows)
+      throws IOException {
+    OutputFile out = io.newOutputFile(format.addExtension("manifest." + System.nanoTime()));
+    try (FileAppender<StructLike> appender = newAppender(out, format, partitionType, statsType)) {
+      appender.addAll(rows);
+    }
+
+    return out;
+  }
+
+  private static FileAppender<StructLike> newAppender(
+      OutputFile out, FileFormat format, Types.StructType partitionType, Types.StructType statsType)
+      throws IOException {
+    Schema writeSchema = TrackedFile.schema(partitionType, statsType);
+    return InternalData.write(format, out).schema(writeSchema).named("tracked_file").build();
   }
 
   static List<TrackedFile> readTrackedFiles(

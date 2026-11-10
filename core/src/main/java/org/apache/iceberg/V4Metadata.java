@@ -23,14 +23,11 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ByteBuffers;
-import org.apache.iceberg.util.StructLikeUtil;
 import org.apache.iceberg.util.StructProjection;
 
 class V4Metadata {
@@ -568,7 +565,7 @@ class V4Metadata {
         file.location());
   }
 
-  private abstract static class TrackedFileWrapper implements TrackedFile, StructLike {
+  private abstract static class TrackedFileWrapper implements StructLike {
     private static final int SIZE =
         TrackedFile.schema(Types.StructType.of(), Types.StructType.of()).columns().size();
 
@@ -642,132 +639,6 @@ class V4Metadata {
         case 14 -> wrapColumnFiles(wrapped.columnFiles());
         default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       };
-    }
-
-    @Override
-    public Tracking tracking() {
-      return tracking;
-    }
-
-    @Override
-    public FileContent contentType() {
-      return wrapped.contentType();
-    }
-
-    @Override
-    public String location() {
-      return wrapped.location();
-    }
-
-    @Override
-    public FileFormat fileFormat() {
-      return wrapped.fileFormat();
-    }
-
-    @Override
-    public long recordCount() {
-      return wrapped.recordCount();
-    }
-
-    @Override
-    public long fileSizeInBytes() {
-      return wrapped.fileSizeInBytes();
-    }
-
-    @Override
-    public Integer specId() {
-      return specId;
-    }
-
-    @Override
-    public StructLike partition() {
-      return specId != null ? wrapped.partition() : null;
-    }
-
-    @Override
-    public ContentStats contentStats() {
-      return wrapped.contentStats();
-    }
-
-    @Override
-    public Integer sortOrderId() {
-      return wrapped.sortOrderId();
-    }
-
-    @Override
-    public DeletionVector deletionVector() {
-      return wrapped.deletionVector();
-    }
-
-    @Override
-    public ManifestInfo manifestInfo() {
-      return manifestInfo;
-    }
-
-    @Override
-    public ByteBuffer keyMetadata() {
-      return wrapped.keyMetadata();
-    }
-
-    @Override
-    public List<Long> splitOffsets() {
-      return wrapped.splitOffsets();
-    }
-
-    @Override
-    public List<ColumnFile> columnFiles() {
-      return wrapped.columnFiles();
-    }
-
-    @Override
-    public TrackedFile copy() {
-      return copy(null /* all stats */);
-    }
-
-    @Override
-    public TrackedFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return copy(requestedColumnIds);
-    }
-
-    private TrackedFile copy(Set<Integer> statsIds) {
-      ContentStats stats = wrapped.contentStats();
-      ContentStats statsCopy;
-      if (stats == null || (statsIds != null && statsIds.isEmpty())) {
-        statsCopy = null;
-      } else {
-        statsCopy = statsIds != null ? stats.copy(statsIds) : stats.copy();
-      }
-
-      DeletionVector dv = wrapped.deletionVector();
-      return new TrackedFileStruct(
-          tracking.copy(),
-          wrapped.contentType(),
-          wrapped.location(),
-          wrapped.fileFormat(),
-          wrapped.recordCount(),
-          wrapped.fileSizeInBytes(),
-          specId,
-          StructLikeUtil.copy(partition()),
-          statsCopy,
-          wrapped.sortOrderId(),
-          dv != null ? dv.copy() : null,
-          manifestInfo != null ? manifestInfo.copy() : null,
-          wrapped.keyMetadata(),
-          wrapped.splitOffsets(),
-          copyColumnFiles(wrapped.columnFiles()));
-    }
-
-    private static List<ColumnFile> copyColumnFiles(List<ColumnFile> columnFiles) {
-      if (columnFiles == null) {
-        return null;
-      }
-
-      List<ColumnFile> copies = Lists.newArrayListWithCapacity(columnFiles.size());
-      for (ColumnFile columnFile : columnFiles) {
-        copies.add(columnFile.copy());
-      }
-
-      return copies;
     }
 
     private static List<StructLike> wrapColumnFiles(List<ColumnFile> columnFiles) {
@@ -969,7 +840,7 @@ class V4Metadata {
   }
 
   /** Wrapper used to write {@link Tracking} using the v4 tracking schema. */
-  private static class TrackingWrapper implements Tracking, StructLike {
+  private static class TrackingWrapper implements StructLike {
     private static final int SIZE = Tracking.schema().fields().size();
 
     private Tracking wrapped = null;
@@ -1020,73 +891,10 @@ class V4Metadata {
         default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       };
     }
-
-    @Override
-    public EntryStatus status() {
-      return wrapped.status();
-    }
-
-    @Override
-    public Long snapshotId() {
-      return snapshotId;
-    }
-
-    @Override
-    public Long dataSequenceNumber() {
-      return dataSequenceNumber;
-    }
-
-    @Override
-    public Long fileSequenceNumber() {
-      return fileSequenceNumber;
-    }
-
-    @Override
-    public Long modifiedSnapshotId() {
-      return wrapped.modifiedSnapshotId();
-    }
-
-    @Override
-    public Long firstRowId() {
-      return firstRowId;
-    }
-
-    @Override
-    public ByteBuffer deletedPositions() {
-      return wrapped.deletedPositions();
-    }
-
-    @Override
-    public ByteBuffer replacedPositions() {
-      return wrapped.replacedPositions();
-    }
-
-    @Override
-    public String manifestLocation() {
-      return wrapped.manifestLocation();
-    }
-
-    @Override
-    public long manifestPos() {
-      return wrapped.manifestPos();
-    }
-
-    @Override
-    public Tracking copy() {
-      return new TrackingStruct(
-          wrapped.status(),
-          snapshotId,
-          dataSequenceNumber,
-          fileSequenceNumber,
-          wrapped.modifiedSnapshotId(),
-          firstRowId,
-          ByteBuffers.toByteArray(wrapped.deletedPositions()),
-          ByteBuffers.toByteArray(wrapped.replacedPositions()));
-    }
   }
 
   /** Wrapper used to write {@link ManifestInfo} using the v4 manifest info schema. */
-  private static class ManifestInfoWrapper implements ManifestInfo, StructLike {
+  private static class ManifestInfoWrapper implements StructLike {
     private static final int SIZE = ManifestInfo.schema().fields().size();
 
     private ManifestInfo wrapped = null;
@@ -1135,89 +943,6 @@ class V4Metadata {
     private ByteBuffer mdvBuffer() {
       ManifestBitmap mdv = wrapped.manifestDeletionVector();
       return mdv != null ? mdv.buffer() : null;
-    }
-
-    @Override
-    public int addedFilesCount() {
-      return wrapped.addedFilesCount();
-    }
-
-    @Override
-    public int existingFilesCount() {
-      return wrapped.existingFilesCount();
-    }
-
-    @Override
-    public int deletedFilesCount() {
-      return wrapped.deletedFilesCount();
-    }
-
-    @Override
-    public int replacedFilesCount() {
-      return wrapped.replacedFilesCount();
-    }
-
-    @Override
-    public int modifiedFilesCount() {
-      return wrapped.modifiedFilesCount();
-    }
-
-    @Override
-    public long addedRowsCount() {
-      return wrapped.addedRowsCount();
-    }
-
-    @Override
-    public long existingRowsCount() {
-      return wrapped.existingRowsCount();
-    }
-
-    @Override
-    public long deletedRowsCount() {
-      return wrapped.deletedRowsCount();
-    }
-
-    @Override
-    public long replacedRowsCount() {
-      return wrapped.replacedRowsCount();
-    }
-
-    @Override
-    public long modifiedRowsCount() {
-      return wrapped.modifiedRowsCount();
-    }
-
-    @Override
-    public long minSequenceNumber() {
-      return minSequenceNumber;
-    }
-
-    @Override
-    public ManifestBitmap manifestDeletionVector() {
-      return wrapped.manifestDeletionVector();
-    }
-
-    @Override
-    public int formatVersion() {
-      return wrapped.formatVersion();
-    }
-
-    @Override
-    public ManifestInfo copy() {
-      return new ManifestInfoStruct(
-          wrapped.addedFilesCount(),
-          wrapped.existingFilesCount(),
-          wrapped.deletedFilesCount(),
-          wrapped.replacedFilesCount(),
-          wrapped.modifiedFilesCount(),
-          wrapped.addedRowsCount(),
-          wrapped.existingRowsCount(),
-          wrapped.deletedRowsCount(),
-          wrapped.replacedRowsCount(),
-          wrapped.modifiedRowsCount(),
-          minSequenceNumber,
-          ByteBuffers.toByteArray(mdvBuffer()),
-          wrapped.formatVersion());
     }
   }
 
