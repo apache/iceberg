@@ -208,7 +208,7 @@ The refresh state has the following fields:
 |-------------|------------------------------|-------------|
 | _required_  | `refresh-start-timestamp-ms` | A timestamp of when the refresh operation was started |
 | _required_  | `view-version-id`            | The `version-id` of the materialized view when the refresh operation was performed |
-| _required_  | `source-states`              | A list of [source state](#source-state) records capturing the dependencies the producer chose to track; may be empty |
+| _required_  | `source-states`              | A list of [source state](#source-state) records capturing the dependencies the writer chose to record; may be empty |
 
 When writing the refresh state, writers may leave source-states empty (e.g., when sources are non-Iceberg or freshness is determined by a mechanism outside this spec).
 
@@ -237,7 +237,7 @@ A source table record captures the state of a source table (including a source m
 | _optional_  | `snapshot-id` | The snapshot-id of the source table that was read during the refresh operation. Omitted when the source table had no snapshots at refresh time (e.g. a newly created, empty table) |
 | _optional_  | `ref`         | Branch name of the source table being referenced in the view query |
 
-When `ref` is set, the source table is tracked against that branch or tag, and the materialized view is stale once the ref advances past the recorded `snapshot-id`. When `ref` is not set, the source table is pinned to the recorded `snapshot-id` (e.g. `FOR VERSION AS OF <snapshot-id>`); the materialized view remains fresh with respect to this source as long as that snapshot exists. Producers that read a branch should record the branch name in `ref`.
+When `ref` is set, the source table is tracked against that branch or tag, and the materialized view is stale once the ref advances past the recorded `snapshot-id`. When `ref` is not set, the source table is pinned to the recorded `snapshot-id` (e.g. `FOR VERSION AS OF <snapshot-id>`); the materialized view remains fresh with respect to this source as long as that snapshot exists. Writers that read a branch should record the branch name in `ref`.
 
 #### Source view state
 
@@ -261,7 +261,7 @@ When processing a `CREATE MATERIALIZED VIEW` statement, query engines must:
 
 The storage table must exist and be accessible before or at the time the materialized view metadata is committed.
 
-A storage table that has not yet been refreshed has no snapshots. After a refresh, even if the query result is empty, the storage table will contain a snapshot with the `refresh-state` property in its summary. Consumers can use the presence of a snapshot with `refresh-state` to distinguish a never-refreshed storage table from one that was refreshed with an empty result.
+A storage table that has not yet been refreshed has no snapshots. After a refresh, even if the query result is empty, the storage table will contain a snapshot with the `refresh-state` property in its summary. Readers can use the presence of a snapshot with `refresh-state` to distinguish a never-refreshed storage table from one that was refreshed with an empty result.
 
 ## Appendix A: Examples
 
