@@ -56,8 +56,6 @@ public class OAuth2Manager implements AuthManager {
   private volatile Cache<String, OAuth2Session> cacheById;
   private volatile Cache<OAuth2Config, OAuth2Session> cacheByConfig;
 
-  public OAuth2Manager(String ignoredManagerName) {}
-
   @Override
   public AuthSession initSession(RESTClient initClient, Map<String, String> initProperties) {
     this.restClient = initClient;
