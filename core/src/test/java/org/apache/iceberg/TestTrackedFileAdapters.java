@@ -210,6 +210,7 @@ class TestTrackedFileAdapters {
             PARTITIONED_SPEC_ID,
             PARTITION,
             CONTENT_STATS,
+            true,
             3,
             dv,
             null,
@@ -235,6 +236,7 @@ class TestTrackedFileAdapters {
     assertThat(dataFile.splitOffsets()).containsExactly(50L, 100L);
     assertThat(dataFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
     assertThat(dataFile.deletionVector()).isSameAs(dv);
+    assertThat(dataFile.tightStats()).isTrue();
     assertThat(dataFile.equalityFieldIds()).isNull();
     assertThat(dataFile.columnSizes()).isNull();
     assertThat(dataFile.valueCounts())
@@ -298,6 +300,7 @@ class TestTrackedFileAdapters {
             PARTITIONED_SPEC_ID,
             PARTITION,
             null,
+            true,
             null,
             dv,
             null,
@@ -339,6 +342,7 @@ class TestTrackedFileAdapters {
     assertThat(dvFile.nanValueCounts()).isNull();
     assertThat(dvFile.lowerBounds()).isNull();
     assertThat(dvFile.upperBounds()).isNull();
+    assertThat(dvFile.tightStats()).isFalse();
   }
 
   @Test
@@ -429,6 +433,7 @@ class TestTrackedFileAdapters {
         PARTITIONED_SPEC_ID,
         PARTITION,
         null, // contentStats
+        false, // tightStats
         3, // sortOrderId
         dv, // deletionVector
         null, // manifestInfo
@@ -472,6 +477,7 @@ class TestTrackedFileAdapters {
             null, // specId
             null, // partition
             null, // contentStats
+            false, // tightStats
             null, // sortOrderId
             null, // deletionVector
             MANIFEST_INFO,
@@ -579,6 +585,7 @@ class TestTrackedFileAdapters {
             null,
             null,
             null,
+            false,
             null,
             deletionVector(),
             null,
@@ -632,6 +639,7 @@ class TestTrackedFileAdapters {
             99,
             null,
             null,
+            false,
             null,
             null,
             null,
@@ -831,6 +839,7 @@ class TestTrackedFileAdapters {
     assertThat(result.recordCount()).isEqualTo(file.recordCount());
     assertThat(result.fileSizeInBytes()).isEqualTo(file.fileSizeInBytes());
     assertThat(result.specId()).isEqualTo(file.specId());
+    assertThat(result.tightStats()).isEqualTo(file.tightStats());
     assertThat(result.sortOrderId()).isEqualTo(file.sortOrderId());
     assertThat(result.keyMetadata()).isEqualTo(file.keyMetadata());
     assertThat(result.splitOffsets()).isEqualTo(file.splitOffsets());
@@ -936,6 +945,7 @@ class TestTrackedFileAdapters {
         null,
         null,
         null,
+        false,
         null,
         null,
         null,
