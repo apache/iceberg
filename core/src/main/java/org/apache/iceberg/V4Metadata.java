@@ -613,7 +613,7 @@ class V4Metadata {
 
     @Override
     public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("Cannot modify a read-only tracked file");
+      throw new UnsupportedOperationException("Cannot modify TrackedFileWrapper wrapper via set");
     }
 
     @Override
@@ -984,7 +984,7 @@ class V4Metadata {
 
     @Override
     public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("Cannot modify read-only tracking");
+      throw new UnsupportedOperationException("Cannot modify TrackingWrapper wrapper via set");
     }
 
     @Override
@@ -1090,7 +1090,7 @@ class V4Metadata {
 
     @Override
     public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("Cannot modify read-only manifest info");
+      throw new UnsupportedOperationException("Cannot modify ManifestInfoWrapper wrapper via set");
     }
 
     @Override
@@ -1214,12 +1214,10 @@ class V4Metadata {
 
     private ContentStatsWrapper(Types.StructType type) {
       List<Types.NestedField> fields = type.fields();
-      this.posToFieldId = new int[fields.size()];
+      this.posToFieldId = ContentStatsStruct.posToId(type);
       this.fieldStats = new FieldStatsWrapper[fields.size()];
       for (int pos = 0; pos < fields.size(); pos += 1) {
-        Types.NestedField field = fields.get(pos);
-        posToFieldId[pos] = StatsUtil.toFieldId(field.fieldId());
-        fieldStats[pos] = new FieldStatsWrapper(field.type().asStructType());
+        fieldStats[pos] = new FieldStatsWrapper(fields.get(pos).type().asStructType());
       }
     }
 
@@ -1235,13 +1233,13 @@ class V4Metadata {
 
     @Override
     public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("Cannot modify read-only content stats");
+      throw new UnsupportedOperationException("Cannot modify ContentStatsWrapper wrapper via set");
     }
 
     @Override
     public <T> T get(int pos, Class<T> javaClass) {
       FieldStats<?> stats = wrapped.statsFor(posToFieldId[pos]);
-      return javaClass.cast(stats != null ? fieldStats[pos].wrap(stats) : null);
+      return stats != null ? javaClass.cast(fieldStats[pos].wrap(stats)) : null;
     }
   }
 
@@ -1251,11 +1249,7 @@ class V4Metadata {
     private FieldStats<?> wrapped = null;
 
     private FieldStatsWrapper(Types.StructType type) {
-      List<Types.NestedField> fields = type.fields();
-      this.posToOffset = new int[fields.size()];
-      for (int pos = 0; pos < fields.size(); pos += 1) {
-        posToOffset[pos] = StatsUtil.statOffset(fields.get(pos).fieldId());
-      }
+      this.posToOffset = FieldStatsStruct.posToOffset(type);
     }
 
     private FieldStatsWrapper wrap(FieldStats<?> stats) {
@@ -1270,7 +1264,7 @@ class V4Metadata {
 
     @Override
     public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("Cannot modify read-only field stats");
+      throw new UnsupportedOperationException("Cannot modify FieldStatsWrapper wrapper via set");
     }
 
     @Override
