@@ -93,7 +93,7 @@ class TestOAuth2Manager {
 
   @Test
   void initAndCatalogSessions() {
-    try (OAuth2Manager manager = new OAuth2Manager("test")) {
+    try (OAuth2Manager manager = new OAuth2Manager()) {
       try (AuthSession initSession =
           manager.initSession(server.restClient(), catalogProperties())) {
         assertAuthorization(initSession, MockAuthorizationServer.ACCESS_TOKEN);
@@ -121,7 +121,7 @@ class TestOAuth2Manager {
             server.tokenEndpoint().toString(),
             OAuth2Properties.SCOPE,
             MockAuthorizationServer.SCOPE);
-    try (OAuth2Manager manager = new OAuth2Manager("test");
+    try (OAuth2Manager manager = new OAuth2Manager();
         AuthSession catalogSession = manager.catalogSession(server.restClient(), properties)) {
       assertAuthorization(catalogSession, MockAuthorizationServer.ACCESS_TOKEN);
     }
@@ -129,7 +129,7 @@ class TestOAuth2Manager {
 
   @Test
   void contextualSessionWithoutOAuth2Properties() {
-    try (OAuth2Manager manager = new OAuth2Manager("test");
+    try (OAuth2Manager manager = new OAuth2Manager();
         AuthSession catalogSession =
             manager.catalogSession(server.restClient(), catalogProperties())) {
       SessionContext context =
@@ -143,7 +143,7 @@ class TestOAuth2Manager {
 
   @Test
   void contextualSessionWithUnsupportedLegacyProperties() {
-    try (OAuth2Manager manager = new OAuth2Manager("test");
+    try (OAuth2Manager manager = new OAuth2Manager();
         AuthSession catalogSession =
             manager.catalogSession(server.restClient(), catalogProperties())) {
       SessionContext context =
@@ -156,7 +156,7 @@ class TestOAuth2Manager {
 
   @Test
   void contextualSessionWithSameConfig() {
-    try (OAuth2Manager manager = new OAuth2Manager("test");
+    try (OAuth2Manager manager = new OAuth2Manager();
         AuthSession catalogSession =
             manager.catalogSession(server.restClient(), catalogProperties())) {
       SessionContext context =
@@ -176,7 +176,7 @@ class TestOAuth2Manager {
 
   @Test
   void contextualSessionWithOwnConfig() {
-    try (OAuth2Manager manager = new OAuth2Manager("test");
+    try (OAuth2Manager manager = new OAuth2Manager();
         AuthSession catalogSession =
             manager.catalogSession(server.restClient(), catalogProperties())) {
       assertAuthorization(catalogSession, MockAuthorizationServer.ACCESS_TOKEN);
@@ -218,7 +218,7 @@ class TestOAuth2Manager {
 
   @Test
   void contextualSessionDoesNotInheritCatalogConfig() {
-    try (OAuth2Manager manager = new OAuth2Manager("test");
+    try (OAuth2Manager manager = new OAuth2Manager();
         AuthSession catalogSession =
             manager.catalogSession(server.restClient(), catalogProperties())) {
       // no token endpoint in the context: the legacy fallback to the catalog URI applies,
@@ -239,7 +239,7 @@ class TestOAuth2Manager {
 
   @Test
   void tableSessionReturnsParent() {
-    try (OAuth2Manager manager = new OAuth2Manager("test");
+    try (OAuth2Manager manager = new OAuth2Manager();
         AuthSession catalogSession =
             manager.catalogSession(server.restClient(), catalogProperties())) {
       AuthSession tableSession =
@@ -254,7 +254,7 @@ class TestOAuth2Manager {
 
   @Test
   void standaloneTableSessionCachedByConfig() {
-    try (OAuth2Manager manager = new OAuth2Manager("test")) {
+    try (OAuth2Manager manager = new OAuth2Manager()) {
       Map<String, String> properties1 = catalogProperties();
       Map<String, String> properties2 =
           ImmutableMap.<String, String>builder()
@@ -287,7 +287,7 @@ class TestOAuth2Manager {
   void standaloneTableSessionsForDifferentCatalogs() {
     server.expectLegacyTokenEndpoint("/catalog-a", "access_a");
     server.expectLegacyTokenEndpoint("/catalog-b", "access_b");
-    try (OAuth2Manager manager = new OAuth2Manager("test")) {
+    try (OAuth2Manager manager = new OAuth2Manager()) {
       Map<String, String> propertiesA =
           Map.of(
               CatalogProperties.URI,
@@ -313,7 +313,7 @@ class TestOAuth2Manager {
   @Test
   void closeClearsCaches() {
     server.expectLegacyTokenEndpoint();
-    OAuth2Manager manager = new OAuth2Manager("test");
+    OAuth2Manager manager = new OAuth2Manager();
     AuthSession catalogSession = manager.catalogSession(server.restClient(), catalogProperties());
     SessionContext context =
         new SessionContext(
