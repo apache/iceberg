@@ -2298,4 +2298,94 @@ public class TestTableMetadata {
     assertThat(updated.currentSnapshot().timestampMillis()).isEqualTo(snapshotTs);
     assertThat(updated.lastUpdatedMillis()).isLessThan(snapshotTs);
   }
+
+  @Test
+  void newTableMetadataReassignsMultiArgSourceIds() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(10, "id", Types.IntegerType.get()),
+            Types.NestedField.required(20, "data", Types.StringType.get()));
+    List<Integer> sourceIds = ImmutableList.of(10, 20);
+
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            schema,
+            multiArgSpec(schema, sourceIds),
+            multiArgSortOrder(schema, sourceIds),
+            TEST_LOCATION,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"));
+
+    List<Integer> freshSourceIds = multiArgSourceIds(metadata.schema());
+    assertThat(freshSourceIds).doesNotContainAnyElementsOf(sourceIds);
+    assertThat(metadata.spec().fields().get(0).sourceIds()).isEqualTo(freshSourceIds);
+    assertThat(metadata.sortOrder().fields().get(0).sourceIds()).isEqualTo(freshSourceIds);
+  }
+
+  @Test
+  void schemaUpdatePreservesMultiArgFields() {
+    TableMetadata base = multiArgTableMetadata();
+    List<Types.NestedField> columns = Lists.newArrayList(base.schema().columns());
+    columns.add(
+        Types.NestedField.optional(base.lastColumnId() + 1, "extra", Types.StringType.get()));
+
+    TableMetadata updated =
+        TableMetadata.buildFrom(base)
+            .setCurrentSchema(new Schema(columns), base.lastColumnId() + 1)
+            .build();
+
+    List<Integer> expectedSourceIds = multiArgSourceIds(updated.schema());
+    assertThat(updated.spec().fields().get(0).sourceIds()).isEqualTo(expectedSourceIds);
+    assertThat(updated.sortOrder().fields().get(0).sourceIds()).isEqualTo(expectedSourceIds);
+
+    TableMetadata parsed = TableMetadataParser.fromJson(TableMetadataParser.toJson(updated));
+    assertThat(parsed.spec()).isEqualTo(updated.spec());
+    assertThat(parsed.sortOrder()).isEqualTo(updated.sortOrder());
+  }
+
+  @Test
+  void replacementPreservesMultiArgFields() {
+    TableMetadata base = multiArgTableMetadata();
+
+    TableMetadata replaced =
+        base.buildReplacement(
+            base.schema(), base.spec(), base.sortOrder(), TEST_LOCATION, ImmutableMap.of());
+
+    // the multi-arg partition field is matched on all of its source ids and keeps its field id
+    assertThat(replaced.spec().fields()).isEqualTo(base.spec().fields());
+    assertThat(replaced.sortOrder().fields()).isEqualTo(base.sortOrder().fields());
+  }
+
+  private static TableMetadata multiArgTableMetadata() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "data", Types.StringType.get()));
+    List<Integer> sourceIds = multiArgSourceIds(schema);
+
+    return TableMetadata.newTableMetadata(
+        schema,
+        multiArgSpec(schema, sourceIds),
+        multiArgSortOrder(schema, sourceIds),
+        TEST_LOCATION,
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"));
+  }
+
+  private static List<Integer> multiArgSourceIds(Schema schema) {
+    return ImmutableList.of(schema.findField("id").fieldId(), schema.findField("data").fieldId());
+  }
+
+  private static PartitionSpec multiArgSpec(Schema schema, List<Integer> sourceIds) {
+    return UnboundPartitionSpec.builder()
+        .addField("bucket[8]", sourceIds, 1000, "id_data_bucket")
+        .build()
+        .bind(schema);
+  }
+
+  private static SortOrder multiArgSortOrder(Schema schema, List<Integer> sourceIds) {
+    return UnboundSortOrder.builder()
+        .withOrderId(1)
+        .addSortField("bucket[16]", sourceIds, SortDirection.ASC, NullOrder.NULLS_FIRST)
+        .build()
+        .bind(schema);
+  }
 }

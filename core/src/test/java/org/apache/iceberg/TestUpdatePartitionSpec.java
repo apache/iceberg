@@ -28,6 +28,7 @@ import static org.apache.iceberg.expressions.Expressions.year;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
@@ -49,6 +50,11 @@ public class TestUpdatePartitionSpec extends TestBase {
           .day("ts")
           .bucket("id", 16, "shard")
           .build();
+  private static final PartitionSpec MULTI_ARG =
+      UnboundPartitionSpec.builder()
+          .addField("bucket[8]", ImmutableList.of(id("id"), id("category")), 1000, "id_category")
+          .build()
+          .bind(SCHEMA);
 
   @TestTemplate
   public void testAddIdentityByName() {
@@ -656,6 +662,45 @@ public class TestUpdatePartitionSpec extends TestBase {
       assertThat(updated.fields().get(0).name()).isEqualTo("ts_transformed");
       assertThat(updated.fields().get(0).transform()).asString().isEqualTo("day");
     }
+  }
+
+  @TestTemplate
+  void addFieldPreservesMultiArgField() {
+    PartitionSpec updated =
+        new BaseUpdatePartitionSpec(formatVersion, MULTI_ARG).addField("data").apply();
+
+    PartitionSpec expected =
+        UnboundPartitionSpec.builder()
+            .addField("bucket[8]", ImmutableList.of(id("id"), id("category")), 1000, "id_category")
+            .addField("identity", id("data"), 1001, "data")
+            .build()
+            .bind(SCHEMA);
+
+    assertThat(updated).isEqualTo(expected);
+  }
+
+  @TestTemplate
+  void removeMultiArgFieldByName() {
+    PartitionSpec updated =
+        new BaseUpdatePartitionSpec(formatVersion, MULTI_ARG).removeField("id_category").apply();
+
+    PartitionSpec v1Expected =
+        UnboundPartitionSpec.builder()
+            .addField("void", ImmutableList.of(id("id"), id("category")), 1000, "id_category")
+            .build()
+            .bind(SCHEMA);
+
+    V1Assert.assertEquals("Should match expected spec", v1Expected, updated);
+    V2Assert.assertEquals("Should match expected spec", UNPARTITIONED, updated);
+  }
+
+  @TestTemplate
+  void singleArgTermDoesNotMatchMultiArgField() {
+    assertThatThrownBy(
+            () ->
+                new BaseUpdatePartitionSpec(formatVersion, MULTI_ARG).removeField(bucket("id", 8)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot find partition field to remove");
   }
 
   private static int id(String name) {

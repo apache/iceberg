@@ -152,8 +152,9 @@ public class SortOrderUtil {
     if (sortOrder == null) {
       return Collections.emptySet();
     } else {
+      // the order of a multi-arg transform does not preserve the order of any single column
       return sortOrder.fields().stream()
-          .filter(f -> f.transform().preservesOrder())
+          .filter(f -> f.sourceIds().size() == 1 && f.transform().preservesOrder())
           .map(SortField::sourceId)
           .map(sid -> sortOrder.schema().findColumnName(sid))
           .filter(Objects::nonNull)

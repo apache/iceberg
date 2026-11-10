@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.File;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
@@ -36,6 +37,7 @@ public class TestPartitioning {
 
   private static final int V1_FORMAT_VERSION = 1;
   private static final int V2_FORMAT_VERSION = 2;
+  private static final int V3_FORMAT_VERSION = 3;
   private static final Schema SCHEMA =
       new Schema(
           required(1, "id", Types.IntegerType.get()),
@@ -568,5 +570,31 @@ public class TestPartitioning {
     table.updateSchema().deleteColumn("data").commit();
     table.newDelete().deleteFile(dataFile).commit();
     assertThat(table.currentSnapshot().summary()).containsEntry("deleted-data-files", "1");
+  }
+
+  @Test
+  void partitionTypeWithMultiArgFieldAndSpecEvolution() {
+    PartitionSpec multiArgSpec =
+        UnboundPartitionSpec.builder()
+            .addField("bucket[8]", ImmutableList.of(1, 2), 1000, "id_data_bucket")
+            .build()
+            .bind(SCHEMA);
+    TestTables.TestTable table =
+        TestTables.create(tableDir, "test", SCHEMA, multiArgSpec, V3_FORMAT_VERSION);
+
+    table.updateSpec().addField("category").commit();
+
+    assertThat(table.specs()).hasSize(2);
+
+    StructType expectedType =
+        StructType.of(
+            NestedField.optional(1000, "id_data_bucket", Types.IntegerType.get()),
+            NestedField.optional(1001, "category", Types.StringType.get()));
+    assertThat(Partitioning.partitionType(table)).isEqualTo(expectedType);
+
+    StructType expectedGroupingKeyType =
+        StructType.of(NestedField.optional(1000, "id_data_bucket", Types.IntegerType.get()));
+    assertThat(Partitioning.groupingKeyType(table.schema(), table.specs().values()))
+        .isEqualTo(expectedGroupingKeyType);
   }
 }

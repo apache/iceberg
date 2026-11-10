@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.transforms.Transform;
 
@@ -61,6 +62,10 @@ public class SortField implements Serializable {
 
   /** Returns the field id of the source field in the {@link SortOrder sort order's} table schema */
   public int sourceId() {
+    Preconditions.checkState(
+        sourceIds.size() == 1,
+        "Use sourceIds() for multi-argument transforms, found %s source ids",
+        sourceIds.size());
     return sourceIds.get(0);
   }
 
