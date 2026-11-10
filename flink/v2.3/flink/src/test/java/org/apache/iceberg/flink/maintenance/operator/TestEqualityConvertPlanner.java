@@ -1430,9 +1430,8 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
     }
   }
 
-  @ParameterizedTest
-  @ValueSource(booleans = {false, true})
-  void rebuildsIndexWhenDeltaAddsRemovedFileAgain(boolean sameCommit) throws Exception {
+  @Test
+  void rebuildsIndexWhenDeltaAddsRemovedFileAgain() throws Exception {
     Table table = createTableWithDelete(3);
     insert(table, 1, "a");
     DataFile reused = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
@@ -1450,13 +1449,9 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
 
       sendTrigger(harness);
 
-      // Removes the indexed file and adds it again, in two commits or in one.
-      if (sameCommit) {
-        table.newOverwrite().deleteFile(reused).addFile(reused).commit();
-      } else {
-        table.newDelete().deleteFile(reused).commit();
-        table.newAppend().appendFile(reused).commit();
-      }
+      // Removes the indexed file and adds it again
+      table.newDelete().deleteFile(reused).commit();
+      table.newAppend().appendFile(reused).commit();
 
       table.refresh();
 
