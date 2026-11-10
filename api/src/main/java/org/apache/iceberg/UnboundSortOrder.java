@@ -42,13 +42,12 @@ public class UnboundSortOrder {
     SortOrder.Builder builder = SortOrder.builderFor(schema).withOrderId(orderId);
 
     for (UnboundSortField field : fields) {
-      Type sourceType = schema.findType(field.sourceId());
-      Transform<?, ?> transform;
-      if (sourceType != null) {
-        transform = Transforms.fromString(sourceType, field.transform.toString());
-      } else {
-        transform = field.transform;
+      List<Type> sourceTypes = Lists.newArrayListWithCapacity(field.sourceIds().size());
+      for (int sourceId : field.sourceIds()) {
+        sourceTypes.add(schema.findType(sourceId));
       }
+
+      Transform<?, ?> transform = Transforms.fromString(sourceTypes, field.transformAsString());
       if (field.sourceIds().size() > 1) {
         builder.addSortField(transform, field.sourceIds(), field.direction, field.nullOrder);
       } else {

@@ -18,11 +18,13 @@
  */
 package org.apache.iceberg.transforms;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 
 /**
@@ -113,6 +115,29 @@ public class Transforms {
     }
 
     return new UnknownTransform<>(transform);
+  }
+
+  /**
+   * Parses a transform from its string representation for the given source types.
+   *
+   * <p>Multi-argument transforms are not recognized and produce an {@link UnknownTransform}. A
+   * {@code null} source type, for a source field that no longer exists, produces the same result as
+   * {@link #fromString(String)}.
+   *
+   * @param types the source types of the transform arguments, in order
+   * @param transform a transform string, such as {@code "day"} or {@code "bucket[16]"}
+   * @return the parsed transform
+   */
+  public static Transform<?, ?> fromString(List<Type> types, String transform) {
+    Preconditions.checkArgument(types != null, "Invalid source types: null");
+    Preconditions.checkArgument(!types.isEmpty(), "Invalid source types: empty");
+
+    if (types.size() > 1) {
+      return new UnknownTransform<>(transform);
+    }
+
+    Type type = types.get(0);
+    return type != null ? fromString(type, transform) : fromString(transform);
   }
 
   /**

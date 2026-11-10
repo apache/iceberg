@@ -24,6 +24,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.expressions.Projections.ProjectionEvaluator;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.junit.jupiter.api.TestTemplate;
@@ -425,6 +428,25 @@ public class TestPartitionSpecParser extends TestBase {
     assertThat(spec.fields()).hasSize(1);
     assertThat(spec.fields().get(0).sourceIds()).containsExactly(1, 2);
     assertThat(spec.fields().get(0).fieldId()).isEqualTo(1001);
+  }
+
+  @TestTemplate
+  void multiArgFieldDoesNotProjectFilters() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "data", Types.StringType.get()));
+
+    String specJson =
+        "{\"spec-id\":1,\"fields\":[{\"name\":\"id_data\",\"transform\":\"bucket[8]\","
+            + "\"source-ids\":[1,2],\"field-id\":1001}]}";
+
+    PartitionSpec spec = PartitionSpecParser.fromJson(schema, specJson);
+    ProjectionEvaluator projection = Projections.inclusive(spec);
+
+    assertThat(projection.project(Expressions.equal("id", 5))).isEqualTo(Expressions.alwaysTrue());
+    assertThat(projection.project(Expressions.equal("data", "a")))
+        .isEqualTo(Expressions.alwaysTrue());
   }
 
   @TestTemplate

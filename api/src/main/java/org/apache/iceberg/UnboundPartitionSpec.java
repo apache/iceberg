@@ -59,13 +59,12 @@ public class UnboundPartitionSpec {
     PartitionSpec.Builder builder = PartitionSpec.builderFor(schema).withSpecId(specId);
 
     for (UnboundPartitionField field : fields) {
-      Type fieldType = schema.findType(field.sourceId());
-      Transform<?, ?> transform;
-      if (fieldType != null) {
-        transform = Transforms.fromString(fieldType, field.transformAsString());
-      } else {
-        transform = Transforms.fromString(field.transformAsString());
+      List<Type> sourceTypes = Lists.newArrayListWithCapacity(field.sourceIds().size());
+      for (int sourceId : field.sourceIds()) {
+        sourceTypes.add(schema.findType(sourceId));
       }
+
+      Transform<?, ?> transform = Transforms.fromString(sourceTypes, field.transformAsString());
       if (field.sourceIds().size() > 1) {
         if (field.partitionId() != null) {
           builder.add(field.sourceIds(), field.partitionId(), field.name(), transform);
