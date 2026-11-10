@@ -79,6 +79,9 @@ Iceberg supports `UPSERT` based on the primary key when writing data into v2 tab
 !!! info
     OVERWRITE and UPSERT modes are mutually exclusive and cannot be enabled at the same time. When using UPSERT mode with a partitioned table, source columns of corresponding partition fields must be included in the equality fields. For example, if the partition field is `days(ts)`, then `ts` must be part of the equality fields.
 
+!!! warning
+    Equality deletes apply only within the partition spec they were written under. After you change a table's partition spec, Flink upsert and CDC jobs can silently leave duplicate keys and miss deletes for rows written under the old spec. Before restoring writers: stop with a savepoint, change the spec, rewrite existing data into the new spec, rebuild the jobs, then restore from the savepoint.
+
 ## Writing with DataStream
 
 Iceberg support writing to iceberg table from different DataStream input.
