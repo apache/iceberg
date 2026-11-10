@@ -419,6 +419,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
       for (ManifestFile manifest : snapshot.dataManifests(table.io())) {
         if (Objects.equals(manifest.snapshotId(), snapshot.snapshotId())) {
           if (!hasRowCounts(manifest)) {
+            logMissingRowCounts(manifest, mainSnapshot);
             return true;
           }
 
@@ -434,6 +435,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     long rebuildRows = 0L;
     for (ManifestFile manifest : mainSnapshot.dataManifests(table.io())) {
       if (!hasRowCounts(manifest)) {
+        logMissingRowCounts(manifest, mainSnapshot);
         return true;
       }
 
@@ -458,6 +460,14 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     return manifest.addedRowsCount() != null
         && manifest.existingRowsCount() != null
         && manifest.deletedRowsCount() != null;
+  }
+
+  private static void logMissingRowCounts(ManifestFile manifest, Snapshot mainSnapshot) {
+    LOG.warn(
+        "Manifest {} of snapshot {} has no row counts. Rebuilding the worker index instead of applying the external commits to main snapshot {}.",
+        manifest.path(),
+        manifest.snapshotId(),
+        mainSnapshot.snapshotId());
   }
 
   /** Applies the data-file changes of {@code externalCommits} to the worker index in one phase. */
