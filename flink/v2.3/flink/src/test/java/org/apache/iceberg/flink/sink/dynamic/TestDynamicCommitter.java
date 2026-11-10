@@ -1176,6 +1176,61 @@ class TestDynamicCommitter {
         .containsEntry("total-records", "66");
   }
 
+  @Test
+  void firstCommitToNewBranchIsNotSkippedWhenMainCommittedSameCheckpoint() throws Exception {
+    DynamicWriteResultAggregator aggregator = openAggregator();
+    String jobId = JobID.generate().toHexString();
+    String operatorId = new OperatorID().toHexString();
+    DynamicCommitter committer = createCommitter();
+
+    committer.commit(
+        Sets.newHashSet(
+            commitRequest(
+                aggregator,
+                new TableKey(TABLE1, SnapshotRef.MAIN_BRANCH),
+                WRITE_RESULT_BY_SPEC,
+                jobId,
+                SINK_ID,
+                operatorId,
+                1)));
+    committer.commit(
+        Sets.newHashSet(
+            commitRequest(
+                aggregator,
+                new TableKey(TABLE1, "branch"),
+                WRITE_RESULT_BY_SPEC_2,
+                jobId,
+                SINK_ID,
+                operatorId,
+                1)));
+
+    Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
+    assertThat(table.refs()).containsKey("branch");
+    assertThat(table.snapshot("branch").summary())
+        .containsEntry("flink.max-committed-checkpoint-id", "1");
+  }
+
+  @Test
+  void repeatedCommitToBranchCreatedByTheCommitIsSkipped() throws Exception {
+    DynamicWriteResultAggregator aggregator = openAggregator();
+    TableKey tableKey = new TableKey(TABLE1, "branch");
+    String jobId = JobID.generate().toHexString();
+    String operatorId = new OperatorID().toHexString();
+    DynamicCommitter committer = createCommitter();
+
+    committer.commit(
+        Sets.newHashSet(
+            commitRequest(
+                aggregator, tableKey, WRITE_RESULT_BY_SPEC, jobId, SINK_ID, operatorId, 1)));
+    committer.commit(
+        Sets.newHashSet(
+            commitRequest(
+                aggregator, tableKey, WRITE_RESULT_BY_SPEC, jobId, SINK_ID, operatorId, 1)));
+
+    Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
+    assertThat(table.snapshots()).hasSize(1);
+  }
+
   private DynamicWriteResultAggregator openAggregator() throws Exception {
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
