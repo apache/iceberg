@@ -55,7 +55,11 @@ subprojects {
       }
 
       // add build info, LICENSE, and NOTICE
-      def addBuildInfoAndLicense = { task ->
+      def archiveTasks = [jar, sourceJar, javadocJar, testJar]
+      if (isOpenApi) {
+        archiveTasks.add(testFixturesJar)
+      }
+      archiveTasks.each { task ->
         task.dependsOn rootProject.tasks.buildInfo
         task.from("${rootDir}/build") {
           include 'iceberg-build.properties'
@@ -64,11 +68,6 @@ subprojects {
           include 'LICENSE'
           include 'NOTICE'
         }
-      }
-      [jar, sourceJar, javadocJar, testJar].each(addBuildInfoAndLicense)
-      if (isOpenApi) {
-        // OpenAPI also publishes testFixturesJar for REST fixture consumers.
-        addBuildInfoAndLicense(testFixturesJar)
       }
     }
 

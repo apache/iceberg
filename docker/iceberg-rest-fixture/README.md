@@ -97,6 +97,17 @@ When making changes to the local files and test them out, you can build the imag
 docker image rm -f apache/iceberg-rest-fixture && docker build -t apache/iceberg-rest-fixture -f docker/iceberg-rest-fixture/Dockerfile .
 ```
 
+The staging task writes the test-fixtures JAR and its runtime dependencies to
+`open-api/build/iceberg-rest-server/libs/`, with the existing OpenAPI `LICENSE`
+and `NOTICE` alongside `libs/`. It builds only the required runtime dependencies,
+including the cloud bundles, rather than every project's `shadowJar`.
+Staging is explicit: the normal OpenAPI `build` does not create this directory.
+
+The image starts `RESTCatalogServer` with `libs/*` on the Java classpath; it does
+not use an OpenAPI shaded runtime JAR. The published test-fixtures JAR remains
+available to test consumers. Changing this packaging does not prune runtime
+dependencies or complete the LICENSE/NOTICE audit; those are separate follow-ups.
+
 ## Browse
 
 To browse the catalog, you can use `pyiceberg`:

@@ -1216,8 +1216,9 @@ project(':iceberg-open-api') {
   }
   check.dependsOn('validateRESTCatalogSpec')
 
-  // REST server runtime as a dir of jars; consumed by docker/iceberg-rest-fixture.
   tasks.register('stageRESTFixtureRuntime', Sync) {
+    description = 'Stages the REST fixture JARs and LICENSE/NOTICE for the Docker image'
+    group = 'build'
     into layout.buildDirectory.dir('iceberg-rest-server')
     from(projectDir) {
       include 'LICENSE'
@@ -1225,7 +1226,7 @@ project(':iceberg-open-api') {
     }
     into('libs') {
       from configurations.testFixturesRuntimeClasspath
-      from tasks.testFixturesJar
+      from tasks.named('testFixturesJar')
     }
   }
 
