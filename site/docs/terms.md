@@ -90,7 +90,6 @@ The log is a list of timestamp and ID pairs: when the current snapshot changed a
 
 The snapshot log is stored in [table metadata as `snapshot-log`](spec.md#table-metadata-fields).
 
-
 ## Mumbling bitmap
 
 A **mumbling bitmap** is a compressed bitmap format used for bounded bitsets such as [deletion vectors](docs/latest/deletion-vectors.md).
