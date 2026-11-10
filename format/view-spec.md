@@ -200,7 +200,7 @@ The `refresh-state` property is set on the [snapshot summary](https://iceberg.ap
 
 #### Refresh state
 
-Query engines maintain the precomputed data in the storage table by executing the materialized view’s query. During a refresh, the engine records the state of the view’s dependencies in the refresh state. Which dependencies are available depends on how the query was evaluated, and the writer chooses which of them to record: all, a subset, or none. See [Appendix B](#appendix-b-example-strategies-for-selecting-dependencies) for example strategies. Each recorded dependency appears in `source-states` as a table entry or a view entry. A source materialized view may be recorded as a view entry for its definition and, optionally, a table entry for its storage table.
+Query engines maintain the precomputed data in the storage table by executing the materialized view’s query. During a refresh, the engine records the state of the view’s dependencies in the refresh state. Which dependencies are available depends on how source materialized views are treated, and the writer chooses which of them to record: all, a subset, or none. See [Appendix B](#appendix-b-example-freshness-criteria-and-recorded-dependencies) for examples. Each recorded dependency appears in `source-states` as a table entry or a view entry. A source materialized view may be recorded as a view entry for its definition and, optionally, a table entry for its storage table.
 
 The refresh state has the following fields:
 
@@ -529,7 +529,7 @@ The following is an example of the `refresh-state` JSON value stored in the snap
 
 ## Appendix B: Example freshness criteria and recorded dependencies
 
-Each engine decides when it can read a materialized view's storage table instead of evaluating the view query. This appendix calls that decision the engine's _freshness criteria_. The spec does not define freshness criteria, but they determine what a writer records in the refresh state: the dependencies that a reader applying the same criteria needs to check. Each example below states its freshness criteria and the refresh state that follows from them. Other criteria lead to other recorded states in the same way.
+Each engine decides when it can read a materialized view's storage table instead of evaluating the view query. This appendix calls that decision the engine's freshness criteria. The spec does not define freshness criteria, but they determine what a writer records in the refresh state. During a refresh, the engine applies its criteria to each materialized view the query reads and records the dependencies that a reader applying the same criteria needs to check. Each example below states its freshness criteria and the refresh state that follows from them.
 
 Both examples refresh `event_agg_30_day_mv`, which reads the materialized view `event_agg_mv` from [Appendix A](#materialized-view-example). `event_agg_mv` in turn reads the Iceberg table `events`:
 
@@ -551,7 +551,7 @@ GROUP BY 2
 
 ```sql
 CREATE MATERIALIZED VIEW event_agg_30_day_mv (
-    event_count_30_day COMMENT 'Count of events indate',
+    event_count_30_day COMMENT 'Count of events in the 30 days up to the date',
     event_date)
 COMMENT 'Precomputed 30-day event counts'
 AS
@@ -567,7 +567,7 @@ FROM event_agg_mv
 
 Freshness criteria: an MV is fresh if its last refresh started within a user-defined staleness window, regardless of changes to its sources.
 
-Recorded state: the criteria never inspect sources.
+Recorded state: the criteria never inspect sources, so `source-states` is empty.
 
 ```json
 {
