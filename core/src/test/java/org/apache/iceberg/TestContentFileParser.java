@@ -93,6 +93,19 @@ public class TestContentFileParser {
     assertThat(contentFile.totalBytes()).isNull();
   }
 
+  @Test
+  void invalidContentStatsFieldId() throws Exception {
+    String jsonStr =
+        "{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"parquet\",\"partition\":[],\"file-size-in-bytes\":10,"
+            + "\"record-count\":1,\"content-stats\":{\"abc\":{\"total-bytes\":8}}}";
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    assertThatThrownBy(
+            () -> ContentFileParser.fromJson(jsonNode, Map.of(0, PartitionSpec.unpartitioned())))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid field ID for content stats: abc");
+  }
+
   @ParameterizedTest
   @MethodSource("provideSpecAndDataFile")
   public void testDataFile(PartitionSpec spec, DataFile dataFile, String expectedJson)
@@ -371,6 +384,7 @@ public class TestContentFileParser {
           + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
+          + "\"content-stats\":{\"3\":{\"total-bytes\":8},\"4\":{\"total-bytes\":16}},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128,256],\"sort-order-id\":1}";
     } else {
@@ -382,6 +396,7 @@ public class TestContentFileParser {
           + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
+          + "\"content-stats\":{\"3\":{\"total-bytes\":8},\"4\":{\"total-bytes\":16}},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128,256],\"sort-order-id\":1}";
     }
@@ -589,6 +604,7 @@ public class TestContentFileParser {
           + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
+          + "\"content-stats\":{\"3\":{\"total-bytes\":8},\"4\":{\"total-bytes\":16}},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128],\"equality-ids\":[3],\"sort-order-id\":1}";
     } else {
@@ -600,6 +616,7 @@ public class TestContentFileParser {
           + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
+          + "\"content-stats\":{\"3\":{\"total-bytes\":8},\"4\":{\"total-bytes\":16}},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128],\"equality-ids\":[3],\"sort-order-id\":1}";
     }
@@ -623,6 +640,7 @@ public class TestContentFileParser {
     assertThat(actual.nanValueCounts()).isEqualTo(expected.nanValueCounts());
     assertThat(actual.lowerBounds()).isEqualTo(expected.lowerBounds());
     assertThat(actual.upperBounds()).isEqualTo(expected.upperBounds());
+    assertThat(actual.totalBytes()).isEqualTo(expected.totalBytes());
     assertThat(actual.keyMetadata()).isEqualTo(expected.keyMetadata());
     assertThat(actual.splitOffsets()).isEqualTo(expected.splitOffsets());
     assertThat(actual.equalityFieldIds()).isEqualTo(expected.equalityFieldIds());
