@@ -632,7 +632,12 @@ public class PartitionSpec implements Serializable {
     }
 
     Builder add(List<Integer> sourceIds, int fieldId, String name, Transform<?, ?> transform) {
-      checkAndAddPartitionName(name, sourceIds.get(0));
+      if (sourceIds.size() == 1) {
+        checkAndAddPartitionName(name, sourceIds.get(0));
+      } else {
+        checkAndAddPartitionName(name);
+      }
+
       fields.add(new PartitionField(sourceIds, fieldId, name, transform));
       lastAssignedFieldId.getAndAccumulate(fieldId, Math::max);
       return this;

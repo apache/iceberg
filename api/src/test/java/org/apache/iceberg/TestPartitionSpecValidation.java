@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -240,6 +241,16 @@ public class TestPartitionSpecValidation {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot create identity partition sourced from different field in schema: another_ts");
+  }
+
+  @Test
+  void multiArgPartitionNameMatchingSourceColumn() {
+    assertThatThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA)
+                    .add(ImmutableList.of(1, 6), "id", Transforms.bucket(8)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot create partition from name that exists in schema: id");
   }
 
   @Test
