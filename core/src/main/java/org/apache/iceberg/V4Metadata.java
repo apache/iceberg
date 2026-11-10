@@ -794,57 +794,59 @@ class V4Metadata {
     }
 
     private TrackingWrapper wrap(TrackedFile trackedFile, Tracking tracking, Long firstRowId) {
-      if (commitSnapshotId != null) {
-        if (isUnassigned(tracking.dataSequenceNumber())) {
-          // a modified entry inherits the data sequence number of the commit that modified it
-          Long dataSnapshotId =
-              tracking.status() == EntryStatus.MODIFIED
-                  ? tracking.modifiedSnapshotId()
-                  : tracking.snapshotId();
-          Preconditions.checkState(
-              commitSnapshotId.equals(dataSnapshotId),
-              "Cannot assign sequence number to file from snapshot %s (committing snapshot %s): %s",
-              dataSnapshotId,
-              commitSnapshotId,
-              trackedFile.location());
-        }
-
-        if (isUnassigned(tracking.fileSequenceNumber())) {
-          Preconditions.checkState(
-              commitSnapshotId.equals(tracking.snapshotId()),
-              "Cannot assign sequence number to file from snapshot %s (committing snapshot %s): %s",
-              tracking.snapshotId(),
-              commitSnapshotId,
-              trackedFile.location());
-        }
-
-        if (trackedFile.contentType() == FileContent.DELETE_MANIFEST) {
-          Preconditions.checkState(
-              firstRowId == null,
-              "Cannot assign first-row-id to delete manifest: %s",
-              trackedFile.location());
-        } else if (firstRowId != null) {
-          Preconditions.checkState(
-              tracking.status().isLive(),
-              "Cannot assign first-row-id to file with status %s: %s",
-              tracking.status(),
-              trackedFile.location());
-          Preconditions.checkState(
-              tracking.firstRowId() == null,
-              "Cannot assign first-row-id to file with existing first-row-id %s: %s",
-              tracking.firstRowId(),
-              trackedFile.location());
-        } else {
-          Preconditions.checkState(
-              tracking.firstRowId() != null,
-              "Missing first-row-id for file: %s",
-              trackedFile.location());
-        }
-      }
-
       this.file = trackedFile;
       this.wrapped = tracking;
       this.assignedFirstRowId = firstRowId;
+      if (commitSnapshotId == null) {
+        return this;
+      }
+
+      if (isUnassigned(tracking.dataSequenceNumber())) {
+        // a modified entry inherits the data sequence number of the commit that modified it
+        Long dataSnapshotId =
+            tracking.status() == EntryStatus.MODIFIED
+                ? tracking.modifiedSnapshotId()
+                : tracking.snapshotId();
+        Preconditions.checkState(
+            commitSnapshotId.equals(dataSnapshotId),
+            "Cannot assign sequence number to file from snapshot %s (committing snapshot %s): %s",
+            dataSnapshotId,
+            commitSnapshotId,
+            trackedFile.location());
+      }
+
+      if (isUnassigned(tracking.fileSequenceNumber())) {
+        Preconditions.checkState(
+            commitSnapshotId.equals(tracking.snapshotId()),
+            "Cannot assign sequence number to file from snapshot %s (committing snapshot %s): %s",
+            tracking.snapshotId(),
+            commitSnapshotId,
+            trackedFile.location());
+      }
+
+      if (trackedFile.contentType() == FileContent.DELETE_MANIFEST) {
+        Preconditions.checkState(
+            firstRowId == null,
+            "Cannot assign first-row-id to delete manifest: %s",
+            trackedFile.location());
+      } else if (firstRowId != null) {
+        Preconditions.checkState(
+            tracking.status().isLive(),
+            "Cannot assign first-row-id to file with status %s: %s",
+            tracking.status(),
+            trackedFile.location());
+        Preconditions.checkState(
+            tracking.firstRowId() == null,
+            "Cannot assign first-row-id to file with existing first-row-id %s: %s",
+            tracking.firstRowId(),
+            trackedFile.location());
+      } else {
+        Preconditions.checkState(
+            tracking.firstRowId() != null,
+            "Missing first-row-id for file: %s",
+            trackedFile.location());
+      }
+
       return this;
     }
 
