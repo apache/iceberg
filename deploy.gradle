@@ -78,6 +78,8 @@ subprojects {
             artifact testFixturesJar
           } else if (isKafkaConnectRuntime) {
             artifact distZip
+            artifact sourceJar
+            artifact javadocJar
           } else {
             if (tasks.matching({task -> task.name == 'shadowJar'}).isEmpty()) {
               from components.java
