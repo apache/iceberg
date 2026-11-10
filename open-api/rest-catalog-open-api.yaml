@@ -5498,20 +5498,6 @@ components:
           "values": [ 100, 200 ]
         }
 
-    FieldStatistics:
-      type: object
-      properties:
-        total-bytes:
-          type: integer
-          format: int64
-          description:
-            Estimated uncompressed bytes in memory of non-null values. The
-            estimate depends on the in-memory representation
-      example:
-        {
-          "total-bytes": 8
-        }
-
     ValueMap:
       type: object
       properties:
@@ -5611,11 +5597,6 @@ components:
           description: "List of splittable offsets"
         sort-order-id:
           type: integer
-        content-stats:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/FieldStatistics'
-          description: Container struct for per-field metrics structs
 
     DataFile:
       allOf:

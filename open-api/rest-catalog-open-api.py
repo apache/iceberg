@@ -1222,14 +1222,6 @@ class CountMap(BaseModel):
     )
 
 
-class FieldStatistics(BaseModel):
-    total_bytes: int | None = Field(
-        None,
-        alias='total-bytes',
-        description='Estimated uncompressed bytes in memory of non-null values. The estimate depends on the in-memory representation',
-    )
-
-
 class PrimitiveTypeValue(
     RootModel[
         BooleanTypeValue
@@ -1297,11 +1289,6 @@ class ContentFile(BaseModel):
         None, alias='split-offsets', description='List of splittable offsets'
     )
     sort_order_id: int | None = Field(None, alias='sort-order-id')
-    content_stats: dict[str, FieldStatistics] | None = Field(
-        None,
-        alias='content-stats',
-        description='Container struct for per-field metrics structs',
-    )
 
 
 class PositionDeleteFile(ContentFile):
