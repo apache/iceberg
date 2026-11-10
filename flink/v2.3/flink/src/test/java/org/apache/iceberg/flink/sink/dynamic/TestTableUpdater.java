@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -36,6 +37,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
@@ -513,5 +515,146 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
         TableCreator.DEFAULT);
 
     assertThat(catalog.tableExists(tableIdentifier)).isTrue();
+  }
+
+  @Test
+  void specUpdateSucceedsDespiteUnrelatedConcurrentCommit() {
+    ConcurrentCommitCatalog catalog = concurrentCommitCatalog();
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("myNamespace"), "myTable");
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    tableUpdater.update(
+        tableIdentifier,
+        SnapshotRef.MAIN_BRANCH,
+        SCHEMA,
+        PartitionSpec.unpartitioned(),
+        TableCreator.DEFAULT);
+    catalog.commitUnrelatedChangeOnNextLoad();
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 10).build();
+    PartitionSpec updated =
+        tableUpdater.update(
+                tableIdentifier, SnapshotRef.MAIN_BRANCH, SCHEMA, spec, TableCreator.DEFAULT)
+            .f1;
+
+    assertThat(PartitionSpecEvolution.checkCompatibility(updated, spec)).isTrue();
+    assertThat(catalog.loadTable(tableIdentifier).spec()).isEqualTo(updated);
+  }
+
+  @Test
+  void schemaUpdateSucceedsDespiteUnrelatedConcurrentCommit() {
+    ConcurrentCommitCatalog catalog = concurrentCommitCatalog();
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("myNamespace"), "myTable");
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    tableUpdater.update(
+        tableIdentifier,
+        SnapshotRef.MAIN_BRANCH,
+        SCHEMA,
+        PartitionSpec.unpartitioned(),
+        TableCreator.DEFAULT);
+    catalog.commitUnrelatedChangeOnNextLoad();
+
+    Schema updated =
+        tableUpdater
+            .update(
+                tableIdentifier,
+                SnapshotRef.MAIN_BRANCH,
+                SCHEMA2,
+                PartitionSpec.unpartitioned(),
+                TableCreator.DEFAULT)
+            .f0
+            .resolvedTableSchema();
+
+    assertThat(updated.sameSchema(SCHEMA2)).isTrue();
+    assertThat(catalog.loadTable(tableIdentifier).schema().sameSchema(SCHEMA2)).isTrue();
+  }
+
+  @Test
+  void tableCreatedByAnotherWriterWhileCreatingIsLoaded() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    // Another writer creates the table right before this one does
+    TableCreator losingTheRace =
+        (catalog1, identifier, schema, spec) -> {
+          catalog1.createTable(identifier, schema, spec);
+          throw new AlreadyExistsException("Table already exists: %s", identifier);
+        };
+
+    Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> result =
+        tableUpdater.update(
+            tableIdentifier,
+            SnapshotRef.MAIN_BRANCH,
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            losingTheRace);
+
+    assertThat(result.f0.compareResult()).isEqualTo(CompareSchemasVisitor.Result.SAME);
+    assertThat(cache.exists(tableIdentifier)).isTrue();
+  }
+
+  @Test
+  void tableCreationFailsWithAlreadyExistsWhenTableCannotBeLoaded() {
+    // Like a view with the same name: the table exists for create but not for load
+    InMemoryCatalog catalog =
+        new InMemoryCatalog() {
+          @Override
+          public Table loadTable(TableIdentifier identifier) {
+            throw new NoSuchTableException("Table does not exist: %s", identifier);
+          }
+        };
+    catalog.initialize("catalog", Map.of());
+    Namespace namespace = Namespace.of("myNamespace");
+    catalog.createNamespace(namespace);
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, "myTable");
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableCreator tableCreator =
+        (catalog1, identifier, schema, spec) -> {
+          throw new AlreadyExistsException("View with same name already exists: %s", identifier);
+        };
+
+    assertThatThrownBy(
+            () ->
+                tableUpdater.update(
+                    tableIdentifier,
+                    SnapshotRef.MAIN_BRANCH,
+                    SCHEMA,
+                    PartitionSpec.unpartitioned(),
+                    tableCreator))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("myTable");
+  }
+
+  private static ConcurrentCommitCatalog concurrentCommitCatalog() {
+    ConcurrentCommitCatalog catalog = new ConcurrentCommitCatalog();
+    catalog.initialize("catalog", Map.of());
+    catalog.createNamespace(Namespace.of("myNamespace"));
+    return catalog;
+  }
+
+  private static class ConcurrentCommitCatalog extends InMemoryCatalog {
+    private boolean commitUnrelatedChangeOnNextLoad = false;
+
+    void commitUnrelatedChangeOnNextLoad() {
+      this.commitUnrelatedChangeOnNextLoad = true;
+    }
+
+    @Override
+    public Table loadTable(TableIdentifier identifier) {
+      Table table = super.loadTable(identifier);
+      if (commitUnrelatedChangeOnNextLoad) {
+        this.commitUnrelatedChangeOnNextLoad = false;
+        super.loadTable(identifier).updateProperties().set("unrelated", "change").commit();
+      }
+
+      return table;
+    }
   }
 }
