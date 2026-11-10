@@ -141,8 +141,12 @@ public class JdbcLockFactory implements TriggerLockFactory {
             LOG.info("Creating Flink maintenance lock table {}", LOCK_TABLE_NAME);
             try (PreparedStatement ps = conn.prepareStatement(CREATE_LOCK_TABLE_SQL)) {
               ps.execute();
-            } catch (SQLException createFailure) {
-              return verifyConcurrentTableCreation(conn, createFailure);
+            } catch (SQLException e) {
+              if (lockTableExists(dbMeta)) {
+                return true;
+              }
+
+              throw e;
             }
 
             return true;
@@ -161,42 +165,10 @@ public class JdbcLockFactory implements TriggerLockFactory {
     }
   }
 
-  private static boolean verifyConcurrentTableCreation(
-      java.sql.Connection conn, SQLException createFailure) throws SQLException {
-    if (!isTableAlreadyExists(createFailure)) {
-      throw createFailure;
-    }
-
-    try {
-      DatabaseMetaData metadata = conn.getMetaData();
-      if (lockTableExists(metadata)) {
-        LOG.info(
-            "Flink maintenance lock table {} already exists after concurrent initialization",
-            LOCK_TABLE_NAME,
-            createFailure);
-        return true;
-      }
-    } catch (SQLException verificationFailure) {
-      createFailure.addSuppressed(verificationFailure);
-    }
-
-    throw createFailure;
-  }
-
   private static boolean lockTableExists(DatabaseMetaData metadata) throws SQLException {
     try (ResultSet rs = metadata.getTables(null, null, LOCK_TABLE_NAME, null)) {
       return rs.next();
     }
-  }
-
-  private static boolean isTableAlreadyExists(SQLException failure) {
-    String sqlState = failure.getSQLState();
-    String message = failure.getMessage();
-    return "42P07".equals(sqlState)
-        || ("42S01".equals(sqlState) && failure.getErrorCode() == 1050)
-        || (failure.getErrorCode() == 1
-            && message != null
-            && message.contains("table " + LOCK_TABLE_NAME + " already exists"));
   }
 
   private static class JdbcLock implements TriggerLockFactory.Lock {
