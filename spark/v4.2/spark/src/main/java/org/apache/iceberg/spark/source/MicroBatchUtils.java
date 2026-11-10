@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotSummary;
@@ -65,5 +66,32 @@ class MicroBatchUtils {
         ? Iterables.size(
             SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles())
         : addedFilesCount;
+  }
+
+  static long addedFilesEndIndex(Table table, Snapshot snapshot) {
+    return addedFilePosition(table, snapshot, Long.MAX_VALUE);
+  }
+
+  static long addedFilePosition(Table table, Snapshot snapshot, long addedFileIndex) {
+    long addedFilesBefore = 0;
+    long manifestStartIndex = 0;
+    long endFileIndex = 0;
+    for (ManifestFile manifest : snapshot.dataManifests(table.io())) {
+      if (manifest.snapshotId() == snapshot.snapshotId()) {
+        int addedFiles = manifest.addedFilesCount();
+        if (addedFileIndex < addedFilesBefore + addedFiles) {
+          return manifestStartIndex + addedFileIndex - addedFilesBefore;
+        }
+
+        if (addedFiles > 0) {
+          endFileIndex = manifestStartIndex + addedFiles;
+        }
+
+        addedFilesBefore += addedFiles;
+        manifestStartIndex += addedFiles + manifest.existingFilesCount();
+      }
+    }
+
+    return endFileIndex;
   }
 }
