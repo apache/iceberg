@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
 import org.apache.flink.api.common.functions.DefaultOpenContext;
@@ -49,6 +50,7 @@ import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.data.VariantRowDataWrapper;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 class TestVariantAvroDynamicTableRecordGenerator {
@@ -271,6 +273,90 @@ class TestVariantAvroDynamicTableRecordGenerator {
     assertThat(records).hasSize(3);
     // Should emit DynamicRecord with same tableSchema instance.
     assertThat(records.get(1).schema()).isSameAs(schemaCacheItem.tableSchema());
+  }
+
+  @Test
+  void testTimeLogicalTypesAreTimesByDefault() throws Exception {
+    Schema schema = timesSchema();
+    RowType rowType = createRowTypeWithDbAndTable();
+
+    List<DynamicRecord> records =
+        runGenerate(rowType, Collections.emptyMap(), inputRow(timesVariant(), schema, "Times:v1"));
+
+    assertThat(records).hasSize(1);
+    org.apache.iceberg.Schema tableSchema = records.get(0).schema();
+    assertThat(tableSchema.findType("millis")).isEqualTo(Types.TimeType.get());
+    assertThat(tableSchema.findType("micros")).isEqualTo(Types.TimeType.get());
+  }
+
+  @Test
+  void testTimeLogicalTypesAsNumbers() throws Exception {
+    Schema schema = timesSchema();
+    RowType rowType = createRowTypeWithDbAndTable();
+    Map<String, String> writeProperties = Maps.newHashMap();
+    writeProperties.put(FlinkDynamicSinkOptions.AVRO_TIME_AS_NUMBER.key(), "true");
+
+    List<DynamicRecord> records =
+        runGenerate(rowType, writeProperties, inputRow(timesVariant(), schema, "Times:v1"));
+
+    assertThat(records).hasSize(1);
+    DynamicRecord record = records.get(0);
+    org.apache.iceberg.Schema tableSchema = record.schema();
+    assertThat(tableSchema.findType("millis")).isEqualTo(Types.IntegerType.get());
+    assertThat(tableSchema.findType("micros")).isEqualTo(Types.LongType.get());
+    assertThat(tableSchema.findField("millis").isRequired()).isTrue();
+    assertThat(tableSchema.findField("microsOrNull").isOptional()).isTrue();
+    assertThat(tableSchema.findType("microsOrNull")).isEqualTo(Types.LongType.get());
+
+    int millis = tableSchema.columns().indexOf(tableSchema.findField("millis"));
+    int micros = tableSchema.columns().indexOf(tableSchema.findField("micros"));
+    assertThat(record.rowData().getInt(millis)).isEqualTo(28_800_000);
+    assertThat(record.rowData().getLong(micros)).isEqualTo(28_800_000_123L);
+  }
+
+  @Test
+  void testTimeLogicalTypesAsNumbersFromTheFlinkConfiguration() throws Exception {
+    Schema schema = timesSchema();
+    RowType rowType = createRowTypeWithDbAndTable();
+    Configuration flinkConfig = new Configuration();
+    flinkConfig.set(FlinkDynamicSinkOptions.AVRO_TIME_AS_NUMBER, true);
+
+    VariantAvroDynamicTableRecordGenerator generator =
+        new VariantAvroDynamicTableRecordGenerator(rowType, Collections.emptyMap(), flinkConfig);
+    generator.open(new DefaultOpenContext());
+    List<DynamicRecord> records = Lists.newArrayList();
+    generator.generate(inputRow(timesVariant(), schema, "Times:v1"), new ListCollector<>(records));
+
+    assertThat(records.get(0).schema().findType("micros")).isEqualTo(Types.LongType.get());
+  }
+
+  private static Schema timesSchema() {
+    Schema millis = LogicalTypes.timeMillis().addToSchema(SchemaBuilder.builder().intType());
+    Schema micros = LogicalTypes.timeMicros().addToSchema(SchemaBuilder.builder().longType());
+    return SchemaBuilder.builder()
+        .record("Times")
+        .namespace("test.schema")
+        .fields()
+        .name("millis")
+        .type(millis)
+        .noDefault()
+        .name("micros")
+        .type(micros)
+        .noDefault()
+        .name("microsOrNull")
+        .type()
+        .optional()
+        .type(micros)
+        .endRecord();
+  }
+
+  private static Variant timesVariant() {
+    return Variant.newBuilder()
+        .object()
+        .add("millis", Variant.newBuilder().of(28_800_000))
+        .add("micros", Variant.newBuilder().of(28_800_000_123L))
+        .add("microsOrNull", Variant.newBuilder().ofNull())
+        .build();
   }
 
   @Test

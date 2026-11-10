@@ -82,11 +82,36 @@ public class AvroSchemaUtil {
   }
 
   public static Type convert(Schema schema) {
-    return AvroSchemaVisitor.visit(schema, new SchemaToType(schema));
+    return convert(schema, false);
+  }
+
+  /**
+   * Converts an Avro schema to an Iceberg type.
+   *
+   * @param schema an Avro schema
+   * @param timeAsNumber if true, {@code time-millis} is converted to an int and {@code time-micros}
+   *     to a long, which is how Avro stores them, instead of to an Iceberg time
+   * @return the Iceberg type
+   */
+  public static Type convert(Schema schema, boolean timeAsNumber) {
+    return AvroSchemaVisitor.visit(schema, new SchemaToType(schema, timeAsNumber));
   }
 
   public static org.apache.iceberg.Schema toIceberg(Schema schema) {
-    final List<Types.NestedField> fields = convert(schema).asNestedType().asStructType().fields();
+    return toIceberg(schema, false);
+  }
+
+  /**
+   * Converts an Avro record schema to an Iceberg schema.
+   *
+   * @param schema an Avro record schema
+   * @param timeAsNumber if true, {@code time-millis} is converted to an int and {@code time-micros}
+   *     to a long, which is how Avro stores them, instead of to an Iceberg time
+   * @return the Iceberg schema
+   */
+  public static org.apache.iceberg.Schema toIceberg(Schema schema, boolean timeAsNumber) {
+    final List<Types.NestedField> fields =
+        convert(schema, timeAsNumber).asNestedType().asStructType().fields();
     return new org.apache.iceberg.Schema(fields);
   }
 
