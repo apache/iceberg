@@ -28,6 +28,8 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  * serialized {@link org.apache.iceberg.flink.sink.DeltaManifests} file - which contains the commit
  * data, and the jobId, sinkId, operatorId, checkpointId which identify the specific commit
  *
+ * <p>Committables restored from older state use the jobId as sinkId.
+ *
  * <p>{@link IcebergCommittableSerializer} is used for serializing the objects between the Writer
  * and the Aggregator operator and between the Aggregator and the Committer as well.
  */

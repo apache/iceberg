@@ -70,6 +70,7 @@ public class IcebergCommittableSerializer implements SimpleVersionedSerializer<I
     long checkpointId = view.readLong();
     byte[] manifestBuf = new byte[view.readInt()];
     view.read(manifestBuf);
+    // v1 has no sinkId: committables restored from older state are identified by the jobId
     return new IcebergCommittable(manifestBuf, jobId, jobId, operatorId, checkpointId);
   }
 

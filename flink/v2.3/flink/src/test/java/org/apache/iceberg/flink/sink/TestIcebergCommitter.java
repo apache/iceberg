@@ -322,32 +322,33 @@ class TestIcebergCommitter extends TestBase {
   @TestTemplate
   public void testSkipsAlreadyCommittedOlderCommittable() throws Exception {
     RowData rowFromPreviousRun = SimpleDataUtil.createRowData(1, "hello1");
-    DataFile previousRunFile =
-        writeDataFile("data-previous-run", ImmutableList.of(rowFromPreviousRun));
-
-    // Snapshot written before the sinkId was introduced
-    table
-        .newAppend()
-        .appendFile(previousRunFile)
-        .set(SinkUtil.FLINK_JOB_ID, jobId)
-        .set(SinkUtil.OPERATOR_ID, OPERATOR_ID)
-        .set(SinkUtil.MAX_COMMITTED_CHECKPOINT_ID, "5")
-        .toBranch(branch)
-        .commit();
+    appendLegacySnapshot("data-previous-run", rowFromPreviousRun, 5);
     assertSnapshotSize(1);
 
     // Committables from older state use the jobId as sinkId
-    IcebergCommitter committer = getCommitter(jobId);
-    WriteResult writeResult =
-        of(
-            writeDataFile(
-                "data-replayed", ImmutableList.of(SimpleDataUtil.createRowData(2, "hello2"))));
-    committer.commit(
-        Lists.newArrayList(
-            buildCommitRequestFor(jobId, jobId, 5, Lists.newArrayList(writeResult))));
+    RowData rowReplayed = SimpleDataUtil.createRowData(2, "hello2");
+    commitCheckpoint(getCommitter(jobId), jobId, 5, "data-replayed", rowReplayed);
 
     assertSnapshotSize(1);
     SimpleDataUtil.assertTableRows(table, ImmutableList.of(rowFromPreviousRun), branch);
+  }
+
+  @TestTemplate
+  public void testCommitsWithNewSinkIdAfterUpgrade() throws Exception {
+    RowData rowFromPreviousRun = SimpleDataUtil.createRowData(1, "hello1");
+    appendLegacySnapshot("data-previous-run", rowFromPreviousRun, 5);
+    assertSnapshotSize(1);
+
+    // A stateless restart right after the upgrade keeps the jobId but creates a new sink, so the
+    // legacy mark must not skip its commit
+    String newSinkId = UUID.randomUUID().toString();
+    RowData rowAfterRestart = SimpleDataUtil.createRowData(2, "hello2");
+    commitCheckpoint(getCommitter(newSinkId), newSinkId, 1, "data-after-restart", rowAfterRestart);
+
+    assertSnapshotSize(2);
+    assertMaxCommittedCheckpointId(jobId, 1);
+    SimpleDataUtil.assertTableRows(
+        table, ImmutableList.of(rowFromPreviousRun, rowAfterRestart), branch);
   }
 
   @TestTemplate
@@ -1510,13 +1511,32 @@ class TestIcebergCommitter extends TestBase {
         0);
   }
 
+  private void appendLegacySnapshot(String filename, RowData row, long checkpointId)
+      throws IOException {
+    DataFile dataFile = writeDataFile(filename, ImmutableList.of(row));
+    table
+        .newAppend()
+        .appendFile(dataFile)
+        .set(SinkUtil.FLINK_JOB_ID, jobId)
+        .set(SinkUtil.OPERATOR_ID, OPERATOR_ID)
+        .set(SinkUtil.MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId))
+        .toBranch(branch)
+        .commit();
+  }
+
   private void commitCheckpoint(
       IcebergCommitter committer, long checkpointId, String filename, RowData row)
       throws IOException, InterruptedException {
+    commitCheckpoint(committer, SINK_ID, checkpointId, filename, row);
+  }
+
+  private void commitCheckpoint(
+      IcebergCommitter committer, String sinkId, long checkpointId, String filename, RowData row)
+      throws IOException, InterruptedException {
     WriteResult writeResult = of(writeDataFile(filename, ImmutableList.of(row)));
-    committer.commit(
-        Lists.newArrayList(
-            buildCommitRequestFor(jobId, checkpointId, Lists.newArrayList(writeResult))));
+    Committer.CommitRequest<IcebergCommittable> commitRequest =
+        buildCommitRequestFor(jobId, sinkId, checkpointId, Lists.newArrayList(writeResult));
+    committer.commit(Lists.newArrayList(commitRequest));
   }
 
   private Committer.CommitRequest<IcebergCommittable> buildCommitRequestFor(
