@@ -34,12 +34,6 @@ import org.apache.iceberg.geospatial.GeospatialBound;
  * <p>Callers must bound polygon interiors separately from their edges.
  */
 class SphericalGeographyBoundsBuilder {
-  private static final double MIN_LONGITUDE = -180.0;
-  private static final double MAX_LONGITUDE = 180.0;
-  private static final double MIN_LATITUDE = -90.0;
-  private static final double MAX_LATITUDE = 90.0;
-  private static final double LONGITUDE_SPAN = MAX_LONGITUDE - MIN_LONGITUDE;
-
   // A small cross product amplifies rounding errors when normalizing the great-circle plane.
   private static final double MIN_NORMAL_LENGTH = 1e-6;
 
@@ -95,7 +89,8 @@ class SphericalGeographyBoundsBuilder {
   private void addInteriorLatitudeExtrema(
       double longitude1, double latitude1, double longitude2, double latitude2) {
     if (latitude1 == latitude2
-        && (longitude1 == longitude2 || Math.abs(longitude1 - longitude2) == LONGITUDE_SPAN)) {
+        && (longitude1 == longitude2
+            || Math.abs(longitude1 - longitude2) == GeographyConstants.LONGITUDE_SPAN)) {
       return;
     }
 
@@ -103,6 +98,8 @@ class SphericalGeographyBoundsBuilder {
     Vector3 point2 = toUnitVector(longitude2, latitude2);
     Vector3 normal = point1.crossProduct(point2);
     double normalLength = normal.length();
+    // A small cross product can mean either a short arc or nearly antipodal endpoints.
+    // The dot product distinguishes the two cases.
     if (normalLength <= MIN_NORMAL_LENGTH) {
       if (point1.dotProduct(point2) < 0) {
         includeFullWorld();
@@ -119,29 +116,32 @@ class SphericalGeographyBoundsBuilder {
       return;
     }
 
+    // The normalized projection of the north pole onto the great-circle plane has
+    // z = horizontalNormalLength. On the unit sphere, latitude = asin(z).
     double vertexLatitude = Math.toDegrees(Math.asin(clamp(horizontalNormalLength, 0.0, 1.0)));
     double conservativeVertexLatitude =
         Math.min(
             Math.max(LATITUDE_SCALING_FACTOR * vertexLatitude, vertexLatitude + LATITUDE_MARGIN),
-            MAX_LATITUDE);
+            GeographyConstants.MAX_LATITUDE);
     Vector3 northVertex =
         new Vector3(
             -unitNormal.zComponent * unitNormal.xComponent / horizontalNormalLength,
             -unitNormal.zComponent * unitNormal.yComponent / horizontalNormalLength,
             horizontalNormalLength);
 
+    // The great circle's extrema may lie outside the current minor arc.
     if (isOnMinorArc(northVertex, point1, point2, unitNormal)) {
       maxLatitude = Math.max(maxLatitude, conservativeVertexLatitude);
-      if (conservativeVertexLatitude == MAX_LATITUDE) {
-        longitudes.add(MIN_LONGITUDE, MAX_LONGITUDE);
+      if (conservativeVertexLatitude == GeographyConstants.MAX_LATITUDE) {
+        longitudes.add(GeographyConstants.MIN_LONGITUDE, GeographyConstants.MAX_LONGITUDE);
       }
     }
 
     Vector3 southVertex = northVertex.scale(-1.0);
     if (isOnMinorArc(southVertex, point1, point2, unitNormal)) {
       minLatitude = Math.min(minLatitude, -conservativeVertexLatitude);
-      if (conservativeVertexLatitude == MAX_LATITUDE) {
-        longitudes.add(MIN_LONGITUDE, MAX_LONGITUDE);
+      if (conservativeVertexLatitude == GeographyConstants.MAX_LATITUDE) {
+        longitudes.add(GeographyConstants.MIN_LONGITUDE, GeographyConstants.MAX_LONGITUDE);
       }
     }
   }
@@ -149,12 +149,14 @@ class SphericalGeographyBoundsBuilder {
   private void addShortArcLatitudeBounds(double latitude1, double latitude2, double normalLength) {
     // Latitude cannot change by more than the central angle along a minor arc.
     double latitudePadding = Math.toDegrees(Math.asin(normalLength)) + LATITUDE_MARGIN;
-    double south = Math.max(MIN_LATITUDE, Math.min(latitude1, latitude2) - latitudePadding);
-    double north = Math.min(MAX_LATITUDE, Math.max(latitude1, latitude2) + latitudePadding);
+    double south =
+        Math.max(GeographyConstants.MIN_LATITUDE, Math.min(latitude1, latitude2) - latitudePadding);
+    double north =
+        Math.min(GeographyConstants.MAX_LATITUDE, Math.max(latitude1, latitude2) + latitudePadding);
     includeLatitude(south);
     includeLatitude(north);
-    if (south == MIN_LATITUDE || north == MAX_LATITUDE) {
-      longitudes.add(MIN_LONGITUDE, MAX_LONGITUDE);
+    if (south == GeographyConstants.MIN_LATITUDE || north == GeographyConstants.MAX_LATITUDE) {
+      longitudes.add(GeographyConstants.MIN_LONGITUDE, GeographyConstants.MAX_LONGITUDE);
     }
   }
 
@@ -187,16 +189,17 @@ class SphericalGeographyBoundsBuilder {
   }
 
   private void includeFullWorld() {
-    minLatitude = MIN_LATITUDE;
-    maxLatitude = MAX_LATITUDE;
-    longitudes.add(MIN_LONGITUDE, MAX_LONGITUDE);
+    minLatitude = GeographyConstants.MIN_LATITUDE;
+    maxLatitude = GeographyConstants.MAX_LATITUDE;
+    longitudes.add(GeographyConstants.MIN_LONGITUDE, GeographyConstants.MAX_LONGITUDE);
     state = State.FULL_WORLD;
   }
 
   private static BoundingBox worldBounds() {
     return new BoundingBox(
-        GeospatialBound.createXY(MIN_LONGITUDE, MIN_LATITUDE),
-        GeospatialBound.createXY(MAX_LONGITUDE, MAX_LATITUDE));
+        GeospatialBound.createXY(GeographyConstants.MIN_LONGITUDE, GeographyConstants.MIN_LATITUDE),
+        GeospatialBound.createXY(
+            GeographyConstants.MAX_LONGITUDE, GeographyConstants.MAX_LATITUDE));
   }
 
   private boolean includeCoordinate(double longitude, double latitude) {
@@ -242,7 +245,7 @@ class SphericalGeographyBoundsBuilder {
     double west = Math.min(longitude1, longitude2);
     double east = Math.max(longitude1, longitude2);
     double directGap = east - west;
-    double antimeridianGap = LONGITUDE_SPAN - directGap;
+    double antimeridianGap = GeographyConstants.LONGITUDE_SPAN - directGap;
     if (antimeridianGap >= directGap) {
       longitudes.add(west, east);
     } else {
@@ -251,15 +254,19 @@ class SphericalGeographyBoundsBuilder {
   }
 
   private static boolean isInLongitudeRange(double longitude) {
-    return Double.isFinite(longitude) && longitude >= MIN_LONGITUDE && longitude <= MAX_LONGITUDE;
+    return Double.isFinite(longitude)
+        && longitude >= GeographyConstants.MIN_LONGITUDE
+        && longitude <= GeographyConstants.MAX_LONGITUDE;
   }
 
   private static boolean isInLatitudeRange(double latitude) {
-    return Double.isFinite(latitude) && latitude >= MIN_LATITUDE && latitude <= MAX_LATITUDE;
+    return Double.isFinite(latitude)
+        && latitude >= GeographyConstants.MIN_LATITUDE
+        && latitude <= GeographyConstants.MAX_LATITUDE;
   }
 
   private static boolean isPole(double latitude) {
-    return Math.abs(latitude) == MAX_LATITUDE;
+    return Math.abs(latitude) == GeographyConstants.MAX_LATITUDE;
   }
 
   private static boolean isOnMinorArc(
