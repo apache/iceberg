@@ -582,9 +582,11 @@ class V4Metadata {
     private ManifestInfoWrapper manifestInfo = null;
 
     private TrackedFileWrapper(
-        Map<Integer, PartitionSpec> specsById, Types.StructType contentStatsType) {
+        Map<Integer, PartitionSpec> specsById,
+        Types.StructType partitionType,
+        Types.StructType contentStatsType) {
       this.specsById = specsById;
-      this.partitionProjections = partitionProjections(specsById);
+      this.partitionProjections = partitionProjections(specsById.values(), partitionType);
       this.contentStats = new ContentStatsWrapper(contentStatsType);
     }
 
@@ -599,7 +601,7 @@ class V4Metadata {
 
       this.wrapped = file;
       // v4 metadata stores a null spec ID and partition for unpartitioned files
-      this.specId = spec != null && !spec.fields().isEmpty() ? fileSpecId : null;
+      this.specId = spec != null && !spec.isUnpartitioned() ? fileSpecId : null;
       this.tracking = newTracking;
       this.manifestInfo = newManifestInfo;
     }
@@ -767,21 +769,28 @@ class V4Metadata {
     }
 
     private StructLike unionPartition() {
-      StructLike partition = partition();
-      if (partition == null) {
+      if (specId == null) {
         return null;
       }
 
       StructProjection projection = partitionProjections.get(specId);
-      return projection != null ? projection.wrap(partition) : partition;
+      return projection != null ? projection.wrap(wrapped.partition()) : wrapped.partition();
     }
 
     private static Map<Integer, StructProjection> partitionProjections(
-        Map<Integer, PartitionSpec> specsById) {
-      Types.StructType unionType = Partitioning.unionPartitionTypes(specsById.values());
+        Iterable<PartitionSpec> specs, Types.StructType unionType) {
       Map<Integer, StructProjection> projections = Maps.newHashMap();
-      for (PartitionSpec spec : specsById.values()) {
+      for (PartitionSpec spec : specs) {
         Types.StructType partitionType = spec.partitionType();
+        for (Types.NestedField field : partitionType.fields()) {
+          Preconditions.checkArgument(
+              unionType.field(field.fieldId()) != null,
+              "Invalid union partition type, missing field %s from spec %s: %s",
+              field.fieldId(),
+              spec.specId(),
+              unionType);
+        }
+
         StructProjection projection =
             partitionType.equals(unionType)
                 ? null
@@ -798,8 +807,10 @@ class V4Metadata {
     private final TrackingWrapper trackingWrapper = new TrackingWrapper();
 
     LeafTrackedFileWrapper(
-        Map<Integer, PartitionSpec> specsById, Types.StructType contentStatsType) {
-      super(specsById, contentStatsType);
+        Map<Integer, PartitionSpec> specsById,
+        Types.StructType partitionType,
+        Types.StructType contentStatsType) {
+      super(specsById, partitionType, contentStatsType);
     }
 
     LeafTrackedFileWrapper wrap(TrackedFile file, Tracking newTracking) {
@@ -834,8 +845,9 @@ class V4Metadata {
         long commitSnapshotId,
         long commitSequenceNumber,
         Map<Integer, PartitionSpec> specsById,
+        Types.StructType partitionType,
         Types.StructType contentStatsType) {
-      super(specsById, contentStatsType);
+      super(specsById, partitionType, contentStatsType);
       this.commitSnapshotId = commitSnapshotId;
       this.commitSequenceNumber = commitSequenceNumber;
     }
