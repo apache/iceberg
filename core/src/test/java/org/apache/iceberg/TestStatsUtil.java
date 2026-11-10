@@ -21,14 +21,22 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestStatsUtil {
   @Test
@@ -541,6 +549,438 @@ public class TestStatsUtil {
         StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(ImmutableMap.of(), schema));
 
     assertThat(actual.fields()).isEmpty();
+  }
+
+  private static Stream<Partition> identityValues() {
+    return Stream.of(
+        identity(Types.BooleanType.get(), true),
+        identity(Types.IntegerType.get(), 34),
+        identity(Types.LongType.get(), 34L),
+        identity(Types.FloatType.get(), 1.5F),
+        identity(Types.DoubleType.get(), 1.5D),
+        identity(Types.DecimalType.of(9, 2), new BigDecimal("12.34")),
+        identity(Types.DateType.get(), days("2024-02-29")),
+        identity(Types.TimeType.get(), DateTimeUtil.isoTimeToMicros("05:00:00.000000")),
+        identity(
+            Types.TimestampType.withoutZone(),
+            DateTimeUtil.isoTimestampToMicros("2024-02-29T05:00:00.000000")),
+        identity(Types.TimestampType.withZone(), micros("2024-02-29T05:00:00.000000+00:00")),
+        identity(
+            Types.TimestampNanoType.withoutZone(),
+            DateTimeUtil.isoTimestampToNanos("2024-02-29T05:00:00.000000000")),
+        identity(Types.TimestampNanoType.withZone(), nanos("2024-02-29T05:00:00.000000000+00:00")),
+        identity(Types.StringType.get(), "books"),
+        identity(Types.UUIDType.get(), UUID.fromString("f79c3e09-677c-4bbd-a479-3f349cb785e7")),
+        identity(Types.FixedType.ofLength(2), ByteBuffer.wrap(new byte[] {1, 2})),
+        identity(Types.BinaryType.get(), ByteBuffer.wrap(new byte[] {1, 2, 3})));
+  }
+
+  @ParameterizedTest
+  @MethodSource("identityValues")
+  void identityBounds(Partition partition) {
+    assertThat(sourceBounds(partition)).isEqualTo(partition.expected());
+  }
+
+  @Test
+  void identityNaN() {
+    assertThat(sourceBounds(Types.FloatType.get(), Transforms.identity(), Float.NaN)).isNull();
+    assertThat(sourceBounds(Types.DoubleType.get(), Transforms.identity(), Double.NaN)).isNull();
+  }
+
+  private static Stream<Partition> truncatedNumbers() {
+    Type decimal = Types.DecimalType.of(9, 2);
+    return Stream.of(
+        partition(Types.IntegerType.get(), Transforms.truncate(10), 20).withExpectedBounds(20, 29),
+        partition(Types.IntegerType.get(), Transforms.truncate(10), -10)
+            .withExpectedBounds(-10, -1),
+        partition(Types.LongType.get(), Transforms.truncate(100), 12_300L)
+            .withExpectedBounds(12_300L, 12_399L),
+        // decimal widths apply to the unscaled value, so truncate(50) on scale 2 is a width of 0.50
+        partition(decimal, Transforms.truncate(50), new BigDecimal("12.00"))
+            .withExpectedBounds(new BigDecimal("12.00"), new BigDecimal("12.49")),
+        partition(decimal, Transforms.truncate(50), new BigDecimal("-0.50"))
+            .withExpectedBounds(new BigDecimal("-0.50"), new BigDecimal("-0.01")));
+  }
+
+  @ParameterizedTest
+  @MethodSource("truncatedNumbers")
+  void truncateNumberBounds(Partition partition) {
+    assertThat(sourceBounds(partition)).isEqualTo(partition.expected());
+  }
+
+  @Test
+  void truncateNumberOverflowAtMin() {
+    // truncating MIN_VALUE through MIN_VALUE + 7 to a multiple of 10 overflows and wraps around
+    // to a positive partition value that is not a multiple of 10
+    Transform<Integer, Integer> intTruncate = Transforms.truncate(10);
+    int intOverflowPartition = intTruncate.bind(Types.IntegerType.get()).apply(Integer.MIN_VALUE);
+    assertThat(sourceBounds(Types.IntegerType.get(), intTruncate, intOverflowPartition))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(Integer.MIN_VALUE, Integer.MIN_VALUE + 7));
+
+    Transform<Long, Long> longTruncate = Transforms.truncate(10);
+    long longOverflowPartition = longTruncate.bind(Types.LongType.get()).apply(Long.MIN_VALUE);
+    assertThat(sourceBounds(Types.LongType.get(), longTruncate, longOverflowPartition))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(Long.MIN_VALUE, Long.MIN_VALUE + 7));
+  }
+
+  @Test
+  void truncateNumberWithoutOverflowAtMin() {
+    // MIN_VALUE is a multiple of 8, so truncating values near it does not overflow
+    Transform<Integer, Integer> intTruncate = Transforms.truncate(8);
+    int intMinPartition = intTruncate.bind(Types.IntegerType.get()).apply(Integer.MIN_VALUE);
+    assertThat(sourceBounds(Types.IntegerType.get(), intTruncate, intMinPartition))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(Integer.MIN_VALUE, Integer.MIN_VALUE + 7));
+
+    Transform<Long, Long> longTruncate = Transforms.truncate(8);
+    long longMinPartition = longTruncate.bind(Types.LongType.get()).apply(Long.MIN_VALUE);
+    assertThat(sourceBounds(Types.LongType.get(), longTruncate, longMinPartition))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(Long.MIN_VALUE, Long.MIN_VALUE + 7));
+  }
+
+  @Test
+  void truncateNumberUpperBoundDoesNotOverflowAtMax() {
+    // the upper bound would be 2_147_483_649, which is past Integer.MAX_VALUE
+    assertThat(sourceBounds(Types.IntegerType.get(), Transforms.truncate(10), 2_147_483_640))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(2_147_483_640, Integer.MAX_VALUE));
+
+    // the upper bound would be 9_223_372_036_854_775_809, which is past Long.MAX_VALUE
+    assertThat(
+            sourceBounds(Types.LongType.get(), Transforms.truncate(10), 9_223_372_036_854_775_800L))
+        .isEqualTo(
+            new StatsUtil.PartitionSourceBounds<>(9_223_372_036_854_775_800L, Long.MAX_VALUE));
+  }
+
+  @Test
+  void truncateDecimalUpperBoundDoesNotExceedPrecision() {
+    // the upper bound would be 10.19, which is past the largest decimal(3, 2) value. Widths that
+    // divide 10^3, like 10, never produce an upper bound past that value, so 30 is used.
+    assertThat(
+            sourceBounds(
+                Types.DecimalType.of(3, 2), Transforms.truncate(30), new BigDecimal("9.90")))
+        .isEqualTo(
+            new StatsUtil.PartitionSourceBounds<>(new BigDecimal("9.90"), new BigDecimal("9.99")));
+  }
+
+  @Test
+  void truncateStringUpperBoundIsNextPrefix() {
+    assertThat(sourceBounds(Types.StringType.get(), Transforms.truncate(3), "abc"))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>("abc", "abd"));
+  }
+
+  @Test
+  void truncateStringShorterThanWidth() {
+    assertThat(sourceBounds(Types.StringType.get(), Transforms.truncate(3), "ab"))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>("ab", "ab"));
+  }
+
+  @Test
+  void truncateStringShorterThanWidthCountsCodePoints() {
+    // "ab" + U+1F4B0 is 3 code points but 4 Java chars, so it is only shorter than width 4 if the
+    // width is counted in code points
+    String value = "ab" + new String(Character.toChars(0x1F4B0));
+
+    assertThat(sourceBounds(Types.StringType.get(), Transforms.truncate(4), value))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(value, value));
+  }
+
+  @Test
+  void truncateStringUpperBoundIncrementsSurrogatePair() {
+    // U+1F7FF is stored as two Java chars, and incrementing it to U+1F800 changes both chars,
+    // so the upper bound is only correct if the code point is incremented rather than the last char
+    String prefix = "ab" + new String(Character.toChars(0x1F7FF));
+    String nextPrefix = "ab" + new String(Character.toChars(0x1F800));
+
+    assertThat(sourceBounds(Types.StringType.get(), Transforms.truncate(3), prefix))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(prefix, nextPrefix));
+  }
+
+  @Test
+  void truncateStringUpperBoundSkipsMaxCodePoint() {
+    // MAX_CODE_POINT has no next code point, so "a" is incremented
+    String prefix = "a" + new String(Character.toChars(Character.MAX_CODE_POINT));
+
+    assertThat(sourceBounds(Types.StringType.get(), Transforms.truncate(2), prefix))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(prefix, "b"));
+  }
+
+  @Test
+  void truncateStringNoUpperBoundAtMaxCodePoint() {
+    String maxCodePoint = new String(Character.toChars(Character.MAX_CODE_POINT));
+
+    assertThat(sourceBounds(Types.StringType.get(), Transforms.truncate(1), maxCodePoint))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(maxCodePoint, null));
+  }
+
+  @Test
+  void truncateBinaryUpperBoundIsNextPrefix() {
+    ByteBuffer prefix = ByteBuffer.wrap(new byte[] {1, 2});
+
+    assertThat(sourceBounds(Types.BinaryType.get(), Transforms.truncate(2), prefix))
+        .isEqualTo(
+            new StatsUtil.PartitionSourceBounds<>(prefix, ByteBuffer.wrap(new byte[] {1, 3})));
+  }
+
+  @Test
+  void truncateBinaryShorterThanWidth() {
+    ByteBuffer value = ByteBuffer.wrap(new byte[] {1});
+
+    assertThat(sourceBounds(Types.BinaryType.get(), Transforms.truncate(2), value))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(value, value));
+  }
+
+  @Test
+  void truncateBinaryUpperBoundSkipsMaxByte() {
+    ByteBuffer prefix = ByteBuffer.wrap(new byte[] {1, (byte) 0xFF});
+
+    assertThat(sourceBounds(Types.BinaryType.get(), Transforms.truncate(2), prefix))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(prefix, ByteBuffer.wrap(new byte[] {2})));
+  }
+
+  @Test
+  void truncateBinaryNoUpperBoundAtMaxBytes() {
+    ByteBuffer prefix = ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF});
+
+    assertThat(sourceBounds(Types.BinaryType.get(), Transforms.truncate(2), prefix))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(prefix, null));
+  }
+
+  private static final List<Transform<?, ?>> BINARY_TRANSFORMS =
+      List.of(Transforms.identity(), Transforms.truncate(1), Transforms.truncate(2));
+
+  @ParameterizedTest
+  @FieldSource("BINARY_TRANSFORMS")
+  void binaryBoundsDoNotSharePosition(Transform<?, ?> transform) {
+    ByteBuffer value = ByteBuffer.wrap(new byte[] {1});
+    StatsUtil.PartitionSourceBounds<?> bounds =
+        sourceBounds(Types.BinaryType.get(), transform, value);
+    ByteBuffer lower = (ByteBuffer) bounds.lower();
+    ByteBuffer upper = (ByteBuffer) bounds.upper();
+
+    lower.get();
+    upper.get();
+
+    assertThat(lower.position()).isOne();
+    assertThat(upper.position()).isOne();
+    assertThat(value.position()).isZero();
+  }
+
+  private static Stream<Partition> timePartitionValues() {
+    Type date = Types.DateType.get();
+    // a given partition value has the same bounds with or without a zone, so only zoned is tested
+    Type timestamp = Types.TimestampType.withZone();
+    Type timestampNano = Types.TimestampNanoType.withZone();
+    return Stream.of(
+        partition(date, Transforms.year(), years("2024-01-01"))
+            .withExpectedBounds(days("2024-01-01"), days("2024-12-31")),
+        partition(date, Transforms.month(), months("2024-02-01"))
+            .withExpectedBounds(days("2024-02-01"), days("2024-02-29")),
+        partition(date, Transforms.day(), days("2024-02-10"))
+            .withExpectedBounds(days("2024-02-10"), days("2024-02-10")),
+        partition(timestamp, Transforms.year(), years("2024-01-01"))
+            .withExpectedBounds(
+                micros("2024-01-01T00:00:00.000000+00:00"),
+                micros("2024-12-31T23:59:59.999999+00:00")),
+        partition(timestamp, Transforms.month(), months("2024-02-01"))
+            .withExpectedBounds(
+                micros("2024-02-01T00:00:00.000000+00:00"),
+                micros("2024-02-29T23:59:59.999999+00:00")),
+        partition(timestamp, Transforms.day(), days("2024-02-10"))
+            .withExpectedBounds(
+                micros("2024-02-10T00:00:00.000000+00:00"),
+                micros("2024-02-10T23:59:59.999999+00:00")),
+        partition(timestamp, Transforms.hour(), hours("2024-02-10T05:00:00.000000+00:00"))
+            .withExpectedBounds(
+                micros("2024-02-10T05:00:00.000000+00:00"),
+                micros("2024-02-10T05:59:59.999999+00:00")),
+        partition(timestampNano, Transforms.year(), years("2024-01-01"))
+            .withExpectedBounds(
+                nanos("2024-01-01T00:00:00.000000000+00:00"),
+                nanos("2024-12-31T23:59:59.999999999+00:00")),
+        partition(timestampNano, Transforms.month(), months("2024-02-01"))
+            .withExpectedBounds(
+                nanos("2024-02-01T00:00:00.000000000+00:00"),
+                nanos("2024-02-29T23:59:59.999999999+00:00")),
+        partition(timestampNano, Transforms.day(), days("2024-02-10"))
+            .withExpectedBounds(
+                nanos("2024-02-10T00:00:00.000000000+00:00"),
+                nanos("2024-02-10T23:59:59.999999999+00:00")),
+        partition(timestampNano, Transforms.hour(), hours("2024-02-10T05:00:00.000000000+00:00"))
+            .withExpectedBounds(
+                nanos("2024-02-10T05:00:00.000000000+00:00"),
+                nanos("2024-02-10T05:59:59.999999999+00:00")));
+  }
+
+  @ParameterizedTest
+  @MethodSource("timePartitionValues")
+  void timeBounds(Partition partition) {
+    assertThat(sourceBounds(partition)).isEqualTo(partition.expected());
+  }
+
+  private static Stream<Partition> timePartitionValuesAtEpoch() {
+    Type date = Types.DateType.get();
+    Type timestamp = Types.TimestampType.withZone();
+    Type timestampNano = Types.TimestampNanoType.withZone();
+    return Stream.of(
+        partition(date, Transforms.year(), 0)
+            .withExpectedBounds(days("1969-01-01"), days("1970-12-31")),
+        partition(date, Transforms.month(), 0)
+            .withExpectedBounds(days("1969-12-01"), days("1970-01-31")),
+        partition(date, Transforms.day(), 0)
+            .withExpectedBounds(days("1970-01-01"), days("1970-01-01")),
+        partition(timestamp, Transforms.year(), 0)
+            .withExpectedBounds(
+                micros("1969-01-01T00:00:00.000000+00:00"),
+                micros("1970-12-31T23:59:59.999999+00:00")),
+        partition(timestamp, Transforms.month(), 0)
+            .withExpectedBounds(
+                micros("1969-12-01T00:00:00.000000+00:00"),
+                micros("1970-01-31T23:59:59.999999+00:00")),
+        partition(timestamp, Transforms.day(), 0)
+            .withExpectedBounds(
+                micros("1969-12-31T00:00:00.000000+00:00"),
+                micros("1970-01-01T23:59:59.999999+00:00")),
+        partition(timestamp, Transforms.hour(), 0)
+            .withExpectedBounds(
+                micros("1969-12-31T23:00:00.000000+00:00"),
+                micros("1970-01-01T00:59:59.999999+00:00")),
+        partition(timestampNano, Transforms.year(), 0)
+            .withExpectedBounds(
+                nanos("1969-01-01T00:00:00.000000000+00:00"),
+                nanos("1970-12-31T23:59:59.999999999+00:00")),
+        partition(timestampNano, Transforms.month(), 0)
+            .withExpectedBounds(
+                nanos("1969-12-01T00:00:00.000000000+00:00"),
+                nanos("1970-01-31T23:59:59.999999999+00:00")),
+        partition(timestampNano, Transforms.day(), 0)
+            .withExpectedBounds(
+                nanos("1969-12-31T00:00:00.000000000+00:00"),
+                nanos("1970-01-01T23:59:59.999999999+00:00")),
+        partition(timestampNano, Transforms.hour(), 0)
+            .withExpectedBounds(
+                nanos("1969-12-31T23:00:00.000000000+00:00"),
+                nanos("1970-01-01T00:59:59.999999999+00:00")));
+  }
+
+  @ParameterizedTest
+  @MethodSource("timePartitionValuesAtEpoch")
+  void timeBoundsAtEpoch(Partition partition) {
+    assertThat(sourceBounds(partition)).isEqualTo(partition.expected());
+  }
+
+  private static Stream<Partition> timePartitionValuesBefore1970() {
+    Type date = Types.DateType.get();
+    Type timestamp = Types.TimestampType.withZone();
+    Type timestampNano = Types.TimestampNanoType.withZone();
+    return Stream.of(
+        partition(date, Transforms.year(), -1)
+            .withExpectedBounds(days("1968-01-01"), days("1969-12-31")),
+        partition(date, Transforms.month(), -1)
+            .withExpectedBounds(days("1969-11-01"), days("1969-12-31")),
+        partition(date, Transforms.day(), -1)
+            .withExpectedBounds(days("1969-12-31"), days("1969-12-31")),
+        partition(timestamp, Transforms.year(), -1)
+            .withExpectedBounds(
+                micros("1968-01-01T00:00:00.000000+00:00"),
+                micros("1969-12-31T23:59:59.999999+00:00")),
+        partition(timestamp, Transforms.month(), -1)
+            .withExpectedBounds(
+                micros("1969-11-01T00:00:00.000000+00:00"),
+                micros("1969-12-31T23:59:59.999999+00:00")),
+        partition(timestamp, Transforms.day(), -1)
+            .withExpectedBounds(
+                micros("1969-12-30T00:00:00.000000+00:00"),
+                micros("1969-12-31T23:59:59.999999+00:00")),
+        partition(timestamp, Transforms.hour(), -1)
+            .withExpectedBounds(
+                micros("1969-12-31T22:00:00.000000+00:00"),
+                micros("1969-12-31T23:59:59.999999+00:00")),
+        partition(timestampNano, Transforms.year(), -1)
+            .withExpectedBounds(
+                nanos("1968-01-01T00:00:00.000000000+00:00"),
+                nanos("1969-12-31T23:59:59.999999999+00:00")),
+        partition(timestampNano, Transforms.month(), -1)
+            .withExpectedBounds(
+                nanos("1969-11-01T00:00:00.000000000+00:00"),
+                nanos("1969-12-31T23:59:59.999999999+00:00")),
+        partition(timestampNano, Transforms.day(), -1)
+            .withExpectedBounds(
+                nanos("1969-12-30T00:00:00.000000000+00:00"),
+                nanos("1969-12-31T23:59:59.999999999+00:00")),
+        partition(timestampNano, Transforms.hour(), -1)
+            .withExpectedBounds(
+                nanos("1969-12-31T22:00:00.000000000+00:00"),
+                nanos("1969-12-31T23:59:59.999999999+00:00")));
+  }
+
+  @ParameterizedTest
+  @MethodSource("timePartitionValuesBefore1970")
+  void timeBoundsBefore1970(Partition partition) {
+    assertThat(sourceBounds(partition)).isEqualTo(partition.expected());
+  }
+
+  @Test
+  void nullPartitionValueHasNoBounds() {
+    assertThat(sourceBounds(Types.TimestampType.withZone(), Transforms.hour(), null)).isNull();
+  }
+
+  @Test
+  void nonOrderPreservingTransformHasNoBounds() {
+    assertThat(sourceBounds(Types.StringType.get(), Transforms.bucket(16), 3)).isNull();
+  }
+
+  private static StatsUtil.PartitionSourceBounds<?> sourceBounds(
+      Type type, Transform<?, ?> transform, Object partitionValue) {
+    Schema schema = new Schema(Types.NestedField.optional(1, "col", type));
+    PartitionField field =
+        PartitionSpec.builderFor(schema).add(1, "part", transform).build().fields().get(0);
+    return StatsUtil.sourceBoundsFor(schema, field, partitionValue);
+  }
+
+  private static StatsUtil.PartitionSourceBounds<?> sourceBounds(Partition partition) {
+    return sourceBounds(partition.type(), partition.transform(), partition.value());
+  }
+
+  private static Partition partition(Type type, Transform<?, ?> transform, Object value) {
+    return new Partition(type, transform, value, null);
+  }
+
+  private static Partition identity(Type type, Object value) {
+    return partition(type, Transforms.identity(), value).withExpectedBounds(value, value);
+  }
+
+  private record Partition(
+      Type type,
+      Transform<?, ?> transform,
+      Object value,
+      StatsUtil.PartitionSourceBounds<?> expected) {
+    Partition withExpectedBounds(Object lower, Object upper) {
+      return new Partition(
+          type, transform, value, new StatsUtil.PartitionSourceBounds<>(lower, upper));
+    }
+  }
+
+  private static int years(String isoDate) {
+    return DateTimeUtil.daysToYears(days(isoDate));
+  }
+
+  private static int months(String isoDate) {
+    return DateTimeUtil.daysToMonths(days(isoDate));
+  }
+
+  private static int days(String isoDate) {
+    return DateTimeUtil.isoDateToDays(isoDate);
+  }
+
+  private static int hours(String isoTimestamp) {
+    return DateTimeUtil.nanosToHours(nanos(isoTimestamp));
+  }
+
+  private static long micros(String isoTimestamp) {
+    return DateTimeUtil.isoTimestamptzToMicros(isoTimestamp);
+  }
+
+  private static long nanos(String isoTimestamp) {
+    return DateTimeUtil.isoTimestamptzToNanos(isoTimestamp);
   }
 
   /**
