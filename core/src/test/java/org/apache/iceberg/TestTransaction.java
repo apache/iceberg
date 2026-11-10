@@ -683,9 +683,9 @@ public class TestTransaction extends TestBase {
   }
 
   @TestTemplate
-  public void testTransactionCleanupReadsOnlyOwnManifestLists() throws IOException {
+  public void transactionCleanupReadsNoManifestLists() throws IOException {
     File location = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
-    String tableName = "txnCleanupOwnManifestListsTest";
+    String tableName = "txnCleanupNoManifestListsTest";
     // record the manifest lists opened after the last successful commit
     List<String> manifestListsRead = Lists.newArrayList();
     AtomicInteger injectedFailures = new AtomicInteger(0);
@@ -742,7 +742,7 @@ public class TestTransaction extends TestBase {
     Table committedTable = TestTables.load(location, tableName);
     assertThat(committedTable.snapshots()).hasSize(5);
     String committedManifestList = committedTable.currentSnapshot().manifestListLocation();
-    assertThat(manifestListsRead).containsExactly(committedManifestList);
+    assertThat(manifestListsRead).isEmpty();
     assertThat(new File(committedManifestList)).exists();
     assertThat(((BaseTransaction) txn).deletedFiles()).contains(firstManifestList);
     assertThat(new File(firstManifestList)).doesNotExist();
@@ -1117,6 +1117,76 @@ public class TestTransaction extends TestBase {
     assertThat(readMetadata().ref("branch").snapshotId()).isEqualTo(branchSnapshot.snapshotId());
     assertThat(readMetadata().snapshot(branchSnapshot.snapshotId()).allManifests(table.io()))
         .hasSize(2);
+  }
+
+  @TestTemplate
+  public void commitTransactionRetryKeepsMergedManifest() throws IOException {
+    File location = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
+    String tableName = "txnRetryMergedManifest";
+    TestTables.LocalFileIO spyFileIO = Mockito.spy(new TestTables.LocalFileIO());
+    TestTables.TestTable txnTable =
+        TestTables.create(
+            location,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, location, spyFileIO));
+    txnTable
+        .updateProperties()
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1")
+        .set("random-snapshot-ids", "true")
+        .commit();
+
+    Transaction txn = txnTable.newTransaction();
+    txn.newAppend().appendFile(FILE_A).commit();
+
+    // a concurrent commit forces the transaction to re-apply its update on top of a new snapshot
+    TestTables.load(location, tableName).newAppend().appendFile(FILE_B).commit();
+    Snapshot concurrent = TestTables.load(location, tableName).currentSnapshot();
+
+    Mockito.clearInvocations(spyFileIO);
+    txn.commitTransaction();
+
+    Snapshot committed = txnTable.currentSnapshot();
+    Mockito.verify(spyFileIO, Mockito.never()).newInputFile(committed.manifestListLocation());
+    assertThat(committed.parentId()).isEqualTo(concurrent.snapshotId());
+    assertThat(committed.allManifests(txnTable.io())).hasSize(1);
+    for (Snapshot snapshot : txnTable.snapshots()) {
+      assertThat(snapshot.allManifests(txnTable.io()))
+          .allSatisfy(manifest -> assertThat(new File(manifest.path())).exists());
+    }
+  }
+
+  @TestTemplate
+  public void transactionCleanupReadsManifestListOfExternalSnapshot() throws IOException {
+    File location = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
+    String tableName = "txnCleanupExternalSnapshot";
+    TestTables.LocalFileIO spyFileIO = Mockito.spy(new TestTables.LocalFileIO());
+    TestTables.TestTable txnTable =
+        TestTables.create(
+            location,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, location, spyFileIO));
+
+    Transaction txn = txnTable.newTransaction();
+    // a snapshot committed through the transaction's operations has no update that wrote it
+    Snapshot external = txnTable.newFastAppend().appendFile(FILE_B).apply();
+    TableOperations txnOps = ((HasTableOperations) txn.table()).operations();
+    txnOps.commit(
+        txnOps.current(), TableMetadata.buildFrom(txnOps.current()).addSnapshot(external).build());
+    txn.newAppend().appendFile(FILE_A).commit();
+
+    Mockito.clearInvocations(spyFileIO);
+    txn.commitTransaction();
+
+    assertThat(txnTable.snapshot(external.snapshotId())).isNotNull();
+    Mockito.verify(spyFileIO, Mockito.atLeastOnce()).newInputFile(external.manifestListLocation());
   }
 
   private static class AppendToBranchTransaction extends BaseTransaction {

@@ -104,6 +104,23 @@ class DynamicSinkUtil {
     return schema.identifierFieldNames();
   }
 
+  static Set<Integer> distributionFieldIds(Set<String> distributionFields, Schema schema) {
+    Set<Integer> distributionFieldIds = Sets.newHashSetWithExpectedSize(distributionFields.size());
+    for (String distributionField : distributionFields) {
+      Types.NestedField field = schema.findField(distributionField);
+      if (field == null) {
+        throw new DynamicRecordException(
+            String.format(
+                "Missing distribution field '%s'. Expected distribution field '%s' to exist in the table schema.",
+                distributionField, distributionField));
+      }
+
+      distributionFieldIds.add(field.fieldId());
+    }
+
+    return distributionFieldIds;
+  }
+
   static int safeAbs(int input) {
     if (input >= 0) {
       return input;
