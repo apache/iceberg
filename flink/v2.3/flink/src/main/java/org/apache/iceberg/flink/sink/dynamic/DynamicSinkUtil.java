@@ -24,7 +24,6 @@ import javax.annotation.Nullable;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 
@@ -44,17 +43,19 @@ class DynamicSinkUtil {
       return;
     }
 
-    Preconditions.checkState(
-        equalityFieldIds != null && !equalityFieldIds.isEmpty(),
-        "Equality field columns shouldn't be empty when configuring to use UPSERT data.");
+    if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
+      throw new DynamicRecordException(
+          "Equality field columns shouldn't be empty when configuring to use UPSERT data.");
+    }
 
     if (spec != null && !spec.isUnpartitioned()) {
       for (PartitionField partitionField : spec.fields()) {
-        Preconditions.checkState(
-            equalityFieldIds.contains(partitionField.sourceId()),
-            "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",
-            partitionField,
-            equalityFieldIds);
+        if (!equalityFieldIds.contains(partitionField.sourceId())) {
+          throw new DynamicRecordException(
+              String.format(
+                  "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",
+                  partitionField, equalityFieldIds));
+        }
       }
     }
   }
@@ -71,8 +72,11 @@ class DynamicSinkUtil {
     Set<Integer> equalityFieldIds = Sets.newHashSetWithExpectedSize(equalityFields.size());
     for (String equalityField : equalityFields) {
       Types.NestedField field = schema.findField(equalityField);
-      Preconditions.checkNotNull(
-          field, "Equality field %s does not exist in schema", equalityField);
+      if (field == null) {
+        throw new DynamicRecordException(
+            String.format("Equality field %s does not exist in schema", equalityField));
+      }
+
       equalityFieldIds.add(field.fieldId());
     }
 

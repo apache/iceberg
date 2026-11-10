@@ -24,17 +24,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Collections;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Set;
+import org.apache.flink.api.common.typeinfo.TypeHint;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
+import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
 import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
+import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
@@ -44,7 +49,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.Mockito;
 
 class TestDynamicTableUpdateOperator {
 
@@ -60,6 +64,21 @@ class TestDynamicTableUpdateOperator {
 
   private static final Schema SCHEMA1 =
       new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
+
+  private static final Schema REQUIRED_INT_ID =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.IntegerType.get()),
+          Types.NestedField.required(2, "data", Types.StringType.get()));
+
+  private static final Schema REQUIRED_LONG_ID =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.LongType.get()),
+          Types.NestedField.required(2, "data", Types.StringType.get()));
+
+  private static final OutputTag<Tuple2<DynamicRecordInternal, Exception>> ERROR_STREAM =
+      new OutputTag<>(
+          DynamicRecordProcessor.ERROR_STREAM,
+          TypeInformation.of(new TypeHint<Tuple2<DynamicRecordInternal, Exception>>() {}));
 
   private static final Schema SCHEMA2 =
       new Schema(
@@ -286,100 +305,218 @@ class TestDynamicTableUpdateOperator {
   }
 
   @Test
-  void testDynamicTableUpdateOperatorErrorStream() throws Exception {
-    Catalog catalog = CATALOG_EXTENSION.catalog();
-    TableIdentifier table = TableIdentifier.of(TABLE);
-
-    AtomicInteger errorCount = new AtomicInteger();
-    AtomicReference<Tuple2<DynamicRecordInternal, Exception>> errorRecord = new AtomicReference<>();
-
-    DynamicTableUpdateOperator operator =
-        new DynamicTableUpdateOperator(
-            CATALOG_EXTENSION.catalogLoader(),
-            TableCreator.DEFAULT,
-            flinkDynamicSinkConfiguration(CASE_SENSITIVE, PRESERVE_COLUMNS),
-            error -> true);
-    operator.open(null);
-
-    catalog.createTable(table, SCHEMA1);
-
-    // Incompatible evolution (int -> boolean) fails the update; the filter whitelists it, so the
-    // record is routed to the side output instead of failing the job.
+  void errorStreamReceivesRecordWhoseUpdateFails() throws Exception {
+    CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of(TABLE), SCHEMA1);
+    // int -> boolean is not a valid schema change
     Schema incompatibleSchema =
         new Schema(Types.NestedField.required(1, "id", Types.BooleanType.get()));
-    DynamicRecordInternal input =
-        new DynamicRecordInternal(
-            TABLE,
-            "branch",
-            incompatibleSchema,
-            GenericRowData.of(true),
-            PartitionSpec.unpartitioned(),
-            42,
-            false,
-            Collections.emptySet());
+    DynamicRecordInternal input = record(incompatibleSchema, GenericRowData.of(true));
 
-    TestCollector collector = new TestCollector();
-    ProcessFunction<DynamicRecordInternal, DynamicRecordInternal>.Context mockContext =
-        Mockito.mock(ProcessFunction.Context.class);
-    Mockito.doAnswer(
-            invocation -> {
-              errorCount.incrementAndGet();
-              assertThat(((OutputTag) invocation.getArgument(0)).getId())
-                  .isEqualTo(DynamicRecordProcessor.ERROR_STREAM);
-              errorRecord.set(invocation.getArgument(1));
-              return null;
-            })
-        .when(mockContext)
-        .output(Mockito.any(OutputTag.class), Mockito.any(Tuple2.class));
+    try (OneInputStreamOperatorTestHarness<DynamicRecordInternal, DynamicRecordInternal> harness =
+        harness(error -> true)) {
+      harness.processElement(input, 0L);
 
-    operator.processElement(input, mockContext, collector);
-
-    assertThat(errorCount.get()).isEqualTo(1);
-    assertThat(errorRecord.get().f0).isEqualTo(input);
-    assertThat(errorRecord.get().f1.getMessage())
-        .contains("Cannot change column type: id: int -> boolean");
-    assertThat(collector.getResult()).isNull();
+      assertThat(harness.extractOutputValues()).isEmpty();
+      assertThat(harness.getSideOutput(ERROR_STREAM)).hasSize(1);
+      Tuple2<DynamicRecordInternal, Exception> diverted =
+          harness.getSideOutput(ERROR_STREAM).poll().getValue();
+      assertThat(diverted.f0).isEqualTo(input);
+      assertThat(diverted.f1)
+          .isInstanceOf(DynamicRecordException.class)
+          .hasMessage("Cannot change column type: id: int -> boolean");
+    }
   }
 
   @Test
-  void testDynamicTableUpdateOperatorPropagatesNonDivertableFailure() throws Exception {
-    Catalog catalog = CATALOG_EXTENSION.catalog();
-    TableIdentifier table = TableIdentifier.of(TABLE);
-
-    // Filter whitelists nothing, so even with the error stream wired the failure must propagate
-    // rather than being diverted.
-    DynamicTableUpdateOperator operator =
-        new DynamicTableUpdateOperator(
-            CATALOG_EXTENSION.catalogLoader(),
-            TableCreator.DEFAULT,
-            flinkDynamicSinkConfiguration(CASE_SENSITIVE, PRESERVE_COLUMNS),
-            error -> false);
-    operator.open(null);
-
-    catalog.createTable(table, SCHEMA1);
-
+  void failureTheFilterRejectsPropagates() throws Exception {
+    CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of(TABLE), SCHEMA1);
     Schema incompatibleSchema =
         new Schema(Types.NestedField.required(1, "id", Types.BooleanType.get()));
+
+    try (OneInputStreamOperatorTestHarness<DynamicRecordInternal, DynamicRecordInternal> harness =
+        harness(error -> false)) {
+      assertThatThrownBy(
+              () -> harness.processElement(record(incompatibleSchema, GenericRowData.of(true)), 0L))
+          .isInstanceOf(DynamicRecordException.class)
+          .hasMessageContaining("Cannot change column type: id: int -> boolean");
+      assertThat(harness.getSideOutput(ERROR_STREAM)).isNull();
+    }
+  }
+
+  @Test
+  void divertedRecordIsTheUnmodifiedInput() throws Exception {
+    CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of(TABLE), REQUIRED_LONG_ID);
+    // the id has to be converted to long and the data is missing for a required column
+    DynamicRecordInternal input = record(REQUIRED_INT_ID, GenericRowData.of(1, null));
+
+    try (OneInputStreamOperatorTestHarness<DynamicRecordInternal, DynamicRecordInternal> harness =
+        harness(error -> true)) {
+      harness.processElement(input, 0L);
+
+      DynamicRecordInternal diverted = harness.getSideOutput(ERROR_STREAM).poll().getValue().f0;
+      assertThat(diverted.schema().asStruct()).isEqualTo(REQUIRED_INT_ID.asStruct());
+      assertThat(diverted.rowData().getInt(0)).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void failureAfterTheTableWasUpdatedIsDiverted() throws Exception {
+    CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of(TABLE), SCHEMA1);
+    // the record adds a column to the table and then fails the upsert validation
+    DynamicRecordInternal input =
+        upsertRecord(SCHEMA2, GenericRowData.of(1, StringData.fromString("a")), Set.of());
+
+    try (OneInputStreamOperatorTestHarness<DynamicRecordInternal, DynamicRecordInternal> harness =
+        harness(error -> true)) {
+      harness.processElement(input, 0L);
+
+      assertThat(harness.extractOutputValues()).isEmpty();
+      assertThat(harness.getSideOutput(ERROR_STREAM).poll().getValue().f1)
+          .isInstanceOf(DynamicRecordException.class)
+          .hasMessageContaining("Equality field columns shouldn't be empty");
+      assertThat(
+              CATALOG_EXTENSION
+                  .catalog()
+                  .loadTable(TableIdentifier.of(TABLE))
+                  .schema()
+                  .findField("data"))
+          .isNotNull();
+    }
+  }
+
+  @Test
+  void upsertFallsBackToIdentifierFieldsOfTable() throws Exception {
+    CATALOG_EXTENSION
+        .catalog()
+        .createTable(
+            TableIdentifier.of(TABLE),
+            new Schema(
+                java.util.List.of(
+                    Types.NestedField.required(1, "id", Types.IntegerType.get()),
+                    Types.NestedField.optional(2, "data", Types.StringType.get())),
+                Set.of(1)));
+    // the schema of the record has no identifier fields and the record no equality fields
+    DynamicRecordInternal input =
+        upsertRecord(SCHEMA2, GenericRowData.of(1, StringData.fromString("a")), Set.of());
+
+    try (OneInputStreamOperatorTestHarness<DynamicRecordInternal, DynamicRecordInternal> harness =
+        harness(error -> true)) {
+      harness.processElement(input, 0L);
+
+      assertThat(harness.getSideOutput(ERROR_STREAM)).isNull();
+      assertThat(harness.extractOutputValues()).hasSize(1);
+    }
+  }
+
+  @Test
+  void upsertOnOlderUnpartitionedSpecOfPartitionedTable() throws Exception {
+    Table table = CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of(TABLE), SCHEMA2);
+    PartitionSpec olderSpec = table.spec();
+    table.updateSpec().addField("data").commit();
+
     DynamicRecordInternal input =
         new DynamicRecordInternal(
             TABLE,
             "branch",
-            incompatibleSchema,
-            GenericRowData.of(true),
-            PartitionSpec.unpartitioned(),
+            SCHEMA2,
+            GenericRowData.of(1, StringData.fromString("a")),
+            olderSpec,
             42,
-            false,
-            Collections.emptySet());
+            true,
+            Set.of(1));
 
-    TestCollector collector = new TestCollector();
-    ProcessFunction<DynamicRecordInternal, DynamicRecordInternal>.Context mockContext =
-        Mockito.mock(ProcessFunction.Context.class);
+    try (OneInputStreamOperatorTestHarness<DynamicRecordInternal, DynamicRecordInternal> harness =
+        harness(error -> true)) {
+      harness.processElement(input, 0L);
 
-    assertThatThrownBy(() -> operator.processElement(input, mockContext, collector))
-        .hasMessageContaining("Cannot change column type: id: int -> boolean");
-    Mockito.verify(mockContext, Mockito.never())
-        .output(Mockito.any(OutputTag.class), Mockito.any());
-    assertThat(collector.getResult()).isNull();
+      assertThat(harness.getSideOutput(ERROR_STREAM)).isNull();
+      assertThat(harness.extractOutputValues()).hasSize(1);
+    }
+  }
+
+  @Test
+  void upsertOnOlderPartitionedSpecOfUnpartitionedTable() throws Exception {
+    Table table =
+        CATALOG_EXTENSION
+            .catalog()
+            .createTable(
+                TableIdentifier.of(TABLE),
+                SCHEMA2,
+                PartitionSpec.builderFor(SCHEMA2).identity("data").build());
+    PartitionSpec olderSpec = table.spec();
+    table.updateSpec().removeField("data").commit();
+
+    DynamicRecordInternal input =
+        new DynamicRecordInternal(
+            TABLE,
+            "branch",
+            SCHEMA2,
+            GenericRowData.of(1, StringData.fromString("a")),
+            olderSpec,
+            42,
+            true,
+            Set.of(1));
+
+    try (OneInputStreamOperatorTestHarness<DynamicRecordInternal, DynamicRecordInternal> harness =
+        harness(error -> true)) {
+      harness.processElement(input, 0L);
+
+      assertThat(harness.extractOutputValues()).isEmpty();
+      assertThat(harness.getSideOutput(ERROR_STREAM).poll().getValue().f1)
+          .isInstanceOf(DynamicRecordException.class)
+          .hasMessageContaining("should be included in equality fields");
+    }
+  }
+
+  @Test
+  void nullInRequiredColumnOfRecordWithSchemaOfTableIsDiverted() throws Exception {
+    CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of(TABLE), REQUIRED_INT_ID);
+
+    try (OneInputStreamOperatorTestHarness<DynamicRecordInternal, DynamicRecordInternal> harness =
+        harness(error -> true)) {
+      harness.processElement(record(REQUIRED_INT_ID, GenericRowData.of(1, null)), 0L);
+
+      assertThat(harness.extractOutputValues()).isEmpty();
+      assertThat(harness.getSideOutput(ERROR_STREAM).poll().getValue().f1)
+          .isInstanceOf(DynamicRecordException.class)
+          .hasMessage("Null value for non-nullable field: data");
+    }
+  }
+
+  @Test
+  void upsertDeleteWithoutRequiredColumnsIsNotDiverted() throws Exception {
+    CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of(TABLE), REQUIRED_LONG_ID);
+    DynamicRecordInternal input =
+        upsertRecord(REQUIRED_INT_ID, GenericRowData.ofKind(RowKind.DELETE, 1, null), Set.of(1));
+
+    try (OneInputStreamOperatorTestHarness<DynamicRecordInternal, DynamicRecordInternal> harness =
+        harness(error -> true)) {
+      harness.processElement(input, 0L);
+
+      assertThat(harness.getSideOutput(ERROR_STREAM)).isNull();
+      assertThat(harness.extractOutputValues()).hasSize(1);
+    }
+  }
+
+  private static OneInputStreamOperatorTestHarness<DynamicRecordInternal, DynamicRecordInternal>
+      harness(DynamicRecordExceptionFilter filter) throws Exception {
+    return ProcessFunctionTestHarnesses.forProcessFunction(
+        new DynamicTableUpdateOperator(
+            CATALOG_EXTENSION.catalogLoader(),
+            TableCreator.DEFAULT,
+            flinkDynamicSinkConfiguration(CASE_SENSITIVE, PRESERVE_COLUMNS),
+            filter));
+  }
+
+  private static DynamicRecordInternal record(Schema schema, RowData row) {
+    return new DynamicRecordInternal(
+        TABLE, "branch", schema, row, PartitionSpec.unpartitioned(), 42, false, Set.of());
+  }
+
+  private static DynamicRecordInternal upsertRecord(
+      Schema schema, RowData row, Set<Integer> equalityFieldIds) {
+    return new DynamicRecordInternal(
+        TABLE, "branch", schema, row, PartitionSpec.unpartitioned(), 42, true, equalityFieldIds);
   }
 
   private DynamicRecordInternal processRecord(

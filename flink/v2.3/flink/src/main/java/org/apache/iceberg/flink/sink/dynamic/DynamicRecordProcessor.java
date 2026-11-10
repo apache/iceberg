@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
@@ -67,6 +68,8 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   private transient OutputTag<DynamicRecordInternal> forwardStream;
   private transient OutputTag<Tuple2<DynamicRecordInternal, Exception>> errorStream;
   private transient Collector<DynamicRecordInternal> collector;
+  private transient DynamicRecordInternal prepared;
+  private transient OutputTag<DynamicRecordInternal> preparedTag;
   private transient DynamicRecordWithConfig dynamicRecordWithConfig;
   private transient Context context;
 
@@ -150,7 +153,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   public void collect(DynamicRecord inputData) {
     DynamicRecordWithConfig data = dynamicRecordWithConfig.wrap(inputData);
     try {
-      processRecord(data);
+      prepare(data);
     } catch (RuntimeException e) {
       // Divert only failures the filter whitelists; otherwise propagate so Flink can retry.
       if (errorFilter != null && errorFilter.shouldDivert(e)) {
@@ -165,15 +168,31 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
                     data.spec(),
                     -1,
                     data.upsertMode(),
-                    DynamicSinkUtil.getEqualityFieldIds(data.equalityFields(), data.schema())),
+                    equalityFieldIdsOrEmpty(data)),
                 e));
-      } else {
-        throw e;
+        return;
       }
+
+      throw e;
+    }
+
+    // Emitting runs the operators chained to this one: their failures are not about this record.
+    if (preparedTag != null) {
+      context.output(preparedTag, prepared);
+    } else {
+      collector.collect(prepared);
     }
   }
 
-  private void processRecord(DynamicRecordWithConfig data) {
+  private static Set<Integer> equalityFieldIdsOrEmpty(DynamicRecord data) {
+    try {
+      return DynamicSinkUtil.getEqualityFieldIds(data.equalityFields(), data.schema());
+    } catch (RuntimeException e) {
+      return Collections.emptySet();
+    }
+  }
+
+  private void prepare(DynamicRecordWithConfig data) {
     boolean isForward = isForwardEligible(data);
     boolean exists = tableCache.exists(data.tableIdentifier());
     String foundBranch = exists ? tableCache.branch(data.tableIdentifier(), data.branch()) : null;
@@ -197,7 +216,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
         Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> newData =
             updater.update(
                 data.tableIdentifier(), data.branch(), data.schema(), data.spec(), tableCreator);
-        emit(
+        prepareEmit(
             data,
             newData.f0.resolvedTableSchema(),
             newData.f0.recordConverter(),
@@ -208,8 +227,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
         // Key them with the record's own schema, spec and row: the raw row is laid out by the
         // record's schema, so the table's schema or spec cannot be used with it.
         int writerKey = hashKeyGenerator.generateKey(data);
-        context.output(
-            updateStream,
+        this.prepared =
             new DynamicRecordInternal(
                 data.tableIdentifier().toString(),
                 data.branch(),
@@ -218,10 +236,11 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
                 data.spec(),
                 writerKey,
                 data.upsertMode(),
-                DynamicSinkUtil.getEqualityFieldIds(data.equalityFields(), data.schema())));
+                DynamicSinkUtil.getEqualityFieldIds(data.equalityFields(), data.schema()));
+        this.preparedTag = updateStream;
       }
     } else {
-      emit(
+      prepareEmit(
           data,
           foundSchema.resolvedTableSchema(),
           foundSchema.recordConverter(),
@@ -230,7 +249,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     }
   }
 
-  private void emit(
+  private void prepareEmit(
       DynamicRecord data,
       Schema schema,
       DataConverter recordConverter,
@@ -244,7 +263,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     RowData rowData = (RowData) recordConverter.convert(data.rowData());
     // writerKey is unused in the forward path.
     int writerKey = forward ? -1 : hashKeyGenerator.generateKey(data, schema, spec, rowData);
-    DynamicRecordInternal record =
+    this.prepared =
         new DynamicRecordInternal(
             data.tableIdentifier().toString(),
             data.branch(),
@@ -254,11 +273,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
             writerKey,
             data.upsertMode(),
             equalityFieldIds);
-    if (forward) {
-      context.output(forwardStream, record);
-    } else {
-      collector.collect(record);
-    }
+    this.preparedTag = forward ? forwardStream : null;
   }
 
   @Override

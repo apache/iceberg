@@ -139,7 +139,7 @@ class TableUpdater {
         case SAME:
           cache.update(identifier, table);
           return new TableMetadataCache.ResolvedSchemaInfo(
-              tableSchema, result, DataConverter.identity());
+              tableSchema, result, DataConverter.identity(tableSchema));
         case DATA_CONVERSION_NEEDED:
           cache.update(identifier, table);
           return new TableMetadataCache.ResolvedSchemaInfo(
@@ -153,8 +153,12 @@ class TableUpdater {
           LOG.info(
               "Triggering schema update for table {} {} to {}", identifier, tableSchema, schema);
           UpdateSchema updateApi = table.updateSchema();
-          EvolveSchemaVisitor.visit(
-              identifier, updateApi, tableSchema, schema, caseSensitive, dropUnusedColumns);
+          try {
+            EvolveSchemaVisitor.visit(
+                identifier, updateApi, tableSchema, schema, caseSensitive, dropUnusedColumns);
+          } catch (IllegalArgumentException e) {
+            throw new DynamicRecordException(e.getMessage(), e);
+          }
 
           try {
             updateApi.commit();

@@ -310,15 +310,19 @@ public class DynamicIcebergSink
     }
 
     /**
-     * Set a consumer for the error stream of records that fail during conversion/table update. When
-     * set, a record that fails in the generator, schema evolution, or table update is routed to
-     * this stream (as {@code (DynamicRecord, Exception)}) instead of failing the job, where the
-     * user can sink it to a dead-letter destination. When unset (default) such a failure fails the
-     * job.
+     * Set a consumer for the error stream of records that cannot be processed. When set, a record
+     * that fails while it is converted to the table schema, validated, or while the table is
+     * updated for it is routed to this stream (as {@code (DynamicRecord, Exception)}) instead of
+     * failing the job, where the user can sink it to a dead-letter destination. A failure thrown by
+     * {@link DynamicRecordGenerator#generate} itself is not diverted. When unset (default) such a
+     * failure fails the job.
      *
      * <p>Must be paired with {@link #errorStreamFilter(DynamicRecordExceptionFilter)}, which
      * whitelists the failures to divert; failures the filter rejects propagate and fail the job so
      * Flink can retry transient/systemic failures.
+     *
+     * <p>A record with a null value for a required column is rejected before it is written, so it
+     * can be diverted as well.
      *
      * <p>This covers the convert/update stages, where records are validated before being written.
      * The write stage itself is fail-fast: a failure there restarts the job.
@@ -682,9 +686,7 @@ public class DynamicIcebergSink
               internal.branch(),
               schema,
               internal.rowData(),
-              internal.spec(),
-              null,
-              -1);
+              internal.spec());
       record.setUpsertMode(internal.upsertMode());
       Set<Integer> equalityFieldIds = internal.equalityFields();
       if (equalityFieldIds != null && !equalityFieldIds.isEmpty()) {

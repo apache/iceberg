@@ -133,15 +133,19 @@ class DynamicTableUpdateOperator
     TableMetadataCache.ResolvedSchemaInfo compareInfo = newData.f0;
     Schema tableSchema = compareInfo.resolvedTableSchema();
 
-    data.setEqualityFieldIds(remapFieldIds(data.equalityFields(), data.schema(), tableSchema));
+    Set<Integer> equalityFieldIds =
+        remapFieldIds(data.equalityFields(), data.schema(), tableSchema);
+    // The writer falls back to the identifier fields of the table when the record has none.
+    Set<Integer> effectiveEqualityFieldIds =
+        equalityFieldIds.isEmpty() ? tableSchema.identifierFieldIds() : equalityFieldIds;
+    DynamicSinkUtil.validateUpsert(data.upsertMode(), newData.f1, effectiveEqualityFieldIds);
+    RowData newRowData = (RowData) newData.f0.recordConverter().convert(data.rowData());
+
+    // Mutate only after nothing can fail anymore, so that a diverted record is the unmodified
+    // input.
+    data.setEqualityFieldIds(equalityFieldIds);
     data.setSchema(tableSchema);
     data.setSpec(newData.f1);
-
-    // Validate before writing: a bad upsert config or a record that cannot be converted to the
-    // resolved schema throws here and is diverted/failed at this stage, never reaching the writer.
-    DynamicSinkUtil.validateUpsert(data.upsertMode(), newData.f1, data.equalityFields());
-
-    RowData newRowData = (RowData) newData.f0.recordConverter().convert(data.rowData());
     data.setRowData(newRowData);
 
     return data;

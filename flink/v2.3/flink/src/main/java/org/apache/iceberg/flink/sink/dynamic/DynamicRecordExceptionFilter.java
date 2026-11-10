@@ -22,16 +22,16 @@ import java.io.Serializable;
 import org.apache.flink.annotation.Experimental;
 
 /**
- * Classifies a failure raised while processing a {@link DynamicRecord} as divertable or not. Keeps
- * error handling fail-safe: only failures this filter whitelists are diverted to the error stream
- * set via {@link DynamicIcebergSink.Builder#errorStreamConsumer}; every other failure propagates
- * and fails the job so Flink's restart strategy can retry it.
+ * Classifies a failure raised while processing a {@link DynamicRecord} as divertable or not. Only
+ * failures this filter accepts are diverted to the error stream set via {@link
+ * DynamicIcebergSink.Builder#errorStreamConsumer}; every other failure propagates and fails the job
+ * so that Flink's restart strategy can retry it.
  *
- * <p>Whitelist only deterministic, record-scoped failures (bad data, for example a value that
- * cannot be encoded for its table, or an upsert record whose partition source is not an equality
- * field). Return {@code false} for transient or systemic failures (an unreachable catalog,
- * object-store errors, an interrupt) so a sustained outage does not silently drain the whole
- * stream.
+ * <p>The failures caused by the record itself are thrown as {@link DynamicRecordException}, so
+ * {@code error -> error instanceof DynamicRecordException} diverts exactly those. Accept other
+ * types only for failures that are deterministic for the record, never for transient or systemic
+ * ones such as an unreachable catalog, object-store errors or an interrupt, otherwise a sustained
+ * outage drains the whole stream.
  */
 @Experimental
 @FunctionalInterface

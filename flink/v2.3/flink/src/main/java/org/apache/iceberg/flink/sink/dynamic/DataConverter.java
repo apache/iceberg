@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
@@ -35,7 +36,10 @@ import org.apache.flink.table.types.logical.DecimalType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.types.RowKind;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 
 /**
  * {@link org.apache.iceberg.flink.sink.dynamic.DataConverter} is responsible to change the input
@@ -64,14 +68,45 @@ interface DataConverter {
     return object -> object;
   }
 
+  /** Passes data that has the schema of the table on, after checking its required columns. */
+  static DataConverter identity(Schema tableSchema) {
+    List<Types.NestedField> columns = tableSchema.columns();
+    int count = 0;
+    for (Types.NestedField column : columns) {
+      if (column.isRequired()) {
+        count++;
+      }
+    }
+
+    if (count == 0) {
+      return identity();
+    }
+
+    int[] indices = new int[count];
+    String[] names = new String[count];
+    int next = 0;
+    for (int i = 0; i < columns.size(); i++) {
+      if (columns.get(i).isRequired()) {
+        indices[next] = i;
+        names[next] = columns.get(i).name();
+        next++;
+      }
+    }
+
+    return new RequiredColumnsConverter(indices, names);
+  }
+
+  /**
+   * The writers only read the key of rows that delete, so only rows that write a record must carry
+   * values for the required columns.
+   */
+  static boolean writesRecord(RowKind kind) {
+    return kind == RowKind.INSERT || kind == RowKind.UPDATE_AFTER;
+  }
+
   static DataConverter getNullable(
       LogicalType sourceType, LogicalType targetType, boolean caseSensitive) {
     return nullable(get(sourceType, targetType, caseSensitive));
-  }
-
-  static DataConverter getNonNullable(
-      LogicalType sourceType, LogicalType targetType, boolean caseSensitive, String fieldName) {
-    return nonNullable(get(sourceType, targetType, caseSensitive), fieldName);
   }
 
   static DataConverter get(LogicalType sourceType, LogicalType targetType, boolean caseSensitive) {
@@ -139,22 +174,39 @@ interface DataConverter {
     return value -> value == null ? null : converter.convert(value);
   }
 
-  static DataConverter nonNullable(DataConverter converter, String fieldName) {
-    return value -> {
-      if (value == null) {
-        throw new IllegalArgumentException("Null value for non-nullable field: " + fieldName);
+  class RequiredColumnsConverter implements DataConverter {
+    private final int[] indices;
+    private final String[] names;
+
+    RequiredColumnsConverter(int[] indices, String[] names) {
+      this.indices = indices;
+      this.names = names;
+    }
+
+    @Override
+    public RowData convert(Object object) {
+      RowData row = (RowData) object;
+      if (writesRecord(row.getRowKind())) {
+        for (int i = 0; i < indices.length; i++) {
+          if (row.isNullAt(indices[i])) {
+            throw new DynamicRecordException("Null value for non-nullable field: " + names[i]);
+          }
+        }
       }
-      return converter.convert(value);
-    };
+
+      return row;
+    }
   }
 
   class RowDataConverter implements DataConverter {
     private final RowData.FieldGetter[] fieldGetters;
     private final DataConverter[] dataConverters;
+    private final String[] requiredFieldNames;
 
     RowDataConverter(RowType sourceType, RowType targetType, boolean caseSensitive) {
       this.fieldGetters = new RowData.FieldGetter[targetType.getFields().size()];
       this.dataConverters = new DataConverter[targetType.getFields().size()];
+      this.requiredFieldNames = new String[targetType.getFields().size()];
 
       for (int i = 0; i < targetType.getFields().size(); i++) {
         RowData.FieldGetter fieldGetter;
@@ -166,7 +218,7 @@ interface DataConverter {
             fieldGetter = row -> null;
             dataConverter = value -> null;
           } else {
-            throw new IllegalArgumentException(
+            throw new DynamicRecordException(
                 String.format(
                     "Field %s in target schema %s is non-nullable but does not exist in source schema.",
                     i + 1, targetType));
@@ -175,14 +227,12 @@ interface DataConverter {
           RowType.RowField sourceField = sourceType.getFields().get(sourceFieldIndex);
           fieldGetter = RowData.createFieldGetter(sourceField.getType(), sourceFieldIndex);
           dataConverter =
-              targetField.getType().isNullable()
-                  ? DataConverter.getNullable(
-                      sourceField.getType(), targetField.getType(), caseSensitive)
-                  : DataConverter.getNonNullable(
-                      sourceField.getType(),
-                      targetField.getType(),
-                      caseSensitive,
-                      targetField.getName());
+              DataConverter.getNullable(
+                  sourceField.getType(), targetField.getType(), caseSensitive);
+        }
+
+        if (!targetField.getType().isNullable()) {
+          this.requiredFieldNames[i] = targetField.getName();
         }
 
         this.fieldGetters[i] = fieldGetter;
@@ -194,8 +244,14 @@ interface DataConverter {
     public RowData convert(Object object) {
       RowData sourceData = (RowData) object;
       GenericRowData targetData = new GenericRowData(sourceData.getRowKind(), fieldGetters.length);
+      boolean writesRecord = writesRecord(sourceData.getRowKind());
       for (int i = 0; i < fieldGetters.length; i++) {
         Object value = fieldGetters[i].getFieldOrNull(sourceData);
+        if (value == null && writesRecord && requiredFieldNames[i] != null) {
+          throw new DynamicRecordException(
+              "Null value for non-nullable field: " + requiredFieldNames[i]);
+        }
+
         targetData.setField(i, dataConverters[i].convert(value));
       }
 

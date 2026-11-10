@@ -2146,16 +2146,16 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @Test
-  void testSideOutputForErroneousRecordsImmediateUpdatePath() {
+  void testSideOutputForErroneousRecordsImmediateUpdatePath() throws Exception {
     runTestSideOutputForErroneousRecords(true);
   }
 
   @Test
-  void testSideOutputForErroneousRecordsNonImmediateUpdatePath() {
+  void testSideOutputForErroneousRecordsNonImmediateUpdatePath() throws Exception {
     runTestSideOutputForErroneousRecords(false);
   }
 
-  private void runTestSideOutputForErroneousRecords(boolean immediateUpdate) {
+  private void runTestSideOutputForErroneousRecords(boolean immediateUpdate) throws Exception {
     // Converting int -> boolean will fail
     Schema incompatibleSchemaChange =
         new Schema(
@@ -2216,7 +2216,11 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     // upsertMode and equalityFields of the submitted record survive to the error stream.
     assertThat(actual.f0.upsertMode()).isTrue();
     assertThat(actual.f0.equalityFields()).containsExactly("id");
-    assertThat(actual.f1).hasMessage("Cannot change column type: id: int -> boolean");
+    assertThat(actual.f1)
+        .isInstanceOf(DynamicRecordException.class)
+        .hasMessage("Cannot change column type: id: int -> boolean");
+    // the valid record before the diverted one is written
+    verifyResults(Lists.newArrayList(rows.get(0)));
   }
 
   private void runTest(List<DynamicIcebergDataImpl> dynamicData) throws Exception {

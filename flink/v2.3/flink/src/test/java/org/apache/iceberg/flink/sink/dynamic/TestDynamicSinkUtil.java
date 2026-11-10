@@ -37,7 +37,7 @@ class TestDynamicSinkUtil {
           required(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
 
   @Test
-  void testValidateUpsertSkippedWhenNotUpsert() {
+  void validateUpsertSkippedWhenNotUpsert() {
     assertThatCode(
             () ->
                 DynamicSinkUtil.validateUpsert(
@@ -46,18 +46,18 @@ class TestDynamicSinkUtil {
   }
 
   @Test
-  void testValidateUpsertFailsWithoutEqualityFields() {
+  void validateUpsertFailsWithoutEqualityFields() {
     assertThatThrownBy(
             () ->
                 DynamicSinkUtil.validateUpsert(
                     true, PartitionSpec.unpartitioned(), Collections.emptySet()))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(DynamicRecordException.class)
         .hasMessage(
             "Equality field columns shouldn't be empty when configuring to use UPSERT data.");
   }
 
   @Test
-  void testValidateUpsertUnpartitionedWithEqualityFields() {
+  void validateUpsertUnpartitionedWithEqualityFields() {
     assertThatCode(
             () ->
                 DynamicSinkUtil.validateUpsert(
@@ -66,17 +66,24 @@ class TestDynamicSinkUtil {
   }
 
   @Test
-  void testValidateUpsertFailsWhenPartitionSourceNotEqualityField() {
+  void validateUpsertFailsWhenPartitionSourceNotEqualityField() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
     assertThatThrownBy(() -> DynamicSinkUtil.validateUpsert(true, spec, Sets.newHashSet(1)))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(DynamicRecordException.class)
         .hasMessageContaining("should be included in equality fields");
   }
 
   @Test
-  void testValidateUpsertPartitionedWithPartitionSourceInEqualityFields() {
+  void validateUpsertPartitionedWithPartitionSourceInEqualityFields() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
     assertThatCode(() -> DynamicSinkUtil.validateUpsert(true, spec, Sets.newHashSet(1, 2)))
         .doesNotThrowAnyException();
+  }
+
+  @Test
+  void equalityFieldMissingFromSchemaIsRecordScoped() {
+    assertThatThrownBy(() -> DynamicSinkUtil.getEqualityFieldIds(Sets.newHashSet("nope"), SCHEMA))
+        .isInstanceOf(DynamicRecordException.class)
+        .hasMessage("Equality field nope does not exist in schema");
   }
 }
