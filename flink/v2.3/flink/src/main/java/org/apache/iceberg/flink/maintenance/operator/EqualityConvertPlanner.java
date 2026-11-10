@@ -464,7 +464,8 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
 
   private static void logMissingRowCounts(ManifestFile manifest, Snapshot mainSnapshot) {
     LOG.warn(
-        "Manifest {} of snapshot {} has no row counts. Rebuilding the worker index instead of applying the external commits to main snapshot {}.",
+        "Manifest {} of snapshot {} has no row counts. "
+            + "Rebuilding the worker index instead of applying the external commits to main snapshot {}.",
         manifest.path(),
         manifest.snapshotId(),
         mainSnapshot.snapshotId());
