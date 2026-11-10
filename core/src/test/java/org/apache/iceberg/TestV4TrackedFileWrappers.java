@@ -33,6 +33,8 @@ import static org.apache.iceberg.V4TestHelpers.writeTrackedFiles;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -391,19 +393,20 @@ class TestV4TrackedFileWrappers {
     assertThat(wrapped.tracking().dataSequenceNumber()).isNull();
   }
 
-  @Test
-  void leafRejectsManifest() {
-    TrackedFile manifest =
-        manifestRef(FileContent.DATA_MANIFEST, "s3://bucket/table/leaf.parquet", MANIFEST_INFO);
+  @ParameterizedTest
+  @EnumSource(value = FileContent.class, mode = EnumSource.Mode.EXCLUDE, names = "DATA")
+  void leafRejectsNonDataFile(FileContent content) {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(content);
 
     LeafTrackedFileWrapper wrapper =
         new LeafTrackedFileWrapper(
             UNPARTITIONED_SPECS,
             Types.StructType.of() /* partitionType */,
             Types.StructType.of() /* contentStatsType */);
-    assertThatThrownBy(() -> wrapper.wrap(manifest, manifest.tracking()))
+    assertThatThrownBy(() -> wrapper.wrap(file, ADDED_TRACKING))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid content type for leaf manifest: DATA_MANIFEST");
+        .hasMessage("Invalid content type for leaf manifest: %s", content);
   }
 
   @Test
@@ -829,6 +832,26 @@ class TestV4TrackedFileWrappers {
     assertThatThrownBy(() -> wrapper.wrap(manifest, manifest.tracking(), FIRST_ROW_ID))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot assign first-row-id to delete manifest: %s", manifest.location());
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = FileContent.class,
+      names = {"POSITION_DELETES", "EQUALITY_DELETES"})
+  void rootRejectsDeleteFile(FileContent content) {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(content);
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            UNPARTITIONED_SPECS,
+            Types.StructType.of() /* partitionType */,
+            Types.StructType.of() /* contentStatsType */);
+    assertThatThrownBy(() -> wrapper.wrap(file, ADDED_TRACKING, null /* assignedFirstRowId */))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid content type for root manifest: %s", content);
   }
 
   @Test

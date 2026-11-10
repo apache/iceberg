@@ -865,7 +865,14 @@ class V4Metadata {
       Preconditions.checkArgument(file != null, "Invalid file: null");
       Preconditions.checkArgument(newTracking != null, "Invalid tracking: null");
 
-      boolean isManifest = file.contentType() != FileContent.DATA;
+      FileContent content = file.contentType();
+      Preconditions.checkArgument(
+          content == FileContent.DATA
+              || content == FileContent.DATA_MANIFEST
+              || content == FileContent.DELETE_MANIFEST,
+          "Invalid content type for root manifest: %s",
+          content);
+      boolean isManifest = content != FileContent.DATA;
       Preconditions.checkArgument(
           !isManifest || file.manifestInfo() != null,
           "Missing manifest info for manifest: %s",
