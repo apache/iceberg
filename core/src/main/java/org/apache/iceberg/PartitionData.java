@@ -29,6 +29,8 @@ import org.apache.avro.specific.SpecificData;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Interner;
+import org.apache.iceberg.relocated.com.google.common.collect.Interners;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -42,6 +44,16 @@ public class PartitionData
           return this;
         }
       };
+
+  /**
+   * Tables with a small number of distinct partition values can produce a very large number of
+   * {@link PartitionData} copies while planning (one per manifest entry). Interning collapses
+   * copies that are equal (same partition spec and values) into a single shared instance so that
+   * manifest entries sharing a partition don't each pin their own duplicate {@code Object[]}. A
+   * weak interner is used so entries are evicted automatically once nothing references them
+   * anymore, which keeps this safe for long-lived processes that plan scans across many tables.
+   */
+  private static final Interner<PartitionData> INTERNER = Interners.newWeakInterner();
 
   static Schema partitionDataSchema(Types.StructType partitionType) {
     return AvroSchemaUtil.convert(partitionType, PartitionData.class.getName());
@@ -169,11 +181,11 @@ public class PartitionData
   }
 
   public PartitionData copy() {
-    return new PartitionData(this);
+    return INTERNER.intern(new PartitionData(this));
   }
 
   public PartitionData copyFor(StructLike partition) {
-    return new PartitionData(this, partition);
+    return INTERNER.intern(new PartitionData(this, partition));
   }
 
   @Override
@@ -185,13 +197,13 @@ public class PartitionData
     }
 
     PartitionData that = (PartitionData) o;
-    return partitionType.equals(that.partitionType) && Arrays.equals(data, that.data);
+    return partitionType.equals(that.partitionType) && Arrays.deepEquals(data, that.data);
   }
 
   @Override
   public int hashCode() {
     int result = partitionType.hashCode();
-    return 31 * result + Arrays.hashCode(data);
+    return 31 * result + Arrays.deepHashCode(data);
   }
 
   public static Object[] copyData(Types.StructType type, Object[] data) {

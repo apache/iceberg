@@ -33,6 +33,8 @@ import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Interner;
+import com.google.common.collect.Interners;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.ListMultimap;
@@ -78,6 +80,8 @@ public class GuavaClasses {
     ImmutableList.class.getName();
     ImmutableMap.class.getName();
     ImmutableSet.class.getName();
+    Interner.class.getName();
+    Interners.class.getName();
     Iterables.class.getName();
     Iterators.class.getName();
     ListMultimap.class.getName();
