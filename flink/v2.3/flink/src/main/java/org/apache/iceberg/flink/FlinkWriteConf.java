@@ -101,11 +101,7 @@ public class FlinkWriteConf {
         FlinkWriteOptions.OVERWRITE_STRATEGY_TABLE_PROPERTY,
         tableValue);
 
-    if (jobStrategy != null) {
-      return jobStrategy == OverwriteStrategy.FULL;
-    }
-
-    return tableStrategy == OverwriteStrategy.FULL;
+    return jobStrategy == OverwriteStrategy.FULL || tableStrategy == OverwriteStrategy.FULL;
   }
 
   public boolean upsertMode() {
