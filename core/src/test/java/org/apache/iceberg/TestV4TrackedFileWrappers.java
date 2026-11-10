@@ -856,7 +856,26 @@ class TestV4TrackedFileWrappers {
             Types.StructType.of() /* contentStatsType */);
     assertThatThrownBy(() -> wrapper.wrap(manifest, manifest.tracking(), FIRST_ROW_ID))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Missing manifest info for manifest: %s", manifest.location());
+        .hasMessage("Invalid manifest, missing manifest info: %s", manifest.location());
+  }
+
+  @Test
+  void rootRejectsDataFileWithManifestInfo() {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn("s3://bucket/table/file.parquet");
+    when(file.manifestInfo()).thenReturn(mock(ManifestInfo.class));
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            UNPARTITIONED_SPECS,
+            Types.StructType.of() /* partitionType */,
+            Types.StructType.of() /* contentStatsType */);
+    assertThatThrownBy(() -> wrapper.wrap(file, ADDED_TRACKING, FIRST_ROW_ID))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid data file, manifest info must be null: %s", file.location());
   }
 
   @Test
