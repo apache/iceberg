@@ -198,6 +198,8 @@ The `refresh-state` property is set on the [snapshot summary](https://iceberg.ap
 |-------------|-----------------|-------------|
 | _optional_  | `refresh-state` | A [refresh state](#refresh-state) record stored as a JSON-encoded string |
 
+Snapshots written by a refresh operation must set `refresh-state`.
+
 #### Refresh state
 
 Query engines maintain the precomputed data in the storage table by executing the materialized view’s query. During a refresh, the engine records the state of the view’s dependencies in the refresh state. Which dependencies are available depends on how source materialized views are treated, and the writer chooses which of them to record: all, a subset, or none. See [Appendix B](#appendix-b-example-freshness-criteria-and-recorded-dependencies) for examples. Each recorded dependency appears in `source-states` as a table entry or a view entry. A source materialized view may be recorded as a view entry for its definition and, optionally, a table entry for its storage table.
@@ -235,7 +237,7 @@ A source table record captures the state of a source table (including a source m
 | _required_  | `catalog`     | A string specifying the name of the catalog. |
 | _required_  | `uuid`        | The uuid of the source table |
 | _optional_  | `snapshot-id` | The snapshot-id of the source table that was read during the refresh operation. Omitted when the source table had no snapshots at refresh time (e.g. a newly created, empty table) |
-| _optional_  | `ref`         | Branch name of the source table being referenced in the view query |
+| _optional_  | `ref`         | Branch or tag name of the source table being referenced in the view query |
 
 When `ref` is set, the source table is tracked against that branch or tag, and the materialized view is stale once the ref advances past the recorded `snapshot-id`. When `ref` is not set, the source table is pinned to the recorded `snapshot-id` (e.g. `FOR VERSION AS OF <snapshot-id>`); the materialized view remains fresh with respect to this source as long as that snapshot exists. Writers that read a branch should record the branch name in `ref`.
 
@@ -522,7 +524,8 @@ The following is an example of the `refresh-state` JSON value stored in the snap
     "namespace" : [ "default" ],
     "name" : "events",
     "uuid" : "d4a10b5c-1e8a-4b72-9d67-3f4a8c9e1b2d",
-    "snapshot-id" : 6148331192489823102
+    "snapshot-id" : 6148331192489823102,
+    "ref" : "main"
   } ]
 }
 ```
