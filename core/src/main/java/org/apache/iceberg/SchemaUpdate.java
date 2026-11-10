@@ -519,7 +519,9 @@ class SchemaUpdate implements UpdateSchema {
             ImmutableSet.of(
                 TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX,
                 TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX,
-                TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX);
+                TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX,
+                TableProperties.PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX,
+                TableProperties.PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX);
         Map<String, String> updatedProperties =
             PropertyUtil.applySchemaChanges(
                 newMetadata.properties(), deletedColumns, renamedColumns, columnProperties);
