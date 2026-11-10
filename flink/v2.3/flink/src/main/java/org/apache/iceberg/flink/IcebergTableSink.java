@@ -49,6 +49,7 @@ import org.apache.iceberg.flink.sink.dynamic.TableCreator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning, SupportsOverwrite {
@@ -136,7 +137,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
         !overwrite || context.isBounded(),
         "Unbounded data stream doesn't support overwrite operation.");
     Preconditions.checkState(
-        !overwrite || staticPartition.isEmpty() || useDynamicSink || !fullOverwrite(),
+        staticPartition.isEmpty() || useDynamicSink || !fullTableOverwrite(),
         "Cannot overwrite PARTITION %s when %s is full: a full overwrite replaces the whole table.",
         staticPartition,
         FlinkWriteOptions.OVERWRITE_STRATEGY.key());
@@ -177,10 +178,18 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
         };
   }
 
-  private boolean fullOverwrite() {
+  private boolean fullTableOverwrite() {
+    // a write option can turn overwrite on or off, so it takes priority over the planner's flag
+    Map<String, String> writeOptions = Maps.newHashMap();
+    writeOptions.put(FlinkWriteOptions.OVERWRITE_MODE.key(), Boolean.toString(overwrite));
+    writeOptions.putAll(writeProps);
+    if (!new FlinkWriteConf(writeOptions, readableConfig).overwriteMode()) {
+      return false;
+    }
+
     try (TableLoader loader = tableLoader.clone()) {
       loader.open();
-      return new FlinkWriteConf(loader.loadTable(), writeProps, readableConfig).fullOverwrite();
+      return new FlinkWriteConf(loader.loadTable(), writeOptions, readableConfig).fullOverwrite();
     } catch (IOException e) {
       throw new UncheckedIOException(
           "Failed to load iceberg table from table loader: " + tableLoader, e);

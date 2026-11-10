@@ -333,6 +333,30 @@ public class TestFlinkTableSink extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testPartitionClauseRejectedWhenWriteOptionEnablesOverwrite() {
+    String tableName = "test_full_overwrite_partition_clause_option";
+    sql(
+        "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) "
+            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='full')",
+        tableName, format.name());
+
+    try {
+      assertThatThrownBy(
+              () ->
+                  sql(
+                      "INSERT INTO %s /*+ OPTIONS('overwrite-enabled'='true') */ "
+                          + "PARTITION (data='a') SELECT 6",
+                      tableName))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage(
+              "Cannot overwrite PARTITION {data=a} when overwrite-mode is full: "
+                  + "a full overwrite replaces the whole table.");
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+    }
+  }
+
+  @TestTemplate
   public void testFullOverwriteReplacesFilesWrittenUnderOlderSpec() throws Exception {
     assumeThat(isStreamingJob)
         .as("Flink unbounded streaming does not support overwrite operation")
