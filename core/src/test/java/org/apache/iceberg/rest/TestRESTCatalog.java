@@ -39,8 +39,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.NoRouteToHostException;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -57,7 +62,12 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import javax.net.ssl.SSLHandshakeException;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hc.client5.http.ConnectTimeoutException;
+import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
+import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
@@ -133,6 +143,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -3214,6 +3225,142 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .isInstanceOf(CommitStateUnknownException.class)
         .hasMessageContaining("Cannot determine whether the commit was successful")
         .satisfies(ex -> assertThat(((CommitStateUnknownException) ex).getSuppressed()).isEmpty());
+  }
+
+  /** A spied adapter behind a catalog with a table, for simulating failed commit requests. */
+  private RESTCatalogAdapter catalogWithTable(RESTCatalog[] catalog) {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    catalog[0] = new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog[0].initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+
+    if (requiresNamespaceCreate()) {
+      catalog[0].createNamespace(TABLE.namespace());
+    }
+
+    catalog[0].createTable(TABLE, SCHEMA);
+    return adapter;
+  }
+
+  private static RESTException transportFailure(IOException cause) {
+    // what HTTPClient throws when the connection fails
+    return new RESTException(cause, "Error occurred while processing %s request", "POST");
+  }
+
+  @Test
+  public void testReconcileOnLostCommitResponse() {
+    RESTCatalog[] catalog = new RESTCatalog[1];
+    RESTCatalogAdapter adapter = catalogWithTable(catalog);
+
+    // Simulate: server commits, but the response is lost (read timeout, connection reset)
+    Mockito.doAnswer(
+            invocation -> {
+              invocation.callRealMethod();
+              throw transportFailure(new SocketTimeoutException("Read timed out"));
+            })
+        .when(adapter)
+        .execute(
+            matches(HTTPMethod.POST, RESOURCE_PATHS.table(TABLE)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    // the snapshot-adding commit is reconciled as for a 5xx, not reported as a failure
+    catalog[0].loadTable(TABLE).newFastAppend().appendFile(FILE_A).commit();
+
+    Mockito.reset(adapter);
+    Table reloaded = catalog[0].loadTable(TABLE);
+    assertThat(reloaded.snapshots()).hasSize(1);
+  }
+
+  /** Transport failures after which the server may have received the request. */
+  private static Stream<IOException> failuresAfterSending() {
+    return Stream.of(
+        new SocketTimeoutException("Read timed out"),
+        new NoHttpResponseException("localhost:8181 failed to respond"),
+        new SocketException("Connection reset"));
+  }
+
+  /** Transport failures that happen before the request is sent. */
+  private static Stream<IOException> failuresBeforeSending() {
+    return Stream.of(
+        new ConnectException("Connection refused"),
+        new ConnectTimeoutException("Connect to localhost:8181 failed: Connect timed out"),
+        new ConnectionRequestTimeoutException("Timeout deadline: 180000 MILLISECONDS"),
+        new UnknownHostException("catalog.example.com"),
+        new NoRouteToHostException("No route to host"),
+        new SSLHandshakeException("Received fatal alert: handshake_failure"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("failuresAfterSending")
+  public void testLostCommitResponseIsCommitStateUnknown(IOException failure) {
+    RESTCatalog[] catalog = new RESTCatalog[1];
+    RESTCatalogAdapter adapter = catalogWithTable(catalog);
+
+    // Simulate: the request may or may not have arrived; this time it did not
+    Mockito.doThrow(transportFailure(failure))
+        .when(adapter)
+        .execute(
+            matches(HTTPMethod.POST, RESOURCE_PATHS.table(TABLE)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    Table table = catalog[0].loadTable(TABLE);
+    assertThatThrownBy(() -> table.updateProperties().set("k", "v").commit())
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageStartingWith("Error occurred while processing POST request")
+        .hasMessageContaining("Cannot determine whether the commit was successful")
+        .hasRootCauseInstanceOf(failure.getClass());
+  }
+
+  @ParameterizedTest
+  @MethodSource("failuresBeforeSending")
+  public void testCommitThatWasNeverSentIsNotCommitStateUnknown(IOException failure) {
+    // Called directly rather than through a table commit: the commit's retry loop treats an
+    // InterruptedIOException such as ConnectionRequestTimeoutException as an interruption of the
+    // calling thread.
+    assertThatThrownBy(
+            () ->
+                RESTTableOperations.commitRequest(
+                    () -> {
+                      throw transportFailure(failure);
+                    }))
+        .isInstanceOf(RESTException.class)
+        .isNotInstanceOf(CommitStateUnknownException.class)
+        .hasMessage("Error occurred while processing POST request")
+        .hasRootCauseInstanceOf(failure.getClass());
+  }
+
+  @Test
+  public void testLostTransactionResponseIsCommitStateUnknown() {
+    RESTCatalog[] catalog = new RESTCatalog[1];
+    RESTCatalogAdapter adapter = catalogWithTable(catalog);
+
+    // Simulate: server commits the transaction, but the response is lost
+    Mockito.doAnswer(
+            invocation -> {
+              invocation.callRealMethod();
+              throw transportFailure(new SocketTimeoutException("Read timed out"));
+            })
+        .when(adapter)
+        .execute(matches(HTTPMethod.POST, RESOURCE_PATHS.commitTransaction()), any(), any(), any());
+
+    Transaction transaction = catalog[0].loadTable(TABLE).newTransaction();
+    transaction.updateProperties().set("k", "v").commit();
+    TableCommit commit =
+        TableCommit.create(
+            TABLE,
+            ((BaseTransaction) transaction).startMetadata(),
+            ((BaseTransaction) transaction).currentMetadata());
+
+    assertThatThrownBy(() -> catalog[0].commitTransaction(commit))
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageStartingWith("Error occurred while processing POST request")
+        .hasMessageContaining("Cannot determine whether the commit was successful");
   }
 
   @Test
