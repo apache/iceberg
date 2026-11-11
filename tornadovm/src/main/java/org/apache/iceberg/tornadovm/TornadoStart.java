@@ -42,6 +42,9 @@ final class TornadoStart {
       thread.setContextClassLoader(TornadoRuntimeProvider.class.getClassLoader());
       try {
         TornadoRuntimeProvider.getTornadoRuntime();
+      } catch (RuntimeException | LinkageError e) {
+        // No TornadoVM runtime in this JVM (the CPU twin, a plain JVM): device work fails when
+        // tried.
       } finally {
         thread.setContextClassLoader(previous);
       }
