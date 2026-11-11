@@ -381,6 +381,43 @@ class TestIcebergCommitter extends TestBase {
   }
 
   @TestTemplate
+  public void testFullOverwriteKeepsRowsOnLaterEmptyCheckpoint() throws Exception {
+    // other empty commits are committed at every empty checkpoint
+    table.updateProperties().set(IcebergCommitter.MAX_CONTINUOUS_EMPTY_COMMITS, "1").commit();
+    appendPartitions("a", "b");
+    IcebergCommitter committer = getCommitter(true, true, false);
+
+    RowData row = SimpleDataUtil.createRowData(3, "a");
+    committer.commit(
+        Lists.newArrayList(
+            buildCommitRequestFor(
+                jobId, 1, Lists.newArrayList(of(writePartitionedDataFile("data-3", row))))));
+    committer.commit(Lists.newArrayList(buildCommitRequestFor(jobId, 2, Lists.newArrayList())));
+
+    SimpleDataUtil.assertTableRows(table, ImmutableList.of(row), branch);
+    assertMaxCommittedCheckpointId(jobId, 1);
+  }
+
+  @TestTemplate
+  public void testFullOverwriteKeepsRowsOnEmptyCheckpointAfterRecovery() throws Exception {
+    // other empty commits are committed at every empty checkpoint
+    table.updateProperties().set(IcebergCommitter.MAX_CONTINUOUS_EMPTY_COMMITS, "1").commit();
+    appendPartitions("a", "b");
+
+    RowData row = SimpleDataUtil.createRowData(3, "a");
+    getCommitter(true, true, false)
+        .commit(
+            Lists.newArrayList(
+                buildCommitRequestFor(
+                    jobId, 1, Lists.newArrayList(of(writePartitionedDataFile("data-3", row))))));
+    getCommitter(true, true, true)
+        .commit(Lists.newArrayList(buildCommitRequestFor(jobId, 2, Lists.newArrayList())));
+
+    SimpleDataUtil.assertTableRows(table, ImmutableList.of(row), branch);
+    assertMaxCommittedCheckpointId(jobId, 1);
+  }
+
+  @TestTemplate
   public void testFullOverwriteReplacesFilesWrittenUnderOlderSpec() throws Exception {
     RowData unpartitionedRow = SimpleDataUtil.createRowData(0, "z");
     table
@@ -1548,6 +1585,11 @@ class TestIcebergCommitter extends TestBase {
   }
 
   private IcebergCommitter getCommitter(boolean replacePartitions, boolean fullOverwrite) {
+    return getCommitter(replacePartitions, fullOverwrite, true);
+  }
+
+  private IcebergCommitter getCommitter(
+      boolean replacePartitions, boolean fullOverwrite, boolean isRestored) {
     IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
     return new IcebergCommitter(
         tableLoader,
@@ -1559,7 +1601,7 @@ class TestIcebergCommitter extends TestBase {
         "sinkId",
         metric,
         false,
-        true,
+        isRestored,
         0);
   }
 

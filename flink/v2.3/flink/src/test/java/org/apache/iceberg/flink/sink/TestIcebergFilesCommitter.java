@@ -1149,6 +1149,96 @@ public class TestIcebergFilesCommitter extends TestBase {
   }
 
   @TestTemplate
+  public void testFullOverwriteKeepsRowsOnLaterEmptyCheckpoint() throws Exception {
+    table.updateSpec().addField("data").commit();
+
+    JobID jobId = new JobID();
+    long checkpointId = 1;
+    long timestamp = 0;
+    RowData row = SimpleDataUtil.createRowData(1, "a");
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobId, true, true)) {
+      harness.setup();
+      harness.open();
+
+      harness.processElement(
+          of(checkpointId, writePartitionedDataFile("data-1", row)), ++timestamp);
+      harness.snapshot(checkpointId, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+
+      harness.snapshot(checkpointId + 1, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpointId + 1);
+
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row), branch);
+      assertMaxCommittedCheckpointId(jobId, harness.getOperator().getOperatorID(), checkpointId);
+    }
+  }
+
+  @TestTemplate
+  public void testFullOverwriteKeepsRowsOnCheckpointCompletedAfterEndInput() throws Exception {
+    table.updateSpec().addField("data").commit();
+
+    JobID jobId = new JobID();
+    long checkpointId = 1;
+    long timestamp = 0;
+    RowData row = SimpleDataUtil.createRowData(1, "a");
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobId, true, true)) {
+      harness.setup();
+      harness.open();
+
+      harness.processElement(
+          of(checkpointId, writePartitionedDataFile("data-1", row)), ++timestamp);
+      harness.snapshot(checkpointId, ++timestamp);
+      ((BoundedOneInput) harness.getOneInputOperator()).endInput();
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row), branch);
+      assertMaxCommittedCheckpointId(
+          jobId,
+          harness.getOperator().getOperatorID(),
+          IcebergStreamWriter.END_INPUT_CHECKPOINT_ID);
+    }
+  }
+
+  @TestTemplate
+  public void testFullOverwriteKeepsRowsOnEmptyCheckpointAfterRecovery() throws Exception {
+    table.updateSpec().addField("data").commit();
+
+    JobID jobId = new JobID();
+    OperatorID operatorId;
+    OperatorSubtaskState snapshot;
+    long checkpointId = 1;
+    long timestamp = 0;
+    RowData row = SimpleDataUtil.createRowData(1, "a");
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobId, true, true)) {
+      harness.setup();
+      harness.open();
+      operatorId = harness.getOperator().getOperatorID();
+
+      harness.processElement(
+          of(checkpointId, writePartitionedDataFile("data-1", row)), ++timestamp);
+      snapshot = harness.snapshot(checkpointId, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+    }
+
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobId, true, true)) {
+      harness.getStreamConfig().setOperatorID(operatorId);
+      harness.setup();
+      harness.initializeState(snapshot);
+      harness.open();
+
+      harness.snapshot(checkpointId + 1, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpointId + 1);
+
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row), branch);
+      assertMaxCommittedCheckpointId(jobId, operatorId, checkpointId);
+    }
+  }
+
+  @TestTemplate
   public void testDynamicOverwriteKeepsPartitionsWithoutNewRows() throws Exception {
     table.updateSpec().addField("data").commit();
     RowData rowA = SimpleDataUtil.createRowData(1, "a");

@@ -155,6 +155,26 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @TestTemplate
+  void testFullOverwriteKeepsRowsOnCheckpointsAfterLastRow() throws Exception {
+    List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
+    DataStream<RowData> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    IcebergSink.forRowData(dataStream)
+        .table(table)
+        .tableLoader(tableLoader)
+        .writeParallelism(parallelism)
+        .overwrite(true)
+        .set(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "full")
+        .append();
+
+    env.execute("Test Iceberg DataStream");
+
+    SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
+  }
+
+  @TestTemplate
   void testWriteRow() throws Exception {
     testWriteRow(null, DistributionMode.NONE);
   }

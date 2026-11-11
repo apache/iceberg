@@ -81,6 +81,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
   private int maxContinuousEmptyCommits;
   private ExecutorService workerPool;
   private int continuousEmptyCheckpoints = 0;
+  private boolean hasCommitted = false;
   private final boolean tableMaintenanceEnabled;
   private final boolean isRestored;
   private final int subtaskId;
@@ -168,6 +169,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     NavigableMap<Long, CommitRequest<IcebergCommittable>> uncommitted =
         commitRequestMap.tailMap(maxCommittedCheckpointId, false);
     if (!uncommitted.isEmpty()) {
+      this.hasCommitted = hasCommitted || maxCommittedCheckpointId > SinkUtil.INITIAL_CHECKPOINT_ID;
       commitPendingRequests(uncommitted, last.jobId(), last.operatorId());
     }
   }
@@ -233,11 +235,14 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       String operatorId) {
     long totalFiles = summary.dataFilesCount() + summary.deleteFilesCount();
     continuousEmptyCheckpoints = totalFiles == 0 ? continuousEmptyCheckpoints + 1 : 0;
-    // a full overwrite with no new files still commits, because it removes every row of the table
     boolean fullTableOverwrite = replacePartitions && fullOverwrite;
-    if (totalFiles != 0
-        || fullTableOverwrite
-        || continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0) {
+    // a full overwrite with no new files removes every row of the table, so it commits only before
+    // the first commit of the job; a later one would remove the rows the job has written
+    boolean commitEmpty =
+        fullTableOverwrite
+            ? !hasCommitted
+            : continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0;
+    if (totalFiles != 0 || commitEmpty) {
       if (fullTableOverwrite) {
         overwriteTable(pendingResults, summary, newFlinkJobId, operatorId);
       } else if (replacePartitions) {
@@ -362,6 +367,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     long startNano = System.nanoTime();
     operation.commit(); // abort is automatically called if this fails.
     long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano);
+    this.hasCommitted = true;
     LOG.info(
         "Committed {} to table: {}, branch: {}, checkpointId {} in {} ms",
         description,

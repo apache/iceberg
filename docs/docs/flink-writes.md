@@ -63,7 +63,7 @@ INSERT OVERWRITE sample /*+ OPTIONS('overwrite-mode'='full') */ SELECT id, data 
 
 The table property `write.flink.overwrite-mode` sets the mode for a job that does not set `overwrite-mode`. When it is `full`, a job that sets `overwrite-mode` to `dynamic` fails, and `INSERT OVERWRITE` with a `PARTITION` clause fails. A full overwrite is one snapshot with operation `overwrite` whose `total-data-files` equals its `added-data-files`.
 
-A full overwrite whose query returns no rows removes every row of the table. A DataStream job commits one overwrite per checkpoint, so in `full` mode a checkpoint with no new rows also removes every row.
+A full overwrite whose query returns no rows removes every row of the table. A DataStream job with checkpointing commits one overwrite per checkpoint. In `full` mode a checkpoint with new rows replaces every row, including rows the job committed at an earlier checkpoint. A checkpoint with no new rows is committed only if the job has not committed yet.
 
 ### `UPSERT`
 
