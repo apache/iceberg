@@ -484,7 +484,7 @@ public class TypeUtil {
    * @param type a field type
    * @return the number of consecutive IDs following the field's ID that the type derives
    */
-  static int numReservedIds(Type type) {
+  private static int numReservedIds(Type type) {
     return type.isFileType() ? Types.FileType.NUM_NESTED_FIELDS : 0;
   }
 
@@ -668,7 +668,8 @@ public class TypeUtil {
   public interface NextID {
     int get();
 
-    default int get(int numReserved) {
+    default int get(Type type) {
+      int numReserved = numReservedIds(type);
       int id = get();
       for (int offset = 1; offset <= numReserved; offset += 1) {
         int reserved = get();
@@ -690,20 +691,21 @@ public class TypeUtil {
     int get(int oldId);
 
     /**
-     * Assigns a new ID and reserves the IDs that immediately follow it.
+     * Assigns a new ID for a field of the given type.
      *
-     * <p>Implementations must override this method to assign IDs for types with derived field IDs.
+     * <p>Implementations must override this method to assign IDs to file fields.
      *
      * @param oldId an existing field ID
-     * @param numReserved number of IDs after the new ID that must not be assigned
+     * @param type the type of the field
      * @return a new field ID
+     * @throws UnsupportedOperationException if the type is a file and this method is not overridden
      */
-    default int get(int oldId, int numReserved) {
-      if (numReserved > 0) {
+    default int get(int oldId, Type type) {
+      if (type.isFileType()) {
         throw new UnsupportedOperationException(
             String.format(
-                "Cannot reserve %s IDs for field %s: reserving IDs is not supported",
-                numReserved, oldId));
+                "Cannot assign IDs to file field %s: this GetID does not implement get(int, Type)",
+                oldId));
       }
 
       return get(oldId);
@@ -817,13 +819,8 @@ public class TypeUtil {
       throw new UnsupportedOperationException("Unsupported type: variant");
     }
 
-    /**
-     * Handles a file type, by default as the struct of its nested fields.
-     *
-     * <p>Override this to distinguish a file from a struct.
-     */
     public T file(Types.FileType file, List<T> fieldResults) {
-      return struct(file.asStruct(), fieldResults);
+      throw new UnsupportedOperationException("Unsupported type: file");
     }
 
     public T primitive(Type.PrimitiveType primitive) {

@@ -76,6 +76,11 @@ class GetProjectedIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
   }
 
   @Override
+  public Set<Integer> file(Types.FileType file, List<Set<Integer>> fieldResults) {
+    return struct(file.asStruct(), fieldResults);
+  }
+
+  @Override
   public Set<Integer> variant(Types.VariantType variant) {
     return null;
   }

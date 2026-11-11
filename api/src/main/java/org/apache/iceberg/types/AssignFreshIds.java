@@ -59,7 +59,7 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
       }
     }
 
-    return nextId.get(TypeUtil.numReservedIds(type));
+    return nextId.get(type);
   }
 
   private String name(int id) {

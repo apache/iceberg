@@ -32,7 +32,7 @@ class AssignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   }
 
   private int idFor(int id, Type type) {
-    return getID.get(id, TypeUtil.numReservedIds(type));
+    return getID.get(id, type);
   }
 
   @Override

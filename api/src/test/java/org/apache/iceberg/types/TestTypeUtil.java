@@ -793,6 +793,10 @@ public class TestTypeUtil {
         Arguments.of(Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY)));
   }
 
+  private static Stream<Arguments> testTypesWithFile() {
+    return Stream.concat(testTypes(), Stream.of(Arguments.of(Types.FileType.of(1))));
+  }
+
   @ParameterizedTest
   @MethodSource("testTypes")
   public void testAssignIdsWithType(Type testType) {
@@ -828,7 +832,7 @@ public class TestTypeUtil {
   }
 
   @ParameterizedTest
-  @MethodSource("testTypes")
+  @MethodSource("testTypesWithFile")
   public void testIndexByIdWithType(Type testType) {
     Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", testType));
 
@@ -837,7 +841,7 @@ public class TestTypeUtil {
   }
 
   @ParameterizedTest
-  @MethodSource("testTypes")
+  @MethodSource("testTypesWithFile")
   public void testIndexNameByIdWithType(Type testType) {
     Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", testType));
 
@@ -864,8 +868,18 @@ public class TestTypeUtil {
     assertThat(Set.of(0, 1)).isEqualTo(projectedIds);
   }
 
+  @Test
+  void getProjectedIdsSelectsTheNestedFieldsOfAFile() {
+    Types.FileType file = Types.FileType.of(1);
+    Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", file));
+    Set<Integer> expectedIds = Sets.newHashSet(0);
+    file.fields().forEach(field -> expectedIds.add(field.fieldId()));
+
+    assertThat(TypeUtil.getProjectedIds(schema)).isEqualTo(expectedIds);
+  }
+
   @ParameterizedTest
-  @MethodSource("testTypes")
+  @MethodSource("testTypesWithFile")
   public void testReassignDocWithType(Type testType) {
     Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", testType));
     Schema docSourceSchema =

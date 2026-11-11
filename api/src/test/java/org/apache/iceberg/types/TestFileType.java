@@ -88,18 +88,22 @@ class TestFileType {
 
     assertThat(FILE).isNotEqualTo(struct);
     assertThat(struct).isNotEqualTo(FILE);
-    assertThat(FILE.hashCode()).isNotEqualTo(struct.hashCode());
   }
 
   @Test
-  void isNotEqualToAFileWithDifferentBaseId() {
+  void isEqualOnlyToAFileWithTheSameBaseId() {
     assertThat(FILE).isEqualTo(Types.FileType.of(5)).isNotEqualTo(Types.FileType.of(12));
-    assertThat(FILE.hashCode()).isNotEqualTo(Types.FileType.of(12).hashCode());
+    assertThat(FILE.hashCode()).isEqualTo(Types.FileType.of(5).hashCode());
   }
 
   @Test
   void freshIdsReserveTheNestedIdBlock() {
     Schema schema =
+        new Schema(
+            required(100, "id", Types.LongType.get()),
+            optional(101, "photo", Types.FileType.of(101)),
+            optional(108, "data", Types.StringType.get()));
+    Schema expected =
         new Schema(
             required(1, "id", Types.LongType.get()),
             optional(2, "photo", Types.FileType.of(2)),
@@ -107,28 +111,25 @@ class TestFileType {
 
     Schema assigned = TypeUtil.assignFreshIds(schema, new AtomicInteger(0)::incrementAndGet);
 
-    assertThat(assigned.findField("id").fieldId()).isEqualTo(1);
-    assertThat(assigned.findField("photo").fieldId()).isEqualTo(2);
-    assertThat(assigned.findField("photo").type()).isEqualTo(Types.FileType.of(2));
-    assertThat(assigned.findField("photo.uri").fieldId()).isEqualTo(3);
-    assertThat(assigned.findField("photo.inline").fieldId()).isEqualTo(8);
-    assertThat(assigned.findField("data").fieldId()).isEqualTo(9);
-    assertThat(assigned.highestFieldId()).isEqualTo(9);
+    assertThat(assigned.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
   void freshIdsHandleAdjacentFileColumns() {
     Schema schema =
         new Schema(
+            optional(100, "photo", Types.FileType.of(100)),
+            optional(107, "thumbnail", Types.FileType.of(107)),
+            optional(114, "data", Types.StringType.get()));
+    Schema expected =
+        new Schema(
             optional(1, "photo", Types.FileType.of(1)),
-            optional(8, "thumbnail", Types.FileType.of(8)));
+            optional(8, "thumbnail", Types.FileType.of(8)),
+            optional(15, "data", Types.StringType.get()));
 
     Schema assigned = TypeUtil.assignFreshIds(schema, new AtomicInteger(0)::incrementAndGet);
 
-    assertThat(assigned.findField("photo").type()).isEqualTo(Types.FileType.of(1));
-    assertThat(assigned.findField("thumbnail").type()).isEqualTo(Types.FileType.of(8));
-    assertThat(assigned.highestFieldId()).isEqualTo(14);
-    assertThat(TypeUtil.indexById(assigned.asStruct())).hasSize(14);
+    assertThat(assigned.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -138,17 +139,20 @@ class TestFileType {
             required(1, "id", Types.LongType.get()), optional(2, "photo", Types.FileType.of(2)));
     Schema updated =
         new Schema(
-            required(11, "id", Types.LongType.get()),
-            optional(12, "photo", Types.FileType.of(12)),
-            optional(19, "data", Types.StringType.get()));
+            required(100, "id", Types.LongType.get()),
+            optional(101, "photo", Types.FileType.of(101)),
+            optional(108, "data", Types.StringType.get()));
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "photo", Types.FileType.of(2)),
+            optional(9, "data", Types.StringType.get()));
 
-    Schema assigned = TypeUtil.assignFreshIds(updated, base, new AtomicInteger(8)::incrementAndGet);
+    Schema assigned =
+        TypeUtil.assignFreshIds(
+            updated, base, new AtomicInteger(base.highestFieldId())::incrementAndGet);
 
-    assertThat(assigned.findField("id").fieldId()).isEqualTo(1);
-    assertThat(assigned.findField("photo").fieldId()).isEqualTo(2);
-    assertThat(assigned.findField("photo.uri").fieldId()).isEqualTo(3);
-    assertThat(assigned.findField("photo.inline").fieldId()).isEqualTo(8);
-    assertThat(assigned.findField("data").fieldId()).isEqualTo(9);
+    assertThat(assigned.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -160,42 +164,110 @@ class TestFileType {
             optional(3, "data", Types.StringType.get()));
     Schema updated =
         new Schema(
-            required(11, "id", Types.LongType.get()),
-            optional(12, "photo", Types.FileType.of(12)),
-            optional(19, "data", Types.StringType.get()));
+            required(100, "id", Types.LongType.get()),
+            optional(101, "photo", Types.FileType.of(101)),
+            optional(108, "data", Types.StringType.get()),
+            optional(109, "notes", Types.StringType.get()));
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(4, "photo", Types.FileType.of(4)),
+            optional(3, "data", Types.StringType.get()),
+            optional(11, "notes", Types.StringType.get()));
 
-    Schema assigned = TypeUtil.assignFreshIds(updated, base, new AtomicInteger(3)::incrementAndGet);
+    Schema assigned =
+        TypeUtil.assignFreshIds(
+            updated, base, new AtomicInteger(base.highestFieldId())::incrementAndGet);
 
-    assertThat(assigned.findField("id").fieldId()).isEqualTo(1);
-    assertThat(assigned.findField("data").fieldId()).isEqualTo(3);
+    assertThat(assigned.asStruct()).isEqualTo(expected.asStruct());
+  }
 
-    Types.NestedField photo = assigned.findField("photo");
-    assertThat(photo.type()).isEqualTo(Types.FileType.of(photo.fieldId()));
-    assertThat(assigned.findField("photo.uri").fieldId()).isEqualTo(photo.fieldId() + 1);
-    assertThat(assigned.highestFieldId())
-        .isEqualTo(photo.fieldId() + Types.FileType.NUM_NESTED_FIELDS);
-    assertThat(TypeUtil.indexById(assigned.asStruct()))
-        .hasSize(updated.columns().size() + Types.FileType.NUM_NESTED_FIELDS);
+  @Test
+  void freshIdsReuseBaseSchemaIdsForAFileInANestedStruct() {
+    Schema base =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "meta", Types.StructType.of(optional(3, "photo", Types.FileType.of(3)))));
+    Schema updated =
+        new Schema(
+            required(100, "id", Types.LongType.get()),
+            optional(
+                101,
+                "meta",
+                Types.StructType.of(
+                    optional(102, "photo", Types.FileType.of(102)),
+                    optional(109, "label", Types.StringType.get()))));
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(
+                2,
+                "meta",
+                Types.StructType.of(
+                    optional(3, "photo", Types.FileType.of(3)),
+                    optional(10, "label", Types.StringType.get()))));
+
+    Schema assigned =
+        TypeUtil.assignFreshIds(
+            updated, base, new AtomicInteger(base.highestFieldId())::incrementAndGet);
+
+    assertThat(assigned.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
   void freshIdsReserveForFilesInListsAndMaps() {
     Schema schema =
         new Schema(
-            optional(1, "photos", Types.ListType.ofOptional(2, Types.FileType.of(2))),
+            optional(100, "photos", Types.ListType.ofOptional(101, Types.FileType.of(101))),
             optional(
-                9,
+                108,
+                "byName",
+                Types.MapType.ofOptional(
+                    109, 110, Types.StringType.get(), Types.FileType.of(110))));
+    Schema expected =
+        new Schema(
+            optional(1, "photos", Types.ListType.ofOptional(3, Types.FileType.of(3))),
+            optional(
+                2,
                 "byName",
                 Types.MapType.ofOptional(10, 11, Types.StringType.get(), Types.FileType.of(11))));
 
     Schema assigned = TypeUtil.assignFreshIds(schema, new AtomicInteger(0)::incrementAndGet);
 
-    assertThat(assigned.findField("photos.element").type()).isEqualTo(Types.FileType.of(3));
-    assertThat(assigned.findField("photos.element.uri").fieldId()).isEqualTo(4);
-    assertThat(assigned.findField("byName.value").type()).isEqualTo(Types.FileType.of(11));
-    assertThat(assigned.findField("byName.value.uri").fieldId()).isEqualTo(12);
-    assertThat(assigned.highestFieldId()).isEqualTo(17);
-    assertThat(TypeUtil.indexById(assigned.asStruct())).hasSize(17);
+    assertThat(assigned.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  void freshIdsReuseBaseSchemaIdsForFilesInListsAndMaps() {
+    Schema base =
+        new Schema(
+            optional(1, "photos", Types.ListType.ofOptional(2, Types.FileType.of(2))),
+            optional(
+                9,
+                "byName",
+                Types.MapType.ofOptional(10, 11, Types.StringType.get(), Types.FileType.of(11))));
+    Schema updated =
+        new Schema(
+            optional(100, "photos", Types.ListType.ofOptional(101, Types.FileType.of(101))),
+            optional(
+                108,
+                "byName",
+                Types.MapType.ofOptional(109, 110, Types.StringType.get(), Types.FileType.of(110))),
+            optional(117, "data", Types.StringType.get()));
+    Schema expected =
+        new Schema(
+            optional(1, "photos", Types.ListType.ofOptional(2, Types.FileType.of(2))),
+            optional(
+                9,
+                "byName",
+                Types.MapType.ofOptional(10, 11, Types.StringType.get(), Types.FileType.of(11))),
+            optional(18, "data", Types.StringType.get()));
+
+    Schema assigned =
+        TypeUtil.assignFreshIds(
+            updated, base, new AtomicInteger(base.highestFieldId())::incrementAndGet);
+
+    assertThat(assigned.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -214,7 +286,8 @@ class TestFileType {
 
     assertThatThrownBy(() -> TypeUtil.assignIds(schema.asStruct(), oldId -> oldId + 10))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Cannot reserve 6 IDs for field 1: reserving IDs is not supported");
+        .hasMessage(
+            "Cannot assign IDs to file field 1: this GetID does not implement get(int, Type)");
   }
 
   @Test
@@ -224,12 +297,29 @@ class TestFileType {
             required(1, "id", Types.LongType.get()), optional(2, "photo", Types.FileType.of(2)));
     Schema unassigned =
         new Schema(
-            required(11, "id", Types.LongType.get()), optional(12, "photo", Types.FileType.of(12)));
+            required(100, "id", Types.LongType.get()),
+            optional(101, "photo", Types.FileType.of(101)));
 
     Schema reassigned = TypeUtil.reassignIds(unassigned, source);
 
     assertThat(reassigned.asStruct()).isEqualTo(source.asStruct());
-    assertThat(reassigned.findField("photo").type()).isEqualTo(Types.FileType.of(2));
+  }
+
+  @Test
+  void reassignedIdsComeFromTheSourceSchemaForAFileInANestedStruct() {
+    Schema source =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "meta", Types.StructType.of(optional(3, "photo", Types.FileType.of(3)))));
+    Schema unassigned =
+        new Schema(
+            required(100, "id", Types.LongType.get()),
+            optional(
+                101, "meta", Types.StructType.of(optional(102, "photo", Types.FileType.of(102)))));
+
+    Schema reassigned = TypeUtil.reassignIds(unassigned, source);
+
+    assertThat(reassigned.asStruct()).isEqualTo(source.asStruct());
   }
 
   @Test
@@ -237,18 +327,17 @@ class TestFileType {
     Schema source = new Schema(required(1, "id", Types.LongType.get()));
     Schema unassigned =
         new Schema(
-            required(11, "id", Types.LongType.get()),
-            optional(12, "photo", Types.FileType.of(12)),
-            optional(19, "data", Types.StringType.get()));
+            required(100, "id", Types.LongType.get()),
+            optional(101, "photo", Types.FileType.of(101)),
+            optional(108, "data", Types.StringType.get()));
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "photo", Types.FileType.of(2)),
+            optional(9, "data", Types.StringType.get()));
 
     Schema reassigned = TypeUtil.reassignOrRefreshIds(unassigned, source);
 
-    assertThat(reassigned.findField("id").fieldId()).isEqualTo(1);
-    Types.NestedField photo = reassigned.findField("photo");
-    assertThat(photo.type()).isEqualTo(Types.FileType.of(photo.fieldId()));
-    assertThat(reassigned.findField("photo.uri").fieldId()).isEqualTo(photo.fieldId() + 1);
-    assertThat(reassigned.findField("data").fieldId())
-        .isEqualTo(photo.fieldId() + Types.FileType.NUM_NESTED_FIELDS + 1);
-    assertThat(TypeUtil.indexById(reassigned.asStruct())).hasSize(9);
+    assertThat(reassigned.asStruct()).isEqualTo(expected.asStruct());
   }
 }
