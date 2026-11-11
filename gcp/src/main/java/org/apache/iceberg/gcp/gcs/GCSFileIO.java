@@ -365,6 +365,10 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
     try {
       batch.submit();
     } catch (StorageException e) {
+      if (Thread.currentThread().isInterrupted()) {
+        throw e;
+      }
+
       LOG.warn("Failed to submit batch delete of {} objects", blobIds.size(), e);
       return blobIds.size();
     }

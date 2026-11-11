@@ -252,6 +252,34 @@ public class TestGCSFileIO {
         .hasMessage("Failed to delete 2 files");
   }
 
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testDeleteFilesPropagatesCancellation() {
+    doAnswer(
+            batchInvoke -> {
+              StorageBatch batch = mock(StorageBatch.class);
+              when(batch.delete(any(BlobId.class))).thenReturn(mock(StorageBatchResult.class));
+              doThrow(new StorageException(0, "Read timed out")).when(batch).submit();
+              return batch;
+            })
+        .when(storage)
+        .batch();
+
+    Iterable<String> deletes =
+        () ->
+            ImmutableList.of(gsUri("cancel/data1.dat"), gsUri("cancel/data2.dat")).stream()
+                .iterator();
+
+    Thread.currentThread().interrupt();
+    try {
+      assertThatThrownBy(() -> io.deleteFiles(deletes))
+          .isInstanceOf(StorageException.class)
+          .hasMessage("Read timed out");
+    } finally {
+      Thread.interrupted();
+    }
+  }
+
   @Test
   public void testDeletePrefix() {
     String prefix = "del/path/";
