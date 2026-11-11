@@ -61,7 +61,6 @@ import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
 import org.apache.iceberg.spark.SparkWriteUtil;
-import org.apache.iceberg.spark.WriteDurations;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.DataFileSet;
 import org.apache.iceberg.util.DeleteFileSet;
@@ -304,7 +303,8 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
 
   @Override
   public CustomTaskMetric[] reportDriverMetrics() {
-    return SparkWriteUtil.customTaskMetrics(metricsReporter, writeDurations);
+    return SparkWriteUtil.customTaskMetrics(
+        metricsReporter, writeDurations.writeNanos(), writeDurations.closeNanos());
   }
 
   @Override

@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import org.apache.iceberg.spark.WriteDurations;
-
 /**
  * Accumulates the wall time a write task spends producing files.
  *

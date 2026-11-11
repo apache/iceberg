@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark;
+package org.apache.iceberg.spark.source;
 
 import java.io.Serializable;
 
@@ -28,9 +28,9 @@ import java.io.Serializable;
  * known at that point and cannot be reported as a task metric. Both times therefore travel back to
  * the driver with the commit messages and are aggregated here.
  */
-public class WriteDurations implements Serializable {
+class WriteDurations implements Serializable {
 
-  public static final WriteDurations EMPTY = new WriteDurations(0L, 0L);
+  static final WriteDurations EMPTY = new WriteDurations(0L, 0L);
 
   private final long writeNanos;
   private final long closeNanos;
@@ -40,19 +40,19 @@ public class WriteDurations implements Serializable {
     this.closeNanos = closeNanos;
   }
 
-  public static WriteDurations of(long writeNanos, long closeNanos) {
+  static WriteDurations of(long writeNanos, long closeNanos) {
     return new WriteDurations(writeNanos, closeNanos);
   }
 
-  public WriteDurations combine(WriteDurations other) {
+  WriteDurations combine(WriteDurations other) {
     return new WriteDurations(writeNanos + other.writeNanos, closeNanos + other.closeNanos);
   }
 
-  public long writeNanos() {
+  long writeNanos() {
     return writeNanos;
   }
 
-  public long closeNanos() {
+  long closeNanos() {
     return closeNanos;
   }
 }

@@ -74,7 +74,6 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
 import org.apache.iceberg.spark.SparkWriteUtil;
-import org.apache.iceberg.spark.WriteDurations;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.DeleteFileSet;
@@ -197,7 +196,8 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
   @Override
   public CustomTaskMetric[] reportDriverMetrics() {
-    return SparkWriteUtil.customTaskMetrics(metricsReporter, writeDurations);
+    return SparkWriteUtil.customTaskMetrics(
+        metricsReporter, writeDurations.writeNanos(), writeDurations.closeNanos());
   }
 
   private class PositionDeltaBatchWrite implements DeltaBatchWrite {

@@ -45,7 +45,6 @@ import org.apache.iceberg.spark.PositionDeletesRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteUtil;
-import org.apache.iceberg.spark.WriteDurations;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -141,7 +140,8 @@ public class SparkPositionDeletesRewrite implements Write {
 
   @Override
   public CustomTaskMetric[] reportDriverMetrics() {
-    return SparkWriteUtil.customTaskMetrics(metricsReporter, writeDurations);
+    return SparkWriteUtil.customTaskMetrics(
+        metricsReporter, writeDurations.writeNanos(), writeDurations.closeNanos());
   }
 
   @Override

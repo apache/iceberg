@@ -319,7 +319,7 @@ public class SparkWriteUtil {
   }
 
   public static CustomTaskMetric[] customTaskMetrics(InMemoryMetricsReporter metricsReporter) {
-    return customTaskMetrics(metricsReporter, WriteDurations.EMPTY);
+    return customTaskMetrics(metricsReporter, 0L, 0L);
   }
 
   /**
@@ -327,10 +327,10 @@ public class SparkWriteUtil {
    * tasks reported back in their commit messages.
    */
   public static CustomTaskMetric[] customTaskMetrics(
-      InMemoryMetricsReporter metricsReporter, WriteDurations writeDurations) {
+      InMemoryMetricsReporter metricsReporter, long writeNanos, long closeNanos) {
     List<CustomTaskMetric> metrics = Lists.newArrayList();
-    addValue(new WriteDuration(), writeDurations.writeNanos(), metrics);
-    addValue(new WriteCloseDuration(), writeDurations.closeNanos(), metrics);
+    addValue(new WriteDuration(), writeNanos, metrics);
+    addValue(new WriteCloseDuration(), closeNanos, metrics);
     if (metricsReporter != null) {
       CommitReport commitReport = metricsReporter.commitReport();
       if (commitReport != null) {
