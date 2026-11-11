@@ -556,6 +556,7 @@ class V4Metadata {
     private final Map<Integer, StructProjection> partitionProjections;
     private final ContentStatsWrapper contentStats;
     private final DeletionVectorWrapper deletionVector = new DeletionVectorWrapper();
+    private final List<ColumnFileWrapper> columnFileWrappers = Lists.newArrayList();
     private final TrackingWrapper tracking;
     private final ManifestInfoWrapper manifestInfo;
 
@@ -568,6 +569,7 @@ class V4Metadata {
         Types.StructType contentStatsType,
         TrackingWrapper tracking,
         ManifestInfoWrapper manifestInfo) {
+      validatePartitionType(specsById.values(), partitionType);
       this.specsById = specsById;
       this.partitionProjections = partitionProjections(specsById.values(), partitionType);
       this.contentStats = new ContentStatsWrapper(contentStatsType);
@@ -593,6 +595,10 @@ class V4Metadata {
         Preconditions.checkArgument(
             file.manifestInfo() != null,
             "Invalid manifest, missing manifest info: %s",
+            file.location());
+        Preconditions.checkArgument(
+            file.deletionVector() == null,
+            "Invalid manifest, deletion vector must be null: %s",
             file.location());
       } else {
         throw new IllegalArgumentException(
@@ -636,11 +642,10 @@ class V4Metadata {
         case 5 -> wrapped.fileSizeInBytes();
         case 6 -> specId;
         case 7 -> unionPartition();
-        case 8 -> wrapped.contentStats() != null ? contentStats.wrap(wrapped.contentStats()) : null;
+        case 8 -> contentStats.wrap(wrapped.contentStats());
         case 9 -> wrapped.tightStats();
         case 10 -> wrapped.sortOrderId();
-        case 11 ->
-            wrapped.deletionVector() != null ? deletionVector.wrap(wrapped.deletionVector()) : null;
+        case 11 -> deletionVector.wrap(wrapped.deletionVector());
         case 12 ->
             wrapped.manifestInfo() != null ? manifestInfo.wrap(wrapped.manifestInfo()) : null;
         case 13 -> wrapped.keyMetadata();
@@ -650,17 +655,20 @@ class V4Metadata {
       };
     }
 
-    private static List<StructLike> wrapColumnFiles(List<ColumnFile> columnFiles) {
+    private List<ColumnFileWrapper> wrapColumnFiles(List<ColumnFile> columnFiles) {
       if (columnFiles == null) {
         return null;
       }
 
-      List<StructLike> wrappers = Lists.newArrayListWithCapacity(columnFiles.size());
-      for (ColumnFile columnFile : columnFiles) {
-        wrappers.add(new ColumnFileWrapper(columnFile));
+      for (int pos = columnFileWrappers.size(); pos < columnFiles.size(); pos += 1) {
+        columnFileWrappers.add(new ColumnFileWrapper());
       }
 
-      return wrappers;
+      for (int pos = 0; pos < columnFiles.size(); pos += 1) {
+        columnFileWrappers.get(pos).wrap(columnFiles.get(pos));
+      }
+
+      return columnFileWrappers.subList(0, columnFiles.size());
     }
 
     private StructLike unionPartition() {
@@ -672,12 +680,10 @@ class V4Metadata {
       return projection != null ? projection.wrap(wrapped.partition()) : wrapped.partition();
     }
 
-    private static Map<Integer, StructProjection> partitionProjections(
+    private static void validatePartitionType(
         Iterable<PartitionSpec> specs, Types.StructType unionType) {
-      Map<Integer, StructProjection> projections = Maps.newHashMap();
       for (PartitionSpec spec : specs) {
-        Types.StructType partitionType = spec.partitionType();
-        for (Types.NestedField field : partitionType.fields()) {
+        for (Types.NestedField field : spec.partitionType().fields()) {
           Preconditions.checkArgument(
               unionType.field(field.fieldId()) != null,
               "Invalid union partition type, missing field %s from spec %s: %s",
@@ -685,7 +691,14 @@ class V4Metadata {
               spec.specId(),
               unionType);
         }
+      }
+    }
 
+    private static Map<Integer, StructProjection> partitionProjections(
+        Iterable<PartitionSpec> specs, Types.StructType unionType) {
+      Map<Integer, StructProjection> projections = Maps.newHashMap();
+      for (PartitionSpec spec : specs) {
+        Types.StructType partitionType = spec.partitionType();
         StructProjection projection =
             partitionType.equals(unionType)
                 ? null
@@ -740,15 +753,6 @@ class V4Metadata {
           new ManifestInfoWrapper(commitSequenceNumber));
     }
 
-    /**
-     * Re-points this wrapper at a file and the tracking to write for it.
-     *
-     * @param file a data file or manifest
-     * @param newTracking the tracking to write for the file
-     * @param assignedFirstRowId a first row ID to assign to the file, or null if it is already
-     *     assigned
-     * @return this for method chaining
-     */
     RootTrackedFileWrapper wrap(TrackedFile file, Tracking newTracking, Long assignedFirstRowId) {
       wrapInternal(file, newTracking);
       tracking().wrapRoot(file, newTracking, assignedFirstRowId);
@@ -987,6 +991,10 @@ class V4Metadata {
     private DeletionVector wrapped = null;
 
     private DeletionVectorWrapper wrap(DeletionVector dv) {
+      if (dv == null) {
+        return null;
+      }
+
       this.wrapped = dv;
       return this;
     }
@@ -1023,10 +1031,11 @@ class V4Metadata {
   private static class ColumnFileWrapper implements StructLike {
     private static final int SIZE = ColumnFile.schema().fields().size();
 
-    private final ColumnFile wrapped;
+    private ColumnFile wrapped = null;
 
-    private ColumnFileWrapper(ColumnFile columnFile) {
+    private ColumnFileWrapper wrap(ColumnFile columnFile) {
       this.wrapped = columnFile;
+      return this;
     }
 
     @Override
@@ -1072,6 +1081,10 @@ class V4Metadata {
     }
 
     private ContentStatsWrapper wrap(ContentStats stats) {
+      if (stats == null) {
+        return null;
+      }
+
       this.wrapped = stats;
       return this;
     }
