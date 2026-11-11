@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.runtime.jobgraph.JobVertex;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -66,6 +67,7 @@ import org.apache.iceberg.util.ContentFileUtil;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
@@ -98,6 +100,8 @@ class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
     tableLoader = CATALOG_EXTENSION.tableLoader();
   }
 
+  // Fail fast instead of hanging the CI job if the job can never be scheduled
+  @Timeout(value = 5, unit = TimeUnit.MINUTES)
   @ParameterizedTest(name = "lockType = {0}")
   @FieldSource("LOCK_TYPES")
   public void testCompactFileE2e(String lockType) throws Exception {
@@ -305,6 +309,8 @@ class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
     assertThat(containOrphan).isTrue();
   }
 
+  // Fail fast instead of hanging the CI job if the job can never be scheduled
+  @Timeout(value = 5, unit = TimeUnit.MINUTES)
   @ParameterizedTest(name = "lockType = {0}")
   @FieldSource("LOCK_TYPES")
   public void testAllMaintenanceE2e(String lockType) throws Exception {
