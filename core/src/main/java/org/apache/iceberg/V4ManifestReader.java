@@ -83,6 +83,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private final boolean isUncommitted;
   private final ScanMetrics scanMetrics;
   private final boolean changes;
+  private final boolean deletedReference;
   private final long changeSnapshotId;
   private final ManifestBitmap deletedPositions;
   private final ManifestBitmap replacedPositions;
@@ -99,6 +100,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       boolean isUncommitted,
       ScanMetrics scanMetrics,
       boolean changes,
+      boolean deletedReference,
       long changeSnapshotId,
       ManifestBitmap deletedPositions,
       ManifestBitmap replacedPositions) {
@@ -114,6 +116,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     this.isUncommitted = isUncommitted;
     this.scanMetrics = scanMetrics;
     this.changes = changes;
+    this.deletedReference = deletedReference;
     this.changeSnapshotId = changeSnapshotId;
     this.deletedPositions = deletedPositions;
     this.replacedPositions = replacedPositions;
@@ -133,14 +136,16 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     files = CloseableIterable.transform(files, this::projectPartition);
 
     if (changes) {
-      // changes could include deleted and replaced entries
-      files = CloseableIterable.filter(files, this::isChange);
-    } else if (dv != null) {
-      files =
-          CloseableIterable.filter(
-              files, file -> file.tracking().isLive() && !isDeletedByMDV(file));
+      if (deletedReference) {
+        // the whole manifest is deleted, so its live entries are newly deleted as of the
+        // deletion snapshot
+        files = CloseableIterable.filter(files, this::isLive);
+      } else {
+        // changes could include deleted and replaced entries
+        files = CloseableIterable.filter(files, this::isChange);
+      }
     } else {
-      files = CloseableIterable.filter(files, file -> file.tracking().isLive());
+      files = CloseableIterable.filter(files, this::isLive);
     }
 
     if (statsFilter != null) {
@@ -224,6 +229,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
   private boolean isDeletedByMDV(TrackedFile file) {
     return dv.isSet(Math.toIntExact(file.tracking().manifestPos()));
+  }
+
+  private boolean isLive(TrackedFile file) {
+    return file.tracking().isLive() && (dv == null || !isDeletedByMDV(file));
   }
 
   private boolean isChange(TrackedFile file) {
@@ -380,6 +389,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private TrackedFile reclassify(TrackedFile file) {
     TrackingStruct tracking = (TrackingStruct) file.tracking();
     if (!tracking.isLive()) {
+      return file;
+    }
+
+    if (deletedReference) {
+      tracking.markDeleted(changeSnapshotId);
       return file;
     }
 
@@ -575,6 +589,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       Map<Integer, Evaluator> partitionFilters = projectFilters();
       boolean changes = mode == Mode.CHANGES;
       Tracking tracking = changes ? manifest.tracking() : null;
+      boolean deletedReference = tracking != null && tracking.status() == EntryStatus.DELETED;
 
       return new V4ManifestReader(
           manifest,
@@ -588,6 +603,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           isUncommitted,
           scanMetrics,
           changes,
+          deletedReference,
           changes ? resolveChangeSnapshotId(tracking) : 0L,
           tracking != null ? readBitmap(tracking.deletedPositions()) : null,
           tracking != null ? readBitmap(tracking.replacedPositions()) : null);
@@ -600,7 +616,9 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
       EntryStatus status = tracking.status();
       Preconditions.checkArgument(
-          status == EntryStatus.ADDED || status == EntryStatus.MODIFIED,
+          status == EntryStatus.ADDED
+              || status == EntryStatus.MODIFIED
+              || status == EntryStatus.DELETED,
           "Cannot read changes from a %s manifest reference: %s",
           status,
           manifest.path());
@@ -614,6 +632,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         return modifiedSnapshotId;
       }
 
+      // ADDED stamps the creation snapshot and DELETED stamps the deletion snapshot into the
+      // reference's snapshot ID.
       return manifest.snapshotId();
     }
 

@@ -723,6 +723,120 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  public void changesEmitsLiveEntriesOfDeletedReference(FileFormat format) throws IOException {
+    long deletionSnapshotId = 99L;
+    List<TrackedFile> files =
+        List.of(
+            // position 0: live and not removed by the manifest DV, so newly deleted
+            dataFile(
+                new TrackingStruct(EntryStatus.ADDED, 42L, 5L, 5L, null, 5_000L, null, null),
+                "s3://bucket/live-a.parquet"),
+            // position 1: live but removed earlier by the cumulative manifest DV, so not a change
+            dataFile(
+                new TrackingStruct(EntryStatus.EXISTING, 40L, 2L, 2L, null, 1_000L, null, null),
+                "s3://bucket/removed-by-mdv.parquet"),
+            // position 2: already deleted in an earlier snapshot, so not a change
+            dataFile(
+                new TrackingStruct(EntryStatus.DELETED, 40L, 3L, 3L, null, 2_000L, null, null),
+                "s3://bucket/deleted-earlier.parquet"),
+            // position 3: live and not removed by the manifest DV, so newly deleted
+            dataFile(
+                new TrackingStruct(EntryStatus.ADDED, 42L, 7L, 7L, null, 7_000L, null, null),
+                "s3://bucket/live-b.parquet"),
+            // position 4: a modified file with a row-level DV, live and not removed, so newly
+            // deleted while keeping its modification snapshot and deletion vector
+            dataFileWithDV(
+                new TrackingStruct(EntryStatus.MODIFIED, 42L, 8L, 8L, 41L, 8_000L, null, null),
+                "s3://bucket/modified-with-dv.parquet",
+                DV));
+
+    ManifestFile manifest = writeManifest(format, UNPARTITIONED_TYPE, files);
+    when(manifest.firstRowId()).thenReturn(10_000L);
+    when(manifest.snapshotId()).thenReturn(deletionSnapshotId);
+    when(manifest.tracking())
+        .thenReturn(
+            new TrackingStruct(
+                EntryStatus.DELETED,
+                deletionSnapshotId,
+                MANIFEST_SEQ,
+                MANIFEST_SEQ,
+                null,
+                null,
+                null, // deleted positions
+                positions(4))); // replaced positions
+    when(manifest.manifestDeletionVector())
+        .thenReturn(MumblingTestUtil.bitmap(MumblingTestUtil.sparse(1)));
+
+    List<TrackedFile> expected =
+        List.of(
+            dataFile(
+                new TrackingStruct(
+                    EntryStatus.DELETED, deletionSnapshotId, 5L, 5L, null, 5_000L, null, null),
+                "s3://bucket/live-a.parquet"),
+            dataFile(
+                new TrackingStruct(
+                    EntryStatus.DELETED, deletionSnapshotId, 7L, 7L, null, 7_000L, null, null),
+                "s3://bucket/live-b.parquet"),
+            dataFileWithDV(
+                new TrackingStruct(
+                    EntryStatus.DELETED, deletionSnapshotId, 8L, 8L, 41L, 8_000L, null, null),
+                "s3://bucket/modified-with-dv.parquet",
+                DV));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS).forChanges();
+
+    assertThat(read(builder))
+        .as("every surviving entry is deleted, keeping its data and ignoring stale change bitmaps")
+        .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
+        .containsExactly(expected.get(0), expected.get(1), expected.get(2));
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void changesEmitsAllLiveEntriesWithoutManifestDV(FileFormat format) throws IOException {
+    long deletionSnapshotId = 77L;
+    List<TrackedFile> files =
+        List.of(
+            dataFile(
+                new TrackingStruct(EntryStatus.ADDED, 42L, 5L, 5L, null, 5_000L, null, null),
+                "s3://bucket/live.parquet"),
+            dataFile(
+                new TrackingStruct(EntryStatus.DELETED, 40L, 3L, 3L, null, 2_000L, null, null),
+                "s3://bucket/deleted-earlier.parquet"));
+
+    ManifestFile manifest = writeManifest(format, UNPARTITIONED_TYPE, files);
+    when(manifest.firstRowId()).thenReturn(10_000L);
+    when(manifest.snapshotId()).thenReturn(deletionSnapshotId);
+    when(manifest.tracking())
+        .thenReturn(
+            new TrackingStruct(
+                EntryStatus.DELETED,
+                deletionSnapshotId,
+                MANIFEST_SEQ,
+                MANIFEST_SEQ,
+                null,
+                null,
+                null,
+                null));
+
+    TrackedFile expected =
+        dataFile(
+            new TrackingStruct(
+                EntryStatus.DELETED, deletionSnapshotId, 5L, 5L, null, 5_000L, null, null),
+            "s3://bucket/live.parquet");
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS).forChanges();
+
+    assertThat(read(builder))
+        .as("every live entry is newly deleted when there is no cumulative manifest DV")
+        .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
+        .containsExactly(expected);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   public void changesFiltersDataFilesByStats(FileFormat format) throws IOException {
     // FILE_C has stats {id in [0, 99]}, FILE_D has no stats; both are added in the read snapshot
     ManifestFile manifest =
@@ -780,10 +894,10 @@ class TestV4ManifestReader {
   @ParameterizedTest
   @EnumSource(
       value = EntryStatus.class,
-      names = {"EXISTING", "DELETED", "REPLACED"})
+      names = {"EXISTING", "REPLACED"})
   public void changesRejectsNonChangeManifestReference(EntryStatus status) {
-    // only ADDED and MODIFIED references record changes; an unchanged (EXISTING) or terminal
-    // (DELETED/REPLACED) reference is rejected, since reading it would re-emit stale changes
+    // ADDED, MODIFIED, and DELETED references record changes; an unchanged (EXISTING) or
+    // replaced reference is rejected, since reading it would re-emit stale changes
     String location = FileFormat.PARQUET.addExtension("s3://bucket/leaf");
     TrackedFile reference =
         dataManifestRef(
