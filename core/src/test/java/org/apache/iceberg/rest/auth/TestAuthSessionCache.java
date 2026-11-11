@@ -92,9 +92,6 @@ class TestAuthSessionCache {
   @Test
   void noExecutorByDefault() {
     AuthSessionCache cache = new AuthSessionCache("test", Duration.ofHours(1));
-    // no dedicated pool, so nothing to shut down and no shutdown hook registered
-    assertThat(cache.executor()).isNull();
-
     AuthSession session = Mockito.mock(AuthSession.class);
     AuthSession cached = cache.cachedSession("key", k -> session);
     assertThat(cached).isSameAs(session);

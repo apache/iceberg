@@ -46,8 +46,7 @@ public class AuthSessionCache implements AutoCloseable {
    * Creates a new cache with the given session timeout, and with Caffeine's default executor and
    * the default ticker for eviction tasks.
    *
-   * @param name a distinctive name for the cache. Retained for API compatibility; no dedicated
-   *     thread pool is created, so eviction tasks run on Caffeine's default executor.
+   * @param name a distinctive name for the cache.
    * @param sessionTimeout the session timeout. Sessions will become eligible for eviction after
    *     this duration of inactivity.
    */
@@ -62,18 +61,13 @@ public class AuthSessionCache implements AutoCloseable {
    * @param sessionTimeout the session timeout. Sessions will become eligible for eviction after
    *     this duration of inactivity.
    * @param executor the executor to use for eviction tasks; if null, Caffeine's default executor is
-   *     used. An {@link ExecutorService} executor is shut down when this cache is closed.
+   *     used. The executor will be closed when this cache is closed.
    * @param ticker the ticker to use for the cache.
    */
   AuthSessionCache(Duration sessionTimeout, Executor executor, Ticker ticker) {
     this.sessionTimeout = sessionTimeout;
     this.executor = executor;
     this.ticker = ticker;
-  }
-
-  @VisibleForTesting
-  Executor executor() {
-    return executor;
   }
 
   /**
