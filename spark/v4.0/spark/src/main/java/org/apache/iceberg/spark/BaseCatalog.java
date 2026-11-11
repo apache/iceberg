@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark;
 
+import java.io.Closeable;
 import org.apache.iceberg.spark.procedures.SparkProcedures;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
@@ -37,7 +38,8 @@ abstract class BaseCatalog
         HasIcebergCatalog,
         SupportsFunctions,
         ViewCatalog,
-        SupportsReplaceView {
+        SupportsReplaceView,
+        Closeable {
   private static final String USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS = "use-nullable-query-schema";
   private static final boolean USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT = true;
 
@@ -91,4 +93,11 @@ abstract class BaseCatalog
   private static boolean isSystemNamespace(String[] namespace) {
     return namespace.length == 1 && namespace[0].equalsIgnoreCase("system");
   }
+
+  /**
+   * Closes the underlying Iceberg catalog. Spark calls this when it releases the session that
+   * loaded this catalog.
+   */
+  @Override
+  public abstract void close();
 }
