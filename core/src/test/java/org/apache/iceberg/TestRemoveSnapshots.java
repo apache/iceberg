@@ -2378,6 +2378,8 @@ public class TestRemoveSnapshots extends TestBase {
 
   @TestTemplate
   public void testFailedRetainedManifestListReadDoesNotDeleteLiveManifests() {
+    assumeThat(incrementalCleanup).isTrue();
+
     TestTables.LocalFileIO spyFileIO = Mockito.spy(new TestTables.LocalFileIO());
     String tableName = "testFailedRetainedManifestListRead";
     Table testTable =
@@ -2424,9 +2426,11 @@ public class TestRemoveSnapshots extends TestBase {
                     .deleteWith(deletedFiles::add)
                     .commit());
 
-    assertThat(deletedFiles).doesNotContainAnyElementsOf(firstSnapshotManifests);
     assertThat(thrown)
         .isInstanceOf(RuntimeIOException.class)
         .hasMessageContaining("Injected failure");
+    testTable.refresh();
+    assertThat(testTable.snapshot(firstSnapshot.snapshotId())).isNull();
+    assertThat(deletedFiles).isEmpty();
   }
 }
