@@ -78,6 +78,39 @@ public class ParquetDictionaryRowGroupFilter {
   private static final boolean ROWS_MIGHT_MATCH = true;
   private static final boolean ROWS_CANNOT_MATCH = false;
 
+
+  @SuppressWarnings("unchecked")
+  private static <T> Comparator<T> signedZeroComparator(
+      BoundReference<T> ref, Comparator<T> comparator) {
+    switch (ref.type().typeId()) {
+      case FLOAT:
+        return (left, right) -> {
+          float a = (Float) left;
+          float b = (Float) right;
+          return a == 0.0F && b == 0.0F ? 0 : comparator.compare(left, right);
+        };
+      case DOUBLE:
+        return (left, right) -> {
+          double a = (Double) left;
+          double b = (Double) right;
+          return a == 0.0D && b == 0.0D ? 0 : comparator.compare(left, right);
+        };
+      default:
+        return comparator;
+    }
+  }
+
+  private static <T> boolean containsEquivalent(
+      Set<T> values, T target, Comparator<T> comparator) {
+    for (T value : values) {
+      if (comparator.compare(value, target) == 0) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   private class EvalVisitor extends BoundExpressionVisitor<Boolean> {
     private DictionaryPageReadStore dictionaries = null;
     private Map<Integer, Set<?>> dictCache = null;
@@ -205,11 +238,12 @@ public class ParquetDictionaryRowGroupFilter {
         return ROWS_MIGHT_MATCH;
       }
 
-      Set<T> dictionary = dict(id, lit.comparator());
+      Comparator<T> comparator = signedZeroComparator(ref, lit.comparator());
+      Set<T> dictionary = dict(id, comparator);
 
       // if any item in the dictionary matches the predicate, then at least one row does
       for (T item : dictionary) {
-        int cmp = lit.comparator().compare(item, lit.value());
+        int cmp = comparator.compare(item, lit.value());
         if (cmp < 0) {
           return ROWS_MIGHT_MATCH;
         }
@@ -227,11 +261,12 @@ public class ParquetDictionaryRowGroupFilter {
         return ROWS_MIGHT_MATCH;
       }
 
-      Set<T> dictionary = dict(id, lit.comparator());
+      Comparator<T> comparator = signedZeroComparator(ref, lit.comparator());
+      Set<T> dictionary = dict(id, comparator);
 
       // if any item in the dictionary matches the predicate, then at least one row does
       for (T item : dictionary) {
-        int cmp = lit.comparator().compare(item, lit.value());
+        int cmp = comparator.compare(item, lit.value());
         if (cmp <= 0) {
           return ROWS_MIGHT_MATCH;
         }
@@ -249,11 +284,12 @@ public class ParquetDictionaryRowGroupFilter {
         return ROWS_MIGHT_MATCH;
       }
 
-      Set<T> dictionary = dict(id, lit.comparator());
+      Comparator<T> comparator = signedZeroComparator(ref, lit.comparator());
+      Set<T> dictionary = dict(id, comparator);
 
       // if any item in the dictionary matches the predicate, then at least one row does
       for (T item : dictionary) {
-        int cmp = lit.comparator().compare(item, lit.value());
+        int cmp = comparator.compare(item, lit.value());
         if (cmp > 0) {
           return ROWS_MIGHT_MATCH;
         }
@@ -271,11 +307,12 @@ public class ParquetDictionaryRowGroupFilter {
         return ROWS_MIGHT_MATCH;
       }
 
-      Set<T> dictionary = dict(id, lit.comparator());
+      Comparator<T> comparator = signedZeroComparator(ref, lit.comparator());
+      Set<T> dictionary = dict(id, comparator);
 
       // if any item in the dictionary matches the predicate, then at least one row does
       for (T item : dictionary) {
-        int cmp = lit.comparator().compare(item, lit.value());
+        int cmp = comparator.compare(item, lit.value());
         if (cmp >= 0) {
           return ROWS_MIGHT_MATCH;
         }
@@ -293,9 +330,10 @@ public class ParquetDictionaryRowGroupFilter {
         return ROWS_MIGHT_MATCH;
       }
 
-      Set<T> dictionary = dict(id, lit.comparator());
+      Comparator<T> comparator = signedZeroComparator(ref, lit.comparator());
+      Set<T> dictionary = dict(id, comparator);
 
-      return dictionary.contains(lit.value()) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
+      return containsEquivalent(dictionary, lit.value(), comparator) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
     }
 
     @Override
@@ -307,12 +345,13 @@ public class ParquetDictionaryRowGroupFilter {
         return ROWS_MIGHT_MATCH;
       }
 
-      Set<T> dictionary = dict(id, lit.comparator());
+      Comparator<T> comparator = signedZeroComparator(ref, lit.comparator());
+      Set<T> dictionary = dict(id, comparator);
       if (dictionary.size() > 1 || mayContainNulls.get(id)) {
         return ROWS_MIGHT_MATCH;
       }
 
-      return dictionary.contains(lit.value()) ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
+      return containsEquivalent(dictionary, lit.value(), comparator) ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
     }
 
     @Override
@@ -324,7 +363,8 @@ public class ParquetDictionaryRowGroupFilter {
         return ROWS_MIGHT_MATCH;
       }
 
-      Set<T> dictionary = dict(id, ref.comparator());
+      Comparator<T> comparator = signedZeroComparator(ref, ref.comparator());
+      Set<T> dictionary = dict(id, comparator);
 
       // we need to find out the smaller set to iterate through
       Set<T> smallerSet;
@@ -339,7 +379,7 @@ public class ParquetDictionaryRowGroupFilter {
       }
 
       for (T e : smallerSet) {
-        if (biggerSet.contains(e)) {
+        if (containsEquivalent(biggerSet, e, comparator)) {
           // value sets intersect so rows match
           return ROWS_MIGHT_MATCH;
         }
@@ -358,16 +398,21 @@ public class ParquetDictionaryRowGroupFilter {
         return ROWS_MIGHT_MATCH;
       }
 
-      Set<T> dictionary = dict(id, ref.comparator());
+      Comparator<T> comparator = signedZeroComparator(ref, ref.comparator());
+      Set<T> dictionary = dict(id, comparator);
       if (dictionary.size() > literalSet.size() || mayContainNulls.get(id)) {
         return ROWS_MIGHT_MATCH;
       }
 
       // ROWS_CANNOT_MATCH if no values in the dictionary that are not also in the set (the
       // difference is empty)
-      return Sets.difference(dictionary, literalSet).isEmpty()
-          ? ROWS_CANNOT_MATCH
-          : ROWS_MIGHT_MATCH;
+      for (T value : dictionary) {
+        if (!containsEquivalent(literalSet, value, comparator)) {
+          return ROWS_MIGHT_MATCH;
+        }
+      }
+
+      return ROWS_CANNOT_MATCH;
     }
 
     @Override
