@@ -19,9 +19,12 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -42,6 +45,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSchemaAndMappingUpdate extends TestBase {
+  private static final Types.StructType LOCATION_TYPE =
+      Types.StructType.of(
+          Types.NestedField.optional(1, "lat", Types.DoubleType.get()),
+          Types.NestedField.optional(2, "long", Types.DoubleType.get()));
 
   @TestTemplate
   public void testAddPrimitiveColumn() {
@@ -227,6 +234,84 @@ public class TestSchemaAndMappingUpdate extends TestBase {
     assertThat(table.properties())
         .doesNotContainKey(PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "ID")
         .doesNotContainKey(PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "ID");
+  }
+
+  @TestTemplate
+  public void testModificationWithParquetBloomFilterFppAndNdv() {
+    table
+        .updateProperties()
+        .set(PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX + "id", "0.05")
+        .set(PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX + "id", "1000")
+        .commit();
+
+    table.updateSchema().renameColumn("id", "ID").commit();
+    assertThat(table.properties())
+        .containsEntry(PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX + "ID", "0.05")
+        .containsEntry(PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX + "ID", "1000")
+        .doesNotContainKey(PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX + "id")
+        .doesNotContainKey(PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX + "id");
+
+    table.updateSchema().deleteColumn("ID").commit();
+    assertThat(table.properties())
+        .doesNotContainKey(PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX + "ID")
+        .doesNotContainKey(PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX + "ID");
+  }
+
+  @TestTemplate
+  public void testModificationWithParquetDictEncoding() {
+    table
+        .updateProperties()
+        .set(PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX + "id", "false")
+        .commit();
+
+    table.updateSchema().renameColumn("id", "ID").commit();
+    assertThat(table.properties())
+        .containsEntry(PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX + "ID", "false")
+        .doesNotContainKey(PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX + "id");
+
+    table.updateSchema().deleteColumn("ID").commit();
+    assertThat(table.properties())
+        .doesNotContainKey(PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX + "ID");
+  }
+
+  @TestTemplate
+  public void testRenameStructWithNestedColumnProperties() {
+    table.updateSchema().addColumn("location", LOCATION_TYPE).commit();
+    table
+        .updateProperties()
+        .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "location.lat", "full")
+        .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "location.lat", "true")
+        .commit();
+
+    table.updateSchema().renameColumn("location", "loc").commit();
+    assertThat(table.properties())
+        .containsEntry(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "loc.lat", "full")
+        .containsEntry(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "loc.lat", "true")
+        .doesNotContainKey(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "location.lat")
+        .doesNotContainKey(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "location.lat");
+
+    // a stale metrics property would fail validation of later property updates
+    table.updateProperties().set("key", "value").commit();
+    assertThat(table.properties()).containsEntry("key", "value");
+  }
+
+  @TestTemplate
+  public void testDeleteStructWithNestedColumnProperties() {
+    table.updateSchema().addColumn("location", LOCATION_TYPE).commit();
+    table
+        .updateProperties()
+        .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "location.lat", "full")
+        .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "location.lat", "true")
+        .commit();
+
+    table.updateSchema().deleteColumn("location").commit();
+    assertThat(table.properties())
+        .doesNotContainKey(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "location.lat")
+        .doesNotContainKey(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "location.lat");
+
+    table.updateSchema().addColumn("location", LOCATION_TYPE).commit();
+    assertThat(table.properties())
+        .doesNotContainKey(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "location.lat");
   }
 
   @TestTemplate
