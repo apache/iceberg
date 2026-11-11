@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -60,6 +61,45 @@ public class TestTransaction extends TestBase {
 
     assertThat(readMetadata()).isSameAs(base);
     assertThat(version()).isEqualTo(0);
+  }
+
+  @TestTemplate
+  public void testTransactionWithDirectlyStagedMetadataCommitsWithoutConflict() {
+    Transaction txn = table.newTransaction();
+    TableOperations transactionOps = ((HasTableOperations) txn.table()).operations();
+    TableMetadata stagedBase = transactionOps.current();
+    transactionOps.commit(
+        stagedBase,
+        TableMetadata.buildFrom(stagedBase).setProperties(Map.of("staged", "true")).build());
+
+    txn.commitTransaction();
+
+    assertThat(readMetadata().properties()).containsEntry("staged", "true");
+  }
+
+  @TestTemplate
+  public void testTransactionWithDirectlyStagedMetadataCannotLoseConcurrentUpdate() {
+    // The REST catalog test adapter stages metadata through TransactionTableOperations,
+    // bypassing the transaction's PendingUpdate list.
+    Transaction txn = table.newTransaction();
+    TableOperations transactionOps = ((HasTableOperations) txn.table()).operations();
+    TableMetadata stagedBase = transactionOps.current();
+    transactionOps.commit(
+        stagedBase,
+        TableMetadata.buildFrom(stagedBase).setProperties(Map.of("staged", "true")).build());
+
+    // A separate writer commits after the transaction was staged.
+    table.updateProperties().set("concurrent", "true").commit();
+
+    // The transaction cannot rebase without replayable updates: report a conflict rather
+    // than acknowledging success while silently discarding the staged change.
+    assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("no pending updates to replay");
+
+    assertThat(readMetadata().properties())
+        .containsEntry("concurrent", "true")
+        .doesNotContainKey("staged");
   }
 
   @TestTemplate
