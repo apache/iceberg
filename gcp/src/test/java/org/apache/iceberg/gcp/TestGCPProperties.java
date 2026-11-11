@@ -84,6 +84,19 @@ public class TestGCPProperties {
     assertThat(properties.oauth2RefreshCredentialsEndpoint()).contains(endpoint);
   }
 
+  @Test
+  void emptyClientRefreshEndpointDoesNotUseCatalogCredentialsEndpoint() {
+    GCPProperties properties =
+        new GCPProperties(
+            ImmutableMap.of(
+                RESTCatalogProperties.CREDENTIALS_ENDPOINT,
+                "https://catalog.example/table/credentials",
+                GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
+                ""));
+
+    assertThat(properties.oauth2RefreshCredentialsEndpoint()).isEmpty();
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   void sharedEndpointDoesNotEnableClientRefresh(boolean hasExpiration) throws Exception {

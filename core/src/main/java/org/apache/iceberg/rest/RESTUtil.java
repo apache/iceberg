@@ -404,7 +404,10 @@ public class RESTUtil {
     return Namespace.of(levels);
   }
 
-  /** Returns the shared credentials endpoint, falling back to the resolved legacy endpoint. */
+  /**
+   * Returns the shared credentials endpoint when set. Otherwise, returns the legacy endpoint path
+   * resolved against the catalog URI, or null when the legacy endpoint path is null.
+   */
   public static String resolveCredentialEndpoint(
       Map<String, String> properties, String endpointPath) {
     return PropertyUtil.propertyAsString(

@@ -27,6 +27,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTUtil;
@@ -169,7 +170,7 @@ public class GCPProperties implements Serializable {
     // The shared endpoint also serves FileIO refresh and does not opt into client refresh.
     String clientRefreshEndpoint = properties.get(GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT);
     gcsOauth2RefreshCredentialsEndpoint =
-        clientRefreshEndpoint == null
+        Strings.isNullOrEmpty(clientRefreshEndpoint)
             ? null
             : RESTUtil.resolveCredentialEndpoint(properties, clientRefreshEndpoint);
     gcsOauth2RefreshCredentialsEnabled =

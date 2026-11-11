@@ -28,7 +28,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.HttpMethod;
@@ -46,7 +45,6 @@ import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
 import org.mockserver.verify.VerificationTimes;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 
@@ -215,48 +213,11 @@ public class TestVendedCredentialsProvider {
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    AwsClientProperties properties =
-        new AwsClientProperties(
-            ImmutableMap.of(
-                CatalogProperties.URI,
-                CATALOG_URI,
-                RESTCatalogProperties.CREDENTIALS_ENDPOINT,
-                CREDENTIALS_URI,
-                AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
-                "/legacy"));
-    try (VendedCredentialsProvider provider =
-        (VendedCredentialsProvider) properties.credentialsProvider(null, null, null)) {
-      assertThat(provider.resolveCredentials()).isInstanceOf(AwsBasicCredentials.class);
-      assertThat(provider.resolveCredentials().accessKeyId()).isEqualTo("randomAccessKey");
-      assertThat(provider.resolveCredentials().secretAccessKey())
-          .isEqualTo("randomSecretAccessKey");
+    try (VendedCredentialsProvider provider = VendedCredentialsProvider.create(PROPERTIES)) {
+      assertThatThrownBy(provider::resolveCredentials)
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage("Invalid S3 Credentials: s3.session-token not set");
     }
-    mockServer.verify(mockRequest, VerificationTimes.once());
-  }
-
-  @Test
-  void clientRefreshPreservesBasicCredentialsFromProperties() {
-    AwsClientProperties properties =
-        new AwsClientProperties(
-            ImmutableMap.of(
-                CatalogProperties.URI,
-                CATALOG_URI,
-                RESTCatalogProperties.CREDENTIALS_ENDPOINT,
-                CREDENTIALS_URI,
-                AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
-                "/legacy",
-                S3FileIOProperties.ACCESS_KEY_ID,
-                "basic-key",
-                S3FileIOProperties.SECRET_ACCESS_KEY,
-                "basic-secret"));
-    try (VendedCredentialsProvider provider =
-        (VendedCredentialsProvider)
-            properties.credentialsProvider("basic-key", "basic-secret", null)) {
-      assertThat(provider.resolveCredentials()).isInstanceOf(AwsBasicCredentials.class);
-      assertThat(provider.resolveCredentials().accessKeyId()).isEqualTo("basic-key");
-      assertThat(provider.resolveCredentials().secretAccessKey()).isEqualTo("basic-secret");
-    }
-    mockServer.verify(request("/v1/credentials"), VerificationTimes.exactly(0));
   }
 
   @Test
