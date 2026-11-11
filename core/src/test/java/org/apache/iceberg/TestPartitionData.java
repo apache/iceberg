@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.lang.ref.WeakReference;
 import org.apache.avro.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Types;
@@ -176,6 +177,25 @@ public class TestPartitionData {
     PartitionData copy = template.copyFor(newData(1, "a"));
 
     assertThatThrownBy(() -> copy.set(0, 2)).isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  public void copyIsEvictedOnceUnreferenced() throws InterruptedException {
+    // regression test: a self-referencing cache (key == value, like interning) only actually
+    // cleans up if the interned instance itself is weakly referenced. A Cache<PartitionData,
+    // PartitionData> with Caffeine's weakValues() looks like it would work but does not - the key
+    // slot holds a strong reference to the same object the value slot only weakly references, so
+    // nothing is ever collected. This asserts the real, observable cleanup behavior rather than
+    // just the dedup semantics, so a future change back to that pattern fails here instead of
+    // silently reintroducing an unbounded leak.
+    WeakReference<PartitionData> ref = new WeakReference<>(newData(1, "a").copy());
+
+    for (int i = 0; i < 10 && ref.get() != null; i++) {
+      System.gc();
+      Thread.sleep(50);
+    }
+
+    assertThat(ref.get()).isNull();
   }
 
   @Test
