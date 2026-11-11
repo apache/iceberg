@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.Supplier;
 import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.ScanTaskGroup;
@@ -31,6 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
@@ -48,9 +50,10 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
   private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
 
-  private final JavaSparkContext sparkContext;
   private final Table table;
   private final IncrementalChangelogScan scan;
+  private final Supplier<FileIO> fileIO;
+  private final SparkScanBroadcasts broadcasts;
   private final SparkReadConf readConf;
   private final Schema projection;
   private final List<Expression> filters;
@@ -71,9 +74,12 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
     SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), projection);
 
-    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.scan = scan;
+    this.fileIO = null != scan ? scan.fileIO() : table::io;
+    this.broadcasts =
+        new SparkScanBroadcasts(
+            JavaSparkContext.fromSparkContext(spark.sparkContext()), table, fileIO);
     this.readConf = readConf;
     this.projection = projection;
     this.filters = filters != null ? filters : Collections.emptyList();
@@ -103,9 +109,9 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   @Override
   public Batch toBatch() {
     return new SparkBatch(
-        sparkContext,
         table,
-        null != scan ? scan.fileIO() : table::io,
+        fileIO,
+        broadcasts,
         readConf,
         EMPTY_GROUPING_KEY_TYPE,
         taskGroups(),
