@@ -47,8 +47,11 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.ChangelogContext;
 import org.apache.spark.sql.connector.catalog.ChangelogContext.DeduplicationMode;
 import org.apache.spark.sql.connector.catalog.ChangelogRange;
+import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReader;
+import org.apache.spark.sql.connector.read.PartitionReaderFactory;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
@@ -312,6 +315,54 @@ class TestSparkChangelog extends TestBaseWithCatalog {
         .containsExactly(
             row(1L, "a", "update_preimage", updateVersion),
             row(1L, "updated", "update_postimage", updateVersion));
+  }
+
+  @TestTemplate
+  void batchScanPinsSnapshotAtBuild() throws Exception {
+    Table table = createCdcTable();
+    long firstVersion = table.currentSnapshot().sequenceNumber();
+    SparkChangelog changelog =
+        new SparkChangelog(table, context(new ChangelogRange.UnboundedRange()));
+    Scan pinned = changelog.newScanBuilder(CaseInsensitiveStringMap.empty()).build();
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    long secondVersion = table.currentSnapshot().sequenceNumber();
+
+    assertThat(readChanges(pinned.toBatch())).containsExactly(row(1L, "a", "insert", firstVersion));
+    Scan latest = changelog.newScanBuilder(CaseInsensitiveStringMap.empty()).build();
+    assertThat(readChanges(latest.toBatch()))
+        .containsExactlyInAnyOrder(
+            row(1L, "a", "insert", firstVersion), row(2L, "b", "insert", secondVersion));
+  }
+
+  @TestTemplate
+  void keepsDisjointCdcRangesSeparateWithExchangeReuse() {
+    Table table = createCdcTable();
+    long firstVersion = table.currentSnapshot().sequenceNumber();
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    long secondVersion = table.currentSnapshot().sequenceNumber();
+
+    withSQLConf(
+        Map.of("spark.sql.adaptive.enabled", "false", "spark.sql.exchange.reuse", "true"),
+        () ->
+            assertThat(
+                    sql(
+                        "SELECT /*+ REPARTITION(2) */ id, data, _commit_version FROM %s "
+                            + "CHANGES FROM VERSION %d TO VERSION %d "
+                            + "WITH (deduplicationMode = 'none') UNION ALL "
+                            + "SELECT /*+ REPARTITION(2) */ id, data, _commit_version FROM %s "
+                            + "CHANGES FROM VERSION %d TO VERSION %d "
+                            + "WITH (deduplicationMode = 'none')",
+                        tableName,
+                        firstVersion,
+                        firstVersion,
+                        tableName,
+                        secondVersion,
+                        secondVersion))
+                .containsExactlyInAnyOrder(
+                    row(1L, "a", firstVersion), row(2L, "b", secondVersion)));
   }
 
   @TestTemplate
@@ -1207,10 +1258,18 @@ class TestSparkChangelog extends TestBaseWithCatalog {
 
   private List<Object[]> readChanges(MicroBatchStream stream, Offset start, Offset end)
       throws Exception {
+    return readChanges(stream.planInputPartitions(start, end), stream.createReaderFactory());
+  }
+
+  private List<Object[]> readChanges(Batch batch) throws Exception {
+    return readChanges(batch.planInputPartitions(), batch.createReaderFactory());
+  }
+
+  private List<Object[]> readChanges(InputPartition[] partitions, PartitionReaderFactory factory)
+      throws Exception {
     List<Object[]> rows = Lists.newArrayList();
-    for (InputPartition partition : stream.planInputPartitions(start, end)) {
-      try (PartitionReader<InternalRow> reader =
-          stream.createReaderFactory().createReader(partition)) {
+    for (InputPartition partition : partitions) {
+      try (PartitionReader<InternalRow> reader = factory.createReader(partition)) {
         while (reader.next()) {
           InternalRow row = reader.get();
           rows.add(

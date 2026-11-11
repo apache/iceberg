@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.ChangelogScanTask;
+import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.MetadataColumns;
@@ -46,13 +47,16 @@ import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.Changelog;
 import org.apache.spark.sql.connector.catalog.ChangelogContext;
 import org.apache.spark.sql.connector.catalog.ChangelogContext.DeduplicationMode;
 import org.apache.spark.sql.connector.catalog.ChangelogRange;
 import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
+import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 /** Exposes Iceberg changes through Spark's native CDC API. */
@@ -249,7 +253,49 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
     Preconditions.checkState(
         identifierColumns.length == 0, "Business-key CDC requires IcebergSparkSessionExtensions");
     validateCdcOptions(options);
-    return new SparkChangelogScanBuilder(spark(), table(), sparkCdcSchema, options, context);
+    SparkChangelogScanBuilder builder =
+        new SparkChangelogScanBuilder(spark(), table(), sparkCdcSchema, options);
+    return () -> newScan(builder);
+  }
+
+  private Scan newScan(SparkChangelogScanBuilder builder) {
+    IncrementalChangelogScan scan =
+        builder.buildIcebergScan(
+            ChangelogUtil.changelogSchema(dropCdcMetadata(sparkCdcSchema)), null, null);
+    Snapshot currentSnapshot = table().currentSnapshot();
+    Long endSnapshotId = currentSnapshot != null ? currentSnapshot.snapshotId() : null;
+    return new SparkChangelogScan(
+        spark(), table(), scan, builder.readConf(), sparkCdcSchema, builder.filters()) {
+      @Override
+      List<ScanTaskGroup<ChangelogScanTask>> planTaskGroups() {
+        validateVersions(table(), context);
+        return endSnapshotId == null
+            ? Collections.emptyList()
+            : planTasks(table(), scan, context, null, endSnapshotId);
+      }
+
+      @Override
+      public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
+        return new SparkChangelogMicroBatchStream(
+            JavaSparkContext.fromSparkContext(spark().sparkContext()),
+            table(),
+            builder.readConf(),
+            sparkCdcSchema,
+            checkpointLocation,
+            context);
+      }
+
+      @Override
+      public boolean equals(Object other) {
+        // Native ranges are not represented by the legacy snapshot options used for scan equality.
+        return this == other;
+      }
+
+      @Override
+      public int hashCode() {
+        return System.identityHashCode(this);
+      }
+    };
   }
 
   static void validateRange(ChangelogContext context) {
