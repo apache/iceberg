@@ -84,3 +84,4 @@ derby.log
 
 # claude code
 .claude/
+cufile.log

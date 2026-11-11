@@ -1,0 +1,110 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+// Merge-on-read scans on an NVIDIA GPU: RAPIDS cuDF decodes Parquet into device memory and TornadoVM
+// kernels, JIT-compiled from Java, apply position deletes, deletion vectors and equality deletes there.
+//
+// The TornadoVM API jars come from the SDK in $TORNADOVM_HOME and are compileOnly: at run time the
+// SDK provides them as modules, through its argfile, and a second copy on the class path would shadow them.
+
+def tornadoHome = System.getenv('TORNADOVM_HOME')
+def tornadoApi = fileTree("${tornadoHome}/share/java/tornado") {
+  include 'tornado-api-*.jar'
+  include 'tornado-cudf-*.jar'
+}
+
+// TornadoVM's jars are Java 21 class files that use java.lang.foreign, a preview API in 21; the rest
+// of Iceberg targets 17.
+tasks.withType(JavaCompile).configureEach {
+  options.release = 21
+  options.compilerArgs += ['--enable-preview']
+}
+
+dependencies {
+  implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+  api project(':iceberg-api')
+  implementation project(':iceberg-common')
+  implementation project(':iceberg-core')
+  implementation project(':iceberg-data')
+  implementation project(':iceberg-parquet')
+  implementation project(':iceberg-arrow')
+  implementation libs.caffeine
+  // Theta sketches for table statistics (the format Iceberg's compute_table_stats writes).
+  implementation libs.datasketches
+
+  implementation(libs.parquet.hadoop) {
+    exclude group: 'org.apache.avro', module: 'avro'
+    exclude group: 'it.unimi.dsi'
+    exclude group: 'org.codehaus.jackson'
+  }
+  implementation(libs.arrow.vector) {
+    exclude group: 'io.netty', module: 'netty-buffer'
+    exclude group: 'io.netty', module: 'netty-common'
+    exclude group: 'com.google.code.findbugs', module: 'jsr305'
+  }
+  runtimeOnly libs.arrow.memory.netty
+  runtimeOnly libs.netty.buffer
+  implementation(libs.hadoop3.client) {
+    exclude group: 'org.apache.avro', module: 'avro'
+    exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+  }
+
+  // Tables on S3 (benchmarks): Iceberg's S3FileIO and the AWS SDK it needs, loaded by name.
+  runtimeOnly project(':iceberg-aws')
+  runtimeOnly project(path: ':iceberg-aws-bundle', configuration: 'shadow')
+  runtimeOnly libs.sqlite.jdbc
+  compileOnly tornadoApi
+  testCompileOnly tornadoApi
+
+  testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+  testImplementation libs.datasketches
+  testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+}
+
+// The SDK's argfile. SDKMAN installs ship only its template, with ${TORNADOVM_HOME} to expand.
+def tornadoArgfile = layout.buildDirectory.file('tornado-argfile')
+tasks.register('tornadoArgfile') {
+  outputs.file tornadoArgfile
+  doLast {
+    def argfile = file("${tornadoHome}/tornado-argfile")
+    tornadoArgfile.get().asFile.text = argfile.exists()
+        ? argfile.text
+        : file("${tornadoHome}/tornado-argfile.template").text.replace('${TORNADOVM_HOME}', tornadoHome)
+  }
+}
+
+test {
+  dependsOn 'tornadoArgfile'
+  useJUnitPlatform()
+  // Device tests run in a TornadoVM JVM: the SDK's argfile puts TornadoVM on the module path.
+  // libcudf has to be on LD_LIBRARY_PATH (see tornadovm/README.md).
+  jvmArgs "@${tornadoArgfile.get().asFile}"
+  // TornadoVM's own assertions are off; Iceberg's stay on.
+  jvmArgs '-da:tornado...', '-da:uk.ac.manchester.tornado...', '--enable-native-access=ALL-UNNAMED'
+  maxParallelForks = 1
+}
+
+// The runtime class path, for scripts that run the benchmarks under the TornadoVM launcher.
+tasks.register('printRuntimeClasspath') {
+  def classpath = sourceSets.main.runtimeClasspath
+  dependsOn classpath
+  doLast {
+    println classpath.asPath
+  }
+}
