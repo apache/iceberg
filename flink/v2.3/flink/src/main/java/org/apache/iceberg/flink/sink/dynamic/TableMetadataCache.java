@@ -224,7 +224,7 @@ class TableMetadataCache {
     CacheItem cached = tableCache.get(identifier);
     if (cached != null && cached.tableExists) {
       for (PartitionSpec tableSpec : cached.specs.values()) {
-        if (PartitionSpecEvolution.checkCompatibility(tableSpec, spec)) {
+        if (PartitionSpecEvolution.checkCompatibility(tableSpec, spec, caseSensitive)) {
           return tableSpec;
         }
       }
