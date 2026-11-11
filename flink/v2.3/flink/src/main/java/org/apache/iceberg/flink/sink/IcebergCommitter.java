@@ -169,7 +169,6 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     NavigableMap<Long, CommitRequest<IcebergCommittable>> uncommitted =
         commitRequestMap.tailMap(maxCommittedCheckpointId, false);
     if (!uncommitted.isEmpty()) {
-      this.hasCommitted = hasCommitted || maxCommittedCheckpointId > SinkUtil.INITIAL_CHECKPOINT_ID;
       commitPendingRequests(uncommitted, last.jobId(), last.operatorId());
     }
   }
@@ -237,10 +236,11 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     continuousEmptyCheckpoints = totalFiles == 0 ? continuousEmptyCheckpoints + 1 : 0;
     boolean fullTableOverwrite = replacePartitions && fullOverwrite;
     // a full overwrite with no new files removes every row of the table, so it commits only before
-    // the first commit of the job; a later one would remove the rows the job has written
+    // the first commit of a job that started without state; any other one would remove the rows
+    // the job has written
     boolean commitEmpty =
         fullTableOverwrite
-            ? !hasCommitted
+            ? !isRestored && !hasCommitted
             : continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0;
     if (totalFiles != 0 || commitEmpty) {
       if (fullTableOverwrite) {

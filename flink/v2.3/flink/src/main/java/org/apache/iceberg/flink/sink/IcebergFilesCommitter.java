@@ -110,6 +110,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private transient ManifestOutputFileFactory manifestOutputFileFactory;
   private transient long maxCommittedCheckpointId;
   private transient boolean hasCommitted;
+  private transient boolean isRestored;
   private transient int continuousEmptyCheckpoints;
   private transient int maxContinuousEmptyCommits;
   // There're two cases that we restore from flink checkpoints: the first case is restoring from
@@ -173,7 +174,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     this.jobIdState = context.getOperatorStateStore().getListState(JOB_ID_DESCRIPTOR);
-    if (context.isRestored()) {
+    this.isRestored = context.isRestored();
+    if (isRestored) {
       Iterable<String> jobIdIterable = jobIdState.get();
       if (jobIdIterable == null || !jobIdIterable.iterator().hasNext()) {
         LOG.warn(
@@ -196,7 +198,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       // flink job.
       this.maxCommittedCheckpointId =
           SinkUtil.getMaxCommittedCheckpointId(table, restoredFlinkJobId, operatorUniqueId, branch);
-      this.hasCommitted = maxCommittedCheckpointId > INITIAL_CHECKPOINT_ID;
 
       NavigableMap<Long, byte[]> uncommittedDataFiles =
           Maps.newTreeMap(checkpointsState.get().iterator().next())
@@ -301,10 +302,11 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     continuousEmptyCheckpoints = totalFiles == 0 ? continuousEmptyCheckpoints + 1 : 0;
     boolean fullTableOverwrite = replacePartitions && fullOverwrite;
     // a full overwrite with no new files removes every row of the table, so it commits only before
-    // the first commit of the job; a later one would remove the rows the job has written
+    // the first commit of a job that started without state; any other one would remove the rows
+    // the job has written
     boolean commitEmpty =
         fullTableOverwrite
-            ? !hasCommitted
+            ? !isRestored && !hasCommitted
             : continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0;
     if (totalFiles != 0 || commitEmpty) {
       if (fullTableOverwrite) {
