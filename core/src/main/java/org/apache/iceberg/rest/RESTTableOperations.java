@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.rest;
 
+import java.io.IOException;
+import java.net.ConnectException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -34,6 +36,7 @@ import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -224,7 +227,11 @@ class RESTTableOperations implements TableOperations {
     // TODO: ensure that the HTTP client lib passes HTTP client errors to the error handler
     LoadTableResponse response;
     try {
-      response = client.post(path, request, LoadTableResponse.class, mutationHeaders, errorHandler);
+      response =
+          commitRequest(
+              () ->
+                  client.post(
+                      path, request, LoadTableResponse.class, mutationHeaders, errorHandler));
     } catch (CommitStateUnknownException e) {
       // Lightweight reconciliation for snapshot-add-only updates on transient unknown commit state
       if (updateType == UpdateType.SIMPLE && reconcileOnSimpleUpdate(updates, e)) {
@@ -238,6 +245,25 @@ class RESTTableOperations implements TableOperations {
     this.updateType = UpdateType.SIMPLE;
 
     updateCurrentMetadata(response);
+  }
+
+  /**
+   * Sends a commit request, reporting a transport failure as an unknown commit state.
+   *
+   * <p>If the connection fails after the request was sent (no response, a reset, a read timeout),
+   * the server may have applied the commit, so the outcome is unknown just as for a 5xx response.
+   * Only a failure to connect proves the request was never sent.
+   */
+  static <T> T commitRequest(Supplier<T> request) {
+    try {
+      return request.get();
+    } catch (RESTException e) {
+      if (e.getCause() instanceof IOException && !(e.getCause() instanceof ConnectException)) {
+        throw new CommitStateUnknownException(e);
+      }
+
+      throw e;
+    }
   }
 
   /**
