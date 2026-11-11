@@ -581,9 +581,8 @@ class V4Metadata {
       return tracking;
     }
 
-    protected void validate(TrackedFile file, Tracking newTracking) {
+    protected void wrapFile(TrackedFile file) {
       Preconditions.checkArgument(file != null, "Invalid file: null");
-      Preconditions.checkArgument(newTracking != null, "Invalid tracking: null");
 
       FileContent content = file.contentType();
       if (content == FileContent.DATA) {
@@ -606,17 +605,14 @@ class V4Metadata {
       }
 
       Integer fileSpecId = file.specId();
+      PartitionSpec spec = fileSpecId != null ? specsById.get(fileSpecId) : null;
       Preconditions.checkArgument(
-          fileSpecId == null || specsById.containsKey(fileSpecId),
+          fileSpecId == null || spec != null,
           "Cannot find partition spec for spec ID: %s",
           fileSpecId);
-    }
 
-    protected void wrapFile(TrackedFile file) {
-      Integer fileSpecId = file.specId();
       this.wrapped = file;
-      this.specId =
-          fileSpecId != null && !specsById.get(fileSpecId).isUnpartitioned() ? fileSpecId : null;
+      this.specId = spec != null && !spec.isUnpartitioned() ? fileSpecId : null;
     }
 
     @Override
@@ -729,13 +725,12 @@ class V4Metadata {
     }
 
     LeafTrackedFileWrapper wrap(TrackedFile file, Tracking newTracking) {
-      validate(file, newTracking);
+      wrapFile(file);
       Preconditions.checkArgument(
           file.contentType() == FileContent.DATA,
           "Invalid content type for leaf manifest: %s",
           file.contentType());
 
-      wrapFile(file);
       tracking().wrapLeaf(file, newTracking);
       return this;
     }
@@ -758,7 +753,6 @@ class V4Metadata {
     }
 
     RootTrackedFileWrapper wrap(TrackedFile file, Tracking newTracking, Long assignedFirstRowId) {
-      validate(file, newTracking);
       wrapFile(file);
       tracking().wrapRoot(file, newTracking, assignedFirstRowId);
       return this;
@@ -782,6 +776,7 @@ class V4Metadata {
     }
 
     private TrackingWrapper wrapLeaf(TrackedFile file, Tracking tracking) {
+      Preconditions.checkArgument(tracking != null, "Invalid tracking: null");
       validateSequenceNumbers(file, tracking);
 
       if (tracking.status() == EntryStatus.ADDED) {
@@ -801,6 +796,7 @@ class V4Metadata {
     }
 
     private TrackingWrapper wrapRoot(TrackedFile file, Tracking tracking, Long firstRowId) {
+      Preconditions.checkArgument(tracking != null, "Invalid tracking: null");
       Preconditions.checkArgument(
           tracking.snapshotId() != null, "Missing snapshot ID for file: %s", file.location());
       validateSequenceNumbers(file, tracking);
