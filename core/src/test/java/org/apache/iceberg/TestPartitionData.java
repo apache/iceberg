@@ -21,11 +21,14 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
 import java.lang.ref.WeakReference;
 import org.apache.avro.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestPartitionData {
 
@@ -56,32 +59,35 @@ public class TestPartitionData {
   }
 
   @Test
-  public void copyOfEqualValuesReturnsSameInstance() {
+  public void copyOfEqualValuesSharesBackingArray() {
     PartitionData first = newData(1, "a").copy();
     PartitionData second = newData(1, "a").copy();
 
     assertThat(first).isEqualTo(second);
-    assertThat(second).isSameAs(first);
+    // the PartitionData wrapper is never shared - only the values it wraps are
+    assertThat(first).isNotSameAs(second);
+    assertThat(first.rawData()).isSameAs(second.rawData());
   }
 
   @Test
-  public void copyOfDifferentValuesReturnsDistinctInstances() {
+  public void copyOfDifferentValuesHasDistinctBackingArrays() {
     PartitionData first = newData(1, "a").copy();
     PartitionData second = newData(2, "a").copy();
 
     assertThat(first).isNotEqualTo(second);
-    assertThat(second).isNotSameAs(first);
+    assertThat(first.rawData()).isNotSameAs(second.rawData());
   }
 
   @Test
-  public void copyForOfEqualValuesReturnsSameInstance() {
+  public void copyForOfEqualValuesSharesBackingArray() {
     PartitionData template = new PartitionData(PARTITION_TYPE);
 
     PartitionData first = template.copyFor(newData(1, "a"));
     PartitionData second = template.copyFor(newData(1, "a"));
 
     assertThat(first).isEqualTo(second);
-    assertThat(second).isSameAs(first);
+    assertThat(first).isNotSameAs(second);
+    assertThat(first.rawData()).isSameAs(second.rawData());
   }
 
   @Test
@@ -103,21 +109,21 @@ public class TestPartitionData {
   }
 
   @Test
-  public void copyOfEqualBinaryValuesReturnsSameInstance() {
+  public void copyOfEqualBinaryValuesSharesBackingArray() {
     PartitionData first = newBinaryData(1, new byte[] {1, 2}, new byte[] {3, 4, 5, 6}).copy();
     PartitionData second = newBinaryData(1, new byte[] {1, 2}, new byte[] {3, 4, 5, 6}).copy();
 
     assertThat(first).isEqualTo(second);
-    assertThat(second).isSameAs(first);
+    assertThat(first.rawData()).isSameAs(second.rawData());
   }
 
   @Test
-  public void copyOfDifferentBinaryValuesReturnsDistinctInstances() {
+  public void copyOfDifferentBinaryValuesHasDistinctBackingArrays() {
     PartitionData first = newBinaryData(1, new byte[] {1, 2}, new byte[] {3, 4, 5, 6}).copy();
     PartitionData second = newBinaryData(1, new byte[] {1, 3}, new byte[] {3, 4, 5, 6}).copy();
 
     assertThat(first).isNotEqualTo(second);
-    assertThat(second).isNotSameAs(first);
+    assertThat(first.rawData()).isNotSameAs(second.rawData());
   }
 
   @Test
@@ -136,11 +142,11 @@ public class TestPartitionData {
     PartitionData templateOne = new PartitionData(PARTITION_TYPE);
     PartitionData templateTwo = new PartitionData(PARTITION_TYPE);
 
-    // different partition values, so the interner cannot collapse these to the same instance
+    // different partition values, so the values interner cannot collapse these to one instance
     PartitionData first = templateOne.copyFor(newData(1, "a"));
     PartitionData second = templateTwo.copyFor(newData(2, "b"));
 
-    assertThat(first).isNotSameAs(second);
+    assertThat(first.rawData()).isNotSameAs(second.rawData());
     assertThat(first.getSchema()).isSameAs(second.getSchema());
   }
 
@@ -182,13 +188,13 @@ public class TestPartitionData {
   @Test
   public void copyIsEvictedOnceUnreferenced() throws InterruptedException {
     // regression test: a self-referencing cache (key == value, like interning) only actually
-    // cleans up if the interned instance itself is weakly referenced. A Cache<PartitionData,
-    // PartitionData> with Caffeine's weakValues() looks like it would work but does not - the key
-    // slot holds a strong reference to the same object the value slot only weakly references, so
-    // nothing is ever collected. This asserts the real, observable cleanup behavior rather than
-    // just the dedup semantics, so a future change back to that pattern fails here instead of
-    // silently reintroducing an unbounded leak.
-    WeakReference<PartitionData> ref = new WeakReference<>(newData(1, "a").copy());
+    // cleans up if the interned instance itself is weakly referenced. A Cache<Values, Values>
+    // with Caffeine's weakValues() looks like it would work but does not - the key slot holds a
+    // strong reference to the same object the value slot only weakly references, so nothing is
+    // ever collected. This asserts the real, observable cleanup behavior of the backing array
+    // rather than just dedup semantics, so a future change back to that pattern fails here
+    // instead of silently reintroducing an unbounded leak.
+    WeakReference<Object[]> ref = new WeakReference<>(newData(1, "a").copy().rawData());
 
     for (int i = 0; i < 10 && ref.get() != null; i++) {
       System.gc();
@@ -196,6 +202,23 @@ public class TestPartitionData {
     }
 
     assertThat(ref.get()).isNull();
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void copyResultSurvivesRoundTripSerialization(
+      TestHelpers.RoundTripSerializer<PartitionData> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
+    // Values wraps the backing array so it can be interned (arrays can't override
+    // equals()/hashCode()); it must itself be Serializable, since PartitionData - and anything
+    // holding a copy()'d one, like Spark/Flink shipping tasks to executors - is
+    PartitionData copy = newData(1, "a").copy();
+
+    PartitionData roundTripped = roundTripSerializer.apply(copy);
+
+    assertThat(roundTripped).isEqualTo(copy);
+    assertThat(roundTripped.get(0, Integer.class)).isEqualTo(1);
+    assertThat(roundTripped.get(1, String.class)).isEqualTo("a");
   }
 
   @Test

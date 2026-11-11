@@ -30,6 +30,7 @@ import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Interner;
 import org.apache.iceberg.relocated.com.google.common.collect.Interners;
@@ -44,17 +45,16 @@ public class PartitionData
    * once per type rather than left to whichever {@link PartitionData} constructor happens to run
    * first. {@link #equals(Object)}/{@link #hashCode()} ignore {@link #schema}, so without this,
    * value-equal instances built from unrelated templates (different scans, different manifests)
-   * could carry different, merely structurally-equivalent {@code Schema} objects, and {@link
-   * #INTERNER} would non-deterministically pick whichever one was cached first. Resolving every
+   * could carry different, merely structurally-equivalent {@code Schema} objects. Resolving every
    * constructor through this single cache instead means any two instances for the same partition
    * type are guaranteed to share one {@code Schema} instance - which {@code PartitionsTable} relies
-   * on - independent of interning order.
+   * on.
    *
    * <p>Weak values let an entry be collected once nothing - no live {@link PartitionData}, no other
    * caller - still references that {@code Schema}, the same pattern {@link SchemaParser} and {@link
    * PartitionSpecParser} already use to cache their own parsed results. This works because the key
    * ({@code Types.StructType}) and value ({@code Schema}) are different objects - see {@link
-   * #INTERNER} below for why a self-referencing cache needs weak keys instead.
+   * #VALUES_INTERNER} below for why a self-referencing cache needs weak keys instead.
    *
    * <p>Declared before {@link #EMPTY} since its initializer constructs a {@link PartitionData} that
    * reads from this cache.
@@ -72,26 +72,32 @@ public class PartitionData
 
   /**
    * Tables with a small number of distinct partition values can produce a very large number of
-   * {@link PartitionData} copies while planning (one per manifest entry). Interning collapses
-   * copies that are equal (same partition spec and values) into a single shared instance so that
-   * manifest entries sharing a partition don't each pin their own duplicate {@code Object[]}.
+   * {@link PartitionData} copies while planning (one per manifest entry). Each copy only needs its
+   * own {@link PartitionData} wrapper - a few fields, cheap to allocate per file - but the backing
+   * {@code Object[]} of values is what actually dominates memory for high-file, low-cardinality
+   * tables, so only {@link Values} (type + backing array) is interned here, not the whole {@link
+   * PartitionData}. {@link PartitionData} instances are never shared across callers: {@link
+   * #copy()} and {@link #copyFor(StructLike)} always return a fresh wrapper, so nothing about
+   * object identity, {@link #schema} resolution, or mutability changes from before this cache
+   * existed - only the {@code Object[]} two value-equal copies point at is now the same instance.
    *
    * <p>This is a self-referencing cache - the interned value IS the key - so a plain {@code
-   * Cache<PartitionData, PartitionData>} with Caffeine's {@code weakValues()} would not actually
-   * clean up: the key slot holds a strong reference to the very same object the value slot only
-   * weakly references, so nothing ever becomes collectible. A Guava {@code Interner} is the
-   * purpose-built tool for this case instead - it weakly references the interned instance itself -
-   * so an entry is evicted once nothing - no live {@link PartitionData}, no other caller - still
-   * references that instance, which keeps this safe for long-lived processes that plan scans across
+   * Cache<Values, Values>} with Caffeine's {@code weakValues()} would not actually clean up: the
+   * key slot holds a strong reference to the very same object the value slot only weakly
+   * references, so nothing ever becomes collectible (verified directly - see
+   * TestPartitionData#copyIsEvictedOnceUnreferenced). A Guava {@code Interner} is the purpose-built
+   * tool for this case instead - it weakly references the interned instance itself - so an entry is
+   * evicted once nothing - no live {@link PartitionData}, no other caller - still references that
+   * {@link Values} instance, which keeps this safe for long-lived processes that plan scans across
    * many tables.
    *
-   * <p>Only {@link #copy()}/{@link #copyFor(StructLike)} ever populate this interner, and they
-   * always do so with a {@link ReadOnly} instance: sharing a single instance across unrelated
-   * callers is only safe because that instance can never be mutated afterward, so a bug that would
-   * otherwise silently corrupt every other partition sharing it instead fails loudly at the call
-   * site.
+   * <p>{@link Values} itself is never exposed outside {@link #copy()}/{@link #copyFor(StructLike)};
+   * once interned, its backing array must never be mutated, since it may be shared by unrelated
+   * callers. {@link #set(int, Object)}/{@link #clear()} reject mutation on any {@link
+   * PartitionData} built from an interned {@link Values} so a bug that would otherwise silently
+   * corrupt every other partition sharing it instead fails loudly at the call site.
    */
-  private static final Interner<PartitionData> INTERNER = Interners.newWeakInterner();
+  private static final Interner<Values> VALUES_INTERNER = Interners.newWeakInterner();
 
   static Schema partitionDataSchema(Types.StructType partitionType) {
     return SCHEMA_CACHE.get(
@@ -100,7 +106,8 @@ public class PartitionData
 
   private final Types.StructType partitionType;
   private final int size;
-  private final Object[] data;
+  private final Values values;
+  private final boolean valuesShared;
   private final String stringSchema;
   private transient Schema schema;
 
@@ -108,7 +115,8 @@ public class PartitionData
   PartitionData(Schema schema) {
     this.partitionType = AvroSchemaUtil.convert(schema).asNestedType().asStructType();
     this.size = partitionType.fields().size();
-    this.data = new Object[size];
+    this.values = new Values(partitionType, new Object[size]);
+    this.valuesShared = false;
     this.schema = partitionDataSchema(partitionType);
     this.stringSchema = this.schema.toString();
   }
@@ -123,7 +131,8 @@ public class PartitionData
 
     this.partitionType = partitionType;
     this.size = partitionType.fields().size();
-    this.data = new Object[size];
+    this.values = new Values(partitionType, new Object[size]);
+    this.valuesShared = false;
     this.schema = partitionDataSchema(partitionType);
     this.stringSchema = schema.toString();
   }
@@ -132,7 +141,10 @@ public class PartitionData
   private PartitionData(PartitionData toCopy) {
     this.partitionType = toCopy.partitionType;
     this.size = toCopy.size;
-    this.data = copyData(toCopy.partitionType, toCopy.data);
+    this.values =
+        VALUES_INTERNER.intern(
+            new Values(toCopy.partitionType, copyData(toCopy.partitionType, toCopy.rawData())));
+    this.valuesShared = true;
     this.stringSchema = toCopy.stringSchema;
     this.schema = toCopy.schema;
   }
@@ -141,7 +153,9 @@ public class PartitionData
   private PartitionData(PartitionData toCopy, StructLike partition) {
     this.partitionType = toCopy.partitionType;
     this.size = toCopy.size;
-    this.data = copyData(partitionType, partition);
+    this.values =
+        VALUES_INTERNER.intern(new Values(partitionType, copyData(partitionType, partition)));
+    this.valuesShared = true;
     this.stringSchema = toCopy.stringSchema;
     this.schema = toCopy.schema;
   }
@@ -163,7 +177,8 @@ public class PartitionData
   }
 
   public void clear() {
-    Arrays.fill(data, null);
+    checkMutable();
+    Arrays.fill(values.data, null);
   }
 
   @Override
@@ -186,6 +201,7 @@ public class PartitionData
 
   @Override
   public Object get(int pos) {
+    Object[] data = values.data;
     if (pos >= data.length) {
       return null;
     }
@@ -200,7 +216,8 @@ public class PartitionData
 
   @Override
   public <T> void set(int pos, T value) {
-    data[pos] = toInternalValue(value);
+    checkMutable();
+    values.data[pos] = toInternalValue(value);
   }
 
   @Override
@@ -208,10 +225,23 @@ public class PartitionData
     set(i, v);
   }
 
+  private void checkMutable() {
+    if (valuesShared) {
+      throw new UnsupportedOperationException(
+          "Cannot modify a PartitionData returned by copy()/copyFor(); its values may be shared");
+    }
+  }
+
+  @VisibleForTesting
+  Object[] rawData() {
+    return values.data;
+  }
+
   @Override
   public String toString() {
     List<Types.NestedField> fields = partitionType.fields();
     StringJoiner joiner = new StringJoiner(", ", "PartitionData{", "}");
+    Object[] data = values.data;
     for (int pos = 0; pos < fields.size(); pos += 1) {
       joiner.add(fields.get(pos).name() + "=" + data[pos]);
     }
@@ -220,41 +250,11 @@ public class PartitionData
   }
 
   public PartitionData copy() {
-    return INTERNER.intern(new ReadOnly(this));
+    return new PartitionData(this);
   }
 
   public PartitionData copyFor(StructLike partition) {
-    return INTERNER.intern(new ReadOnly(this, partition));
-  }
-
-  /**
-   * The instance type that {@link PartitionData#copy()}/{@link PartitionData#copyFor(StructLike)}
-   * hand to {@link PartitionData#INTERNER}. Rejecting mutation here is what makes sharing one
-   * instance across unrelated, unaware callers safe: every existing caller only reads a copied
-   * partition, but nothing stops a future one from calling {@link #set(int, Object)} by mistake,
-   * which - without this - would silently corrupt every other partition that happens to share the
-   * same values.
-   */
-  private static final class ReadOnly extends PartitionData {
-    private ReadOnly(PartitionData toCopy) {
-      super(toCopy);
-    }
-
-    private ReadOnly(PartitionData toCopy, StructLike partition) {
-      super(toCopy, partition);
-    }
-
-    @Override
-    public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException(
-          "Cannot modify a PartitionData returned by copy()/copyFor(); it may be shared");
-    }
-
-    @Override
-    public void clear() {
-      throw new UnsupportedOperationException(
-          "Cannot modify a PartitionData returned by copy()/copyFor(); it may be shared");
-    }
+    return new PartitionData(this, partition);
   }
 
   @Override
@@ -266,13 +266,14 @@ public class PartitionData
     }
 
     PartitionData that = (PartitionData) o;
-    return partitionType.equals(that.partitionType) && Arrays.deepEquals(data, that.data);
+    return partitionType.equals(that.partitionType)
+        && Arrays.deepEquals(values.data, that.values.data);
   }
 
   @Override
   public int hashCode() {
     int result = partitionType.hashCode();
-    return 31 * result + Arrays.deepHashCode(data);
+    return 31 * result + Arrays.deepHashCode(values.data);
   }
 
   public static Object[] copyData(Types.StructType type, Object[] data) {
@@ -331,6 +332,39 @@ public class PartitionData
       return bytes;
     } else {
       return value;
+    }
+  }
+
+  /**
+   * Wraps the partition type and backing value array so they have proper, structural {@link
+   * #equals(Object)}/{@link #hashCode()} - Java arrays only support identity equality, so {@code
+   * Object[]} can't be interned directly. This is the only thing {@link #VALUES_INTERNER} shares
+   * across unrelated {@link PartitionData} instances.
+   */
+  private static final class Values implements Serializable {
+    private final Types.StructType partitionType;
+    private final Object[] data;
+
+    private Values(Types.StructType partitionType, Object[] data) {
+      this.partitionType = partitionType;
+      this.data = data;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      } else if (!(o instanceof Values)) {
+        return false;
+      }
+
+      Values that = (Values) o;
+      return partitionType.equals(that.partitionType) && Arrays.deepEquals(data, that.data);
+    }
+
+    @Override
+    public int hashCode() {
+      return 31 * partitionType.hashCode() + Arrays.deepHashCode(data);
     }
   }
 }
