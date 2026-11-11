@@ -20,12 +20,15 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.schema.SchemaWithPartnerVisitor;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 /**
@@ -47,12 +50,14 @@ public class CompareSchemasVisitor
   private final Schema tableSchema;
   private final boolean caseSensitive;
   private final boolean dropUnusedColumns;
+  private final Set<Integer> identifierFieldIdsWithParents;
 
   private CompareSchemasVisitor(
       Schema tableSchema, boolean caseSensitive, boolean dropUnusedColumns) {
     this.tableSchema = tableSchema;
     this.caseSensitive = caseSensitive;
     this.dropUnusedColumns = dropUnusedColumns;
+    this.identifierFieldIdsWithParents = identifierFieldIdsWithParents(tableSchema);
   }
 
   public static Result visit(
@@ -135,20 +140,23 @@ public class CompareSchemasVisitor
       return Result.SCHEMA_UPDATE_NEEDED;
     }
 
-    if (typeResult != Result.SAME) {
-      return typeResult;
+    if (field.isOptional()
+        && tableSchema.findField(tableSchemaId).isRequired()
+        && !identifierFieldIdsWithParents.contains(tableSchemaId)) {
+      return Result.SCHEMA_UPDATE_NEEDED;
     }
 
-    if (tableSchema.findField(tableSchemaId).isRequired() && field.isOptional()) {
-      return Result.SCHEMA_UPDATE_NEEDED;
-    } else {
-      return Result.SAME;
-    }
+    return typeResult;
   }
 
   @Override
   public Result list(Types.ListType list, Integer tableSchemaId, Result elementsResult) {
     if (tableSchemaId == null) {
+      return Result.SCHEMA_UPDATE_NEEDED;
+    }
+
+    if (list.isElementOptional()
+        && tableSchema.findField(tableSchemaId).type().asListType().isElementRequired()) {
       return Result.SCHEMA_UPDATE_NEEDED;
     }
 
@@ -159,6 +167,11 @@ public class CompareSchemasVisitor
   public Result map(
       Types.MapType map, Integer tableSchemaId, Result keyResult, Result valueResult) {
     if (tableSchemaId == null) {
+      return Result.SCHEMA_UPDATE_NEEDED;
+    }
+
+    if (map.isValueOptional()
+        && tableSchema.findField(tableSchemaId).type().asMapType().isValueRequired()) {
       return Result.SCHEMA_UPDATE_NEEDED;
     }
 
@@ -193,6 +206,22 @@ public class CompareSchemasVisitor
     } else {
       return Result.SCHEMA_UPDATE_NEEDED;
     }
+  }
+
+  static Set<Integer> identifierFieldIdsWithParents(Schema schema) {
+    Set<Integer> ids = Sets.newHashSet(schema.identifierFieldIds());
+    if (!ids.isEmpty()) {
+      Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
+      for (int id : schema.identifierFieldIds()) {
+        Integer parentId = idToParent.get(id);
+        while (parentId != null) {
+          ids.add(parentId);
+          parentId = idToParent.get(parentId);
+        }
+      }
+    }
+
+    return ids;
   }
 
   /**
