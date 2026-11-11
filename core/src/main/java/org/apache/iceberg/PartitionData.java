@@ -40,20 +40,20 @@ public class PartitionData
     implements IndexedRecord, StructLike, SpecificData.SchemaConstructable, Serializable {
 
   /**
-   * {@link #equals(Object)}/{@link #hashCode()} ignore {@link #schema}, so independently created
-   * {@link PartitionData} instances for the same partition type (e.g. from unrelated scans, or from
-   * Avro reflection when reading different manifests) are value-equal even when each one initially
-   * carries its own, structurally-equivalent but distinct {@code Schema} instance. Without
-   * canonicalizing here, {@link #INTERNER} would non-deterministically pick whichever instance
-   * happened to intern first, so copies sharing a partition value could end up with a schema object
-   * that didn't come from the caller's own template. Callers like {@code PartitionsTable} rely on
-   * every partition from one scan sharing the exact same schema instance, so the schema is cached
-   * per partition type instead and reused everywhere.
+   * The Avro schema for a partition type is a pure function of that type, so it's memoized here
+   * once per type rather than left to whichever {@link PartitionData} constructor happens to run
+   * first. {@link #equals(Object)}/{@link #hashCode()} ignore {@link #schema}, so without this,
+   * value-equal instances built from unrelated templates (different scans, different manifests)
+   * could carry different, merely structurally-equivalent {@code Schema} objects, and {@link
+   * #INTERNER} would non-deterministically pick whichever one interned first. Resolving every
+   * constructor through this single cache instead means any two instances for the same partition
+   * type are guaranteed to share one {@code Schema} instance - which {@code PartitionsTable} relies
+   * on - independent of interning order.
    *
-   * <p>Weak values mean an entry is collected once nothing - no live {@link PartitionData}, no
-   * other caller - still references that {@code Schema}, the same cleanup story as {@link
-   * #INTERNER} below, and the same weak-values pattern {@link SchemaParser} and {@link
-   * PartitionSpecParser} already use to cache their own parsed results.
+   * <p>Weak values let an entry be collected once nothing - no live {@link PartitionData}, no other
+   * caller - still references that {@code Schema}, the same cleanup story as {@link #INTERNER}
+   * below, and the same weak-values pattern {@link SchemaParser} and {@link PartitionSpecParser}
+   * already use to cache their own parsed results.
    *
    * <p>Declared before {@link #EMPTY} since its initializer constructs a {@link PartitionData} that
    * reads from this cache.
@@ -84,10 +84,6 @@ public class PartitionData
         partitionType, type -> AvroSchemaUtil.convert(type, PartitionData.class.getName()));
   }
 
-  private static Schema canonicalSchema(Types.StructType partitionType, Schema schema) {
-    return SCHEMA_CACHE.get(partitionType, type -> schema);
-  }
-
   private final Types.StructType partitionType;
   private final int size;
   private final Object[] data;
@@ -99,7 +95,7 @@ public class PartitionData
     this.partitionType = AvroSchemaUtil.convert(schema).asNestedType().asStructType();
     this.size = partitionType.fields().size();
     this.data = new Object[size];
-    this.schema = canonicalSchema(partitionType, schema);
+    this.schema = partitionDataSchema(partitionType);
     this.stringSchema = this.schema.toString();
   }
 

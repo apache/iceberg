@@ -20,6 +20,8 @@ package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.apache.avro.Schema;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -138,5 +140,21 @@ public class TestPartitionData {
 
     assertThat(first).isNotSameAs(second);
     assertThat(first.getSchema()).isSameAs(second.getSchema());
+  }
+
+  @Test
+  public void avroReflectionConstructorConvergesToCanonicalSchema() {
+    PartitionData template = new PartitionData(PARTITION_TYPE);
+
+    // a schema that is structurally equivalent to the template's, but deliberately not the
+    // cached, canonical instance - simulates Avro handing a freshly-parsed schema object to the
+    // SpecificData.SchemaConstructable constructor when reading a manifest
+    Schema freshlyConverted =
+        AvroSchemaUtil.convert(PARTITION_TYPE, PartitionData.class.getName() + "Copy");
+    assertThat(freshlyConverted).isNotSameAs(template.getSchema());
+
+    PartitionData fromSchema = new PartitionData(freshlyConverted);
+
+    assertThat(fromSchema.getSchema()).isSameAs(template.getSchema());
   }
 }
