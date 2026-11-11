@@ -382,6 +382,10 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.effectiveSplitTargetSize = plannedTaskGroups.isEmpty() ? 0L : splitSize;
   }
 
+  protected void resetEffectiveSplitTargetSize() {
+    this.effectiveSplitTargetSize = 0L;
+  }
+
   protected long adjustSplitSize(List<? extends ScanTask> tasks, long splitSize) {
     if (readConf.splitSizeOption() == null && readConf.adaptiveSplitSizeEnabled()) {
       long scanSize = tasks.stream().mapToLong(ScanTask::sizeBytes).sum();

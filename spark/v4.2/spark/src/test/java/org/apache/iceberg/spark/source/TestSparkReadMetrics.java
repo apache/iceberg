@@ -28,8 +28,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -79,6 +83,7 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
         scanSize += task.sizeBytes();
       }
     }
+
     long adaptiveSplitSize = TableScanUtil.adjustSplitSize(scanSize, parallelism, tableSplitSize);
     assertThat(adaptiveSplitSize).isNotEqualTo(tableSplitSize);
 
@@ -157,7 +162,7 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
   @TestTemplate
   void effectiveSplitTargetSizeWithRuntimeFilter() throws NoSuchTableException, IOException {
     long tableSplitSize = 128L * 1024 * 1024;
-    int parallelism = 1000;
+    int parallelism = 4;
     sql(
         "CREATE TABLE %s (id BIGINT, date DATE) USING iceberg PARTITIONED BY (date) "
             + "TBLPROPERTIES ('read.split.target-size'='%s')",
@@ -179,26 +184,49 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
         .mode("append")
         .insertInto("dim");
 
+    // large files in a partition the runtime filter prunes; they are never read
+    Table table = validationCatalog.loadTable(tableIdent);
+    AppendFiles append = table.newAppend();
+    for (int i = 0; i < 4; i++) {
+      append.appendFile(
+          DataFiles.builder(table.spec())
+              .withPath(table.location() + "/data/date=1970-01-01/unread-" + i + ".parquet")
+              .withFormat(FileFormat.PARQUET)
+              .withPartitionPath("date=1970-01-01")
+              .withFileSizeInBytes(64L * 1024 * 1024)
+              .withRecordCount(1)
+              .build());
+    }
+
+    append.commit();
+
+    long scanSize = 0;
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      for (FileScanTask task : tasks) {
+        scanSize += task.sizeBytes();
+      }
+    }
+
     long filteredScanSize = 0;
     try (CloseableIterable<FileScanTask> tasks =
-        validationCatalog
-            .loadTable(tableIdent)
-            .newScan()
-            .filter(Expressions.equal("date", "1970-01-02"))
-            .planFiles()) {
+        table.newScan().filter(Expressions.equal("date", "1970-01-02")).planFiles()) {
       for (FileScanTask task : tasks) {
         filteredScanSize += task.sizeBytes();
       }
     }
+
+    long splitSizeBeforeFilter =
+        TableScanUtil.adjustSplitSize(scanSize, parallelism, tableSplitSize);
     long expectedSplitSize =
         TableScanUtil.adjustSplitSize(filteredScanSize, parallelism, tableSplitSize);
+    assertThat(expectedSplitSize).isNotEqualTo(splitSizeBeforeFilter);
+
     long expectedRows =
         spark
             .sql(String.format("SELECT * FROM %s WHERE date = DATE '1970-01-02'", tableName))
             .count();
 
-    // the metric is reported for a scan whose task groups are re-planned after a runtime filter;
-    // small scans clamp to the same adaptive target before and after filtering
+    // the metric reports the target of the task groups re-planned after the runtime filter
     withSQLConf(
         ImmutableMap.of(
             SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(),

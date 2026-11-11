@@ -280,6 +280,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
   protected synchronized void resetTasks(List<T> filteredTasks) {
     this.taskGroups = null;
     this.tasks = filteredTasks;
+    resetEffectiveSplitTargetSize();
   }
 
   private StructLikeSet collectGroupingKeys(Iterable<ScanTaskGroup<T>> taskGroupIterable) {
