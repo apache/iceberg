@@ -869,10 +869,10 @@ public class TestTypeUtil {
   }
 
   @Test
-  void getProjectedIdsSelectsTheNestedFieldsOfAFile() {
+  void getProjectedIdsSelectsAFileAndItsNestedFields() {
     Types.FileType file = Types.FileType.of(1);
     Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", file));
-    Set<Integer> expectedIds = Sets.newHashSet(0);
+    Set<Integer> expectedIds = Sets.newHashSet(0, 1);
     file.fields().forEach(field -> expectedIds.add(field.fieldId()));
 
     assertThat(TypeUtil.getProjectedIds(schema)).isEqualTo(expectedIds);
