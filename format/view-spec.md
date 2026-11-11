@@ -214,7 +214,7 @@ The refresh state has the following fields:
 
 When writing the refresh state, writers may leave source-states empty (e.g., when sources are non-Iceberg tables or a mechanism outside this spec determines whether the storage table reflects the result of the view query).
 
-#### Source state
+##### Source state
 
 Source state records capture the state of objects referenced by a materialized view. Each record has a `type` field that determines its form:
 
@@ -225,7 +225,7 @@ Source state records capture the state of objects referenced by a materialized v
 
 A source materialized view may be recorded as a `view` entry referencing its view metadata and one or more `table` entries referencing its storage table or other source tables. These source table entries might be determined by recursively expanding its own dependencies.
 
-#### Source table state
+##### Source table state
 
 A source table record captures the state of a source table (including a source materialized view's storage table) at the time of the last refresh operation.
 
@@ -241,7 +241,7 @@ A source table record captures the state of a source table (including a source m
 
 When `ref` is set, the source table is tracked against that branch or tag. When `ref` is not set, the source table is pinned to the recorded `snapshot-id` (e.g. `FOR VERSION AS OF <snapshot-id>`). Writers that read a branch or tag should record its name in `ref`.
 
-#### Source view state
+##### Source view state
 
 A source view record captures the state of a source view at the time of the last refresh operation.
 
