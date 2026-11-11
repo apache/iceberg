@@ -139,7 +139,7 @@ class V4TestComparators {
               .thenComparing(ManifestInfo::manifestDeletionVector, BITMAPS)
               .thenComparingInt(ManifestInfo::formatVersion));
 
-  static final Comparator<ContentStats> CONTENT_STATS =
+  private static final Comparator<ContentStats> CONTENT_STATS =
       Comparator.nullsFirst(new ContentStatsComparator());
 
   private static class ContentStatsComparator implements Comparator<ContentStats> {

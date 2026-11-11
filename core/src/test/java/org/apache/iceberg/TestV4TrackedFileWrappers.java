@@ -18,376 +18,285 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.V4TestHelpers.ADDED_TRACKING;
-import static org.apache.iceberg.V4TestHelpers.columnFile;
-import static org.apache.iceberg.V4TestHelpers.copyWithTracking;
-import static org.apache.iceberg.V4TestHelpers.dataFile;
-import static org.apache.iceberg.V4TestHelpers.dataFileWithColumnFiles;
-import static org.apache.iceberg.V4TestHelpers.dataFileWithStats;
-import static org.apache.iceberg.V4TestHelpers.deletionVector;
-import static org.apache.iceberg.V4TestHelpers.manifestRef;
 import static org.apache.iceberg.V4TestHelpers.partition;
-import static org.apache.iceberg.V4TestHelpers.readTrackedFiles;
-import static org.apache.iceberg.V4TestHelpers.writeRows;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.iceberg.V4Metadata.LeafTrackedFileWrapper;
 import org.apache.iceberg.V4Metadata.RootTrackedFileWrapper;
-import org.apache.iceberg.inmemory.InMemoryFileIO;
-import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.transforms.Transforms;
-import org.apache.iceberg.types.Comparators;
-import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class TestV4TrackedFileWrappers {
   private static final long COMMIT_SNAPSHOT_ID = 42L;
-  private static final long COMMIT_SEQUENCE_NUMBER = 34L;
+  private static final long COMMIT_SEQ = 34L;
   private static final long PREVIOUS_SNAPSHOT_ID = 7L;
-  private static final long PREVIOUS_SEQUENCE_NUMBER = 5L;
+  private static final long PREVIOUS_MODIFIED_SNAPSHOT_ID = 8L;
+  private static final long PREVIOUS_DATA_SEQ = 6L;
+  private static final long PREVIOUS_FILE_SEQ = 5L;
   private static final long PREVIOUS_FIRST_ROW_ID = 500L;
   private static final long FIRST_ROW_ID = 1_000L;
+  private static final String DATA_LOCATION = "s3://bucket/table/file.parquet";
+  private static final String MANIFEST_LOCATION = "s3://bucket/table/manifest.parquet";
 
   private static final Schema TABLE_SCHEMA =
       new Schema(
-          optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
+          optional(1, "id", Types.IntegerType.get()),
+          optional(2, "data", Types.StringType.get()),
+          optional(3, "measure", Types.FloatType.get()));
+  private static final int ID_PARTITION_FIELD_ID = 1000;
+  private static final int DATA_PARTITION_FIELD_ID = 1001;
   private static final PartitionSpec ID_SPEC =
-      PartitionSpec.builderFor(TABLE_SCHEMA).withSpecId(1).identity("id").build();
+      PartitionSpec.builderFor(TABLE_SCHEMA)
+          .withSpecId(1)
+          .add(1 /* sourceId */, ID_PARTITION_FIELD_ID, "id", Transforms.identity())
+          .build();
   private static final PartitionSpec DATA_SPEC =
       PartitionSpec.builderFor(TABLE_SCHEMA)
           .withSpecId(2)
-          .add(2 /* sourceId */, 1001 /* fieldId */, "data", Transforms.identity())
+          .add(2 /* sourceId */, DATA_PARTITION_FIELD_ID, "data", Transforms.identity())
           .build();
-  private static final Map<Integer, PartitionSpec> ID_SPECS =
-      ImmutableMap.of(ID_SPEC.specId(), ID_SPEC);
+  private static final Types.StructType UNPARTITIONED_TYPE = Types.StructType.of();
   private static final Map<Integer, PartitionSpec> UNPARTITIONED_SPECS =
       ImmutableMap.of(PartitionSpec.unpartitioned().specId(), PartitionSpec.unpartitioned());
 
   private static final Types.StructType STATS_TYPE =
       StatsUtil.statsWriteSchema(
           TABLE_SCHEMA, MetricsTestUtil.from(ImmutableMap.of(), TABLE_SCHEMA));
-  private static final FieldStats<Integer> ID_STATS =
-      new FieldStatsStruct<>(
-          STATS_TYPE.fieldType("id").asStructType(),
-          1 /* lowerBound */,
-          99 /* upperBound */,
-          100L /* valueCount */,
-          0L /* nullValueCount */,
-          0L /* nanValueCount */,
-          0L /* totalBytes */);
-  private static final FieldStats<String> DATA_STATS =
-      new FieldStatsStruct<>(
-          STATS_TYPE.fieldType("data").asStructType(),
-          "a",
-          "z",
-          100L /* valueCount */,
-          10L /* nullValueCount */,
-          0L /* nanValueCount */,
-          500L /* totalBytes */);
+  private static final Types.StructType NO_STATS_TYPE = Types.StructType.of();
+  private static final Schema TRACKED_FILE_SCHEMA =
+      TrackedFile.schema(Types.StructType.of(), Types.StructType.of());
 
-  private static final Tracking EXISTING_TRACKING =
-      new TrackingStruct(
-          EntryStatus.EXISTING,
-          PREVIOUS_SNAPSHOT_ID,
-          PREVIOUS_SEQUENCE_NUMBER,
-          PREVIOUS_SEQUENCE_NUMBER,
-          null /* modifiedSnapshotId */,
-          PREVIOUS_FIRST_ROW_ID,
-          null /* deletedPositions */,
-          null /* replacedPositions */);
-  private static final ManifestInfo MANIFEST_INFO =
-      new ManifestInfoStruct(
-          49 /* addedFilesCount */,
-          51 /* existingFilesCount */,
-          0 /* deletedFilesCount */,
-          0 /* replacedFilesCount */,
-          0 /* modifiedFilesCount */,
-          4_900L /* addedRowsCount */,
-          5_100L /* existingRowsCount */,
-          0L /* deletedRowsCount */,
-          0L /* replacedRowsCount */,
-          0L /* modifiedRowsCount */,
-          PREVIOUS_SEQUENCE_NUMBER,
-          null /* dv */,
-          4 /* formatVersion */);
+  private static Stream<PartitionSpec> unpartitionedSpecs() {
+    return Stream.of(
+        PartitionSpec.unpartitioned(),
+        PartitionSpec.builderFor(TABLE_SCHEMA).withSpecId(3).alwaysNull("id").build());
+  }
 
-  private final InMemoryFileIO io = new InMemoryFileIO();
-
-  @Test
-  void leafWritesDataFile() throws IOException {
-    TrackedFile file =
-        dataFile(
-            "s3://bucket/table/id=1/file.parquet",
-            ID_SPEC.specId(),
-            partition(ID_SPEC, 1),
-            null /* stats */,
-            deletionVector("s3://bucket/table/dv.puffin"),
-            ImmutableList.of(
-                columnFile("s3://bucket/table/id=1/file-cols-1.parquet", ImmutableSet.of(1)),
-                columnFile(
-                    "s3://bucket/table/id=1/file-cols-2.parquet",
-                    ImmutableSet.of(2),
-                    ByteBuffer.wrap(new byte[] {4, 5}))));
-    TrackedFile expected = copyWithTracking(file, EXISTING_TRACKING);
+  @ParameterizedTest
+  @MethodSource("unpartitionedSpecs")
+  void leafWritesNullSpecIdAndPartitionForUnpartitionedFile(PartitionSpec spec) {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+    when(file.specId()).thenReturn(spec.specId());
+    when(file.partition()).thenReturn(mock(StructLike.class));
 
     LeafTrackedFileWrapper wrapper =
         new LeafTrackedFileWrapper(
             COMMIT_SNAPSHOT_ID,
-            ID_SPECS,
-            ID_SPEC.partitionType(),
-            Types.StructType.of() /* contentStatsType */);
-    TrackedFile actual =
-        writeAndRead(ID_SPEC.partitionType(), wrapper.wrap(file, EXISTING_TRACKING));
+            ImmutableMap.of(spec.specId(), spec),
+            spec.partitionType(),
+            NO_STATS_TYPE);
+    StructLike row = wrapper.wrap(file, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build());
 
-    assertThat(actual)
-        .usingComparator(V4TestComparators.trackedFile(ID_SPEC.partitionType()))
-        .isEqualTo(expected);
+    assertThat(get(row, TRACKED_FILE_SCHEMA, TrackedFile.SPEC_ID)).isNull();
+    assertThat(get(row, TRACKED_FILE_SCHEMA, TrackedFile.PARTITION_ID)).isNull();
   }
 
   @Test
-  void leafWritesAdaptedDataFile() throws IOException {
-    DataFile dataFile =
-        DataFiles.builder(ID_SPEC)
-            .withPath("s3://bucket/table/id=1/file.parquet")
-            .withPartition(partition(ID_SPEC, 1))
-            .withFileSizeInBytes(1024L)
-            .withMetrics(
-                new Metrics(
-                    100L /* rowCount */,
-                    null /* columnSizes */,
-                    ImmutableMap.of(1, 100L, 2, 100L),
-                    ImmutableMap.of(1, 0L, 2, 10L),
-                    null /* nanValueCounts */,
-                    ImmutableMap.of(
-                        1, Conversions.toByteBuffer(Types.IntegerType.get(), 1),
-                        2, Conversions.toByteBuffer(Types.StringType.get(), "a")),
-                    ImmutableMap.of(
-                        1, Conversions.toByteBuffer(Types.IntegerType.get(), 99),
-                        2, Conversions.toByteBuffer(Types.StringType.get(), "z"))))
-            .withSortOrder(SortOrder.builderFor(TABLE_SCHEMA).withOrderId(1).asc("id").build())
-            .withEncryptionKeyMetadata(ByteBuffer.wrap(new byte[] {1, 2, 3}))
-            .withSplitOffsets(ImmutableList.of(4L, 512L))
-            .build();
-    TrackedFile file = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(dataFile);
-    TrackedFile expected = copyWithTracking(file, ADDED_TRACKING);
-
-    LeafTrackedFileWrapper wrapper =
-        new LeafTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID, ID_SPECS, ID_SPEC.partitionType(), STATS_TYPE);
-    TrackedFile actual =
-        writeAndRead(ID_SPEC.partitionType(), STATS_TYPE, wrapper.wrap(file, ADDED_TRACKING));
-
-    assertThat(actual)
-        .usingComparator(V4TestComparators.trackedFile(ID_SPEC.partitionType()))
-        .isEqualTo(expected);
-  }
-
-  @Test
-  void leafWritesNullSpecIdForUnpartitionedFile() throws IOException {
-    DataFile dataFile =
-        DataFiles.builder(PartitionSpec.unpartitioned())
-            .withPath("s3://bucket/table/file.parquet")
-            .withFileSizeInBytes(1024L)
-            .withRecordCount(100L)
-            .build();
-    TrackedFile file = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(dataFile);
-
-    LeafTrackedFileWrapper wrapper =
-        new LeafTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    TrackedFile actual = writeAndRead(Types.StructType.of(), wrapper.wrap(file, ADDED_TRACKING));
-
-    assertThat(actual.specId()).isNull();
-    assertThat(actual.partition()).isNull();
-  }
-
-  @Test
-  void leafWritesNullSpecIdForVoidTransformFile() throws IOException {
-    PartitionSpec voidSpec =
-        PartitionSpec.builderFor(TABLE_SCHEMA).withSpecId(3).alwaysNull("id").build();
-    TrackedFile file =
-        dataFile("s3://bucket/table/file.parquet", voidSpec.specId(), partition(voidSpec));
-
-    LeafTrackedFileWrapper wrapper =
-        new LeafTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            ImmutableMap.of(voidSpec.specId(), voidSpec),
-            voidSpec.partitionType(),
-            Types.StructType.of() /* contentStatsType */);
-    TrackedFile actual = writeAndRead(voidSpec.partitionType(), wrapper.wrap(file, ADDED_TRACKING));
-
-    assertThat(actual.specId()).isNull();
-    assertThat(actual.partition()).isNull();
-  }
-
-  @Test
-  void leafProjectsPartitionToUnionType() throws IOException {
+  void leafProjectsPartitionToUnionType() {
     Map<Integer, PartitionSpec> specs =
         ImmutableMap.of(ID_SPEC.specId(), ID_SPEC, DATA_SPEC.specId(), DATA_SPEC);
     Types.StructType unionType = Partitioning.unionPartitionTypes(specs.values());
-    TrackedFile file =
-        dataFile(
-            "s3://bucket/table/data=a/file.parquet", DATA_SPEC.specId(), partition(DATA_SPEC, "a"));
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+    when(file.specId()).thenReturn(DATA_SPEC.specId());
+    when(file.partition()).thenReturn(partition(DATA_SPEC, "a"));
 
     LeafTrackedFileWrapper wrapper =
-        new LeafTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID, specs, unionType, Types.StructType.of() /* contentStatsType */);
-    TrackedFile actual = writeAndRead(unionType, wrapper.wrap(file, file.tracking()));
+        new LeafTrackedFileWrapper(COMMIT_SNAPSHOT_ID, specs, unionType, NO_STATS_TYPE);
+    StructLike row = wrapper.wrap(file, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build());
 
-    PartitionData expected = new PartitionData(unionType);
-    expected.set(unionType.fields().indexOf(unionType.field("data")), "a");
-    assertThat(actual.partition())
-        .usingComparator(Comparators.forType(unionType))
-        .isEqualTo(expected);
+    Schema schema = TrackedFile.schema(unionType, NO_STATS_TYPE);
+    assertThat(get(row, schema, DATA_PARTITION_FIELD_ID)).isEqualTo("a");
+    assertThat(get(row, schema, ID_PARTITION_FIELD_ID)).isNull();
   }
 
   @Test
-  void leafWritesStatsUsingManifestStatsType() throws IOException {
-    Types.StructType reorderedType =
-        Types.StructType.of(STATS_TYPE.field("data"), STATS_TYPE.field("id"));
-    ContentStats stats = StatsTestUtil.contentStats(reorderedType, ID_STATS, DATA_STATS);
-    TrackedFile file = dataFileWithStats("s3://bucket/table/file.parquet", stats);
+  void leafWritesNullForMissingFieldStats() {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+    when(file.contentStats()).thenReturn(mock(ContentStats.class));
 
     LeafTrackedFileWrapper wrapper =
         new LeafTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            STATS_TYPE);
-    TrackedFile actual =
-        writeAndRead(Types.StructType.of(), STATS_TYPE, wrapper.wrap(file, file.tracking()));
+            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, STATS_TYPE);
+    StructLike row = wrapper.wrap(file, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build());
 
-    assertThat(actual.contentStats())
-        .usingComparator(V4TestComparators.CONTENT_STATS)
-        .isEqualTo(stats);
+    StructLike stats = (StructLike) get(row, TRACKED_FILE_SCHEMA, TrackedFile.CONTENT_STATS_ID);
+    for (int pos = 0; pos < STATS_TYPE.fields().size(); pos += 1) {
+      assertThat(stats.get(pos, Object.class)).isNull();
+    }
   }
 
   @Test
-  void leafAllowsUnassignedDataSequenceNumberForModifiedFile() throws IOException {
+  void leafWritesNullForMissingStatsCounts() {
+    ContentStats contentStats = mock(ContentStats.class);
+    for (Types.NestedField column : TABLE_SCHEMA.columns()) {
+      doReturn(mock(FieldStats.class)).when(contentStats).statsFor(column.fieldId());
+    }
+
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+    when(file.contentStats()).thenReturn(contentStats);
+
+    LeafTrackedFileWrapper wrapper =
+        new LeafTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, STATS_TYPE);
+    StructLike row = wrapper.wrap(file, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build());
+
+    Schema fileSchema = TrackedFile.schema(UNPARTITIONED_TYPE, STATS_TYPE);
+    for (Types.NestedField column : TABLE_SCHEMA.columns()) {
+      int baseId = StatsUtil.toBaseId(column.fieldId());
+      assertThat(get(row, fileSchema, baseId + StatsUtil.VALUE_COUNT_OFFSET)).isNull();
+      assertThat(get(row, fileSchema, baseId + StatsUtil.NULL_VALUE_COUNT_OFFSET)).isNull();
+      if (column.type().typeId() == Type.TypeID.STRING) {
+        assertThat(get(row, fileSchema, baseId + StatsUtil.TOTAL_BYTES_OFFSET)).isNull();
+      }
+
+      if (column.type().typeId() == Type.TypeID.FLOAT) {
+        assertThat(get(row, fileSchema, baseId + StatsUtil.NAN_VALUE_COUNT_OFFSET)).isNull();
+      }
+    }
+  }
+
+  @Test
+  void rootWritesCommitMinSequenceNumberForNewManifest() {
+    ManifestInfo info = mock(ManifestInfo.class);
+    when(info.minSequenceNumber()).thenReturn(ManifestWriter.UNASSIGNED_SEQ);
+    TrackedFile manifest = mock(TrackedFile.class);
+    when(manifest.contentType()).thenReturn(FileContent.DATA_MANIFEST);
+    when(manifest.location()).thenReturn(MANIFEST_LOCATION);
+    when(manifest.manifestInfo()).thenReturn(info);
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+    StructLike row =
+        wrapper.wrap(manifest, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build(), FIRST_ROW_ID);
+
+    assertThat(get(row, TRACKED_FILE_SCHEMA, ManifestInfo.MIN_SEQUENCE_NUMBER))
+        .isEqualTo(COMMIT_SEQ);
+  }
+
+  @Test
+  void leafWritesNullInheritedFieldsForAddedFile() {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+
+    LeafTrackedFileWrapper wrapper =
+        new LeafTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+    StructLike row = wrapper.wrap(file, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build());
+
+    assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.SEQUENCE_NUMBER)).isNull();
+    assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.FILE_SEQUENCE_NUMBER)).isNull();
+    assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.FIRST_ROW_ID)).isNull();
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = FileContent.class,
+      names = {"DATA", "DATA_MANIFEST"})
+  void rootWritesCommitValuesForAddedFile(FileContent content) {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(content);
+    when(file.location()).thenReturn(DATA_LOCATION);
+    if (content == FileContent.DATA_MANIFEST) {
+      when(file.manifestInfo()).thenReturn(mock(ManifestInfo.class));
+    }
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+    StructLike row =
+        wrapper.wrap(file, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build(), FIRST_ROW_ID);
+
+    assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.SEQUENCE_NUMBER)).isEqualTo(COMMIT_SEQ);
+    assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.FILE_SEQUENCE_NUMBER)).isEqualTo(COMMIT_SEQ);
+    assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.FIRST_ROW_ID)).isEqualTo(FIRST_ROW_ID);
+  }
+
+  @Test
+  void leafWritesNullDataSequenceNumberForFileModifiedInCommit() {
+    Tracking source = mock(Tracking.class);
+    when(source.status()).thenReturn(EntryStatus.EXISTING);
+    when(source.dataSequenceNumber()).thenReturn(PREVIOUS_DATA_SEQ);
+    when(source.fileSequenceNumber()).thenReturn(PREVIOUS_FILE_SEQ);
+
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+    when(file.tracking()).thenReturn(source);
+
     Tracking tracking =
-        TrackingBuilder.from(EXISTING_TRACKING, COMMIT_SNAPSHOT_ID).columnFilesUpdated().build();
-    TrackedFile file =
-        dataFileWithColumnFiles(
-            tracking,
-            "s3://bucket/table/file.parquet",
-            ImmutableList.of(
-                columnFile("s3://bucket/table/file-cols.parquet", ImmutableSet.of(2))));
+        TrackingBuilder.from(file.tracking(), COMMIT_SNAPSHOT_ID).columnFilesUpdated().build();
 
     LeafTrackedFileWrapper wrapper =
         new LeafTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    TrackedFile actual = writeAndRead(Types.StructType.of(), wrapper.wrap(file, file.tracking()));
+            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+    StructLike row = wrapper.wrap(file, tracking);
 
-    assertThat(actual.tracking().dataSequenceNumber()).isNull();
+    assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.SEQUENCE_NUMBER)).isNull();
+    assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.FILE_SEQUENCE_NUMBER))
+        .isEqualTo(PREVIOUS_FILE_SEQ);
+  }
+
+  @Test
+  void rootWritesCommitDataSequenceNumberForFileModifiedInCommit() {
+    Tracking source = mock(Tracking.class);
+    when(source.status()).thenReturn(EntryStatus.EXISTING);
+    when(source.dataSequenceNumber()).thenReturn(PREVIOUS_DATA_SEQ);
+    when(source.fileSequenceNumber()).thenReturn(PREVIOUS_FILE_SEQ);
+
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+    when(file.tracking()).thenReturn(source);
+
+    Tracking tracking =
+        TrackingBuilder.from(file.tracking(), COMMIT_SNAPSHOT_ID).columnFilesUpdated().build();
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+    StructLike row = wrapper.wrap(file, tracking, null /* assignedFirstRowId */);
+
+    assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.SEQUENCE_NUMBER)).isEqualTo(COMMIT_SEQ);
+    assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.FILE_SEQUENCE_NUMBER))
+        .isEqualTo(PREVIOUS_FILE_SEQ);
   }
 
   @Test
   void leafRejectsPartitionTypeMissingSpecField() {
     Map<Integer, PartitionSpec> specs =
         ImmutableMap.of(ID_SPEC.specId(), ID_SPEC, DATA_SPEC.specId(), DATA_SPEC);
-    int dataFieldId = DATA_SPEC.fields().get(0).fieldId();
 
     assertThatThrownBy(
             () ->
                 new LeafTrackedFileWrapper(
-                    COMMIT_SNAPSHOT_ID,
-                    specs,
-                    ID_SPEC.partitionType(),
-                    Types.StructType.of() /* contentStatsType */))
+                    COMMIT_SNAPSHOT_ID, specs, ID_SPEC.partitionType(), NO_STATS_TYPE))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Invalid union partition type, missing field %s from spec %s: %s",
-            dataFieldId, DATA_SPEC.specId(), ID_SPEC.partitionType());
-  }
-
-  @Test
-  void leafRejectsUnknownSpecId() {
-    TrackedFile file =
-        dataFile("s3://bucket/table/id=1/file.parquet", ID_SPEC.specId(), partition(ID_SPEC, 1));
-
-    LeafTrackedFileWrapper wrapper =
-        new LeafTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    assertThatThrownBy(() -> wrapper.wrap(file, ADDED_TRACKING))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot find partition spec for spec ID: %s", ID_SPEC.specId());
-  }
-
-  @Test
-  void leafRejectsUnassignedDataSequenceNumberForExistingFile() {
-    Tracking tracking =
-        new TrackingStruct(
-            EntryStatus.EXISTING,
-            COMMIT_SNAPSHOT_ID,
-            null /* dataSequenceNumber */,
-            null /* fileSequenceNumber */,
-            null /* modifiedSnapshotId */,
-            null /* firstRowId */,
-            null /* deletedPositions */,
-            null /* replacedPositions */);
-    TrackedFile file = dataFile(tracking, "s3://bucket/table/file.parquet");
-
-    LeafTrackedFileWrapper wrapper =
-        new LeafTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    assertThatThrownBy(() -> wrapper.wrap(file, file.tracking()))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Cannot write null data sequence number for status %s (must be ADDED or MODIFIED): %s",
-            EntryStatus.EXISTING, file.location());
-  }
-
-  @Test
-  void leafRejectsUnassignedFileSequenceNumberForModifiedFile() {
-    Tracking tracking =
-        new TrackingStruct(
-            EntryStatus.MODIFIED,
-            PREVIOUS_SNAPSHOT_ID,
-            null /* dataSequenceNumber */,
-            null /* fileSequenceNumber */,
-            COMMIT_SNAPSHOT_ID /* modifiedSnapshotId */,
-            PREVIOUS_FIRST_ROW_ID,
-            null /* deletedPositions */,
-            null /* replacedPositions */);
-    TrackedFile file = dataFile(tracking, "s3://bucket/table/file.parquet");
-
-    LeafTrackedFileWrapper wrapper =
-        new LeafTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    assertThatThrownBy(() -> wrapper.wrap(file, file.tracking()))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Cannot write null file sequence number for status %s (must be ADDED): %s",
-            EntryStatus.MODIFIED, file.location());
+            DATA_PARTITION_FIELD_ID, DATA_SPEC.specId(), ID_SPEC.partitionType());
   }
 
   @ParameterizedTest
@@ -395,259 +304,38 @@ class TestV4TrackedFileWrappers {
       value = FileContent.class,
       names = {"DATA_MANIFEST", "DELETE_MANIFEST"})
   void leafRejectsManifest(FileContent content) {
-    TrackedFile manifest =
-        manifestRef(content, "s3://bucket/table/manifest.parquet", MANIFEST_INFO);
+    TrackedFile manifest = mock(TrackedFile.class);
+    when(manifest.contentType()).thenReturn(content);
+    when(manifest.location()).thenReturn(MANIFEST_LOCATION);
+    when(manifest.manifestInfo()).thenReturn(mock(ManifestInfo.class));
 
     LeafTrackedFileWrapper wrapper =
         new LeafTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    assertThatThrownBy(() -> wrapper.wrap(manifest, manifest.tracking()))
+            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(
+            () -> wrapper.wrap(manifest, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid content type for leaf manifest: %s", content);
   }
 
-  @Test
-  void rootWritesDataFile() throws IOException {
-    DataFile dataFile =
-        DataFiles.builder(ID_SPEC)
-            .withPath("s3://bucket/table/id=1/file.parquet")
-            .withPartition(partition(ID_SPEC, 1))
-            .withFileSizeInBytes(1024L)
-            .withRecordCount(100L)
-            .build();
-    TrackedFile file = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(dataFile);
-    TrackedFile expected =
-        copyWithTracking(
-            file,
-            new TrackingStruct(
-                EntryStatus.ADDED,
-                COMMIT_SNAPSHOT_ID,
-                COMMIT_SEQUENCE_NUMBER,
-                COMMIT_SEQUENCE_NUMBER,
-                null /* modifiedSnapshotId */,
-                FIRST_ROW_ID,
-                null /* deletedPositions */,
-                null /* replacedPositions */));
-
-    RootTrackedFileWrapper wrapper =
-        new RootTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            COMMIT_SEQUENCE_NUMBER,
-            ID_SPECS,
-            ID_SPEC.partitionType(),
-            Types.StructType.of() /* contentStatsType */);
-    TrackedFile actual =
-        writeAndRead(ID_SPEC.partitionType(), wrapper.wrap(file, ADDED_TRACKING, FIRST_ROW_ID));
-
-    assertThat(actual)
-        .usingComparator(V4TestComparators.trackedFile(ID_SPEC.partitionType()))
-        .isEqualTo(expected);
-  }
-
-  @Test
-  void rootAssignsCommitDataSequenceNumberToModifiedDataFile() throws IOException {
-    Tracking tracking =
-        TrackingBuilder.from(EXISTING_TRACKING, COMMIT_SNAPSHOT_ID).columnFilesUpdated().build();
-    TrackedFile file =
-        dataFileWithColumnFiles(
-            tracking,
-            "s3://bucket/table/file.parquet",
-            ImmutableList.of(
-                columnFile("s3://bucket/table/file-cols.parquet", ImmutableSet.of(2))));
-
-    RootTrackedFileWrapper wrapper =
-        new RootTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            COMMIT_SEQUENCE_NUMBER,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    TrackedFile actual =
-        writeAndRead(
-            Types.StructType.of(),
-            wrapper.wrap(file, file.tracking(), null /* assignedFirstRowId */));
-
-    assertThat(actual.tracking().dataSequenceNumber()).isEqualTo(COMMIT_SEQUENCE_NUMBER);
-    assertThat(actual.tracking().fileSequenceNumber()).isEqualTo(PREVIOUS_SEQUENCE_NUMBER);
-  }
-
-  @Test
-  void rootWritesManifest() throws IOException {
-    TrackedFile manifest =
-        manifestRef(FileContent.DATA_MANIFEST, "s3://bucket/table/leaf.parquet", MANIFEST_INFO);
-    Tracking tracking =
-        new TrackingStruct(
-            EntryStatus.MODIFIED,
-            PREVIOUS_SNAPSHOT_ID,
-            PREVIOUS_SEQUENCE_NUMBER,
-            PREVIOUS_SEQUENCE_NUMBER,
-            COMMIT_SNAPSHOT_ID /* modifiedSnapshotId */,
-            PREVIOUS_FIRST_ROW_ID,
-            new byte[] {1} /* deletedPositions */,
-            new byte[] {2} /* replacedPositions */);
-    TrackedFile expected = copyWithTracking(manifest, tracking);
-
-    RootTrackedFileWrapper wrapper =
-        new RootTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            COMMIT_SEQUENCE_NUMBER,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    TrackedFile actual =
-        writeAndRead(
-            Types.StructType.of(), wrapper.wrap(manifest, tracking, null /* assignedFirstRowId */));
-
-    assertThat(actual)
-        .usingComparator(V4TestComparators.trackedFile(Types.StructType.of()))
-        .isEqualTo(expected);
-  }
-
-  @Test
-  void rootAssignsCommitSequenceNumberToNewManifest() throws IOException {
-    TrackedFile file = newManifest(TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build());
-
-    RootTrackedFileWrapper wrapper =
-        new RootTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            COMMIT_SEQUENCE_NUMBER,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    TrackedFile actual =
-        writeAndRead(Types.StructType.of(), wrapper.wrap(file, file.tracking(), FIRST_ROW_ID));
-
-    assertThat(actual.tracking().dataSequenceNumber()).isEqualTo(COMMIT_SEQUENCE_NUMBER);
-    assertThat(actual.tracking().fileSequenceNumber()).isEqualTo(COMMIT_SEQUENCE_NUMBER);
-    assertThat(actual.manifestInfo().minSequenceNumber()).isEqualTo(COMMIT_SEQUENCE_NUMBER);
-  }
-
-  @Test
-  void rootReturnsNullFirstRowIdForDeleteManifest() throws IOException {
-    TrackedFile manifest =
-        manifestRef(FileContent.DELETE_MANIFEST, "s3://bucket/table/deletes.avro", MANIFEST_INFO);
-    Tracking tracking =
-        new TrackingStruct(
-            EntryStatus.EXISTING,
-            PREVIOUS_SNAPSHOT_ID,
-            PREVIOUS_SEQUENCE_NUMBER,
-            PREVIOUS_SEQUENCE_NUMBER,
-            null /* modifiedSnapshotId */,
-            PREVIOUS_FIRST_ROW_ID /* invalid for delete manifests */,
-            null /* deletedPositions */,
-            null /* replacedPositions */);
-
-    RootTrackedFileWrapper wrapper =
-        new RootTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            COMMIT_SEQUENCE_NUMBER,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    TrackedFile actual =
-        writeAndRead(
-            Types.StructType.of(), wrapper.wrap(manifest, tracking, null /* assignedFirstRowId */));
-
-    // a stray first-row-id on a delete manifest is dropped rather than rejected, matching v3
-    assertThat(actual.tracking().firstRowId()).isNull();
-  }
-
-  @Test
-  void rootRejectsNullSnapshotIdForDataFile() {
-    Tracking tracking =
-        new TrackingStruct(
-            EntryStatus.ADDED,
-            null /* snapshotId */,
-            null /* dataSequenceNumber */,
-            null /* fileSequenceNumber */,
-            null /* modifiedSnapshotId */,
-            null /* firstRowId */,
-            null /* deletedPositions */,
-            null /* replacedPositions */);
-    TrackedFile file = dataFile(tracking, "s3://bucket/table/file.parquet");
-
-    RootTrackedFileWrapper wrapper =
-        new RootTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            COMMIT_SEQUENCE_NUMBER,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    assertThatThrownBy(() -> wrapper.wrap(file, file.tracking(), FIRST_ROW_ID))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Missing snapshot ID for file: %s", file.location());
-  }
-
-  @Test
-  void rootRejectsUnassignedSequenceNumberForManifestFromAnotherSnapshot() {
-    TrackedFile file = newManifest(TrackingBuilder.added(PREVIOUS_SNAPSHOT_ID).build());
-
-    RootTrackedFileWrapper wrapper =
-        new RootTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            COMMIT_SEQUENCE_NUMBER,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    assertThatThrownBy(() -> wrapper.wrap(file, file.tracking(), FIRST_ROW_ID))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Cannot assign sequence number to file from snapshot %s (committing snapshot %s): %s",
-            PREVIOUS_SNAPSHOT_ID, COMMIT_SNAPSHOT_ID, file.location());
-  }
-
-  @Test
-  void rootRejectsUnassignedFirstRowIdForDataFile() {
-    TrackedFile file = dataFile(ADDED_TRACKING, "s3://bucket/table/file.parquet");
-
-    RootTrackedFileWrapper wrapper =
-        new RootTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            COMMIT_SEQUENCE_NUMBER,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    assertThatThrownBy(() -> wrapper.wrap(file, file.tracking(), null /* assignedFirstRowId */))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Missing first-row-id assignment for ADDED file: %s", file.location());
-  }
-
   @ParameterizedTest
-  @EnumSource(value = EntryStatus.class, mode = EnumSource.Mode.EXCLUDE, names = "ADDED")
-  void rootRejectsFirstRowIdAssignmentForNonAddedDataFile(EntryStatus status) {
-    TrackedFile file =
-        dataFile(previousTracking(status, PREVIOUS_FIRST_ROW_ID), "s3://bucket/table/file.parquet");
+  @EnumSource(
+      value = FileContent.class,
+      names = {"POSITION_DELETES", "EQUALITY_DELETES"})
+  void leafRejectsDeleteFile(FileContent content) {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(content);
+    when(file.location()).thenReturn(DATA_LOCATION);
+    Tracking tracking = TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build();
 
-    RootTrackedFileWrapper wrapper =
-        new RootTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            COMMIT_SEQUENCE_NUMBER,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    assertThatThrownBy(() -> wrapper.wrap(file, file.tracking(), FIRST_ROW_ID))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot assign first-row-id to %s file: %s", status, file.location());
-  }
+    LeafTrackedFileWrapper wrapper =
+        new LeafTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
 
-  @Test
-  void rootRejectsFirstRowIdAssignmentForDeleteManifest() {
-    TrackedFile manifest =
-        manifestRef(FileContent.DELETE_MANIFEST, "s3://bucket/table/deletes.avro", MANIFEST_INFO);
-
-    RootTrackedFileWrapper wrapper =
-        new RootTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            COMMIT_SEQUENCE_NUMBER,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    assertThatThrownBy(() -> wrapper.wrap(manifest, manifest.tracking(), FIRST_ROW_ID))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot assign first-row-id to delete manifest: %s", manifest.location());
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot write %s to a v4 manifest: %s", content, file.location());
   }
 
   @ParameterizedTest
@@ -657,100 +345,431 @@ class TestV4TrackedFileWrappers {
   void rootRejectsDeleteFile(FileContent content) {
     TrackedFile file = mock(TrackedFile.class);
     when(file.contentType()).thenReturn(content);
-    when(file.location()).thenReturn("s3://bucket/table/deletes.parquet");
+    when(file.location()).thenReturn(DATA_LOCATION);
+    Tracking tracking = TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build();
 
     RootTrackedFileWrapper wrapper =
         new RootTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            COMMIT_SEQUENCE_NUMBER,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    assertThatThrownBy(() -> wrapper.wrap(file, ADDED_TRACKING, null /* assignedFirstRowId */))
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking, null /* assignedFirstRowId */))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot write %s to a v4 manifest: %s", content, file.location());
   }
 
   @Test
-  void rootRejectsManifestWithoutManifestInfo() {
-    TrackedFile manifest =
-        manifestRef(FileContent.DATA_MANIFEST, "s3://bucket/table/leaf.parquet", null);
+  void leafRejectsDataFileWithManifestInfo() {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+    when(file.manifestInfo()).thenReturn(mock(ManifestInfo.class));
+    Tracking tracking = TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build();
 
-    RootTrackedFileWrapper wrapper =
-        new RootTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            COMMIT_SEQUENCE_NUMBER,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    assertThatThrownBy(() -> wrapper.wrap(manifest, manifest.tracking(), FIRST_ROW_ID))
+    LeafTrackedFileWrapper wrapper =
+        new LeafTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid manifest, missing manifest info: %s", manifest.location());
+        .hasMessage("Invalid data file, manifest info must be null: %s", file.location());
   }
 
   @Test
   void rootRejectsDataFileWithManifestInfo() {
     TrackedFile file = mock(TrackedFile.class);
     when(file.contentType()).thenReturn(FileContent.DATA);
-    when(file.location()).thenReturn("s3://bucket/table/file.parquet");
+    when(file.location()).thenReturn(DATA_LOCATION);
     when(file.manifestInfo()).thenReturn(mock(ManifestInfo.class));
+    Tracking tracking = TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build();
 
     RootTrackedFileWrapper wrapper =
         new RootTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID,
-            COMMIT_SEQUENCE_NUMBER,
-            UNPARTITIONED_SPECS,
-            Types.StructType.of() /* partitionType */,
-            Types.StructType.of() /* contentStatsType */);
-    assertThatThrownBy(() -> wrapper.wrap(file, ADDED_TRACKING, FIRST_ROW_ID))
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking, null /* assignedFirstRowId */))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid data file, manifest info must be null: %s", file.location());
   }
 
-  private static Tracking previousTracking(EntryStatus status, Long firstRowId) {
-    return new TrackingStruct(
-        status,
-        PREVIOUS_SNAPSHOT_ID,
-        PREVIOUS_SEQUENCE_NUMBER,
-        PREVIOUS_SEQUENCE_NUMBER,
-        status == EntryStatus.MODIFIED ? COMMIT_SNAPSHOT_ID : null /* modifiedSnapshotId */,
-        firstRowId,
-        null /* deletedPositions */,
-        null /* replacedPositions */);
+  @ParameterizedTest
+  @EnumSource(
+      value = FileContent.class,
+      names = {"DATA_MANIFEST", "DELETE_MANIFEST"})
+  void rootRejectsManifestWithoutManifestInfo(FileContent content) {
+    TrackedFile manifest = mock(TrackedFile.class);
+    when(manifest.contentType()).thenReturn(content);
+    when(manifest.location()).thenReturn(MANIFEST_LOCATION);
+    when(manifest.manifestInfo()).thenReturn(null);
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(
+            () ->
+                wrapper.wrap(
+                    manifest, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build(), FIRST_ROW_ID))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid manifest, missing manifest info: %s", manifest.location());
   }
 
-  private static TrackedFile newManifest(Tracking tracking) {
-    ManifestInfo info =
-        new ManifestInfoStruct(
-            1 /* addedFilesCount */,
-            0 /* existingFilesCount */,
-            0 /* deletedFilesCount */,
-            0 /* replacedFilesCount */,
-            0 /* modifiedFilesCount */,
-            100L /* addedRowsCount */,
-            0L /* existingRowsCount */,
-            0L /* deletedRowsCount */,
-            0L /* replacedRowsCount */,
-            0L /* modifiedRowsCount */,
-            ManifestWriter.UNASSIGNED_SEQ /* minSequenceNumber */,
-            null /* dv */,
-            4 /* formatVersion */);
-    return copyWithTracking(
-        manifestRef(FileContent.DATA_MANIFEST, "s3://bucket/table/manifest.parquet", info),
-        tracking);
+  @ParameterizedTest
+  @EnumSource(
+      value = FileContent.class,
+      names = {"DATA_MANIFEST", "DELETE_MANIFEST"})
+  void rootRejectsManifestWithDeletionVector(FileContent content) {
+    TrackedFile manifest = mock(TrackedFile.class);
+    when(manifest.contentType()).thenReturn(content);
+    when(manifest.location()).thenReturn(MANIFEST_LOCATION);
+    when(manifest.manifestInfo()).thenReturn(mock(ManifestInfo.class));
+    when(manifest.deletionVector()).thenReturn(mock(DeletionVector.class));
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(
+            () ->
+                wrapper.wrap(
+                    manifest, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build(), FIRST_ROW_ID))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid manifest, deletion vector must be null: %s", manifest.location());
   }
 
-  private TrackedFile writeAndRead(Types.StructType partitionType, StructLike row)
-      throws IOException {
-    return writeAndRead(partitionType, Types.StructType.of(), row);
+  @Test
+  void leafRejectsUnknownSpecId() {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+    when(file.specId()).thenReturn(ID_SPEC.specId());
+    Tracking tracking = TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build();
+
+    LeafTrackedFileWrapper wrapper =
+        new LeafTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find partition spec for spec ID: %s", ID_SPEC.specId());
   }
 
-  private TrackedFile writeAndRead(
-      Types.StructType partitionType, Types.StructType statsType, StructLike row)
-      throws IOException {
-    OutputFile out =
-        writeRows(io, FileFormat.PARQUET, partitionType, statsType, ImmutableList.of(row));
-    return Iterables.getOnlyElement(
-        readTrackedFiles(out.toInputFile(), FileFormat.PARQUET, partitionType, statsType));
+  @Test
+  void rootRejectsUnknownSpecId() {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+    when(file.specId()).thenReturn(ID_SPEC.specId());
+    Tracking tracking = TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build();
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking, null /* assignedFirstRowId */))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find partition spec for spec ID: %s", ID_SPEC.specId());
+  }
+
+  @Test
+  void rootRejectsMissingSnapshotId() {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+
+    Tracking tracking = mock(Tracking.class);
+    when(tracking.status()).thenReturn(EntryStatus.ADDED);
+    when(tracking.snapshotId()).thenReturn(null);
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking, FIRST_ROW_ID))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing snapshot ID for file: %s", file.location());
+  }
+
+  @Test
+  void leafRejectsFirstRowIdForAddedFile() {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+
+    Tracking tracking = mock(Tracking.class);
+    when(tracking.status()).thenReturn(EntryStatus.ADDED);
+    when(tracking.firstRowId()).thenReturn(PREVIOUS_FIRST_ROW_ID);
+
+    LeafTrackedFileWrapper wrapper =
+        new LeafTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid first-row-id for ADDED file (must be null): %s", file.location());
+  }
+
+  @Test
+  void rootRejectsFirstRowIdForAddedFile() {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+
+    Tracking tracking = mock(Tracking.class);
+    when(tracking.status()).thenReturn(EntryStatus.ADDED);
+    when(tracking.firstRowId()).thenReturn(PREVIOUS_FIRST_ROW_ID);
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking, null /* assignedFirstRowId */))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid first-row-id for ADDED file (must be null): %s", file.location());
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = EntryStatus.class, mode = EnumSource.Mode.EXCLUDE, names = "ADDED")
+  void leafRejectsMissingFirstRowIdForNonAddedFile(EntryStatus status) {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+
+    Tracking tracking = mock(Tracking.class);
+    when(tracking.status()).thenReturn(status);
+    when(tracking.firstRowId()).thenReturn(null);
+
+    LeafTrackedFileWrapper wrapper =
+        new LeafTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Missing first-row-id for %s file: %s", status, file.location());
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = EntryStatus.class, mode = EnumSource.Mode.EXCLUDE, names = "ADDED")
+  void rootRejectsMissingFirstRowIdForNonAddedFile(EntryStatus status) {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+
+    Tracking tracking = mock(Tracking.class);
+    when(tracking.status()).thenReturn(status);
+    when(tracking.firstRowId()).thenReturn(null);
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking, null /* assignedFirstRowId */))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Missing first-row-id for %s file: %s", status, file.location());
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = FileContent.class,
+      names = {"DATA", "DATA_MANIFEST"})
+  void rootRejectsMissingFirstRowIdAssignmentForAddedFile(FileContent content) {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(content);
+    when(file.location()).thenReturn(DATA_LOCATION);
+    if (content == FileContent.DATA_MANIFEST) {
+      when(file.manifestInfo()).thenReturn(mock(ManifestInfo.class));
+    }
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(
+            () ->
+                wrapper.wrap(
+                    file,
+                    TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build(),
+                    null /* assignedFirstRowId */))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Missing first-row-id assignment for ADDED file: %s", file.location());
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = EntryStatus.class, mode = EnumSource.Mode.EXCLUDE, names = "ADDED")
+  void rootRejectsFirstRowIdAssignmentForNonAddedFile(EntryStatus status) {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+
+    Tracking tracking = mock(Tracking.class);
+    when(tracking.status()).thenReturn(status);
+    when(tracking.firstRowId()).thenReturn(PREVIOUS_FIRST_ROW_ID);
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking, FIRST_ROW_ID))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot assign first-row-id to %s file: %s", status, file.location());
+  }
+
+  @Test
+  void rootRejectsFirstRowIdAssignmentForDeleteManifest() {
+    TrackedFile manifest = mock(TrackedFile.class);
+    when(manifest.contentType()).thenReturn(FileContent.DELETE_MANIFEST);
+    when(manifest.location()).thenReturn(MANIFEST_LOCATION);
+    when(manifest.manifestInfo()).thenReturn(mock(ManifestInfo.class));
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(
+            () ->
+                wrapper.wrap(
+                    manifest, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build(), FIRST_ROW_ID))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot assign first-row-id to delete manifest: %s", manifest.location());
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = EntryStatus.class,
+      names = {"EXISTING", "DELETED", "REPLACED"})
+  void leafRejectsNullDataSequenceNumberForStatus(EntryStatus status) {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+
+    Tracking tracking = mock(Tracking.class);
+    when(tracking.status()).thenReturn(status);
+    when(tracking.dataSequenceNumber()).thenReturn(null);
+
+    LeafTrackedFileWrapper wrapper =
+        new LeafTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot write null data sequence number for status %s (must be ADDED or MODIFIED): %s",
+            status, file.location());
+  }
+
+  @Test
+  void leafRejectsNullDataSequenceNumberForFileAddedInAnotherSnapshot() {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+
+    Tracking tracking = mock(Tracking.class);
+    when(tracking.status()).thenReturn(EntryStatus.ADDED);
+    when(tracking.snapshotId()).thenReturn(PREVIOUS_SNAPSHOT_ID);
+    when(tracking.dataSequenceNumber()).thenReturn(null);
+
+    LeafTrackedFileWrapper wrapper =
+        new LeafTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot assign sequence number to file from snapshot %s (committing snapshot %s): %s",
+            PREVIOUS_SNAPSHOT_ID, COMMIT_SNAPSHOT_ID, file.location());
+  }
+
+  @Test
+  void leafRejectsNullDataSequenceNumberForFileModifiedInAnotherSnapshot() {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+
+    Tracking tracking = mock(Tracking.class);
+    when(tracking.status()).thenReturn(EntryStatus.MODIFIED);
+    when(tracking.modifiedSnapshotId()).thenReturn(PREVIOUS_MODIFIED_SNAPSHOT_ID);
+    when(tracking.dataSequenceNumber()).thenReturn(null);
+
+    LeafTrackedFileWrapper wrapper =
+        new LeafTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot assign sequence number to file from snapshot %s (committing snapshot %s): %s",
+            PREVIOUS_MODIFIED_SNAPSHOT_ID, COMMIT_SNAPSHOT_ID, file.location());
+  }
+
+  @Test
+  void leafAcceptsAddedFileWithoutCommitSnapshotId() {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+
+    Tracking tracking = mock(Tracking.class);
+    when(tracking.status()).thenReturn(EntryStatus.ADDED);
+    when(tracking.snapshotId()).thenReturn(null);
+    when(tracking.dataSequenceNumber()).thenReturn(null);
+    when(tracking.fileSequenceNumber()).thenReturn(null);
+    when(tracking.firstRowId()).thenReturn(null);
+
+    LeafTrackedFileWrapper wrapper =
+        new LeafTrackedFileWrapper(
+            null /* snapshotId */, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+    StructLike row = wrapper.wrap(file, tracking);
+
+    assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.SNAPSHOT_ID)).isNull();
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = EntryStatus.class, mode = EnumSource.Mode.EXCLUDE, names = "ADDED")
+  void leafRejectsNullFileSequenceNumberForStatus(EntryStatus status) {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+
+    Tracking tracking = mock(Tracking.class);
+    when(tracking.status()).thenReturn(status);
+    when(tracking.fileSequenceNumber()).thenReturn(null);
+
+    LeafTrackedFileWrapper wrapper =
+        new LeafTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot write null file sequence number for status %s (must be ADDED): %s",
+            status, file.location());
+  }
+
+  @Test
+  void leafRejectsNullFileSequenceNumberForFileAddedInAnotherSnapshot() {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+
+    Tracking tracking = mock(Tracking.class);
+    when(tracking.status()).thenReturn(EntryStatus.ADDED);
+    when(tracking.snapshotId()).thenReturn(PREVIOUS_SNAPSHOT_ID);
+    when(tracking.fileSequenceNumber()).thenReturn(null);
+
+    LeafTrackedFileWrapper wrapper =
+        new LeafTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot assign sequence number to file from snapshot %s (committing snapshot %s): %s",
+            PREVIOUS_SNAPSHOT_ID, COMMIT_SNAPSHOT_ID, file.location());
+  }
+
+  private static Object get(StructLike row, Schema schema, Types.NestedField field) {
+    return get(row, schema, field.fieldId());
+  }
+
+  private static Object get(StructLike row, Schema schema, int fieldId) {
+    return schema.accessorForField(fieldId).get(row);
   }
 }

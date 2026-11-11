@@ -22,13 +22,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Set;
-import org.apache.iceberg.geospatial.GeospatialBound;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 
 /** Factories for building V4 {@link TrackedFile}s and manifests in tests. */
@@ -56,16 +52,6 @@ class V4TestHelpers {
       ContentStats stats,
       DeletionVector dv) {
     return dataFile(ADDED_TRACKING, location, specId, partition, stats, dv, null);
-  }
-
-  static TrackedFile dataFile(
-      String location,
-      Integer specId,
-      PartitionData partition,
-      ContentStats stats,
-      DeletionVector dv,
-      List<ColumnFile> columnFiles) {
-    return dataFile(ADDED_TRACKING, location, specId, partition, stats, dv, columnFiles);
   }
 
   static TrackedFile dataFileWithStats(String location, ContentStats stats) {
@@ -138,26 +124,6 @@ class V4TestHelpers {
         null, // dv
         manifestInfo,
         columnFiles);
-  }
-
-  static TrackedFile copyWithTracking(TrackedFile file, Tracking tracking) {
-    return new TrackedFileStruct(
-        tracking,
-        file.contentType(),
-        file.location(),
-        file.fileFormat(),
-        file.recordCount(),
-        file.fileSizeInBytes(),
-        file.specId(),
-        file.partition(),
-        file.contentStats(),
-        file.tightStats(),
-        file.sortOrderId(),
-        file.deletionVector(),
-        file.manifestInfo(),
-        file.keyMetadata(),
-        file.splitOffsets(),
-        file.columnFiles());
   }
 
   private static TrackedFile trackedFile(
@@ -239,74 +205,14 @@ class V4TestHelpers {
       Types.StructType statsType,
       Iterable<TrackedFile> files)
       throws IOException {
-    try (FileAppender<StructLike> appender = newAppender(out, format, partitionType, statsType)) {
+    Schema writeSchema = TrackedFile.schema(partitionType, statsType);
+    try (FileAppender<StructLike> appender =
+        InternalData.write(format, out).schema(writeSchema).named("tracked_file").build()) {
       for (TrackedFile file : files) {
         appender.add((StructLike) file);
       }
     }
 
     return out;
-  }
-
-  static OutputFile writeRows(
-      FileIO io,
-      FileFormat format,
-      Types.StructType partitionType,
-      Types.StructType statsType,
-      Iterable<StructLike> rows)
-      throws IOException {
-    OutputFile out = io.newOutputFile(format.addExtension("manifest." + System.nanoTime()));
-    try (FileAppender<StructLike> appender = newAppender(out, format, partitionType, statsType)) {
-      appender.addAll(rows);
-    }
-
-    return out;
-  }
-
-  private static FileAppender<StructLike> newAppender(
-      OutputFile out, FileFormat format, Types.StructType partitionType, Types.StructType statsType)
-      throws IOException {
-    Schema writeSchema = TrackedFile.schema(partitionType, statsType);
-    return InternalData.write(format, out).schema(writeSchema).named("tracked_file").build();
-  }
-
-  static List<TrackedFile> readTrackedFiles(
-      InputFile in, FileFormat format, Types.StructType partitionType, Types.StructType statsType)
-      throws IOException {
-    InternalData.ReadBuilder readBuilder =
-        InternalData.read(format, in)
-            .project(TrackedFile.readSchema(partitionType, statsType))
-            .setRootType(TrackedFileStruct.class)
-            .setCustomType(TrackedFile.TRACKING.fieldId(), TrackingStruct.class)
-            .setCustomType(TrackedFile.DELETION_VECTOR.fieldId(), DeletionVectorStruct.class)
-            .setCustomType(TrackedFile.MANIFEST_INFO.fieldId(), ManifestInfoStruct.class)
-            .setCustomType(
-                TrackedFile.COLUMN_FILES.type().asListType().elementId(), ColumnFileStruct.class);
-    if (!partitionType.fields().isEmpty()) {
-      readBuilder.setCustomType(TrackedFile.PARTITION_ID, PartitionData.class);
-    }
-
-    if (!statsType.fields().isEmpty()) {
-      readBuilder.setCustomType(TrackedFile.CONTENT_STATS_ID, ContentStatsStruct.class);
-      for (Types.NestedField fieldStats : statsType.fields()) {
-        readBuilder.setCustomType(fieldStats.fieldId(), FieldStatsStruct.class);
-        Types.StructType fieldStatsType = fieldStats.type().asStructType();
-        Types.NestedField lowerBound = fieldStatsType.field(StatsUtil.LOWER_BOUND_NAME);
-        Types.NestedField upperBound = fieldStatsType.field(StatsUtil.UPPER_BOUND_NAME);
-        if (lowerBound != null && lowerBound.type().isStructType()) {
-          readBuilder.setCustomType(lowerBound.fieldId(), GeospatialBound.class);
-          readBuilder.setCustomType(upperBound.fieldId(), GeospatialBound.class);
-        }
-      }
-    }
-
-    List<TrackedFile> files = Lists.newArrayList();
-    try (CloseableIterable<TrackedFile> reader = readBuilder.build()) {
-      for (TrackedFile file : reader) {
-        files.add(file.copy());
-      }
-    }
-
-    return files;
   }
 }
