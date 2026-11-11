@@ -65,9 +65,8 @@ public class BasePositionDeltaWriter<T> implements PositionDeltaWriter<T> {
     updateWriter.write(row, spec, partition);
   }
 
-  @Deprecated
   @Override
-  public void delete(CharSequence path, long pos, T row, PartitionSpec spec, StructLike partition) {
+  public void delete(CharSequence path, long pos, PartitionSpec spec, StructLike partition) {
     positionDelete.set(path, pos);
     deleteWriter.write(positionDelete, spec, partition);
   }

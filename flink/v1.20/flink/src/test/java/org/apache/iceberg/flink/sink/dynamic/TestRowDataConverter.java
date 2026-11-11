@@ -33,6 +33,7 @@ import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
+import org.apache.flink.types.RowKind;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.DataGenerator;
 import org.apache.iceberg.flink.DataGenerators;
@@ -74,6 +75,14 @@ class TestRowDataConverter {
   void testAddColumn() {
     assertThat(convert(SimpleDataUtil.createRowData(1, "a"), SCHEMA, SCHEMA2))
         .isEqualTo(GenericRowData.of(1, StringData.fromString("a"), null));
+  }
+
+  @Test
+  void testPreservesRowKind() {
+    RowData deleteRow = SimpleDataUtil.createRowData(1, "a");
+    deleteRow.setRowKind(RowKind.DELETE);
+
+    assertThat(convert(deleteRow, SCHEMA, SCHEMA2).getRowKind()).isEqualTo(RowKind.DELETE);
   }
 
   @Test
@@ -286,9 +295,16 @@ class TestRowDataConverter {
   }
 
   private static RowData convert(RowData sourceData, Schema sourceSchema, Schema targetSchema) {
+    return convert(sourceData, sourceSchema, targetSchema, true);
+  }
+
+  private static RowData convert(
+      RowData sourceData, Schema sourceSchema, Schema targetSchema, boolean caseSensitive) {
     return (RowData)
         DataConverter.get(
-                FlinkSchemaUtil.convert(sourceSchema), FlinkSchemaUtil.convert(targetSchema))
+                FlinkSchemaUtil.convert(sourceSchema),
+                FlinkSchemaUtil.convert(targetSchema),
+                caseSensitive)
             .convert(sourceData);
   }
 }

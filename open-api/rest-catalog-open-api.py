@@ -1146,9 +1146,6 @@ class UUIDTypeValue(RootModel[UUID]):
         ...,
         description='UUID type values are serialized as a 36-character lowercase string in standard UUID format as specified by RFC-4122',
         examples=['eb26bdb1-a1d8-4aa6-990e-da940875492c'],
-        max_length=36,
-        min_length=36,
-        pattern='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
     )
 
 
@@ -1226,10 +1223,10 @@ class CountMap(BaseModel):
 
 
 class FieldStatistics(BaseModel):
-    avg_value_size_in_bytes: int | None = Field(
+    total_bytes: int | None = Field(
         None,
-        alias='avg-value-size-in-bytes',
-        description='Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption',
+        alias='total-bytes',
+        description='Estimated uncompressed bytes in memory of non-null values. The estimate depends on the in-memory representation',
     )
 
 

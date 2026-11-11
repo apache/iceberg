@@ -118,12 +118,9 @@ public class AzureProperties implements Serializable {
       this.namedKeyCreds = Maps.immutableEntry(sharedKeyAccountName, sharedKeyAccountKey);
     }
 
-    if (properties.containsKey(ADLS_READ_BLOCK_SIZE)) {
-      this.adlsReadBlockSize = Integer.parseInt(properties.get(ADLS_READ_BLOCK_SIZE));
-    }
-    if (properties.containsKey(ADLS_WRITE_BLOCK_SIZE)) {
-      this.adlsWriteBlockSize = Long.parseLong(properties.get(ADLS_WRITE_BLOCK_SIZE));
-    }
+    this.adlsReadBlockSize = PropertyUtil.propertyAsNullableInt(properties, ADLS_READ_BLOCK_SIZE);
+    this.adlsWriteBlockSize =
+        PropertyUtil.propertyAsNullableLong(properties, ADLS_WRITE_BLOCK_SIZE);
     this.adlsRefreshCredentialsEndpoint =
         RESTUtil.resolveEndpoint(
             properties.get(CatalogProperties.URI),

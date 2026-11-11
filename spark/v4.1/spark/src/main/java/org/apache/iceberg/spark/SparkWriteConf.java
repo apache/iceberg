@@ -60,7 +60,6 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.collection.JavaConverters;
 
 /**
  * A class for common Iceberg configs for Spark writes.
@@ -169,8 +168,11 @@ public class SparkWriteConf {
         confParser.intConf().option(SparkWriteOptions.OUTPUT_SORT_ORDER_ID).parseOptional();
 
     if (explicitId != null) {
+      // order id 0 is reserved for unsorted order, which is a valid output for any table
+      // whether or not the table contains a sort order with that id
       Preconditions.checkArgument(
-          table.sortOrders().containsKey(explicitId),
+          explicitId == SortOrder.unsorted().orderId()
+              || table.sortOrders().containsKey(explicitId),
           "Cannot use output sort order id %s because the table does not contain a sort order with that id",
           explicitId);
       return explicitId;
@@ -282,10 +284,7 @@ public class SparkWriteConf {
     Map<String, String> extraSnapshotMetadata = Maps.newHashMap();
 
     // Add session configuration properties with SNAPSHOT_PROPERTY_PREFIX if necessary
-    extraSnapshotMetadata.putAll(
-        PropertyUtil.propertiesWithPrefix(
-            JavaConverters.mapAsJavaMap(sessionConf.getAll()),
-            SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX));
+    extraSnapshotMetadata.putAll(SparkUtil.sessionSnapshotProperties(spark));
 
     // Add write options, overriding session configuration if necessary
     extraSnapshotMetadata.putAll(

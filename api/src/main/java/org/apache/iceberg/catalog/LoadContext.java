@@ -60,6 +60,25 @@ public final class LoadContext {
     return EMPTY;
   }
 
+  @Override
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    }
+
+    if (other == null || getClass() != other.getClass()) {
+      return false;
+    }
+
+    LoadContext that = (LoadContext) other;
+    return referencedBy.equals(that.referencedBy);
+  }
+
+  @Override
+  public int hashCode() {
+    return referencedBy.hashCode();
+  }
+
   public static final class Builder {
     private List<TableIdentifier> referencedBy;
 

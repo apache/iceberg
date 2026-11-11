@@ -32,9 +32,9 @@ import org.apache.iceberg.util.DateTimeUtil;
  * Test data generators for different schema types. Add new generators to ALL array to include them
  * in format model tests.
  */
-class DataGenerators {
+public class DataGenerators {
 
-  static final DataGenerator[] ALL =
+  public static final DataGenerator[] ALL =
       new DataGenerator[] {
         new Primitives(),
         new UUID(),
@@ -45,7 +45,9 @@ class DataGenerators {
         new ListOfPrimitive(),
         new MapOfPrimitive(),
         new TimestampNano(),
-        new Variant()
+        new Variant(),
+        new Geometry(),
+        new Geography()
       };
 
   private DataGenerators() {}
@@ -114,6 +116,40 @@ class DataGenerators {
     @Override
     public String toString() {
       return "Variant";
+    }
+  }
+
+  static class Geometry implements DataGenerator {
+    private final Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "geometry_col", Types.GeometryType.crs84()),
+            Types.NestedField.optional(2, "geometry_opt_col", Types.GeometryType.crs84()));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+
+    @Override
+    public String toString() {
+      return "Geometry";
+    }
+  }
+
+  static class Geography implements DataGenerator {
+    private final Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "geography_col", Types.GeographyType.crs84()),
+            Types.NestedField.optional(2, "geography_opt_col", Types.GeographyType.crs84()));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+
+    @Override
+    public String toString() {
+      return "Geography";
     }
   }
 

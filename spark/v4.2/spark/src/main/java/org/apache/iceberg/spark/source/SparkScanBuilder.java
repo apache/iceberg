@@ -35,6 +35,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SparkDistributedDataScan;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.AggregateEvaluator;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundAggregate;
@@ -126,6 +127,11 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
   }
 
   @Override
+  public boolean supportsIterativePushdown() {
+    return true;
+  }
+
+  @Override
   public boolean pushAggregation(Aggregation aggregation) {
     if (!canPushDownAggregation(aggregation)) {
       return false;
@@ -147,7 +153,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
               aggregateFunc);
           return false;
         }
-      } catch (IllegalArgumentException e) {
+      } catch (IllegalArgumentException | ValidationException e) {
         LOG.info("Skipping aggregate pushdown: Bind failed for AggregateFunc {}", aggregateFunc, e);
         return false;
       }
@@ -266,6 +272,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
         readConf(),
         projection,
         filters(),
+        partitionPredicates(),
         metricsReporter()::scanReport);
   }
 
@@ -280,6 +287,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
         readConf(),
         projection,
         filters(),
+        partitionPredicates(),
         metricsReporter()::scanReport);
   }
 
@@ -295,6 +303,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
         readConf(),
         projection,
         filters(),
+        partitionPredicates(),
         metricsReporter()::scanReport);
   }
 

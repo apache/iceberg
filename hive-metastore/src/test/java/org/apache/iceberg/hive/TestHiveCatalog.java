@@ -94,6 +94,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.FieldSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
@@ -989,6 +990,54 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
       catalog.buildTable(tableIdentifier, schema).withLocation(location).create();
 
       assertThat(hmsTableParameters()).containsKey(TableProperties.UUID);
+    } finally {
+      catalog.dropTable(tableIdentifier);
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  void formatVersionInTableParametersOnCreate(int formatVersion) throws Exception {
+    Schema schema = getTestSchema();
+    TableIdentifier tableIdentifier = TableIdentifier.of(DB_NAME, "tbl");
+    String location = temp.resolve("tbl").toUri().toString();
+
+    try {
+      catalog
+          .buildTable(tableIdentifier, schema)
+          .withLocation(location)
+          .withProperty(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
+          .create();
+
+      assertThat(hmsTableParameters())
+          .containsEntry(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    } finally {
+      catalog.dropTable(tableIdentifier);
+    }
+  }
+
+  @Test
+  void formatVersionInTableParametersOnUpgrade() throws Exception {
+    Schema schema = getTestSchema();
+    TableIdentifier tableIdentifier = TableIdentifier.of(DB_NAME, "tbl");
+    String location = temp.resolve("tbl").toString();
+    int upgradedFormatVersion = 3;
+
+    try {
+      catalog
+          .buildTable(tableIdentifier, schema)
+          .withLocation(location)
+          .withProperty(TableProperties.FORMAT_VERSION, "2")
+          .create();
+
+      catalog
+          .loadTable(tableIdentifier)
+          .updateProperties()
+          .set(TableProperties.FORMAT_VERSION, String.valueOf(upgradedFormatVersion))
+          .commit();
+
+      assertThat(hmsTableParameters())
+          .containsEntry(TableProperties.FORMAT_VERSION, String.valueOf(upgradedFormatVersion));
     } finally {
       catalog.dropTable(tableIdentifier);
     }

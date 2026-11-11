@@ -63,7 +63,7 @@ public abstract class BaseFormatModelTests<T> extends ReadFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testDataWriterEngineWriteGenericRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
-    Schema schema = supportedSchema(dataGenerator);
+    Schema schema = supportedSchema(fileFormat, dataGenerator);
     List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
     writeEngineRecords(fileFormat, schema, engineRecords, engineSchema(schema));
@@ -75,7 +75,7 @@ public abstract class BaseFormatModelTests<T> extends ReadFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testDataWriterEngineWriteWithoutEngineSchema(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
-    Schema schema = supportedSchema(dataGenerator);
+    Schema schema = supportedSchema(fileFormat, dataGenerator);
     List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
     writeEngineRecords(fileFormat, schema, engineRecords);
@@ -87,7 +87,7 @@ public abstract class BaseFormatModelTests<T> extends ReadFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testDataWriterEngineWriteEngineRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
-    Schema schema = supportedSchema(dataGenerator);
+    Schema schema = supportedSchema(fileFormat, dataGenerator);
     List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
     writeEngineRecords(fileFormat, schema, engineRecords);
@@ -99,7 +99,7 @@ public abstract class BaseFormatModelTests<T> extends ReadFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testEqualityDeleteWriterEngineWriteGenericRead(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
-    Schema schema = supportedSchema(dataGenerator);
+    Schema schema = supportedSchema(fileFormat, dataGenerator);
     FileWriterBuilder<EqualityDeleteWriter<T>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, engineType(), encryptedFile);
 
@@ -135,7 +135,7 @@ public abstract class BaseFormatModelTests<T> extends ReadFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testEqualityDeleteWriterEngineWriteWithoutEngineSchema(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
-    Schema schema = supportedSchema(dataGenerator);
+    Schema schema = supportedSchema(fileFormat, dataGenerator);
     FileWriterBuilder<EqualityDeleteWriter<T>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, engineType(), encryptedFile);
 

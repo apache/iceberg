@@ -31,6 +31,7 @@ import java.net.InetAddress;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -61,7 +62,10 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.connector.expressions.PartitionFieldReference;
+import org.apache.spark.sql.connector.expressions.filter.PartitionPredicate;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
@@ -75,6 +79,7 @@ import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.StringStartsWith;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.apache.spark.unsafe.types.UTF8String;
 import org.assertj.core.api.AbstractObjectAssert;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -196,10 +201,11 @@ public class TestFilteredScan {
   public void testUnpartitionedIDFilters() {
     CaseInsensitiveStringMap options =
         new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
-    SparkScanBuilder builder =
-        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
     for (int i = 0; i < 10; i += 1) {
+      SparkScanBuilder builder =
+          new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+
       pushFilters(builder, EqualTo.apply("id", i));
       Batch scan = builder.build().toBatch();
 
@@ -457,7 +463,7 @@ public class TestFilteredScan {
 
       assertEqualsSafe(
           SCHEMA.asStruct(),
-          expected(8, 9, 7, 6, 5),
+          expected(5, 6, 7, 8, 9),
           read(
               table.location(), vectorized, "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
     }
@@ -478,7 +484,7 @@ public class TestFilteredScan {
 
       assertEqualsSafe(
           SCHEMA.asStruct(),
-          expected(2, 1),
+          expected(1, 2),
           read(
               table.location(),
               vectorized,
@@ -560,6 +566,53 @@ public class TestFilteredScan {
   }
 
   @TestTemplate
+  public void partitionPredicatePrunesIdentityPartitions() {
+    Table table = buildPartitionedTable("partition_predicate", PARTITION_BY_DATA);
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
+    SparkScanBuilder builder = new SparkScanBuilder(spark, table, options);
+    Predicate dataPredicate = GreaterThan.apply("id", -1L).toV2();
+    PartitionPredicate partitionPredicate = dataEndsWith("tion");
+
+    assertThat(builder.supportsIterativePushdown()).isTrue();
+    assertThat(builder.pushPredicates(new Predicate[] {dataPredicate}))
+        .containsExactly(dataPredicate);
+    assertThat(builder.pushPredicates(new Predicate[] {partitionPredicate}))
+        .containsExactly(partitionPredicate);
+    assertThat(builder.pushedPredicates()).containsExactly(dataPredicate, partitionPredicate);
+
+    assertThat(builder.build().toBatch().planInputPartitions()).hasSize(1);
+  }
+
+  @TestTemplate
+  public void partitionPredicateKeepsTasksWithMissingFields() {
+    assumeThat(fileFormat)
+        .as("no need to run this across the entire test matrix")
+        .isEqualTo(FileFormat.PARQUET);
+
+    Table table = TABLES.load(unpartitioned.toString());
+    Dataset<Row> rows = spark.read().format("iceberg").load(table.location()).cache();
+    rows.count();
+
+    table.updateSpec().addField("data").commit();
+    table.updateProperties().set("read.split.target-size", "2048").commit();
+    rows.write().format("iceberg").mode("append").save(table.location());
+    rows.unpersist();
+    table.refresh();
+
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
+    SparkScanBuilder builder = new SparkScanBuilder(spark, table, options);
+    PartitionPredicate partitionPredicate = dataEndsWith("tion");
+
+    assertThat(builder.pushPredicates(new Predicate[] {partitionPredicate}))
+        .containsExactly(partitionPredicate);
+
+    // The matching current-spec task and the old unpartitioned task must both remain.
+    assertThat(builder.build().toBatch().planInputPartitions()).hasSize(2);
+  }
+
+  @TestTemplate
   public void testPartitionedByIdStartsWith() {
     Table table = buildPartitionedTable("partitioned_by_id", PARTITION_BY_ID);
 
@@ -637,24 +690,12 @@ public class TestFilteredScan {
     return result;
   }
 
-  public static void assertEqualsUnsafe(
-      Types.StructType struct, List<Record> expected, List<UnsafeRow> actual) {
-    // TODO: match records by ID
-    int numRecords = Math.min(expected.size(), actual.size());
-    for (int i = 0; i < numRecords; i += 1) {
-      GenericsHelpers.assertEqualsUnsafe(struct, expected.get(i), actual.get(i));
-    }
-    assertThat(actual).as("Number of results should match expected").hasSameSizeAs(expected);
-  }
-
   public static void assertEqualsSafe(
       Types.StructType struct, List<Record> expected, List<Row> actual) {
-    // TODO: match records by ID
-    int numRecords = Math.min(expected.size(), actual.size());
-    for (int i = 0; i < numRecords; i += 1) {
+    assertThat(actual).as("Should have the expected number of rows").hasSameSizeAs(expected);
+    for (int i = 0; i < expected.size(); i += 1) {
       GenericsHelpers.assertEqualsSafe(struct, expected.get(i), actual.get(i));
     }
-    assertThat(actual).as("Number of results should match expected").hasSameSizeAs(expected);
   }
 
   private List<Record> expected(int... ordinals) {
@@ -669,6 +710,39 @@ public class TestFilteredScan {
     assertThat(scan).isInstanceOf(SupportsPushDownV2Filters.class);
     SupportsPushDownV2Filters filterable = (SupportsPushDownV2Filters) scan;
     filterable.pushPredicates(Arrays.stream(filters).map(Filter::toV2).toArray(Predicate[]::new));
+  }
+
+  private PartitionPredicate dataEndsWith(String suffix) {
+    PartitionFieldReference dataField =
+        new PartitionFieldReference() {
+          @Override
+          public int ordinal() {
+            return 0;
+          }
+
+          @Override
+          public String[] fieldNames() {
+            return new String[] {"data"};
+          }
+        };
+
+    return new PartitionPredicate() {
+      @Override
+      public String describe() {
+        return "data ends with " + suffix;
+      }
+
+      @Override
+      public NamedReference[] references() {
+        return new NamedReference[] {dataField};
+      }
+
+      @Override
+      public boolean eval(InternalRow partitionKey) {
+        UTF8String value = partitionKey.getUTF8String(0);
+        return value != null && value.toString().endsWith(suffix);
+      }
+    };
   }
 
   private Table buildPartitionedTable(String desc, PartitionSpec spec) {
@@ -728,7 +802,9 @@ public class TestFilteredScan {
             .load(table)
             .filter(expr)
             .select(select0, selectN);
-    return dataset.collectAsList();
+    List<Row> rows = dataset.collectAsList();
+    rows.sort(Comparator.comparingLong(row -> row.<Long>getAs("id")));
+    return rows;
   }
 
   private static OffsetDateTime parse(String timestamp) {

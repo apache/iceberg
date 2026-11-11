@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -55,5 +56,25 @@ public class TestOrcWrite {
     writer.addAll(rows);
     writer.close();
     assertThat(writer.splitOffsets()).as("Split offsets not present").isNotEmpty();
+  }
+
+  @Test
+  public void variantIsNotSupported() throws IOException {
+    Schema variantSchema =
+        new Schema(
+            optional(1, "id", Types.IntegerType.get()),
+            optional(2, "payload", Types.VariantType.get()));
+
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+
+    assertThatThrownBy(
+            () ->
+                ORC.write(Files.localOutput(testFile))
+                    .createWriterFunc(SparkOrcWriter::new)
+                    .schema(variantSchema)
+                    .build())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Variant is not supported");
   }
 }

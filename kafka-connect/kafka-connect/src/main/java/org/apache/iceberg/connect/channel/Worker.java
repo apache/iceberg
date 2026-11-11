@@ -49,8 +49,8 @@ class Worker extends Channel {
       SinkTaskContext context) {
     // pass transient consumer group ID to which we never commit offsets
     super(
-        "worker",
         config.controlGroupIdPrefix() + UUID.randomUUID(),
+        config.transactionalPrefix() + "worker" + config.transactionalSuffix(),
         config,
         clientFactory,
         context);

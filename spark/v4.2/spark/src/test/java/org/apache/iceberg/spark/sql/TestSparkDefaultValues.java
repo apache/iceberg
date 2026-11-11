@@ -21,29 +21,30 @@ package org.apache.iceberg.spark.sql;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.nio.ByteBuffer;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.HexFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.AnalysisException;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
-/**
- * Tests for Spark SQL Default values integration with Iceberg default values.
- *
- * <p>Note: These tests use {@code validationCatalog.createTable()} to create tables with default
- * values because the Iceberg Spark integration does not yet support default value clauses in Spark
- * DDL.
- */
+/** Tests for Spark SQL Default values integration with Iceberg default values. */
 public class TestSparkDefaultValues extends CatalogTestBase {
 
   @AfterEach
   public void dropTestTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS %s", tableName("dest"));
   }
 
   @TestTemplate
@@ -141,7 +142,104 @@ public class TestSparkDefaultValues extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testCreateTableWithDefaultsUnsupported() {
+  public void testCreateTableWithDefaults() {
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
+    sql(
+        "CREATE TABLE %s (id INT DEFAULT -1, data STRING DEFAULT '-') USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        tableName);
+
+    Types.NestedField idField = validationCatalog.loadTable(tableIdent).schema().findField("id");
+    assertThat(idField.initialDefault()).isEqualTo(-1);
+    assertThat(idField.writeDefault()).isEqualTo(-1);
+
+    Types.NestedField dataField =
+        validationCatalog.loadTable(tableIdent).schema().findField("data");
+    assertThat(dataField.initialDefault()).isEqualTo("-");
+    assertThat(dataField.writeDefault()).isEqualTo("-");
+  }
+
+  @TestTemplate
+  public void testCreateTableWithBoxedDefaults() {
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
+    sql(
+        "CREATE TABLE %s (ti TINYINT DEFAULT -1, s SHORT DEFAULT '-2') USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        tableName);
+
+    Types.NestedField tinyField = validationCatalog.loadTable(tableIdent).schema().findField("ti");
+    assertThat(tinyField.initialDefault()).isEqualTo(-1);
+    assertThat(tinyField.writeDefault()).isEqualTo(-1);
+
+    Types.NestedField shortField = validationCatalog.loadTable(tableIdent).schema().findField("s");
+    assertThat(shortField.initialDefault()).isEqualTo(-2);
+    assertThat(shortField.writeDefault()).isEqualTo(-2);
+  }
+
+  @TestTemplate
+  public void testCreateTableWithBinaryDefaults() {
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
+    sql(
+        "CREATE TABLE %s (b BINARY DEFAULT X'1ABF') USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        tableName);
+
+    ByteBuffer expected = ByteBuffer.wrap(HexFormat.of().parseHex("1ABF"));
+
+    Types.NestedField binaryField = validationCatalog.loadTable(tableIdent).schema().findField("b");
+    assertThat(binaryField.initialDefault()).isEqualTo(expected);
+    assertThat(binaryField.writeDefault()).isEqualTo(expected);
+  }
+
+  @TestTemplate
+  public void testCreateTableWithTimestampDefaults() {
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
+    sql(
+        "CREATE TABLE %s (ts TIMESTAMP DEFAULT timestamp '2026-09-24 21:26:02.98269') USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        tableName);
+
+    long expectedMicros =
+        DateTimeUtil.microsFromInstant(
+            LocalDateTime.parse("2026-09-24T21:26:02.98269")
+                .atZone(ZoneId.of(spark.sessionState().conf().sessionLocalTimeZone()))
+                .toInstant());
+
+    Types.NestedField tsField = validationCatalog.loadTable(tableIdent).schema().findField("ts");
+    assertThat(tsField.initialDefault()).isEqualTo(expectedMicros);
+    assertThat(tsField.writeDefault()).isEqualTo(expectedMicros);
+  }
+
+  @TestTemplate
+  public void testCreateTableWithNullDefaults() {
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
+    sql(
+        "CREATE TABLE %s (s String DEFAULT null) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        tableName);
+
+    Types.NestedField stringField = validationCatalog.loadTable(tableIdent).schema().findField("s");
+    assertThat(stringField.initialDefault()).isNull();
+    assertThat(stringField.writeDefault()).isNull();
+  }
+
+  @TestTemplate
+  public void testCreateTableWithDefaultsExpressionsUnsupported() {
     assertThat(validationCatalog.tableExists(tableIdent))
         .as("Table should not already exist")
         .isFalse();
@@ -149,10 +247,10 @@ public class TestSparkDefaultValues extends CatalogTestBase {
     assertThatThrownBy(
             () ->
                 sql(
-                    "CREATE TABLE %s (id INT, data STRING DEFAULT 'default-value') USING iceberg",
+                    "CREATE TABLE %s (id INT, data STRING DEFAULT CURRENT_USER) USING iceberg",
                     tableName))
-        .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("does not support column default value");
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("Unsupported default value expression: CURRENT_USER");
   }
 
   @TestTemplate
@@ -170,6 +268,62 @@ public class TestSparkDefaultValues extends CatalogTestBase {
             () -> sql("ALTER TABLE %s ADD COLUMN data STRING DEFAULT 'default-value'", tableName))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageContaining("default values in Spark is currently unsupported");
+  }
+
+  @TestTemplate
+  public void testCtasExcludesDefault() {
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
+    sql(
+        "CREATE TABLE %s (data STRING DEFAULT '-') USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        tableName);
+
+    sql("INSERT INTO %s VALUES (DEFAULT)", tableName);
+
+    sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", tableName("dest"), tableName);
+
+    TableIdentifier destIdent = TableIdentifier.of(Namespace.of("default"), "dest");
+    Types.NestedField dataField = validationCatalog.loadTable(destIdent).schema().findField("data");
+    assertThat(dataField.initialDefault()).isNull();
+    assertThat(dataField.writeDefault()).isNull();
+
+    assertEquals(
+        "Should have correct default values from source table",
+        ImmutableList.of(row("-")),
+        sql("SELECT * FROM %s", tableName("dest")));
+  }
+
+  @TestTemplate
+  public void testRtasExcludesDefault() {
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
+    sql(
+        "CREATE TABLE %s (data STRING DEFAULT '-') USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        tableName);
+
+    sql("INSERT INTO %s VALUES (DEFAULT)", tableName);
+
+    sql(
+        "CREATE TABLE %s (data STRING DEFAULT '-') USING iceberg TBLPROPERTIES ('format-version'='3')",
+        tableName("dest"));
+
+    sql("REPLACE TABLE %s USING iceberg AS SELECT * FROM %s", tableName("dest"), tableName);
+
+    TableIdentifier destIdent = TableIdentifier.of(Namespace.of("default"), "dest");
+    Types.NestedField dataField = validationCatalog.loadTable(destIdent).schema().findField("data");
+    assertThat(dataField.initialDefault()).isNull();
+    assertThat(dataField.writeDefault()).isNull();
+
+    assertEquals(
+        "Should have correct default values from source table",
+        ImmutableList.of(row("-")),
+        sql("SELECT * FROM %s", tableName("dest")));
   }
 
   @TestTemplate

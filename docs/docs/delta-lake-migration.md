@@ -43,7 +43,7 @@ The module is built and tested with `Delta Standalone:0.6.0` and supports Delta 
 Please refer to [Delta Lake Table Protocol Versioning](https://docs.delta.io/latest/versioning.html) for more details about Delta Lake protocol versions.
 
 ### API
-The `iceberg-delta-lake` module provides an interface named `DeltaLakeToIcebergMigrationActionsProvider`, which contains actions that helps converting from Delta Lake to Iceberg.
+The `iceberg-delta-lake` module provides an interface named `DeltaLakeToIcebergMigrationActionsProvider`, which contains actions that help converting from Delta Lake to Iceberg.
 The supported actions are:
 
 * `snapshotDeltaLakeTable`: snapshot an existing Delta Lake table to an Iceberg table

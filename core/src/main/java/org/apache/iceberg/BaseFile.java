@@ -70,7 +70,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   private Map<Integer, Long> nanValueCounts = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
-  private Map<Integer, Integer> avgValueSizes = null;
+  private Map<Integer, Long> totalBytes = null;
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
   private byte[] keyMetadata = null;
@@ -149,7 +149,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       Map<Integer, Long> nanValueCounts,
       Map<Integer, ByteBuffer> lowerBounds,
       Map<Integer, ByteBuffer> upperBounds,
-      Map<Integer, Integer> avgValueSizes,
+      Map<Integer, Long> totalBytes,
       List<Long> splitOffsets,
       int[] equalityFieldIds,
       Integer sortOrderId,
@@ -182,7 +182,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.nanValueCounts = nanValueCounts;
     this.lowerBounds = SerializableByteBufferMap.wrap(lowerBounds);
     this.upperBounds = SerializableByteBufferMap.wrap(upperBounds);
-    this.avgValueSizes = avgValueSizes;
+    this.totalBytes = totalBytes;
     this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
     this.equalityIds = equalityFieldIds;
     this.sortOrderId = sortOrderId;
@@ -202,6 +202,14 @@ abstract class BaseFile<F> extends SupportsIndexProjection
    *     column stat is kept.
    */
   BaseFile(BaseFile<F> toCopy, boolean copyStats, Set<Integer> requestedColumnIds) {
+    this(toCopy, copyStats, requestedColumnIds, toCopy.referencedDataFile);
+  }
+
+  BaseFile(
+      BaseFile<F> toCopy,
+      boolean copyStats,
+      Set<Integer> requestedColumnIds,
+      String referencedDataFile) {
     super(toCopy);
     this.fileOrdinal = toCopy.fileOrdinal;
     this.manifestLocation = toCopy.manifestLocation;
@@ -220,7 +228,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       this.nanValueCounts = copyMap(toCopy.nanValueCounts, requestedColumnIds);
       this.lowerBounds = copyByteBufferMap(toCopy.lowerBounds, requestedColumnIds);
       this.upperBounds = copyByteBufferMap(toCopy.upperBounds, requestedColumnIds);
-      this.avgValueSizes = copyAvgValueSizes(toCopy.avgValueSizes, requestedColumnIds);
+      this.totalBytes = copyTotalBytes(toCopy.totalBytes, requestedColumnIds);
     } else {
       this.columnSizes = null;
       this.valueCounts = null;
@@ -228,7 +236,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       this.nanValueCounts = null;
       this.lowerBounds = null;
       this.upperBounds = null;
-      this.avgValueSizes = null;
+      this.totalBytes = null;
     }
     this.keyMetadata =
         toCopy.keyMetadata == null
@@ -246,7 +254,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.dataSequenceNumber = toCopy.dataSequenceNumber;
     this.fileSequenceNumber = toCopy.fileSequenceNumber;
     this.firstRowId = toCopy.firstRowId;
-    this.referencedDataFile = toCopy.referencedDataFile;
+    this.referencedDataFile = referencedDataFile;
     this.contentOffset = toCopy.contentOffset;
     this.contentSizeInBytes = toCopy.contentSizeInBytes;
   }
@@ -527,8 +535,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   }
 
   @Override
-  public Map<Integer, Integer> avgValueSizes() {
-    return toReadableMap(avgValueSizes);
+  public Map<Integer, Long> totalBytes() {
+    return toReadableMap(totalBytes);
   }
 
   @Override
@@ -587,9 +595,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     return keys == null ? SerializableMap.copyOf(map) : SerializableMap.filteredCopyOf(map, keys);
   }
 
-  private static Map<Integer, Integer> copyAvgValueSizes(
-      Map<Integer, Integer> map, Set<Integer> keys) {
-    Map<Integer, Integer> copy = copyMap(map, keys);
+  private static Map<Integer, Long> copyTotalBytes(Map<Integer, Long> map, Set<Integer> keys) {
+    Map<Integer, Long> copy = copyMap(map, keys);
     return copy == null || copy.isEmpty() ? null : copy;
   }
 
@@ -666,7 +673,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         .add("nan_value_counts", nanValueCounts)
         .add("lower_bounds", lowerBounds)
         .add("upper_bounds", upperBounds)
-        .add("avg_value_sizes", avgValueSizes)
+        .add("total_bytes", totalBytes)
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .add("equality_ids", equalityIds == null ? "null" : equalityFieldIds())

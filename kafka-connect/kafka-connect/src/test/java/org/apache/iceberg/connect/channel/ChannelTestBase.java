@@ -29,6 +29,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
@@ -39,12 +40,14 @@ import org.apache.iceberg.connect.TableSinkConfig;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.DescribeTopicsResult;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.MockConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.clients.producer.MockProducer;
 import org.apache.kafka.common.KafkaFuture;
@@ -101,6 +104,8 @@ public class ChannelTestBase {
     when(config.controlTopic()).thenReturn(CTL_TOPIC_NAME);
     when(config.commitThreads()).thenReturn(1);
     when(config.connectGroupId()).thenReturn(CONNECT_CONSUMER_GROUP_ID);
+    when(config.coordinatorTransactionalId())
+        .thenReturn(CONNECT_CONSUMER_GROUP_ID + "-coordinator");
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
     when(config.commitMaxConsecutiveFailures()).thenReturn(1);
 
@@ -136,6 +141,14 @@ public class ChannelTestBase {
     TopicPartition tp = new TopicPartition(CTL_TOPIC_NAME, 0);
     consumer.rebalance(ImmutableList.of(tp));
     consumer.updateBeginningOffsets(ImmutableMap.of(tp, 0L));
+  }
+
+  protected Map<TopicPartition, OffsetAndMetadata> committedGroupOffsets(String groupId) {
+    Map<TopicPartition, OffsetAndMetadata> latest = Maps.newHashMap();
+    producer.consumerGroupOffsetsHistory().stream()
+        .filter(commit -> commit.containsKey(groupId))
+        .forEach(commit -> latest.putAll(commit.get(groupId)));
+    return latest;
   }
 
   private class Listener implements ConsumerRebalanceListener {

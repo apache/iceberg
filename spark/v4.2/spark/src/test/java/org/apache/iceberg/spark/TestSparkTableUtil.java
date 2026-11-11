@@ -25,10 +25,13 @@ import java.util.Map;
 import org.apache.iceberg.KryoHelpers;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
+import org.apache.iceberg.MetricsTestUtil;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 public class TestSparkTableUtil {
@@ -65,7 +68,13 @@ public class TestSparkTableUtil {
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2",
             "truncate(16)");
 
-    MetricsConfig config = MetricsConfig.from(metricsConfig, null, null);
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "col1", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "col2", Types.StringType.get()),
+            Types.NestedField.optional(3, "col3", Types.StringType.get()));
+
+    MetricsConfig config = MetricsTestUtil.from(metricsConfig, schema);
     MetricsConfig deserialized = KryoHelpers.roundTripSerialize(config);
 
     assertThat(deserialized.columnMode("col1"))
@@ -90,7 +99,13 @@ public class TestSparkTableUtil {
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2",
             "truncate(16)");
 
-    MetricsConfig config = MetricsConfig.from(metricsConfig, null, null);
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "col1", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "col2", Types.StringType.get()),
+            Types.NestedField.optional(3, "col3", Types.StringType.get()));
+
+    MetricsConfig config = MetricsTestUtil.from(metricsConfig, schema);
     MetricsConfig deserialized = TestHelpers.roundTripSerialize(config);
 
     assertThat(deserialized.columnMode("col1"))

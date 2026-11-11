@@ -189,6 +189,80 @@ public class TestExpressionUtil {
   }
 
   @Test
+  public void testSanitizeBoundIn() {
+    Expression in = Binder.bind(STRUCT, Expressions.in("id", 1L, 2L), true);
+    assertEquals(
+        Expressions.in("id", "(1-digit-int)", "(1-digit-int)"), ExpressionUtil.sanitize(in));
+    assertThat(ExpressionUtil.toSanitizedString(in))
+        .isEqualTo("id IN ((1-digit-int), (1-digit-int))");
+
+    Expression notIn = Binder.bind(STRUCT, Expressions.notIn("id", 1L, 2L), true);
+    assertEquals(
+        Expressions.notIn("id", "(1-digit-int)", "(1-digit-int)"), ExpressionUtil.sanitize(notIn));
+    assertThat(ExpressionUtil.toSanitizedString(notIn))
+        .isEqualTo("id NOT IN ((1-digit-int), (1-digit-int))");
+  }
+
+  @Test
+  public void testSanitizeInWithStructUsesColumnType() {
+    // timestamp values passed as micros are only recognized as timestamps after binding
+    long ninetyMinutesAgo =
+        DateTimeUtil.microsFromTimestamptz(OffsetDateTime.now().minusMinutes(90));
+    long ninetyOneMinutesAgo =
+        DateTimeUtil.microsFromTimestamptz(OffsetDateTime.now().minusMinutes(91));
+    Expression in = Expressions.in("ts", ninetyMinutesAgo, ninetyOneMinutesAgo);
+
+    assertEquals(
+        Expressions.in("ts", "(timestamp-1-hours-ago)", "(timestamp-1-hours-ago)"),
+        ExpressionUtil.sanitize(STRUCT, in, true));
+    assertThat(ExpressionUtil.toSanitizedString(STRUCT, in, true))
+        .isEqualTo("ts IN ((timestamp-1-hours-ago), (timestamp-1-hours-ago))");
+
+    Expression filter =
+        Expressions.and(
+            Expressions.greaterThan("ts", ninetyMinutesAgo), Expressions.in("id", 1L, 2L));
+    assertThat(ExpressionUtil.toSanitizedString(STRUCT, filter, true))
+        .isEqualTo("(ts > (timestamp-1-hours-ago) AND id IN ((1-digit-int), (1-digit-int)))");
+  }
+
+  @Test
+  public void testSanitizeBoundTimestampNanoIn() {
+    String ninetyMinutesAgo =
+        OffsetDateTime.now()
+            .minusMinutes(90)
+            .atZoneSameInstant(ZoneOffset.UTC)
+            .toLocalDateTime()
+            .toString();
+    String ninetyOneMinutesAgo =
+        OffsetDateTime.now()
+            .minusMinutes(91)
+            .atZoneSameInstant(ZoneOffset.UTC)
+            .toLocalDateTime()
+            .toString();
+    Expression in =
+        Binder.bind(STRUCT, Expressions.in("tsns", ninetyMinutesAgo, ninetyOneMinutesAgo), true);
+
+    assertEquals(
+        Expressions.in("tsns", "(timestamp-1-hours-ago)", "(timestamp-1-hours-ago)"),
+        ExpressionUtil.sanitize(in));
+    assertThat(ExpressionUtil.toSanitizedString(in))
+        .isEqualTo("tsns IN ((timestamp-1-hours-ago), (timestamp-1-hours-ago))");
+  }
+
+  @Test
+  public void testSanitizeBoundDateIn() {
+    LocalDate currentDate = LocalDate.now(ZoneOffset.UTC);
+    String lastWeek = currentDate.minusWeeks(1).toString();
+    String twoWeeksAgo = currentDate.minusWeeks(2).toString();
+    Expression in = Binder.bind(STRUCT, Expressions.in("date", lastWeek, twoWeeksAgo), true);
+
+    assertThat(ExpressionUtil.toSanitizedString(in))
+        .isIn(
+            "date IN ((date-7-days-ago), (date-14-days-ago))",
+            "date IN ((date-14-days-ago), (date-7-days-ago))");
+  }
+
+  @Test
   public void testSanitizeLongNotIn() {
     Object[] tooLongRange =
         IntStream.range(95, 95 + ExpressionUtil.LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD)

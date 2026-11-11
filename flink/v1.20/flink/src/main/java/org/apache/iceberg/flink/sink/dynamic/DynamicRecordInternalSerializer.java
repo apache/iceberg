@@ -65,7 +65,10 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
   @Override
   public TypeSerializer<DynamicRecordInternal> duplicate() {
     return new DynamicRecordInternalSerializer(
-        new TableSerializerCache(serializerCache.catalogLoader(), serializerCache.maximumSize()),
+        new TableSerializerCache(
+            serializerCache.catalogLoader(),
+            serializerCache.maximumSize(),
+            serializerCache.inputSchemasPerTableCacheMaximumSize()),
         writeSchemaAndSpec,
         writeLongUTF);
   }
@@ -96,17 +99,10 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
     dataOutputView.writeInt(toSerialize.writerKey());
     final RowDataSerializer rowDataSerializer;
     if (writeSchemaAndSpec) {
-      rowDataSerializer =
-          serializerCache.serializer(
-              toSerialize.tableName(), toSerialize.schema(), toSerialize.spec());
+      rowDataSerializer = serializerCache.serializer(toSerialize.tableName(), toSerialize.schema());
     } else {
-      // Check that the schema id can be resolved. Not strictly necessary for serialization.
-      Tuple3<RowDataSerializer, Schema, PartitionSpec> serializer =
-          serializerCache.serializerWithSchemaAndSpec(
-              toSerialize.tableName(),
-              toSerialize.schema().schemaId(),
-              toSerialize.spec().specId());
-      rowDataSerializer = serializer.f0;
+      rowDataSerializer =
+          serializerCache.serializerById(toSerialize.tableName(), toSerialize.schema());
     }
 
     rowDataSerializer.serialize(toSerialize.rowData(), dataOutputView);
@@ -133,7 +129,7 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
       }
 
       spec = PartitionSpecParser.fromJson(schema, dataInputView.readUTF());
-      rowDataSerializer = serializerCache.serializer(tableName, schema, spec);
+      rowDataSerializer = serializerCache.serializer(tableName, schema);
     } else {
       Integer schemaId = dataInputView.readInt();
       Integer specId = dataInputView.readInt();
@@ -184,7 +180,7 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
       spec = PartitionSpecParser.fromJson(schema, dataInputView.readUTF());
       reuse.setSchema(schema);
       reuse.setSpec(spec);
-      rowDataSerializer = serializerCache.serializer(tableName, schema, spec);
+      rowDataSerializer = serializerCache.serializer(tableName, schema);
     } else {
       Integer schemaId = dataInputView.readInt();
       Integer specId = dataInputView.readInt();
@@ -215,11 +211,13 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
 
   @Override
   public DynamicRecordInternal copy(DynamicRecordInternal from) {
+    RowDataSerializer rowDataSerializer =
+        serializerCache.serializer(from.tableName(), from.schema());
     return new DynamicRecordInternal(
         from.tableName(),
         from.branch(),
         from.schema(),
-        from.rowData(),
+        rowDataSerializer.copy(from.rowData()),
         from.spec(),
         from.writerKey(),
         from.upsertMode(),
@@ -228,12 +226,14 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
 
   @Override
   public DynamicRecordInternal copy(DynamicRecordInternal from, DynamicRecordInternal reuse) {
+    RowDataSerializer rowDataSerializer =
+        serializerCache.serializer(from.tableName(), from.schema());
     reuse.setTableName(from.tableName());
     reuse.setBranch(from.branch());
     reuse.setSchema(from.schema());
     reuse.setSpec(from.spec());
     reuse.setWriterKey(from.writerKey());
-    reuse.setRowData(from.rowData());
+    reuse.setRowData(rowDataSerializer.copy(from.rowData()));
     reuse.setUpsertMode(from.upsertMode());
     reuse.setEqualityFieldIds(from.equalityFields());
     return reuse;

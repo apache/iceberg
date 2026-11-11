@@ -165,23 +165,43 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
     }
 
     if (validateNewDeletes) {
-      if (rowFilter() != Expressions.alwaysFalse()) {
+      if (isRowFilterSet()) {
         Expression filter = conflictDetectionFilter != null ? conflictDetectionFilter : rowFilter();
-        validateNoNewDeleteFiles(base, startingSnapshotId, filter, parent);
-        validateDeletedDataFiles(base, startingSnapshotId, filter, parent);
+        validateNoNewDeleteFiles(
+            base, startingSnapshotId, filter, parent); // no rows were deleted from deleted files
+        validateDeletedDataFiles(
+            base,
+            startingSnapshotId,
+            filter,
+            parent); // no data files that would be deleted here are deleted
       }
 
       if (!deletedDataFiles.isEmpty()) {
-        validateNoNewDeletesForDataFiles(
-            base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles, parent);
+        if (conflictDetectionFilter != null) {
+          validateNoNewDeletesForDataFiles(
+              base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles, parent);
+        } else {
+          // direct deletes: validate no rows were deleted from deleted files
+          validateNoNewDeletesForDataFiles(base, startingSnapshotId, deletedDataFiles, parent);
+        }
       }
     }
+  }
+
+  private boolean isRowFilterSet() {
+    return rowFilter() != Expressions.alwaysFalse();
+  }
+
+  private boolean hasDirectDeletes() {
+    return !deletedDataFiles.isEmpty();
   }
 
   private Expression dataConflictDetectionFilter() {
     if (conflictDetectionFilter != null) {
       return conflictDetectionFilter;
-    } else if (rowFilter() != Expressions.alwaysFalse() && deletedDataFiles.isEmpty()) {
+    } else if (hasDirectDeletes()) {
+      return Expressions.alwaysTrue();
+    } else if (isRowFilterSet()) {
       return rowFilter();
     } else {
       return Expressions.alwaysTrue();

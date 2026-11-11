@@ -30,12 +30,17 @@ class DynamicRecordInternalType extends TypeInformation<DynamicRecordInternal> {
   private final CatalogLoader catalogLoader;
   private final boolean writeSchemaAndSpec;
   private final int cacheSize;
+  private final int inputSchemasPerTableCacheMaximumSize;
 
   DynamicRecordInternalType(
-      CatalogLoader catalogLoader, boolean writeSchemaAndSpec, int cacheSize) {
+      CatalogLoader catalogLoader,
+      boolean writeSchemaAndSpec,
+      int cacheSize,
+      int inputSchemasPerTableCacheMaximumSize) {
     this.catalogLoader = catalogLoader;
     this.writeSchemaAndSpec = writeSchemaAndSpec;
     this.cacheSize = cacheSize;
+    this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
   }
 
   @Override
@@ -71,7 +76,8 @@ class DynamicRecordInternalType extends TypeInformation<DynamicRecordInternal> {
   @Override
   public TypeSerializer<DynamicRecordInternal> createSerializer(SerializerConfig serializerConfig) {
     return new DynamicRecordInternalSerializer(
-        new TableSerializerCache(catalogLoader, cacheSize), writeSchemaAndSpec);
+        new TableSerializerCache(catalogLoader, cacheSize, inputSchemasPerTableCacheMaximumSize),
+        writeSchemaAndSpec);
   }
 
   @Override

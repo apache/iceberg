@@ -59,6 +59,11 @@ public abstract class BaseViewSessionCatalog extends BaseSessionCatalog
     }
 
     @Override
+    public View loadView(TableIdentifier identifier, LoadContext loadContext) {
+      return BaseViewSessionCatalog.this.loadView(context, identifier, loadContext);
+    }
+
+    @Override
     public boolean viewExists(TableIdentifier identifier) {
       return BaseViewSessionCatalog.this.viewExists(context, identifier);
     }

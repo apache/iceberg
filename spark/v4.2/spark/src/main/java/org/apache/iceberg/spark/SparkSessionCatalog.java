@@ -27,9 +27,11 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.LoadContext;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.spark.sql.SparkSession;
@@ -52,12 +54,11 @@ import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.connector.catalog.TableSummary;
 import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.catalog.ViewCatalog;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
-import org.apache.spark.sql.connector.expressions.Transform;
-import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 /**
@@ -68,13 +69,13 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  */
 public class SparkSessionCatalog<
         T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
-    extends BaseCatalog implements CatalogExtension {
-  private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
+    extends BaseCatalog implements CatalogExtension, SparkSupportsLoadContext {
 
   private String catalogName = null;
   private TableCatalog icebergCatalog = null;
   private StagingTableCatalog asStagingCatalog = null;
   private ViewCatalog asViewCatalog = null;
+  private SparkSupportsLoadContext asLoadContextCatalog = null;
   private T sessionCatalog = null;
   private boolean createParquetAsIceberg = false;
   private boolean createAvroAsIceberg = false;
@@ -98,7 +99,7 @@ public class SparkSessionCatalog<
 
   @Override
   public String[] defaultNamespace() {
-    return DEFAULT_NAMESPACE;
+    return getSessionCatalog().defaultNamespace();
   }
 
   @Override
@@ -199,7 +200,17 @@ public class SparkSessionCatalog<
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
+    return loadTable(ident, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, LoadContext context) throws NoSuchTableException {
     try {
+      if (asLoadContextCatalog != null) {
+        return asLoadContextCatalog.loadTable(ident, context);
+      }
+
+      checkLoadContextSupported("table", ident, context);
       return icebergCatalog.loadTable(ident);
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident);
@@ -208,7 +219,18 @@ public class SparkSessionCatalog<
 
   @Override
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
+    return loadTable(ident, version, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, String version, LoadContext context)
+      throws NoSuchTableException {
     try {
+      if (asLoadContextCatalog != null) {
+        return asLoadContextCatalog.loadTable(ident, version, context);
+      }
+
+      checkLoadContextSupported("table", ident, context);
       return icebergCatalog.loadTable(ident, version);
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident, version);
@@ -217,7 +239,18 @@ public class SparkSessionCatalog<
 
   @Override
   public Table loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
+    return loadTable(ident, timestamp, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, long timestamp, LoadContext context)
+      throws NoSuchTableException {
     try {
+      if (asLoadContextCatalog != null) {
+        return asLoadContextCatalog.loadTable(ident, timestamp, context);
+      }
+
+      checkLoadContextSupported("table", ident, context);
       return icebergCatalog.loadTable(ident, timestamp);
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident, timestamp);
@@ -238,31 +271,56 @@ public class SparkSessionCatalog<
   }
 
   @Override
-  public Table createTable(
-      Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
+  public Table createTable(Identifier ident, TableInfo info)
       throws TableAlreadyExistsException, NoSuchNamespaceException {
     checkViewNotExists(ident);
 
-    String provider = properties.get("provider");
+    String provider = info.properties().get("provider");
     if (useIceberg(provider)) {
-      return icebergCatalog.createTable(ident, schema, partitions, properties);
+      return icebergCatalog.createTable(ident, info);
     } else {
       // delegate to the session catalog
-      return getSessionCatalog().createTable(ident, schema, partitions, properties);
+      return getSessionCatalog().createTable(ident, info);
     }
   }
 
   @Override
-  public StagedTable stageCreate(
-      Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
+  public Table createTableLike(Identifier ident, TableInfo tableInfo, Table sourceTable)
       throws TableAlreadyExistsException, NoSuchNamespaceException {
     checkViewNotExists(ident);
 
-    String provider = properties.get("provider");
+    String provider = tableInfo.properties().get("provider");
+    if (provider == null) {
+      provider = sourceTable.properties().get("provider");
+    }
+
+    if (useIceberg(provider)) {
+      return icebergCatalog.createTableLike(ident, tableInfo, sourceTable);
+    } else {
+      // like Spark's CREATE TABLE LIKE, copy only the schema and partitioning of the source. Its
+      // properties, such as location and external, describe the source and are not carried over.
+      Map<String, String> properties = Maps.newHashMap(tableInfo.properties());
+      properties.put(TableCatalog.PROP_PROVIDER, provider);
+      TableInfo targetInfo =
+          new TableInfo.Builder()
+              .withColumns(sourceTable.columns())
+              .withPartitions(sourceTable.partitioning())
+              .withProperties(properties)
+              .build();
+      return getSessionCatalog().createTable(ident, targetInfo);
+    }
+  }
+
+  @Override
+  public StagedTable stageCreate(Identifier ident, TableInfo info)
+      throws TableAlreadyExistsException, NoSuchNamespaceException {
+    checkViewNotExists(ident);
+
+    String provider = info.properties().get("provider");
     TableCatalog catalog;
     if (useIceberg(provider)) {
       if (asStagingCatalog != null) {
-        return asStagingCatalog.stageCreate(ident, schema, partitions, properties);
+        return asStagingCatalog.stageCreate(ident, info);
       }
       catalog = icebergCatalog;
     } else {
@@ -271,19 +329,18 @@ public class SparkSessionCatalog<
 
     // create the table with the session catalog, then wrap it in a staged table that will delete to
     // roll back
-    Table table = catalog.createTable(ident, schema, partitions, properties);
+    Table table = catalog.createTable(ident, info);
     return new RollbackStagedTable(catalog, ident, table);
   }
 
   @Override
-  public StagedTable stageReplace(
-      Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
+  public StagedTable stageReplace(Identifier ident, TableInfo info)
       throws NoSuchNamespaceException, NoSuchTableException {
-    String provider = properties.get("provider");
+    String provider = info.properties().get("provider");
     TableCatalog catalog;
     if (useIceberg(provider)) {
       if (asStagingCatalog != null) {
-        return asStagingCatalog.stageReplace(ident, schema, partitions, properties);
+        return asStagingCatalog.stageReplace(ident, info);
       }
       catalog = icebergCatalog;
     } else {
@@ -298,18 +355,17 @@ public class SparkSessionCatalog<
     try {
       // create the table with the session catalog, then wrap it in a staged table that will delete
       // to roll back
-      Table table = catalog.createTable(ident, schema, partitions, properties);
+      Table table = catalog.createTable(ident, info);
       return new RollbackStagedTable(catalog, ident, table);
 
     } catch (TableAlreadyExistsException e) {
       // the table was deleted, but now already exists again. retry the replace.
-      return stageReplace(ident, schema, partitions, properties);
+      return stageReplace(ident, info);
     }
   }
 
   @Override
-  public StagedTable stageCreateOrReplace(
-      Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
+  public StagedTable stageCreateOrReplace(Identifier ident, TableInfo info)
       throws NoSuchNamespaceException {
     if (viewExists(ident)) {
       // StagingTableCatalog does not declare a checked collision exception for create-or-replace.
@@ -317,11 +373,11 @@ public class SparkSessionCatalog<
           "Cannot create or replace table %s: a view with the same name already exists", ident);
     }
 
-    String provider = properties.get("provider");
+    String provider = info.properties().get("provider");
     TableCatalog catalog;
     if (useIceberg(provider)) {
       if (asStagingCatalog != null) {
-        return asStagingCatalog.stageCreateOrReplace(ident, schema, partitions, properties);
+        return asStagingCatalog.stageCreateOrReplace(ident, info);
       }
       catalog = icebergCatalog;
     } else {
@@ -334,12 +390,12 @@ public class SparkSessionCatalog<
     try {
       // create the table with the session catalog, then wrap it in a staged table that will delete
       // to roll back
-      Table sessionCatalogTable = catalog.createTable(ident, schema, partitions, properties);
+      Table sessionCatalogTable = catalog.createTable(ident, info);
       return new RollbackStagedTable(catalog, ident, sessionCatalogTable);
 
     } catch (TableAlreadyExistsException e) {
       // the table was deleted, but now already exists again. retry the replace.
-      return stageCreateOrReplace(ident, schema, partitions, properties);
+      return stageCreateOrReplace(ident, info);
     }
   }
 
@@ -402,6 +458,10 @@ public class SparkSessionCatalog<
 
     if (icebergCatalog instanceof ViewCatalog) {
       this.asViewCatalog = (ViewCatalog) icebergCatalog;
+    }
+
+    if (icebergCatalog instanceof SparkSupportsLoadContext) {
+      this.asLoadContextCatalog = (SparkSupportsLoadContext) icebergCatalog;
     }
 
     this.createParquetAsIceberg = options.getBoolean("parquet-enabled", createParquetAsIceberg);
@@ -572,13 +632,37 @@ public class SparkSessionCatalog<
 
   @Override
   public View loadView(Identifier ident) throws NoSuchViewException {
-    if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+    return loadView(ident, LoadContext.empty());
+  }
+
+  @Override
+  public View loadView(Identifier ident, LoadContext context) throws NoSuchViewException {
+    if (null != asViewCatalog && null != asLoadContextCatalog) {
+      try {
+        return asLoadContextCatalog.loadView(ident, context);
+      } catch (NoSuchViewException ignored) {
+        // not an Iceberg view, so check the session catalog below
+      }
+    } else if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+      checkLoadContextSupported("view", ident, context);
       return asViewCatalog.loadView(ident);
-    } else if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
+    }
+
+    if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
       return getSessionCatalog().loadView(ident);
     }
 
     throw new NoSuchViewException(ident);
+  }
+
+  private void checkLoadContextSupported(
+      String relationType, Identifier ident, LoadContext context) {
+    if (!context.referencedBy().isEmpty()) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Cannot load %s %s with referenced-by: %s does not support load context",
+              relationType, ident, icebergCatalog.getClass().getName()));
+    }
   }
 
   @Override

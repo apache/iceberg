@@ -25,11 +25,11 @@ import org.apache.iceberg.util.ByteBuffers;
 class TrackingBuilder {
   private final long newSnapshotId;
   private final Long snapshotId;
-  private final Long dataSequenceNumber;
   private final Long fileSequenceNumber;
   private final Long firstRowId;
   private EntryStatus status;
-  private Long dvSnapshotId;
+  private Long dataSequenceNumber;
+  private Long modifiedSnapshotId;
   private byte[] deletedPositions;
   private byte[] replacedPositions;
 
@@ -83,7 +83,7 @@ class TrackingBuilder {
     this.dataSequenceNumber = null;
     this.fileSequenceNumber = null;
     this.firstRowId = null;
-    this.dvSnapshotId = null;
+    this.modifiedSnapshotId = null;
     this.deletedPositions = null;
     this.replacedPositions = null;
   }
@@ -97,7 +97,7 @@ class TrackingBuilder {
     this.dataSequenceNumber = source.dataSequenceNumber();
     this.fileSequenceNumber = source.fileSequenceNumber();
     this.firstRowId = source.firstRowId();
-    this.dvSnapshotId = source.dvSnapshotId();
+    this.modifiedSnapshotId = source.modifiedSnapshotId();
     this.deletedPositions = null;
     this.replacedPositions = null;
   }
@@ -107,11 +107,24 @@ class TrackingBuilder {
     Preconditions.checkState(
         deletedPositions == null && replacedPositions == null,
         "Cannot mark DV updated on a manifest entry (deleted/replaced positions are set)");
-    this.dvSnapshotId = newSnapshotId;
+    this.modifiedSnapshotId = newSnapshotId;
     if (status == EntryStatus.EXISTING) {
       this.status = EntryStatus.MODIFIED;
     }
 
+    return this;
+  }
+
+  /** Indicates that the column files list has been updated for the new Tracking. */
+  TrackingBuilder columnFilesUpdated() {
+    this.modifiedSnapshotId = newSnapshotId;
+    if (status == EntryStatus.EXISTING) {
+      this.status = EntryStatus.MODIFIED;
+    }
+    // Reset to null to inherit from the new snapshot sequence number. It is safe to bump up the
+    // dataSequenceNumber as writers are required to rewrite v2 equality and position deletes to DVs
+    // when applying column update.
+    this.dataSequenceNumber = null;
     return this;
   }
 
@@ -120,7 +133,7 @@ class TrackingBuilder {
     Preconditions.checkState(
         status != EntryStatus.ADDED, "Cannot set deleted positions on ADDED entry");
     this.deletedPositions = ByteBuffers.toByteArray(positions);
-    this.dvSnapshotId = newSnapshotId;
+    this.modifiedSnapshotId = newSnapshotId;
     this.status = EntryStatus.MODIFIED;
     return this;
   }
@@ -130,7 +143,7 @@ class TrackingBuilder {
     Preconditions.checkState(
         status != EntryStatus.ADDED, "Cannot set replaced positions on ADDED entry");
     this.replacedPositions = ByteBuffers.toByteArray(positions);
-    this.dvSnapshotId = newSnapshotId;
+    this.modifiedSnapshotId = newSnapshotId;
     this.status = EntryStatus.MODIFIED;
     return this;
   }
@@ -141,7 +154,7 @@ class TrackingBuilder {
         snapshotId,
         dataSequenceNumber,
         fileSequenceNumber,
-        dvSnapshotId,
+        modifiedSnapshotId,
         firstRowId,
         deletedPositions,
         replacedPositions);
@@ -155,7 +168,7 @@ class TrackingBuilder {
         newSnapshotId,
         source.dataSequenceNumber(),
         source.fileSequenceNumber(),
-        source.dvSnapshotId(),
+        source.modifiedSnapshotId(),
         source.firstRowId(),
         null,
         null);

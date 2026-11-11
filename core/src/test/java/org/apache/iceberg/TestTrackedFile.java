@@ -48,7 +48,6 @@ public class TestTrackedFile {
         .containsExactly(
             "tracking",
             "content_type",
-            "format_version",
             "location",
             "file_format",
             "record_count",
@@ -56,12 +55,13 @@ public class TestTrackedFile {
             "spec_id",
             "partition",
             "content_stats",
+            "tight_stats",
             "sort_order_id",
             "deletion_vector",
             "manifest_info",
             "key_metadata",
             "split_offsets",
-            "equality_ids");
+            "column_files");
   }
 
   @Test
@@ -72,7 +72,7 @@ public class TestTrackedFile {
     assertThat(fields)
         .extracting(Types.NestedField::fieldId)
         .containsExactly(
-            147, 134, 157, 100, 101, 103, 104, 141, 102, 146, 140, 148, 150, 131, 132, 135);
+            147, 134, 100, 101, 103, 104, 141, 102, 146, 151, 140, 148, 150, 131, 132, 158);
   }
 
   @Test

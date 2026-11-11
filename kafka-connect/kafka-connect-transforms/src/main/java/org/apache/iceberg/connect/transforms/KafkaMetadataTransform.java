@@ -243,7 +243,8 @@ public class KafkaMetadataTransform implements Transformation<SinkRecord> {
     Schema newSchema = makeUpdatedSchema(record.valueSchema());
     Struct newValue = new Struct(newSchema);
     for (Field field : record.valueSchema().fields()) {
-      newValue.put(field.name(), value.get(field));
+      // getWithoutDefault so an explicit null is not replaced by the schema default value
+      newValue.put(field.name(), value.getWithoutDefault(field.name()));
     }
     recordAppender.addToStruct(record, newValue);
     return record.newRecord(

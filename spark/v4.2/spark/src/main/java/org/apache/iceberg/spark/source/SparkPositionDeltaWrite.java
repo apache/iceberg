@@ -87,15 +87,18 @@ import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.metric.CustomMetric;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
+import org.apache.spark.sql.connector.write.DeleteSummary;
 import org.apache.spark.sql.connector.write.DeltaBatchWrite;
 import org.apache.spark.sql.connector.write.DeltaWrite;
 import org.apache.spark.sql.connector.write.DeltaWriter;
 import org.apache.spark.sql.connector.write.DeltaWriterFactory;
+import org.apache.spark.sql.connector.write.InsertSummary;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.MergeSummary;
 import org.apache.spark.sql.connector.write.PhysicalWriteInfo;
 import org.apache.spark.sql.connector.write.RequiresDistributionAndOrdering;
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
+import org.apache.spark.sql.connector.write.UpdateSummary;
 import org.apache.spark.sql.connector.write.WriteSummary;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.types.LongType$;
@@ -351,6 +354,12 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
       if (summary instanceof MergeSummary) {
         setMergeSummaryProperties(operation, (MergeSummary) summary);
+      } else if (summary instanceof UpdateSummary) {
+        setUpdateSummaryProperties(operation, (UpdateSummary) summary);
+      } else if (summary instanceof DeleteSummary) {
+        setDeleteSummaryProperties(operation, (DeleteSummary) summary);
+      } else if (summary instanceof InsertSummary) {
+        setInsertSummaryProperties(operation, (InsertSummary) summary);
       }
 
       if (wapEnabled && wapId != null) {

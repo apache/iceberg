@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.TestHelpers;
@@ -36,6 +37,7 @@ import org.assertj.core.api.ThrowableAssert;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.Mockito;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -45,7 +47,10 @@ import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.retries.internal.DefaultAdaptiveRetryStrategy;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
+import software.amazon.awssdk.services.glue.model.GetTableRequest;
+import software.amazon.awssdk.services.glue.model.GetTableResponse;
 import software.amazon.awssdk.services.glue.model.GetTablesRequest;
+import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -273,6 +278,58 @@ public class TestAwsClientFactories {
     assertAwsClientSetsAdaptiveRetryPolicy(dynamoClient);
   }
 
+  @Test
+  void assumeRoleGlueClientAppliesEndpointOverride() {
+    String endpoint = "https://glue.example.com";
+    AwsClientFactory factory = assumeRoleFactory(AwsProperties.GLUE_CATALOG_ENDPOINT, endpoint);
+
+    assertThat(factory.glue().serviceClientConfiguration().endpointOverride())
+        .contains(URI.create(endpoint));
+  }
+
+  @Test
+  void assumeRoleKmsClientAppliesEndpointOverride() {
+    String endpoint = "https://kms.example.com";
+    AwsClientFactory factory = assumeRoleFactory(AwsProperties.KMS_ENDPOINT, endpoint);
+
+    assertThat(factory.kms().serviceClientConfiguration().endpointOverride())
+        .contains(URI.create(endpoint));
+  }
+
+  @Test
+  void lakeFormationKmsClientAppliesEndpointOverride() {
+    String endpoint = "https://kms.example.com";
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, "arn::test");
+    properties.put(AwsProperties.CLIENT_ASSUME_ROLE_REGION, "us-east-1");
+    properties.put(
+        AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX
+            + LakeFormationAwsClientFactory.LF_AUTHORIZED_CALLER,
+        "emr");
+    properties.put(AwsProperties.LAKE_FORMATION_DB_NAME, "db");
+    properties.put(AwsProperties.LAKE_FORMATION_TABLE_NAME, "table");
+    properties.put(AwsProperties.GLUE_ACCOUNT_ID, "123456789012");
+    properties.put(AwsProperties.KMS_ENDPOINT, endpoint);
+    LakeFormationAwsClientFactory factory = new RegisteredTableLakeFormationAwsClientFactory();
+    factory.initialize(properties);
+
+    assertThat(factory.kms().serviceClientConfiguration().endpointOverride())
+        .contains(URI.create(endpoint));
+  }
+
+  private static AwsClientFactory assumeRoleFactory(String property, String value) {
+    return AwsClientFactories.from(
+        ImmutableMap.of(
+            AwsProperties.CLIENT_FACTORY,
+            AssumeRoleAwsClientFactory.class.getName(),
+            AwsProperties.CLIENT_ASSUME_ROLE_ARN,
+            "arn::test",
+            AwsProperties.CLIENT_ASSUME_ROLE_REGION,
+            "us-east-1",
+            property,
+            value));
+  }
+
   /**
    * Extract the retry strategy from an AwsClient object, then assert that it's set to the correct
    * strategy. This enforces that we correctly applied the retry configurations to the client
@@ -414,5 +471,19 @@ public class TestAwsClientFactories {
 
     @Override
     public void initialize(Map<String, String> properties) {}
+  }
+
+  private static class RegisteredTableLakeFormationAwsClientFactory
+      extends LakeFormationAwsClientFactory {
+    @Override
+    public GlueClient glue() {
+      GlueClient glue = Mockito.mock(GlueClient.class);
+      Mockito.when(glue.getTable(Mockito.any(GetTableRequest.class)))
+          .thenReturn(
+              GetTableResponse.builder()
+                  .table(Table.builder().isRegisteredWithLakeFormation(true).build())
+                  .build());
+      return glue;
+    }
   }
 }
