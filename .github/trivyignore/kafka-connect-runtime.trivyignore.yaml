@@ -33,8 +33,3 @@ vulnerabilities:
 - id: CVE-2026-91777
 - id: CVE-2026-89407
 - id: CVE-2026-89425
-# guava CVE shaded into hadoop-shaded-guava 1.5.0 (guava 33.4.8), only fixed in
-# guava >= 33.7.2.
-- id: CVE-2026-102554
-  paths:
-  - "**/hadoop-shaded-guava-1.5.0.jar"
