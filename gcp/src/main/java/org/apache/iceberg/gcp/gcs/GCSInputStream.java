@@ -195,8 +195,8 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
 
   private int read(ReadChannel readChannel, ByteBuffer buffer, int off, int len)
       throws IOException {
-    buffer.position(off);
     buffer.limit(off + len);
+    buffer.position(off);
     try {
       return readChannel.read(buffer);
     } catch (IOException e) {

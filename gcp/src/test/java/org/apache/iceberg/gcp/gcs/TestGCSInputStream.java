@@ -120,6 +120,27 @@ public class TestGCSInputStream {
   }
 
   @Test
+  void bufferedReadReusesArrayWithDifferentRanges() throws Exception {
+    BlobId uri = BlobId.fromGsUtilUri("gs://bucket/path/to/reused-buffer.dat");
+    byte[] data = randomData(3);
+    byte[] buffer = new byte[data.length];
+    writeGCSData(uri, data);
+
+    try (SeekableInputStream in =
+        new GCSInputStream(storage, uri, null, gcpProperties, MetricsContext.nullMetrics())) {
+      assertThat(in.read(buffer, 0, 1)).isEqualTo(1);
+      assertThat(buffer[0]).isEqualTo(data[0]);
+
+      assertThat(in.read(buffer, 2, 1)).isEqualTo(1);
+      assertThat(buffer[2]).isEqualTo(data[1]);
+
+      assertThat(in.read(buffer, 0, 1)).isEqualTo(1);
+      assertThat(buffer[0]).isEqualTo(data[2]);
+      assertThat(in.getPos()).isEqualTo(data.length);
+    }
+  }
+
+  @Test
   void bufferedReadRejectsInvalidRanges() throws Exception {
     BlobId uri = BlobId.fromGsUtilUri("gs://bucket/path/to/read-bounds.dat");
     writeGCSData(uri, new byte[] {1, 2, 3, 4});
