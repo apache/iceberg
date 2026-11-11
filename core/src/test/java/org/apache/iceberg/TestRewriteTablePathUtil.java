@@ -175,25 +175,29 @@ public class TestRewriteTablePathUtil extends TestBase {
             () ->
                 RewriteTablePathUtil.relativize(
                     "file:///tmp/warehouse-other/data.parquet", "file:/tmp/warehouse"))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
 
     assertThatThrownBy(
             () ->
                 RewriteTablePathUtil.relativize(
                     "file://server/tmp/warehouse/data.parquet", "file:/tmp/warehouse"))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
 
     assertThatThrownBy(
             () ->
                 RewriteTablePathUtil.relativize(
                     "file:////tmp/warehouse/data.parquet", "file:/tmp/warehouse"))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
 
     assertThatThrownBy(
             () ->
                 RewriteTablePathUtil.relativize(
                     "s3:/bucket/warehouse/data.parquet", "s3://bucket/warehouse"))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
   }
 
   @Test
