@@ -331,7 +331,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
             readConf,
             SparkChangelog.cdcDataSchema(table),
             temp.resolve("cdc-available-now").toString(),
-            new SparkChangelogRange(context(new ChangelogRange.UnboundedRange())));
+            context(new ChangelogRange.UnboundedRange()));
 
     stream.prepareForTriggerAvailableNow();
     sql("INSERT INTO %s VALUES (2, 'b')", tableName);
@@ -541,15 +541,15 @@ class TestSparkChangelog extends TestBaseWithCatalog {
         withTimestamps(
             table,
             Map.of(first.snapshotId(), 100L, second.snapshotId(), 90L, third.snapshotId(), 110L));
-    SparkChangelogRange range =
-        new SparkChangelogRange(
-            context(new ChangelogRange.TimestampRange(95000, Optional.of(115000L), true, true)));
+    ChangelogContext context =
+        context(new ChangelogRange.TimestampRange(95000, Optional.of(115000L), true, true));
     List<ScanTaskGroup<ChangelogScanTask>> groups =
-        range.planTasks(
+        SparkChangelog.planTasks(
             skewed,
             table
                 .newIncrementalChangelogScan()
                 .project(ChangelogUtil.changelogSchema(SparkChangelog.cdcDataSchema(table))),
+            context,
             null,
             third.snapshotId());
     assertThat(groups).isNotEmpty();
@@ -577,7 +577,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
             new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty()),
             SparkChangelog.cdcDataSchema(table),
             temp.resolve("late").toString(),
-            new SparkChangelogRange(context));
+            context);
     try {
       assertThatThrownBy(
               () ->
@@ -664,7 +664,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
             new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty()),
             SparkChangelog.cdcDataSchema(table),
             temp.resolve("admission").toString(),
-            new SparkChangelogRange(context(new ChangelogRange.UnboundedRange())));
+            context(new ChangelogRange.UnboundedRange()));
     try {
       StreamingOffset end =
           (StreamingOffset) stream.latestOffset(stream.initialOffset(), ReadLimit.maxRows(1));
@@ -702,6 +702,14 @@ class TestSparkChangelog extends TestBaseWithCatalog {
             .containsExactlyInAnyOrderElementsOf(expected);
         assertThat(spark.sql(query).collectAsList())
             .as("SQL %s, computeUpdates=%s", mode, computeUpdates)
+            .containsExactlyInAnyOrderElementsOf(expected);
+        assertThat(changes.limit(expected.size()).collectAsList())
+            .as(
+                "DataFrame LIMIT must follow %s post-processing, computeUpdates=%s",
+                mode, computeUpdates)
+            .containsExactlyInAnyOrderElementsOf(expected);
+        assertThat(spark.sql(query + " LIMIT " + expected.size()).collectAsList())
+            .as("SQL LIMIT must follow %s post-processing, computeUpdates=%s", mode, computeUpdates)
             .containsExactlyInAnyOrderElementsOf(expected);
 
         List<Row> filtered =

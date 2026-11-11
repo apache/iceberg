@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
@@ -32,12 +33,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.catalog.ChangelogContext;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.SupportsPushDownLimit;
 import org.apache.spark.sql.connector.read.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.connector.read.SupportsPushDownV2Filters;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
@@ -49,13 +52,41 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
           MetadataColumns.CHANGE_ORDINAL.name(),
           MetadataColumns.COMMIT_SNAPSHOT_ID.name());
 
+  private final ChangelogContext cdcContext;
+
   SparkChangelogScanBuilder(
       SparkSession spark, Table table, Schema schema, CaseInsensitiveStringMap options) {
+    this(spark, table, schema, options, null);
+  }
+
+  SparkChangelogScanBuilder(
+      SparkSession spark,
+      Table table,
+      Schema schema,
+      CaseInsensitiveStringMap options,
+      ChangelogContext cdcContext) {
     super(spark, table, schema, options);
+    this.cdcContext = cdcContext;
+  }
+
+  @Override
+  public void pruneColumns(StructType requestedType) {
+    if (cdcContext == null) {
+      super.pruneColumns(requestedType);
+    }
+  }
+
+  @Override
+  public boolean pushLimit(int newLimit) {
+    return cdcContext == null && super.pushLimit(newLimit);
   }
 
   @Override
   public Predicate[] pushPredicates(Predicate[] predicates) {
+    if (cdcContext != null) {
+      return predicates;
+    }
+
     List<Predicate> postScanPredicates = Lists.newArrayList();
     List<Predicate> pushable = Lists.newArrayList();
 
@@ -88,6 +119,17 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
 
   @Override
   public Scan build() {
+    if (cdcContext != null) {
+      Schema projection = projection();
+      IncrementalChangelogScan scan =
+          buildIcebergScan(
+              ChangelogUtil.changelogSchema(SparkChangelog.dropCdcMetadata(projection)),
+              null,
+              null);
+      return new SparkChangelogScan(
+          spark(), table(), scan, readConf(), projection, filters(), cdcContext);
+    }
+
     Long startSnapshotId = readConf().startSnapshotId();
     Long endSnapshotId = readConf().endSnapshotId();
     Long startTimestamp = readConf().startTimestamp();

@@ -40,6 +40,7 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.connector.catalog.ChangelogContext;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
@@ -67,7 +68,7 @@ class SparkChangelogMicroBatchStream implements MicroBatchStream, SupportsTrigge
   private Broadcast<Table> plannedTableBroadcast = null;
   private StreamingOffset lastOffsetForTriggerAvailableNow = null;
   private final Schema dataSchema;
-  private final SparkChangelogRange range;
+  private final ChangelogContext context;
 
   SparkChangelogMicroBatchStream(
       JavaSparkContext sparkContext,
@@ -75,7 +76,8 @@ class SparkChangelogMicroBatchStream implements MicroBatchStream, SupportsTrigge
       SparkReadConf readConf,
       Schema projection,
       String checkpointLocation,
-      SparkChangelogRange range) {
+      ChangelogContext context) {
+    SparkChangelog.validateRange(context);
     this.sparkContext = sparkContext;
     this.table = table;
     this.readConf = readConf;
@@ -88,7 +90,7 @@ class SparkChangelogMicroBatchStream implements MicroBatchStream, SupportsTrigge
                 () -> StreamingOffset.START_OFFSET)
             .initialOffset();
     this.dataSchema = SparkChangelog.dropCdcMetadata(projection);
-    this.range = range;
+    this.context = context;
   }
 
   @Override
@@ -133,7 +135,7 @@ class SparkChangelogMicroBatchStream implements MicroBatchStream, SupportsTrigge
       }
 
       last = snapshot;
-      if (range.includes(snapshot)) {
+      if (SparkChangelog.includes(context, snapshot)) {
         rows +=
             PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.ADDED_RECORDS_PROP, 0)
                 + PropertyUtil.propertyAsLong(
@@ -208,10 +210,10 @@ class SparkChangelogMicroBatchStream implements MicroBatchStream, SupportsTrigge
 
     validateReadSchema();
     if (startOffset.equals(StreamingOffset.START_OFFSET)) {
-      range.validateVersions(table);
+      SparkChangelog.validateVersions(table, context);
     }
 
-    if (range.requiresPostProcessing()) {
+    if (SparkChangelog.requiresPostProcessing(context)) {
       validateCommitTimestamps(startOffset, endOffset);
     }
 
@@ -228,7 +230,7 @@ class SparkChangelogMicroBatchStream implements MicroBatchStream, SupportsTrigge
         startOffset.equals(StreamingOffset.START_OFFSET)
             ? null
             : Long.valueOf(startOffset.snapshotId());
-    return range.planTasks(table, scan, startSnapshotId, endOffset.snapshotId());
+    return SparkChangelog.planTasks(table, scan, context, startSnapshotId, endOffset.snapshotId());
   }
 
   private List<Snapshot> snapshotsBetween(StreamingOffset start, StreamingOffset end) {
