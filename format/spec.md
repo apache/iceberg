@@ -1002,7 +1002,6 @@ The contents of a file are part of a snapshot if its tracking `status` is **live
     - `column_files`:
         - `column_files` may only be set if the tracked file is a data file or a v4 leaf manifest.
         - A field ID may appear in `field_ids` of at most one column file in a tracked file's `column_files`.
-        - If a struct's ID is in one column file's `field_ids`, IDs of fields nested in that struct must not be in another column file's `field_ids`.
 
     <a id="updating-tracking-metadata"></a>
     When a file is added to the dataset, its tracked file must set status to ADDED and store the snapshot ID in which the file was added.
@@ -1809,15 +1808,23 @@ Manifests hold the same statistics for delete files and data files. For delete f
 
 A data file or leaf manifest may store fields in column files listed in [`column_files`](#column-file-fields). The data file or leaf manifest whose `column_files` lists a column file is that column file's _base file_. A column file can use any supported Iceberg file format and must have the same row count as its base file.
 
-A column file stores the **entire** value of each field whose ID is in its `field_ids`, including every field nested in it. In this section, a field _contains_ every field nested in it, at any depth.
+A column file stores the values of the fields whose IDs are in its `field_ids`. A list or map is stored as a whole, including every field nested in it. For a struct, the column file stores whether the struct is null. Fields nested in the struct are stored only if their IDs are also in `field_ids`. Readers must ignore fields in a column file whose IDs are not in its `field_ids`. In this section, a field _contains_ every field nested in it, at any depth.
 
-When a column file is added, each ID in its `field_ids` must identify a field in the schema of its base file, or `_last_updated_sequence_number` (see [Writing Column Files](#writing-column-files)). The schema of a data file is the current table schema. The schema of a leaf manifest is the tracked file schema. A list or map can only be replaced as a whole: fields nested in a list or map must not be in `field_ids`.
+When a column file is added, each ID in its `field_ids` must identify a field in the schema of its base file, or `_last_updated_sequence_number` (see [Writing Column Files](#writing-column-files)). The schema of a data file is the current table schema. The schema of a leaf manifest is the tracked file schema.
 
 #### Writing Column Files
 
 A column file stores a value for every row of its base file, including rows whose values did not change. Values for deleted rows, and for fields in a null struct, should be null.
 
-The `field_ids` of the added column files must have the ID of each field whose values changed, or of a field that contains it. A struct's null state is stored with the struct, so if a struct changed between null and non-null, its ID, or the ID of a field that contains it, must be in `field_ids`.
+An added column file must follow these rules for `field_ids`:
+
+- A field nested in a list or map must not be in `field_ids`. When such a field changes, the list or map must be in `field_ids`.
+- Each field whose value changes must be in `field_ids`.
+- Each struct that changes between null and non-null must be in `field_ids`.
+- Each field directly nested in a struct that has changed from null to non-null must be in `field_ids`.
+- A field nested in a struct that is null after the update does not need to be in `field_ids`.
+
+See [Column file example](#column-file-example).
 
 When column files are added to a data file or a leaf manifest, the writer must produce a MODIFIED entry and a REPLACED entry as described in [Updating Tracking Metadata](#updating-tracking-metadata). The MODIFIED entry and the REPLACED entry may be written to different manifests.
 
@@ -1828,27 +1835,48 @@ The `tracking` fields of the MODIFIED entry are set as described in [Updating Tr
 - `sort_order_id`:
     - If an added column file lists a field that is, or contains, a field in the sort order, `sort_order_id` must be null.
 - `content_stats`:
-    - Stats for a field listed in an added column file, and for its nested fields, must be computed from that column file, or omitted.
+    - Stats for a field listed in an added column file, and for its nested fields, must be recomputed or omitted.
     - For a leaf manifest, stats that summarize a listed field must be recomputed or omitted.
 - `tight_stats`:
     - If `tight_stats` is true, `content_stats` must be tight for the live rows after the update (see [Stats Tightness](#stats-tightness)).
 - `deletion_vector`:
     - For a data file, every delete that applied to it before the column files were added must be written into the MODIFIED entry's `deletion_vector`.
 - `column_files`:
-    - Each field listed in an added column file must be removed from the `field_ids` of the previous entry's column files. Each field that a listed struct contains must also be removed. A column file with no remaining `field_ids` must be removed.
+    - Each field listed in an added column file must be removed from the `field_ids` of the previous entry's column files. A column file with no remaining `field_ids` must be removed.
     - For a data file, one of the added column files must have the `_last_updated_sequence_number` ID in its `field_ids`, so that rows changed by the added column files get a new `_last_updated_sequence_number`. In that column file:
         - If the added column files change the row, `_last_updated_sequence_number` must be set to `null` (so that the sequence number of the snapshot that added the column files replaces the current value).
         - If the added column files do not change the row and the row is not deleted, the existing `_last_updated_sequence_number` value, with null resolved as in [Row lineage assignment](#row-lineage-assignment), must be copied to the new column file.
 
 #### Reading Column Files
 
-Each projected field, including each field nested in a projected field, must be read from the column file whose `field_ids` has the ID of the field or of a field that contains it. Other projected fields are read from the base file, using [Column Projection](#column-projection) for a data file. IDs in `field_ids` that are not projected are ignored.
+Each projected field, including each field nested in a projected field, must be read from the column file whose `field_ids` has its ID. A field nested in a list or map is read with that list or map. Other projected fields are read from the base file, using [Column Projection](#column-projection) for a data file. A column file of a data file is also read using [Column Projection](#column-projection).
 
-If a struct is null in a row, every field it contains is null in that row, including a nested field read from a column file.
-
-If a field is added to the schema of a column file's base file after the column file is written, and a field in that file's `field_ids` contains it, the column file does not store it. The reader must use the field's `initial-default`, or null if no default is set.
+If a struct is null in a row, every field nested in it is null in that row, including a field read from a column file.
 
 A column file and its base file are aligned by row position before the attached deletion vector is applied. The scan schema must be used for field types and nullability. Null values in a column file may represent deleted rows.
+
+#### Column file example
+
+This example demonstrates which field IDs a column file must have in its `field_ids`, using this schema and one row of a data file. Column files are named `column_file_1`, `column_file_2`, and so on. The `_last_updated_sequence_number` ID that each update also adds to `field_ids` is left out.
+
+```
+2: optional struct customer {
+  3: optional string name;
+  4: optional struct address {
+    5: optional string street;
+    6: optional string city;
+  }
+}
+8: optional list<string> tags; // element field ID 9
+```
+
+| Row before the update | Update | Valid column files | Invalid column files | Notes |
+|---|---|---|---|---|
+| `customer` is null | `SET name = 'andrew'` | `column_file_1` with `field_ids = [2, 3, 4]`, and `address` null | `column_file_1` with `field_ids = [3]` | `customer` must be in `field_ids`, or it is read as null from the base file and hides `name`. `address` is in `field_ids` because it is directly nested in `customer`, which changed from null to non-null. Its fields are not, because `address` is null after the update. |
+| `address` is `{street: '1 Elm', city: 'Austin'}` | `SET address = null` | `column_file_1` with `field_ids = [4]` | | `street` and `city` are not in `field_ids` because `address` is null after the update. |
+| `address` is null in `column_file_1` with `field_ids = [4]` | `SET street = '2 Oak'` | `column_file_2` with `field_ids = [4, 5, 6]`, and `city` null | `column_file_2` with `field_ids = [4, 5]` | `city` must be in `field_ids`, or it is read as `'Austin'` from the base file. `column_file_1` has no fields left and is removed. |
+| `name` and `address` are in `column_file_1` with `field_ids = [3, 4, 5, 6]` | `SET name = 'bo'` | `column_file_2` with `field_ids = [3]` | | `column_file_1` now has `field_ids = [4, 5, 6]`. It still stores the old `name`, and readers ignore it. |
+| Any | `SET tags[0] = 'x'` | `column_file_1` with `field_ids = [8]`, holding the entire list | `column_file_1` with `field_ids = [9]` | A field nested in a list cannot be in `field_ids`, so the whole list is replaced. |
 
 ## Appendix A: Format-specific Requirements
 
