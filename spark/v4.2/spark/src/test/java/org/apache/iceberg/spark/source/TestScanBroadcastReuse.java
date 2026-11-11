@@ -34,7 +34,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 class TestScanBroadcastReuse extends TestBaseWithCatalog {
 
   private static final int NUM_JOINS = 6;
-  private static final int NUM_TABLES = NUM_JOINS + 1;
+
+  // without reuse, each of the 2^NUM_JOINS - 1 nested runtime filters plans its scans again and
+  // every planned scan adds two broadcasts, so staying below the filter count requires reuse
+  private static final long MAX_BROADCASTS = 1L << NUM_JOINS;
 
   @AfterEach
   void removeTables() {
@@ -83,7 +86,7 @@ class TestScanBroadcastReuse extends TestBaseWithCatalog {
     long broadcasts = broadcastsCreatedSince(idBefore);
 
     assertThat(rows).hasSize(2);
-    assertThat(broadcasts).isLessThan(10L * NUM_TABLES);
+    assertThat(broadcasts).isLessThan(MAX_BROADCASTS);
   }
 
   private void createTable(String name) {
