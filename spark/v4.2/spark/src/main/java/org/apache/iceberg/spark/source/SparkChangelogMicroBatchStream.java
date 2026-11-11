@@ -26,10 +26,12 @@ import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
@@ -38,9 +40,13 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.connector.read.InputPartition;
+import org.apache.spark.sql.connector.read.PartitionReaderFactory;
+import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.connector.read.streaming.ReadAllAvailable;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
+import org.apache.spark.sql.connector.read.streaming.SupportsTriggerAvailableNow;
 
 /**
  * A minimal changelog stream that advances at Iceberg snapshot boundaries.
@@ -48,9 +54,18 @@ import org.apache.spark.sql.connector.read.streaming.ReadLimit;
  * <p>Each planned range contains complete snapshots, ensuring that all rows from a commit remain in
  * the same Spark micro-batch.
  */
-class SparkChangelogMicroBatchStream extends SparkMicroBatchStreamBase {
+class SparkChangelogMicroBatchStream implements MicroBatchStream, SupportsTriggerAvailableNow {
 
+  private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
+
+  private final JavaSparkContext sparkContext;
+  private final Table table;
+  private final SparkReadConf readConf;
+  private final String projection;
+  private final Broadcast<FileIO> fileIOBroadcast;
+  private final StreamingOffset initialOffset;
   private Broadcast<Table> plannedTableBroadcast = null;
+  private StreamingOffset lastOffsetForTriggerAvailableNow = null;
   private final Schema dataSchema;
   private final SparkChangelogRange range;
 
@@ -61,22 +76,31 @@ class SparkChangelogMicroBatchStream extends SparkMicroBatchStreamBase {
       Schema projection,
       String checkpointLocation,
       SparkChangelogRange range) {
-    super(
-        sparkContext,
-        table,
-        table::io,
-        readConf,
-        projection,
-        checkpointLocation,
-        () -> StreamingOffset.START_OFFSET);
+    this.sparkContext = sparkContext;
+    this.table = table;
+    this.readConf = readConf;
+    this.projection = SchemaParser.toJson(projection);
+    this.fileIOBroadcast = sparkContext.broadcast(SerializableFileIOWithSize.wrap(table.io()));
+    this.initialOffset =
+        new StreamingInitialOffsetStore(
+                checkpointLocation,
+                sparkContext.hadoopConfiguration(),
+                () -> StreamingOffset.START_OFFSET)
+            .initialOffset();
     this.dataSchema = SparkChangelog.dropCdcMetadata(projection);
     this.range = range;
   }
 
   @Override
-  protected StreamingOffset latestStreamingOffset() {
-    table().refresh();
-    Snapshot latest = table().currentSnapshot();
+  public Offset latestOffset() {
+    return lastOffsetForTriggerAvailableNow != null
+        ? lastOffsetForTriggerAvailableNow
+        : latestStreamingOffset();
+  }
+
+  private StreamingOffset latestStreamingOffset() {
+    table.refresh();
+    Snapshot latest = table.currentSnapshot();
     return latest != null
         ? new StreamingOffset(latest.snapshotId(), 0, false)
         : StreamingOffset.START_OFFSET;
@@ -128,34 +152,63 @@ class SparkChangelogMicroBatchStream extends SparkMicroBatchStreamBase {
   public ReadLimit getDefaultReadLimit() {
     return ReadLimit.compositeLimit(
         new ReadLimit[] {
-          ReadLimit.maxFiles(readConf().maxFilesPerMicroBatch()),
-          ReadLimit.maxRows(readConf().maxRecordsPerMicroBatch())
+          ReadLimit.maxFiles(readConf.maxFilesPerMicroBatch()),
+          ReadLimit.maxRows(readConf.maxRecordsPerMicroBatch())
         });
   }
 
   @Override
-  protected List<ScanTaskGroup<ChangelogScanTask>> planTaskGroups(
+  public InputPartition[] planInputPartitions(Offset start, Offset end) {
+    Preconditions.checkArgument(
+        start instanceof StreamingOffset, "Invalid start offset: %s", start);
+    Preconditions.checkArgument(end instanceof StreamingOffset, "Invalid end offset: %s", end);
+
+    List<ScanTaskGroup<ChangelogScanTask>> taskGroups =
+        planTaskGroups((StreamingOffset) start, (StreamingOffset) end);
+    if (taskGroups.isEmpty()) {
+      return new InputPartition[0];
+    }
+
+    Broadcast<Table> currentTableBroadcast = tableBroadcast();
+    InputPartition[] partitions = new InputPartition[taskGroups.size()];
+    for (int index = 0; index < taskGroups.size(); index++) {
+      partitions[index] =
+          new SparkInputPartition(
+              EMPTY_GROUPING_KEY_TYPE,
+              taskGroups.get(index),
+              currentTableBroadcast,
+              fileIOBroadcast,
+              projection,
+              readConf.caseSensitive(),
+              SparkPlanningUtil.NO_LOCATION_PREFERENCE,
+              readConf.cacheDeleteFilesOnExecutors());
+    }
+
+    return partitions;
+  }
+
+  List<ScanTaskGroup<ChangelogScanTask>> planTaskGroups(
       StreamingOffset startOffset, StreamingOffset endOffset) {
     if (endOffset.equals(StreamingOffset.START_OFFSET) || startOffset.equals(endOffset)) {
       return Lists.newArrayList();
     }
 
-    table().refresh();
+    table.refresh();
     if (!startOffset.equals(StreamingOffset.START_OFFSET)) {
       Preconditions.checkState(
-          table().snapshot(startOffset.snapshotId()) != null,
+          table.snapshot(startOffset.snapshotId()) != null,
           "Cannot load changelog start offset at expired or removed snapshot: %s",
           startOffset.snapshotId());
     }
 
     Preconditions.checkState(
-        table().snapshot(endOffset.snapshotId()) != null,
+        table.snapshot(endOffset.snapshotId()) != null,
         "Cannot load changelog end offset at expired or removed snapshot: %s",
         endOffset.snapshotId());
 
     validateReadSchema();
     if (startOffset.equals(StreamingOffset.START_OFFSET)) {
-      range.validateVersions(table());
+      range.validateVersions(table);
     }
 
     if (range.requiresPostProcessing()) {
@@ -163,20 +216,19 @@ class SparkChangelogMicroBatchStream extends SparkMicroBatchStreamBase {
     }
 
     IncrementalChangelogScan scan =
-        table()
+        table
             .newIncrementalChangelogScan()
-            .caseSensitive(readConf().caseSensitive())
+            .caseSensitive(readConf.caseSensitive())
             .project(ChangelogUtil.changelogSchema(dataSchema))
-            .option(TableProperties.SPLIT_SIZE, String.valueOf(readConf().splitSize()))
-            .option(TableProperties.SPLIT_LOOKBACK, String.valueOf(readConf().splitLookback()))
+            .option(TableProperties.SPLIT_SIZE, String.valueOf(readConf.splitSize()))
+            .option(TableProperties.SPLIT_LOOKBACK, String.valueOf(readConf.splitLookback()))
             .option(
-                TableProperties.SPLIT_OPEN_FILE_COST,
-                String.valueOf(readConf().splitOpenFileCost()));
+                TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(readConf.splitOpenFileCost()));
     Long startSnapshotId =
         startOffset.equals(StreamingOffset.START_OFFSET)
             ? null
             : Long.valueOf(startOffset.snapshotId());
-    return range.planTasks(table(), scan, startSnapshotId, endOffset.snapshotId());
+    return range.planTasks(table, scan, startSnapshotId, endOffset.snapshotId());
   }
 
   private List<Snapshot> snapshotsBetween(StreamingOffset start, StreamingOffset end) {
@@ -184,15 +236,14 @@ class SparkChangelogMicroBatchStream extends SparkMicroBatchStreamBase {
         start.equals(StreamingOffset.START_OFFSET) ? null : Long.valueOf(start.snapshotId());
     if (startSnapshotId != null) {
       Preconditions.checkState(
-          SnapshotUtil.isParentAncestorOf(table(), end.snapshotId(), startSnapshotId),
+          SnapshotUtil.isParentAncestorOf(table, end.snapshotId(), startSnapshotId),
           "Cannot read CDC: snapshot %s is not an ancestor of %s",
           startSnapshotId,
           end.snapshotId());
     }
 
     List<Snapshot> snapshots = Lists.newArrayList();
-    SnapshotUtil.ancestorsBetween(table(), end.snapshotId(), startSnapshotId)
-        .forEach(snapshots::add);
+    SnapshotUtil.ancestorsBetween(table, end.snapshotId(), startSnapshotId).forEach(snapshots::add);
     Collections.reverse(snapshots);
     return snapshots;
   }
@@ -201,7 +252,7 @@ class SparkChangelogMicroBatchStream extends SparkMicroBatchStreamBase {
     Long previousTimestamp =
         start.equals(StreamingOffset.START_OFFSET)
             ? null
-            : Long.valueOf(table().snapshot(start.snapshotId()).timestampMillis());
+            : Long.valueOf(table.snapshot(start.snapshotId()).timestampMillis());
     boolean first = true;
     for (Snapshot snapshot : snapshotsBetween(start, end)) {
       long timestamp = snapshot.timestampMillis();
@@ -223,7 +274,7 @@ class SparkChangelogMicroBatchStream extends SparkMicroBatchStreamBase {
     for (Types.NestedField field : dataSchema.columns()) {
       if (field.fieldId() != MetadataColumns.ROW_ID.fieldId()
           && field.fieldId() != MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
-        Types.NestedField current = table().schema().findField(field.fieldId());
+        Types.NestedField current = table.schema().findField(field.fieldId());
         Preconditions.checkState(
             current != null && current.type().equals(field.type()),
             "Cannot continue CDC after an incompatible schema change to field %s",
@@ -232,19 +283,40 @@ class SparkChangelogMicroBatchStream extends SparkMicroBatchStreamBase {
     }
   }
 
-  @Override
-  protected Broadcast<Table> tableBroadcast() {
+  private Broadcast<Table> tableBroadcast() {
     if (plannedTableBroadcast != null) {
       plannedTableBroadcast.unpersist(false);
     }
 
-    this.plannedTableBroadcast =
-        sparkContext().broadcast(SerializableTableWithSize.copyOf(table()));
+    this.plannedTableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
     return plannedTableBroadcast;
   }
 
   @Override
-  protected void stopStream() {
+  public PartitionReaderFactory createReaderFactory() {
+    return new SparkRowReaderFactory();
+  }
+
+  @Override
+  public Offset initialOffset() {
+    return initialOffset;
+  }
+
+  @Override
+  public Offset deserializeOffset(String json) {
+    return StreamingOffset.fromJson(json);
+  }
+
+  @Override
+  public void commit(Offset end) {}
+
+  @Override
+  public void prepareForTriggerAvailableNow() {
+    this.lastOffsetForTriggerAvailableNow = latestStreamingOffset();
+  }
+
+  @Override
+  public void stop() {
     if (plannedTableBroadcast != null) {
       plannedTableBroadcast.unpersist(false);
       plannedTableBroadcast = null;

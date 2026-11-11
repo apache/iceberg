@@ -681,22 +681,6 @@ class TestSparkChangelog extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  void legacyChangelogProjectsFileAndChangeMetadataTogether() {
-    Table table = createCdcTable();
-    assertThat(
-            sql("SELECT id, _change_type, _commit_snapshot_id, _file FROM %s.changes", tableName))
-        .singleElement()
-        .satisfies(
-            row -> {
-              assertThat(row[0]).isEqualTo(1L);
-              assertThat(row[1]).isEqualTo("INSERT");
-              assertThat(row[2]).isEqualTo(table.currentSnapshot().snapshotId());
-              assertThat(row[3]).isInstanceOf(String.class);
-              assertThat((String) row[3]).contains(".parquet");
-            });
-  }
-
-  @TestTemplate
   void nativeBatchOptionsAgreeAcrossSqlAndDataFrame() {
     NativeHistory history = createNativeHistory();
     for (String mode : List.of("none", "dropCarryovers", "netChanges")) {
@@ -1251,12 +1235,10 @@ class TestSparkChangelog extends TestBaseWithCatalog {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
 
-    assertThat(sql("SELECT id, data, _change_type, _commit_snapshot_id FROM %s.changes", tableName))
-        .hasSize(1)
-        .allSatisfy(
-            row -> {
-              assertThat(row[2]).isEqualTo("INSERT");
-              assertThat(row[3]).isInstanceOf(Long.class);
-            });
+    assertThat(spark.table(tableName + ".changes").schema().fieldNames())
+        .containsExactly("id", "data", "_change_type", "_change_ordinal", "_commit_snapshot_id");
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    assertThat(sql("SELECT * FROM %s.changes", tableName))
+        .containsExactly(row(1L, "a", "INSERT", 0, snapshotId));
   }
 }

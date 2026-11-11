@@ -237,6 +237,7 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
     Preconditions.checkState(
         identifierColumns.length == 0, "Business-key CDC requires IcebergSparkSessionExtensions");
-    return new SparkChangelogScanBuilder(spark(), table(), sparkCdcSchema, options, cdcRange);
+    validateCdcOptions(options);
+    return new SparkCdcScanBuilder(spark(), table(), sparkCdcSchema, options, cdcRange);
   }
 }

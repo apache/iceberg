@@ -58,7 +58,7 @@ import scala.jdk.javaapi.CollectionConverters;
 class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
     implements PartitionReader<InternalRow> {
 
-  private final SparkChangelogReadMode readMode;
+  private final boolean sparkCdc;
   private final UnsafeProjection projection;
 
   ChangelogRowReader(SparkInputPartition partition) {
@@ -85,32 +85,27 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
         dataSchema(expectedSchema),
         caseSensitive,
         cacheDeleteFilesOnExecutors);
-    this.readMode =
-        expectedSchema.findField(SparkChangelog.COMMIT_VERSION_ID) != null
-            ? SparkChangelogReadMode.SPARK_CDC
-            : SparkChangelogReadMode.ICEBERG_CHANGELOG;
-    List<Integer> metadataIds =
-        readMode.isSparkCdc()
-            ? List.of(
-                MetadataColumns.CHANGE_TYPE.fieldId(),
-                SparkChangelog.COMMIT_VERSION_ID,
-                SparkChangelog.COMMIT_TIMESTAMP_ID)
-            : List.of(
-                MetadataColumns.CHANGE_TYPE.fieldId(),
-                MetadataColumns.CHANGE_ORDINAL.fieldId(),
-                MetadataColumns.COMMIT_SNAPSHOT_ID.fieldId());
-    List<Integer> fieldIds = Lists.newArrayList();
-    dataSchema(expectedSchema).columns().forEach(field -> fieldIds.add(field.fieldId()));
-    fieldIds.addAll(metadataIds);
-    List<Expression> expressions = Lists.newArrayList();
-    for (Types.NestedField field : expectedSchema.columns()) {
-      expressions.add(
-          new BoundReference(
-              fieldIds.indexOf(field.fieldId()),
-              SparkSchemaUtil.convert(field.type()),
-              field.isOptional()));
+    this.sparkCdc = expectedSchema.findField(SparkChangelog.COMMIT_VERSION_ID) != null;
+    if (sparkCdc) {
+      List<Integer> fieldIds = Lists.newArrayList();
+      dataSchema(expectedSchema).columns().forEach(field -> fieldIds.add(field.fieldId()));
+      fieldIds.addAll(
+          List.of(
+              MetadataColumns.CHANGE_TYPE.fieldId(),
+              SparkChangelog.COMMIT_VERSION_ID,
+              SparkChangelog.COMMIT_TIMESTAMP_ID));
+      List<Expression> expressions = Lists.newArrayList();
+      for (Types.NestedField field : expectedSchema.columns()) {
+        expressions.add(
+            new BoundReference(
+                fieldIds.indexOf(field.fieldId()),
+                SparkSchemaUtil.convert(field.type()),
+                field.isOptional()));
+      }
+      this.projection = UnsafeProjection.create(CollectionConverters.asScala(expressions).toSeq());
+    } else {
+      this.projection = null;
     }
-    this.projection = UnsafeProjection.create(CollectionConverters.asScala(expressions).toSeq());
   }
 
   @Override
@@ -120,34 +115,37 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
     cdcRow.withRight(changelogMetadata(task));
 
     CloseableIterable<InternalRow> rows = openChangelogScanTask(task);
-    CloseableIterable<InternalRow> cdcRows =
-        CloseableIterable.transform(rows, row -> projection.apply(cdcRow.withLeft(row)));
+    if (sparkCdc) {
+      CloseableIterable<InternalRow> cdcRows =
+          CloseableIterable.transform(rows, row -> projection.apply(cdcRow.withLeft(row)));
+      return cdcRows.iterator();
+    }
+
+    CloseableIterable<InternalRow> cdcRows = CloseableIterable.transform(rows, cdcRow::withLeft);
 
     return cdcRows.iterator();
   }
 
   private InternalRow changelogMetadata(ChangelogScanTask task) {
-    Object[] values;
-    if (readMode.isSparkCdc()) {
+    if (sparkCdc) {
       Snapshot snapshot = table().snapshot(task.commitSnapshotId());
       Preconditions.checkNotNull(
           snapshot, "Cannot find snapshot for changelog task: %s", task.commitSnapshotId());
-      values =
+      return new GenericInternalRow(
           new Object[] {
             UTF8String.fromString(changeType(task)),
             snapshot.sequenceNumber(),
             snapshot.timestampMillis() * 1000
-          };
-    } else {
-      values =
-          new Object[] {
-            UTF8String.fromString(task.operation().name()),
-            task.changeOrdinal(),
-            task.commitSnapshotId()
-          };
+          });
     }
 
-    return new GenericInternalRow(values);
+    InternalRow metadataRow = new GenericInternalRow(3);
+
+    metadataRow.update(0, UTF8String.fromString(task.operation().name()));
+    metadataRow.update(1, task.changeOrdinal());
+    metadataRow.update(2, task.commitSnapshotId());
+
+    return metadataRow;
   }
 
   private static Schema dataSchema(Schema expectedSchema) {
