@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
@@ -183,6 +184,37 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
 
   public Snapshot snapshot() {
     return snapshotId() != null ? table().snapshot(snapshotId()) : table().currentSnapshot();
+  }
+
+  /** Plans file scan tasks for a snapshot that references a v4 root manifest. */
+  CloseableIterable<FileScanTask> planV4RootManifest(Snapshot snapshot) {
+    ManifestFile root = RootManifestFile.from(snapshot, table().io(), table().location());
+    FilePlanner planner =
+        new FilePlanner(table().io(), root, tableSchema(), specs())
+            .filterData(filter())
+            .caseSensitive(isCaseSensitive())
+            .scanMetrics(scanMetrics())
+            .tableLocation(table().location())
+            .planWith(shouldPlanWithExecutor() ? planExecutor() : null);
+
+    if (shouldIgnoreResiduals()) {
+      planner.ignoreResiduals();
+    }
+
+    if (shouldReturnColumnStats()) {
+      planner.projectStats(statsColumnIds());
+    }
+
+    return planner.planFiles();
+  }
+
+  private int[] statsColumnIds() {
+    Set<Integer> columns = columnsToKeepStats();
+    if (columns == null) {
+      columns = TypeUtil.getProjectedIds(tableSchema());
+    }
+
+    return columns.stream().mapToInt(Integer::intValue).toArray();
   }
 
   @Override

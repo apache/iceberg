@@ -22,7 +22,9 @@ import static org.apache.iceberg.V4TestHelpers.FILE_SIZE_IN_BYTES;
 import static org.apache.iceberg.V4TestHelpers.FORMAT_VERSION_V4;
 import static org.apache.iceberg.V4TestHelpers.RECORD_COUNT;
 import static org.apache.iceberg.V4TestHelpers.SNAPSHOT_ID;
+import static org.apache.iceberg.V4TestHelpers.columnFile;
 import static org.apache.iceberg.V4TestHelpers.dataFile;
+import static org.apache.iceberg.V4TestHelpers.dataFileWithColumnFiles;
 import static org.apache.iceberg.V4TestHelpers.deletionVector;
 import static org.apache.iceberg.V4TestHelpers.manifestRef;
 import static org.apache.iceberg.V4TestHelpers.manifestRefWithStats;
@@ -50,6 +52,7 @@ import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
@@ -588,6 +591,25 @@ class TestFilePlanner {
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot read manifest with format version 0: only 4 is supported");
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void columnFilesUnsupported(FileFormat format) throws IOException {
+    ManifestFile root =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                dataFileWithColumnFiles(
+                    FILE_A,
+                    ImmutableList.of(
+                        columnFile("s3://bucket/db/table/col-a.parquet", ImmutableSet.of(1))))));
+
+    FilePlanner planner = new FilePlanner(fileIO, root, TABLE_SCHEMA, UNPARTITIONED_SPECS);
+    assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Column files are not supported: " + FILE_A);
   }
 
   @ParameterizedTest

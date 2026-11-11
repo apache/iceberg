@@ -64,6 +64,10 @@ public class DataTableScan extends BaseTableScan {
   public CloseableIterable<FileScanTask> doPlanFiles() {
     Snapshot snapshot = snapshot();
 
+    if (snapshot.rootManifestLocation() != null) {
+      return planV4RootManifest(snapshot);
+    }
+
     FileIO io = table().io();
     List<ManifestFile> dataManifests = snapshot.dataManifests(io);
     List<ManifestFile> deleteManifests = snapshot.deleteManifests(io);

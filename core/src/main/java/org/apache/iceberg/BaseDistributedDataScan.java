@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.PlanningMode.AUTO;
+import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.TableProperties.DATA_PLANNING_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_PLANNING_MODE;
 import static org.apache.iceberg.TableProperties.PLANNING_MODE_DEFAULT;
@@ -145,6 +146,17 @@ abstract class BaseDistributedDataScan
   @Override
   protected CloseableIterable<ScanTask> doPlanFiles() {
     Snapshot snapshot = snapshot();
+
+    if (snapshot.rootManifestLocation() != null) {
+      if (dataPlanningMode() == DISTRIBUTED) {
+        throw new UnsupportedOperationException(
+            "Distributed planning is not supported for v4 tables; set "
+                + DATA_PLANNING_MODE
+                + " to auto or local");
+      }
+
+      return CloseableIterable.transform(planV4RootManifest(snapshot), task -> (ScanTask) task);
+    }
 
     List<ManifestFile> deleteManifests = findMatchingDeleteManifests(snapshot);
     boolean mayHaveEqualityDeletes = !deleteManifests.isEmpty() && mayHaveEqualityDeletes(snapshot);
