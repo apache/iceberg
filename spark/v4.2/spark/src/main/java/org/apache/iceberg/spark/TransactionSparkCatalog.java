@@ -20,17 +20,22 @@ package org.apache.iceberg.spark;
 
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.spark.source.SparkTable;
+import org.apache.iceberg.catalog.LoadContext;
+import org.apache.spark.sql.catalyst.analysis.NoSuchFunctionException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.Column;
+import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableCatalogCapability;
 import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.TableInfo;
+import org.apache.spark.sql.connector.catalog.View;
+import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -38,27 +43,71 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 /**
  * The catalog view Spark plans against for the duration of a {@link SparkTransaction}.
  *
- * <p>Table loads resolve to the transaction's staged Iceberg state. All other operations delegate
- * to the underlying {@link SparkCatalog}.
+ * <p>Loads follow {@link SparkCatalog} identifier rules, including branch and snapshot selectors.
  */
-class TransactionSparkCatalog implements TableCatalog {
+class TransactionSparkCatalog implements TableCatalog, FunctionCatalog, SparkSupportsLoadContext {
 
   private final SparkCatalog delegate;
-  private final SparkTransaction transaction;
 
-  TransactionSparkCatalog(SparkCatalog delegate, SparkTransaction transaction) {
+  TransactionSparkCatalog(SparkCatalog delegate) {
     this.delegate = delegate;
-    this.transaction = transaction;
   }
 
   @Override
-  public Table loadTable(Identifier ident) {
-    return SparkTable.create(transaction.transactionFor(ident).table(), (TimeTravel) null);
+  public Table loadTable(Identifier ident) throws NoSuchTableException {
+    return loadTable(ident, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, LoadContext context) throws NoSuchTableException {
+    return delegate.load(ident, null, id -> icebergTable(id, context));
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
+    return loadTable(ident, version, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, String version, LoadContext context)
+      throws NoSuchTableException {
+    return delegate.load(ident, TimeTravel.version(version), id -> icebergTable(id, context));
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, long timestampMicros) throws NoSuchTableException {
+    return loadTable(ident, timestampMicros, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, long timestampMicros, LoadContext context)
+      throws NoSuchTableException {
+    return delegate.load(
+        ident, TimeTravel.timestampMicros(timestampMicros), id -> icebergTable(id, context));
+  }
+
+  @Override
+  public View loadView(Identifier ident, LoadContext context) throws NoSuchViewException {
+    return delegate.loadView(ident, context);
+  }
+
+  private org.apache.iceberg.Table icebergTable(Identifier ident, LoadContext context) {
+    return delegate.icebergCatalog().loadTable(delegate.icebergIdentifier(ident), context);
   }
 
   @Override
   public String name() {
     return delegate.name();
+  }
+
+  @Override
+  public Identifier[] listFunctions(String[] namespace) throws NoSuchNamespaceException {
+    return delegate.listFunctions(namespace);
+  }
+
+  @Override
+  public UnboundFunction loadFunction(Identifier ident) throws NoSuchFunctionException {
+    return delegate.loadFunction(ident);
   }
 
   @Override

@@ -20,18 +20,19 @@ package org.apache.iceberg.spark;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Map;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.transactions.Transaction;
 import org.apache.spark.sql.connector.catalog.transactions.TransactionInfo;
@@ -56,9 +57,7 @@ class TestSparkTransaction {
     catalog.createNamespace(Namespace.of("ns"));
     catalog.createTable(TABLE_IDENT, SCHEMA);
 
-    sparkCatalog = mock(SparkCatalog.class);
-    when(sparkCatalog.icebergCatalog()).thenReturn(catalog);
-    when(sparkCatalog.icebergIdentifier(any(Identifier.class))).thenReturn(TABLE_IDENT);
+    sparkCatalog = new FixedCatalog(catalog);
 
     info = mock(TransactionInfo.class);
     when(info.id()).thenReturn("txn-1");
@@ -123,9 +122,8 @@ class TestSparkTransaction {
     assertThatThrownBy(txn::commit)
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Transaction txn-1 is no longer active (state: CLOSED)");
-    assertThatThrownBy(txn::abort)
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Transaction txn-1 is no longer active (state: CLOSED)");
+    txn.abort();
+    txn.close();
     assertThatThrownBy(() -> txn.transactionFor(IDENT))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Transaction txn-1 is no longer active (state: CLOSED)");
@@ -152,10 +150,65 @@ class TestSparkTransaction {
 
   @Test
   void beginTransactionCreatesWorkingTransaction() {
-    when(sparkCatalog.beginTransaction(info)).thenCallRealMethod();
-
     Transaction txn = sparkCatalog.beginTransaction(info);
     txn.commit();
     txn.close();
+  }
+
+  @Test
+  void abortAfterCommitIsIdempotent() {
+    SparkTransaction txn = new SparkTransaction(sparkCatalog, info);
+    txn.transactionFor(IDENT).table().updateProperties().set("txn.key", "value").commit();
+    txn.commit();
+
+    txn.abort();
+    txn.close();
+
+    assertThat(catalog.loadTable(TABLE_IDENT).properties()).containsEntry("txn.key", "value");
+  }
+
+  @Test
+  void loadAfterCloseReadsCommittedTable() throws Exception {
+    SparkTransaction txn = new SparkTransaction(sparkCatalog, info);
+    txn.transactionFor(IDENT).table().updateProperties().set("txn.key", "value").commit();
+    txn.commit();
+    txn.close();
+
+    TableCatalog txCatalog = (TableCatalog) txn.catalog();
+    Table loaded = txCatalog.loadTable(IDENT);
+
+    assertThat(((SparkTable) loaded).table().properties()).containsEntry("txn.key", "value");
+  }
+
+  @Test
+  void transactionCatalogResolvesBranchSelector() throws Exception {
+    SparkTransaction txn = new SparkTransaction(sparkCatalog, info);
+    TableCatalog txCatalog = (TableCatalog) txn.catalog();
+    Identifier branchIdent = Identifier.of(new String[] {"ns", "tbl"}, "branch_main");
+
+    Table loaded = txCatalog.loadTable(branchIdent);
+
+    assertThat(loaded).isInstanceOf(SparkTable.class);
+    assertThat(((SparkTable) loaded).branch()).isEqualTo("main");
+    assertThat(((SparkTable) loaded).table().schema().asStruct())
+        .isEqualTo(catalog.loadTable(TABLE_IDENT).schema().asStruct());
+  }
+
+  private static class FixedCatalog extends SparkCatalog {
+    private final Catalog delegate;
+
+    private FixedCatalog(Catalog delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public Catalog icebergCatalog() {
+      return delegate;
+    }
+
+    @Override
+    public TableIdentifier icebergIdentifier(Identifier identifier) {
+      return TableIdentifier.of(Namespace.of(identifier.namespace()), identifier.name());
+    }
   }
 }

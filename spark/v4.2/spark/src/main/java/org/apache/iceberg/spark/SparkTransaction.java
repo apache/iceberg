@@ -61,7 +61,7 @@ class SparkTransaction implements org.apache.spark.sql.connector.catalog.transac
 
   @Override
   public CatalogPlugin catalog() {
-    return new TransactionSparkCatalog(catalog, this);
+    return new TransactionSparkCatalog(catalog);
   }
 
   /** Returns the staged Iceberg transaction for a table, creating it on first use. */
@@ -89,7 +89,10 @@ class SparkTransaction implements org.apache.spark.sql.connector.catalog.transac
 
   @Override
   public void abort() {
-    checkActive();
+    if (state != State.ACTIVE) {
+      return;
+    }
+
     stagedTransactions.clear();
     state = State.ABORTED;
   }
