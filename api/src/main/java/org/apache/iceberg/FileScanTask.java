@@ -19,13 +19,10 @@
 package org.apache.iceberg;
 
 import java.util.List;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.ScanTaskUtil;
 
 /** A scan task over a range of bytes in a single data file. */
-public interface FileScanTask
-    extends ContentScanTask<DataFile>, SplittableScanTask<FileScanTask>, HasReferencedFiles {
+public interface FileScanTask extends ContentScanTask<DataFile>, SplittableScanTask<FileScanTask> {
   /**
    * A list of {@link DeleteFile delete files} to apply when reading the task's data file.
    *
@@ -46,11 +43,6 @@ public interface FileScanTask
   @Override
   default int filesCount() {
     return 1 + deletes().size();
-  }
-
-  @Override
-  default Iterable<ContentFile<?>> referencedFiles() {
-    return Iterables.concat(ImmutableList.of(file()), deletes());
   }
 
   @Override

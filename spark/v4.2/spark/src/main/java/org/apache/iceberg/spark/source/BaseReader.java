@@ -30,7 +30,6 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.HasReferencedFiles;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.ScanTask;
@@ -50,13 +49,13 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.SparkExecutorCache;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PartitionUtil;
+import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.slf4j.Logger;
@@ -147,10 +146,11 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         }
       }
     } catch (IOException | RuntimeException e) {
-      if (currentTask instanceof HasReferencedFiles referencing && !currentTask.isDataTask()) {
+      if (currentTask != null && !currentTask.isDataTask()) {
         String filePaths =
-            String.join(
-                ", ", Iterables.transform(referencing.referencedFiles(), ContentFile::location));
+            TableScanUtil.referencedFiles(currentTask).stream()
+                .map(ContentFile::location)
+                .collect(Collectors.joining(", "));
         LOG.error("Error reading file(s): {}", filePaths, e);
       }
       throw e;

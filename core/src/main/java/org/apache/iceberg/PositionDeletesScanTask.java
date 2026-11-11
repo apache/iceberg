@@ -18,12 +18,5 @@
  */
 package org.apache.iceberg;
 
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-
 /** A {@link ScanTask} for position delete files */
-public interface PositionDeletesScanTask extends ContentScanTask<DeleteFile>, HasReferencedFiles {
-  @Override
-  default Iterable<ContentFile<?>> referencedFiles() {
-    return ImmutableList.of(file());
-  }
-}
+public interface PositionDeletesScanTask extends ContentScanTask<DeleteFile> {}

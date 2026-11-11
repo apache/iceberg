@@ -23,12 +23,12 @@ import java.util.Map;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.HasReferencedFiles;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.TableScanUtil;
 
 /** Resolves the files referenced by scan tasks into readable, decrypted {@link InputFile}s. */
 public class InputFilesDecryptor {
@@ -81,13 +81,9 @@ public class InputFilesDecryptor {
   private static Collection<ContentFile<?>> referencedFiles(Iterable<? extends ScanTask> tasks) {
     Map<String, ContentFile<?>> files = Maps.newHashMap();
     for (ScanTask task : tasks) {
-      Preconditions.checkArgument(
-          task instanceof HasReferencedFiles,
-          "Unsupported scan task type: %s",
-          task.getClass().getName());
-      ((HasReferencedFiles) task)
-          .referencedFiles()
-          .forEach(file -> files.put(file.location(), file));
+      for (ContentFile<?> file : TableScanUtil.referencedFiles(task)) {
+        files.put(file.location(), file);
+      }
     }
 
     return files.values();
