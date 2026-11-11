@@ -644,8 +644,7 @@ class V4Metadata {
         case 9 -> wrapped.tightStats();
         case 10 -> wrapped.sortOrderId();
         case 11 -> deletionVector.wrap(wrapped.deletionVector());
-        case 12 ->
-            wrapped.manifestInfo() != null ? manifestInfo.wrap(wrapped.manifestInfo()) : null;
+        case 12 -> manifestInfo.wrap(wrapped.manifestInfo());
         case 13 -> wrapped.keyMetadata();
         case 14 -> wrapped.splitOffsets();
         case 15 -> wrapColumnFiles(wrapped.columnFiles());
@@ -721,7 +720,7 @@ class V4Metadata {
           partitionType,
           contentStatsType,
           new TrackingWrapper(snapshotId, null /* sequence numbers are inherited */),
-          null /* no manifest info wrapper. leaf manifests only contain data files */);
+          new ManifestInfoWrapper(null /* sequence numbers are inherited */));
     }
 
     LeafTrackedFileWrapper wrap(TrackedFile file, Tracking newTracking) {
@@ -925,14 +924,18 @@ class V4Metadata {
   private static class ManifestInfoWrapper implements StructLike {
     private static final int SIZE = ManifestInfo.schema().fields().size();
 
-    private final long commitSequenceNumber;
+    private final Long commitSequenceNumber;
     private ManifestInfo wrapped = null;
 
-    private ManifestInfoWrapper(long commitSequenceNumber) {
+    private ManifestInfoWrapper(Long commitSequenceNumber) {
       this.commitSequenceNumber = commitSequenceNumber;
     }
 
     private ManifestInfoWrapper wrap(ManifestInfo info) {
+      if (info == null) {
+        return null;
+      }
+
       this.wrapped = info;
       return this;
     }
@@ -1102,8 +1105,7 @@ class V4Metadata {
 
     @Override
     public <T> T get(int pos, Class<T> javaClass) {
-      FieldStats<?> stats = wrapped.statsFor(posToFieldId[pos]);
-      return stats != null ? javaClass.cast(fieldStats[pos].wrap(stats)) : null;
+      return javaClass.cast(fieldStats[pos].wrap(wrapped.statsFor(posToFieldId[pos])));
     }
   }
 
@@ -1117,6 +1119,10 @@ class V4Metadata {
     }
 
     private FieldStatsWrapper wrap(FieldStats<?> stats) {
+      if (stats == null) {
+        return null;
+      }
+
       this.wrapped = stats;
       return this;
     }
