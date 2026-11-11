@@ -34,22 +34,88 @@ public class TestSnapshot extends TestBase {
   public void snapshotValueMethodsIncludeMetadataFields() {
     Snapshot snapshot =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, 5L, "key-1");
+            0 /* sequenceNumber */,
+            1 /* snapshotId */,
+            null /* parentId */,
+            0 /* timestampMillis */,
+            DataOperations.APPEND,
+            null /* summary */,
+            1 /* schemaId */,
+            "ml.avro" /* manifestListLocation */,
+            null /* rootManifest */,
+            10L /* firstRowId */,
+            5L /* addedRows */,
+            "key-1" /* keyId */);
     Snapshot same =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, 5L, "key-1");
+            0 /* sequenceNumber */,
+            1 /* snapshotId */,
+            null /* parentId */,
+            0 /* timestampMillis */,
+            DataOperations.APPEND,
+            null /* summary */,
+            1 /* schemaId */,
+            "ml.avro" /* manifestListLocation */,
+            null /* rootManifest */,
+            10L /* firstRowId */,
+            5L /* addedRows */,
+            "key-1" /* keyId */);
     Snapshot differentFirstRowId =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 11L, 5L, "key-1");
+            0 /* sequenceNumber */,
+            1 /* snapshotId */,
+            null /* parentId */,
+            0 /* timestampMillis */,
+            DataOperations.APPEND,
+            null /* summary */,
+            1 /* schemaId */,
+            "ml.avro" /* manifestListLocation */,
+            null /* rootManifest */,
+            11L /* firstRowId */,
+            5L /* addedRows */,
+            "key-1" /* keyId */);
     Snapshot differentAddedRows =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, 6L, "key-1");
+            0 /* sequenceNumber */,
+            1 /* snapshotId */,
+            null /* parentId */,
+            0 /* timestampMillis */,
+            DataOperations.APPEND,
+            null /* summary */,
+            1 /* schemaId */,
+            "ml.avro" /* manifestListLocation */,
+            null /* rootManifest */,
+            10L /* firstRowId */,
+            6L /* addedRows */,
+            "key-1" /* keyId */);
     Snapshot differentKeyId =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, 5L, "key-2");
+            0 /* sequenceNumber */,
+            1 /* snapshotId */,
+            null /* parentId */,
+            0 /* timestampMillis */,
+            DataOperations.APPEND,
+            null /* summary */,
+            1 /* schemaId */,
+            "ml.avro" /* manifestListLocation */,
+            null /* rootManifest */,
+            10L /* firstRowId */,
+            5L /* addedRows */,
+            "key-2" /* keyId */);
     Snapshot withoutMetadataFields =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, null);
+            0 /* sequenceNumber */,
+            1 /* snapshotId */,
+            null /* parentId */,
+            0 /* timestampMillis */,
+            DataOperations.APPEND,
+            null /* summary */,
+            1 /* schemaId */,
+            "ml.avro" /* manifestListLocation */,
+            null /* rootManifest */,
+            null /* firstRowId */,
+            null /* addedRows */,
+            null /* keyId */);
 
     assertThat(snapshot).isEqualTo(same);
     assertThat(snapshot.hashCode()).isEqualTo(same.hashCode());

@@ -381,6 +381,7 @@ public class TestMetadataUpdateParser {
             ImmutableMap.of("files-added", "4", "files-deleted", "100"),
             schemaId,
             manifestList,
+            null /* rootManifest */,
             firstRowId,
             addedRows,
             "key-1");
@@ -414,12 +415,44 @@ public class TestMetadataUpdateParser {
             summary,
             schemaId,
             manifestList,
+            null /* rootManifest */,
             lastRowId,
             addedRows,
             "key-1");
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String json = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate expected = new MetadataUpdate.AddSnapshot(snapshot);
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+  }
+
+  @Test
+  public void testAddSnapshotWithRootManifest() {
+    String action = MetadataUpdateParser.ADD_SNAPSHOT;
+    long snapshotId = 2;
+    int schemaId = 3;
+    String rootManifest = "s3://bucket/metadata/root-manifest-2.parquet";
+
+    Snapshot snapshot =
+        new BaseSnapshot(
+            0 /* sequenceNumber */,
+            snapshotId,
+            null /* parentId */,
+            System.currentTimeMillis(),
+            DataOperations.APPEND,
+            ImmutableMap.of("files-added", "4") /* summary */,
+            schemaId,
+            null /* manifestList */,
+            rootManifest,
+            0L /* firstRowId */,
+            10L /* addedRows */,
+            "key-1" /* keyId */);
+    String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
+    String json = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
+    assertThat(json).contains("\"root-manifest\":\"" + rootManifest + "\"");
+    assertThat(json).doesNotContain("manifest-list");
+
+    MetadataUpdate expected = new MetadataUpdate.AddSnapshot(snapshot);
+    assertThat(MetadataUpdateParser.toJson(expected)).isEqualTo(json);
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
   }
 
@@ -1270,6 +1303,8 @@ public class TestMetadataUpdateParser {
     assertThat(actual.snapshot().snapshotId()).isEqualTo(expected.snapshot().snapshotId());
     assertThat(actual.snapshot().manifestListLocation())
         .isEqualTo(expected.snapshot().manifestListLocation());
+    assertThat(actual.snapshot().rootManifestLocation())
+        .isEqualTo(expected.snapshot().rootManifestLocation());
     assertThat(actual.snapshot().summary())
         .as("Snapshot summary should be equivalent")
         .containsExactlyEntriesOf(expected.snapshot().summary());

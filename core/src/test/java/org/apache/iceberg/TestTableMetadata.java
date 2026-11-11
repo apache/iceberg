@@ -120,6 +120,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -138,6 +139,7 @@ public class TestTableMetadata {
             null,
             7,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -265,6 +267,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -283,6 +286,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -372,6 +376,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -391,6 +396,7 @@ public class TestTableMetadata {
             null,
             7,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -452,7 +458,18 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(snapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot snapshot =
         new BaseSnapshot(
-            0, snapshotId, null, snapshotId, null, null, null, manifestList, null, null, null);
+            0 /* sequenceNumber */,
+            snapshotId,
+            null /* parentId */,
+            snapshotId /* timestampMillis */,
+            null /* operation */,
+            null /* summary */,
+            null /* schemaId */,
+            manifestList,
+            null /* rootManifest */,
+            null /* firstRowId */,
+            null /* addedRows */,
+            null /* keyId */);
 
     Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -590,6 +607,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -608,6 +626,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -670,6 +689,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -688,6 +708,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -767,6 +788,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -785,6 +807,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -877,6 +900,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -895,6 +919,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -2088,6 +2113,7 @@ public class TestTableMetadata {
             null,
             null,
             "file:/s1.avro",
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -2104,6 +2130,7 @@ public class TestTableMetadata {
             null,
             null,
             "file:/s2.avro",
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -2133,6 +2160,7 @@ public class TestTableMetadata {
             null,
             null,
             "file:/s1.avro",
+            null /* rootManifest */,
             0L,
             5L,
             null);
@@ -2142,7 +2170,18 @@ public class TestTableMetadata {
     // A snapshot with firstRowId=0 is stale (0 < nextRowId=5)
     Snapshot staleSnapshot =
         new BaseSnapshot(
-            2, 2L, 1L, System.currentTimeMillis(), null, null, null, "file:/s2.avro", 0L, 1L, null);
+            2 /* sequenceNumber */,
+            2L /* snapshotId */,
+            1L /* parentId */,
+            System.currentTimeMillis(),
+            null /* operation */,
+            null /* summary */,
+            null /* schemaId */,
+            "file:/s2.avro" /* manifestListLocation */,
+            null /* rootManifest */,
+            0L /* firstRowId */,
+            1L /* addedRows */,
+            null /* keyId */);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(withS1).addSnapshot(staleSnapshot))
         .isInstanceOf(RetryableValidationException.class)
@@ -2165,6 +2204,7 @@ public class TestTableMetadata {
             null,
             null,
             "file:/s1.avro",
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -2198,11 +2238,35 @@ public class TestTableMetadata {
             ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)));
 
     Snapshot parent =
-        new BaseSnapshot(1, 1L, null, 1_000L, null, null, null, "file:/s1.avro", 0L, 0L, null);
+        new BaseSnapshot(
+            1 /* sequenceNumber */,
+            1L /* snapshotId */,
+            null /* parentId */,
+            1_000L /* timestampMillis */,
+            null /* operation */,
+            null /* summary */,
+            null /* schemaId */,
+            "file:/s1.avro" /* manifestListLocation */,
+            null /* rootManifest */,
+            0L /* firstRowId */,
+            0L /* addedRows */,
+            null /* keyId */);
     TableMetadata withParent = TableMetadata.buildFrom(base).addSnapshot(parent).build();
 
     Snapshot child =
-        new BaseSnapshot(2, 2L, 1L, 1_000L, null, null, null, "file:/s2.avro", 0L, 0L, null);
+        new BaseSnapshot(
+            2 /* sequenceNumber */,
+            2L /* snapshotId */,
+            1L /* parentId */,
+            1_000L /* timestampMillis */,
+            null /* operation */,
+            null /* summary */,
+            null /* schemaId */,
+            "file:/s2.avro" /* manifestListLocation */,
+            null /* rootManifest */,
+            0L /* firstRowId */,
+            0L /* addedRows */,
+            null /* keyId */);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(withParent).addSnapshot(child))
         .isInstanceOf(ValidationException.class)
@@ -2235,6 +2299,7 @@ public class TestTableMetadata {
             null,
             null,
             "file:/s1.avro",
+            null /* rootManifest */,
             parentFirstRowId,
             parentAddedRows,
             null);
@@ -2255,6 +2320,7 @@ public class TestTableMetadata {
             null,
             null,
             "file:/s2.avro",
+            null /* rootManifest */,
             childFirstRowId,
             childAddedRows,
             null);
@@ -2288,6 +2354,7 @@ public class TestTableMetadata {
             null,
             null,
             "file:/s1.avro",
+            null /* rootManifest */,
             firstRowId,
             addedRows,
             null);
