@@ -30,8 +30,8 @@ RUN  set -xeu && \
 # Working directory for the application
 WORKDIR /usr/lib/iceberg-rest
 
-# Copy staged REST fixture runtime, including libs/ and LICENSE/NOTICE
-COPY --chown=iceberg:iceberg open-api/build/iceberg-rest-server/ /usr/lib/iceberg-rest/
+# Copy runtime JARs staged by ./gradlew :iceberg-open-api:stageRESTFixtureRuntime
+COPY --chown=iceberg:iceberg open-api/build/rest-fixture-runtime/ /usr/lib/iceberg-rest/libs/
 COPY --chown=iceberg:iceberg docker/iceberg-rest-fixture/entrypoint.sh /usr/lib/iceberg-rest/entrypoint.sh
 
 ENV CATALOG_CATALOG__IMPL=org.apache.iceberg.jdbc.JdbcCatalog

@@ -1217,17 +1217,11 @@ project(':iceberg-open-api') {
   check.dependsOn('validateRESTCatalogSpec')
 
   tasks.register('stageRESTFixtureRuntime', Sync) {
-    description = 'Stages the REST fixture JARs and LICENSE/NOTICE for the Docker image'
+    description = 'Stages the REST fixture runtime JARs'
     group = 'build'
-    into layout.buildDirectory.dir('iceberg-rest-server')
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
-    into('libs') {
-      from configurations.testFixturesRuntimeClasspath
-      from tasks.named('testFixturesJar')
-    }
+    into layout.buildDirectory.dir('rest-fixture-runtime')
+    from configurations.testFixturesRuntimeClasspath
+    from tasks.named('testFixturesJar')
   }
 
   jar {
