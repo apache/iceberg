@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -451,6 +452,8 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
 
   @Override
   public void close() throws IOException {
-    workerPool.shutdown();
+    try (Closeable ignored = DynamicSinkUtil.closeable(catalog)) {
+      workerPool.shutdown();
+    }
   }
 }
