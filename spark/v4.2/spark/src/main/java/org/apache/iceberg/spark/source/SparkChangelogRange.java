@@ -51,9 +51,23 @@ class SparkChangelogRange {
       this.startVersion = parseVersion(versions.startingVersion());
       this.endVersion =
           versions.endingVersion().map(SparkChangelogRange::parseVersion).orElse(null);
+      Preconditions.checkArgument(
+          endVersion == null || startVersion <= endVersion,
+          "Cannot set startingVersion %s greater than endingVersion %s",
+          startVersion,
+          endVersion);
     } else {
       this.startVersion = null;
       this.endVersion = null;
+    }
+
+    if (context.range() instanceof ChangelogRange.TimestampRange timestamps) {
+      Preconditions.checkArgument(
+          timestamps.endingTimestamp().isEmpty()
+              || timestamps.startingTimestamp() <= timestamps.endingTimestamp().get(),
+          "Cannot set startingTimestamp %s greater than endingTimestamp %s",
+          timestamps.startingTimestamp(),
+          timestamps.endingTimestamp().orElse(null));
     }
   }
 

@@ -24,6 +24,7 @@ import org.apache.spark.sql.Encoders
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.Alias
+import org.apache.spark.sql.catalyst.expressions.Cast
 import org.apache.spark.sql.catalyst.expressions.OrderUtils
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
@@ -108,7 +109,10 @@ case class RewriteBusinessKeyChangelog(spark: SparkSession) extends Rule[Logical
       .analyzed
     val output = rel.output.map { expected =>
       val actual = processed.output.find(_.name == expected.name).get
-      Alias(actual, expected.name)(
+      // Row encoding can remove nested field metadata. Restore the relation's complete type.
+      val value =
+        if (actual.dataType == expected.dataType) actual else Cast(actual, expected.dataType)
+      Alias(value, expected.name)(
         exprId = expected.exprId,
         explicitMetadata = Some(expected.metadata))
     }

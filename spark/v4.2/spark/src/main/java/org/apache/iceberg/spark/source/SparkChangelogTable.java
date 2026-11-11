@@ -74,6 +74,22 @@ public class SparkChangelogTable
   private static final Set<TableCapability> CAPABILITIES =
       ImmutableSet.of(TableCapability.BATCH_READ, TableCapability.MICRO_BATCH_READ);
 
+  private static final Set<String> UNSUPPORTED_CDC_OPTIONS =
+      ImmutableSet.of(
+          SparkReadOptions.START_SNAPSHOT_ID,
+          SparkReadOptions.END_SNAPSHOT_ID,
+          SparkReadOptions.START_TIMESTAMP,
+          SparkReadOptions.END_TIMESTAMP,
+          SparkReadOptions.LEGACY_SNAPSHOT_ID,
+          SparkReadOptions.LEGACY_AS_OF_TIMESTAMP,
+          SparkReadOptions.LEGACY_TAG,
+          SparkReadOptions.VERSION_AS_OF,
+          SparkReadOptions.TIMESTAMP_AS_OF,
+          SparkReadOptions.BRANCH,
+          SparkReadOptions.STREAM_FROM_TIMESTAMP,
+          SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS,
+          SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS);
+
   private static final Types.NestedField ROW_ID_FIELD =
       Types.NestedField.required(
           MetadataColumns.ROW_ID.fieldId(),
@@ -123,6 +139,7 @@ public class SparkChangelogTable
       Table table, ChangelogContext context, CaseInsensitiveStringMap options) {
     this.table = table;
     this.context = context;
+    validateCdcOptions(context, options);
     this.identifierColumns = identifierColumns(table.schema(), options);
     Preconditions.checkArgument(
         identifierColumns.length == 0
@@ -150,6 +167,21 @@ public class SparkChangelogTable
                     MetadataColumns.CHANGE_TYPE, COMMIT_VERSION_FIELD, COMMIT_TIMESTAMP_FIELD))
             : null;
     this.sparkCdcColumns = cdcRange != null ? toColumns(sparkCdcSchema) : null;
+  }
+
+  private static void validateCdcOptions(
+      ChangelogContext context, CaseInsensitiveStringMap options) {
+    if (context == null) {
+      return;
+    }
+
+    for (String option : UNSUPPORTED_CDC_OPTIONS) {
+      Preconditions.checkArgument(
+          !options.containsKey(option),
+          "Use Spark CDC startingVersion/endingVersion or startingTimestamp/endingTimestamp "
+              + "options. Option %s is not supported for Spark CDC",
+          option);
+    }
   }
 
   private static String[] identifierColumns(Schema schema, CaseInsensitiveStringMap options) {

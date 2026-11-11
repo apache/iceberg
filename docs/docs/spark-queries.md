@@ -144,6 +144,41 @@ has lineage, because it processes rows by values and business keys. It preserves
 and timestamps. Without `identifier-columns`, native post-processing uses Iceberg row lineage
 and requires valid lineage in the selected snapshots and files.
 
+The native options have the same meaning in SQL and DataFrame reads:
+
+| Option | Default | Behavior |
+| --- | --- | --- |
+| `startingVersion`, `endingVersion` | Unbounded | Select snapshot sequence numbers, not snapshot IDs. An ending version requires a starting version. |
+| `startingTimestamp`, `endingTimestamp` | Unbounded | Select commits by timestamp. An ending timestamp requires a starting timestamp. Do not mix timestamp and version bounds. |
+| `startingBoundInclusive`, `endingBoundInclusive` | `true` | Include the respective endpoint. In SQL, use `EXCLUSIVE` after the corresponding version or timestamp to exclude it. |
+| `deduplicationMode` | `dropCarryovers` | `none` returns raw changes; `dropCarryovers` removes rewrite carry-overs within each commit; `netChanges` also removes intermediate changes across commits. |
+| `computeUpdates` | `false` | Pair deletes and inserts into update images. Requires carry-over removal. |
+| `identifier-columns` | Not set | Explicitly selects business-key batch processing instead of row-lineage processing. |
+
+Without business keys, `dropCarryovers` and `netChanges` require row lineage and support both
+values of `computeUpdates`. Raw mode requires `computeUpdates=false`. Business-key mode
+supports only `dropCarryovers`, with either value of `computeUpdates`. When updates are disabled,
+business-key processing groups by all output values and requires those values to be orderable;
+map payloads are therefore unsupported in that mode.
+
+Streaming reads advance at snapshot boundaries. Post-processing requires commit timestamps to
+be nondecreasing within a micro-batch and strictly greater than the previous micro-batch's last
+timestamp. Reads that violate this condition fail rather than allow Spark's watermark to discard
+changes. Streaming `netChanges` applies to the buffered changes; concatenating its output across
+micro-batches need not equal one batch read over the whole history.
+Spark's streaming `netChanges` processor requires
+`spark.sql.streaming.stateStore.providerClass=org.apache.spark.sql.execution.streaming.state.RocksDBStateStoreProvider`.
+On Spark 4.2.0, combining streaming `netChanges` with `computeUpdates=true` also requires
+`spark.sql.legacy.createEmptyCollectionUsingStringType=true` to work around an analyzer type-resolution
+bug. This session setting changes the inferred element types of empty collection literals to string;
+enable it explicitly for the CDC query and restore it afterward if other queries need the default
+empty-collection semantics. Iceberg does not change this setting automatically.
+
+CDC rejects ordinary time-travel options (`versionAsOf`, `timestampAsOf`, and legacy options),
+`branch`, Iceberg's `start-snapshot-id`/`end-snapshot-id` and `start-timestamp`/`end-timestamp`,
+`stream-from-timestamp`, and the streaming skip-delete/skip-overwrite options. Use the native CDC
+range options to select changes.
+
 ### Time travel Queries with SQL
 Spark supports time travel in SQL queries using `TIMESTAMP AS OF` or `VERSION AS OF` clauses.
 The `VERSION AS OF` clause can contain a long snapshot ID or a string branch or tag name.

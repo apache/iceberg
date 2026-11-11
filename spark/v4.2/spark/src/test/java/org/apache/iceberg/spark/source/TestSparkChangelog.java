@@ -19,12 +19,14 @@
 package org.apache.iceberg.spark.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,6 +36,7 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -171,7 +174,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
                     .option("computeUpdates", "true")
                     .changes(tableName)
                     .collectAsList())
-        .hasStackTraceContaining("Business-key CDC requires IcebergSparkSessionExtensions");
+        .hasMessageContaining("Business-key CDC requires IcebergSparkSessionExtensions");
   }
 
   @TestTemplate
@@ -190,7 +193,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
             Map.of("deduplicationMode", "none", "computeUpdates", "true"));
     for (Map<String, String> option : options) {
       assertThatThrownBy(() -> spark.read().options(option).changes(tableName).collectAsList())
-          .hasStackTraceContaining("Spark CDC post-processing requires row lineage");
+          .hasMessageContaining("Spark CDC post-processing requires row lineage");
     }
   }
 
@@ -204,13 +207,13 @@ class TestSparkChangelog extends TestBaseWithCatalog {
     assertThatThrownBy(
             () ->
                 spark.read().option("deduplicationMode", "none").changes(tableName).collectAsList())
-        .hasStackTraceContaining("format version 2 or later");
+        .hasMessageContaining("format version 2 or later");
 
     sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='2')", tableName);
     assertThatThrownBy(
             () ->
                 spark.read().option("deduplicationMode", "none").changes(tableName).collectAsList())
-        .hasStackTraceContaining("without a commit sequence number");
+        .hasMessageContaining("without a commit sequence number");
   }
 
   @TestTemplate
@@ -226,7 +229,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
     assertThatThrownBy(
             () ->
                 spark.read().option("deduplicationMode", "none").changes(tableName).collectAsList())
-        .hasStackTraceContaining("Delete files are currently not supported in changelog scans");
+        .hasMessageContaining("Delete files are currently not supported in changelog scans");
   }
 
   @TestTemplate
@@ -691,6 +694,503 @@ class TestSparkChangelog extends TestBaseWithCatalog {
               assertThat(row[3]).isInstanceOf(String.class);
               assertThat((String) row[3]).contains(".parquet");
             });
+  }
+
+  @TestTemplate
+  void nativeBatchOptionsAgreeAcrossSqlAndDataFrame() {
+    NativeHistory history = createNativeHistory();
+    for (String mode : List.of("none", "dropCarryovers", "netChanges")) {
+      for (boolean computeUpdates : List.of(false, true)) {
+        Map<String, String> options = nativeOptions(history, mode, computeUpdates);
+        String query = nativeSql(history, mode, computeUpdates);
+        if (mode.equals("none") && computeUpdates) {
+          assertThatThrownBy(() -> spark.read().options(options).changes(tableName).collectAsList())
+              .hasMessageContaining("UPDATE_DETECTION_REQUIRES_CARRY_OVER_REMOVAL");
+          assertThatThrownBy(() -> spark.sql(query).collectAsList())
+              .hasMessageContaining("UPDATE_DETECTION_REQUIRES_CARRY_OVER_REMOVAL");
+          continue;
+        }
+
+        List<Row> expected = expectedNativeChanges(history, mode, computeUpdates);
+        Dataset<Row> changes = spark.read().options(options).changes(tableName);
+        assertThat(changes.collectAsList())
+            .as("DataFrame %s, computeUpdates=%s", mode, computeUpdates)
+            .containsExactlyInAnyOrderElementsOf(expected);
+        assertThat(spark.sql(query).collectAsList())
+            .as("SQL %s, computeUpdates=%s", mode, computeUpdates)
+            .containsExactlyInAnyOrderElementsOf(expected);
+
+        List<Row> filtered =
+            expected.stream()
+                .filter(row -> row.getString(1).equals("updated"))
+                .map(row -> RowFactory.create(row.getString(4), row.getLong(5)))
+                .toList();
+        assertThat(
+                changes
+                    .filter("data = 'updated'")
+                    .select("_change_type", "_commit_version")
+                    .collectAsList())
+            .as("Filtering must follow %s post-processing", mode)
+            .containsExactlyInAnyOrderElementsOf(filtered);
+        assertThat(changes.select("_change_type").collectAsList())
+            .containsExactlyInAnyOrderElementsOf(
+                expected.stream().map(row -> RowFactory.create(row.getString(4))).toList());
+      }
+    }
+
+    Map<String, String> bounds =
+        Map.of(
+            "startingVersion", String.valueOf(history.firstUpdate().sequenceNumber()),
+            "endingVersion", String.valueOf(history.transientDelete().sequenceNumber()));
+    List<Row> expectedDefault = expectedNativeChanges(history, "dropCarryovers", false);
+    assertThat(spark.read().options(bounds).changes(tableName).collectAsList())
+        .containsExactlyInAnyOrderElementsOf(expectedDefault);
+    assertThat(
+            spark
+                .sql(
+                    String.format(
+                        "SELECT * FROM %s CHANGES FROM VERSION %d TO VERSION %d",
+                        tableName,
+                        history.firstUpdate().sequenceNumber(),
+                        history.transientDelete().sequenceNumber()))
+                .collectAsList())
+        .containsExactlyInAnyOrderElementsOf(expectedDefault);
+    assertThat(
+            spark
+                .read()
+                .options(bounds)
+                .option("DeDuPliCaTiOnMoDe", "DROPCARRYOVERS")
+                .option("CoMpUtEuPdAtEs", "TrUe")
+                .changes(tableName)
+                .collectAsList())
+        .containsExactlyInAnyOrderElementsOf(
+            expectedNativeChanges(history, "dropCarryovers", true));
+  }
+
+  @TestTemplate
+  void nativeStreamingOptionsHonorPostProcessing() {
+    NativeHistory history = createNativeHistory();
+    withSQLConf(
+        Map.of(
+            "spark.sql.shuffle.partitions",
+            "4",
+            "spark.sql.streaming.stateStore.providerClass",
+            "org.apache.spark.sql.execution.streaming.state.RocksDBStateStoreProvider"),
+        () ->
+            assertThatCode(() -> assertNativeStreamingOptions(history)).doesNotThrowAnyException());
+  }
+
+  @TestTemplate
+  void nativeStreamingNetChangesUpdatesWithSpark42Workaround() {
+    NativeHistory history = createNativeHistory();
+    withSQLConf(
+        Map.of(
+            "spark.sql.shuffle.partitions",
+            "4",
+            "spark.sql.streaming.stateStore.providerClass",
+            "org.apache.spark.sql.execution.streaming.state.RocksDBStateStoreProvider",
+            "spark.sql.legacy.createEmptyCollectionUsingStringType",
+            "true"),
+        () ->
+            assertThatCode(
+                    () -> {
+                      Dataset<Row> changes =
+                          spark
+                              .readStream()
+                              .options(nativeOptions(history, "netChanges", true))
+                              .changes(tableName);
+                      assertThat(readAvailableChanges(changes, "net-updates-workaround"))
+                          .containsExactlyInAnyOrderElementsOf(
+                              expectedNativeChanges(history, "netChanges", true));
+                    })
+                .doesNotThrowAnyException());
+  }
+
+  private void assertNativeStreamingOptions(NativeHistory history) throws Exception {
+    for (String mode : List.of("none", "dropCarryovers", "netChanges")) {
+      for (boolean computeUpdates : List.of(false, true)) {
+        // This combination is verified separately with the Spark 4.2 analyzer workaround.
+        if (mode.equals("netChanges") && computeUpdates) {
+          continue;
+        }
+
+        Map<String, String> options = nativeOptions(history, mode, computeUpdates);
+        if (mode.equals("none") && computeUpdates) {
+          assertThatThrownBy(() -> spark.readStream().options(options).changes(tableName).explain())
+              .hasMessageContaining("UPDATE_DETECTION_REQUIRES_CARRY_OVER_REMOVAL");
+          continue;
+        }
+
+        // One AvailableNow input batch contains the whole range. Streaming netChanges may
+        // collapse this range, unlike commits that were already emitted in earlier batches.
+        Dataset<Row> changes = spark.readStream().options(options).changes(tableName);
+        assertThat(readAvailableChanges(changes, "matrix-" + mode + "-" + computeUpdates))
+            .as("Streaming %s, computeUpdates=%s", mode, computeUpdates)
+            .containsExactlyInAnyOrderElementsOf(
+                expectedNativeChanges(history, mode, computeUpdates));
+      }
+    }
+
+    Dataset<Row> defaultChanges =
+        spark
+            .readStream()
+            .option("startingVersion", history.firstUpdate().sequenceNumber())
+            .option("endingVersion", history.transientDelete().sequenceNumber())
+            .changes(tableName);
+    assertThat(readAvailableChanges(defaultChanges, "matrix-defaults"))
+        .containsExactlyInAnyOrderElementsOf(
+            expectedNativeChanges(history, "dropCarryovers", false));
+  }
+
+  @TestTemplate
+  void nativeVersionAndTimestampBoundsAgreeAcrossApis() {
+    List<Snapshot> snapshots = createBoundaryHistory();
+    for (boolean timestamps : List.of(false, true)) {
+      for (boolean startInclusive : List.of(false, true)) {
+        for (boolean endInclusive : List.of(false, true)) {
+          List<Row> expected = boundaryRows(snapshots, startInclusive, endInclusive);
+          assertThat(
+                  spark
+                      .read()
+                      .options(boundaryOptions(snapshots, timestamps, startInclusive, endInclusive))
+                      .changes(tableName)
+                      .select("id", "_commit_version", "_commit_timestamp")
+                      .collectAsList())
+              .containsExactlyInAnyOrderElementsOf(expected);
+          assertThat(
+                  spark
+                      .sql(boundarySql(snapshots, timestamps, startInclusive, endInclusive))
+                      .collectAsList())
+              .containsExactlyInAnyOrderElementsOf(expected);
+        }
+      }
+    }
+
+    String justAfterFirst =
+        Instant.ofEpochMilli(snapshots.get(0).timestampMillis()).plusNanos(1000).toString();
+    String justBeforeLast =
+        Instant.ofEpochMilli(snapshots.get(2).timestampMillis()).minusNanos(1000).toString();
+    List<Row> middle = boundaryRows(snapshots, false, false);
+    assertThat(
+            spark
+                .read()
+                .option("startingTimestamp", justAfterFirst)
+                .option("endingTimestamp", justBeforeLast)
+                .option("deduplicationMode", "none")
+                .changes(tableName)
+                .select("id", "_commit_version", "_commit_timestamp")
+                .collectAsList())
+        .containsExactlyInAnyOrderElementsOf(middle);
+    assertThat(
+            spark
+                .sql(
+                    String.format(
+                        "SELECT id, _commit_version, _commit_timestamp FROM %s "
+                            + "CHANGES FROM TIMESTAMP '%s' TO TIMESTAMP '%s' "
+                            + "WITH (deduplicationMode = 'none')",
+                        tableName, justAfterFirst, justBeforeLast))
+                .collectAsList())
+        .containsExactlyInAnyOrderElementsOf(middle);
+  }
+
+  @TestTemplate
+  void nativeStreamingVersionAndTimestampBounds() throws Exception {
+    List<Snapshot> snapshots = createBoundaryHistory();
+    for (boolean timestamps : List.of(false, true)) {
+      for (boolean startInclusive : List.of(false, true)) {
+        for (boolean endInclusive : List.of(false, true)) {
+          Dataset<Row> changes =
+              spark
+                  .readStream()
+                  .options(boundaryOptions(snapshots, timestamps, startInclusive, endInclusive))
+                  .changes(tableName)
+                  .select("id", "_commit_version", "_commit_timestamp");
+          assertThat(
+                  readAvailableChanges(
+                      changes, "bounds-" + timestamps + "-" + startInclusive + "-" + endInclusive))
+              .containsExactlyInAnyOrderElementsOf(
+                  boundaryRows(snapshots, startInclusive, endInclusive));
+        }
+      }
+    }
+  }
+
+  @TestTemplate
+  void nativeOptionsRejectInvalidRangesAndModes() {
+    List<Snapshot> snapshots = createBoundaryHistory();
+    String first = String.valueOf(snapshots.get(0).sequenceNumber());
+    String last = String.valueOf(snapshots.get(2).sequenceNumber());
+    List<Map<String, String>> invalidOptions =
+        List.of(
+            Map.of("deduplicationMode", "unsupported"),
+            Map.of("startingVersion", first, "startingTimestamp", "2020-01-01"),
+            Map.of("endingVersion", last),
+            Map.of("endingTimestamp", "2020-01-01"),
+            Map.of("startingTimestamp", "not-a-timestamp"));
+    for (Map<String, String> options : invalidOptions) {
+      assertThatThrownBy(() -> spark.read().options(options).changes(tableName).collectAsList())
+          .hasMessageContaining("INVALID_CDC_OPTION");
+      assertThatThrownBy(() -> spark.readStream().options(options).changes(tableName).explain())
+          .hasMessageContaining("INVALID_CDC_OPTION");
+    }
+
+    assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .option("startingVersion", "not-a-version")
+                    .changes(tableName)
+                    .collectAsList())
+        .hasMessageContaining("Invalid Iceberg snapshot sequence number");
+    assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .option("startingVersion", Long.MAX_VALUE)
+                    .changes(tableName)
+                    .collectAsList())
+        .hasMessageContaining("Cannot find Iceberg snapshot with sequence number");
+
+    for (boolean timestamps : List.of(false, true)) {
+      String kind = timestamps ? "Timestamp" : "Version";
+      String start = nativeBound(snapshots.get(2), timestamps);
+      String end = nativeBound(snapshots.get(0), timestamps);
+      assertThatThrownBy(
+              () ->
+                  spark
+                      .read()
+                      .option("starting" + kind, start)
+                      .option("ending" + kind, end)
+                      .changes(tableName)
+                      .collectAsList())
+          .hasMessageContaining("starting" + kind)
+          .hasMessageContaining("ending" + kind);
+      String sqlStart = timestamps ? "'" + start + "'" : start;
+      String sqlEnd = timestamps ? "'" + end + "'" : end;
+      assertThatThrownBy(
+              () ->
+                  spark
+                      .sql(
+                          String.format(
+                              "SELECT * FROM %s CHANGES FROM %s %s TO %s %s",
+                              tableName, kind, sqlStart, kind, sqlEnd))
+                      .collectAsList())
+          .hasMessageContaining("starting" + kind)
+          .hasMessageContaining("ending" + kind);
+    }
+  }
+
+  private NativeHistory createNativeHistory() {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', 'write.update.mode'='copy-on-write', "
+            + "'write.delete.mode'='copy-on-write')",
+        tableName);
+    sql("INSERT INTO %s SELECT /*+ COALESCE(1) */ * FROM VALUES (1, 'a'), (2, 'b')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot initial = table.currentSnapshot();
+    Map<Long, Long> rowIds = Maps.newHashMap();
+    for (Row row : spark.table(tableName).select("id", "_row_id").collectAsList()) {
+      rowIds.put(row.getLong(0), row.getLong(1));
+    }
+
+    waitUntilAfter(initial.timestampMillis());
+    sql("UPDATE %s SET data = 'updated' WHERE id = 1", tableName);
+    table.refresh();
+    Snapshot firstUpdate = table.currentSnapshot();
+    waitUntilAfter(firstUpdate.timestampMillis());
+    sql("UPDATE %s SET data = 'final' WHERE id = 1", tableName);
+    table.refresh();
+    Snapshot secondUpdate = table.currentSnapshot();
+    waitUntilAfter(secondUpdate.timestampMillis());
+    sql("DELETE FROM %s WHERE id = 2", tableName);
+    table.refresh();
+    Snapshot delete = table.currentSnapshot();
+    waitUntilAfter(delete.timestampMillis());
+    sql("INSERT INTO %s VALUES (3, 'transient')", tableName);
+    table.refresh();
+    Snapshot transientInsert = table.currentSnapshot();
+    rowIds.put(3L, spark.table(tableName).filter("id = 3").select("_row_id").first().getLong(0));
+    waitUntilAfter(transientInsert.timestampMillis());
+    sql("DELETE FROM %s WHERE id = 3", tableName);
+    table.refresh();
+    return new NativeHistory(
+        initial,
+        firstUpdate,
+        secondUpdate,
+        delete,
+        transientInsert,
+        table.currentSnapshot(),
+        rowIds);
+  }
+
+  private Map<String, String> nativeOptions(
+      NativeHistory history, String mode, boolean computeUpdates) {
+    return Map.of(
+        "startingVersion", String.valueOf(history.firstUpdate().sequenceNumber()),
+        "endingVersion", String.valueOf(history.transientDelete().sequenceNumber()),
+        "deduplicationMode", mode,
+        "computeUpdates", String.valueOf(computeUpdates));
+  }
+
+  private String nativeSql(NativeHistory history, String mode, boolean computeUpdates) {
+    return String.format(
+        "SELECT * FROM %s CHANGES FROM VERSION %d TO VERSION %d "
+            + "WITH (deduplicationMode = '%s', computeUpdates = '%s')",
+        tableName,
+        history.firstUpdate().sequenceNumber(),
+        history.transientDelete().sequenceNumber(),
+        mode,
+        computeUpdates);
+  }
+
+  private List<Row> expectedNativeChanges(
+      NativeHistory history, String mode, boolean computeUpdates) {
+    Snapshot initial = history.initial();
+    Snapshot first = history.firstUpdate();
+    Snapshot second = history.secondUpdate();
+    Snapshot delete = history.delete();
+    Snapshot insert = history.transientInsert();
+    Snapshot remove = history.transientDelete();
+    if (mode.equals("none")) {
+      return List.of(
+          nativeEvent(history, 1, "a", "delete", first, initial),
+          nativeEvent(history, 2, "b", "delete", first, initial),
+          nativeEvent(history, 1, "updated", "insert", first, first),
+          nativeEvent(history, 2, "b", "insert", first, initial),
+          nativeEvent(history, 1, "updated", "delete", second, first),
+          nativeEvent(history, 2, "b", "delete", second, initial),
+          nativeEvent(history, 1, "final", "insert", second, second),
+          nativeEvent(history, 2, "b", "insert", second, initial),
+          nativeEvent(history, 1, "final", "delete", delete, second),
+          nativeEvent(history, 2, "b", "delete", delete, initial),
+          nativeEvent(history, 1, "final", "insert", delete, second),
+          nativeEvent(history, 3, "transient", "insert", insert, insert),
+          nativeEvent(history, 3, "transient", "delete", remove, insert));
+    }
+
+    String before = computeUpdates ? "update_preimage" : "delete";
+    String after = computeUpdates ? "update_postimage" : "insert";
+    if (mode.equals("netChanges")) {
+      return List.of(
+          nativeEvent(history, 1, "a", before, first, initial),
+          nativeEvent(history, 1, "final", after, second, second),
+          nativeEvent(history, 2, "b", "delete", delete, initial));
+    }
+
+    return List.of(
+        nativeEvent(history, 1, "a", before, first, initial),
+        nativeEvent(history, 1, "updated", after, first, first),
+        nativeEvent(history, 1, "updated", before, second, first),
+        nativeEvent(history, 1, "final", after, second, second),
+        nativeEvent(history, 2, "b", "delete", delete, initial),
+        nativeEvent(history, 3, "transient", "insert", insert, insert),
+        nativeEvent(history, 3, "transient", "delete", remove, insert));
+  }
+
+  private static Row nativeEvent(
+      NativeHistory history,
+      long id,
+      String data,
+      String change,
+      Snapshot commit,
+      Snapshot rowWrite) {
+    return RowFactory.create(
+        id,
+        data,
+        history.rowIds().get(id),
+        rowWrite.sequenceNumber(),
+        change,
+        commit.sequenceNumber(),
+        new Timestamp(commit.timestampMillis()));
+  }
+
+  private record NativeHistory(
+      Snapshot initial,
+      Snapshot firstUpdate,
+      Snapshot secondUpdate,
+      Snapshot delete,
+      Snapshot transientInsert,
+      Snapshot transientDelete,
+      Map<Long, Long> rowIds) {}
+
+  private List<Snapshot> createBoundaryHistory() {
+    Table table = createCdcTable();
+    List<Snapshot> snapshots = Lists.newArrayList(table.currentSnapshot());
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    snapshots.add(table.currentSnapshot());
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+    sql("INSERT INTO %s VALUES (3, 'c')", tableName);
+    table.refresh();
+    snapshots.add(table.currentSnapshot());
+    return snapshots;
+  }
+
+  private static String nativeBound(Snapshot snapshot, boolean timestamps) {
+    return timestamps
+        ? Instant.ofEpochMilli(snapshot.timestampMillis()).toString()
+        : String.valueOf(snapshot.sequenceNumber());
+  }
+
+  private static Map<String, String> boundaryOptions(
+      List<Snapshot> snapshots, boolean timestamps, boolean startInclusive, boolean endInclusive) {
+    String kind = timestamps ? "Timestamp" : "Version";
+    return Map.of(
+        "starting" + kind,
+        nativeBound(snapshots.get(0), timestamps),
+        "ending" + kind,
+        nativeBound(snapshots.get(2), timestamps),
+        "startingBoundInclusive",
+        String.valueOf(startInclusive),
+        "endingBoundInclusive",
+        String.valueOf(endInclusive),
+        "deduplicationMode",
+        "none");
+  }
+
+  private String boundarySql(
+      List<Snapshot> snapshots, boolean timestamps, boolean startInclusive, boolean endInclusive) {
+    String kind = timestamps ? "TIMESTAMP" : "VERSION";
+    String start = nativeBound(snapshots.get(0), timestamps);
+    String end = nativeBound(snapshots.get(2), timestamps);
+    return String.format(
+        "SELECT id, _commit_version, _commit_timestamp FROM %s "
+            + "CHANGES FROM %s %s %s TO %s %s %s WITH (deduplicationMode = 'none')",
+        tableName,
+        kind,
+        timestamps ? "'" + start + "'" : start,
+        startInclusive ? "INCLUSIVE" : "EXCLUSIVE",
+        kind,
+        timestamps ? "'" + end + "'" : end,
+        endInclusive ? "INCLUSIVE" : "EXCLUSIVE");
+  }
+
+  private static List<Row> boundaryRows(
+      List<Snapshot> snapshots, boolean startInclusive, boolean endInclusive) {
+    List<Row> expected = Lists.newArrayList();
+    if (startInclusive) {
+      expected.add(boundaryRow(1, snapshots.get(0)));
+    }
+
+    expected.add(boundaryRow(2, snapshots.get(1)));
+    if (endInclusive) {
+      expected.add(boundaryRow(3, snapshots.get(2)));
+    }
+
+    return expected;
+  }
+
+  private static Row boundaryRow(long id, Snapshot commit) {
+    return RowFactory.create(id, commit.sequenceNumber(), new Timestamp(commit.timestampMillis()));
+  }
+
+  private List<Row> readAvailableChanges(Dataset<Row> changes, String name) throws Exception {
+    String checkpoint = temp.resolve(name + "-checkpoint").toString();
+    String output = temp.resolve(name + "-output").toString();
+    writeAvailableChanges(changes, checkpoint, output);
+    return spark.read().parquet(output).collectAsList();
   }
 
   private Table createCdcTable() {
