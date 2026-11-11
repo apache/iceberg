@@ -128,17 +128,6 @@ allprojects {
     }
     mavenCentral()
     mavenLocal()
-    exclusiveContent {
-      forRepository {
-        maven {
-          name = "ApacheParquetStaging"
-          url = uri("https://repository.apache.org/content/repositories/orgapacheparquet-1093/")
-        }
-      }
-      filter {
-        includeVersionByRegex("org.apache.parquet", ".*", "1\\.18\\.2")
-      }
-    }
   }
 }
 
