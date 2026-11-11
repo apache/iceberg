@@ -851,7 +851,7 @@ class V4Metadata {
             status == EntryStatus.MODIFIED ? tracking.modifiedSnapshotId() : tracking.snapshotId();
         Preconditions.checkState(
             Objects.equals(commitSnapshotId, dataSnapshotId),
-            "Cannot assign sequence number to file from snapshot %s (committing snapshot %s): %s",
+            "Cannot assign data sequence number to file from snapshot %s (committing snapshot %s): %s",
             dataSnapshotId,
             commitSnapshotId,
             file.location());
@@ -865,7 +865,7 @@ class V4Metadata {
             file.location());
         Preconditions.checkState(
             Objects.equals(commitSnapshotId, tracking.snapshotId()),
-            "Cannot assign sequence number to file from snapshot %s (committing snapshot %s): %s",
+            "Cannot assign file sequence number to file from snapshot %s (committing snapshot %s): %s",
             tracking.snapshotId(),
             commitSnapshotId,
             file.location());

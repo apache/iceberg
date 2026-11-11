@@ -674,7 +674,7 @@ class TestV4TrackedFileWrappers {
     assertThatThrownBy(() -> wrapper.wrap(file, tracking))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
-            "Cannot assign sequence number to file from snapshot %s (committing snapshot %s): %s",
+            "Cannot assign data sequence number to file from snapshot %s (committing snapshot %s): %s",
             PREVIOUS_SNAPSHOT_ID, COMMIT_SNAPSHOT_ID, file.location());
   }
 
@@ -696,7 +696,7 @@ class TestV4TrackedFileWrappers {
     assertThatThrownBy(() -> wrapper.wrap(file, tracking))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
-            "Cannot assign sequence number to file from snapshot %s (committing snapshot %s): %s",
+            "Cannot assign data sequence number to file from snapshot %s (committing snapshot %s): %s",
             PREVIOUS_MODIFIED_SNAPSHOT_ID, COMMIT_SNAPSHOT_ID, file.location());
   }
 
@@ -761,7 +761,7 @@ class TestV4TrackedFileWrappers {
     assertThatThrownBy(() -> wrapper.wrap(file, tracking))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
-            "Cannot assign sequence number to file from snapshot %s (committing snapshot %s): %s",
+            "Cannot assign file sequence number to file from snapshot %s (committing snapshot %s): %s",
             PREVIOUS_SNAPSHOT_ID, COMMIT_SNAPSHOT_ID, file.location());
   }
 
