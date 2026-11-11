@@ -113,7 +113,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private final Schema projection;
   private final List<Expression> filters;
   private final Supplier<ScanReport> scanReportSupplier;
-  // split target used to plan task groups; 0 until task groups are planned
+  // split target used to plan task groups; 0 when no task groups are planned
   private volatile long effectiveSplitTargetSize;
 
   // lazy variables
@@ -377,8 +377,9 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     };
   }
 
-  protected void setEffectiveSplitTargetSize(long splitSize) {
-    this.effectiveSplitTargetSize = splitSize;
+  protected void setEffectiveSplitTargetSize(
+      List<? extends ScanTaskGroup<?>> plannedTaskGroups, long splitSize) {
+    this.effectiveSplitTargetSize = plannedTaskGroups.isEmpty() ? 0L : splitSize;
   }
 
   protected long adjustSplitSize(List<? extends ScanTask> tasks, long splitSize) {

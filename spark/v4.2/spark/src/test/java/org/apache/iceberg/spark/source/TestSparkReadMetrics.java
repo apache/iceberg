@@ -22,11 +22,9 @@ import static org.apache.iceberg.spark.source.SparkSQLExecutionHelper.lastExecut
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static scala.collection.JavaConverters.seqAsJavaListConverter;
 
 import java.io.IOException;
-import java.lang.reflect.Modifier;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -40,12 +38,12 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
+import org.apache.iceberg.spark.source.metrics.EffectiveSplitTargetSize;
 import org.apache.iceberg.spark.source.metrics.ScanDuration;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.connector.metric.CustomMetric;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec;
 import org.apache.spark.sql.execution.metric.SQLMetric;
@@ -97,6 +95,10 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
           SparkPlan scan = df.queryExecution().executedPlan().collectLeaves().head();
           assertThat(scan.metrics().get("effectiveSplitTargetSize").get().value())
               .isEqualTo(adaptiveSplitSize);
+
+          // the value the UI renders, read back from the SQL status store
+          assertThat(lastExecutedMetricValue(spark, new EffectiveSplitTargetSize().description()))
+              .isEqualTo(String.valueOf(adaptiveSplitSize));
         });
 
     // without adaptive sizing, the table property is the target
@@ -128,13 +130,27 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  void effectiveSplitTargetSizeWithoutSnapshot() {
+  void effectiveSplitTargetSizeWithoutData() throws NoSuchTableException {
     sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
 
-    // no task groups are planned for a table without a snapshot
+    // no task groups are planned for a table without data
     Dataset<Row> df = spark.sql(String.format("SELECT * FROM %s", tableName));
     df.collect();
     SparkPlan scan = df.queryExecution().executedPlan().collectLeaves().head();
+    assertThat(scan.metrics().get("effectiveSplitTargetSize").get().value()).isZero();
+
+    // or when a filter prunes every file
+    spark.range(100).coalesce(1).writeTo(tableName).append();
+    df = spark.sql(String.format("SELECT * FROM %s WHERE id > 100", tableName));
+    df.collect();
+    scan = df.queryExecution().executedPlan().collectLeaves().head();
+    assertThat(scan.metrics().get("effectiveSplitTargetSize").get().value()).isZero();
+
+    // or after all data is deleted
+    sql("DELETE FROM %s", tableName);
+    df = spark.sql(String.format("SELECT * FROM %s", tableName));
+    df.collect();
+    scan = df.queryExecution().executedPlan().collectLeaves().head();
     assertThat(scan.metrics().get("effectiveSplitTargetSize").get().value()).isZero();
   }
 
@@ -215,26 +231,6 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
                   "effectiveSplitTargetSize",
                   sqlMetric -> assertThat(sqlMetric.value()).isEqualTo(expectedSplitSize));
         });
-  }
-
-  @TestTemplate
-  void customMetricsAreLoadableBySpark() {
-    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
-
-    Dataset<Row> df = spark.sql(String.format("SELECT * FROM %s", tableName));
-    SparkPlan scan = df.queryExecution().executedPlan().collectLeaves().head();
-
-    // Spark's SQL listener loads each metric by class name, which requires a public class with a
-    // public zero-argument constructor
-    for (CustomMetric metric : ((BatchScanExec) scan).scan().supportedCustomMetrics()) {
-      Class<?> metricClass = metric.getClass();
-      assertThat(Modifier.isPublic(metricClass.getModifiers()))
-          .as("Metric class %s should be public", metricClass.getName())
-          .isTrue();
-      assertThatCode(() -> metricClass.getConstructor().newInstance())
-          .as("Metric class %s should have a public no-arg constructor", metricClass.getName())
-          .doesNotThrowAnyException();
-    }
   }
 
   @TestTemplate
