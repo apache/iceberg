@@ -581,7 +581,7 @@ class V4Metadata {
       return tracking;
     }
 
-    protected void wrapInternal(TrackedFile file, Tracking newTracking) {
+    protected void validate(TrackedFile file, Tracking newTracking) {
       Preconditions.checkArgument(file != null, "Invalid file: null");
       Preconditions.checkArgument(newTracking != null, "Invalid tracking: null");
 
@@ -606,15 +606,17 @@ class V4Metadata {
       }
 
       Integer fileSpecId = file.specId();
-      PartitionSpec spec = fileSpecId != null ? specsById.get(fileSpecId) : null;
       Preconditions.checkArgument(
-          fileSpecId == null || spec != null,
+          fileSpecId == null || specsById.containsKey(fileSpecId),
           "Cannot find partition spec for spec ID: %s",
           fileSpecId);
+    }
 
+    protected void wrapFile(TrackedFile file) {
+      Integer fileSpecId = file.specId();
       this.wrapped = file;
-      // v4 metadata stores a null spec ID and partition for unpartitioned files
-      this.specId = spec != null && !spec.isUnpartitioned() ? fileSpecId : null;
+      this.specId =
+          fileSpecId != null && !specsById.get(fileSpecId).isUnpartitioned() ? fileSpecId : null;
     }
 
     @Override
@@ -677,6 +679,7 @@ class V4Metadata {
       }
 
       StructProjection projection = partitionProjections.get(specId);
+      // projection is null when the spec's partition type already matches the union type
       return projection != null ? projection.wrap(wrapped.partition()) : wrapped.partition();
     }
 
@@ -722,16 +725,17 @@ class V4Metadata {
           partitionType,
           contentStatsType,
           new TrackingWrapper(snapshotId, null /* sequence numbers are inherited */),
-          null /* leaf manifests only contain data files */);
+          null /* no manifest info wrapper. leaf manifests only contain data files */);
     }
 
     LeafTrackedFileWrapper wrap(TrackedFile file, Tracking newTracking) {
-      wrapInternal(file, newTracking);
+      validate(file, newTracking);
       Preconditions.checkArgument(
           file.contentType() == FileContent.DATA,
           "Invalid content type for leaf manifest: %s",
           file.contentType());
 
+      wrapFile(file);
       tracking().wrapLeaf(file, newTracking);
       return this;
     }
@@ -754,7 +758,8 @@ class V4Metadata {
     }
 
     RootTrackedFileWrapper wrap(TrackedFile file, Tracking newTracking, Long assignedFirstRowId) {
-      wrapInternal(file, newTracking);
+      validate(file, newTracking);
+      wrapFile(file);
       tracking().wrapRoot(file, newTracking, assignedFirstRowId);
       return this;
     }
