@@ -19,7 +19,7 @@
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.iceberg.spark.ChangelogIterator
-import org.apache.iceberg.spark.source.SparkChangelogTable
+import org.apache.iceberg.spark.source.SparkChangelog
 import org.apache.spark.sql.Encoders
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.SparkSession
@@ -56,10 +56,10 @@ case class RewriteBusinessKeyChangelog(spark: SparkSession) extends Rule[Logical
         "Business-key CDC currently supports batch reads only")
   }
 
-  private def businessKeyTable(table: Table): Option[SparkChangelogTable] = table match {
+  private def businessKeyTable(table: Table): Option[SparkChangelog] = table match {
     case wrapper: ChangelogTable =>
       wrapper.changelog match {
-        case iceberg: SparkChangelogTable if iceberg.identifierColumns().nonEmpty => Some(iceberg)
+        case iceberg: SparkChangelog if iceberg.identifierColumns().nonEmpty => Some(iceberg)
         case _ => None
       }
     case _ => None

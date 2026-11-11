@@ -69,7 +69,7 @@ class SparkChangelogMicroBatchStream extends SparkMicroBatchStreamBase {
         projection,
         checkpointLocation,
         () -> StreamingOffset.START_OFFSET);
-    this.dataSchema = SparkChangelogTable.dropCdcMetadata(projection);
+    this.dataSchema = SparkChangelog.dropCdcMetadata(projection);
     this.range = range;
   }
 

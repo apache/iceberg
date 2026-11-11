@@ -329,7 +329,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
             JavaSparkContext.fromSparkContext(spark.sparkContext()),
             table,
             readConf,
-            SparkChangelogTable.cdcDataSchema(table),
+            SparkChangelog.cdcDataSchema(table),
             temp.resolve("cdc-available-now").toString(),
             new SparkChangelogRange(context(new ChangelogRange.UnboundedRange())));
 
@@ -380,7 +380,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
             new ChangelogRange.VersionRange(
                 String.valueOf(first), Optional.of(String.valueOf(first)), false, false));
     assertThat(
-            new SparkChangelogTable(table, empty)
+            new SparkChangelog(table, empty)
                 .newScanBuilder(CaseInsensitiveStringMap.empty())
                 .build()
                 .toBatch()
@@ -518,7 +518,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
             false);
     assertThatThrownBy(
             () ->
-                new SparkChangelogTable(table, context)
+                new SparkChangelog(table, context)
                     .newScanBuilder(CaseInsensitiveStringMap.empty())
                     .build()
                     .toBatch()
@@ -549,7 +549,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
             skewed,
             table
                 .newIncrementalChangelogScan()
-                .project(ChangelogUtil.changelogSchema(SparkChangelogTable.cdcDataSchema(table))),
+                .project(ChangelogUtil.changelogSchema(SparkChangelog.cdcDataSchema(table))),
             null,
             third.snapshotId());
     assertThat(groups).isNotEmpty();
@@ -575,7 +575,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
             JavaSparkContext.fromSparkContext(spark.sparkContext()),
             skewed,
             new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty()),
-            SparkChangelogTable.cdcDataSchema(table),
+            SparkChangelog.cdcDataSchema(table),
             temp.resolve("late").toString(),
             new SparkChangelogRange(context));
     try {
@@ -662,7 +662,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
             JavaSparkContext.fromSparkContext(spark.sparkContext()),
             controlled,
             new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty()),
-            SparkChangelogTable.cdcDataSchema(table),
+            SparkChangelog.cdcDataSchema(table),
             temp.resolve("admission").toString(),
             new SparkChangelogRange(context(new ChangelogRange.UnboundedRange())));
     try {
@@ -1207,7 +1207,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
   }
 
   private MicroBatchStream stream(Table table, ChangelogContext context, String checkpoint) {
-    return new SparkChangelogTable(table, context)
+    return new SparkChangelog(table, context)
         .newScanBuilder(CaseInsensitiveStringMap.empty())
         .build()
         .toMicroBatchStream(temp.resolve(checkpoint).toString());

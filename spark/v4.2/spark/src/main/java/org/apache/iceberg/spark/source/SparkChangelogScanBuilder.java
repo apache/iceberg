@@ -168,7 +168,7 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
     Schema readProjection = projectionWithMetadataColumns();
     IncrementalChangelogScan scan =
         buildIcebergScan(
-            ChangelogUtil.changelogSchema(SparkChangelogTable.dropCdcMetadata(readProjection)),
+            ChangelogUtil.changelogSchema(SparkChangelog.dropCdcMetadata(readProjection)),
             null,
             null);
     return new SparkChangelogScan(

@@ -86,15 +86,15 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
         caseSensitive,
         cacheDeleteFilesOnExecutors);
     this.readMode =
-        expectedSchema.findField(SparkChangelogTable.COMMIT_VERSION_ID) != null
+        expectedSchema.findField(SparkChangelog.COMMIT_VERSION_ID) != null
             ? SparkChangelogReadMode.SPARK_CDC
             : SparkChangelogReadMode.ICEBERG_CHANGELOG;
     List<Integer> metadataIds =
         readMode.isSparkCdc()
             ? List.of(
                 MetadataColumns.CHANGE_TYPE.fieldId(),
-                SparkChangelogTable.COMMIT_VERSION_ID,
-                SparkChangelogTable.COMMIT_TIMESTAMP_ID)
+                SparkChangelog.COMMIT_VERSION_ID,
+                SparkChangelog.COMMIT_TIMESTAMP_ID)
             : List.of(
                 MetadataColumns.CHANGE_TYPE.fieldId(),
                 MetadataColumns.CHANGE_ORDINAL.fieldId(),
@@ -151,8 +151,8 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
   }
 
   private static Schema dataSchema(Schema expectedSchema) {
-    return expectedSchema.findField(SparkChangelogTable.COMMIT_VERSION_ID) != null
-        ? SparkChangelogTable.dropCdcMetadata(expectedSchema)
+    return expectedSchema.findField(SparkChangelog.COMMIT_VERSION_ID) != null
+        ? SparkChangelog.dropCdcMetadata(expectedSchema)
         : ChangelogUtil.dropChangelogMetadata(expectedSchema);
   }
 
