@@ -31,8 +31,6 @@ import org.apache.avro.specific.SpecificData;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Interner;
-import org.apache.iceberg.relocated.com.google.common.collect.Interners;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -45,15 +43,15 @@ public class PartitionData
    * first. {@link #equals(Object)}/{@link #hashCode()} ignore {@link #schema}, so without this,
    * value-equal instances built from unrelated templates (different scans, different manifests)
    * could carry different, merely structurally-equivalent {@code Schema} objects, and {@link
-   * #INTERNER} would non-deterministically pick whichever one interned first. Resolving every
-   * constructor through this single cache instead means any two instances for the same partition
-   * type are guaranteed to share one {@code Schema} instance - which {@code PartitionsTable} relies
-   * on - independent of interning order.
+   * #PARTITION_DATA_CACHE} would non-deterministically pick whichever one was cached first.
+   * Resolving every constructor through this single cache instead means any two instances for the
+   * same partition type are guaranteed to share one {@code Schema} instance - which {@code
+   * PartitionsTable} relies on - independent of caching order.
    *
    * <p>Weak values let an entry be collected once nothing - no live {@link PartitionData}, no other
-   * caller - still references that {@code Schema}, the same cleanup story as {@link #INTERNER}
-   * below, and the same weak-values pattern {@link SchemaParser} and {@link PartitionSpecParser}
-   * already use to cache their own parsed results.
+   * caller - still references that {@code Schema}, the same cleanup story as {@link
+   * #PARTITION_DATA_CACHE} below, and the same weak-values pattern {@link SchemaParser} and {@link
+   * PartitionSpecParser} already use to cache their own parsed results.
    *
    * <p>Declared before {@link #EMPTY} since its initializer constructs a {@link PartitionData} that
    * reads from this cache.
@@ -71,13 +69,20 @@ public class PartitionData
 
   /**
    * Tables with a small number of distinct partition values can produce a very large number of
-   * {@link PartitionData} copies while planning (one per manifest entry). Interning collapses
-   * copies that are equal (same partition spec and values) into a single shared instance so that
-   * manifest entries sharing a partition don't each pin their own duplicate {@code Object[]}. A
-   * weak interner is used so entries are evicted automatically once nothing references them
-   * anymore, which keeps this safe for long-lived processes that plan scans across many tables.
+   * {@link PartitionData} copies while planning (one per manifest entry). Caching collapses copies
+   * that are equal (same partition spec and values) into a single shared instance so that manifest
+   * entries sharing a partition don't each pin their own duplicate {@code Object[]}. Weak values
+   * mean an entry is evicted automatically once nothing references it anymore, the same pattern
+   * {@link #SCHEMA_CACHE} above and {@link SchemaParser}/{@link PartitionSpecParser} already use,
+   * which keeps this safe for long-lived processes that plan scans across many tables.
+   *
+   * <p>Only {@link #copy()}/{@link #copyFor(StructLike)} ever populate this cache, and they always
+   * do so with a {@link ReadOnly} instance: sharing a single instance across unrelated callers is
+   * only safe because that instance can never be mutated afterward, so a bug that would otherwise
+   * silently corrupt every other partition sharing it instead fails loudly at the call site.
    */
-  private static final Interner<PartitionData> INTERNER = Interners.newWeakInterner();
+  private static final Cache<PartitionData, PartitionData> PARTITION_DATA_CACHE =
+      Caffeine.newBuilder().weakValues().build();
 
   static Schema partitionDataSchema(Types.StructType partitionType) {
     return SCHEMA_CACHE.get(
@@ -206,11 +211,43 @@ public class PartitionData
   }
 
   public PartitionData copy() {
-    return INTERNER.intern(new PartitionData(this));
+    PartitionData readOnly = new ReadOnly(this);
+    return PARTITION_DATA_CACHE.get(readOnly, key -> key);
   }
 
   public PartitionData copyFor(StructLike partition) {
-    return INTERNER.intern(new PartitionData(this, partition));
+    PartitionData readOnly = new ReadOnly(this, partition);
+    return PARTITION_DATA_CACHE.get(readOnly, key -> key);
+  }
+
+  /**
+   * The instance type that {@link PartitionData#copy()}/{@link PartitionData#copyFor(StructLike)}
+   * hand to {@link PartitionData#PARTITION_DATA_CACHE}. Rejecting mutation here is what makes
+   * sharing one instance across unrelated, unaware callers safe: every existing caller only reads a
+   * copied partition, but nothing stops a future one from calling {@link #set(int, Object)} by
+   * mistake, which - without this - would silently corrupt every other partition that happens to
+   * share the same values.
+   */
+  private static final class ReadOnly extends PartitionData {
+    private ReadOnly(PartitionData toCopy) {
+      super(toCopy);
+    }
+
+    private ReadOnly(PartitionData toCopy, StructLike partition) {
+      super(toCopy, partition);
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException(
+          "Cannot modify a PartitionData returned by copy()/copyFor(); it may be shared");
+    }
+
+    @Override
+    public void clear() {
+      throw new UnsupportedOperationException(
+          "Cannot modify a PartitionData returned by copy()/copyFor(); it may be shared");
+    }
   }
 
   @Override

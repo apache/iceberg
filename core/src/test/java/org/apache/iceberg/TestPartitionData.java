@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.avro.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -140,6 +141,41 @@ public class TestPartitionData {
 
     assertThat(first).isNotSameAs(second);
     assertThat(first.getSchema()).isSameAs(second.getSchema());
+  }
+
+  @Test
+  public void copyResultRejectsSet() {
+    PartitionData copy = newData(1, "a").copy();
+
+    assertThatThrownBy(() -> copy.set(0, 2))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("shared");
+  }
+
+  @Test
+  public void copyResultRejectsPut() {
+    PartitionData copy = newData(1, "a").copy();
+
+    assertThatThrownBy(() -> copy.put(0, 2))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("shared");
+  }
+
+  @Test
+  public void copyResultRejectsClear() {
+    PartitionData copy = newData(1, "a").copy();
+
+    assertThatThrownBy(copy::clear)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("shared");
+  }
+
+  @Test
+  public void copyForResultRejectsMutation() {
+    PartitionData template = new PartitionData(PARTITION_TYPE);
+    PartitionData copy = template.copyFor(newData(1, "a"));
+
+    assertThatThrownBy(() -> copy.set(0, 2)).isInstanceOf(UnsupportedOperationException.class);
   }
 
   @Test
