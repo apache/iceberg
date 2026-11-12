@@ -23,7 +23,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -554,55 +553,32 @@ class V4Metadata {
 
     private final Map<Integer, PartitionSpec> specsById;
     private final Map<Integer, StructProjection> partitionProjections;
-    private final ContentStatsWrapper contentStats;
-    private final DeletionVectorWrapper deletionVector = new DeletionVectorWrapper();
+    private final ContentStatsWrapper statsWrapper;
+    private final DeletionVectorWrapper dvWrapper = new DeletionVectorWrapper();
+    private final ManifestInfoWrapper manifestInfoWrapper;
     private final List<ColumnFileWrapper> columnFileWrappers = Lists.newArrayList();
-    private final TrackingWrapper tracking;
-    private final ManifestInfoWrapper manifestInfo;
 
     private TrackedFile wrapped = null;
+    private TrackingWrapper trackingWrapper = null;
     private Integer specId = null;
 
     private TrackedFileWrapper(
         Map<Integer, PartitionSpec> specsById,
         Types.StructType partitionType,
         Types.StructType contentStatsType,
-        TrackingWrapper tracking,
         ManifestInfoWrapper manifestInfo) {
       validatePartitionType(specsById.values(), partitionType);
       this.specsById = specsById;
       this.partitionProjections = partitionProjections(specsById.values(), partitionType);
-      this.contentStats = new ContentStatsWrapper(contentStatsType);
-      this.tracking = tracking;
-      this.manifestInfo = manifestInfo;
+      this.statsWrapper = new ContentStatsWrapper(contentStatsType);
+      this.manifestInfoWrapper = manifestInfo;
     }
 
-    protected TrackingWrapper tracking() {
-      return tracking;
-    }
+    protected void wrapInternal(TrackedFile file, TrackingWrapper wrappedTracking) {
+      validateTypeSpecificMetadata(file);
 
-    protected void wrapFile(TrackedFile file) {
-      Preconditions.checkArgument(file != null, "Invalid file: null");
-
-      FileContent content = file.contentType();
-      if (content == FileContent.DATA) {
-        Preconditions.checkArgument(
-            file.manifestInfo() == null,
-            "Invalid data file, manifest info must be null: %s",
-            file.location());
-      } else if (content == FileContent.DATA_MANIFEST || content == FileContent.DELETE_MANIFEST) {
-        Preconditions.checkArgument(
-            file.manifestInfo() != null,
-            "Invalid manifest, missing manifest info: %s",
-            file.location());
-        Preconditions.checkArgument(
-            file.deletionVector() == null,
-            "Invalid manifest, deletion vector must be null: %s",
-            file.location());
-      } else {
-        throw new IllegalArgumentException(
-            String.format("Cannot write %s to a v4 manifest: %s", content, file.location()));
-      }
+      this.wrapped = file;
+      this.trackingWrapper = wrappedTracking;
 
       Integer fileSpecId = file.specId();
       PartitionSpec spec = fileSpecId != null ? specsById.get(fileSpecId) : null;
@@ -610,8 +586,6 @@ class V4Metadata {
           fileSpecId == null || spec != null,
           "Cannot find partition spec for spec ID: %s",
           fileSpecId);
-
-      this.wrapped = file;
       this.specId = spec != null && !spec.isUnpartitioned() ? fileSpecId : null;
     }
 
@@ -632,7 +606,7 @@ class V4Metadata {
 
     private Object get(int pos) {
       return switch (pos) {
-        case 0 -> tracking;
+        case 0 -> trackingWrapper;
         case 1 -> wrapped.contentType().id();
         case 2 -> wrapped.location();
         case 3 -> wrapped.fileFormat().toString();
@@ -640,11 +614,11 @@ class V4Metadata {
         case 5 -> wrapped.fileSizeInBytes();
         case 6 -> specId;
         case 7 -> unionPartition();
-        case 8 -> contentStats.wrap(wrapped.contentStats());
+        case 8 -> statsWrapper.wrap(wrapped.contentStats());
         case 9 -> wrapped.tightStats();
         case 10 -> wrapped.sortOrderId();
-        case 11 -> deletionVector.wrap(wrapped.deletionVector());
-        case 12 -> manifestInfo.wrap(wrapped.manifestInfo());
+        case 11 -> dvWrapper.wrap(wrapped.deletionVector());
+        case 12 -> manifestInfoWrapper.wrap(wrapped.manifestInfo());
         case 13 -> wrapped.keyMetadata();
         case 14 -> wrapped.splitOffsets();
         case 15 -> wrapColumnFiles(wrapped.columnFiles());
@@ -666,6 +640,25 @@ class V4Metadata {
       }
 
       return columnFileWrappers.subList(0, columnFiles.size());
+    }
+
+    protected void validateTypeSpecificMetadata(TrackedFile file) {
+      FileContent content = file.contentType();
+      if (content == FileContent.DATA) {
+        Preconditions.checkArgument(
+            file.manifestInfo() == null,
+            "Invalid data file, manifest info must be null: %s",
+            file.location());
+      } else if (content == FileContent.DATA_MANIFEST || content == FileContent.DELETE_MANIFEST) {
+        Preconditions.checkArgument(
+            file.manifestInfo() != null,
+            "Invalid manifest, missing manifest info: %s",
+            file.location());
+        Preconditions.checkArgument(
+            file.deletionVector() == null,
+            "Invalid manifest, deletion vector must be null: %s",
+            file.location());
+      }
     }
 
     private StructLike unionPartition() {
@@ -710,33 +703,53 @@ class V4Metadata {
 
   /** Wrapper used to write a data file to a v4 leaf manifest. */
   static class LeafTrackedFileWrapper extends TrackedFileWrapper {
+    private final LeafTrackingWrapper trackingWrapper;
+
     LeafTrackedFileWrapper(
         Long snapshotId,
         Map<Integer, PartitionSpec> specsById,
         Types.StructType partitionType,
         Types.StructType contentStatsType) {
-      super(
-          specsById,
-          partitionType,
-          contentStatsType,
-          new TrackingWrapper(snapshotId, null /* sequence numbers are inherited */),
+      super(specsById, partitionType, contentStatsType,
           new ManifestInfoWrapper(null /* sequence numbers are inherited */));
+      this.trackingWrapper = new LeafTrackingWrapper(snapshotId);
     }
 
-    LeafTrackedFileWrapper wrap(TrackedFile file, Tracking newTracking) {
-      wrapFile(file);
+    LeafTrackedFileWrapper wrap(TrackedFile file, Tracking tracking) {
+      Preconditions.checkArgument(file != null, "Invalid file: null");
+      Preconditions.checkArgument(tracking != null, "Invalid tracking: null");
       Preconditions.checkArgument(
           file.contentType() == FileContent.DATA,
           "Invalid content type for leaf manifest: %s",
           file.contentType());
 
-      tracking().wrapLeaf(file, newTracking);
+      validateFirstRowId(file, tracking);
+
+      wrapInternal(file, trackingWrapper.wrap(tracking));
+
       return this;
+    }
+
+    private static void validateFirstRowId(TrackedFile file, Tracking tracking) {
+      if (tracking.status() == EntryStatus.ADDED) {
+        Preconditions.checkArgument(
+            tracking.firstRowId() == null,
+            "Invalid first-row-id for ADDED file (must be null): %s",
+            file.location());
+      } else {
+        Preconditions.checkArgument(
+            tracking.firstRowId() != null,
+            "Missing first-row-id for %s file: %s",
+            tracking.status(),
+            file.location());
+      }
     }
   }
 
   /** Wrapper used to write a data file or leaf manifest to a v4 root manifest. */
   static class RootTrackedFileWrapper extends TrackedFileWrapper {
+    private final RootTrackingWrapper trackingWrapper;
+
     RootTrackedFileWrapper(
         long commitSnapshotId,
         long commitSequenceNumber,
@@ -747,14 +760,61 @@ class V4Metadata {
           specsById,
           partitionType,
           contentStatsType,
-          new TrackingWrapper(commitSnapshotId, commitSequenceNumber),
           new ManifestInfoWrapper(commitSequenceNumber));
+      this.trackingWrapper = new RootTrackingWrapper(commitSnapshotId, commitSequenceNumber);
     }
 
-    RootTrackedFileWrapper wrap(TrackedFile file, Tracking newTracking, Long assignedFirstRowId) {
-      wrapFile(file);
-      tracking().wrapRoot(file, newTracking, assignedFirstRowId);
+    RootTrackedFileWrapper wrap(TrackedFile file, Tracking tracking, Long assignedFirstRowId) {
+      Preconditions.checkArgument(file != null, "Invalid file: null");
+      Preconditions.checkArgument(tracking != null, "Invalid tracking: null");
+      Preconditions.checkArgument(
+          file.contentType() == FileContent.DATA
+              || file.contentType() == FileContent.DATA_MANIFEST
+              || file.contentType() == FileContent.DELETE_MANIFEST,
+          "Invalid content type for root manifest: %s",
+          file.contentType());
+
+      validateFirstRowId(file, tracking, assignedFirstRowId);
+
+      wrapInternal(file, trackingWrapper.wrap(tracking, assignedFirstRowId, file.location()));
+
       return this;
+    }
+
+    private void validateFirstRowId(TrackedFile file, Tracking tracking, Long assignedFirstRowId) {
+      FileContent content = file.contentType();
+      if (content == FileContent.DATA || content == FileContent.DATA_MANIFEST) {
+        if (tracking.status() == EntryStatus.ADDED) {
+          Preconditions.checkArgument(
+              tracking.firstRowId() == null,
+              "Invalid first-row-id for ADDED file (must be null): %s",
+              file.location());
+          Preconditions.checkArgument(
+              assignedFirstRowId != null,
+              "Missing first-row-id assignment for ADDED file: %s",
+              file.location());
+        } else {
+          Preconditions.checkArgument(
+              tracking.firstRowId() != null,
+              "Missing first-row-id for %s file: %s",
+              tracking.status(),
+              file.location());
+          Preconditions.checkArgument(
+              assignedFirstRowId == null,
+              "Cannot assign first-row-id to %s file: %s",
+              tracking.status(),
+              file.location());
+        }
+      } else if (content == FileContent.DELETE_MANIFEST) {
+        Preconditions.checkArgument(
+            assignedFirstRowId == null,
+            "Cannot assign first-row-id to delete manifest: %s",
+            file.location());
+        Preconditions.checkArgument(
+            tracking.firstRowId() == null,
+            "Invalid first-row-id for delete manifest (must be null): %s",
+            file.location());
+      }
     }
   }
 
@@ -765,7 +825,6 @@ class V4Metadata {
     private final Long commitSnapshotId;
     private final Long commitSequenceNumber;
 
-    private FileContent content = null;
     private Tracking wrapped = null;
     private Long assignedFirstRowId = null;
 
@@ -774,105 +833,37 @@ class V4Metadata {
       this.commitSequenceNumber = commitSequenceNumber;
     }
 
-    private TrackingWrapper wrapLeaf(TrackedFile file, Tracking tracking) {
-      Preconditions.checkArgument(tracking != null, "Invalid tracking: null");
-      validateSequenceNumbers(file, tracking);
-
-      if (tracking.status() == EntryStatus.ADDED) {
-        Preconditions.checkState(
-            tracking.firstRowId() == null,
-            "Invalid first-row-id for ADDED file (must be null): %s",
-            file.location());
-      } else {
-        Preconditions.checkState(
-            tracking.firstRowId() != null,
-            "Missing first-row-id for %s file: %s",
-            tracking.status(),
-            file.location());
-      }
-
-      return wrapInternal(file, tracking, null /* assignedFirstRowId */);
-    }
-
-    private TrackingWrapper wrapRoot(TrackedFile file, Tracking tracking, Long firstRowId) {
-      Preconditions.checkArgument(tracking != null, "Invalid tracking: null");
-      Preconditions.checkArgument(
-          tracking.snapshotId() != null, "Missing snapshot ID for file: %s", file.location());
-      validateSequenceNumbers(file, tracking);
-
-      FileContent fileContent = file.contentType();
-      if (fileContent == FileContent.DATA || fileContent == FileContent.DATA_MANIFEST) {
-        if (tracking.status() == EntryStatus.ADDED) {
-          Preconditions.checkState(
-              tracking.firstRowId() == null,
-              "Invalid first-row-id for ADDED file (must be null): %s",
-              file.location());
-          Preconditions.checkState(
-              firstRowId != null,
-              "Missing first-row-id assignment for ADDED file: %s",
-              file.location());
-        } else {
-          Preconditions.checkState(
-              tracking.firstRowId() != null,
-              "Missing first-row-id for %s file: %s",
-              tracking.status(),
-              file.location());
-          Preconditions.checkState(
-              firstRowId == null,
-              "Cannot assign first-row-id to %s file: %s",
-              tracking.status(),
-              file.location());
-        }
-      } else if (fileContent == FileContent.DELETE_MANIFEST) {
-        Preconditions.checkState(
-            firstRowId == null,
-            "Cannot assign first-row-id to delete manifest: %s",
-            file.location());
-      } else {
-        throw new IllegalArgumentException(
-            String.format("Cannot write %s to a root manifest: %s", fileContent, file.location()));
-      }
-
-      return wrapInternal(file, tracking, firstRowId);
-    }
-
-    private void validateSequenceNumbers(TrackedFile file, Tracking tracking) {
+    protected void validateSequenceNumbers(Tracking tracking) {
       EntryStatus status = tracking.status();
-      if (tracking.dataSequenceNumber() == null) {
-        Preconditions.checkState(
-            status == EntryStatus.ADDED || status == EntryStatus.MODIFIED,
-            "Cannot write null data sequence number for status %s (must be ADDED or MODIFIED): %s",
-            status,
-            file.location());
 
-        // a modified entry inherits the data sequence number of the commit that modified it
-        Long dataSnapshotId =
-            status == EntryStatus.MODIFIED ? tracking.modifiedSnapshotId() : tracking.snapshotId();
-        Preconditions.checkState(
-            Objects.equals(commitSnapshotId, dataSnapshotId),
-            "Cannot assign data sequence number to file from snapshot %s (committing snapshot %s): %s",
-            dataSnapshotId,
-            commitSnapshotId,
-            file.location());
-      }
-
-      if (tracking.fileSequenceNumber() == null) {
-        Preconditions.checkState(
-            status == EntryStatus.ADDED,
-            "Cannot write null file sequence number for status %s (must be ADDED): %s",
-            status,
-            file.location());
-        Preconditions.checkState(
-            Objects.equals(commitSnapshotId, tracking.snapshotId()),
-            "Cannot assign file sequence number to file from snapshot %s (committing snapshot %s): %s",
-            tracking.snapshotId(),
-            commitSnapshotId,
-            file.location());
+      switch (status) {
+        case ADDED -> {
+          Preconditions.checkArgument(
+              tracking.snapshotId() == null || tracking.snapshotId().equals(commitSnapshotId),
+              "Found invalid snapshot ID for ADDED file: %s (committing %s)",
+              tracking.snapshotId(),
+              commitSnapshotId);
+          Preconditions.checkArgument(
+              tracking.fileSequenceNumber() == null,
+              "Invalid file sequence number for ADDED file: %s",
+              tracking.fileSequenceNumber());
+        }
+        case MODIFIED ->
+            Preconditions.checkArgument(
+                tracking.modifiedSnapshotId() != null
+                    && tracking.modifiedSnapshotId().equals(commitSnapshotId),
+                "Found invalid snapshot ID for MODIFIED file: %s (committing %s)",
+                tracking.modifiedSnapshotId(),
+                commitSnapshotId);
+        default ->
+            Preconditions.checkArgument(
+                tracking.dataSequenceNumber() != null,
+                "Invalid data sequence number (null) for %s file",
+                status);
       }
     }
 
-    private TrackingWrapper wrapInternal(TrackedFile file, Tracking tracking, Long firstRowId) {
-      this.content = file.contentType();
+    protected TrackingWrapper wrapInternal(Tracking tracking, Long firstRowId) {
       this.wrapped = tracking;
       this.assignedFirstRowId = firstRowId;
       return this;
@@ -912,11 +903,31 @@ class V4Metadata {
     }
 
     private Long firstRowId() {
-      if (content != FileContent.DATA && content != FileContent.DATA_MANIFEST) {
-        return null;
-      }
-
       return assignedFirstRowId != null ? assignedFirstRowId : wrapped.firstRowId();
+    }
+  }
+
+  private static class LeafTrackingWrapper extends TrackingWrapper {
+    private LeafTrackingWrapper(Long commitSnapshotId) {
+      super(commitSnapshotId, null /* sequence numbers are inherited */);
+    }
+
+    private TrackingWrapper wrap(Tracking tracking) {
+      validateSequenceNumbers(tracking);
+      return wrapInternal(tracking, null /* first row ID is inherited */);
+    }
+  }
+
+  private static class RootTrackingWrapper extends TrackingWrapper {
+    private RootTrackingWrapper(long commitSnapshotId, long commitSequenceNumber) {
+      super(commitSnapshotId, commitSequenceNumber);
+    }
+
+    private TrackingWrapper wrap(Tracking tracking, Long firstRowId, String location) {
+      Preconditions.checkArgument(
+          tracking.snapshotId() != null, "Missing snapshot ID for file: %s", location);
+      validateSequenceNumbers(tracking);
+      return wrapInternal(tracking, firstRowId);
     }
   }
 
@@ -937,7 +948,7 @@ class V4Metadata {
       }
 
       this.wrapped = info;
-      return this;
+      return this.wrapped != null ? this : null;
     }
 
     @Override
@@ -1085,12 +1096,8 @@ class V4Metadata {
     }
 
     private ContentStatsWrapper wrap(ContentStats stats) {
-      if (stats == null) {
-        return null;
-      }
-
       this.wrapped = stats;
-      return this;
+      return this.wrapped != null ? this : null;
     }
 
     @Override
@@ -1105,7 +1112,8 @@ class V4Metadata {
 
     @Override
     public <T> T get(int pos, Class<T> javaClass) {
-      return javaClass.cast(fieldStats[pos].wrap(wrapped.statsFor(posToFieldId[pos])));
+      FieldStats<?> stats = wrapped.statsFor(posToFieldId[pos]);
+      return javaClass.cast(fieldStats[pos].wrap(stats));
     }
   }
 
@@ -1119,12 +1127,8 @@ class V4Metadata {
     }
 
     private FieldStatsWrapper wrap(FieldStats<?> stats) {
-      if (stats == null) {
-        return null;
-      }
-
       this.wrapped = stats;
-      return this;
+      return this.wrapped != null ? this : null;
     }
 
     @Override
