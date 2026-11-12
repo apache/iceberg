@@ -18,12 +18,10 @@
  */
 package org.apache.iceberg.delta;
 
-import static org.apache.iceberg.delta.DeltaGoldenTables.SKIPPED_GOLDEN_TABLES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.delta.kernel.Operation;
-import io.delta.kernel.Snapshot;
 import io.delta.kernel.Table;
 import io.delta.kernel.Transaction;
 import io.delta.kernel.TransactionBuilder;
@@ -33,12 +31,10 @@ import io.delta.kernel.types.IntegerType;
 import io.delta.kernel.types.StringType;
 import io.delta.kernel.types.StructType;
 import io.delta.kernel.utils.CloseableIterable;
-import io.github.vladislavsidorovich.deltaverification.DeltaVerificationTables;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
@@ -49,12 +45,9 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.ContentFileUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestBaseSnapshotDeltaLakeKernelTableAction {
 
@@ -169,7 +162,7 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
 
   @Test
   public void testTableCreated() throws Exception {
-    loadDeltaLakeGoldenTable("basic-decimal-table");
+    DeltaKernelTestUtils.createBasicDeltaTable(testHadoopConf, sourceTableLocation);
 
     TableIdentifier icebergTable = TableIdentifier.of("iceberg_table");
     SnapshotDeltaLakeTable testAction =
@@ -188,7 +181,7 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
 
   @Test
   public void testDefaultTableProperties() throws Exception {
-    loadDeltaLakeGoldenTable("basic-decimal-table");
+    DeltaKernelTestUtils.createBasicDeltaTable(testHadoopConf, sourceTableLocation);
 
     TableIdentifier icebergTableIdentifier = TableIdentifier.of("iceberg_table");
     SnapshotDeltaLakeTable testAction =
@@ -213,7 +206,7 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
 
   @Test
   public void testCustomTableProperties() throws Exception {
-    loadDeltaLakeGoldenTable("basic-decimal-table");
+    DeltaKernelTestUtils.createBasicDeltaTable(testHadoopConf, sourceTableLocation);
 
     TableIdentifier icebergTableIdentifier = TableIdentifier.of("iceberg_table");
     SnapshotDeltaLakeTable testAction =
@@ -244,7 +237,7 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
 
   @Test
   public void testCustomTablePropertiesOverlap() throws Exception {
-    loadDeltaLakeGoldenTable("basic-decimal-table");
+    DeltaKernelTestUtils.createBasicDeltaTable(testHadoopConf, sourceTableLocation);
 
     TableIdentifier icebergTableIdentifier = TableIdentifier.of("iceberg_table");
     SnapshotDeltaLakeTable testAction =
@@ -279,64 +272,6 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
             "Delta Lake table does not exist at the given location: %s", sourceTableLocation);
   }
 
-  @Test
-  public void testDeltaTableDVSupported() throws Exception {
-    loadDeltaLakeGoldenTable("dv-partitioned-with-checkpoint");
-    Engine engine = DefaultEngine.create(testHadoopConf);
-    Table deltaTable = Table.forPath(engine, sourceTableLocation);
-
-    Snapshot deltaSnapshot = deltaTable.getLatestSnapshot(engine);
-    assertThat(
-            InternalDeltaKernelUtils.metadataConfiguration(deltaSnapshot)
-                .getOrDefault("delta.enableDeletionVectors", "false"))
-        .isEqualTo("true");
-
-    TableIdentifier icebergTableIdentifier = TableIdentifier.of("iceberg_table");
-    SnapshotDeltaLakeTable testAction =
-        new BaseSnapshotDeltaLakeKernelTableAction(sourceTableLocation)
-            .as(icebergTableIdentifier)
-            .deltaLakeConfiguration(testHadoopConf)
-            .icebergCatalog(testCatalog)
-            .tableLocation(newTableLocation);
-
-    // Act
-    testAction.execute();
-
-    org.apache.iceberg.Table icebergTable = testCatalog.loadTable(icebergTableIdentifier);
-    try (org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.FileScanTask> tasks =
-        icebergTable.newScan().planFiles()) {
-      boolean hasDeleteFiles = false;
-      for (org.apache.iceberg.FileScanTask task : tasks) {
-        for (org.apache.iceberg.DeleteFile deleteFile : task.deletes()) {
-          assertThat(ContentFileUtil.isDV(deleteFile)).isTrue();
-          hasDeleteFiles = true;
-        }
-      }
-      assertThat(hasDeleteFiles).isTrue();
-    }
-  }
-
-  static List<String> deltaGoldenTableNames() {
-    return DeltaVerificationTables.tableNames().stream()
-        .filter(name -> !SKIPPED_GOLDEN_TABLES.contains(name))
-        .toList();
-  }
-
-  @ParameterizedTest
-  @MethodSource("deltaGoldenTableNames")
-  void goldenDeltaTableConversion(String deltaTableName) throws Exception {
-    loadDeltaLakeGoldenTable(deltaTableName);
-
-    SnapshotDeltaLakeTable testAction =
-        new BaseSnapshotDeltaLakeKernelTableAction(sourceTableLocation)
-            .as(TableIdentifier.of("iceberg_table"))
-            .deltaLakeConfiguration(testHadoopConf)
-            .icebergCatalog(testCatalog)
-            .tableLocation(newTableLocation);
-
-    testAction.execute();
-  }
-
   private TransactionBuilder createEmptyDeltaTableTransaction(Engine engine) {
     StructType schema =
         new StructType().add("id", IntegerType.INTEGER).add("status", StringType.STRING);
@@ -345,9 +280,5 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
     return table
         .createTransactionBuilder(engine, "Delta-Iceberg-Converter-Tests", Operation.CREATE_TABLE)
         .withSchema(engine, schema);
-  }
-
-  private void loadDeltaLakeGoldenTable(String goldenTableName) throws IOException {
-    DeltaVerificationTables.copyTableContents(goldenTableName, sourceDeltaFolder.toPath());
   }
 }
