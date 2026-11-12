@@ -55,7 +55,7 @@ public class TestJdbcUtil {
   }
 
   @Test
-  void driverPropertiesExcludeCatalogProperties() {
+  public void testDriverPropertiesExcludeCatalogProperties() {
     Map<String, String> input = Maps.newHashMap();
     input.put("jdbc.user", "bar");
     input.put(JdbcUtil.STRICT_MODE_PROPERTY, "true");
