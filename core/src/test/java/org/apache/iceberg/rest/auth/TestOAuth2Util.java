@@ -154,15 +154,36 @@ public class TestOAuth2Util {
   }
 
   @Test
-  void fromTokenResponseOpaqueTokenDoesNotInheritParentExpiry() {
+  void fromTokenResponseOpaqueTokenUsesExpiresIn() {
     AuthSession parent = parentSession(7200);
     OAuthTokenResponse response = childTokenResponse("opaque-access-token", 600);
+    long startTimeMillis = 1_000_000L;
+
+    AuthSession child =
+        AuthSession.fromTokenResponse(null, null, response, startTimeMillis, parent);
+
+    assertThat(child.expiresAtMillis())
+        .as(
+            "Child session with opaque token should expire at start + expires_in, "
+                + "not inherit parent's expiresAtMillis")
+        .isEqualTo(startTimeMillis + TimeUnit.SECONDS.toMillis(600));
+  }
+
+  @Test
+  void fromTokenResponseOpaqueTokenWithoutExpiresInHasNoExpiry() {
+    AuthSession parent = parentSession(7200);
+    OAuthTokenResponse response =
+        OAuthTokenResponse.builder()
+            .withToken("opaque-access-token")
+            .withTokenType(BEARER)
+            .withIssuedTokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
+            .build();
 
     AuthSession child =
         AuthSession.fromTokenResponse(null, null, response, System.currentTimeMillis(), parent);
 
     assertThat(child.expiresAtMillis())
-        .as("Child session with opaque token should not inherit parent's expiresAtMillis")
+        .as("Without exp claim or expires_in the expiry is unknown")
         .isNull();
   }
 
@@ -203,6 +224,36 @@ public class TestOAuth2Util {
       assertThat(session.expiresAtMillis())
           .as("After refresh, session should use the refreshed token's exp")
           .isEqualTo(TimeUnit.SECONDS.toMillis(500));
+    }
+  }
+
+  @Test
+  void refreshOpaqueTokenUsesExpiresIn() throws IOException {
+    AuthConfig authConfig =
+        AuthConfig.builder()
+            .token("opaque-access-token")
+            .tokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
+            .keepRefreshed(true)
+            .exchangeEnabled(false)
+            .credential("testClientId:testClientSecret")
+            .oauth2ServerUri("/v1/token")
+            .build();
+
+    OAuthTokenResponse response = childTokenResponse("refreshed-opaque-access-token", 500);
+
+    try (RESTClient client = Mockito.mock(RESTClient.class);
+        AuthSession session = new AuthSession(Map.of(), authConfig)) {
+      Mockito.when(client.postForm(any(), anyMap(), any(), anyMap(), any())).thenReturn(response);
+
+      long beforeRefreshMillis = System.currentTimeMillis();
+      session.refresh(client);
+      long afterRefreshMillis = System.currentTimeMillis();
+
+      assertThat(session.expiresAtMillis())
+          .as("After refresh, an opaque token's expiry comes from expires_in")
+          .isBetween(
+              beforeRefreshMillis + TimeUnit.SECONDS.toMillis(500),
+              afterRefreshMillis + TimeUnit.SECONDS.toMillis(500));
     }
   }
 
