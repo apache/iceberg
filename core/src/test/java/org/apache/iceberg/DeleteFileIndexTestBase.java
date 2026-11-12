@@ -367,6 +367,7 @@ public abstract class DeleteFileIndexTestBase<
 
   @TestTemplate
   public void testPartitionedTableWithPartitionEqDeletes() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     table.newAppend().appendFile(FILE_A).commit();
 
     table.newRowDelta().addDeletes(FILE_A_EQ_1).commit();
@@ -386,6 +387,7 @@ public abstract class DeleteFileIndexTestBase<
 
   @TestTemplate
   public void testPartitionedTableWithUnrelatedPartitionDeletes() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     table.newAppend().appendFile(FILE_B).commit();
 
     table.newRowDelta().addDeletes(fileADeletes()).addDeletes(FILE_A_EQ_1).commit();
@@ -482,6 +484,7 @@ public abstract class DeleteFileIndexTestBase<
 
   @TestTemplate
   public void testPartitionedTableSequenceNumbers() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_EQ_1).addDeletes(fileADeletes()).commit();
 
     List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
@@ -538,6 +541,7 @@ public abstract class DeleteFileIndexTestBase<
 
   @TestTemplate
   public void testPartitionedTableWithExistingDeleteFile() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     table.updateProperties().set(TableProperties.MANIFEST_MERGE_ENABLED, "false").commit();
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -605,6 +609,7 @@ public abstract class DeleteFileIndexTestBase<
 
   @TestTemplate
   public void testEqualityDeleteDiscardMetrics() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     Table table = TestTables.create(tableDir, "partitioned", SCHEMA, SPEC, formatVersion);
 
     table.newAppend().appendFile(FILE_A).commit();

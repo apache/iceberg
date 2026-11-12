@@ -581,6 +581,7 @@ public class TestRewriteFiles extends TestBase {
 
   @TestTemplate
   public void testReplaceEqualityDeletesWithPositionDeletes() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     assumeThat(formatVersion)
         .as("Rewriting delete files is only supported in iceberg format v2 or later")
         .isGreaterThan(1);

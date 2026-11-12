@@ -76,6 +76,7 @@ public class TestMetadataTableFilters extends TestBase {
   @Override
   public void setupTable() throws Exception {
     super.setupTable();
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     table.updateProperties().set(TableProperties.MANIFEST_MERGE_ENABLED, "false").commit();
     table.newFastAppend().appendFile(FILE_A).commit();
     table.newFastAppend().appendFile(FILE_C).commit();

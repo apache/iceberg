@@ -1092,6 +1092,7 @@ public class TestRewriteManifests extends TestBase {
 
   @TestTemplate
   public void testRewriteDataManifestsPreservesDeletes() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     assumeThat(formatVersion).isGreaterThan(1);
 
     Table table = load();
@@ -1154,6 +1155,7 @@ public class TestRewriteManifests extends TestBase {
 
   @TestTemplate
   public void testReplaceDeleteManifestsOnly() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     assumeThat(formatVersion).isGreaterThan(1);
 
     Table table = load();
@@ -1240,6 +1242,7 @@ public class TestRewriteManifests extends TestBase {
 
   @TestTemplate
   public void testReplaceDataAndDeleteManifests() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     assumeThat(formatVersion).isGreaterThan(1);
 
     Table table = load();
@@ -1359,6 +1362,7 @@ public class TestRewriteManifests extends TestBase {
 
   @TestTemplate
   public void testDeleteManifestReplacementConcurrentAppend() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     assumeThat(formatVersion).isGreaterThan(1);
 
     // commit data files
@@ -1462,6 +1466,7 @@ public class TestRewriteManifests extends TestBase {
 
   @TestTemplate
   public void testDeleteManifestReplacementConcurrentDeleteFileRemoval() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     assumeThat(formatVersion).isGreaterThan(1);
 
     // commit data files
@@ -1570,6 +1575,7 @@ public class TestRewriteManifests extends TestBase {
 
   @TestTemplate
   public void testDeleteManifestReplacementConflictingDeleteFileRemoval() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     assumeThat(formatVersion).isGreaterThan(1);
 
     // commit data files
@@ -1624,6 +1630,7 @@ public class TestRewriteManifests extends TestBase {
 
   @TestTemplate
   public void testDeleteManifestReplacementFailure() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     assumeThat(formatVersion).isGreaterThan(1);
 
     // commit a data file

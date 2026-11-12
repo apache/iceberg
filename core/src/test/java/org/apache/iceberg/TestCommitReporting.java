@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.List;
 import org.apache.iceberg.ScanPlanningAndReportingTestBase.TestMetricsReporter;
@@ -94,6 +95,7 @@ public class TestCommitReporting extends TestBase {
 
   @TestTemplate
   public void addAndDeleteDeleteFiles() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     String tableName = "add-and-delete-delete-files";
     Table table =
         TestTables.create(

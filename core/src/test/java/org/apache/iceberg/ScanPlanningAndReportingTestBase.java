@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -264,6 +265,7 @@ public abstract class ScanPlanningAndReportingTestBase<
 
   @TestTemplate
   public void scanningWithSkippedDeleteFiles() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     String tableName = "scan-planning-with-skipped-delete-files";
     Table table =
         TestTables.create(
@@ -308,6 +310,7 @@ public abstract class ScanPlanningAndReportingTestBase<
 
   @TestTemplate
   public void scanningWithEqualityAndPositionalDeleteFiles() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     String tableName = "scan-planning-with-eq-and-pos-delete-files";
     Table table =
         TestTables.create(

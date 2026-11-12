@@ -303,9 +303,20 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             ContentFileUtil.dvDesc(file));
         break;
       case 3:
-      case 4:
         Preconditions.checkArgument(
             file.content() == FileContent.EQUALITY_DELETES || ContentFileUtil.isDV(file),
+            "Must use DVs for position deletes in V%s: %s",
+            formatVersion,
+            file.location());
+        break;
+      case 4:
+        Preconditions.checkArgument(
+            file.content() != FileContent.EQUALITY_DELETES,
+            "Cannot add equality deletes in V%s: %s",
+            formatVersion,
+            file.location());
+        Preconditions.checkArgument(
+            ContentFileUtil.isDV(file),
             "Must use DVs for position deletes in V%s: %s",
             formatVersion,
             file.location());

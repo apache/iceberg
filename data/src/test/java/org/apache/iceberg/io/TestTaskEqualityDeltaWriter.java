@@ -19,6 +19,7 @@
 package org.apache.iceberg.io;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -222,6 +223,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
 
   @TestTemplate
   public void testUpsertSameRow() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     List<Integer> eqDeleteFieldIds = Lists.newArrayList(idFieldId, dataFieldId);
     Schema eqDeleteRowSchema = table.schema();
 
@@ -274,6 +276,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
 
   @TestTemplate
   public void testUpsertData() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     List<Integer> eqDeleteFieldIds = Lists.newArrayList(dataFieldId);
     Schema eqDeleteRowSchema = table.schema().select("data");
 
@@ -368,6 +371,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
 
   @TestTemplate
   public void testUpsertDataWithFullRowSchema() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     List<Integer> eqDeleteFieldIds = Lists.newArrayList(dataFieldId);
     Schema eqDeleteRowSchema = table.schema();
 
