@@ -1260,6 +1260,9 @@ project(':iceberg-open-api') {
   jar {
     enabled = false
   }
+
+  apply from: "${rootDir}/runtime-deps.gradle"
+  trackRuntimeDeps(configurations.restFixtureRuntime, 'runtime-deps.txt')
 }
 
 @Memoized
