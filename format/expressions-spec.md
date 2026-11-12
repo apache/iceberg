@@ -210,7 +210,7 @@ All partition transforms produce `null` for a `null` input value.
 
 | Function name     | Description                                                  | Source types                                                         | Result type |
 |-------------------|--------------------------------------------------------------|----------------------------------------------------------------------|-------------|
-| `identity(value)` | Source value, unmodified                                     | `unknown`, `boolean`, `int`, `long`, `float`, `double`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary`, `vector` | Source type |
+| `identity(value)` | Source value, unmodified                                     | Any primitive except for `geometry` and `geography` | Source type |
 | `year(value)`     | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns` | `int`       |
 | `month(value)`    | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns` | `int`       |
 | `day(value)`      | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns` | `date`      |
