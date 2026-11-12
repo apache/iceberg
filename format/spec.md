@@ -1816,13 +1816,12 @@ When a column file is added, each ID in its `field_ids` must identify a field in
 
 A column file stores a value for every row of its base file, including rows whose values did not change. Values for deleted rows, and for fields in a null struct, should be null.
 
-An added column file must follow these rules for `field_ids`:
+An added column file must follow these rules for `field_ids`. A field must be in `field_ids` if a rule requires it for at least one row where every struct that contains the field is non-null after the update.
 
 - A field nested in a list or map must not be in `field_ids`. When such a field changes, the list or map must be in `field_ids`.
 - Each field whose value changes must be in `field_ids`.
 - Each struct that changes between null and non-null must be in `field_ids`.
-- Each field directly nested in a struct that has changed from null to non-null must be in `field_ids`.
-- A field nested in a struct that is null after the update does not need to be in `field_ids`.
+- If a struct changes from null to non-null, each field directly nested in it must be in `field_ids`, even if the field is null.
 
 See [Column file example](#column-file-example).
 
