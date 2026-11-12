@@ -36,6 +36,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.DatabaseInput;
 import software.amazon.awssdk.services.glue.model.StorageDescriptor;
@@ -465,11 +467,12 @@ public class TestIcebergToGlueConverter {
             glueColumn("Data", "string", 3, true, true));
   }
 
-  @Test
-  void caseOnlyRenameKeepsCurrentColumn() {
+  @ParameterizedTest
+  @CsvSource({"id, Id", "fieldName, fieldname"})
+  void caseOnlyRenameKeepsCurrentColumn(String originalName, String renamedName) {
     Schema schema =
         new Schema(
-            Types.NestedField.required(1, "id", Types.StringType.get()),
+            Types.NestedField.required(1, originalName, Types.StringType.get()),
             Types.NestedField.required(2, "data", Types.StringType.get()));
     TableMetadata tableMetadata =
         TableMetadata.newTableMetadata(
@@ -477,7 +480,7 @@ public class TestIcebergToGlueConverter {
 
     Schema renamedSchema =
         new Schema(
-            Types.NestedField.required(1, "Id", Types.StringType.get()),
+            Types.NestedField.required(1, renamedName, Types.StringType.get()),
             Types.NestedField.required(2, "data", Types.StringType.get()));
     tableMetadata = tableMetadata.updateSchema(renamedSchema);
 
@@ -487,7 +490,7 @@ public class TestIcebergToGlueConverter {
     assertThat(actualTableInputBuilder.build().storageDescriptor().columns())
         .as("Case-only rename should emit only the current name")
         .containsExactly(
-            glueColumn("Id", "string", 1, false, true),
+            glueColumn(renamedName, "string", 1, false, true),
             glueColumn("data", "string", 2, false, true));
   }
 
