@@ -1174,6 +1174,7 @@ project(':iceberg-open-api') {
       exclude group: 'commons-cli', module: 'commons-cli'
       exclude group: 'com.github.pjfanning', module: 'jersey-json'
     }
+    testFixturesRuntimeOnly 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.6.0'
     testFixturesImplementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     testFixturesImplementation libs.junit.jupiter
 
