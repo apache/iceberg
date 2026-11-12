@@ -183,7 +183,10 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
   @SuppressWarnings("unchecked")
   public VectorizedReader<?> variant(
       Types.VariantType iVariant, GroupType variant, VectorizedReader<?> result) {
-    if (iVariant == null || variant.getId() == null || !isShredded(variant)) {
+    // variants inside lists and maps are not read vectorized, like primitive()
+    if (iVariant == null
+        || parquetSchema.getMaxRepetitionLevel(currentPath()) > 0
+        || !isShredded(variant)) {
       return result;
     }
 

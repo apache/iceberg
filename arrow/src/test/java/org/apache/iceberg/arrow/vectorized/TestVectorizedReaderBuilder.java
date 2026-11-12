@@ -21,11 +21,13 @@ package org.apache.iceberg.arrow.vectorized;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 
+import java.util.List;
 import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.NestedField;
@@ -185,7 +187,7 @@ public class TestVectorizedReaderBuilder {
   }
 
   @Test
-  void projectedShreddedListElementWithoutFieldIdSkipped() {
+  void projectedShreddedListElementSkipped() {
     Schema icebergSchema =
         new Schema(
             NestedField.required(1, "id", IntegerType.get()),
@@ -202,19 +204,28 @@ public class TestVectorizedReaderBuilder {
                     .as(LogicalTypeAnnotation.listType())
                     .addField(
                         Types.buildGroup(Type.Repetition.REPEATED)
-                            .addField(shreddedVariant(Type.Repetition.OPTIONAL, "element"))
+                            .addField(shreddedVariant(Type.Repetition.OPTIONAL, 3, "element"))
                             .named("list"))
                     .id(2)
                     .named("list"))
             .named("table");
 
+    List<VectorizedReader<?>> variantReaders = Lists.newArrayList();
     VectorizedReaderBuilder builder =
         new VectorizedReaderBuilder(
-            icebergSchema, parquetSchema, false, ImmutableMap.of(), readers -> null);
+            icebergSchema, parquetSchema, false, ImmutableMap.of(), readers -> null) {
+          @Override
+          public VectorizedReader<?> variant(
+              VariantType iVariant, GroupType variant, VectorizedReader<?> result) {
+            VectorizedReader<?> reader = super.variant(iVariant, variant, result);
+            variantReaders.add(reader);
+            return reader;
+          }
+        };
 
-    assertThatNoException()
-        .isThrownBy(
-            () -> TypeWithSchemaVisitor.visit(icebergSchema.asStruct(), parquetSchema, builder));
+    TypeWithSchemaVisitor.visit(icebergSchema.asStruct(), parquetSchema, builder);
+
+    assertThat(variantReaders).hasSize(1).containsOnlyNulls();
   }
 
   private static MessageType parquetSchemaWithVariant() {

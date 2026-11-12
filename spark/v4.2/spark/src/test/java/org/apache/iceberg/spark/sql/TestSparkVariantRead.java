@@ -552,20 +552,21 @@ public class TestSparkVariantRead extends TestBase {
     sql("DROP TABLE IF EXISTS %s", noStatsTable);
   }
 
-  @Test
-  void readShreddedArrayEnabledBySessionConf()
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void readShreddedArrayEnabledBySessionConf(boolean required)
       throws IOException, NoSuchTableException, ParseException {
     String table = CATALOG + ".default.var_shredded_array";
     sql("DROP TABLE IF EXISTS %s", table);
     sql(
-        "CREATE TABLE %s (id BIGINT, v VARIANT) USING iceberg "
-            + "TBLPROPERTIES ('format-version'='3')",
-        table);
+        "CREATE TABLE %s (id BIGINT, %s) USING iceberg TBLPROPERTIES ('format-version'='3')",
+        table, required ? "v VARIANT NOT NULL" : "v VARIANT");
     insertShredded(
         "INSERT INTO %s VALUES (1, parse_json('{\"a\": [1, 2]}')), (2, parse_json('{\"a\": [3]}'))",
         table);
 
     Table icebergTable = Spark3Util.loadIcebergTable(spark, table);
+    assertThat(icebergTable.schema().findField("v").isRequired()).isEqualTo(required);
     assertHasTypedValueSubtree(icebergTable);
 
     List<Row> rows = assertVectorizedMatchesRowReader(table);
