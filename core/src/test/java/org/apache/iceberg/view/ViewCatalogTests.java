@@ -93,6 +93,27 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     return false;
   }
 
+  @ParameterizedTest(name = "purge = {0}")
+  @ValueSource(booleans = {false, true})
+  public void dropTableDoesNotDropIcebergView(boolean purge) {
+    assumeThat(tableCatalog()).as("Only valid for catalogs that support tables").isNotNull();
+
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    catalog()
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(identifier.namespace())
+        .withQuery("hive", "select * from ns.tbl")
+        .create();
+
+    assertThat(tableCatalog().dropTable(identifier, purge)).isFalse();
+    assertThat(catalog().viewExists(identifier)).isTrue();
+  }
+
   @Test
   public void loadViewWithNonExistingNamespace() {
     TableIdentifier ident = TableIdentifier.of("non-existing", "view");

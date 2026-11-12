@@ -35,10 +35,13 @@ import org.apache.iceberg.view.ViewCatalogTests;
 import org.apache.iceberg.view.ViewMetadata;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.projectnessie.client.api.NessieApiV1;
 import org.projectnessie.client.ext.NessieApiVersion;
 import org.projectnessie.client.ext.NessieApiVersions;
@@ -99,6 +102,14 @@ public class TestNessieViewCatalog extends ViewCatalogTests<NessieCatalog> {
       api = null;
       hadoopConfig = null;
     }
+  }
+
+  @Override
+  @Disabled("Pending https://github.com/apache/iceberg/pull/18912")
+  @ParameterizedTest(name = "purge = {0}")
+  @ValueSource(booleans = {false, true})
+  public void dropTableDoesNotDropIcebergView(boolean purge) {
+    super.dropTableDoesNotDropIcebergView(purge);
   }
 
   private void resetData() throws NessieConflictException, NessieNotFoundException {
