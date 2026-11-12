@@ -1888,7 +1888,7 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`binary`**|`bytes`||
 |**`struct`**|`record`||
 |**`list`**|`array`||
-|**`vector(E, D)`**|`array`|Array elements must use the Avro mapping for E and must not be null. Readers and writers must enforce the vector dimension and element requirements.|
+|**`vector(E, D)`**|`array`|Array elements must use the Avro mapping for E and must not be null. The array must not have an `element-id` property. Readers and writers must enforce the vector dimension and element requirements.|
 |**`map`**|`array` of key-value records, or `map` when keys are strings (optional).|Array storage must use logical type name `map` and must store elements that are 2-field records. The first field is a non-null key and the second field is the value.|
 |**`variant`**|`record` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names. |Shredding is not supported in Avro.|
 |**`geometry`**|`bytes`|WKB format, see [Appendix G](#appendix-g-geospatial-notes)|
