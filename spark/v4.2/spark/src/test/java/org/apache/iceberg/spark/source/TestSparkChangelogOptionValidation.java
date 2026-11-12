@@ -84,25 +84,6 @@ class TestSparkChangelogOptionValidation extends TestBaseWithCatalog {
     }
   }
 
-  @TestTemplate
-  void rejectsUnsupportedStreamingOptions() {
-    createTable();
-    for (Map.Entry<String, String> option : UNSUPPORTED_OPTIONS.entrySet()) {
-      assertThatThrownBy(
-              () ->
-                  spark
-                      .readStream()
-                      .option("deduplicationMode", "none")
-                      .option("computeUpdates", "false")
-                      .option(option.getKey(), option.getValue())
-                      .changes(tableName)
-                      .schema())
-          .as("Streaming CDC must reject option %s", option.getKey())
-          .hasStackTraceContaining("is not supported for Spark CDC")
-          .hasStackTraceContaining(option.getKey());
-    }
-  }
-
   private void createTable() {
     sql(
         "CREATE TABLE %s (id bigint, data string) USING iceberg "

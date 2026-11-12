@@ -47,7 +47,6 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
-import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.Changelog;
 import org.apache.spark.sql.connector.catalog.ChangelogContext;
@@ -56,7 +55,6 @@ import org.apache.spark.sql.connector.catalog.ChangelogRange;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
-import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 /** Exposes Iceberg changes through Spark's native CDC API. */
@@ -254,18 +252,7 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
         validateVersions(table(), context);
         return endSnapshotId == null
             ? Collections.emptyList()
-            : planTasks(table(), scan, context, null, endSnapshotId);
-      }
-
-      @Override
-      public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
-        return new SparkChangelogMicroBatchStream(
-            JavaSparkContext.fromSparkContext(spark().sparkContext()),
-            table(),
-            builder.readConf(),
-            sparkCdcSchema,
-            checkpointLocation,
-            context);
+            : planTasks(table(), scan, context, endSnapshotId);
       }
 
       @Override
@@ -281,7 +268,7 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
     };
   }
 
-  static void validateRange(ChangelogContext context) {
+  private static void validateRange(ChangelogContext context) {
     if (context.range() instanceof ChangelogRange.VersionRange versions) {
       long startVersion = parseVersion(versions.startingVersion());
       Long endVersion = versions.endingVersion().map(SparkChangelog::parseVersion).orElse(null);
@@ -300,11 +287,11 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
     }
   }
 
-  static boolean requiresPostProcessing(ChangelogContext context) {
+  private static boolean requiresPostProcessing(ChangelogContext context) {
     return context.deduplicationMode() != DeduplicationMode.NONE || context.computeUpdates();
   }
 
-  static boolean includes(ChangelogContext context, Snapshot snapshot) {
+  private static boolean includes(ChangelogContext context, Snapshot snapshot) {
     ChangelogRange range = context.range();
     if (range instanceof ChangelogRange.VersionRange versions) {
       long version = snapshot.sequenceNumber();
@@ -327,7 +314,7 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
     return true;
   }
 
-  static void validateVersions(Table table, ChangelogContext context) {
+  private static void validateVersions(Table table, ChangelogContext context) {
     if (!(context.range() instanceof ChangelogRange.VersionRange range)) {
       return;
     }
@@ -350,20 +337,10 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
   }
 
   static List<ScanTaskGroup<ChangelogScanTask>> planTasks(
-      Table table,
-      IncrementalChangelogScan scan,
-      ChangelogContext context,
-      Long startExclusive,
-      long endInclusive) {
-    Preconditions.checkState(
-        startExclusive == null
-            || SnapshotUtil.isParentAncestorOf(table, endInclusive, startExclusive),
-        "Cannot read CDC: snapshot %s is not an ancestor of %s",
-        startExclusive,
-        endInclusive);
+      Table table, IncrementalChangelogScan scan, ChangelogContext context, long endInclusive) {
     List<Snapshot> snapshots = Lists.newArrayList();
     Set<Long> snapshotIds = Sets.newHashSet();
-    for (Snapshot snapshot : SnapshotUtil.ancestorsBetween(table, endInclusive, startExclusive)) {
+    for (Snapshot snapshot : SnapshotUtil.ancestorsBetween(table, endInclusive, null)) {
       if (includes(context, snapshot)) {
         validateSnapshot(snapshot, context);
         snapshots.add(snapshot);

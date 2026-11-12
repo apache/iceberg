@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.Mockito.mock;
@@ -37,9 +36,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
-import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
@@ -52,9 +49,6 @@ import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReader;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.connector.read.Scan;
-import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
-import org.apache.spark.sql.connector.read.streaming.Offset;
-import org.apache.spark.sql.connector.read.streaming.ReadLimit;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.Trigger;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -104,62 +98,6 @@ class TestSparkChangelog extends TestBaseWithCatalog {
             RowFactory.create(1L, "updated", null, null, "insert", version, timestamp),
             RowFactory.create(2L, "b", null, null, "delete", version, timestamp),
             RowFactory.create(2L, "b", null, null, "insert", version, timestamp));
-  }
-
-  @TestTemplate
-  void resumesRawStreamWithoutRowLineage() throws Exception {
-    sql(
-        "CREATE TABLE %s (id bigint, data string) USING iceberg "
-            + "TBLPROPERTIES ('format-version'='2', 'write.delete.mode'='copy-on-write')",
-        tableName);
-    sql("INSERT INTO %s SELECT /*+ COALESCE(1) */ * FROM VALUES (1, 'a'), (2, 'b')", tableName);
-    Table table = validationCatalog.loadTable(tableIdent);
-    long firstVersion = table.currentSnapshot().sequenceNumber();
-    Dataset<Row> changes =
-        spark
-            .readStream()
-            .option("deduplicationMode", "none")
-            .option("computeUpdates", "false")
-            .option("startingVersion", String.valueOf(firstVersion))
-            .changes(tableName);
-    String checkpoint = temp.resolve("raw-cdc-checkpoint").toString();
-    String output = temp.resolve("raw-cdc-output").toString();
-    writeAvailableChanges(changes, checkpoint, output);
-    assertThat(spark.read().parquet(output).count()).isEqualTo(2);
-
-    sql("DELETE FROM %s WHERE id = 1", tableName);
-    table.refresh();
-    long deleteVersion = table.currentSnapshot().sequenceNumber();
-    writeAvailableChanges(changes, checkpoint, output);
-    Dataset<Row> result = spark.read().parquet(output);
-    assertThat(result.select("id", "data", "_change_type", "_commit_version").collectAsList())
-        .containsExactlyInAnyOrder(
-            RowFactory.create(1L, "a", "insert", firstVersion),
-            RowFactory.create(2L, "b", "insert", firstVersion),
-            RowFactory.create(1L, "a", "delete", deleteVersion),
-            RowFactory.create(2L, "b", "delete", deleteVersion),
-            RowFactory.create(2L, "b", "insert", deleteVersion));
-    assertThat(
-            result
-                .filter("_row_id IS NOT NULL OR _last_updated_sequence_number IS NOT NULL")
-                .count())
-        .isZero();
-  }
-
-  private void writeAvailableChanges(Dataset<Row> changes, String checkpoint, String output)
-      throws Exception {
-    StreamingQuery query =
-        changes
-            .writeStream()
-            .format("parquet")
-            .option("checkpointLocation", checkpoint)
-            .trigger(Trigger.AvailableNow())
-            .start(output);
-    try {
-      assertThat(query.awaitTermination(60_000)).isTrue();
-    } finally {
-      query.stop();
-    }
   }
 
   @TestTemplate
@@ -366,57 +304,33 @@ class TestSparkChangelog extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  void availableNowPinsLatestSnapshot() {
-    sql(
-        "CREATE TABLE %s (id bigint, data string) USING iceberg "
-            + "TBLPROPERTIES ('format-version'='3')",
-        tableName);
-    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
-    Table table = validationCatalog.loadTable(tableIdent);
-    long availableSnapshotId = table.currentSnapshot().snapshotId();
-    SparkReadConf readConf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
-    SparkChangelogMicroBatchStream stream =
-        new SparkChangelogMicroBatchStream(
-            JavaSparkContext.fromSparkContext(spark.sparkContext()),
-            table,
-            readConf,
-            SparkChangelog.cdcDataSchema(table),
-            temp.resolve("cdc-available-now").toString(),
-            context(new ChangelogRange.UnboundedRange()));
-
-    stream.prepareForTriggerAvailableNow();
-    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
-
-    StreamingOffset latestOffset = (StreamingOffset) stream.latestOffset();
-    assertThat(latestOffset.snapshotId()).isEqualTo(availableSnapshotId);
-    assertThat(latestOffset.position()).isZero();
-    assertThat(stream.latestOffset(stream.initialOffset(), ReadLimit.allAvailable()))
-        .isEqualTo(latestOffset);
-    stream.stop();
-  }
-
-  @TestTemplate
-  void streamsChangesUsingSparkCdcApi() throws Exception {
-    String queryName = "iceberg_cdc_changes";
-    sql(
-        "CREATE TABLE %s (id bigint, data string) USING iceberg "
-            + "TBLPROPERTIES ('format-version'='3')",
-        tableName);
-    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
-
-    Dataset<Row> changes = spark.readStream().changes(tableName);
-    StreamingQuery query =
-        changes
-            .writeStream()
-            .format("memory")
-            .queryName(queryName)
-            .trigger(Trigger.AvailableNow())
-            .start();
-    query.awaitTermination();
-
-    assertThat(sql("SELECT id, data, _change_type FROM %s ORDER BY id", queryName))
-        .containsExactly(row(1L, "a", "insert"), row(2L, "b", "insert"));
-    spark.catalog().dropTempView(queryName);
+  void nativeStreamIsUnsupported() {
+    createCdcTable();
+    String queryName = "native_cdc_unsupported";
+    assertThatThrownBy(
+            () -> {
+              StreamingQuery query = null;
+              try {
+                query =
+                    spark
+                        .readStream()
+                        .option("deduplicationMode", "none")
+                        .changes(tableName)
+                        .writeStream()
+                        .format("memory")
+                        .queryName(queryName)
+                        .option("checkpointLocation", temp.resolve("unsupported-stream").toString())
+                        .trigger(Trigger.AvailableNow())
+                        .start();
+                query.awaitTermination(60_000);
+              } finally {
+                if (query != null) {
+                  query.stop();
+                }
+                spark.catalog().dropTempView(queryName);
+              }
+            })
+        .hasStackTraceContaining("DATA_SOURCE_MICRO_BATCH_SCAN_NOT_SUPPORTED");
   }
 
   @TestTemplate
@@ -447,97 +361,6 @@ class TestSparkChangelog extends TestBaseWithCatalog {
                 .select("id")
                 .collectAsList())
         .containsExactly(RowFactory.create(2L));
-  }
-
-  @TestTemplate
-  void streamsNewCommitsWithOnlyStartingVersion() throws Exception {
-    Table table = createCdcTable();
-    ChangelogContext context =
-        context(
-            new ChangelogRange.VersionRange(
-                String.valueOf(table.currentSnapshot().sequenceNumber()),
-                Optional.empty(),
-                true,
-                true));
-    MicroBatchStream stream = stream(table, context, "open-version");
-    try {
-      Offset firstEnd = stream.latestOffset();
-      assertThat(readChanges(stream, stream.initialOffset(), firstEnd))
-          .containsExactly(row(1L, "a", "insert", table.currentSnapshot().sequenceNumber()));
-      sql("INSERT INTO %s VALUES (2, 'b')", tableName);
-      Offset secondEnd = stream.latestOffset();
-      assertThat(secondEnd).isNotEqualTo(firstEnd);
-      assertThat(readChanges(stream, firstEnd, secondEnd))
-          .containsExactly(row(2L, "b", "insert", table.currentSnapshot().sequenceNumber()));
-    } finally {
-      stream.stop();
-    }
-  }
-
-  @TestTemplate
-  void waitsForFutureTimestampWithoutReadingHistory() throws Exception {
-    Table table = createCdcTable();
-    long future = Long.MAX_VALUE;
-    MicroBatchStream stream =
-        stream(
-            table,
-            context(new ChangelogRange.TimestampRange(future, Optional.empty(), true, true)),
-            "future");
-    try {
-      assertThat(readChanges(stream, stream.initialOffset(), stream.latestOffset())).isEmpty();
-    } finally {
-      stream.stop();
-    }
-  }
-
-  @TestTemplate
-  void preservesEmptyRangeInStreams() throws Exception {
-    Table table = createCdcTable();
-    String version = String.valueOf(table.currentSnapshot().sequenceNumber());
-    MicroBatchStream stream =
-        stream(
-            table,
-            context(new ChangelogRange.VersionRange(version, Optional.of(version), false, false)),
-            "empty");
-    try {
-      assertThat(readChanges(stream, stream.initialOffset(), stream.latestOffset())).isEmpty();
-    } finally {
-      stream.stop();
-    }
-  }
-
-  @TestTemplate
-  void keepsReadSchemaAfterAddingColumn() throws Exception {
-    Table table = createCdcTable();
-    MicroBatchStream stream = stream(table, context(new ChangelogRange.UnboundedRange()), "schema");
-    try {
-      Offset firstEnd = stream.latestOffset();
-      readChanges(stream, stream.initialOffset(), firstEnd);
-      sql("ALTER TABLE %s ADD COLUMN extra string", tableName);
-      sql("INSERT INTO %s VALUES (2, 'b', 'extra')", tableName);
-      Offset secondEnd = stream.latestOffset();
-      assertThat(readChanges(stream, firstEnd, secondEnd))
-          .containsExactly(row(2L, "b", "insert", table.currentSnapshot().sequenceNumber()));
-    } finally {
-      stream.stop();
-    }
-  }
-
-  @TestTemplate
-  void rejectsIncompatibleStreamingSchemaChange() {
-    Table table = createCdcTable();
-    MicroBatchStream stream = stream(table, context(new ChangelogRange.UnboundedRange()), "drop");
-    try {
-      Offset firstEnd = stream.latestOffset();
-      table.updateSchema().deleteColumn("data").commit();
-      sql("INSERT INTO %s VALUES (2)", tableName);
-      Offset secondEnd = stream.latestOffset();
-      assertThatThrownBy(() -> stream.planInputPartitions(firstEnd, secondEnd))
-          .isInstanceOf(IllegalStateException.class)
-          .hasMessageContaining("incompatible schema change");
-    } finally {
-      stream.stop();
-    }
   }
 
   @TestTemplate
@@ -601,7 +424,6 @@ class TestSparkChangelog extends TestBaseWithCatalog {
                 .newIncrementalChangelogScan()
                 .project(ChangelogUtil.changelogSchema(SparkChangelog.cdcDataSchema(table))),
             context,
-            null,
             third.snapshotId());
     assertThat(groups).isNotEmpty();
     assertThat(groups.stream().flatMap(group -> group.tasks().stream()))
@@ -610,125 +432,11 @@ class TestSparkChangelog extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  void rejectsLateCommitBeforeStreamingPostProcessing() {
-    Table table = createCdcTable();
-    Snapshot first = table.currentSnapshot();
-    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
-    table.refresh();
-    Snapshot second = table.currentSnapshot();
-    Table skewed =
-        withTimestamps(table, Map.of(first.snapshotId(), 100L, second.snapshotId(), 100L));
-    ChangelogContext context =
-        new ChangelogContext(
-            new ChangelogRange.UnboundedRange(), DeduplicationMode.DROP_CARRYOVERS, false);
-    SparkChangelogMicroBatchStream stream =
-        new SparkChangelogMicroBatchStream(
-            JavaSparkContext.fromSparkContext(spark.sparkContext()),
-            skewed,
-            new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty()),
-            SparkChangelog.cdcDataSchema(table),
-            temp.resolve("late").toString(),
-            context);
-    try {
-      assertThatThrownBy(
-              () ->
-                  stream.planTaskGroups(
-                      new StreamingOffset(first.snapshotId(), 0, false),
-                      new StreamingOffset(second.snapshotId(), 0, false)))
-          .isInstanceOf(IllegalStateException.class)
-          .hasMessageContaining("Cannot stream CDC post-processing");
-    } finally {
-      stream.stop();
-    }
-  }
-
-  @TestTemplate
-  void resumesFromCheckpointOffsetWithOpenRange() throws Exception {
-    Table table = createCdcTable();
-    ChangelogContext context = context(new ChangelogRange.UnboundedRange());
-    MicroBatchStream first = stream(table, context, "restart");
-    String endJson;
-    try {
-      Offset end = first.latestOffset();
-      readChanges(first, first.initialOffset(), end);
-      endJson = end.json();
-    } finally {
-      first.stop();
-    }
-    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
-    MicroBatchStream resumed = stream(table, context, "restart");
-    try {
-      assertThat(readChanges(resumed, resumed.deserializeOffset(endJson), resumed.latestOffset()))
-          .containsExactly(row(2L, "b", "insert", table.currentSnapshot().sequenceNumber()));
-    } finally {
-      resumed.stop();
-    }
-  }
-
-  @TestTemplate
   void legacyChangelogAllowsCommitVersionDataColumn() {
     sql("CREATE TABLE %s (id bigint, _commit_version string) USING iceberg", tableName);
     sql("INSERT INTO %s VALUES (1, 'business-version')", tableName);
     assertThat(sql("SELECT id, _commit_version, _change_type FROM %s.changes", tableName))
         .containsExactly(row(1L, "business-version", "INSERT"));
-  }
-
-  @TestTemplate
-  void readsInclusiveStartAfterItsParentExpires() throws Exception {
-    Table table = createCdcTable();
-    long parentId = table.currentSnapshot().snapshotId();
-    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
-    table.refresh();
-    String version = String.valueOf(table.currentSnapshot().sequenceNumber());
-    table.expireSnapshots().expireSnapshotId(parentId).cleanExpiredFiles(false).commit();
-    MicroBatchStream stream =
-        stream(
-            table,
-            context(new ChangelogRange.VersionRange(version, Optional.empty(), true, true)),
-            "expired-parent");
-    try {
-      assertThat(readChanges(stream, stream.initialOffset(), stream.latestOffset()))
-          .containsExactly(row(2L, "b", "insert", table.currentSnapshot().sequenceNumber()));
-    } finally {
-      stream.stop();
-    }
-  }
-
-  @TestTemplate
-  void admissionKeepsEqualTimestampSnapshotsTogether() {
-    Table table = createCdcTable();
-    Snapshot first = table.currentSnapshot();
-    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
-    table.refresh();
-    Snapshot second = table.currentSnapshot();
-    sql("INSERT INTO %s VALUES (3, 'c'), (4, 'd')", tableName);
-    table.refresh();
-    Snapshot third = table.currentSnapshot();
-    Table controlled =
-        withTimestamps(
-            table,
-            Map.of(first.snapshotId(), 100L, second.snapshotId(), 100L, third.snapshotId(), 110L));
-    SparkChangelogMicroBatchStream stream =
-        new SparkChangelogMicroBatchStream(
-            JavaSparkContext.fromSparkContext(spark.sparkContext()),
-            controlled,
-            new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty()),
-            SparkChangelog.cdcDataSchema(table),
-            temp.resolve("admission").toString(),
-            context(new ChangelogRange.UnboundedRange()));
-    try {
-      StreamingOffset end =
-          (StreamingOffset) stream.latestOffset(stream.initialOffset(), ReadLimit.maxRows(1));
-      assertThat(end.snapshotId()).isEqualTo(second.snapshotId());
-      StreamingOffset next = (StreamingOffset) stream.latestOffset(end, ReadLimit.maxRows(1));
-      assertThat(next.snapshotId()).isEqualTo(third.snapshotId());
-      assertThat(next.position()).isZero();
-      // Raw CDC does not use Spark's event-time watermark and can read equal timestamps.
-      assertThat(stream.planTaskGroups(new StreamingOffset(first.snapshotId(), 0, false), end))
-          .isNotEmpty();
-    } finally {
-      stream.stop();
-    }
   }
 
   @TestTemplate
@@ -811,81 +519,6 @@ class TestSparkChangelog extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  void nativeStreamingOptionsHonorPostProcessing() {
-    NativeHistory history = createNativeHistory();
-    withSQLConf(
-        Map.of(
-            "spark.sql.shuffle.partitions",
-            "4",
-            "spark.sql.streaming.stateStore.providerClass",
-            "org.apache.spark.sql.execution.streaming.state.RocksDBStateStoreProvider"),
-        () ->
-            assertThatCode(() -> assertNativeStreamingOptions(history)).doesNotThrowAnyException());
-  }
-
-  @TestTemplate
-  void nativeStreamingNetChangesUpdatesWithSpark42Workaround() {
-    NativeHistory history = createNativeHistory();
-    withSQLConf(
-        Map.of(
-            "spark.sql.shuffle.partitions",
-            "4",
-            "spark.sql.streaming.stateStore.providerClass",
-            "org.apache.spark.sql.execution.streaming.state.RocksDBStateStoreProvider",
-            "spark.sql.legacy.createEmptyCollectionUsingStringType",
-            "true"),
-        () ->
-            assertThatCode(
-                    () -> {
-                      Dataset<Row> changes =
-                          spark
-                              .readStream()
-                              .options(nativeOptions(history, "netChanges", true))
-                              .changes(tableName);
-                      assertThat(readAvailableChanges(changes, "net-updates-workaround"))
-                          .containsExactlyInAnyOrderElementsOf(
-                              expectedNativeChanges(history, "netChanges", true));
-                    })
-                .doesNotThrowAnyException());
-  }
-
-  private void assertNativeStreamingOptions(NativeHistory history) throws Exception {
-    for (String mode : List.of("none", "dropCarryovers", "netChanges")) {
-      for (boolean computeUpdates : List.of(false, true)) {
-        // This combination is verified separately with the Spark 4.2 analyzer workaround.
-        if (mode.equals("netChanges") && computeUpdates) {
-          continue;
-        }
-
-        Map<String, String> options = nativeOptions(history, mode, computeUpdates);
-        if (mode.equals("none") && computeUpdates) {
-          assertThatThrownBy(() -> spark.readStream().options(options).changes(tableName).explain())
-              .hasMessageContaining("UPDATE_DETECTION_REQUIRES_CARRY_OVER_REMOVAL");
-          continue;
-        }
-
-        // One AvailableNow input batch contains the whole range. Streaming netChanges may
-        // collapse this range, unlike commits that were already emitted in earlier batches.
-        Dataset<Row> changes = spark.readStream().options(options).changes(tableName);
-        assertThat(readAvailableChanges(changes, "matrix-" + mode + "-" + computeUpdates))
-            .as("Streaming %s, computeUpdates=%s", mode, computeUpdates)
-            .containsExactlyInAnyOrderElementsOf(
-                expectedNativeChanges(history, mode, computeUpdates));
-      }
-    }
-
-    Dataset<Row> defaultChanges =
-        spark
-            .readStream()
-            .option("startingVersion", history.firstUpdate().sequenceNumber())
-            .option("endingVersion", history.transientDelete().sequenceNumber())
-            .changes(tableName);
-    assertThat(readAvailableChanges(defaultChanges, "matrix-defaults"))
-        .containsExactlyInAnyOrderElementsOf(
-            expectedNativeChanges(history, "dropCarryovers", false));
-  }
-
-  @TestTemplate
   void nativeVersionAndTimestampBoundsAgreeAcrossApis() {
     List<Snapshot> snapshots = createBoundaryHistory();
     for (boolean timestamps : List.of(false, true)) {
@@ -937,28 +570,6 @@ class TestSparkChangelog extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  void nativeStreamingVersionAndTimestampBounds() throws Exception {
-    List<Snapshot> snapshots = createBoundaryHistory();
-    for (boolean timestamps : List.of(false, true)) {
-      for (boolean startInclusive : List.of(false, true)) {
-        for (boolean endInclusive : List.of(false, true)) {
-          Dataset<Row> changes =
-              spark
-                  .readStream()
-                  .options(boundaryOptions(snapshots, timestamps, startInclusive, endInclusive))
-                  .changes(tableName)
-                  .select("id", "_commit_version", "_commit_timestamp");
-          assertThat(
-                  readAvailableChanges(
-                      changes, "bounds-" + timestamps + "-" + startInclusive + "-" + endInclusive))
-              .containsExactlyInAnyOrderElementsOf(
-                  boundaryRows(snapshots, startInclusive, endInclusive));
-        }
-      }
-    }
-  }
-
-  @TestTemplate
   void nativeOptionsRejectInvalidRangesAndModes() {
     List<Snapshot> snapshots = createBoundaryHistory();
     String first = String.valueOf(snapshots.get(0).sequenceNumber());
@@ -972,8 +583,6 @@ class TestSparkChangelog extends TestBaseWithCatalog {
             Map.of("startingTimestamp", "not-a-timestamp"));
     for (Map<String, String> options : invalidOptions) {
       assertThatThrownBy(() -> spark.read().options(options).changes(tableName).collectAsList())
-          .hasMessageContaining("INVALID_CDC_OPTION");
-      assertThatThrownBy(() -> spark.readStream().options(options).changes(tableName).explain())
           .hasMessageContaining("INVALID_CDC_OPTION");
     }
 
@@ -1229,13 +838,6 @@ class TestSparkChangelog extends TestBaseWithCatalog {
     return RowFactory.create(id, commit.sequenceNumber(), new Timestamp(commit.timestampMillis()));
   }
 
-  private List<Row> readAvailableChanges(Dataset<Row> changes, String name) throws Exception {
-    String checkpoint = temp.resolve(name + "-checkpoint").toString();
-    String output = temp.resolve(name + "-output").toString();
-    writeAvailableChanges(changes, checkpoint, output);
-    return spark.read().parquet(output).collectAsList();
-  }
-
   private Table createCdcTable() {
     sql(
         "CREATE TABLE %s (id bigint, data string) USING iceberg "
@@ -1249,26 +851,10 @@ class TestSparkChangelog extends TestBaseWithCatalog {
     return new ChangelogContext(range, DeduplicationMode.NONE, false);
   }
 
-  private MicroBatchStream stream(Table table, ChangelogContext context, String checkpoint) {
-    return new SparkChangelog(table, context)
-        .newScanBuilder(CaseInsensitiveStringMap.empty())
-        .build()
-        .toMicroBatchStream(temp.resolve(checkpoint).toString());
-  }
-
-  private List<Object[]> readChanges(MicroBatchStream stream, Offset start, Offset end)
-      throws Exception {
-    return readChanges(stream.planInputPartitions(start, end), stream.createReaderFactory());
-  }
-
   private List<Object[]> readChanges(Batch batch) throws Exception {
-    return readChanges(batch.planInputPartitions(), batch.createReaderFactory());
-  }
-
-  private List<Object[]> readChanges(InputPartition[] partitions, PartitionReaderFactory factory)
-      throws Exception {
+    PartitionReaderFactory factory = batch.createReaderFactory();
     List<Object[]> rows = Lists.newArrayList();
-    for (InputPartition partition : partitions) {
+    for (InputPartition partition : batch.planInputPartitions()) {
       try (PartitionReader<InternalRow> reader = factory.createReader(partition)) {
         while (reader.next()) {
           InternalRow row = reader.get();
