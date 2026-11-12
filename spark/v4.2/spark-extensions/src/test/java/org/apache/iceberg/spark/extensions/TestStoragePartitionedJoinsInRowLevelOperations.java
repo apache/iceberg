@@ -224,6 +224,75 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends ExtensionsT
         sql("SELECT * FROM %s ORDER BY id, salary", tableName));
   }
 
+
+  @TestTemplate
+  public void testMergeWithSubsetOfPartitionKeys() {
+    String createTableStmt =
+        "CREATE TABLE %s (id INT, event_date DATE, salary INT) "
+            + "USING iceberg "
+            + "PARTITIONED BY (days(event_date), bucket(2, id)) "
+            + "TBLPROPERTIES (%s)";
+
+    sql(createTableStmt, tableName, tablePropsAsString(COMMON_TABLE_PROPERTIES));
+    sql(
+        createTableStmt,
+        tableName(OTHER_TABLE_NAME),
+        tablePropsAsString(COMMON_TABLE_PROPERTIES));
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, DATE '2026-01-01', 100), "
+            + "(2, DATE '2026-01-01', 200), "
+            + "(3, DATE '2026-01-02', 300)",
+        tableName);
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, DATE '2026-01-01', 110), "
+            + "(2, DATE '2026-01-01', 220)",
+        tableName(OTHER_TABLE_NAME));
+
+    Map<String, String> mergeProps =
+        ImmutableMap.of(
+            TableProperties.MERGE_MODE,
+            COPY_ON_WRITE.modeName(),
+            TableProperties.MERGE_DISTRIBUTION_MODE,
+            "none");
+
+    sql("ALTER TABLE %s SET TBLPROPERTIES(%s)", tableName, tablePropsAsString(mergeProps));
+
+    Map<String, String> conf =
+        ImmutableMap.<String, String>builder()
+            .putAll(ENABLED_SPJ_SQL_CONF)
+            .put(SQLConf.V2_BUCKETING_ALLOW_JOIN_KEYS_SUBSET_OF_PARTITION_KEYS().key(), "true")
+            .build();
+
+    withSQLConf(
+        conf,
+        () -> {
+          SparkPlan plan =
+              executeAndKeepPlan(
+                  "MERGE INTO %s t USING %s s "
+                      + "ON t.id = s.id "
+                      + "WHEN MATCHED THEN UPDATE SET t.salary = s.salary",
+                  tableName,
+                  tableName(OTHER_TABLE_NAME));
+
+          assertThat(plan).isNotNull();
+          System.out.println("ICEBERG_18597_PLAN_START");
+          System.out.println(plan.toString());
+          System.out.println("ICEBERG_18597_PLAN_END");
+        });
+
+    assertEquals(
+        "Merge should update matching IDs",
+        ImmutableList.of(
+            row(1, java.sql.Date.valueOf("2026-01-01"), 110),
+            row(2, java.sql.Date.valueOf("2026-01-01"), 220),
+            row(3, java.sql.Date.valueOf("2026-01-02"), 300)),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
   @TestTemplate
   public void testCopyOnWriteMergeWithoutShuffles() {
     checkMerge(COPY_ON_WRITE, false /* with ON predicate */);
