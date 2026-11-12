@@ -34,11 +34,16 @@ import org.apache.iceberg.geospatial.GeospatialBound;
  * <p>Callers must bound polygon interiors separately from their edges.
  */
 class SphericalGeographyBoundsBuilder {
-  // A small cross product amplifies rounding errors when normalizing the great-circle plane.
+  // For unit endpoints, the cross-product length is sin(theta), where theta is the central angle.
+  // This conservative cutoff avoids normalizing small normals that amplify rounding errors.
   private static final double MIN_NORMAL_LENGTH = 1e-6;
 
+  // Dimensionless slack for rounding near the arc endpoints. Accepting an extremum just outside
+  // the arc only widens the bounds.
   private static final double ARC_CONTAINMENT_TOLERANCE = 1e-12;
-  // Relative padding alone vanishes for extrema near the equator.
+
+  // Outward margins for rounding in computed extrema. The relative margin covers asin's larger
+  // error near the poles. The absolute margin, in degrees, covers extrema near the equator.
   private static final double LATITUDE_MARGIN = 1e-6;
   private static final double LATITUDE_SCALING_FACTOR = 1.0000001;
 
@@ -83,6 +88,7 @@ class SphericalGeographyBoundsBuilder {
       return true;
     }
 
+    // An edge to a pole follows the other endpoint's meridian; both stored longitudes count.
     return firstIsPole || secondIsPole;
   }
 
@@ -130,6 +136,8 @@ class SphericalGeographyBoundsBuilder {
             horizontalNormalLength);
 
     // The great circle's extrema may lie outside the current minor arc.
+    // If a computed or padded bound reaches a pole, the arc may pass the pole on either side, so
+    // cover all longitudes. Exact pole endpoints are handled separately and keep their longitude.
     if (isOnMinorArc(northVertex, point1, point2, unitNormal)) {
       maxLatitude = Math.max(maxLatitude, conservativeVertexLatitude);
       if (conservativeVertexLatitude == GeographyConstants.MAX_LATITUDE) {
@@ -237,11 +245,9 @@ class SphericalGeographyBoundsBuilder {
   }
 
   private void addMinimumLongitudeInterval(double longitude1, double longitude2) {
-    // A coordinate on the antimeridian is kept as given: +180 and -180 both name that meridian
-    // and are preserved rather than folded onto one sign, so the same coordinate yields the same
-    // interval whether it arrives as a point or a degenerate edge. The interval spans the shorter
-    // of the two arcs between the endpoints, wrapping past the antimeridian (west > east) when
-    // that arc is the shorter one.
+    // For a non-antipodal minor arc away from the poles, positive weights on the endpoint vectors
+    // keep longitude in their shorter circular interval. Polar cases are handled separately.
+    // Preserve +180 and -180 as stored for consistency with points and degenerate edges.
     double west = Math.min(longitude1, longitude2);
     double east = Math.max(longitude1, longitude2);
     double directGap = east - west;

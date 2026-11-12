@@ -183,6 +183,16 @@ class TestSphericalGeographyBoundsBuilder {
   }
 
   @Test
+  void coversPoleWhenLongitudeDifferenceRoundsTo180() {
+    // In binary64, 134.3 - (-45.7) rounds to 180, but the true difference is slightly larger.
+    // The minor arc passes near the North Pole at about -135.7, outside [-45.7, 134.3].
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
+    bounds.addEdge(-45.7, 60.0, 134.3, 60.0);
+
+    assertThat(bounds.build()).isEqualTo(box(-180.0, 60.0, 180.0, 90.0));
+  }
+
+  @Test
   void boundsShortEdgesWithoutFallingBackToWorld() {
     SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
     bounds.addEdge(0.0, 60.0, 1e-7, 60.0);
