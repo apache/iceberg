@@ -106,6 +106,9 @@ class BuildScalarIndexProcedure extends BaseProcedure {
 
   private static final Logger LOG = LoggerFactory.getLogger(BuildScalarIndexProcedure.class);
 
+  // Writers write the index type in lower case; readers match it case-insensitively.
+  private static final String INDEX_TYPE = "scalar";
+
   private static final ProcedureParameter TABLE_PARAM =
       requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter COLUMNS_PARAM =
@@ -295,7 +298,7 @@ class BuildScalarIndexProcedure extends BaseProcedure {
         indexIdent,
         table.uuid().toString(),
         table.currentSnapshot().snapshotId(),
-        "SCALAR",
+        INDEX_TYPE,
         upperTransform,
         keyColumnIds(keyFields),
         indexLocation,
@@ -370,7 +373,7 @@ class BuildScalarIndexProcedure extends BaseProcedure {
           indexIdent,
           table.uuid().toString(),
           currentTableSnapshotId,
-          "SCALAR",
+          INDEX_TYPE,
           upperTransform,
           keyColumnIds(keyFields),
           existing.location(),
@@ -408,7 +411,7 @@ class BuildScalarIndexProcedure extends BaseProcedure {
         indexIdent,
         table.uuid().toString(),
         currentTableSnapshotId,
-        "SCALAR",
+        INDEX_TYPE,
         upperTransform,
         keyColumnIds(keyFields),
         existing.location(),

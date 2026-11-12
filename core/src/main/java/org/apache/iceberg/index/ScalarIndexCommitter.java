@@ -62,7 +62,7 @@ public class ScalarIndexCommitter {
    * @param identifier identifies the index in the catalog
    * @param tableUuid UUID of the source Iceberg table
    * @param sourceTableSnapshotId the table snapshot the index was built from
-   * @param indexType e.g. {@code "SCALAR"}
+   * @param indexType e.g. {@code "scalar"}
    * @param transformFunction e.g. {@code "HASH"} or {@code "IDENTITY"}
    * @param keyColumnIds source-table column IDs used as index keys
    * @param includedColumnIds optional covering column IDs (may be empty)

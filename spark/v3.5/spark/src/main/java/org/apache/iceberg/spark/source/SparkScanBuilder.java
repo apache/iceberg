@@ -217,6 +217,8 @@ public class SparkScanBuilder
     return postScanFilters.toArray(new Predicate[0]);
   }
 
+  private static final String SCALAR_INDEX_TYPE = "scalar";
+
   private static final Set<Expression.Operation> SCALAR_INDEX_PRUNABLE_OPS =
       ImmutableSet.of(
           Expression.Operation.EQ,
@@ -345,7 +347,7 @@ public class SparkScanBuilder
       List<IndexMetadata> availableIndexes,
       Map<String, List<UnboundPredicate<?>>> candidatesByColumn) {
     for (IndexMetadata metadata : availableIndexes) {
-      if ("SCALAR".equals(metadata.type())
+      if (isScalarIndex(metadata)
           && metadata.keyColumnIds().size() > 1
           && tryPruneUsingCompositeIndex(metadata, candidatesByColumn)) {
         return true;
@@ -373,7 +375,7 @@ public class SparkScanBuilder
 
     IndexMetadata metadata =
         availableIndexes.stream()
-            .filter(m -> "SCALAR".equals(m.type()))
+            .filter(SparkScanBuilder::isScalarIndex)
             .filter(m -> m.keyColumnIds().contains(keyField.fieldId()))
             .findFirst()
             .orElse(null);
@@ -661,6 +663,11 @@ public class SparkScanBuilder
         uncoveredFilePaths.size(),
         resolvedPaths);
     return true;
+  }
+
+  // Index types are written in lower case, but indexes written earlier used upper case.
+  static boolean isScalarIndex(IndexMetadata metadata) {
+    return SCALAR_INDEX_TYPE.equalsIgnoreCase(metadata.type());
   }
 
   private boolean keyTypePromoted(

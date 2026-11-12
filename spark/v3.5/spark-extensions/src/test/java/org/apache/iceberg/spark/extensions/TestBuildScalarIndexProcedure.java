@@ -74,7 +74,7 @@ public class TestBuildScalarIndexProcedure extends ExtensionsTestBase {
     assertThat(indexCatalog.indexExists(indexIdent)).isTrue();
 
     IndexMetadata metadata = indexCatalog.loadIndex(indexIdent);
-    assertThat(metadata.type()).isEqualTo("SCALAR");
+    assertThat(metadata.type()).isEqualTo("scalar");
     assertThat(metadata.transformFunction()).isEqualTo("HASH");
     assertThat(metadata.snapshots()).hasSize(1);
   }

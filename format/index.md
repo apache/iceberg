@@ -78,14 +78,16 @@ The following index type is defined in this specification:
 
 | Type   | Description                                                      |
 |--------|------------------------------------------------------------------|
-| SCALAR | Maps scalar key values to their locations for equality lookups.  |
+| scalar | Maps scalar key values to their locations for equality lookups.  |
 
 The following index types are reserved for future specifications. Their identifiers are claimed so that engines and catalog implementations recognize them as valid type names and handle them gracefully, but this specification defines no type-specific requirements (leaf schema, transforms, or query semantics) for them:
 
 | Type   | Description                                              |
 |--------|----------------------------------------------------------|
-| VECTOR | Reserved for similarity search over vector embeddings.   |
-| TERM   | Reserved for text/term search.                           |
+| vector | Reserved for similarity search over vector embeddings.   |
+| term   | Reserved for text/term search.                           |
+
+Writers must write the index type in lower case. Readers must match it case-insensitively.
 
 The index type communicates the capabilities of an index to query engines and helps determine whether an index is
 applicable to a particular query.
@@ -285,7 +287,7 @@ CREATE INDEX hash_index
     USING HASH;
 ```
 
-This creates a `SCALAR` index that applies the `HASH` transform to the `user_id` key column. When the index is created,
+This creates a `scalar` index that applies the `HASH` transform to the `user_id` key column. When the index is created,
 the engine (or a later index maintenance job) reads the current table snapshot, writes the leaf files and a tracking
 file, and produces the first index metadata file containing a single index snapshot. Leaf files are organized by
 transform value, while the tracking file stores summary information and pruning statistics.
@@ -310,7 +312,7 @@ s3://bucket/warehouse/default.db/events/index/hash_index/metadata/00001-(uuid).m
   "uuid" : "9c12d441-03fe-4693-9a96-a0705ddf69c1",
   "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
   "location" : "s3://bucket/warehouse/default.db/events/index/hash_index",
-  "type" : "SCALAR",
+  "type" : "scalar",
   "transform-function" : "HASH",
   "key-column-ids" : [ 1 ],
   "snapshots" : [ {
@@ -338,7 +340,7 @@ s3://bucket/warehouse/default.db/events/index/hash_index/metadata/00002-(uuid).m
   "uuid" : "9c12d441-03fe-4693-9a96-a0705ddf69c1",
   "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
   "location" : "s3://bucket/warehouse/default.db/events/index/hash_index",
-  "type" : "SCALAR",
+  "type" : "scalar",
   "transform-function" : "HASH",
   "key-column-ids" : [ 1 ],
   "snapshots" : [ {
@@ -370,7 +372,7 @@ s3://bucket/warehouse/default.db/events/index/hash_index/metadata/00003-(uuid).m
   "uuid" : "9c12d441-03fe-4693-9a96-a0705ddf69c1",
   "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
   "location" : "s3://bucket/warehouse/default.db/events/index/hash_index",
-  "type" : "SCALAR",
+  "type" : "scalar",
   "transform-function" : "HASH",
   "key-column-ids" : [ 1 ],
   "snapshots" : [ {

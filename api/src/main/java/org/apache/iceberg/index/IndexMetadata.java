@@ -50,7 +50,7 @@ public interface IndexMetadata {
   String location();
 
   /**
-   * Logical index type, e.g. {@code "SCALAR"}, {@code "IVF"}, {@code "TERM"}.
+   * Logical index type, e.g. {@code "scalar"}, {@code "ivf"}, {@code "term"}.
    *
    * <p>Engines that do not recognize the type must skip this index and fall back to normal
    * planning.
