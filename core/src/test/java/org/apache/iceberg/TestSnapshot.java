@@ -73,13 +73,12 @@ public class TestSnapshot extends TestBase {
             null /* summary */,
             1 /* schemaId */,
             null /* manifestList */,
-            "s3://bucket/metadata/root-manifest.parquet" /* rootManifest */,
+            "root-manifest.parquet" /* rootManifest */,
             10L /* firstRowId */,
             5L /* addedRows */,
             "key-1" /* keyId */);
 
-    assertThat(snapshot.rootManifestLocation())
-        .isEqualTo("s3://bucket/metadata/root-manifest.parquet");
+    assertThat(snapshot.rootManifestLocation()).isEqualTo("root-manifest.parquet");
     assertThat(snapshot.manifestListLocation()).isNull();
   }
 
@@ -137,7 +136,7 @@ public class TestSnapshot extends TestBase {
             null /* summary */,
             1 /* schemaId */,
             null /* manifestList */,
-            "s3://bucket/metadata/root-manifest.parquet" /* rootManifest */,
+            "root-manifest.parquet" /* rootManifest */,
             10L /* firstRowId */,
             5L /* addedRows */,
             "key-1" /* keyId */);

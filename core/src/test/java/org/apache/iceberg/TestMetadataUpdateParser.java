@@ -429,7 +429,7 @@ public class TestMetadataUpdateParser {
   public void testAddSnapshotWithRootManifest() {
     String action = MetadataUpdateParser.ADD_SNAPSHOT;
     long snapshotId = 2;
-    String rootManifest = "s3://bucket/metadata/root-manifest-2.parquet";
+    String rootManifest = "root-manifest-2.parquet";
 
     Snapshot snapshot =
         new BaseSnapshot(

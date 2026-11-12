@@ -343,14 +343,13 @@ public class TestSnapshotJson {
             ImmutableMap.of("operation", "append") /* summary */,
             1 /* schemaId */,
             null /* manifestList */,
-            "s3://bucket/metadata/root-manifest-23.parquet" /* rootManifest */,
+            "root-manifest-23.parquet" /* rootManifest */,
             0L /* firstRowId */,
             10L /* addedRows */,
             "key-1" /* keyId */);
 
     String json = SnapshotParser.toJson(expected, false);
-    assertThat(json)
-        .contains("\"root-manifest\":\"s3://bucket/metadata/root-manifest-23.parquet\"");
+    assertThat(json).contains("\"root-manifest\":\"root-manifest-23.parquet\"");
     assertThat(json).doesNotContain("manifest-list");
 
     Snapshot snapshot = SnapshotParser.fromJson(json);
