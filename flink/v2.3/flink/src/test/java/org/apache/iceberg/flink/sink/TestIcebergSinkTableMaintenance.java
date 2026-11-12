@@ -72,6 +72,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
+@Timeout(value = 5, unit = TimeUnit.MINUTES)
 class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
   private static final String[] LOCK_TYPES = new String[] {LockConfig.JdbcLockConfig.JDBC, ""};
 
@@ -100,8 +101,6 @@ class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
     tableLoader = CATALOG_EXTENSION.tableLoader();
   }
 
-  // Fail fast instead of hanging the CI job if the job can never be scheduled
-  @Timeout(value = 5, unit = TimeUnit.MINUTES)
   @ParameterizedTest(name = "lockType = {0}")
   @FieldSource("LOCK_TYPES")
   public void testCompactFileE2e(String lockType) throws Exception {
@@ -309,8 +308,6 @@ class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
     assertThat(containOrphan).isTrue();
   }
 
-  // Fail fast instead of hanging the CI job if the job can never be scheduled
-  @Timeout(value = 5, unit = TimeUnit.MINUTES)
   @ParameterizedTest(name = "lockType = {0}")
   @FieldSource("LOCK_TYPES")
   public void testAllMaintenanceE2e(String lockType) throws Exception {
