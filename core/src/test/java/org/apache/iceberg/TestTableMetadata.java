@@ -1971,6 +1971,28 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void buildReplacementDoesNotSeedParquetCompression() {
+    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            "file://tmp/db/table",
+            ImmutableMap.of(TableProperties.PARQUET_COMPRESSION, "gzip"));
+
+    TableMetadata replacement =
+        metadata.buildReplacement(
+            metadata.schema(),
+            metadata.spec(),
+            metadata.sortOrder(),
+            metadata.location(),
+            ImmutableMap.of());
+
+    assertThat(replacement.properties()).containsEntry(TableProperties.PARQUET_COMPRESSION, "gzip");
+  }
+
+  @Test
   public void removeRefKeepsSnapshotLog() throws Exception {
     TableMetadata metadata =
         TableMetadataParser.fromJson(readTableMetadataInputFile("TableMetadataV2Valid.json"));
