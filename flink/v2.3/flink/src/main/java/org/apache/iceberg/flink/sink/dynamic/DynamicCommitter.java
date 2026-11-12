@@ -48,7 +48,7 @@ import org.apache.iceberg.flink.sink.CommitSummary;
 import org.apache.iceberg.flink.sink.DeltaManifests;
 import org.apache.iceberg.flink.sink.DeltaManifestsSerializer;
 import org.apache.iceberg.flink.sink.FlinkManifestUtil;
-import org.apache.iceberg.flink.sink.MaxCommittedCheckpointIdValidator;
+import org.apache.iceberg.flink.sink.SinkUtil;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -386,12 +386,15 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
 
     operation.set(OPERATOR_ID, operatorId);
     operation.toBranch(branch);
-    operation.validateWith(new MaxCommittedCheckpointIdValidator(checkpointId, sinkId, operatorId));
+    operation.validateWith(
+        new SinkUtil.MaxCommittedCheckpointIdValidator(
+            checkpointId,
+            snapshotSummary -> writtenBySameSink(snapshotSummary, sinkId, operatorId)));
 
     long startNano = System.nanoTime();
     try {
       operation.commit(); // abort is automatically called if this fails.
-    } catch (MaxCommittedCheckpointIdValidator.MaxCommittedCheckpointMismatchException e) {
+    } catch (SinkUtil.MaxCommittedCheckpointMismatchException e) {
       LOG.info(
           "Skipping commit operation {} because the {} branch of the {} table already contains changes for checkpoint {}."
               + " This can occur when a failure prevents the committer from receiving confirmation of a"

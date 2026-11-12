@@ -30,11 +30,14 @@ import static org.apache.iceberg.TableProperties.PARQUET_VARIANT_BUFFER_SIZE;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotAncestryValidator;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -89,10 +92,7 @@ public class SinkUtil {
 
     while (snapshot != null) {
       Map<String, String> summary = snapshot.summary();
-      String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
-      String snapshotOperatorId = summary.get(OPERATOR_ID);
-      if (flinkJobId.equals(snapshotFlinkJobId)
-          && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId))) {
+      if (writtenBySameJob(summary, flinkJobId, operatorId)) {
         String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
         if (value != null) {
           lastCommittedCheckpointId = Long.parseLong(value);
@@ -104,6 +104,78 @@ public class SinkUtil {
     }
 
     return lastCommittedCheckpointId;
+  }
+
+  /**
+   * Returns whether a snapshot was committed by the given Flink job and operator. Snapshots without
+   * an operator ID match any operator.
+   */
+  static boolean writtenBySameJob(
+      Map<String, String> summary, String flinkJobId, String operatorId) {
+    String snapshotOperatorId = summary.get(OPERATOR_ID);
+    return flinkJobId.equals(summary.get(FLINK_JOB_ID))
+        && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId));
+  }
+
+  /**
+   * Validates, inside the commit, that the target branch does not already contain a commit for the
+   * staged checkpoint.
+   *
+   * <p>The committers read the max committed checkpoint ID before they commit. Another commit for
+   * the same checkpoint can land after that read, for example when a slow commit succeeds after the
+   * committer gave up and the request is redelivered on recovery, or when an old and a new job
+   * commit the same restored checkpoint. The base ancestry is refreshed before every commit
+   * attempt, so this validator sees such a commit and rejects the duplicate with a {@link
+   * MaxCommittedCheckpointMismatchException}.
+   *
+   * <p>Shared by {@link IcebergCommitter} and {@code DynamicCommitter}, which identify their own
+   * snapshots differently, so the caller supplies the {@code writtenBySameSink} predicate.
+   */
+  @Internal
+  public static class MaxCommittedCheckpointIdValidator implements SnapshotAncestryValidator {
+    private final long stagedCheckpointId;
+    private final Predicate<Map<String, String>> writtenBySameSink;
+
+    /**
+     * @param stagedCheckpointId the checkpoint ID that is being committed
+     * @param writtenBySameSink returns true for snapshot summaries that the committing sink wrote
+     */
+    public MaxCommittedCheckpointIdValidator(
+        long stagedCheckpointId, Predicate<Map<String, String>> writtenBySameSink) {
+      this.stagedCheckpointId = stagedCheckpointId;
+      this.writtenBySameSink = writtenBySameSink;
+    }
+
+    @Override
+    public boolean validate(Iterable<Snapshot> baseSnapshots) {
+      long maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
+      for (Snapshot ancestor : baseSnapshots) {
+        Map<String, String> summary = ancestor.summary();
+        if (writtenBySameSink.test(summary)) {
+          String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
+          if (value != null) {
+            maxCommittedCheckpointId = Long.parseLong(value);
+            break;
+          }
+        }
+      }
+
+      if (maxCommittedCheckpointId >= stagedCheckpointId) {
+        throw new MaxCommittedCheckpointMismatchException();
+      }
+
+      return true;
+    }
+  }
+
+  /**
+   * Thrown by {@link MaxCommittedCheckpointIdValidator} when the branch already contains a commit
+   * for the staged checkpoint. Committers catch it to skip the duplicate commit.
+   */
+  public static class MaxCommittedCheckpointMismatchException extends ValidationException {
+    public MaxCommittedCheckpointMismatchException() {
+      super("Table already contains staged changes.");
+    }
   }
 
   /**

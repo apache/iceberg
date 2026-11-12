@@ -74,9 +74,10 @@ import org.junit.jupiter.api.io.TempDir;
  * </ol>
  *
  * <p>Expected (fixed) behavior -- what DynamicCommitter does since PR #14517: detect that the
- * branch already contains a commit for this checkpointId (MaxCommittedCheckpointIdValidator) and
- * skip the second commit, leaving ONE snapshot. The assertion below asserts that correct behavior,
- * so this test FAILS on the unpatched IcebergCommitter, demonstrating duplicate data.
+ * branch already contains a commit for this checkpointId
+ * (SinkUtil.MaxCommittedCheckpointIdValidator) and skip the second commit, leaving ONE snapshot.
+ * The assertion below asserts that correct behavior, so this test FAILS on the unpatched
+ * IcebergCommitter, demonstrating duplicate data.
  */
 class TestIcebergCommitterDuplicateCommit {
 
@@ -188,6 +189,7 @@ class TestIcebergCommitterDuplicateCommit {
         "sinkId",
         metrics,
         false,
+        true,
         0);
   }
 
