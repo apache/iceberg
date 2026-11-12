@@ -312,7 +312,7 @@ For details on how to serialize a schema to JSON, see Appendix C.
 
 ##### Vector
 
-A `vector(E, D)` contains exactly D elements of type E, and every element is non-null. `float` and `double` elements must be finite: `NaN`, `+Infinity`, and `-Infinity` are invalid. The vector value may be null only when the vector field is optional.
+A non-null `vector(E, D)` contains exactly D elements of type E, and every element is non-null. `float` and `double` elements must be finite: `NaN`, `+Infinity`, and `-Infinity` are invalid. The vector value may be null only when the vector field is optional.
 
 A `vector` must not be promoted to another type. No type other than `unknown` may be promoted to `vector`. The element type and dimension must not change. A `list` of element type E is not a `vector(E, D)`, even if every list instance contains exactly D elements.
 
@@ -739,6 +739,8 @@ Order id `0` is reserved for the unsorted order.
 
 Sorting floating-point numbers should produce the following behavior: `-NaN` < `-Infinity` < `-value` < `-0` < `0` < `value` < `Infinity` < `NaN`. This aligns with the implementation of Java floating-point types comparisons.
 
+Vector values of the same `vector(E, D)` type must be sorted lexicographically using the sort order of E.
+
 A data or delete file is associated with a sort order by the sort order's id within [a manifest](#manifests). Therefore, the table must declare all the sort orders for lookup. A table could also be configured with a default sort order id, indicating how the new data should be sorted by default. Writers should use this default sort order to sort the data on write, but are not required to if the default order is prohibitively expensive, as it would be for streaming writes.
 
 ### Constraints
@@ -777,6 +779,7 @@ The `field-ids` of a `unique` or `primary-key` constraint:
 * Must not reference fields of type `geometry` or `geography`, because Iceberg does not define equality for them
 * Must not reference fields of type `unknown`, because their values are always null
 * Must not reference fields of type `file` or their sub-fields
+* Must not reference fields of type `vector`
 
 A table may have at most one `primary-key` constraint. The fields of a `primary-key` constraint must be `required` and must not be nested in an optional struct, so that the schema rejects null keys even when the constraint is not enforced. The fields of a `unique` constraint may be optional or nested in optional structs, because a row in which any field is null is not compared.
 
@@ -1924,6 +1927,8 @@ Values should be stored in Parquet using the types and logical type annotations 
 
 Lists must use the [3-level representation](https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#lists).
 
+Vectors must use the [`FINITE_VECTOR` representation](https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#finite-vectors), with `num_elements` set to D.
+
 | Type               | Parquet physical type                                                                                                                        | Logical type                                | Notes                                                          |
 |--------------------|----------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------|----------------------------------------------------------------|
 | **`unknown`**      | None                                                                                                                                         |                                             | Omit from data files                                           |
@@ -1945,7 +1950,7 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`binary`**       | `binary`                                                                                                                                     |                                             |                                                                |
 | **`struct`**       | `group`                                                                                                                                      |                                             |                                                                |
 | **`list`**         | `3-level list`                                                                                                                               | `LIST`                                      | See Parquet docs for 3-level representation.                   |
-| **`vector(E, D)`** | `3-level list`                                                                                                                               | `LIST`                                      | The outer group must contain a single repeated group named `list`. The `list` group must contain a single primitive field named `element`, marked `required` in the Parquet schema. The `element` field must use the same Parquet physical type as an Iceberg column of type E, following the mapping in this table. Each non-null vector must contain exactly D non-null, finite elements. |
+| **`vector(E, D)`** | `3-level list`                                                                                                                               | `FINITE_VECTOR(D)`                          | The outer group carries the field ID of the vector. The `element` field must represent values of the Iceberg element type E using a Parquet representation permitted by `FINITE_VECTOR`. Writing and reading an element must preserve its value exactly. The ConvertedType must be `LIST`. The `list` and `element` fields must not be assigned field IDs. |
 | **`map`**          | `3-level map`                                                                                                                                | `MAP`                                       | See Parquet docs for 3-level representation.                   |
 | **`variant`**      | `group` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names. | `VARIANT`                                   | See Parquet docs for [Variant encoding](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md) and [Variant shredding encoding](https://github.com/apache/parquet-format/blob/master/VariantShredding.md). |
 | **`geometry`**     | `binary`                                                                                                                                     | `GEOMETRY`                                  | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                             |
