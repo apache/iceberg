@@ -780,6 +780,7 @@ public class IcebergSink
           SinkUtil.checkAndGetEqualityFieldIds(table, equalityFieldColumns);
 
       if (flinkWriteConf.upsertMode()) {
+        SinkUtil.checkUpsertSupported(table);
         Preconditions.checkState(
             !overwriteMode,
             "OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.");

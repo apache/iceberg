@@ -561,6 +561,7 @@ public class FlinkSink {
         int writerParallelism) {
       // Validate the equality fields and partition fields if we enable the upsert mode.
       if (flinkWriteConf.upsertMode()) {
+        SinkUtil.checkUpsertSupported(table);
         Preconditions.checkState(
             !flinkWriteConf.overwriteMode(),
             "OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.");
