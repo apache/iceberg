@@ -1092,6 +1092,7 @@ paths:
 
 
         Servers MUST NOT return format version 4 tables from this endpoint.
+        A request to load a format version 4 table fails with a 400 `UnsupportedTableFormatVersionException`; clients should load it through the `/v2` endpoint instead.
 
 
         The response contains both configuration and table metadata. The configuration, if non-empty is used
@@ -1129,7 +1130,15 @@ paths:
             Not Modified - Based on the content of the 'If-None-Match' header the table metadata has
             not changed since.
         400:
-          $ref: '#/components/responses/BadRequestErrorResponse'
+          description:
+            Bad Request - The request is malformed, or the table is at a format version that this endpoint does not serve.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                UnsupportedTableFormatVersion:
+                  $ref: '#/components/examples/UnsupportedTableFormatVersionError'
         401:
           $ref: '#/components/responses/UnauthorizedResponse'
         403:
@@ -6472,6 +6481,16 @@ components:
           "message": "The given table does not exist",
           "type": "NoSuchTableException",
           "code": 404
+        }
+      }
+
+    UnsupportedTableFormatVersionError:
+      summary: The table's format version is not served by this endpoint
+      value: {
+        "error": {
+          "message": "Table format version 4 is not supported by this endpoint, use the v2 endpoint",
+          "type": "UnsupportedTableFormatVersionException",
+          "code": 400
         }
       }
 
