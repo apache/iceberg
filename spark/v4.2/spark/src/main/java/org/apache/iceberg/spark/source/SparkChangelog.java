@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -36,18 +35,15 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadOptions;
-import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.Changelog;
 import org.apache.spark.sql.connector.catalog.ChangelogContext;
 import org.apache.spark.sql.connector.catalog.ChangelogContext.DeduplicationMode;
@@ -97,7 +93,6 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
               "Iceberg snapshot commit timestamp"));
 
   private final ChangelogContext context;
-  private final String[] identifierColumns;
   private final Schema sparkCdcSchema;
 
   public SparkChangelog(Table table, ChangelogContext context) {
@@ -108,16 +103,11 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
     super(table);
     this.context = Preconditions.checkNotNull(context, "Changelog context cannot be null");
     validateCdcOptions(options);
-    this.identifierColumns = identifierColumns(table.schema(), options);
-    Preconditions.checkArgument(
-        identifierColumns.length == 0
-            || context.deduplicationMode() == DeduplicationMode.DROP_CARRYOVERS,
-        "Business-key CDC requires deduplicationMode=dropCarryovers");
     validateRange(context);
     Preconditions.checkArgument(
         TableUtil.formatVersion(table) >= 2,
         "Spark CDC requires format version 2 or later for commit sequence numbers");
-    boolean requiresRowLineage = identifierColumns.length == 0 && requiresPostProcessing(context);
+    boolean requiresRowLineage = requiresPostProcessing(context);
     Preconditions.checkArgument(
         !requiresRowLineage || TableUtil.supportsRowLineage(table),
         "Spark CDC post-processing requires row lineage. "
@@ -134,42 +124,6 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
               + "options. Option %s is not supported for Spark CDC",
           option);
     }
-  }
-
-  private static String[] identifierColumns(Schema schema, CaseInsensitiveStringMap options) {
-    String value = options.get(SparkReadOptions.CDC_IDENTIFIER_COLUMNS);
-    if (value == null) {
-      return new String[0];
-    }
-
-    Set<String> resolved = Sets.newLinkedHashSet();
-    boolean caseSensitive = SparkUtil.caseSensitive(SparkSession.active());
-    for (String name : Splitter.on(',').trimResults().split(value)) {
-      Types.NestedField field =
-          caseSensitive
-              ? schema.asStruct().field(name)
-              : schema.asStruct().caseInsensitiveField(name);
-      Preconditions.checkArgument(
-          field != null && field.type().isPrimitiveType(),
-          "CDC identifier column must be an existing top-level primitive field: %s",
-          name);
-      Preconditions.checkArgument(
-          resolved.add(field.name()), "Duplicate CDC identifier column: %s", name);
-    }
-
-    return resolved.toArray(String[]::new);
-  }
-
-  /** Identifier fields consumed by the Iceberg CDC resolution rule. */
-  public String[] identifierColumns() {
-    return identifierColumns.clone();
-  }
-
-  /** Raw input for the Iceberg business-key CDC resolution rule. */
-  public SparkChangelog rawChangelog() {
-    Preconditions.checkState(identifierColumns.length > 0, "Not a business-key changelog");
-    return new SparkChangelog(
-        table(), new ChangelogContext(context.range(), DeduplicationMode.NONE, false));
   }
 
   static Schema cdcDataSchema(Table table) {
@@ -200,7 +154,7 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
 
   @Override
   public boolean containsCarryoverRows() {
-    return identifierColumns.length == 0;
+    return true;
   }
 
   @Override
@@ -210,17 +164,11 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
 
   @Override
   public boolean representsUpdateAsDeleteAndInsert() {
-    return identifierColumns.length == 0 || !context.computeUpdates();
+    return true;
   }
 
   @Override
   public NamedReference[] rowId() {
-    if (identifierColumns.length > 0) {
-      return Arrays.stream(identifierColumns)
-          .map(name -> Spark3Util.toNamedReference("`" + name.replace("`", "``") + "`"))
-          .toArray(NamedReference[]::new);
-    }
-
     return new NamedReference[] {Spark3Util.toNamedReference(MetadataColumns.ROW_ID.name())};
   }
 
@@ -231,8 +179,6 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
 
   @Override
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
-    Preconditions.checkState(
-        identifierColumns.length == 0, "Business-key CDC requires IcebergSparkSessionExtensions");
     validateCdcOptions(options);
     SparkChangelogScanBuilder builder =
         new SparkChangelogScanBuilder(spark(), table(), sparkCdcSchema, options);

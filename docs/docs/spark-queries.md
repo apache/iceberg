@@ -118,31 +118,10 @@ SELECT * FROM prod.db.table CHANGES FROM VERSION 20 TO VERSION 25
 WITH (deduplicationMode = 'none', computeUpdates = 'false');
 ```
 
-To remove carry-over and compute update images using business keys, enable
-[Iceberg SQL extensions](spark-configuration.md#sql-extensions) and explicitly supply
-`identifier-columns`:
-
-```sql
-SELECT * FROM prod.db.table CHANGES FROM VERSION 20 TO VERSION 25
-WITH (`identifier-columns` = 'id',
-      deduplicationMode = 'dropCarryovers',
-      computeUpdates = 'true');
-```
-
-`identifier-columns` is a comma-separated list of top-level primitive column names, such as
-`tenant_id,id`. Names follow Spark's case-sensitivity setting. This mode uses the same iterators
-as `create_changelog_view`: remove equal DELETE/INSERT carry-over rows, then pair changes by
-the business key within each commit. Keys must identify rows unambiguously; ambiguous duplicate
-keys can fail update reconstruction. Changing the key produces a delete and a separate insert.
-Setting `computeUpdates=false` still removes carry-over but leaves the `delete` and `insert` labels.
-This mode supports only `dropCarryovers`; it rejects `none` and `netChanges`.
-
 Native output contains user columns plus `_change_type`, `_commit_version`, `_commit_timestamp`,
 `_row_id`, and `_last_updated_sequence_number`. Update images use `update_preimage` and
-`update_postimage`. Business-key mode returns null for both lineage columns, even when the source
-has lineage, because it processes rows by values and business keys. It preserves commit versions
-and timestamps. Without `identifier-columns`, native post-processing uses Iceberg row lineage
-and requires valid lineage in the selected snapshots and files.
+`update_postimage`. Native post-processing uses Iceberg row lineage and requires valid lineage
+in the selected snapshots and files.
 
 The native options have the same meaning in SQL and DataFrame reads:
 
@@ -153,13 +132,9 @@ The native options have the same meaning in SQL and DataFrame reads:
 | `startingBoundInclusive`, `endingBoundInclusive` | `true` | Include the respective endpoint. In SQL, use `EXCLUSIVE` after the corresponding version or timestamp to exclude it. |
 | `deduplicationMode` | `dropCarryovers` | `none` returns raw changes; `dropCarryovers` removes rewrite carry-overs within each commit; `netChanges` also removes intermediate changes across commits. |
 | `computeUpdates` | `false` | Pair deletes and inserts into update images. Requires carry-over removal. |
-| `identifier-columns` | Not set | Explicitly selects business-key batch processing instead of row-lineage processing. |
 
-Without business keys, `dropCarryovers` and `netChanges` require row lineage and support both
-values of `computeUpdates`. Raw mode requires `computeUpdates=false`. Business-key mode
-supports only `dropCarryovers`, with either value of `computeUpdates`. When updates are disabled,
-business-key processing groups by all output values and requires those values to be orderable;
-map payloads are therefore unsupported in that mode.
+`dropCarryovers` and `netChanges` require row lineage and support both values of `computeUpdates`.
+Raw mode requires `computeUpdates=false`.
 
 CDC rejects ordinary time-travel options (`versionAsOf`, `timestampAsOf`, and legacy options),
 `branch`, and Iceberg's `start-snapshot-id`/`end-snapshot-id` and `start-timestamp`/`end-timestamp`.
