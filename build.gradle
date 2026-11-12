@@ -1174,7 +1174,7 @@ project(':iceberg-open-api') {
       exclude group: 'commons-cli', module: 'commons-cli'
       exclude group: 'com.github.pjfanning', module: 'jersey-json'
     }
-    testFixturesRuntimeOnly 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.6.0'
+    testFixturesImplementation 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.6.0'
     testFixturesImplementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
 
     testFixturesImplementation libs.slf4j.api
@@ -1217,11 +1217,25 @@ project(':iceberg-open-api') {
   }
   check.dependsOn('validateRESTCatalogSpec')
 
+  // Runtime JARs for the iceberg-rest-fixture Docker image
+  configurations {
+    restFixtureRuntime {
+      canBeConsumed = false
+      extendsFrom testFixturesImplementation
+    }
+  }
+
+  dependencies {
+    restFixtureRuntime project(path: ':iceberg-aws-bundle', configuration: 'shadow')
+    restFixtureRuntime project(path: ':iceberg-azure-bundle', configuration: 'shadow')
+    restFixtureRuntime project(path: ':iceberg-gcp-bundle', configuration: 'shadow')
+  }
+
   tasks.register('stageRESTFixtureRuntime', Sync) {
     description = 'Stages the REST fixture runtime JARs'
     group = 'build'
     into layout.buildDirectory.dir('rest-fixture-runtime')
-    from configurations.testFixturesRuntimeClasspath
+    from configurations.restFixtureRuntime
     from tasks.named('testFixturesJar')
   }
 
