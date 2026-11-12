@@ -78,30 +78,28 @@ public class ParquetDictionaryRowGroupFilter {
   private static final boolean ROWS_MIGHT_MATCH = true;
   private static final boolean ROWS_CANNOT_MATCH = false;
 
-
   @SuppressWarnings("unchecked")
   private static <T> Comparator<T> signedZeroComparator(
       BoundReference<T> ref, Comparator<T> comparator) {
     switch (ref.type().typeId()) {
       case FLOAT:
         return (left, right) -> {
-          float a = (Float) left;
-          float b = (Float) right;
-          return a == 0.0F && b == 0.0F ? 0 : comparator.compare(left, right);
+          float leftValue = (Float) left;
+          float rightValue = (Float) right;
+          return leftValue == 0.0F && rightValue == 0.0F ? 0 : comparator.compare(left, right);
         };
       case DOUBLE:
         return (left, right) -> {
-          double a = (Double) left;
-          double b = (Double) right;
-          return a == 0.0D && b == 0.0D ? 0 : comparator.compare(left, right);
+          double leftValue = (Double) left;
+          double rightValue = (Double) right;
+          return leftValue == 0.0D && rightValue == 0.0D ? 0 : comparator.compare(left, right);
         };
       default:
         return comparator;
     }
   }
 
-  private static <T> boolean containsEquivalent(
-      Set<T> values, T target, Comparator<T> comparator) {
+  private static <T> boolean containsEquivalent(Set<T> values, T target, Comparator<T> comparator) {
     for (T value : values) {
       if (comparator.compare(value, target) == 0) {
         return true;
@@ -333,7 +331,9 @@ public class ParquetDictionaryRowGroupFilter {
       Comparator<T> comparator = signedZeroComparator(ref, lit.comparator());
       Set<T> dictionary = dict(id, comparator);
 
-      return containsEquivalent(dictionary, lit.value(), comparator) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
+      return containsEquivalent(dictionary, lit.value(), comparator)
+          ? ROWS_MIGHT_MATCH
+          : ROWS_CANNOT_MATCH;
     }
 
     @Override
@@ -351,7 +351,9 @@ public class ParquetDictionaryRowGroupFilter {
         return ROWS_MIGHT_MATCH;
       }
 
-      return containsEquivalent(dictionary, lit.value(), comparator) ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
+      return containsEquivalent(dictionary, lit.value(), comparator)
+          ? ROWS_CANNOT_MATCH
+          : ROWS_MIGHT_MATCH;
     }
 
     @Override
