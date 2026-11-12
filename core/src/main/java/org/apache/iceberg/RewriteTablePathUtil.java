@@ -156,6 +156,8 @@ public class RewriteTablePathUtil {
             metadata.partitionStatisticsFiles(), sourcePrefix, targetPrefix),
         metadata.nextRowId(),
         metadata.encryptionKeys(),
+        metadata.constraints(),
+        metadata.lastConstraintId(),
         metadata.changes());
   }
 
@@ -255,7 +257,8 @@ public class RewriteTablePathUtil {
               newManifestListLocation,
               snapshot.firstRowId(),
               snapshot.addedRows(),
-              snapshot.keyId());
+              snapshot.keyId(),
+              snapshot.constraintStatuses());
       newSnapshots.add(newSnapshot);
     }
     return newSnapshots;

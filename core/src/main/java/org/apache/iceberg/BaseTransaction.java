@@ -733,6 +733,11 @@ public class BaseTransaction implements Transaction {
     }
 
     @Override
+    public List<Constraint> constraints() {
+      return current.constraints();
+    }
+
+    @Override
     public Map<String, SnapshotRef> refs() {
       return current.refs();
     }
