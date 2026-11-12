@@ -1222,6 +1222,22 @@ project(':iceberg-open-api') {
     restFixtureRuntime {
       canBeConsumed = false
       extendsFrom testFixturesImplementation
+      // hadoop-common dependencies not needed by HadoopFileIO
+      exclude group: 'org.apache.hadoop', module: 'hadoop-annotations'
+      exclude group: 'org.apache.hadoop.thirdparty', module: 'hadoop-shaded-protobuf_3_25'
+      exclude group: 'org.apache.commons', module: 'commons-math3'
+      exclude group: 'org.apache.commons', module: 'commons-text'
+      exclude group: 'org.apache.httpcomponents'
+      exclude group: 'commons-logging'
+      exclude group: 'commons-net'
+      exclude group: 'commons-codec'
+      exclude group: 'javax.servlet'
+      exclude group: 'javax.servlet.jsp'
+      exclude group: 'jakarta.activation'
+      exclude group: 'org.codehaus.jettison'
+      exclude group: 'org.bouncycastle'
+      exclude group: 'com.nimbusds'
+      exclude group: 'io.netty'
     }
   }
 
