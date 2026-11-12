@@ -1238,6 +1238,9 @@ project(':iceberg-open-api') {
       exclude group: 'org.bouncycastle'
       exclude group: 'com.nimbusds'
       exclude group: 'io.netty'
+      // Annotation-only JARs, not needed at runtime
+      exclude group: 'com.google.errorprone', module: 'error_prone_annotations'
+      exclude group: 'org.jspecify', module: 'jspecify'
     }
   }
 
