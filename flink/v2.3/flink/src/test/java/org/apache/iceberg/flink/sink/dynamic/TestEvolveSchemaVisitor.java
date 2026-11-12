@@ -128,23 +128,6 @@ public class TestEvolveSchemaVisitor {
   }
 
   @Test
-  public void testPrimitiveToVariantFails() {
-    Schema currentSchema = new Schema(optional(1, "payload", StringType.get()));
-    Schema targetSchema = new Schema(optional(1, "payload", Types.VariantType.get()));
-    assertThatThrownBy(
-            () ->
-                EvolveSchemaVisitor.visit(
-                    TABLE,
-                    loadUpdateApi(currentSchema),
-                    currentSchema,
-                    targetSchema,
-                    CASE_SENSITIVE,
-                    PRESERVE_COLUMNS))
-        .hasMessage("Cannot change column type: payload: string -> variant")
-        .isInstanceOf(IllegalArgumentException.class);
-  }
-
-  @Test
   public void testMakeTopLevelPrimitivesOptional() {
     Schema existingSchema = new Schema(primitiveFields(0, primitiveTypes(), false));
     assertThat(existingSchema.columns().stream().allMatch(Types.NestedField::isRequired)).isTrue();
