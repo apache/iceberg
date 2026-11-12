@@ -105,9 +105,10 @@ CALL catalog_name.system.fast_forward('prod.db.table', 'main', 'audit-branch');
 
 ## Usage
 
-Creating, querying and writing to branches and tags are supported in the Iceberg Java library, and in Spark and Flink engine integrations.
+Creating, querying and writing to branches and tags are supported in the Iceberg Java library, PyIceberg, and in Spark and Flink engine integrations.
 
 - [Iceberg Java Library](java-api-quickstart.md#branching-and-tagging)
+- [PyIceberg](https://py.iceberg.apache.org/api/#branching)
 - [Spark DDLs](spark-ddl.md#branching-and-tagging-ddl)
 - [Spark Reads](spark-queries.md#time-travel-queries-with-sql)
 - [Spark Branch Writes](spark-writes.md#writing-to-branches)
