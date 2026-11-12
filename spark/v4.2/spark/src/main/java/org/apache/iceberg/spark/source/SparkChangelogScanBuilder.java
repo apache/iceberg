@@ -32,6 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.catalog.ChangelogContext;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Scan;
@@ -49,9 +50,24 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
           MetadataColumns.CHANGE_ORDINAL.name(),
           MetadataColumns.COMMIT_SNAPSHOT_ID.name());
 
+  private final Schema outputSchema;
+  private final ChangelogContext context;
+
   SparkChangelogScanBuilder(
       SparkSession spark, Table table, Schema schema, CaseInsensitiveStringMap options) {
-    super(spark, table, schema, options);
+    this(spark, table, schema, schema, null, options);
+  }
+
+  SparkChangelogScanBuilder(
+      SparkSession spark,
+      Table table,
+      Schema dataSchema,
+      Schema outputSchema,
+      ChangelogContext context,
+      CaseInsensitiveStringMap options) {
+    super(spark, table, dataSchema, options);
+    this.outputSchema = outputSchema;
+    this.context = context;
   }
 
   @Override
@@ -88,6 +104,14 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
 
   @Override
   public Scan build() {
+    if (context != null) {
+      IncrementalChangelogScan scan = buildIcebergScan(schema(), null, null);
+      Snapshot currentSnapshot = table().currentSnapshot();
+      Long endSnapshotId = currentSnapshot != null ? currentSnapshot.snapshotId() : null;
+      return new SparkChangelogScan(
+          spark(), table(), scan, readConf(), outputSchema, filters(), context, endSnapshotId);
+    }
+
     Long startSnapshotId = readConf().startSnapshotId();
     Long endSnapshotId = readConf().endSnapshotId();
     Long startTimestamp = readConf().startTimestamp();
@@ -130,7 +154,7 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
     return new SparkChangelogScan(spark(), table(), scan, readConf(), projection, filters());
   }
 
-  IncrementalChangelogScan buildIcebergScan(
+  private IncrementalChangelogScan buildIcebergScan(
       Schema projection, Long startSnapshotId, Long endSnapshotId) {
     IncrementalChangelogScan scan =
         table()

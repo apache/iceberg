@@ -250,9 +250,27 @@ class TestSparkChangelog extends TestBaseWithCatalog {
 
     assertThat(readChanges(pinned.toBatch())).containsExactly(row(1L, "a", "insert", firstVersion));
     Scan latest = changelog.newScanBuilder(CaseInsensitiveStringMap.empty()).build();
+    assertThat(latest).isNotEqualTo(pinned);
     assertThat(readChanges(latest.toBatch()))
         .containsExactlyInAnyOrder(
             row(1L, "a", "insert", firstVersion), row(2L, "b", "insert", secondVersion));
+  }
+
+  @TestTemplate
+  void batchScanPinsEmptyTableAtBuild() throws Exception {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    SparkChangelog changelog =
+        new SparkChangelog(table, context(new ChangelogRange.UnboundedRange()));
+    Scan empty = changelog.newScanBuilder(CaseInsensitiveStringMap.empty()).build();
+
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    table.refresh();
+    Scan latest = changelog.newScanBuilder(CaseInsensitiveStringMap.empty()).build();
+    assertThat(latest).isNotEqualTo(empty);
+    assertThat(readChanges(empty.toBatch())).isEmpty();
+    assertThat(readChanges(latest.toBatch()))
+        .containsExactly(row(1L, "a", "insert", table.currentSnapshot().sequenceNumber()));
   }
 
   @TestTemplate
@@ -399,7 +417,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
     ChangelogContext context =
         context(new ChangelogRange.TimestampRange(95000, Optional.of(115000L), true, true));
     List<ScanTaskGroup<ChangelogScanTask>> groups =
-        SparkChangelog.planTasks(
+        SparkChangelogScan.planTasks(
             skewed, table.newIncrementalChangelogScan(), context, third.snapshotId());
     assertThat(groups).isNotEmpty();
     assertThat(groups.stream().flatMap(group -> group.tasks().stream()))
