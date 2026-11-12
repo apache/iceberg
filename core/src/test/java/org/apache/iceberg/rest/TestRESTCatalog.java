@@ -135,6 +135,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
@@ -2110,24 +2111,33 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                       any(),
                       any());
 
-              // verify the first token exchange - since an exception is thrown, we're performing
-              // retries
-              Mockito.verify(adapter, times(2))
+              // the first exchange with the catalog token throws. The retry waits at least 100ms,
+              // so by the time it runs the 1s token has expired and the session uses the client
+              // credential instead of exchanging the expired token again: exactly one failed
+              // exchange with the catalog token, then one with basic auth
+              InOrder inOrder = Mockito.inOrder(adapter);
+              inOrder
+                  .verify(adapter)
                   .postForm(
                       eq(oauth2ServerUri),
                       argThat(firstRefreshRequest::equals),
                       eq(OAuthTokenResponse.class),
                       eq(catalogHeaders),
                       any());
-
-              // here we make sure that the basic auth header is used after token refresh retries
-              // failed
-              Mockito.verify(adapter)
+              inOrder
+                  .verify(adapter)
                   .postForm(
                       eq(oauth2ServerUri),
                       argThat(firstRefreshRequest::equals),
                       eq(OAuthTokenResponse.class),
                       eq(basicHeaders),
+                      any());
+              Mockito.verify(adapter, times(1))
+                  .postForm(
+                      eq(oauth2ServerUri),
+                      argThat(firstRefreshRequest::equals),
+                      eq(OAuthTokenResponse.class),
+                      eq(catalogHeaders),
                       any());
 
               // use the refreshed context token for table existence check
