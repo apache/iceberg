@@ -20,46 +20,32 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.iceberg.AddedRowsScanTask;
 import org.apache.iceberg.ChangelogScanTask;
-import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.DeletedDataFileScanTask;
 import org.apache.iceberg.DeletedRowsScanTask;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.types.Types;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.BoundReference;
-import org.apache.spark.sql.catalyst.expressions.Expression;
-import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
-import org.apache.spark.sql.catalyst.expressions.JoinedRow;
-import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
-import org.apache.spark.sql.connector.catalog.Changelog;
 import org.apache.spark.sql.connector.read.PartitionReader;
-import org.apache.spark.unsafe.types.UTF8String;
-import scala.jdk.javaapi.CollectionConverters;
 
 class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
     implements PartitionReader<InternalRow> {
 
-  private final boolean sparkCdc;
-  private final UnsafeProjection projection;
+  private final ChangelogRowAdapter rowAdapter;
 
   ChangelogRowReader(SparkInputPartition partition) {
     this(
@@ -78,89 +64,37 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
       Schema expectedSchema,
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
+    this(
+        table,
+        fileIO,
+        taskGroup,
+        ChangelogRowAdapter.create(table, expectedSchema),
+        caseSensitive,
+        cacheDeleteFilesOnExecutors);
+  }
+
+  private ChangelogRowReader(
+      Table table,
+      FileIO fileIO,
+      ScanTaskGroup<ChangelogScanTask> taskGroup,
+      ChangelogRowAdapter rowAdapter,
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors) {
     super(
         table,
         fileIO,
         taskGroup,
-        dataSchema(expectedSchema),
+        rowAdapter.dataSchema(),
         caseSensitive,
         cacheDeleteFilesOnExecutors);
-    this.sparkCdc = expectedSchema.findField(SparkChangelog.COMMIT_VERSION_ID) != null;
-    if (sparkCdc) {
-      List<Integer> fieldIds = Lists.newArrayList();
-      dataSchema(expectedSchema).columns().forEach(field -> fieldIds.add(field.fieldId()));
-      fieldIds.addAll(
-          List.of(
-              MetadataColumns.CHANGE_TYPE.fieldId(),
-              SparkChangelog.COMMIT_VERSION_ID,
-              SparkChangelog.COMMIT_TIMESTAMP_ID));
-      List<Expression> expressions = Lists.newArrayList();
-      for (Types.NestedField field : expectedSchema.columns()) {
-        expressions.add(
-            new BoundReference(
-                fieldIds.indexOf(field.fieldId()),
-                SparkSchemaUtil.convert(field.type()),
-                field.isOptional()));
-      }
-      this.projection = UnsafeProjection.create(CollectionConverters.asScala(expressions).toSeq());
-    } else {
-      this.projection = null;
-    }
+    this.rowAdapter = rowAdapter;
   }
 
   @Override
   protected CloseableIterator<InternalRow> open(ChangelogScanTask task) {
-    JoinedRow cdcRow = new JoinedRow();
-
-    cdcRow.withRight(changelogMetadata(task));
-
+    Function<InternalRow, InternalRow> rowMapper = rowAdapter.rowMapper(task);
     CloseableIterable<InternalRow> rows = openChangelogScanTask(task);
-    if (sparkCdc) {
-      CloseableIterable<InternalRow> cdcRows =
-          CloseableIterable.transform(rows, row -> projection.apply(cdcRow.withLeft(row)));
-      return cdcRows.iterator();
-    }
-
-    CloseableIterable<InternalRow> cdcRows = CloseableIterable.transform(rows, cdcRow::withLeft);
-
-    return cdcRows.iterator();
-  }
-
-  private InternalRow changelogMetadata(ChangelogScanTask task) {
-    if (sparkCdc) {
-      Snapshot snapshot = table().snapshot(task.commitSnapshotId());
-      Preconditions.checkNotNull(
-          snapshot, "Cannot find snapshot for changelog task: %s", task.commitSnapshotId());
-      return new GenericInternalRow(
-          new Object[] {
-            UTF8String.fromString(changeType(task)),
-            snapshot.sequenceNumber(),
-            snapshot.timestampMillis() * 1000
-          });
-    }
-
-    InternalRow metadataRow = new GenericInternalRow(3);
-
-    metadataRow.update(0, UTF8String.fromString(task.operation().name()));
-    metadataRow.update(1, task.changeOrdinal());
-    metadataRow.update(2, task.commitSnapshotId());
-
-    return metadataRow;
-  }
-
-  private static Schema dataSchema(Schema expectedSchema) {
-    return expectedSchema.findField(SparkChangelog.COMMIT_VERSION_ID) != null
-        ? SparkChangelog.dropCdcMetadata(expectedSchema)
-        : ChangelogUtil.dropChangelogMetadata(expectedSchema);
-  }
-
-  private static String changeType(ChangelogScanTask task) {
-    return switch (task.operation()) {
-      case INSERT -> Changelog.CHANGE_TYPE_INSERT;
-      case DELETE -> Changelog.CHANGE_TYPE_DELETE;
-      case UPDATE_BEFORE -> Changelog.CHANGE_TYPE_UPDATE_PREIMAGE;
-      case UPDATE_AFTER -> Changelog.CHANGE_TYPE_UPDATE_POSTIMAGE;
-    };
+    return CloseableIterable.transform(rows, rowMapper).iterator();
   }
 
   private CloseableIterable<InternalRow> openChangelogScanTask(ChangelogScanTask task) {
