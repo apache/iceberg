@@ -6488,7 +6488,7 @@ components:
       summary: The table's format version is not served by this endpoint
       value: {
         "error": {
-          "message": "Table format version 4 is not supported by this endpoint, use the v2 endpoint",
+          "message": "The given table's format version is not supported by this endpoint",
           "type": "UnsupportedTableFormatVersionException",
           "code": 400
         }
