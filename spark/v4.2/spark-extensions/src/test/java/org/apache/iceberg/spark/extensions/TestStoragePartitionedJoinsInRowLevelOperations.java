@@ -224,9 +224,17 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends ExtensionsT
         sql("SELECT * FROM %s ORDER BY id, salary", tableName));
   }
 
-
   @TestTemplate
   public void testMergeWithSubsetOfPartitionKeys() {
+    checkMergeWithSubsetOfPartitionKeys(true);
+  }
+
+  @TestTemplate
+  public void testMergeWithSubsetOfPartitionKeysWithoutPartialClustering() {
+    checkMergeWithSubsetOfPartitionKeys(false);
+  }
+
+  private void checkMergeWithSubsetOfPartitionKeys(boolean partialClustering) {
     String createTableStmt =
         "CREATE TABLE %s (id INT, event_date DATE, salary INT) "
             + "USING iceberg "
@@ -234,17 +242,10 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends ExtensionsT
             + "TBLPROPERTIES (%s)";
 
     sql(createTableStmt, tableName, tablePropsAsString(COMMON_TABLE_PROPERTIES));
-    sql(
-        createTableStmt,
-        tableName(OTHER_TABLE_NAME),
-        tablePropsAsString(COMMON_TABLE_PROPERTIES));
+    sql(createTableStmt, tableName(OTHER_TABLE_NAME), tablePropsAsString(COMMON_TABLE_PROPERTIES));
 
     for (int i = 0; i < 8; i++) {
-      sql(
-          "INSERT INTO %s VALUES (%d, DATE '2026-01-01', %d)",
-          tableName,
-          i + 10,
-          (i + 10) * 100);
+      sql("INSERT INTO %s VALUES (%d, DATE '2026-01-01', %d)", tableName, i + 10, (i + 10) * 100);
     }
 
     sql(
@@ -255,9 +256,7 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends ExtensionsT
         tableName);
 
     sql(
-        "INSERT INTO %s VALUES "
-            + "(1, DATE '2026-01-01', 110), "
-            + "(2, DATE '2026-01-01', 220)",
+        "INSERT INTO %s VALUES " + "(1, DATE '2026-01-01', 110), " + "(2, DATE '2026-01-01', 220)",
         tableName(OTHER_TABLE_NAME));
 
     Map<String, String> mergeProps =
@@ -273,7 +272,9 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends ExtensionsT
         ImmutableMap.<String, String>builder()
             .putAll(ENABLED_SPJ_SQL_CONF)
             .put(SQLConf.V2_BUCKETING_ALLOW_JOIN_KEYS_SUBSET_OF_PARTITION_KEYS().key(), "true")
-            .put("spark.sql.sources.v2.bucketing.partiallyClusteredDistribution.enabled", "true")
+            .put(
+                SQLConf.V2_BUCKETING_PARTIALLY_CLUSTERED_DISTRIBUTION_ENABLED().key(),
+                Boolean.toString(partialClustering))
             .build();
 
     withSQLConf(
@@ -284,21 +285,16 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends ExtensionsT
                   "MERGE INTO %s t USING %s s "
                       + "ON t.id = s.id "
                       + "WHEN MATCHED THEN UPDATE SET t.salary = s.salary",
-                  tableName,
-                  tableName(OTHER_TABLE_NAME));
+                  tableName, tableName(OTHER_TABLE_NAME));
 
           assertThat(plan).isNotNull();
-          System.out.println("ICEBERG_18597_PLAN_START");
-          System.out.println(plan.toString());
-          System.out.println("ICEBERG_18597_PLAN_END");
-
-          org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanHelper helper =
-              new org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanHelper() {};
-
           org.apache.spark.sql.execution.SparkPlan actualPlan =
               plan instanceof org.apache.spark.sql.execution.CommandResultExec
                   ? ((org.apache.spark.sql.execution.CommandResultExec) plan).commandPhysicalPlan()
                   : plan;
+
+          org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanHelper helper =
+              new org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanHelper() {};
 
           scala.collection.Seq<org.apache.spark.sql.execution.SparkPlan> grouped =
               helper.collect(
@@ -308,7 +304,9 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends ExtensionsT
                       org.apache.spark.sql.execution.SparkPlan>() {
                     @Override
                     public boolean isDefinedAt(org.apache.spark.sql.execution.SparkPlan node) {
-                      return node.nodeName().equals("GroupPartitions");
+                      return node
+                          instanceof
+                          org.apache.spark.sql.execution.datasources.v2.GroupPartitionsExec;
                     }
 
                     @Override
@@ -318,23 +316,15 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends ExtensionsT
                     }
                   });
 
-          scala.collection.Iterator<org.apache.spark.sql.execution.SparkPlan> iterator =
-              grouped.iterator();
+          assertThat(grouped.size()).as("Expected grouped partition operators").isGreaterThan(0);
 
-          while (iterator.hasNext()) {
-            org.apache.spark.sql.execution.SparkPlan node = iterator.next();
-            System.out.println("ICEBERG_18597_GROUP: " + node.simpleString(100));
-            System.out.println("ICEBERG_18597_METRICS: " + node.metrics());
-            System.out.println("ICEBERG_18597_GROUPING: " + node.outputPartitioning());
-            if (node instanceof org.apache.spark.sql.execution.datasources.v2.GroupPartitionsExec) {
-              org.apache.spark.sql.execution.datasources.v2.GroupPartitionsExec group =
-                  (org.apache.spark.sql.execution.datasources.v2.GroupPartitionsExec) node;
-              System.out.println(
-                  "ICEBERG_18597_GROUP_COUNT: " + group.groupedPartitions().size());
-              System.out.println(
-                  "ICEBERG_18597_GROUP_ASSIGNMENTS: " + group.groupedPartitions());
-            }
-          }
+          org.apache.spark.sql.execution.datasources.v2.GroupPartitionsExec firstGroup =
+              (org.apache.spark.sql.execution.datasources.v2.GroupPartitionsExec)
+                  grouped.iterator().next();
+
+          assertThat(firstGroup.groupedPartitions().size())
+              .as("Unexpected grouped partition count")
+              .isEqualTo(partialClustering ? 10 : 2);
         });
 
     assertEquals(
