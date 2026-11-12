@@ -710,7 +710,10 @@ class V4Metadata {
         Map<Integer, PartitionSpec> specsById,
         Types.StructType partitionType,
         Types.StructType contentStatsType) {
-      super(specsById, partitionType, contentStatsType,
+      super(
+          specsById,
+          partitionType,
+          contentStatsType,
           new ManifestInfoWrapper(null /* sequence numbers are inherited */));
       this.trackingWrapper = new LeafTrackingWrapper(snapshotId);
     }
@@ -781,7 +784,8 @@ class V4Metadata {
       return this;
     }
 
-    private void validateFirstRowId(TrackedFile file, Tracking tracking, Long assignedFirstRowId) {
+    private static void validateFirstRowId(
+        TrackedFile file, Tracking tracking, Long assignedFirstRowId) {
       FileContent content = file.contentType();
       if (content == FileContent.DATA || content == FileContent.DATA_MANIFEST) {
         if (tracking.status() == EntryStatus.ADDED) {
