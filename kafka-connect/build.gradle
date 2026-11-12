@@ -253,12 +253,9 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     it.file in [hiveDistZip.archiveFile.get().asFile, hiveDistTar.archiveFile.get().asFile]
   }
 
-  // track main and hive distributions separately; set properties before each apply
-  ext.runtimeDepsFile = 'main/runtime-deps.txt'
   apply from: "${rootDir}/runtime-deps.gradle"
-  ext.runtimeDepsFile = 'hive/runtime-deps.txt'
-  ext.runtimeDepsConfiguration = configurations.hive
-  apply from: "${rootDir}/runtime-deps.gradle"
+  trackRuntimeDeps(configurations.runtimeClasspath, 'main/runtime-deps.txt')
+  trackRuntimeDeps(configurations.hive, 'hive/runtime-deps.txt')
 }
 
 project(':iceberg-kafka-connect:iceberg-kafka-connect-transforms') {

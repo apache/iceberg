@@ -32,8 +32,7 @@
 //
 //   generateRuntimeDeps  - resolves runtimeClasspath and writes a sorted
 //                          baseline of group:artifact:major.minor coordinates
-//                          to runtime-deps.txt in the project directory
-//                          (both configurable, see Options below).
+//                          to runtime-deps.txt in the project directory.
 //                          Patch versions are omitted so that routine
 //                          Dependabot bumps never cause baseline drift.
 //
@@ -48,22 +47,23 @@
 //   3. Update LICENSE and NOTICE if dependency licenses changed -- This is a Manual Step
 //   4. Commit
 //
-// Options, set via ext before applying:
-//   runtimeDepsFile           - baseline path relative to the project directory
-//                               (default: runtime-deps.txt)
-//   runtimeDepsConfiguration  - configuration to resolve (default: runtimeClasspath)
-//
-// Apply once per baseline; each apply adds that baseline to the same two tasks.
+// To track other configurations or paths instead of the default, call
+// trackRuntimeDeps(configuration, path) once per baseline after applying.
 
-def depsFile = file("${projectDir}/${project.findProperty('runtimeDepsFile') ?: 'runtime-deps.txt'}")
-def depsConfiguration = project.findProperty('runtimeDepsConfiguration') ?: configurations.runtimeClasspath
+def trackedBaselines = [:]
+
+ext.trackRuntimeDeps = { Configuration configuration, String path ->
+  trackedBaselines[configuration] = file(path)
+}
+
+def baselines = { trackedBaselines ?: [(configurations.runtimeClasspath): file('runtime-deps.txt')] }
 
 def majorMinor = { version ->
   def parts = version.split('\\.')
   parts.length >= 2 ? "${parts[0]}.${parts[1]}" : version
 }
 
-def resolveRuntimeDeps = {
+def resolveRuntimeDeps = { depsConfiguration ->
   depsConfiguration.resolvedConfiguration
     .resolvedArtifacts
     .collect {
@@ -75,31 +75,34 @@ def resolveRuntimeDeps = {
     .toUnique()
 }
 
-tasks.maybeCreate('generateRuntimeDeps').configure {
+tasks.register('generateRuntimeDeps') {
   group = 'verification'
   description = 'Regenerate the runtime dependency baseline after intentional dependency changes'
-  outputs.file(depsFile)
-  doLast {
-    def deps = resolveRuntimeDeps()
+  outputs.files { baselines().values() }
+  def generateBaseline = { depsConfiguration, depsFile ->
+    def deps = resolveRuntimeDeps(depsConfiguration)
     depsFile.text = deps.join('\n') + '\n'
     logger.lifecycle("Wrote ${deps.size()} dependencies to ${depsFile}")
+  }
+  doLast {
+    baselines().each(generateBaseline)
     logger.lifecycle("Review the diff, then update LICENSE and NOTICE if licenses changed.")
   }
 }
 
-tasks.maybeCreate('checkRuntimeDeps').configure {
+tasks.register('checkRuntimeDeps') {
   group = 'verification'
   description = 'Verify runtime dependencies match the checked-in baseline'
-  inputs.files(depsConfiguration)
-  outputs.file(depsFile)
-  doLast {
+  inputs.files { baselines().keySet() }
+  outputs.files { baselines().values() }
+  def checkBaseline = { depsConfiguration, depsFile ->
     if (!depsFile.exists()) {
       logger.warn("WARNING: Missing ${relativePath(depsFile)} in ${projectDir}. " +
         "Run: ./gradlew ${project.path}:generateRuntimeDeps")
       return
     }
 
-    def actual = resolveRuntimeDeps()
+    def actual = resolveRuntimeDeps(depsConfiguration)
     def expected = depsFile.readLines().findAll { it.trim() }.toSorted()
 
     def groupArtifact = { coord -> coord.substring(0, coord.lastIndexOf(':')) }
@@ -135,6 +138,9 @@ tasks.maybeCreate('checkRuntimeDeps').configure {
       msg.append("\nThen update LICENSE and NOTICE to reflect the dependency changes.")
       throw new GradleException(msg.toString())
     }
+  }
+  doLast {
+    baselines().each(checkBaseline)
   }
 }
 
