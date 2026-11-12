@@ -228,14 +228,67 @@ Note that `year`, `month`, and `hour` transforms produce ordinal values and not 
 [bucket-ref]: spec.md#bucket-transform-details
 [truncate-ref]: spec.md#truncate-transform-details
 
-### String functions
+### Collation functions
 
-Both functions produce `null` for a `null` or empty input value.
+A collation defines how `string` values are compared and ordered, for example case-insensitive, accent-insensitive, or locale-aware. These functions track collations and collation-aware bounds in [stats-only fields][stats-only-fields-ref], without changes to the table schema.
 
-| Function name           | Description                              | Source types | Result type |
-|-------------------------|------------------------------------------|--------------|-------------|
-| `min_code_point(value)` | Smallest Unicode code point in the value | `string`     | `int`       |
-| `max_code_point(value)` | Largest Unicode code point in the value  | `string`     | `int`       |
+| Function name                        | Description                                                                 | Source types | Result type |
+|--------------------------------------|-----------------------------------------------------------------------------|--------------|-------------|
+| `default_collate(value, collation)`  | `value`, unchanged                                                          | `string`     | `string`    |
+| `collate(value, collation, version)` | Sort key of `value` under `collation` and `version`, followed by the UTF-8 bytes of `value` | `string`     | `binary`    |
+| `min_code_point(value)`              | Smallest Unicode code point in `value`                                      | `string`     | `int`       |
+| `max_code_point(value)`              | Largest Unicode code point in `value`                                       | `string`     | `int`       |
+
+`collation` and `version` must be string constants. All four functions produce `null` for a `null` input. `min_code_point` and `max_code_point` also produce `null` for an empty string.
+
+#### Collation names
+
+A collation name has the form `<provider>.<name>`, for example `icu.en_US-ci`. The provider is the library that defines the collation. This spec defines one provider, `icu`: the [Unicode Collation Algorithm](https://unicode.org/reports/tr10/) with [CLDR](https://cldr.unicode.org/) locale data. Adding a provider requires a spec change.
+
+```
+specifier  = icu-spec | utf8-spec
+icu-spec   = "icu" "." locale [ "-" case-mod ] [ "-" accent-mod ] [ "-" trim-mod ]
+utf8-spec  = "utf8" [ "-" trim-mod ]
+locale     = language [ "_" region ]       ; e.g. en, de, en_US, de_DE
+case-mod   = "cs" | "ci"                    ; case sensitive (default) / insensitive
+accent-mod = "as" | "ai"                    ; accent sensitive (default) / insensitive
+trim-mod   = "ltrim" | "rtrim" | "trim"     ; trim leading / trailing / both spaces (U+0020)
+```
+
+Modifier order and case are fixed, so equal collations have equal names. Case- and accent-insensitive collations require a locale: `ł` and `l` are equal under `icu.en-ai` but not under `icu.pl-ai`.
+
+Without a trim modifier, trailing spaces are significant (NO PAD). `rtrim` gives PAD SPACE behavior, for example `icu.en_US-ci-rtrim`.
+
+`utf8` without a modifier is UTF-8 byte order, the same as no collation.
+
+#### Collation versions
+
+Collation order and sort keys can change between versions of a provider's data. `version` must identify the sort keys exactly: two implementations given the same `collation`, `version`, and value must produce the same bytes. For `icu`, `version` is the ICU version followed by the collator version, for example `76.1/153.120.0.0`. Versions are compared as opaque strings. An implementation that cannot produce the sort keys for a version must treat `collate` with that version as unsupported.
+
+For `icu`, the sort key is the output of ICU's `getSortKey` with the settings given by the collation name. It ends with a single `0x00` byte and contains no other `0x00` bytes, so the value can be read back after the first `0x00`.
+
+#### Declaring a collation
+
+A `default_collate(ref(id), collation)` stats-only field declares that the `string` field `id` uses `collation`. This applies to v4 tables only. Any `string` field can be declared, including list elements and map keys and values. A field has at most one declaration. Changing a collation replaces the declaration in the same commit, and removing the declaration returns the field to UTF-8 byte order. A field without a declaration uses UTF-8 byte order.
+
+#### Pruning with collations
+
+Bounds for a collated field are tracked in `collate(ref(id), collation, version)` stats-only fields, one per collation version, and in `min_code_point(ref(id))` and `max_code_point(ref(id))` stats-only fields. A writer adds a `collate` field for its version if none exists.
+
+An engine that evaluates a predicate under a collation pushes down a predicate on `collate` for its collation and version, not on the field itself. Equality on `x` becomes the range from the sort key of `x` followed by `0x00` (inclusive) to the sort key of `x` followed by `0x01` (exclusive). Predicates on the field itself compare UTF-8 bytes.
+
+An engine may reuse bounds from another version of the same collation when both versions order the file's code-point range the same way, by reading back the original values from the bounds. Which ranges are safe is up to the engine. Truncated bounds cannot be reused across versions.
+
+Collation bounds do not prune prefix predicates such as `STARTS_WITH` or `LIKE 'x%'`, because collation order does not preserve prefixes.
+
+A `collate` field whose collation does not match the field's declaration is ignored and can be removed.
+
+#### Byte-based behavior
+
+Partition transforms, `bucket`, identifier fields, and a field's own bounds use UTF-8 bytes. Values that are equal under a collation can be in different partitions or buckets, so engines must not use partition values to prune a predicate evaluated under a collation. Map keys are distinct by bytes: a lookup under a key collation can match more than one key, and the result is engine-defined.
+
+[stats-only-fields-ref]: spec.md#stats-only-fields
+
 
 ## Appendix B: JSON serialization
 
