@@ -91,9 +91,9 @@ public class OAuth2Manager implements AuthManager {
       return parent;
     }
 
-    // the contextual configuration is self-contained: nothing is inherited from the parent config
-    OAuth2Config contextConfig =
-        OAuth2Config.fromProperties(legacyConfigAdapter.resolveTokenEndpoint(migrated, catalogUri));
+    // the contextual configuration is self-contained: nothing is inherited from the parent config,
+    // and the deprecated token endpoint fallback only applies to catalog-level configuration
+    OAuth2Config contextConfig = OAuth2Config.fromProperties(migrated);
     if (contextConfig.equals(((OAuth2Session) parent).config())) {
       return parent;
     }

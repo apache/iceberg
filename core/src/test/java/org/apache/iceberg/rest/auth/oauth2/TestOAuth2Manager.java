@@ -217,23 +217,25 @@ class TestOAuth2Manager {
   }
 
   @Test
-  void contextualSessionDoesNotInheritCatalogConfig() {
+  void contextualSessionWithoutTokenEndpoint() {
     try (OAuth2Manager manager = new OAuth2Manager();
         AuthSession catalogSession =
             manager.catalogSession(server.restClient(), catalogProperties())) {
-      // no token endpoint in the context: the legacy fallback to the catalog URI applies,
-      // and the catalog's token endpoint is not inherited
-      server.expectLegacyTokenEndpoint();
       SessionContext context =
           new SessionContext(
               "session1",
               "user",
               Map.of(OAuth2Properties.CREDENTIAL, CONTEXT_CLIENT_ID + ":" + CONTEXT_CLIENT_SECRET),
               Map.of());
-      OAuth2Session contextualSession =
-          (OAuth2Session) manager.contextualSession(context, catalogSession);
-      assertThat(contextualSession.config().tokenEndpoint())
-          .hasToString(server.baseUrl() + "/v1/oauth/tokens");
+      assertThatThrownBy(() -> manager.contextualSession(context, catalogSession))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage(
+              "Either the issuer URL ("
+                  + OAuth2Config.ISSUER_URL
+                  + ") or the token endpoint ("
+                  + OAuth2Config.TOKEN_ENDPOINT
+                  + ") must be set");
+      assertThat(manager.cacheById().asMap()).isEmpty();
     }
   }
 
@@ -312,7 +314,6 @@ class TestOAuth2Manager {
 
   @Test
   void closeClearsCaches() {
-    server.expectLegacyTokenEndpoint();
     OAuth2Manager manager = new OAuth2Manager();
     AuthSession catalogSession = manager.catalogSession(server.restClient(), catalogProperties());
     SessionContext context =
@@ -320,7 +321,7 @@ class TestOAuth2Manager {
             "session1",
             "user",
             Map.of(OAuth2Properties.CREDENTIAL, CONTEXT_CLIENT_ID + ":" + CONTEXT_CLIENT_SECRET),
-            Map.of());
+            Map.of(OAuth2Properties.OAUTH2_SERVER_URI, server.tokenEndpoint().toString()));
     manager.contextualSession(context, catalogSession);
     manager.tableSession(server.restClient(), catalogProperties());
     assertThat(manager.cacheById()).isNotNull();
