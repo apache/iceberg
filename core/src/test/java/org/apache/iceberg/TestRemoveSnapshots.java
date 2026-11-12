@@ -41,6 +41,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.actions.ExpireSnapshots.Result;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.BulkDeletionFailureException;
@@ -1081,7 +1082,11 @@ public class TestRemoveSnapshots extends TestBase {
     long fourthSnapshotTs = waitUntilAfter(fourthSnapshot.timestampMillis());
 
     Set<String> deletedFiles = Sets.newHashSet();
-    removeSnapshots(table).expireOlderThan(fourthSnapshotTs).deleteWith(deletedFiles::add).commit();
+    Result result =
+        expireSnapshotsAction(table)
+            .expireOlderThan(fourthSnapshotTs)
+            .deleteWith(deletedFiles::add)
+            .execute();
 
     assertThat(deletedFiles)
         .as("Should remove old delete files and delete file manifests")
@@ -1098,6 +1103,37 @@ public class TestRemoveSnapshots extends TestBase {
                         .map(ManifestFile::path)
                         .collect(Collectors.toList()))
                 .build());
+
+    assertThat(result.deletedDataFilesCount()).isEqualTo(1);
+    assertThat(result.deletedPositionDeleteFilesCount()).isEqualTo(1);
+    assertThat(result.deletedEqualityDeleteFilesCount()).isEqualTo(0);
+    assertThat(result.deletedManifestListsCount()).isEqualTo(3);
+    assertThat(result.deletedManifestsCount()).isEqualTo(4);
+    assertThat(result.deletedStatisticsFilesCount()).isEqualTo(0);
+  }
+
+  @TestTemplate
+  public void testExpireCountsEqualityDeleteFiles() {
+    assumeThat(formatVersion).as("Delete files only supported in V2+").isGreaterThanOrEqualTo(2);
+
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newRowDelta().addDeletes(FILE_A_EQUALITY_DELETES).commit();
+    table.newRowDelta().removeDeletes(FILE_A_EQUALITY_DELETES).commit();
+    table.newAppend().appendFile(FILE_B).commit();
+
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    Result result =
+        expireSnapshotsAction(table)
+            .expireOlderThan(tAfterCommits)
+            .deleteWith(deletedFiles::add)
+            .execute();
+
+    assertThat(deletedFiles).contains(FILE_A_EQUALITY_DELETES.location());
+    assertThat(result.deletedDataFilesCount()).isEqualTo(0);
+    assertThat(result.deletedPositionDeleteFilesCount()).isEqualTo(0);
+    assertThat(result.deletedEqualityDeleteFilesCount()).isEqualTo(1);
   }
 
   @TestTemplate
@@ -1219,7 +1255,7 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(table.statisticsFiles()).hasSize(2);
 
     long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
-    removeSnapshots(table).expireOlderThan(tAfterCommits).commit();
+    Result result = expireSnapshotsAction(table).expireOlderThan(tAfterCommits).execute();
 
     // only the current snapshot and its stats file should be retained
     assertThat(table.snapshots()).hasSize(1);
@@ -1231,6 +1267,13 @@ public class TestRemoveSnapshots extends TestBase {
 
     assertThat(new File(URI.create(statsFileLocation1))).doesNotExist();
     assertThat(new File(URI.create(statsFileLocation2))).exists();
+
+    assertThat(result.deletedDataFilesCount()).isEqualTo(0);
+    assertThat(result.deletedPositionDeleteFilesCount()).isEqualTo(0);
+    assertThat(result.deletedEqualityDeleteFilesCount()).isEqualTo(0);
+    assertThat(result.deletedManifestListsCount()).isEqualTo(1);
+    assertThat(result.deletedManifestsCount()).isEqualTo(0);
+    assertThat(result.deletedStatisticsFilesCount()).isEqualTo(1);
   }
 
   @TestTemplate
@@ -1611,19 +1654,38 @@ public class TestRemoveSnapshots extends TestBase {
 
     Mockito.doNothing().when(spyFileIO).deleteFiles(any());
 
-    runBulkDeleteTest(spyFileIO);
+    Result result = runBulkDeleteTest(spyFileIO);
+    assertThat(result.deletedDataFilesCount()).isEqualTo(1);
+    assertThat(result.deletedManifestsCount()).isEqualTo(2);
+    assertThat(result.deletedManifestListsCount()).isEqualTo(2);
   }
 
   @TestTemplate
   public void testBulkDeletionWithBulkDeletionFailureException() {
     TestTables.TestBulkLocalFileIO spyFileIO = Mockito.spy(new TestTables.TestBulkLocalFileIO());
 
-    Mockito.doThrow(new BulkDeletionFailureException(2))
+    Mockito.doThrow(new BulkDeletionFailureException(1))
         .doNothing()
         .when(spyFileIO)
         .deleteFiles(any());
 
-    runBulkDeleteTest(spyFileIO);
+    assertThat(runBulkDeleteTest(spyFileIO).deletedDataFilesCount()).isEqualTo(0);
+  }
+
+  @TestTemplate
+  public void testBulkDeletionWithPartialBulkDeletionFailure() {
+    TestTables.TestBulkLocalFileIO spyFileIO = Mockito.spy(new TestTables.TestBulkLocalFileIO());
+
+    Mockito.doNothing()
+        .doThrow(new BulkDeletionFailureException(1))
+        .doNothing()
+        .when(spyFileIO)
+        .deleteFiles(any());
+
+    Result result = runBulkDeleteTest(spyFileIO);
+    assertThat(result.deletedDataFilesCount()).isEqualTo(1);
+    assertThat(result.deletedManifestsCount()).isEqualTo(1);
+    assertThat(result.deletedManifestListsCount()).isEqualTo(2);
   }
 
   @TestTemplate
@@ -1635,10 +1697,10 @@ public class TestRemoveSnapshots extends TestBase {
         .when(spyFileIO)
         .deleteFiles(any());
 
-    runBulkDeleteTest(spyFileIO);
+    assertThat(runBulkDeleteTest(spyFileIO).deletedDataFilesCount()).isEqualTo(0);
   }
 
-  private void runBulkDeleteTest(TestTables.TestBulkLocalFileIO spyFileIO) {
+  private Result runBulkDeleteTest(TestTables.TestBulkLocalFileIO spyFileIO) {
     String tableName = "tableWithBulkIO";
     Table tableWithBulkIO =
         TestTables.create(
@@ -1671,9 +1733,10 @@ public class TestRemoveSnapshots extends TestBase {
 
     long lastSnapshotId = tableWithBulkIO.currentSnapshot().snapshotId();
 
-    removeSnapshots(tableWithBulkIO)
-        .expireOlderThan(tableWithBulkIO.currentSnapshot().timestampMillis() + 1)
-        .commit();
+    Result result =
+        expireSnapshotsAction(tableWithBulkIO)
+            .expireOlderThan(tableWithBulkIO.currentSnapshot().timestampMillis() + 1)
+            .execute();
 
     assertThat(tableWithBulkIO.currentSnapshot().snapshotId()).isEqualTo(lastSnapshotId);
     assertThat(tableWithBulkIO.snapshots()).containsOnly(tableWithBulkIO.currentSnapshot());
@@ -1682,6 +1745,7 @@ public class TestRemoveSnapshots extends TestBase {
     Mockito.verify(spyFileIO).deleteFiles(Set.of(FILE_A.location()));
     Mockito.verify(spyFileIO).deleteFiles(deletedManifestLists);
     Mockito.verify(spyFileIO).deleteFiles(deletedManifests);
+    return result;
   }
 
   @TestTemplate
@@ -1874,6 +1938,80 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   @TestTemplate
+  public void testExpireSnapshotsActionWithPlanExecutor() {
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newDelete().deleteFile(FILE_A).commit();
+    table.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    AtomicInteger planThreadsIndex = new AtomicInteger(0);
+    Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
+    Result result =
+        new ExpireSnapshotsAction(table)
+            .planWith(
+                Executors.newFixedThreadPool(
+                    1,
+                    runnable -> {
+                      Thread thread = new Thread(runnable);
+                      thread.setName("plan-" + planThreadsIndex.getAndIncrement());
+                      thread.setDaemon(true);
+                      return thread;
+                    }))
+            .expireOlderThan(tAfterCommits)
+            .deleteWith(deletedFiles::add)
+            .execute();
+
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(planThreadsIndex.get()).isGreaterThan(0);
+    assertThat(deletedFiles).contains(FILE_A.location());
+    assertThat(result.deletedDataFilesCount()).isEqualTo(1);
+    assertThat(result.deletedManifestListsCount()).isEqualTo(2);
+    assertThat(
+            result.deletedDataFilesCount()
+                + result.deletedPositionDeleteFilesCount()
+                + result.deletedEqualityDeleteFilesCount()
+                + result.deletedManifestsCount()
+                + result.deletedManifestListsCount()
+                + result.deletedStatisticsFilesCount())
+        .isEqualTo(deletedFiles.size());
+  }
+
+  @TestTemplate
+  public void testExpireSnapshotsActionRejectsTransactionTable() {
+    Table transactionTable = table.newTransaction().table();
+
+    assertThatThrownBy(() -> new ExpireSnapshotsAction(transactionTable))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot expire snapshots of table");
+  }
+
+  @TestTemplate
+  public void testExpireCountsSkipFailedDeletes() {
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newDelete().deleteFile(FILE_A).commit();
+    table.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    Result result =
+        expireSnapshotsAction(table)
+            .expireOlderThan(tAfterCommits)
+            .deleteWith(
+                path -> {
+                  if (path.equals(FILE_A.location())) {
+                    throw new RuntimeException("Failed to delete " + path);
+                  }
+                  deletedFiles.add(path);
+                })
+            .execute();
+
+    assertThat(deletedFiles).isNotEmpty().doesNotContain(FILE_A.location());
+    assertThat(result.deletedDataFilesCount()).isEqualTo(0);
+    assertThat(result.deletedManifestsCount() + result.deletedManifestListsCount())
+        .isEqualTo(deletedFiles.size());
+  }
+
+  @TestTemplate
   public void testRemoveMetadataWithNoSnapshots() throws Exception {
     table.updateSchema().addColumn("extra_col1", Types.StringType.get()).commit();
     table.updateSchema().addColumn("extra_col2", Types.StringType.get()).commit();
@@ -1970,6 +2108,10 @@ public class TestRemoveSnapshots extends TestBase {
   private RemoveSnapshots removeSnapshots(Table table) {
     RemoveSnapshots removeSnapshots = (RemoveSnapshots) table.expireSnapshots();
     return (RemoveSnapshots) removeSnapshots.withIncrementalCleanup(incrementalCleanup);
+  }
+
+  private ExpireSnapshotsAction expireSnapshotsAction(Table table) {
+    return new ExpireSnapshotsAction(removeSnapshots(table));
   }
 
   @TestTemplate
@@ -2173,12 +2315,17 @@ public class TestRemoveSnapshots extends TestBase {
     long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     Set<String> deletedFiles = Sets.newHashSet();
-    removeSnapshots(table).expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
+    Result result =
+        expireSnapshotsAction(table)
+            .expireOlderThan(tAfterCommits)
+            .deleteWith(deletedFiles::add)
+            .execute();
 
     assertThat(table.snapshots()).hasSize(1);
     assertThat(deletedFiles)
         .as("Puffin file with a live deletion vector must not be deleted")
         .doesNotContain(sharedPuffinPath);
+    assertThat(result.deletedPositionDeleteFilesCount()).isEqualTo(0);
   }
 
   @TestTemplate
@@ -2210,10 +2357,15 @@ public class TestRemoveSnapshots extends TestBase {
     long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     Set<String> deletedFiles = Sets.newHashSet();
-    removeSnapshots(table).expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
+    Result result =
+        expireSnapshotsAction(table)
+            .expireOlderThan(tAfterCommits)
+            .deleteWith(deletedFiles::add)
+            .execute();
 
     assertThat(table.snapshots()).hasSize(1);
     assertThat(deletedFiles).contains(sharedPuffinPath);
+    assertThat(result.deletedPositionDeleteFilesCount()).isEqualTo(1);
   }
 
   private DeleteFile deletionVector(String puffinPath, DataFile dataFile, long contentOffset) {

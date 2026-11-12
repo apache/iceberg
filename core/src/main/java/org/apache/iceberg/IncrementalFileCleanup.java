@@ -28,6 +28,7 @@ import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -48,10 +49,11 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
 
   @Override
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "MethodLength"})
-  public void cleanFiles(
+  public DeleteSummary cleanFiles(
       TableMetadata beforeExpiration,
       TableMetadata afterExpiration,
       ExpireSnapshots.CleanupLevel cleanupLevel) {
+    DeleteSummary deleteSummary = new DeleteSummary();
     // clean up required underlying files based on the expired snapshots
     // 1. Get a list of the snapshots that were removed
     // 2. Delete any data files that were deleted by those snapshots and are not in the table
@@ -59,7 +61,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
     // 4. Delete the manifest lists
     if (ExpireSnapshots.CleanupLevel.NONE == cleanupLevel) {
       LOG.info("Nothing to clean.");
-      return;
+      return deleteSummary;
     }
 
     Set<Long> validIds = Sets.newHashSet();
@@ -79,12 +81,12 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
 
     if (expiredIds.isEmpty()) {
       // if no snapshots were expired, skip cleanup
-      return;
+      return deleteSummary;
     }
 
     Snapshot latest = beforeExpiration.currentSnapshot();
     if (latest == null) {
-      return;
+      return deleteSummary;
     }
 
     List<Snapshot> snapshots = afterExpiration.snapshots();
@@ -267,37 +269,37 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
             });
 
     if (ExpireSnapshots.CleanupLevel.ALL == cleanupLevel) {
-      Set<String> filesToDelete =
+      Map<String, FileContent> filesToDelete =
           findFilesToDelete(
               manifestsToScan,
               manifestsToRevert,
               liveDeleteManifests,
               validIds,
               beforeExpiration.specsById());
-      LOG.debug("Deleting {} data files", filesToDelete.size());
-      deleteFiles(filesToDelete, "data");
+      deleteContentFiles(filesToDelete, deleteSummary);
     }
 
     LOG.debug("Deleting {} manifest files", manifestsToDelete.size());
-    deleteFiles(manifestsToDelete, "manifest");
+    deleteFiles(manifestsToDelete, DeletedFileType.MANIFEST, deleteSummary);
     LOG.debug("Deleting {} manifest-list files", manifestListsToDelete.size());
-    deleteFiles(manifestListsToDelete, "manifest list");
+    deleteFiles(manifestListsToDelete, DeletedFileType.MANIFEST_LIST, deleteSummary);
 
     if (hasAnyStatisticsFiles(beforeExpiration)) {
       Set<String> expiredStatisticsFilesLocations =
           expiredStatisticsFilesLocations(beforeExpiration, afterExpiration);
       LOG.debug("Deleting {} statistics files", expiredStatisticsFilesLocations.size());
-      deleteFiles(expiredStatisticsFilesLocations, "statistics files");
+      deleteFiles(expiredStatisticsFilesLocations, DeletedFileType.STATISTICS_FILES, deleteSummary);
     }
+    return deleteSummary;
   }
 
-  private Set<String> findFilesToDelete(
+  private Map<String, FileContent> findFilesToDelete(
       Set<ManifestFile> manifestsToScan,
       Set<ManifestFile> manifestsToRevert,
       Set<ManifestFile> liveDeleteManifests,
       Set<Long> validIds,
       Map<Integer, PartitionSpec> specsById) {
-    Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
+    Map<String, FileContent> filesToDelete = Maps.newConcurrentMap();
     Set<String> dvFileRemovalCandidates = ConcurrentHashMap.newKeySet();
     Tasks.foreach(manifestsToScan)
         .retry(3)
@@ -320,7 +322,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                     if (entry.file().format() == FileFormat.PUFFIN) {
                       dvFileRemovalCandidates.add(location);
                     } else {
-                      filesToDelete.add(location);
+                      filesToDelete.put(location, entry.file().content());
                     }
                   }
                 }
@@ -329,7 +331,8 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
               }
             });
 
-    filesToDelete.addAll(unreferencedDVs(dvFileRemovalCandidates, liveDeleteManifests, specsById));
+    unreferencedDVs(dvFileRemovalCandidates, liveDeleteManifests, specsById)
+        .forEach(location -> filesToDelete.put(location, FileContent.POSITION_DELETES));
 
     Tasks.foreach(manifestsToRevert)
         .retry(3)
@@ -346,7 +349,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                   // delete any ADDED file from manifests that were reverted
                   if (entry.status() == ManifestEntry.Status.ADDED) {
                     // use toString to ensure the path will not change (Utf8 is reused)
-                    filesToDelete.add(entry.file().location());
+                    filesToDelete.put(entry.file().location(), entry.file().content());
                   }
                 }
               } catch (IOException e) {

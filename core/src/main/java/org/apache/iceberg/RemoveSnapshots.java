@@ -358,6 +358,11 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   @Override
   public void commit() {
+    commitAndCleanUp();
+  }
+
+  /** Commits the expiration and returns the number of files deleted by type. */
+  FileCleanupStrategy.DeleteSummary commitAndCleanUp() {
     Tasks.foreach(ops)
         .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
         .exponentialBackoff(
@@ -376,8 +381,10 @@ class RemoveSnapshots implements ExpireSnapshots {
         cleanupLevel.name());
 
     if (CleanupLevel.NONE != cleanupLevel && !base.snapshots().isEmpty()) {
-      cleanExpiredSnapshots();
+      return cleanExpiredSnapshots();
     }
+
+    return new FileCleanupStrategy.DeleteSummary();
   }
 
   ExpireSnapshots withIncrementalCleanup(boolean useIncrementalCleanup) {
@@ -385,7 +392,7 @@ class RemoveSnapshots implements ExpireSnapshots {
     return this;
   }
 
-  private void cleanExpiredSnapshots() {
+  private FileCleanupStrategy.DeleteSummary cleanExpiredSnapshots() {
     TableMetadata current = ops.refresh();
 
     if (Boolean.TRUE.equals(incrementalCleanup)) {
@@ -407,7 +414,7 @@ class RemoveSnapshots implements ExpireSnapshots {
             : new ReachableFileCleanup(
                 ops.io(), deleteExecutorService, planExecutorService(), deleteFunc);
 
-    cleanupStrategy.cleanFiles(base, current, cleanupLevel);
+    return cleanupStrategy.cleanFiles(base, current, cleanupLevel);
   }
 
   private void validateCleanupCanBeIncremental(TableMetadata current) {
