@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.ChangelogScanTask;
-import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -401,12 +400,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
         context(new ChangelogRange.TimestampRange(95000, Optional.of(115000L), true, true));
     List<ScanTaskGroup<ChangelogScanTask>> groups =
         SparkChangelog.planTasks(
-            skewed,
-            table
-                .newIncrementalChangelogScan()
-                .project(ChangelogUtil.changelogSchema(SparkChangelog.cdcDataSchema(table))),
-            context,
-            third.snapshotId());
+            skewed, table.newIncrementalChangelogScan(), context, third.snapshotId());
     assertThat(groups).isNotEmpty();
     assertThat(groups.stream().flatMap(group -> group.tasks().stream()))
         .extracting(ChangelogScanTask::commitSnapshotId)

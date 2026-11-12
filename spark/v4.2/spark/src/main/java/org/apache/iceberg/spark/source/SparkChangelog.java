@@ -24,7 +24,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.ChangelogScanTask;
-import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.MetadataColumns;
@@ -93,7 +92,7 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
               "Iceberg snapshot commit timestamp"));
 
   private final ChangelogContext context;
-  private final Schema sparkCdcSchema;
+  private final Schema dataSchema;
 
   public SparkChangelog(Table table, ChangelogContext context) {
     this(table, context, CaseInsensitiveStringMap.empty());
@@ -112,8 +111,14 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
         !requiresRowLineage || TableUtil.supportsRowLineage(table),
         "Spark CDC post-processing requires row lineage. "
             + "Use deduplicationMode=none with computeUpdates=false for raw changes");
-    this.sparkCdcSchema =
-        TypeUtil.join(cdcDataSchema(table, requiresRowLineage), CDC_METADATA_SCHEMA);
+    // Raw CDC can expose older files whose lineage is unknown without inventing an identity.
+    Schema lineageSchema =
+        requiresRowLineage
+            ? new Schema(
+                MetadataColumns.ROW_ID.asRequired(),
+                MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.asRequired())
+            : new Schema(MetadataColumns.ROW_ID, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER);
+    this.dataSchema = TypeUtil.join(table.schema(), lineageSchema);
   }
 
   private static void validateCdcOptions(CaseInsensitiveStringMap options) {
@@ -126,30 +131,9 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
     }
   }
 
-  static Schema cdcDataSchema(Table table) {
-    return cdcDataSchema(table, true);
-  }
-
-  private static Schema cdcDataSchema(Table table, boolean requiresRowLineage) {
-    // Raw CDC can expose older files whose lineage is unknown without inventing an identity.
-    Schema lineageSchema =
-        requiresRowLineage
-            ? new Schema(
-                MetadataColumns.ROW_ID.asRequired(),
-                MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.asRequired())
-            : new Schema(MetadataColumns.ROW_ID, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER);
-    return TypeUtil.join(table.schema(), lineageSchema);
-  }
-
-  static Schema dropCdcMetadata(Schema schema) {
-    return TypeUtil.selectNot(
-        schema,
-        Set.of(MetadataColumns.CHANGE_TYPE.fieldId(), COMMIT_VERSION_ID, COMMIT_TIMESTAMP_ID));
-  }
-
   @Override
   Schema changelogSchema() {
-    return sparkCdcSchema;
+    return TypeUtil.join(dataSchema, CDC_METADATA_SCHEMA);
   }
 
   @Override
@@ -181,18 +165,16 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
     validateCdcOptions(options);
     SparkChangelogScanBuilder builder =
-        new SparkChangelogScanBuilder(spark(), table(), sparkCdcSchema, options);
+        new SparkChangelogScanBuilder(spark(), table(), dataSchema, options);
     return () -> newScan(builder);
   }
 
   private Scan newScan(SparkChangelogScanBuilder builder) {
-    IncrementalChangelogScan scan =
-        builder.buildIcebergScan(
-            ChangelogUtil.changelogSchema(dropCdcMetadata(sparkCdcSchema)), null, null);
+    IncrementalChangelogScan scan = builder.buildIcebergScan(dataSchema, null, null);
     Snapshot currentSnapshot = table().currentSnapshot();
     Long endSnapshotId = currentSnapshot != null ? currentSnapshot.snapshotId() : null;
     return new SparkChangelogScan(
-        spark(), table(), scan, builder.readConf(), sparkCdcSchema, builder.filters()) {
+        spark(), table(), scan, builder.readConf(), changelogSchema(), builder.filters()) {
       @Override
       List<ScanTaskGroup<ChangelogScanTask>> planTaskGroups() {
         validateVersions(table(), context);

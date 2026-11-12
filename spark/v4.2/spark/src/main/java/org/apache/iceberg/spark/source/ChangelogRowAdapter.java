@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.ChangelogUtil;
@@ -29,6 +30,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.BoundReference;
@@ -87,7 +89,13 @@ abstract class ChangelogRowAdapter {
     private final UnsafeProjection projection;
 
     private SparkRowAdapter(Table table, Schema expectedSchema) {
-      super(SparkChangelog.dropCdcMetadata(expectedSchema));
+      super(
+          TypeUtil.selectNot(
+              expectedSchema,
+              Set.of(
+                  MetadataColumns.CHANGE_TYPE.fieldId(),
+                  SparkChangelog.COMMIT_VERSION_ID,
+                  SparkChangelog.COMMIT_TIMESTAMP_ID)));
       this.table = table;
       List<Integer> fieldIds = Lists.newArrayList();
       dataSchema().columns().forEach(field -> fieldIds.add(field.fieldId()));
