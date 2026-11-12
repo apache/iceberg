@@ -512,6 +512,9 @@ public class TestHiveViewCommits {
 
     ops.refresh();
     assertThat(ops.current().metadataFileLocation()).isEqualTo(metadataV1.metadataFileLocation());
+    assertThat(metadataFileExists(ops.current()))
+        .as("Committed metadata should still exist after the retried alter")
+        .isTrue();
   }
 
   @Test
