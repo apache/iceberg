@@ -335,7 +335,7 @@ class TestV4TrackedFileWrappers {
 
     assertThatThrownBy(() -> wrapper.wrap(file, tracking))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot write %s to a v4 manifest: %s", content, file.location());
+        .hasMessage("Invalid content type for leaf manifest: %s", content);
   }
 
   @ParameterizedTest
@@ -354,7 +354,7 @@ class TestV4TrackedFileWrappers {
 
     assertThatThrownBy(() -> wrapper.wrap(file, tracking, null /* assignedFirstRowId */))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot write %s to a v4 manifest: %s", content, file.location());
+        .hasMessage("Invalid content type for root manifest: %s", content);
   }
 
   @Test
@@ -386,7 +386,7 @@ class TestV4TrackedFileWrappers {
         new RootTrackedFileWrapper(
             COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
 
-    assertThatThrownBy(() -> wrapper.wrap(file, tracking, null /* assignedFirstRowId */))
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking, FIRST_ROW_ID))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid data file, manifest info must be null: %s", file.location());
   }
@@ -405,10 +405,12 @@ class TestV4TrackedFileWrappers {
         new RootTrackedFileWrapper(
             COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
 
+    Long firstRowId = content == FileContent.DATA_MANIFEST ? FIRST_ROW_ID : null;
+
     assertThatThrownBy(
             () ->
                 wrapper.wrap(
-                    manifest, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build(), FIRST_ROW_ID))
+                    manifest, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build(), firstRowId))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid manifest, missing manifest info: %s", manifest.location());
   }
@@ -428,10 +430,12 @@ class TestV4TrackedFileWrappers {
         new RootTrackedFileWrapper(
             COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
 
+    Long firstRowId = content == FileContent.DATA_MANIFEST ? FIRST_ROW_ID : null;
+
     assertThatThrownBy(
             () ->
                 wrapper.wrap(
-                    manifest, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build(), FIRST_ROW_ID))
+                    manifest, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build(), firstRowId))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid manifest, deletion vector must be null: %s", manifest.location());
   }
@@ -465,7 +469,7 @@ class TestV4TrackedFileWrappers {
         new RootTrackedFileWrapper(
             COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
 
-    assertThatThrownBy(() -> wrapper.wrap(file, tracking, null /* assignedFirstRowId */))
+    assertThatThrownBy(() -> wrapper.wrap(file, tracking, FIRST_ROW_ID))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find partition spec for spec ID: %s", ID_SPEC.specId());
   }
@@ -479,6 +483,7 @@ class TestV4TrackedFileWrappers {
     Tracking tracking = mock(Tracking.class);
     when(tracking.status()).thenReturn(EntryStatus.ADDED);
     when(tracking.snapshotId()).thenReturn(null);
+    when(tracking.firstRowId()).thenReturn(null);
 
     RootTrackedFileWrapper wrapper =
         new RootTrackedFileWrapper(
@@ -498,13 +503,16 @@ class TestV4TrackedFileWrappers {
     Tracking tracking = mock(Tracking.class);
     when(tracking.status()).thenReturn(EntryStatus.ADDED);
     when(tracking.firstRowId()).thenReturn(PREVIOUS_FIRST_ROW_ID);
+    when(tracking.snapshotId()).thenReturn(COMMIT_SNAPSHOT_ID);
+    when(tracking.dataSequenceNumber()).thenReturn(null);
+    when(tracking.fileSequenceNumber()).thenReturn(null);
 
     LeafTrackedFileWrapper wrapper =
         new LeafTrackedFileWrapper(
             COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
 
     assertThatThrownBy(() -> wrapper.wrap(file, tracking))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid first-row-id for ADDED file (must be null): %s", file.location());
   }
 
@@ -517,13 +525,16 @@ class TestV4TrackedFileWrappers {
     Tracking tracking = mock(Tracking.class);
     when(tracking.status()).thenReturn(EntryStatus.ADDED);
     when(tracking.firstRowId()).thenReturn(PREVIOUS_FIRST_ROW_ID);
+    when(tracking.snapshotId()).thenReturn(COMMIT_SNAPSHOT_ID);
+    when(tracking.dataSequenceNumber()).thenReturn(null);
+    when(tracking.fileSequenceNumber()).thenReturn(null);
 
     RootTrackedFileWrapper wrapper =
         new RootTrackedFileWrapper(
             COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
 
     assertThatThrownBy(() -> wrapper.wrap(file, tracking, null /* assignedFirstRowId */))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid first-row-id for ADDED file (must be null): %s", file.location());
   }
 
@@ -537,13 +548,14 @@ class TestV4TrackedFileWrappers {
     Tracking tracking = mock(Tracking.class);
     when(tracking.status()).thenReturn(status);
     when(tracking.firstRowId()).thenReturn(null);
+    when(tracking.modifiedSnapshotId()).thenReturn(COMMIT_SNAPSHOT_ID);
 
     LeafTrackedFileWrapper wrapper =
         new LeafTrackedFileWrapper(
             COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
 
     assertThatThrownBy(() -> wrapper.wrap(file, tracking))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Missing first-row-id for %s file: %s", status, file.location());
   }
 
@@ -557,13 +569,14 @@ class TestV4TrackedFileWrappers {
     Tracking tracking = mock(Tracking.class);
     when(tracking.status()).thenReturn(status);
     when(tracking.firstRowId()).thenReturn(null);
+    when(tracking.modifiedSnapshotId()).thenReturn(COMMIT_SNAPSHOT_ID);
 
     RootTrackedFileWrapper wrapper =
         new RootTrackedFileWrapper(
             COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
 
     assertThatThrownBy(() -> wrapper.wrap(file, tracking, null /* assignedFirstRowId */))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Missing first-row-id for %s file: %s", status, file.location());
   }
 
@@ -589,7 +602,7 @@ class TestV4TrackedFileWrappers {
                     file,
                     TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build(),
                     null /* assignedFirstRowId */))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Missing first-row-id assignment for ADDED file: %s", file.location());
   }
 
@@ -603,13 +616,14 @@ class TestV4TrackedFileWrappers {
     Tracking tracking = mock(Tracking.class);
     when(tracking.status()).thenReturn(status);
     when(tracking.firstRowId()).thenReturn(PREVIOUS_FIRST_ROW_ID);
+    when(tracking.modifiedSnapshotId()).thenReturn(COMMIT_SNAPSHOT_ID);
 
     RootTrackedFileWrapper wrapper =
         new RootTrackedFileWrapper(
             COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
 
     assertThatThrownBy(() -> wrapper.wrap(file, tracking, FIRST_ROW_ID))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot assign first-row-id to %s file: %s", status, file.location());
   }
 
@@ -628,7 +642,7 @@ class TestV4TrackedFileWrappers {
             () ->
                 wrapper.wrap(
                     manifest, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build(), FIRST_ROW_ID))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot assign first-row-id to delete manifest: %s", manifest.location());
   }
 
@@ -650,10 +664,8 @@ class TestV4TrackedFileWrappers {
             COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
 
     assertThatThrownBy(() -> wrapper.wrap(file, tracking))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Cannot write null data sequence number for status %s (must be ADDED or MODIFIED): %s",
-            status, file.location());
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid data sequence number (null) for %s file", status);
   }
 
   @Test
@@ -666,16 +678,17 @@ class TestV4TrackedFileWrappers {
     when(tracking.status()).thenReturn(EntryStatus.ADDED);
     when(tracking.snapshotId()).thenReturn(PREVIOUS_SNAPSHOT_ID);
     when(tracking.dataSequenceNumber()).thenReturn(null);
+    when(tracking.firstRowId()).thenReturn(null);
 
     LeafTrackedFileWrapper wrapper =
         new LeafTrackedFileWrapper(
             COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
 
     assertThatThrownBy(() -> wrapper.wrap(file, tracking))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot assign data sequence number to file from snapshot %s (committing snapshot %s): %s",
-            PREVIOUS_SNAPSHOT_ID, COMMIT_SNAPSHOT_ID, file.location());
+            "Found invalid snapshot ID for ADDED file: %s (committing %s)",
+            PREVIOUS_SNAPSHOT_ID, COMMIT_SNAPSHOT_ID);
   }
 
   @Test
@@ -694,10 +707,10 @@ class TestV4TrackedFileWrappers {
             COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
 
     assertThatThrownBy(() -> wrapper.wrap(file, tracking))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot assign data sequence number to file from snapshot %s (committing snapshot %s): %s",
-            PREVIOUS_MODIFIED_SNAPSHOT_ID, COMMIT_SNAPSHOT_ID, file.location());
+            "Found invalid snapshot ID for MODIFIED file: %s (committing %s)",
+            PREVIOUS_MODIFIED_SNAPSHOT_ID, COMMIT_SNAPSHOT_ID);
   }
 
   @Test
@@ -719,50 +732,6 @@ class TestV4TrackedFileWrappers {
     StructLike row = wrapper.wrap(file, tracking);
 
     assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.SNAPSHOT_ID)).isNull();
-  }
-
-  @ParameterizedTest
-  @EnumSource(value = EntryStatus.class, mode = EnumSource.Mode.EXCLUDE, names = "ADDED")
-  void leafRejectsNullFileSequenceNumberForStatus(EntryStatus status) {
-    TrackedFile file = mock(TrackedFile.class);
-    when(file.contentType()).thenReturn(FileContent.DATA);
-    when(file.location()).thenReturn(DATA_LOCATION);
-
-    Tracking tracking = mock(Tracking.class);
-    when(tracking.status()).thenReturn(status);
-    when(tracking.fileSequenceNumber()).thenReturn(null);
-
-    LeafTrackedFileWrapper wrapper =
-        new LeafTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
-
-    assertThatThrownBy(() -> wrapper.wrap(file, tracking))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Cannot write null file sequence number for status %s (must be ADDED): %s",
-            status, file.location());
-  }
-
-  @Test
-  void leafRejectsNullFileSequenceNumberForFileAddedInAnotherSnapshot() {
-    TrackedFile file = mock(TrackedFile.class);
-    when(file.contentType()).thenReturn(FileContent.DATA);
-    when(file.location()).thenReturn(DATA_LOCATION);
-
-    Tracking tracking = mock(Tracking.class);
-    when(tracking.status()).thenReturn(EntryStatus.ADDED);
-    when(tracking.snapshotId()).thenReturn(PREVIOUS_SNAPSHOT_ID);
-    when(tracking.fileSequenceNumber()).thenReturn(null);
-
-    LeafTrackedFileWrapper wrapper =
-        new LeafTrackedFileWrapper(
-            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
-
-    assertThatThrownBy(() -> wrapper.wrap(file, tracking))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Cannot assign file sequence number to file from snapshot %s (committing snapshot %s): %s",
-            PREVIOUS_SNAPSHOT_ID, COMMIT_SNAPSHOT_ID, file.location());
   }
 
   private static Object get(StructLike row, Schema schema, Types.NestedField field) {
