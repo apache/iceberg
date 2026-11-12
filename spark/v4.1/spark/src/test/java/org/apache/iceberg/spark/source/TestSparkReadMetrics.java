@@ -346,15 +346,19 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void numSplitsWhenTaskReadsSeveralPartitions() {
+  public void metricsWhenTaskReadsSeveralPartitions() {
     sql(
         "CREATE TABLE %s (id BIGINT, dep STRING, region STRING) USING iceberg "
-            + "PARTITIONED BY (dep, region)",
+            + "PARTITIONED BY (dep, region) "
+            + "TBLPROPERTIES ('format-version'='2', 'write.delete.mode'='merge-on-read')",
         tableName);
     sql(
         "INSERT INTO %s VALUES (1, 'hr', 'us'), (2, 'hr', 'eu'), (3, 'hr', 'apac'), "
-            + "(4, 'ops', 'us'), (5, 'ops', 'eu')",
+            + "(4, 'ops', 'us'), (5, 'ops', 'eu'), (11, 'hr', 'us'), (12, 'hr', 'eu'), "
+            + "(13, 'hr', 'apac'), (14, 'ops', 'us'), (15, 'ops', 'eu')",
         tableName);
+    // one deleted row in each of the 5 partitions
+    sql("DELETE FROM %s WHERE id > 10", tableName);
 
     // joining on a subset of the partition keys makes Spark group the 3 hr and the 2 ops
     // partitions into one task each, so every task opens several readers
@@ -393,6 +397,9 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
             for (SparkPlan scan : scans) {
               assertThat(scan.metrics().get("numSplits").get().value())
                   .as("numSplits with vectorization %s", vectorized)
+                  .isEqualTo(5L);
+              assertThat(scan.metrics().get("numDeletes").get().value())
+                  .as("numDeletes with vectorization %s", vectorized)
                   .isEqualTo(5L);
             }
           });
