@@ -239,6 +239,14 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends ExtensionsT
         tableName(OTHER_TABLE_NAME),
         tablePropsAsString(COMMON_TABLE_PROPERTIES));
 
+    for (int i = 0; i < 8; i++) {
+      sql(
+          "INSERT INTO %s VALUES (%d, DATE '2026-01-01', %d)",
+          tableName,
+          i + 10,
+          (i + 10) * 100);
+    }
+
     sql(
         "INSERT INTO %s VALUES "
             + "(1, DATE '2026-01-01', 100), "
@@ -265,6 +273,7 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends ExtensionsT
         ImmutableMap.<String, String>builder()
             .putAll(ENABLED_SPJ_SQL_CONF)
             .put(SQLConf.V2_BUCKETING_ALLOW_JOIN_KEYS_SUBSET_OF_PARTITION_KEYS().key(), "true")
+            .put("spark.sql.sources.v2.bucketing.partiallyClusteredDistribution.enabled", "true")
             .build();
 
     withSQLConf(
@@ -282,6 +291,50 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends ExtensionsT
           System.out.println("ICEBERG_18597_PLAN_START");
           System.out.println(plan.toString());
           System.out.println("ICEBERG_18597_PLAN_END");
+
+          org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanHelper helper =
+              new org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanHelper() {};
+
+          org.apache.spark.sql.execution.SparkPlan actualPlan =
+              plan instanceof org.apache.spark.sql.execution.CommandResultExec
+                  ? ((org.apache.spark.sql.execution.CommandResultExec) plan).commandPhysicalPlan()
+                  : plan;
+
+          scala.collection.Seq<org.apache.spark.sql.execution.SparkPlan> grouped =
+              helper.collect(
+                  actualPlan,
+                  new scala.runtime.AbstractPartialFunction<
+                      org.apache.spark.sql.execution.SparkPlan,
+                      org.apache.spark.sql.execution.SparkPlan>() {
+                    @Override
+                    public boolean isDefinedAt(org.apache.spark.sql.execution.SparkPlan node) {
+                      return node.nodeName().equals("GroupPartitions");
+                    }
+
+                    @Override
+                    public org.apache.spark.sql.execution.SparkPlan apply(
+                        org.apache.spark.sql.execution.SparkPlan node) {
+                      return node;
+                    }
+                  });
+
+          scala.collection.Iterator<org.apache.spark.sql.execution.SparkPlan> iterator =
+              grouped.iterator();
+
+          while (iterator.hasNext()) {
+            org.apache.spark.sql.execution.SparkPlan node = iterator.next();
+            System.out.println("ICEBERG_18597_GROUP: " + node.simpleString(100));
+            System.out.println("ICEBERG_18597_METRICS: " + node.metrics());
+            System.out.println("ICEBERG_18597_GROUPING: " + node.outputPartitioning());
+            if (node instanceof org.apache.spark.sql.execution.datasources.v2.GroupPartitionsExec) {
+              org.apache.spark.sql.execution.datasources.v2.GroupPartitionsExec group =
+                  (org.apache.spark.sql.execution.datasources.v2.GroupPartitionsExec) node;
+              System.out.println(
+                  "ICEBERG_18597_GROUP_COUNT: " + group.groupedPartitions().size());
+              System.out.println(
+                  "ICEBERG_18597_GROUP_ASSIGNMENTS: " + group.groupedPartitions());
+            }
+          }
         });
 
     assertEquals(
@@ -289,7 +342,15 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends ExtensionsT
         ImmutableList.of(
             row(1, java.sql.Date.valueOf("2026-01-01"), 110),
             row(2, java.sql.Date.valueOf("2026-01-01"), 220),
-            row(3, java.sql.Date.valueOf("2026-01-02"), 300)),
+            row(3, java.sql.Date.valueOf("2026-01-02"), 300),
+            row(10, java.sql.Date.valueOf("2026-01-01"), 1000),
+            row(11, java.sql.Date.valueOf("2026-01-01"), 1100),
+            row(12, java.sql.Date.valueOf("2026-01-01"), 1200),
+            row(13, java.sql.Date.valueOf("2026-01-01"), 1300),
+            row(14, java.sql.Date.valueOf("2026-01-01"), 1400),
+            row(15, java.sql.Date.valueOf("2026-01-01"), 1500),
+            row(16, java.sql.Date.valueOf("2026-01-01"), 1600),
+            row(17, java.sql.Date.valueOf("2026-01-01"), 1700)),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
