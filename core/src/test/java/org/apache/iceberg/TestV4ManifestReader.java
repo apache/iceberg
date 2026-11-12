@@ -508,8 +508,8 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  public void changesKeepsZeroRecordFiles(FileFormat format) throws IOException {
-    TrackedFile emptyAdded =
+  public void changesDropsEmptyDataFiles(FileFormat format) throws IOException {
+    TrackedFile emptyData =
         new TrackedFileStruct(
             new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 7_000L, null, null),
             FileContent.DATA,
@@ -527,17 +527,36 @@ class TestV4ManifestReader {
             null, // key metadata
             null, // split offsets
             null); // column files
+    TrackedFile emptyManifestRef =
+        new TrackedFileStruct(
+            new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, null, null, null),
+            FileContent.DATA_MANIFEST,
+            "s3://bucket/leaf.parquet",
+            FileFormat.PARQUET,
+            0L, // record count
+            FILE_SIZE_IN_BYTES,
+            null, // spec id
+            null, // partition
+            null, // content stats
+            false, // tight stats
+            null, // sort order id
+            null, // dv
+            MANIFEST_INFO,
+            null, // key metadata
+            null, // split offsets
+            null); // column files
 
-    ManifestFile manifest = writeManifest(format, UNPARTITIONED_TYPE, List.of(emptyAdded));
+    ManifestFile manifest =
+        writeManifest(format, UNPARTITIONED_TYPE, List.of(emptyData, emptyManifestRef));
     when(manifest.firstRowId()).thenReturn(10_000L);
 
     V4ManifestReader.Builder builder =
         V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS).forChanges();
 
-    // the record-count filter that drops empty files on the scan path must not drop a change
+    // an empty data file carries no change, but a manifest reference is kept regardless of count
     assertThat(read(builder))
-        .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
-        .containsExactly(emptyAdded);
+        .extracting(TrackedFile::location)
+        .containsExactly("s3://bucket/leaf.parquet");
   }
 
   @ParameterizedTest

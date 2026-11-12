@@ -141,7 +141,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         // deletion snapshot
         files = CloseableIterable.filter(files, this::isLive);
       } else {
-        // changes could include deleted and replaced entries
         files = CloseableIterable.filter(files, this::isChange);
       }
     } else {
@@ -149,9 +148,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     if (statsFilter != null) {
-      // a manifest reference holds aggregate bounds for only live files, so we can't prune them
-      // when reading changes because a non-live entry matching the filter could be outside
-      // those aggregate bounds
+      // Aggregate bounds on a manifest reference cover only live entries, so they cannot prune
+      // a reference when reading changes: a non-live change may lie outside those bounds.
       files =
           CloseableIterable.filter(
               this::incrementSkipCount,
@@ -159,7 +157,13 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
               file ->
                   (changes && isManifest(file))
                       || statsFilter.eval(file.contentStats(), file.recordCount()));
-    } else if (!changes) {
+    } else if (changes) {
+      files =
+          CloseableIterable.filter(
+              this::incrementSkipCount,
+              files,
+              file -> isManifest(file) || file.recordCount() != 0L);
+    } else {
       files =
           CloseableIterable.filter(
               this::incrementSkipCount, files, file -> file.recordCount() != 0L);
@@ -239,7 +243,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     Tracking tracking = file.tracking();
     int pos = Math.toIntExact(tracking.manifestPos());
     if (isMarkedDeleted(pos) || isMarkedReplaced(pos)) {
-      // a position bitmap marks this entry deleted or replaced in the reference's snapshot
       return true;
     }
 
