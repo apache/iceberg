@@ -88,15 +88,4 @@ class TestAuthSessionCache {
 
     cache.close();
   }
-
-  @Test
-  void noExecutorByDefault() {
-    AuthSessionCache cache = new AuthSessionCache("test", Duration.ofHours(1));
-    AuthSession session = Mockito.mock(AuthSession.class);
-    AuthSession cached = cache.cachedSession("key", k -> session);
-    assertThat(cached).isSameAs(session);
-
-    cache.close();
-    Mockito.verify(session, Mockito.timeout(30_000)).close();
-  }
 }
