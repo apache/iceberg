@@ -1176,7 +1176,6 @@ project(':iceberg-open-api') {
     }
     testFixturesRuntimeOnly 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.6.0'
     testFixturesImplementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    testFixturesImplementation libs.junit.jupiter
 
     testFixturesImplementation libs.slf4j.api
     testFixturesImplementation libs.slf4j.simple
@@ -1187,6 +1186,7 @@ project(':iceberg-open-api') {
     testFixturesImplementation libs.sqlite.jdbc
 
     testFixturesCompileOnly libs.apiguardian
+    testFixturesCompileOnly libs.junit.jupiter
 
     testFixturesRuntimeOnly project(':iceberg-aws-bundle')
     testFixturesRuntimeOnly project(':iceberg-azure-bundle')
