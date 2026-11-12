@@ -35,7 +35,6 @@ import org.apache.iceberg.view.ViewCatalogTests;
 import org.apache.iceberg.view.ViewMetadata;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -104,19 +103,22 @@ public class TestNessieViewCatalog extends ViewCatalogTests<NessieCatalog> {
     }
   }
 
-  @Override
-  @Disabled("Pending https://github.com/apache/iceberg/pull/18912")
   @ParameterizedTest(name = "purge = {0}")
   @ValueSource(booleans = {false, true})
-  public void dropTableThatAlreadyExistsAsView(boolean purge) {
-    super.dropTableThatAlreadyExistsAsView(purge);
-  }
+  public void dropTablePreservesView(boolean purge) {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+    catalog().createNamespace(identifier.namespace());
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withQuery("spark", "select * from ns.tbl")
+            .create();
 
-  @Override
-  @Disabled("Pending https://github.com/apache/iceberg/pull/18912")
-  @Test
-  public void dropViewThatAlreadyExistsAsTable() {
-    super.dropViewThatAlreadyExistsAsTable();
+    assertThat(catalog().dropTable(identifier, purge)).isFalse();
+    assertThat(catalog().viewExists(identifier)).isTrue();
+    assertThat(catalog().loadView(identifier).uuid()).isEqualTo(view.uuid());
   }
 
   private void resetData() throws NessieConflictException, NessieNotFoundException {
