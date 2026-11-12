@@ -36,7 +36,6 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
 
   private Object lowerBound = null;
   private Object upperBound = null;
-  private boolean tightBounds = false;
   private Long valueCount = null;
   private Long nullValueCount = null;
   private Long nanValueCount = null;
@@ -53,7 +52,6 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
       Types.StructType struct,
       T lowerBound,
       T upperBound,
-      boolean tightBounds,
       long valueCount,
       long nullValueCount,
       long nanValueCount,
@@ -61,7 +59,6 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
     this(struct);
     setLowerBound(lowerBound);
     setUpperBound(upperBound);
-    this.tightBounds = tightBounds;
     this.valueCount = valueCount;
     this.nullValueCount = nullValueCount;
     this.nanValueCount = nanValueCount;
@@ -72,7 +69,6 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
     this(toCopy.struct);
     this.lowerBound = copyBound(toCopy.lowerBound);
     this.upperBound = copyBound(toCopy.upperBound);
-    this.tightBounds = toCopy.tightBounds;
     this.valueCount = toCopy.valueCount;
     this.nullValueCount = toCopy.nullValueCount;
     this.nanValueCount = toCopy.nanValueCount;
@@ -88,7 +84,6 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
 
     setLowerBound(fieldMetrics.lowerBound());
     setUpperBound(fieldMetrics.upperBound());
-    this.tightBounds = false;
     this.valueCount = fieldMetrics.valueCount();
     this.nullValueCount = fieldMetrics.nullValueCount() < 0 ? null : fieldMetrics.nullValueCount();
     this.nanValueCount = fieldMetrics.nanValueCount() < 0 ? null : fieldMetrics.nanValueCount();
@@ -130,11 +125,6 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
   public T upperBound() {
     return (T)
         (upperBound != null && isBinary() ? ByteBuffer.wrap((byte[]) upperBound) : upperBound);
-  }
-
-  @Override
-  public boolean tightBounds() {
-    return tightBounds;
   }
 
   @Override
@@ -186,7 +176,6 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
     return switch (offset) {
       case StatsUtil.LOWER_BOUND_OFFSET -> lowerBound();
       case StatsUtil.UPPER_BOUND_OFFSET -> upperBound();
-      case StatsUtil.TIGHT_BOUNDS_OFFSET -> tightBounds;
       case StatsUtil.VALUE_COUNT_OFFSET -> valueCount;
       case StatsUtil.NULL_VALUE_COUNT_OFFSET -> nullValueCount;
       case StatsUtil.NAN_VALUE_COUNT_OFFSET -> nanValueCount;
@@ -204,7 +193,6 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
     switch (offset) {
       case StatsUtil.LOWER_BOUND_OFFSET -> setLowerBound(value);
       case StatsUtil.UPPER_BOUND_OFFSET -> setUpperBound(value);
-      case StatsUtil.TIGHT_BOUNDS_OFFSET -> this.tightBounds = (Boolean) value;
       case StatsUtil.VALUE_COUNT_OFFSET -> this.valueCount = (Long) value;
       case StatsUtil.NULL_VALUE_COUNT_OFFSET -> this.nullValueCount = (Long) value;
       case StatsUtil.NAN_VALUE_COUNT_OFFSET -> this.nanValueCount = (Long) value;

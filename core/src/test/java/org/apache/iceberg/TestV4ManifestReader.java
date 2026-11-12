@@ -117,10 +117,10 @@ class TestV4ManifestReader {
 
   private static final FieldStatsStruct<Integer> ID_STATS =
       new FieldStatsStruct<>(
-          STATS_TYPE.fieldType("id").asStructType(), 0, 99, true, RECORD_COUNT, 0, 0, 0L);
+          STATS_TYPE.fieldType("id").asStructType(), 0, 99, RECORD_COUNT, 0, 0, 0L);
   private static final FieldStatsStruct<String> DATA_STATS =
       new FieldStatsStruct<>(
-          STATS_TYPE.fieldType("data").asStructType(), "a", "z", false, RECORD_COUNT, 20, 0, 2L);
+          STATS_TYPE.fieldType("data").asStructType(), "a", "z", RECORD_COUNT, 20, 0, 2L);
   private static final ContentStatsStruct CONTENT_STATS = new ContentStatsStruct(STATS_TYPE);
 
   static {
@@ -189,6 +189,7 @@ class TestV4ManifestReader {
             ID_PARTITIONED.specId(),
             idPartition(7),
             CONTENT_STATS,
+            true, // tight stats
             SortOrder.unsorted().orderId(),
             DV,
             null, // manifest info
@@ -220,6 +221,7 @@ class TestV4ManifestReader {
             ID_PARTITIONED.specId(),
             idPartition(7),
             CONTENT_STATS,
+            true, // tight stats
             SortOrder.unsorted().orderId(),
             DV,
             null, // manifest info
@@ -253,6 +255,7 @@ class TestV4ManifestReader {
             ID_PARTITIONED.specId(),
             idPartition(7),
             CONTENT_STATS,
+            false, // tight stats
             SortOrder.unsorted().orderId(),
             DV,
             null, // manifest info
@@ -288,6 +291,7 @@ class TestV4ManifestReader {
             null, // spec id
             null, // partition
             CONTENT_STATS,
+            false, // tight stats
             null, // sort order id
             null, // dv
             MANIFEST_INFO,
@@ -516,6 +520,7 @@ class TestV4ManifestReader {
             null, // spec id
             null, // partition
             null, // content stats
+            false, // tight stats
             null, // sort order id
             null, // dv
             null, // manifest info
@@ -1615,6 +1620,10 @@ class TestV4ManifestReader {
     assertThat(readSchema.field(TrackedFile.CONTENT_STATS_ID))
         .as("Content stats are not automatically projected")
         .isNull();
+
+    assertThat(readSchema.field(TrackedFile.TIGHT_STATS.fieldId()))
+        .as("Tight stats are not projected without content stats")
+        .isNull();
   }
 
   @ParameterizedTest
@@ -1648,6 +1657,10 @@ class TestV4ManifestReader {
     assertThat(readSchema.field(TrackedFile.CONTENT_STATS_ID).type())
         .as("Content stats are projected for filtering")
         .isEqualTo(ID_ONLY_STATS_TYPE);
+
+    assertThat(readSchema.field(TrackedFile.TIGHT_STATS.fieldId()))
+        .as("Tight stats are projected with content stats")
+        .isEqualTo(TrackedFile.TIGHT_STATS);
   }
 
   @Test
@@ -1839,6 +1852,7 @@ class TestV4ManifestReader {
             null,
             null,
             null,
+            false,
             SortOrder.unsorted().orderId(),
             null,
             null,
@@ -1875,6 +1889,7 @@ class TestV4ManifestReader {
             null,
             null,
             null,
+            false,
             SortOrder.unsorted().orderId(),
             null,
             null,
@@ -2086,6 +2101,7 @@ class TestV4ManifestReader {
             bucketSpec.specId(),
             partition(bucketSpec, fileBucketNum),
             CONTENT_STATS,
+            false, // tight stats
             SortOrder.unsorted().orderId(),
             null, // dv
             null, // manifest info
@@ -2645,7 +2661,7 @@ class TestV4ManifestReader {
   private static FieldStatsStruct<GeospatialBound> geoFieldStats(
       Types.StructType statsType, String name, GeospatialBound lower, GeospatialBound upper) {
     return new FieldStatsStruct<>(
-        statsType.fieldType(name).asStructType(), lower, upper, false, RECORD_COUNT, 0, 0, 0L);
+        statsType.fieldType(name).asStructType(), lower, upper, RECORD_COUNT, 0, 0, 0L);
   }
 
   private static void assertGeospatialBounds(
@@ -2684,6 +2700,7 @@ class TestV4ManifestReader {
         null, // spec id
         null, // partition
         null, // content stats
+        false, // tight stats
         null, // sort order id
         null, // dv
         MANIFEST_INFO,

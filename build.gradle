@@ -35,7 +35,7 @@ buildscript {
     classpath 'com.palantir.baseline:gradle-baseline-java:6.90.0'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:8.10.4'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
-    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.3'
+    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.4'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'org.revapi:gradle-revapi:1.8.0'
@@ -1124,15 +1124,12 @@ project(':iceberg-snowflake') {
 
 project(':iceberg-open-api') {
   apply plugin: 'java-test-fixtures'
-  apply plugin: 'com.gradleup.shadow'
 
   // There are no main sources, so drop the implicit test fixtures -> main component dependency that
   // would otherwise put the disabled main JAR on consumers' classpaths
   configurations.testFixturesApi.dependencies.removeIf {
     it instanceof ProjectDependency && it.path == project.path
   }
-
-  build.dependsOn shadowJar
 
   dependencies {
     testImplementation project(':iceberg-api')
@@ -1219,16 +1216,12 @@ project(':iceberg-open-api') {
   }
   check.dependsOn('validateRESTCatalogSpec')
 
-  shadowJar {
-    archiveBaseName.set("iceberg-open-api-test-fixtures-runtime")
-    archiveClassifier.set(null)
-    configurations = [project.configurations.testFixturesRuntimeClasspath]
-    from sourceSets.testFixtures.output
-    zip64 true
-
-    manifest {
-      attributes 'Main-Class': 'org.apache.iceberg.rest.RESTCatalogServer'
-    }
+  tasks.register('stageRESTFixtureRuntime', Sync) {
+    description = 'Stages the REST fixture runtime JARs'
+    group = 'build'
+    into layout.buildDirectory.dir('rest-fixture-runtime')
+    from configurations.testFixturesRuntimeClasspath
+    from tasks.named('testFixturesJar')
   }
 
   jar {

@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,6 +40,7 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.FileMetadata;
+import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -63,6 +65,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -1415,5 +1418,122 @@ public class TestExpireSnapshotsAction extends TestBase {
         .as("Should remove the file from first snapshot")
         .contains(FILE_A.location())
         .doesNotContain(fileInNewSpec.location());
+  }
+
+  @TestTemplate
+  public void expireSkipsMissingManifestList() {
+    Snapshot firstSnapshot = commitSnapshotsForSkipTest();
+    table.io().deleteFile(firstSnapshot.manifestListLocation());
+
+    assertExpireSkipsMissingMetadata();
+  }
+
+  @TestTemplate
+  public void expireSkipsMissingManifest() {
+    Snapshot firstSnapshot = commitSnapshotsForSkipTest();
+    table.io().deleteFile(Iterables.getOnlyElement(firstSnapshot.allManifests(table.io())).path());
+
+    assertExpireSkipsMissingMetadata();
+  }
+
+  private Snapshot commitSnapshotsForSkipTest() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    table.newOverwrite().deleteFile(FILE_A).addFile(FILE_B).commit();
+    table.newOverwrite().deleteFile(FILE_B).addFile(FILE_C).commit();
+    table.newAppend().appendFile(FILE_D).commit();
+
+    return firstSnapshot;
+  }
+
+  private ExpireSnapshots.Result expireAll(Set<String> deletedFiles) {
+    return SparkActions.get()
+        .expireSnapshots(table)
+        .expireOlderThan(rightAfterSnapshot())
+        .deleteWith(deletedFiles::add)
+        .execute();
+  }
+
+  private void assertExpireSkipsMissingMetadata() {
+    Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
+    ExpireSnapshots.Result result = expireAll(deletedFiles);
+
+    assertThat(table.snapshots()).as("Expiration should still commit").hasSize(1);
+    assertThat(result.deletedDataFilesCount())
+        .as("Should report the files deleted despite the missing metadata")
+        .isEqualTo(1L);
+    assertThat(deletedFiles)
+        .as("Should delete files resolved from other expired snapshots")
+        .contains(FILE_B.location());
+    assertThat(deletedFiles)
+        .as("Should leave files reachable only through the missing metadata as orphans")
+        .doesNotContain(FILE_A.location());
+    assertThat(deletedFiles)
+        .as("Should not delete files reachable from the retained snapshot")
+        .doesNotContain(FILE_C.location(), FILE_D.location());
+  }
+
+  @TestTemplate
+  public void expireDeletesStatisticsFileOfSnapshotWithMissingManifestList() {
+    Snapshot firstSnapshot = commitSnapshotsForSkipTest();
+    String statisticsLocation = tableLocation + "/metadata/stats-" + UUID.randomUUID();
+    table
+        .updateStatistics()
+        .setStatistics(
+            new GenericStatisticsFile(
+                firstSnapshot.snapshotId(), statisticsLocation, 1L, 1L, List.of()))
+        .commit();
+    table.io().deleteFile(firstSnapshot.manifestListLocation());
+
+    Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
+    expireAll(deletedFiles);
+
+    assertThat(deletedFiles)
+        .as("Should delete the statistics file even though the manifest list is missing")
+        .contains(statisticsLocation);
+  }
+
+  @TestTemplate
+  public void expireFailsWhenRetainedSnapshotMissingManifest() {
+    assertExpireFailsWhenRetainedSnapshotMissingManifest(false);
+  }
+
+  @TestTemplate
+  public void expireFailsWhenRetainedSnapshotMissingManifestWithStreamResults() {
+    assertExpireFailsWhenRetainedSnapshotMissingManifest(true);
+  }
+
+  private void assertExpireFailsWhenRetainedSnapshotMissingManifest(boolean streamResults) {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+    String sharedManifest =
+        Iterables.getOnlyElement(table.snapshot(firstSnapshotId).allManifests(table.io())).path();
+
+    table.newFastAppend().appendFile(FILE_B).commit();
+    table.newFastAppend().appendFile(FILE_C).commit();
+
+    long end = rightAfterSnapshot();
+
+    table.io().deleteFile(sharedManifest);
+
+    Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
+
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .expireSnapshots(table)
+                    .expireOlderThan(end)
+                    .retainLast(1)
+                    .deleteWith(deletedFiles::add)
+                    .option(
+                        ExpireSnapshotsSparkAction.STREAM_RESULTS, String.valueOf(streamResults))
+                    .execute())
+        .isInstanceOf(SparkException.class)
+        .hasMessageContaining(sharedManifest);
+
+    assertThat(deletedFiles)
+        .as("Must not delete any file when the delete set cannot be computed safely")
+        .isEmpty();
   }
 }
