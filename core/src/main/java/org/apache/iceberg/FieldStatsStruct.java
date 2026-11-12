@@ -211,7 +211,7 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
     return new FieldStatsStruct<>(this);
   }
 
-  private static int[] posToOffset(Types.StructType struct) {
+  static int[] posToOffset(Types.StructType struct) {
     List<Types.NestedField> fields = struct.fields();
     int[] posToOffset = new int[fields.size()];
     for (int i = 0; i < posToOffset.length; i += 1) {
