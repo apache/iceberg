@@ -29,8 +29,9 @@ import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.StagedTable;
+import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.Table;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableCatalogCapability;
 import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.TableInfo;
@@ -44,8 +45,10 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * The catalog view Spark plans against for the duration of a {@link SparkTransaction}.
  *
  * <p>Loads follow {@link SparkCatalog} identifier rules, including branch and snapshot selectors.
+ * CTAS and RTAS are staged through that catalog so they stay atomic.
  */
-class TransactionSparkCatalog implements TableCatalog, FunctionCatalog, SparkSupportsLoadContext {
+class TransactionSparkCatalog
+    implements StagingTableCatalog, FunctionCatalog, SparkSupportsLoadContext {
 
   private final SparkCatalog delegate;
 
@@ -98,6 +101,28 @@ class TransactionSparkCatalog implements TableCatalog, FunctionCatalog, SparkSup
   @Override
   public String name() {
     return delegate.name();
+  }
+
+  @Override
+  public boolean useNullableQuerySchema() {
+    return delegate.useNullableQuerySchema();
+  }
+
+  @Override
+  public StagedTable stageCreate(Identifier ident, TableInfo tableInfo)
+      throws TableAlreadyExistsException, NoSuchNamespaceException {
+    return delegate.stageCreate(ident, tableInfo);
+  }
+
+  @Override
+  public StagedTable stageReplace(Identifier ident, TableInfo tableInfo)
+      throws NoSuchTableException {
+    return delegate.stageReplace(ident, tableInfo);
+  }
+
+  @Override
+  public StagedTable stageCreateOrReplace(Identifier ident, TableInfo tableInfo) {
+    return delegate.stageCreateOrReplace(ident, tableInfo);
   }
 
   @Override
