@@ -166,19 +166,13 @@ public interface Snapshot extends Serializable {
   /**
    * Return the location of this snapshot's manifest list, or null if it is not separate.
    *
-   * <p>Only set for tables with format version 1 through 3. Snapshots in v4 tables use {@link
-   * #rootManifestLocation()} instead.
-   *
-   * @return the location of the manifest list for this snapshot
+   * @return the location of the manifest list for this Snapshot
    */
   String manifestListLocation();
 
   /**
-   * Return the location of this snapshot's root manifest, or null if this snapshot has no root
-   * manifest.
-   *
-   * <p>v4 snapshots store this in {@code root-manifest} instead of a manifest list. At most one of
-   * this and {@link #manifestListLocation()} is set.
+   * Return the location of this snapshot's root manifest, or null if this snapshot does not have
+   * one.
    *
    * @return the location of the root manifest for this snapshot
    */

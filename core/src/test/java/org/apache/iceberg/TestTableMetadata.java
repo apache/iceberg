@@ -458,18 +458,18 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(snapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot snapshot =
         new BaseSnapshot(
-            0 /* sequenceNumber */,
+            0,
             snapshotId,
-            null /* parentId */,
-            snapshotId /* timestampMillis */,
-            null /* operation */,
-            null /* summary */,
-            null /* schemaId */,
+            null,
+            snapshotId,
+            null,
+            null,
+            null,
             manifestList,
-            null /* rootManifest */,
-            null /* firstRowId */,
-            null /* addedRows */,
-            null /* keyId */);
+            null,
+            null,
+            null,
+            null);
 
     Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -2170,18 +2170,18 @@ public class TestTableMetadata {
     // A snapshot with firstRowId=0 is stale (0 < nextRowId=5)
     Snapshot staleSnapshot =
         new BaseSnapshot(
-            2 /* sequenceNumber */,
-            2L /* snapshotId */,
-            1L /* parentId */,
+            2,
+            2L,
+            1L,
             System.currentTimeMillis(),
-            null /* operation */,
-            null /* summary */,
-            null /* schemaId */,
-            "file:/s2.avro" /* manifestListLocation */,
-            null /* rootManifest */,
-            0L /* firstRowId */,
-            1L /* addedRows */,
-            null /* keyId */);
+            null,
+            null,
+            null,
+            "file:/s2.avro",
+            null,
+            0L,
+            1L,
+            null);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(withS1).addSnapshot(staleSnapshot))
         .isInstanceOf(RetryableValidationException.class)
@@ -2239,34 +2239,11 @@ public class TestTableMetadata {
 
     Snapshot parent =
         new BaseSnapshot(
-            1 /* sequenceNumber */,
-            1L /* snapshotId */,
-            null /* parentId */,
-            1_000L /* timestampMillis */,
-            null /* operation */,
-            null /* summary */,
-            null /* schemaId */,
-            "file:/s1.avro" /* manifestListLocation */,
-            null /* rootManifest */,
-            0L /* firstRowId */,
-            0L /* addedRows */,
-            null /* keyId */);
+            1, 1L, null, 1_000L, null, null, null, "file:/s1.avro", null, 0L, 0L, null);
     TableMetadata withParent = TableMetadata.buildFrom(base).addSnapshot(parent).build();
 
     Snapshot child =
-        new BaseSnapshot(
-            2 /* sequenceNumber */,
-            2L /* snapshotId */,
-            1L /* parentId */,
-            1_000L /* timestampMillis */,
-            null /* operation */,
-            null /* summary */,
-            null /* schemaId */,
-            "file:/s2.avro" /* manifestListLocation */,
-            null /* rootManifest */,
-            0L /* firstRowId */,
-            0L /* addedRows */,
-            null /* keyId */);
+        new BaseSnapshot(2, 2L, 1L, 1_000L, null, null, null, "file:/s2.avro", null, 0L, 0L, null);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(withParent).addSnapshot(child))
         .isInstanceOf(ValidationException.class)

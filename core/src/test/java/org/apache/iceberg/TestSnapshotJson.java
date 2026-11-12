@@ -67,8 +67,7 @@ public class TestSnapshotJson {
     assertThat(snapshot.firstRowId()).isNull();
     assertThat(snapshot.addedRows()).isNull();
     assertThat(snapshot.keyId()).isEqualTo(keyId);
-    assertThat(snapshot.manifestListLocation()).isEqualTo(expected.manifestListLocation());
-    assertThat(snapshot.rootManifestLocation()).isEqualTo(expected.rootManifestLocation());
+    assertThat(snapshot.rootManifestLocation()).isNull();
   }
 
   @Test
@@ -95,8 +94,7 @@ public class TestSnapshotJson {
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
     assertThat(snapshot.snapshotId()).isEqualTo(expected.snapshotId());
-    assertThat(snapshot.manifestListLocation()).isEqualTo(expected.manifestListLocation());
-    assertThat(snapshot.rootManifestLocation()).isEqualTo(expected.rootManifestLocation());
+    assertThat(snapshot.rootManifestLocation()).isNull();
     assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
     assertThat(snapshot.operation()).isNull();
     assertThat(snapshot.summary()).isNull();
@@ -137,7 +135,7 @@ public class TestSnapshotJson {
     assertThat(snapshot.timestampMillis()).isEqualTo(expected.timestampMillis());
     assertThat(snapshot.parentId()).isEqualTo(expected.parentId());
     assertThat(snapshot.manifestListLocation()).isEqualTo(expected.manifestListLocation());
-    assertThat(snapshot.rootManifestLocation()).isEqualTo(expected.rootManifestLocation());
+    assertThat(snapshot.rootManifestLocation()).isNull();
     assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
     assertThat(snapshot.operation()).isEqualTo(expected.operation());
     assertThat(snapshot.summary()).isEqualTo(expected.summary());
@@ -172,8 +170,7 @@ public class TestSnapshotJson {
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
     assertThat(snapshot.snapshotId()).isEqualTo(expected.snapshotId());
-    assertThat(snapshot.manifestListLocation()).isEqualTo(expected.manifestListLocation());
-    assertThat(snapshot.rootManifestLocation()).isEqualTo(expected.rootManifestLocation());
+    assertThat(snapshot.rootManifestLocation()).isNull();
     assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
     assertThat(snapshot.operation()).isNull();
     assertThat(snapshot.summary()).isNull();
@@ -228,7 +225,7 @@ public class TestSnapshotJson {
     assertThat(snapshot.timestampMillis()).isEqualTo(expected.timestampMillis());
     assertThat(snapshot.parentId()).isEqualTo(expected.parentId());
     assertThat(snapshot.manifestListLocation()).isEqualTo(expected.manifestListLocation());
-    assertThat(snapshot.rootManifestLocation()).isEqualTo(expected.rootManifestLocation());
+    assertThat(snapshot.rootManifestLocation()).isNull();
     assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
     assertThat(snapshot.operation()).isEqualTo(expected.operation());
     assertThat(snapshot.summary()).isEqualTo(expected.summary());

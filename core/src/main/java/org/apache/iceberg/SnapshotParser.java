@@ -184,7 +184,6 @@ public class SnapshotParser {
     String rootManifest = JsonUtil.getStringOrNull(ROOT_MANIFEST, node);
 
     if (manifestList != null || rootManifest != null) {
-      // manifest-list is used by v1-v3 snapshots, root-manifest by v4 snapshots
       return new BaseSnapshot(
           sequenceNumber,
           snapshotId,

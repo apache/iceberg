@@ -70,108 +70,53 @@ public class TestRowLineageMetadata {
   public void testSnapshotRowIDValidation() {
     Snapshot snapshot =
         new BaseSnapshot(
-            0 /* sequenceNumber */,
-            1 /* snapshotId */,
-            null /* parentId */,
-            0 /* timestampMillis */,
-            DataOperations.APPEND,
-            null /* summary */,
-            1 /* schemaId */,
-            "ml.avro" /* manifestListLocation */,
-            null /* rootManifest */,
-            null /* firstRowId */,
-            null /* addedRows */,
-            null /* keyId */);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, null, null);
     assertThat(snapshot.firstRowId()).isNull();
     assertThat(snapshot.addedRows()).isNull();
 
     // added-rows will be set to null if first-row-id is null
     snapshot =
         new BaseSnapshot(
-            0 /* sequenceNumber */,
-            1 /* snapshotId */,
-            null /* parentId */,
-            0 /* timestampMillis */,
-            DataOperations.APPEND,
-            null /* summary */,
-            1 /* schemaId */,
-            "ml.avro" /* manifestListLocation */,
-            null /* rootManifest */,
-            null /* firstRowId */,
-            10L /* addedRows */,
-            null /* keyId */);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, 10L, null);
     assertThat(snapshot.firstRowId()).isNull();
     assertThat(snapshot.addedRows()).isNull();
 
     // added-rows and first-row-id can be 0
     snapshot =
         new BaseSnapshot(
-            0 /* sequenceNumber */,
-            1 /* snapshotId */,
-            null /* parentId */,
-            0 /* timestampMillis */,
-            DataOperations.APPEND,
-            null /* summary */,
-            1 /* schemaId */,
-            "ml.avro" /* manifestListLocation */,
-            null /* rootManifest */,
-            0L /* firstRowId */,
-            0L /* addedRows */,
-            null /* keyId */);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 0L, 0L, null);
     assertThat(snapshot.firstRowId()).isEqualTo(0);
     assertThat(snapshot.addedRows()).isEqualTo(0);
 
     assertThatThrownBy(
             () ->
                 new BaseSnapshot(
-                    0 /* sequenceNumber */,
-                    1 /* snapshotId */,
-                    null /* parentId */,
-                    0 /* timestampMillis */,
+                    0,
+                    1,
+                    null,
+                    0,
                     DataOperations.APPEND,
-                    null /* summary */,
-                    1 /* schemaId */,
-                    "ml.avro" /* manifestListLocation */,
-                    null /* rootManifest */,
-                    10L /* firstRowId */,
-                    null /* addedRows */,
-                    null /* keyId */))
+                    null,
+                    1,
+                    "ml.avro",
+                    null,
+                    10L,
+                    null,
+                    null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid added-rows (required when first-row-id is set): null");
 
     assertThatThrownBy(
             () ->
                 new BaseSnapshot(
-                    0 /* sequenceNumber */,
-                    1 /* snapshotId */,
-                    null /* parentId */,
-                    0 /* timestampMillis */,
-                    DataOperations.APPEND,
-                    null /* summary */,
-                    1 /* schemaId */,
-                    "ml.avro" /* manifestListLocation */,
-                    null /* rootManifest */,
-                    0L /* firstRowId */,
-                    -1L /* addedRows */,
-                    null /* keyId */))
+                    0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 0L, -1L, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid added-rows (cannot be negative): -1");
 
     assertThatThrownBy(
             () ->
                 new BaseSnapshot(
-                    0 /* sequenceNumber */,
-                    1 /* snapshotId */,
-                    null /* parentId */,
-                    0 /* timestampMillis */,
-                    DataOperations.APPEND,
-                    null /* summary */,
-                    1 /* schemaId */,
-                    "ml.avro" /* manifestListLocation */,
-                    null /* rootManifest */,
-                    -1L /* firstRowId */,
-                    1L /* addedRows */,
-                    null /* keyId */))
+                    0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, -1L, 1L, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid first-row-id (cannot be negative): -1");
   }
@@ -184,18 +129,18 @@ public class TestRowLineageMetadata {
 
     Snapshot addRows =
         new BaseSnapshot(
-            0 /* sequenceNumber */,
-            1 /* snapshotId */,
-            null /* parentId */,
-            0 /* timestampMillis */,
+            0,
+            1,
+            null,
+            0,
             DataOperations.APPEND,
-            null /* summary */,
-            1 /* schemaId */,
-            "foo" /* manifestListLocation */,
-            null /* rootManifest */,
-            base.nextRowId() /* firstRowId */,
+            null,
+            1,
+            "foo",
+            null,
+            base.nextRowId(),
             newRows,
-            null /* keyId */);
+            null);
 
     TableMetadata firstAddition = TableMetadata.buildFrom(base).addSnapshot(addRows).build();
 
@@ -230,18 +175,7 @@ public class TestRowLineageMetadata {
 
     Snapshot invalidLastRow =
         new BaseSnapshot(
-            0 /* sequenceNumber */,
-            1 /* snapshotId */,
-            null /* parentId */,
-            0 /* timestampMillis */,
-            DataOperations.APPEND,
-            null /* summary */,
-            1 /* schemaId */,
-            "foo" /* manifestListLocation */,
-            null /* rootManifest */,
-            null /* firstRowId */,
-            newRows,
-            null /* keyId */);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", null, null, newRows, null);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(base).addSnapshot(invalidLastRow))
         .isInstanceOf(ValidationException.class)
@@ -250,34 +184,34 @@ public class TestRowLineageMetadata {
     // add rows to check TableMetadata validation; Snapshot rejects negative next-row-id
     Snapshot addRows =
         new BaseSnapshot(
-            0 /* sequenceNumber */,
-            1 /* snapshotId */,
-            null /* parentId */,
-            0 /* timestampMillis */,
+            0,
+            1,
+            null,
+            0,
             DataOperations.APPEND,
-            null /* summary */,
-            1 /* schemaId */,
-            "foo" /* manifestListLocation */,
-            null /* rootManifest */,
-            base.nextRowId() /* firstRowId */,
+            null,
+            1,
+            "foo",
+            null,
+            base.nextRowId(),
             newRows,
-            null /* keyId */);
+            null);
     TableMetadata added = TableMetadata.buildFrom(base).addSnapshot(addRows).build();
 
     Snapshot invalidNewRows =
         new BaseSnapshot(
-            1 /* sequenceNumber */,
-            2 /* snapshotId */,
-            1L /* parentId */,
-            1 /* timestampMillis */,
+            1,
+            2,
+            1L,
+            1,
             DataOperations.APPEND,
-            null /* summary */,
-            1 /* schemaId */,
-            "foo" /* manifestListLocation */,
-            null /* rootManifest */,
-            added.nextRowId() - 1 /* firstRowId */,
-            10L /* addedRows */,
-            null /* keyId */);
+            null,
+            1,
+            "foo",
+            null,
+            added.nextRowId() - 1,
+            10L,
+            null);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(added).addSnapshot(invalidNewRows))
         .isInstanceOf(ValidationException.class)

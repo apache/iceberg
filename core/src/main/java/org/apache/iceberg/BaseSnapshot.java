@@ -75,6 +75,10 @@ class BaseSnapshot implements Snapshot {
         "Snapshot %s cannot have both a manifest list and a root manifest",
         snapshotId);
     Preconditions.checkArgument(
+        manifestList != null || rootManifest != null,
+        "Snapshot %s must have a manifest list or a root manifest",
+        snapshotId);
+    Preconditions.checkArgument(
         firstRowId == null || firstRowId >= 0,
         "Invalid first-row-id (cannot be negative): %s",
         firstRowId);
@@ -175,6 +179,11 @@ class BaseSnapshot implements Snapshot {
   }
 
   private void cacheManifests(FileIO fileIO) {
+    Preconditions.checkState(
+        rootManifestLocation == null,
+        "Cannot read manifests from snapshot %s: root manifests are not supported",
+        snapshotId);
+
     if (fileIO == null) {
       throw new IllegalArgumentException("Cannot cache changes: FileIO is null");
     }
@@ -189,11 +198,7 @@ class BaseSnapshot implements Snapshot {
     }
 
     if (allManifests == null) {
-      // if manifests isn't set, then the manifest list must be read
-      Preconditions.checkArgument(
-          manifestListLocation != null,
-          "Cannot read manifests from snapshot %s: no manifest list",
-          snapshotId);
+      // if manifests isn't set, then the snapshotFile is set and should be read to get the list
       this.allManifests =
           ManifestLists.read(
               ManifestLists.newInputFile(

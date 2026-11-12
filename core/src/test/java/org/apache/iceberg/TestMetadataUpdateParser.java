@@ -429,7 +429,6 @@ public class TestMetadataUpdateParser {
   public void testAddSnapshotWithRootManifest() {
     String action = MetadataUpdateParser.ADD_SNAPSHOT;
     long snapshotId = 2;
-    int schemaId = 3;
     String rootManifest = "s3://bucket/metadata/root-manifest-2.parquet";
 
     Snapshot snapshot =
@@ -440,7 +439,7 @@ public class TestMetadataUpdateParser {
             System.currentTimeMillis(),
             DataOperations.APPEND,
             ImmutableMap.of("files-added", "4") /* summary */,
-            schemaId,
+            3 /* schemaId */,
             null /* manifestList */,
             rootManifest,
             0L /* firstRowId */,
