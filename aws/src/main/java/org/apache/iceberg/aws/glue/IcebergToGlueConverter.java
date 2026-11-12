@@ -266,9 +266,7 @@ class IcebergToGlueConverter {
       Map<String, String> existingColumnNameToComment = null;
       if (existingTable != null) {
         List<Column> existingColumns = existingTable.storageDescriptor().columns();
-        // Keyed by lowercased name because Glue returns column names lowercased. First-seen-wins
-        // on duplicate names. toColumns writes current-schema columns before historical-schema
-        // columns. Preserve the current-schema comment.
+        // Glue returns lowercased names. First-seen-wins keeps the current-schema comment.
         existingColumnNameToComment =
             existingColumns.stream()
                 .filter(column -> column.comment() != null)

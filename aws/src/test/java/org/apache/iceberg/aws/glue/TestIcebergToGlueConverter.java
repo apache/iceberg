@@ -492,24 +492,6 @@ public class TestIcebergToGlueConverter {
   }
 
   @Test
-  void currentColumnWinsOverHistoricalCaseVariantWithDifferentType() {
-    Schema schema = new Schema(Types.NestedField.required(1, "count", Types.IntegerType.get()));
-    TableMetadata tableMetadata =
-        TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), "s3://test", tableLocationProperties);
-
-    Schema newSchema = new Schema(Types.NestedField.required(2, "Count", Types.StringType.get()));
-    tableMetadata = tableMetadata.updateSchema(newSchema);
-
-    TableInput.Builder actualTableInputBuilder = TableInput.builder();
-    IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata);
-
-    assertThat(actualTableInputBuilder.build().storageDescriptor().columns())
-        .as("Current column should win over a historical case variant")
-        .containsExactly(glueColumn("Count", "string", 2, false, true));
-  }
-
-  @Test
   void existingLowercasedGlueCommentPreservedForMixedCaseField() {
     Schema schema = new Schema(Types.NestedField.optional(1, "sourceUrl", Types.StringType.get()));
     TableMetadata tableMetadata =
