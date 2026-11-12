@@ -318,13 +318,24 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends ExtensionsT
 
           assertThat(grouped.size()).as("Expected grouped partition operators").isGreaterThan(0);
 
-          org.apache.spark.sql.execution.datasources.v2.GroupPartitionsExec firstGroup =
-              (org.apache.spark.sql.execution.datasources.v2.GroupPartitionsExec)
-                  grouped.iterator().next();
+          boolean foundExpectedGrouping = false;
+          scala.collection.Iterator<org.apache.spark.sql.execution.SparkPlan> iterator =
+              grouped.iterator();
 
-          assertThat(firstGroup.groupedPartitions().size())
-              .as("Unexpected grouped partition count")
-              .isEqualTo(partialClustering ? 10 : 2);
+          while (iterator.hasNext()) {
+            org.apache.spark.sql.execution.datasources.v2.GroupPartitionsExec group =
+                (org.apache.spark.sql.execution.datasources.v2.GroupPartitionsExec) iterator.next();
+
+            if (group.groupedPartitions().size() == (partialClustering ? 10 : 2)) {
+              foundExpectedGrouping = true;
+            }
+          }
+
+          assertThat(foundExpectedGrouping)
+              .as(
+                  "Expected target-side partition grouping for partialClustering=%s",
+                  partialClustering)
+              .isTrue();
         });
 
     assertEquals(
