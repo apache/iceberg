@@ -49,7 +49,8 @@ final class JdbcUtil {
   static final String METADATA_REFRESH_MAX_RETRIES_PROPERTY =
       JdbcCatalog.PROPERTY_PREFIX + "metadata-refresh-max-retries";
   static final int METADATA_REFRESH_MAX_RETRIES_DEFAULT = 20;
-  // catalog properties that must not be passed to the JDBC driver
+  // Catalog properties that must not be passed to the JDBC driver. New catalog properties that use
+  // JdbcCatalog.PROPERTY_PREFIX must be added to this set.
   private static final Set<String> CATALOG_PROPERTIES =
       Set.of(
           STRICT_MODE_PROPERTY,
