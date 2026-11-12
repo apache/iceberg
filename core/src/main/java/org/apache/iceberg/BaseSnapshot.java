@@ -198,7 +198,7 @@ class BaseSnapshot implements Snapshot {
     }
 
     if (allManifests == null) {
-      // if manifests isn't set, then the snapshotFile is set and should be read to get the list
+      // if manifests isn't set, then the manifest list must be read
       this.allManifests =
           ManifestLists.read(
               ManifestLists.newInputFile(
