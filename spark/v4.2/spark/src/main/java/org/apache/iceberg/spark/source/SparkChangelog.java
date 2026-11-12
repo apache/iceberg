@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.ContentScanTask;
@@ -47,6 +46,7 @@ import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.Changelog;
@@ -84,31 +84,19 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
           SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS,
           SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS);
 
-  private static final Types.NestedField ROW_ID_FIELD =
-      Types.NestedField.required(
-          MetadataColumns.ROW_ID.fieldId(),
-          MetadataColumns.ROW_ID.name(),
-          MetadataColumns.ROW_ID.type(),
-          MetadataColumns.ROW_ID.doc());
-  private static final Types.NestedField ROW_VERSION_FIELD =
-      Types.NestedField.required(
-          MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(),
-          MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(),
-          MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.type(),
-          MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.doc());
-
-  private static final Types.NestedField COMMIT_VERSION_FIELD =
-      Types.NestedField.required(
-          COMMIT_VERSION_ID,
-          COMMIT_VERSION,
-          Types.LongType.get(),
-          "Iceberg snapshot sequence number");
-  private static final Types.NestedField COMMIT_TIMESTAMP_FIELD =
-      Types.NestedField.required(
-          COMMIT_TIMESTAMP_ID,
-          COMMIT_TIMESTAMP,
-          Types.TimestampType.withZone(),
-          "Iceberg snapshot commit timestamp");
+  private static final Schema CDC_METADATA_SCHEMA =
+      new Schema(
+          MetadataColumns.CHANGE_TYPE,
+          Types.NestedField.required(
+              COMMIT_VERSION_ID,
+              COMMIT_VERSION,
+              Types.LongType.get(),
+              "Iceberg snapshot sequence number"),
+          Types.NestedField.required(
+              COMMIT_TIMESTAMP_ID,
+              COMMIT_TIMESTAMP,
+              Types.TimestampType.withZone(),
+              "Iceberg snapshot commit timestamp"));
 
   private final ChangelogContext context;
   private final String[] identifierColumns;
@@ -131,16 +119,13 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
     Preconditions.checkArgument(
         TableUtil.formatVersion(table) >= 2,
         "Spark CDC requires format version 2 or later for commit sequence numbers");
+    boolean requiresRowLineage = identifierColumns.length == 0 && requiresPostProcessing(context);
     Preconditions.checkArgument(
-        !requiresPostProcessing(context)
-            || identifierColumns.length > 0
-            || TableUtil.supportsRowLineage(table),
+        !requiresRowLineage || TableUtil.supportsRowLineage(table),
         "Spark CDC post-processing requires row lineage. "
             + "Use deduplicationMode=none with computeUpdates=false for raw changes");
     this.sparkCdcSchema =
-        TypeUtil.join(
-            cdcDataSchema(table, identifierColumns.length == 0 && requiresPostProcessing(context)),
-            new Schema(MetadataColumns.CHANGE_TYPE, COMMIT_VERSION_FIELD, COMMIT_TIMESTAMP_FIELD));
+        TypeUtil.join(cdcDataSchema(table, requiresRowLineage), CDC_METADATA_SCHEMA);
   }
 
   private static void validateCdcOptions(CaseInsensitiveStringMap options) {
@@ -159,12 +144,9 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
       return new String[0];
     }
 
-    List<String> names = Splitter.on(',').trimResults().splitToList(value);
-    String[] resolved = new String[names.size()];
+    Set<String> resolved = Sets.newLinkedHashSet();
     boolean caseSensitive = SparkUtil.caseSensitive(SparkSession.active());
-    Set<String> seen = Sets.newHashSet();
-    for (int index = 0; index < names.size(); index++) {
-      String name = names.get(index);
+    for (String name : Splitter.on(',').trimResults().split(value)) {
       Types.NestedField field =
           caseSensitive
               ? schema.asStruct().field(name)
@@ -174,11 +156,10 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
           "CDC identifier column must be an existing top-level primitive field: %s",
           name);
       Preconditions.checkArgument(
-          seen.add(field.name()), "Duplicate CDC identifier column: %s", name);
-      resolved[index] = field.name();
+          resolved.add(field.name()), "Duplicate CDC identifier column: %s", name);
     }
 
-    return resolved;
+    return resolved.toArray(String[]::new);
   }
 
   /** Identifier fields consumed by the Iceberg CDC resolution rule. */
@@ -201,7 +182,9 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
     // Raw CDC can expose older files whose lineage is unknown without inventing an identity.
     Schema lineageSchema =
         requiresRowLineage
-            ? new Schema(ROW_ID_FIELD, ROW_VERSION_FIELD)
+            ? new Schema(
+                MetadataColumns.ROW_ID.asRequired(),
+                MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.asRequired())
             : new Schema(MetadataColumns.ROW_ID, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER);
     return TypeUtil.join(table.schema(), lineageSchema);
   }
@@ -379,9 +362,12 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
         startExclusive,
         endInclusive);
     List<Snapshot> snapshots = Lists.newArrayList();
+    Set<Long> snapshotIds = Sets.newHashSet();
     for (Snapshot snapshot : SnapshotUtil.ancestorsBetween(table, endInclusive, startExclusive)) {
       if (includes(context, snapshot)) {
+        validateSnapshot(snapshot, context);
         snapshots.add(snapshot);
+        snapshotIds.add(snapshot.snapshotId());
       }
     }
 
@@ -389,36 +375,27 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
       return Collections.emptyList();
     }
 
-    Set<Long> snapshotIds = Sets.newHashSet();
-    for (Snapshot snapshot : snapshots) {
-      validateSnapshot(snapshot, context);
-      snapshotIds.add(snapshot.snapshotId());
-    }
-
     IncrementalChangelogScan boundedScan =
         scan.fromSnapshotInclusive(snapshots.get(snapshots.size() - 1).snapshotId())
             .toSnapshot(snapshots.get(0).snapshotId());
-    List<ScanTaskGroup<ChangelogScanTask>> result = Lists.newArrayList();
-    try (CloseableIterable<ScanTaskGroup<ChangelogScanTask>> groups = boundedScan.planTasks()) {
-      for (ScanTaskGroup<ChangelogScanTask> group : groups) {
-        List<ChangelogScanTask> tasks = Lists.newArrayList();
-        for (ChangelogScanTask task : group.tasks()) {
-          // Commit timestamps need not follow snapshot order. Filter whole commits, not rows.
-          if (snapshotIds.contains(task.commitSnapshotId())) {
-            validateTaskLineage(task, context);
-            tasks.add(task);
-          }
-        }
-
-        if (!tasks.isEmpty()) {
-          result.add(new BaseScanTaskGroup<>(group.groupingKey(), tasks));
+    List<ChangelogScanTask> tasks = Lists.newArrayList();
+    try (CloseableIterable<ChangelogScanTask> files = boundedScan.planFiles()) {
+      for (ChangelogScanTask task : files) {
+        // Commit timestamps need not follow snapshot order. Filter whole commits, not rows.
+        if (snapshotIds.contains(task.commitSnapshotId())) {
+          validateTaskLineage(task, context);
+          tasks.add(task);
         }
       }
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close Spark CDC scan tasks", e);
     }
 
-    return result;
+    return TableScanUtil.planTaskGroups(
+        tasks,
+        boundedScan.targetSplitSize(),
+        boundedScan.splitLookback(),
+        boundedScan.splitOpenFileCost());
   }
 
   private static void validateSnapshot(Snapshot snapshot, ChangelogContext context) {
