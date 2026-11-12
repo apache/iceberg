@@ -296,9 +296,9 @@ Supported primitive types are defined in the table below. Primitive types added 
 |                  | **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
 |                  | **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
 |                  | **`binary`**       | Arbitrary-length byte array                                              |                                                  |
-| [v4](#version-4) | **`vector(E, D)`** | Fixed-length collection of finite numeric values with element type E and dimension D | E must be `int`, `long`, `float`, or `double`; D must be positive |
 | [v3](#version-3) | **`geometry(C)`**  | Geospatial features from [OGC – Simple feature access][1001]. Edge-interpolation is always linear/planar. See [Appendix G](#appendix-g-geospatial-notes). Parameterized by CRS C. If not specified, C is `OGC:CRS84`. |                                                        |
 | [v3](#version-3) | **`geography(C, A)`**  | Geospatial features from [OGC – Simple feature access][1001]. See [Appendix G](#appendix-g-geospatial-notes). Parameterized by CRS C and edge-interpolation algorithm A. If not specified, C is `OGC:CRS84` and A is `spherical`. |
+| [v4](#version-4) | **`vector(E, D)`** | Fixed-length collection of finite numeric values with element type E and dimension D | E must be `int`, `long`, `float`, or `double`; D must be positive |
 
 Notes:
 
