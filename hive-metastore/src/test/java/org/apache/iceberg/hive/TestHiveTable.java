@@ -433,9 +433,13 @@ public class TestHiveTable extends HiveTableTestBase {
         .createTable(createHiveTable(hiveTableName, tableType));
 
     catalog.setListAllTables(true);
-    assertThat(catalog.listTables(TABLE_IDENTIFIER.namespace()))
-        .hasSize(2)
-        .containsExactly(TABLE_IDENTIFIER, identifier);
+    if (tableType == TableType.VIRTUAL_VIEW) {
+      assertThat(catalog.listTables(TABLE_IDENTIFIER.namespace()))
+          .containsExactly(TABLE_IDENTIFIER);
+    } else {
+      assertThat(catalog.listTables(TABLE_IDENTIFIER.namespace()))
+          .containsExactly(TABLE_IDENTIFIER, identifier);
+    }
     catalog.setListAllTables(false); // reset to default.
 
     // create an iceberg table with the same name

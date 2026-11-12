@@ -1371,6 +1371,40 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void listTablesExcludesViews(boolean listAllTables) throws TException {
+    catalog.setListAllTables(listAllTables);
+    Namespace ns = Namespace.of(DB_NAME);
+    TableIdentifier icebergTable = TableIdentifier.of(ns, "iceberg_tbl");
+    TableIdentifier managedTable = TableIdentifier.of(ns, "managed_tbl");
+    TableIdentifier externalTable = TableIdentifier.of(ns, "external_tbl");
+
+    catalog.createTable(icebergTable, getTestSchema());
+    HIVE_METASTORE_EXTENSION
+        .metastoreClient()
+        .createTable(createNonIcebergTable(managedTable.name(), TableType.MANAGED_TABLE));
+    HIVE_METASTORE_EXTENSION
+        .metastoreClient()
+        .createTable(createNonIcebergTable(externalTable.name(), TableType.EXTERNAL_TABLE));
+    HIVE_METASTORE_EXTENSION
+        .metastoreClient()
+        .createTable(createNonIcebergTable("hive_view", TableType.VIRTUAL_VIEW));
+    catalog
+        .buildView(TableIdentifier.of(ns, "iceberg_view"))
+        .withSchema(getTestSchema())
+        .withDefaultNamespace(ns)
+        .withQuery("hive", "select * from iceberg_tbl")
+        .create();
+
+    if (listAllTables) {
+      assertThat(catalog.listTables(ns))
+          .containsExactlyInAnyOrder(icebergTable, managedTable, externalTable);
+    } else {
+      assertThat(catalog.listTables(ns)).containsExactly(icebergTable);
+    }
+  }
+
   private org.apache.hadoop.hive.metastore.api.Table createNonIcebergTable(
       String hiveTableName, TableType type) {
     StorageDescriptor sd =
