@@ -4361,6 +4361,13 @@ components:
           items:
             $ref: '#/components/schemas/FieldLabels'
 
+    TableLocation:
+      type: string
+      description:
+        The table's base location, used to resolve relative paths in metadata.
+        Must be an absolute path with a URI scheme when present, and must be present when the returned metadata contains relative paths and omits `location`, because the metadata cannot be resolved otherwise.
+        Takes precedence over `metadata.location`.
+
     LoadTableResult:
       description: |
         Result used when a table is successfully loaded, for tables at any format version.
@@ -4442,11 +4449,7 @@ components:
             Location of the table metadata file.
             Absent when the metadata is staged but not committed, as in a create transaction, and when the table has no client-visible metadata location, as for a catalog-managed table where the catalog is the source of truth for table state.
         table-location:
-          type: string
-          description:
-            The table's base location, used to resolve relative paths in metadata.
-            Must be an absolute path with a URI scheme when present, and must be present when the returned metadata contains relative paths and omits `location`, because the metadata cannot be resolved otherwise.
-            Takes precedence over `metadata.location`.
+          $ref: '#/components/schemas/TableLocation'
         metadata:
           $ref: '#/components/schemas/TableMetadata'
         config:
@@ -4710,11 +4713,7 @@ components:
           description:
             The last metadata location for the table at the time it was unregistered.
         table-location:
-          type: string
-          description:
-            The table's base location, used to resolve relative paths in metadata.
-            Must be an absolute path with a URI scheme when present, and must be present when the returned metadata contains relative paths and omits `location`, because the metadata cannot be resolved otherwise.
-            Takes precedence over `metadata.location`.
+          $ref: '#/components/schemas/TableLocation'
         metadata:
           $ref: '#/components/schemas/TableMetadata'
 
@@ -5498,11 +5497,7 @@ components:
             Location of the committed table metadata file.
             Absent when the table has no client-visible metadata location, as for a catalog-managed table where the catalog is the source of truth for table state.
         table-location:
-          type: string
-          description:
-            The table's base location, used to resolve relative paths in metadata.
-            Must be an absolute path with a URI scheme when present, and must be present when the returned metadata contains relative paths and omits `location`, because the metadata cannot be resolved otherwise.
-            Takes precedence over `metadata.location`.
+          $ref: '#/components/schemas/TableLocation'
         metadata:
           $ref: '#/components/schemas/TableMetadata'
 

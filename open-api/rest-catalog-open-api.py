@@ -897,6 +897,13 @@ class Labels(BaseModel):
     )
 
 
+class TableLocation(RootModel[str]):
+    root: str = Field(
+        ...,
+        description="The table's base location, used to resolve relative paths in metadata. Must be an absolute path with a URI scheme when present, and must be present when the returned metadata contains relative paths and omits `location`, because the metadata cannot be resolved otherwise. Takes precedence over `metadata.location`.",
+    )
+
+
 class AsyncPlanningResult(BaseModel):
     status: Literal['submitted'] = Field(
         ..., description='Status of a server-side planning operation'
@@ -2076,11 +2083,7 @@ class LoadTableResult(BaseModel):
         alias='metadata-location',
         description='Location of the table metadata file. Absent when the metadata is staged but not committed, as in a create transaction, and when the table has no client-visible metadata location, as for a catalog-managed table where the catalog is the source of truth for table state.',
     )
-    table_location: str | None = Field(
-        None,
-        alias='table-location',
-        description="The table's base location, used to resolve relative paths in metadata. Must be an absolute path with a URI scheme when present, and must be present when the returned metadata contains relative paths and omits `location`, because the metadata cannot be resolved otherwise. Takes precedence over `metadata.location`.",
-    )
+    table_location: TableLocation | None = Field(None, alias='table-location')
     metadata: TableMetadata
     config: dict[str, str] | None = None
     storage_credentials: list[StorageCredential] | None = Field(
@@ -2166,11 +2169,7 @@ class UnregisterTableResult(BaseModel):
         alias='metadata-location',
         description='The last metadata location for the table at the time it was unregistered.',
     )
-    table_location: str | None = Field(
-        None,
-        alias='table-location',
-        description="The table's base location, used to resolve relative paths in metadata. Must be an absolute path with a URI scheme when present, and must be present when the returned metadata contains relative paths and omits `location`, because the metadata cannot be resolved otherwise. Takes precedence over `metadata.location`.",
-    )
+    table_location: TableLocation | None = Field(None, alias='table-location')
     metadata: TableMetadata
 
 
@@ -2370,11 +2369,7 @@ class CommitTableResponse(BaseModel):
         alias='metadata-location',
         description='Location of the committed table metadata file. Absent when the table has no client-visible metadata location, as for a catalog-managed table where the catalog is the source of truth for table state.',
     )
-    table_location: str | None = Field(
-        None,
-        alias='table-location',
-        description="The table's base location, used to resolve relative paths in metadata. Must be an absolute path with a URI scheme when present, and must be present when the returned metadata contains relative paths and omits `location`, because the metadata cannot be resolved otherwise. Takes precedence over `metadata.location`.",
-    )
+    table_location: TableLocation | None = Field(None, alias='table-location')
     metadata: TableMetadata
 
 
