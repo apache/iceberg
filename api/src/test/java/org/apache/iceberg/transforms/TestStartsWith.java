@@ -60,6 +60,23 @@ public class TestStartsWith {
   }
 
   @Test
+  void truncateProjectionsCountCodePoints() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).truncate(COLUMN, 2).build();
+    // a supplementary character is one code point but two UTF-16 chars
+    String smile = "😀";
+
+    assertProjectionInclusive(
+        spec, startsWith(COLUMN, smile), smile, Expression.Operation.STARTS_WITH);
+    assertProjectionInclusive(
+        spec, startsWith(COLUMN, smile + "a"), smile + "a", Expression.Operation.EQ);
+
+    assertProjectionStrict(
+        spec, startsWith(COLUMN, smile), smile, Expression.Operation.STARTS_WITH);
+    assertProjectionStrict(
+        spec, startsWith(COLUMN, smile + "a"), smile + "a", Expression.Operation.EQ);
+  }
+
+  @Test
   @SuppressWarnings("unchecked")
   public void testTruncateString() {
     Truncate<String> trunc = Truncate.get(2);
