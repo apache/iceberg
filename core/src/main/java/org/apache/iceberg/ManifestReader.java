@@ -400,7 +400,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private InclusiveMetricsEvaluator metricsEvaluator() {
     if (lazyMetricsEvaluator == null) {
       this.lazyMetricsEvaluator =
-          new InclusiveMetricsEvaluator(spec.schema(), rowFilter, caseSensitive);
+          InclusiveMetricsEvaluator.forRowFilter(rowFilter, spec, caseSensitive);
     }
     return lazyMetricsEvaluator;
   }
