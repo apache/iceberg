@@ -438,6 +438,16 @@ public class BaseTransaction implements Transaction {
 
   private void applyUpdates(TableOperations underlyingOps) {
     if (base != underlyingOps.refresh()) {
+      // A transaction may stage metadata directly through its TableOperations rather than
+      // registering PendingUpdates (e.g. the REST catalog test adapter). Such changes cannot
+      // be replayed after a concurrent commit. Failing is safer than silently dropping them
+      // and reporting a successful transaction.
+      if (updates.isEmpty()) {
+        throw new PendingUpdateFailedException(
+            new CommitFailedException(
+                "Cannot retry transaction after a concurrent update: no pending updates to replay"));
+      }
+
       // use refreshed the metadata
       this.base = underlyingOps.current();
       this.current = underlyingOps.current();
