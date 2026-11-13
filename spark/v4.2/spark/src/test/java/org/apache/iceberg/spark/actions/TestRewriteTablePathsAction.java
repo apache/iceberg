@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import static org.apache.iceberg.spark.actions.RewriteTablePathSparkAction.NOT_APPLICABLE;
+import static org.apache.iceberg.spark.actions.RewriteTablePathResultAssert.assertThat;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -33,7 +33,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -259,9 +258,13 @@ public class TestRewriteTablePathsAction extends TestBase {
             .endVersion("v3.metadata.json")
             .execute();
 
-    assertThat(result.latestVersion()).isEqualTo("v3.metadata.json");
-
-    checkFileNum(3, 2, 2, 9, result);
+    assertThat(result)
+        .hasLatestVersion("v3.metadata.json")
+        .hasVersionFiles(3)
+        .hasManifestLists(2)
+        .hasManifests(2)
+        .hasContentFiles(2)
+        .hasNoOtherFiles();
 
     // copy the metadata files and data files
     copyTableFiles(result);
@@ -308,7 +311,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .startVersion("v2.metadata.json")
             .execute();
 
-    checkFileNum(1, 1, 1, 4, result);
+    assertThat(result)
+        .hasVersionFiles(1)
+        .hasManifestLists(1)
+        .hasManifests(1)
+        .hasContentFiles(1)
+        .hasNoOtherFiles();
 
     List<Tuple2<String, String>> paths = readPathPairList(result.fileListLocation());
 
@@ -382,7 +390,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .startVersion("v2.metadata.json")
             .execute();
 
-    checkFileNum(2, 2, 2, 8, result);
+    assertThat(result)
+        .hasVersionFiles(2)
+        .hasManifestLists(2)
+        .hasManifests(2)
+        .hasContentFiles(2)
+        .hasNoOtherFiles();
 
     // start from the first version
     RewriteTablePath.Result result1 =
@@ -392,7 +405,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .startVersion("v1.metadata.json")
             .execute();
 
-    checkFileNum(3, 3, 3, 12, result1);
+    assertThat(result1)
+        .hasVersionFiles(3)
+        .hasManifestLists(3)
+        .hasManifests(3)
+        .hasContentFiles(3)
+        .hasNoOtherFiles();
   }
 
   @TestTemplate
@@ -403,7 +421,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(tableLocation, targetTableLocation())
             .execute();
 
-    checkFileNum(3, 2, 2, 9, result);
+    assertThat(result)
+        .hasVersionFiles(3)
+        .hasManifestLists(2)
+        .hasManifests(2)
+        .hasContentFiles(2)
+        .hasNoOtherFiles();
   }
 
   @TestTemplate
@@ -414,7 +437,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(table.location(), targetTableLocation())
             .stagingLocation(stagingLocation())
             .execute();
-    checkFileNum(3, 2, 2, 9, initialResult);
+    assertThat(initialResult)
+        .hasVersionFiles(3)
+        .hasManifestLists(2)
+        .hasManifests(2)
+        .hasContentFiles(2)
+        .hasNoOtherFiles();
 
     // rewrite manifest without change data files
     RewriteManifests.Result rewriteManifestResult = actions().rewriteManifests(table).execute();
@@ -430,7 +458,11 @@ public class TestRewriteTablePathsAction extends TestBase {
             .execute();
 
     // no data files need to move
-    checkFileNum(1, 1, addedManifest, 3, postReweiteResult);
+    assertThat(postReweiteResult)
+        .hasVersionFiles(1)
+        .hasManifestLists(1)
+        .hasManifests(addedManifest)
+        .hasNoOtherFiles();
   }
 
   @TestTemplate
@@ -453,7 +485,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .stagingLocation(stagingLocation())
             .execute();
 
-    checkFileNum(4, 3, 3, 12, result);
+    assertThat(result)
+        .hasVersionFiles(4)
+        .hasManifestLists(3)
+        .hasManifests(3)
+        .hasContentFiles(2)
+        .hasNoOtherFiles();
 
     // copy the metadata files and data files
     copyTableFiles(result);
@@ -525,7 +562,12 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // We have one more snapshot, an additional manifest list, and a new (delete) manifest,
     // and an additional position delete
-    checkFileNum(4, 3, 3, 13, result);
+    assertThat(result)
+        .hasVersionFiles(4)
+        .hasManifestLists(3)
+        .hasManifests(3)
+        .hasContentFiles(3)
+        .hasNoOtherFiles();
 
     // copy the metadata files and data files
     copyTableFiles(result);
@@ -577,7 +619,12 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // We have one more snapshot, an additional manifest list, and a new (delete) manifest,
     // and an additional position delete
-    checkFileNum(4, 3, 3, 13, result);
+    assertThat(result)
+        .hasVersionFiles(4)
+        .hasManifestLists(3)
+        .hasManifests(3)
+        .hasContentFiles(3)
+        .hasNoOtherFiles();
 
     // copy the metadata files and data files
     copyTableFiles(result);
@@ -648,9 +695,9 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
             .execute();
 
-    assertThat(result.rewrittenDeleteFilePathsCount())
+    assertThat(result)
         .as("Should have rewritten exactly 1 delete file after deduplication")
-        .isEqualTo(1);
+        .hasRewrittenDeleteFilePaths(1);
   }
 
   // Regression test: when the same position delete file is referenced from manifests in different
@@ -900,9 +947,9 @@ public class TestRewriteTablePathsAction extends TestBase {
             .stagingLocation(stagingLocation())
             .rewriteLocationPrefix(tableWithDVs.location(), targetTableLocation())
             .execute();
-    assertThat(result.rewrittenDeleteFilePathsCount())
+    assertThat(result)
         .as("Two DVs are two delete files with rewritten paths")
-        .isEqualTo(2);
+        .hasRewrittenDeleteFilePaths(2);
     copyTableFiles(result);
 
     Table targetTable = TABLES.load(targetTableLocation());
@@ -986,7 +1033,12 @@ public class TestRewriteTablePathsAction extends TestBase {
     // We have four metadata files: for the table creation, for the initial snapshot, for the
     // second append here, and for commit with equality deletes. Thus, we have three manifest lists.
     // We have a data file for each snapshot (two with data, one with equality deletes)
-    checkFileNum(4, 3, 3, 13, result);
+    assertThat(result)
+        .hasVersionFiles(4)
+        .hasManifestLists(3)
+        .hasManifests(3)
+        .hasContentFiles(3)
+        .hasNoOtherFiles();
 
     // copy the metadata files and data files
     copyTableFiles(result);
@@ -1035,12 +1087,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(location, targetTableLocation())
             .execute();
 
-    checkFileNum(
-        totalIteration - missingVersionFile,
-        totalIteration - expiredManifestListCount,
-        totalIteration,
-        totalIteration * 4 - missingVersionFile - expiredManifestListCount - missingDataFile,
-        result);
+    assertThat(result)
+        .hasVersionFiles(totalIteration - missingVersionFile)
+        .hasManifestLists(totalIteration - expiredManifestListCount)
+        .hasManifests(totalIteration)
+        .hasContentFiles(totalIteration - missingDataFile)
+        .hasNoOtherFiles();
   }
 
   @TestTemplate
@@ -1053,7 +1105,7 @@ public class TestRewriteTablePathsAction extends TestBase {
             .execute();
 
     // the only rebuilt file is v1.metadata.json since it contains no snapshot
-    checkFileNum(1, 0, 0, 1, result);
+    assertThat(result).hasVersionFiles(1).hasNoOtherFiles();
   }
 
   @TestTemplate
@@ -1068,7 +1120,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(table.location(), targetTableLocation())
             .execute();
 
-    checkFileNum(4, 1, 2, 9, result);
+    assertThat(result)
+        .hasVersionFiles(4)
+        .hasManifestLists(1)
+        .hasManifests(2)
+        .hasContentFiles(2)
+        .hasNoOtherFiles();
   }
 
   @TestTemplate
@@ -1110,7 +1167,12 @@ public class TestRewriteTablePathsAction extends TestBase {
     // 5 version files include 1 table creation 3 overwrite and 1 snapshot expiration
     // 3 overwrites generate 3 manifest list and 5 manifests with 3 data files
     // snapshot expiration removed 1 of each
-    checkFileNum(5, 2, 4, 13, result);
+    assertThat(result)
+        .hasVersionFiles(5)
+        .hasManifestLists(2)
+        .hasManifests(4)
+        .hasContentFiles(2)
+        .hasNoOtherFiles();
 
     // copy the metadata files and data files
     copyTableFiles(result);
@@ -1156,7 +1218,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .execute();
 
     // 2 metadata.json, 1 manifest list file, 1 manifest files
-    checkFileNum(2, 1, 1, 5, result);
+    assertThat(result)
+        .hasVersionFiles(2)
+        .hasManifestLists(1)
+        .hasManifests(1)
+        .hasContentFiles(1)
+        .hasNoOtherFiles();
   }
 
   @TestTemplate
@@ -1174,7 +1241,7 @@ public class TestRewriteTablePathsAction extends TestBase {
             .execute();
 
     // only v4.metadata.json needs to move
-    checkFileNum(1, 0, 0, 1, result);
+    assertThat(result).hasVersionFiles(1).hasNoOtherFiles();
   }
 
   @TestTemplate
@@ -1220,7 +1287,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(table.location(), newTableLocation())
             .stagingLocation(stagingLocation())
             .execute();
-    checkFileNum(6, 3, 3, 15, result);
+    assertThat(result)
+        .hasVersionFiles(6)
+        .hasManifestLists(3)
+        .hasManifests(3)
+        .hasContentFiles(3)
+        .hasNoOtherFiles();
   }
 
   @TestTemplate
@@ -1245,7 +1317,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .execute();
 
     // There are 3 snapshots in total, although the current snapshot is the second one.
-    checkFileNum(5, 3, 3, 14, result);
+    assertThat(result)
+        .hasVersionFiles(5)
+        .hasManifestLists(3)
+        .hasManifests(3)
+        .hasContentFiles(3)
+        .hasNoOtherFiles();
   }
 
   @TestTemplate
@@ -1262,7 +1339,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .execute();
 
     // check the result
-    checkFileNum(4, 2, 2, 10, result);
+    assertThat(result)
+        .hasVersionFiles(4)
+        .hasManifestLists(2)
+        .hasManifests(2)
+        .hasContentFiles(2)
+        .hasNoOtherFiles();
   }
 
   @TestTemplate
@@ -1280,7 +1362,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
             .execute();
 
-    checkFileNum(3, 2, 2, 9, result);
+    assertThat(result)
+        .hasVersionFiles(3)
+        .hasManifestLists(2)
+        .hasManifests(2)
+        .hasContentFiles(2)
+        .hasNoOtherFiles();
   }
 
   @TestTemplate
@@ -1297,7 +1384,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .endVersion("v2.gz.metadata.json")
             .execute();
 
-    checkFileNum(2, 1, 1, 5, result);
+    assertThat(result)
+        .hasVersionFiles(2)
+        .hasManifestLists(1)
+        .hasManifests(1)
+        .hasContentFiles(1)
+        .hasNoOtherFiles();
 
     result =
         actions()
@@ -1306,7 +1398,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .startVersion("v1.gz.metadata.json")
             .execute();
 
-    checkFileNum(2, 2, 2, 8, result);
+    assertThat(result)
+        .hasVersionFiles(2)
+        .hasManifestLists(2)
+        .hasManifests(2)
+        .hasContentFiles(2)
+        .hasNoOtherFiles();
   }
 
   @TestTemplate
@@ -1367,11 +1464,14 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteTablePath(sourceTable)
             .rewriteLocationPrefix(sourceTableLocation, targetTableLocation)
             .execute();
-    checkFileNum(
-        iterations * 2 + 1, iterations, iterations, 0, iterations, iterations * 6 + 1, result);
-
-    findAndAssertFileInFileList(
-        result, "partition-stats", sourceTableLocation, targetTableLocation);
+    assertThat(result)
+        .hasVersionFiles(iterations * 2 + 1)
+        .hasManifestLists(iterations)
+        .hasManifests(iterations)
+        .hasPartitionStatisticsFiles(iterations)
+        .hasContentFiles(iterations)
+        .hasNoOtherFiles()
+        .hasPartitionStatisticsFilesCopiedAsIs(sourceTableLocation, targetTableLocation);
   }
 
   @TestTemplate
@@ -1399,8 +1499,13 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
             .execute();
 
-    checkFileNum(
-        iterations * 2 + 1, iterations, iterations, iterations, iterations * 6 + 1, result);
+    assertThat(result)
+        .hasVersionFiles(iterations * 2 + 1)
+        .hasManifestLists(iterations)
+        .hasManifests(iterations)
+        .hasStatisticsFiles(iterations)
+        .hasContentFiles(iterations)
+        .hasNoOtherFiles();
   }
 
   @TestTemplate
@@ -1426,9 +1531,14 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(sourceTableLocation, targetTableLocation)
             .execute();
 
-    checkFileNum(3, 1, 1, 1, 7, result);
-
-    findAndAssertFileInFileList(result, ".stats", sourceTableLocation, targetTableLocation);
+    assertThat(result)
+        .hasVersionFiles(3)
+        .hasManifestLists(1)
+        .hasManifests(1)
+        .hasStatisticsFiles(1)
+        .hasContentFiles(1)
+        .hasNoOtherFiles()
+        .hasStatisticsFilesCopiedAsIs(sourceTableLocation, targetTableLocation);
   }
 
   @TestTemplate
@@ -1454,7 +1564,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .endVersion(endVersion)
             .execute();
 
-    checkFileNum(2, 1, 1, 5, result);
+    assertThat(result)
+        .hasVersionFiles(2)
+        .hasManifestLists(1)
+        .hasManifests(1)
+        .hasContentFiles(1)
+        .hasNoOtherFiles();
 
     // set the first version as the lastCopiedVersion
     String firstVersion = fileName(currentMetadata.previousFiles().get(0).file());
@@ -1465,7 +1580,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .startVersion(firstVersion)
             .execute();
 
-    checkFileNum(2, 2, 2, 8, result);
+    assertThat(result)
+        .hasVersionFiles(2)
+        .hasManifestLists(2)
+        .hasManifests(2)
+        .hasContentFiles(2)
+        .hasNoOtherFiles();
   }
 
   // Metastore table tests
@@ -1492,7 +1612,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(newTableLocation(), targetTableLocation())
             .execute();
 
-    checkFileNum(4, 2, 2, 10, result);
+    assertThat(result)
+        .hasVersionFiles(4)
+        .hasManifestLists(2)
+        .hasManifests(2)
+        .hasContentFiles(2)
+        .hasNoOtherFiles();
 
     // pick up a version from the old metadata dir as the end version
     RewriteTablePath.Result result1 =
@@ -1502,7 +1627,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .endVersion(fileName(metadataFilePath))
             .execute();
 
-    checkFileNum(2, 1, 1, 5, result1);
+    assertThat(result1)
+        .hasVersionFiles(2)
+        .hasManifestLists(1)
+        .hasManifests(1)
+        .hasContentFiles(1)
+        .hasNoOtherFiles();
 
     // pick up a version from the old metadata dir as the last copied version
     RewriteTablePath.Result result2 =
@@ -1512,7 +1642,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .startVersion(fileName(metadataFilePath))
             .execute();
 
-    checkFileNum(2, 1, 1, 5, result2);
+    assertThat(result2)
+        .hasVersionFiles(2)
+        .hasManifestLists(1)
+        .hasManifests(1)
+        .hasContentFiles(1)
+        .hasNoOtherFiles();
   }
 
   @TestTemplate
@@ -1564,7 +1699,12 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(newTableLocation(), targetTableLocation())
             .execute();
 
-    checkFileNum(3, 2, 2, 9, result);
+    assertThat(result)
+        .hasVersionFiles(3)
+        .hasManifestLists(2)
+        .hasManifests(2)
+        .hasContentFiles(2)
+        .hasNoOtherFiles();
     // one data and one metadata file
     copyTableFiles(result);
 
@@ -1694,11 +1834,10 @@ public class TestRewriteTablePathsAction extends TestBase {
             .createFileList(false) // Disable file list creation
             .execute();
 
-    assertThat(result.latestVersion()).isEqualTo("v3.metadata.json");
-
-    assertThat(result.fileListLocation())
+    assertThat(result)
+        .hasLatestVersion("v3.metadata.json")
         .as("File list location should not be set when createFileList is false")
-        .isEqualTo(NOT_APPLICABLE);
+        .hasNoFileList();
   }
 
   @TestTemplate
@@ -1717,74 +1856,15 @@ public class TestRewriteTablePathsAction extends TestBase {
               .executeWith(service)
               .execute();
 
-      checkFileNum(50, 50, 50, 200, result);
+      assertThat(result)
+          .hasVersionFiles(50)
+          .hasManifestLists(50)
+          .hasManifests(50)
+          .hasContentFiles(50)
+          .hasNoOtherFiles();
     } finally {
       service.shutdown();
     }
-  }
-
-  protected void checkFileNum(
-      int versionFileCount,
-      int manifestListCount,
-      int manifestFileCount,
-      int totalCount,
-      RewriteTablePath.Result result) {
-    checkFileNum(versionFileCount, manifestListCount, manifestFileCount, 0, 0, totalCount, result);
-  }
-
-  protected void checkFileNum(
-      int versionFileCount,
-      int manifestListCount,
-      int manifestFileCount,
-      int statisticsFileCount,
-      int totalCount,
-      RewriteTablePath.Result result) {
-    checkFileNum(
-        versionFileCount,
-        manifestListCount,
-        manifestFileCount,
-        statisticsFileCount,
-        0,
-        totalCount,
-        result);
-  }
-
-  protected void checkFileNum(
-      int versionFileCount,
-      int manifestListCount,
-      int manifestFileCount,
-      int statisticsFileCount,
-      int partitionFileCount,
-      int totalCount,
-      RewriteTablePath.Result result) {
-    List<String> filesToMove =
-        spark
-            .read()
-            .format("text")
-            .load(result.fileListLocation())
-            .as(Encoders.STRING())
-            .collectAsList();
-    Predicate<String> isManifest =
-        f -> f.contains("optimized-m-") || f.contains("-m0.") || f.contains("-m1.");
-    Predicate<String> isManifestList = f -> f.contains("snap-") && f.endsWith(".avro");
-    Predicate<String> isMetadataJSON = f -> f.endsWith(".metadata.json");
-
-    assertThat(filesToMove.stream().filter(isMetadataJSON))
-        .as("Wrong rebuilt version file count")
-        .hasSize(versionFileCount);
-    assertThat(filesToMove.stream().filter(isManifestList))
-        .as("Wrong rebuilt Manifest list file count")
-        .hasSize(manifestListCount);
-    assertThat(filesToMove.stream().filter(isManifest))
-        .as("Wrong rebuilt Manifest file file count")
-        .hasSize(manifestFileCount);
-    assertThat(filesToMove.stream().filter(f -> f.endsWith(".stats")))
-        .as("Wrong rebuilt Statistic file count")
-        .hasSize(statisticsFileCount);
-    assertThat(filesToMove.stream().filter(f -> f.contains("partition-stats")))
-        .as("Wrong rebuilt Partition Statistic file count")
-        .hasSize(partitionFileCount);
-    assertThat(filesToMove).as("Wrong total file count").hasSize(totalCount);
   }
 
   protected String newTableLocation() throws IOException {
@@ -1956,37 +2036,5 @@ public class TestRewriteTablePathsAction extends TestBase {
     blockInfoManager.lockForWriting(blockId, true);
     blockInfoManager.removeBlock(blockId);
     blockManager.memoryStore().remove(blockId);
-  }
-
-  private void findAndAssertFileInFileList(
-      RewriteTablePath.Result result,
-      String fileIdentifier,
-      String sourceTableLocation,
-      String targetTableLocation) {
-
-    List<Tuple2<String, String>> filesToMove = readPathPairList(result.fileListLocation());
-
-    // Find the file path pair that contains the specified file identifier
-    Tuple2<String, String> filePathPair =
-        filesToMove.stream()
-            .filter(pair -> pair._1().contains(fileIdentifier))
-            .findFirst()
-            .orElse(null);
-
-    // Assert that the file was found in the list
-    assertThat(filePathPair).as("Should find " + fileIdentifier + " file in file list").isNotNull();
-
-    // Validate source path: should point to source table location, contain metadata, and not
-    // staging
-    assertThat(filePathPair._1())
-        .as(fileIdentifier + " source should point to source table location and NOT staging")
-        .startsWith(sourceTableLocation)
-        .contains("/metadata/")
-        .doesNotContain("staging");
-
-    // Validate target path: should point to target table location
-    assertThat(filePathPair._2())
-        .as(fileIdentifier + " target should point to target table location")
-        .startsWith(targetTableLocation);
   }
 }
