@@ -21,10 +21,15 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.variants.Variant;
@@ -47,14 +52,42 @@ import org.apache.iceberg.variants.VariantObject;
  */
 public class InclusiveMetricsEvaluator {
   private final Expression expr;
+  private final PartitionedInLiterals partitionedLiterals;
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
-    this(schema, unbound, true);
+    this(schema, PartitionSpec.unpartitioned(), unbound, true);
   }
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
+    this(schema, PartitionSpec.unpartitioned(), unbound, caseSensitive);
+  }
+
+  /**
+   * Create an evaluator for a row filter on files written with the given partition spec.
+   *
+   * <p>For an {@code IN} predicate on a column that has a partition field with a transform that
+   * does not preserve order, such as {@code bucket}, only the literals that map to the file's
+   * partition value are compared against the file's column metrics. Literals that map to other
+   * partition values cannot match rows in the file. Partition fields with order-preserving
+   * transforms, such as {@code identity} and {@code truncate}, are not used, and all other
+   * predicates are evaluated as by {@link #InclusiveMetricsEvaluator(Schema, Expression, boolean)}.
+   *
+   * @param rowFilter an unbound row filter
+   * @param spec the partition spec of the files that will be evaluated
+   * @param caseSensitive whether to bind the filter case sensitively
+   * @return an evaluator for files written with the spec
+   */
+  public static InclusiveMetricsEvaluator forRowFilter(
+      Expression rowFilter, PartitionSpec spec, boolean caseSensitive) {
+    Preconditions.checkArgument(spec != null, "Invalid partition spec: null");
+    return new InclusiveMetricsEvaluator(spec.schema(), spec, rowFilter, caseSensitive);
+  }
+
+  private InclusiveMetricsEvaluator(
+      Schema schema, PartitionSpec spec, Expression unbound, boolean caseSensitive) {
     StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
+    this.partitionedLiterals = PartitionedInLiterals.build(expr, spec);
   }
 
   /**
@@ -74,6 +107,7 @@ public class InclusiveMetricsEvaluator {
     private Map<Integer, Long> nanCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
+    private StructLike partition = null;
 
     private boolean eval(ContentFile<?> file) {
       if (file.recordCount() == 0) {
@@ -92,8 +126,14 @@ public class InclusiveMetricsEvaluator {
       this.nanCounts = file.nanValueCounts();
       this.lowerBounds = file.lowerBounds();
       this.upperBounds = file.upperBounds();
+      this.partition = file.partition();
 
       return ExpressionVisitors.visitEvaluator(expr, this);
+    }
+
+    @Override
+    protected <T> Collection<T> literals(Set<T> literalSet) {
+      return partitionedLiterals.literalsFor(literalSet, partition);
     }
 
     @Override

@@ -63,6 +63,17 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
     return null;
   }
 
+  /**
+   * Return the literals of an {@code IN} predicate to compare against the current input.
+   *
+   * <p>Subclasses may return a subset when the input cannot contain some literals, for example when
+   * a file's partition value excludes them. An empty result means the input cannot match. The
+   * default returns all literals.
+   */
+  protected <T> Collection<T> literals(Set<T> literalSet) {
+    return literalSet;
+  }
+
   @Override
   public Boolean alwaysTrue() {
     return ROWS_MIGHT_MATCH; // all rows match
@@ -301,7 +312,10 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
       return ROWS_CANNOT_MATCH;
     }
 
-    Collection<T> literals = literalSet;
+    Collection<T> literals = literals(literalSet);
+    if (literals.isEmpty()) {
+      return ROWS_CANNOT_MATCH;
+    }
 
     if (literals.size() > IN_PREDICATE_LIMIT) {
       // skip evaluating the predicate if the number of values is too big
