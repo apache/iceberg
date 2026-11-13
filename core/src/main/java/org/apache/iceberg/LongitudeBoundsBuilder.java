@@ -28,9 +28,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
  * longitudes in [-180, 180]. Empty input produces no bounds.
  */
 class LongitudeBoundsBuilder {
-  private static final double MIN_LONGITUDE = -180.0;
-  private static final double MAX_LONGITUDE = 180.0;
-  private static final double LONGITUDE_SPAN = MAX_LONGITUDE - MIN_LONGITUDE;
   private static final int MAX_INTERVALS = 64;
 
   private final List<Interval> intervals = Lists.newArrayList();
@@ -40,14 +37,14 @@ class LongitudeBoundsBuilder {
     if (west <= east) {
       insertSegment(west, east);
     } else {
-      insertSegment(west, MAX_LONGITUDE);
-      insertSegment(MIN_LONGITUDE, east);
+      insertSegment(west, GeographyConstants.MAX_LONGITUDE);
+      insertSegment(GeographyConstants.MIN_LONGITUDE, east);
     }
   }
 
   Interval build() {
     if (fullLongitude) {
-      return new Interval(MIN_LONGITUDE, MAX_LONGITUDE);
+      return new Interval(GeographyConstants.MIN_LONGITUDE, GeographyConstants.MAX_LONGITUDE);
     } else if (intervals.isEmpty()) {
       return null;
     }
@@ -55,7 +52,7 @@ class LongitudeBoundsBuilder {
     // The covering circular interval is the complement of the largest uncovered gap.
     Interval first = intervals.get(0);
     Interval last = intervals.get(intervals.size() - 1);
-    double largestGap = LONGITUDE_SPAN + first.west - last.east;
+    double largestGap = GeographyConstants.LONGITUDE_SPAN + first.west - last.east;
     Interval bounds = new Interval(first.west, last.east);
     for (int index = 1; index < intervals.size(); index += 1) {
       Interval previous = intervals.get(index - 1);
@@ -91,7 +88,8 @@ class LongitudeBoundsBuilder {
     }
 
     intervals.subList(mergeFrom, index).clear();
-    if (mergedWest <= MIN_LONGITUDE && mergedEast >= MAX_LONGITUDE) {
+    if (mergedWest <= GeographyConstants.MIN_LONGITUDE
+        && mergedEast >= GeographyConstants.MAX_LONGITUDE) {
       fullLongitude = true;
       intervals.clear();
       return;
