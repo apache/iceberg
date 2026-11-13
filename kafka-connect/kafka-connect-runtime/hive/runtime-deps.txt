@@ -95,7 +95,7 @@ commons-codec:commons-codec:1.19
 commons-dbcp:commons-dbcp:1.4
 commons-io:commons-io:2.20
 commons-lang:commons-lang:2.6
-commons-logging:commons-logging:1.3
+commons-logging:commons-logging:1.2
 commons-net:commons-net:3.9
 commons-pool:commons-pool:1.6
 dev.cel:common:0.13
@@ -193,6 +193,7 @@ javax.servlet.jsp:jsp-api:2.1
 javax.servlet:javax.servlet-api:3.1
 javax.transaction:jta:1.1
 javax.xml.bind:jaxb-api:2.2
+javax.xml.stream:stax-api:1.0-2
 javolution:javolution:5.5
 jline:jline:2.12
 joda-time:joda-time:2.8
