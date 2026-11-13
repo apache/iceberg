@@ -51,8 +51,7 @@ class BucketPartitioner implements Partitioner<Integer> {
    * Determine the partition id based on the following criteria: If the number of writers <= the
    * number of buckets, an evenly distributed number of buckets will be assigned to each writer (one
    * writer -> many buckets). Conversely, if the number of writers > the number of buckets the logic
-   * is handled by the {@link #getPartitionWithMoreWritersThanBuckets
-   * getPartitionWritersGreaterThanBuckets} method.
+   * is handled by the {@link #getPartitionWithMoreWritersThanBuckets} method.
    *
    * @param bucketId the bucketId for each request
    * @param numPartitions the total number of partitions
@@ -72,18 +71,29 @@ class BucketPartitioner implements Partitioner<Integer> {
     }
   }
 
-  /*-
+  /**
    * If the number of writers > the number of buckets each partitioner will keep a state of multiple
-   * writers per bucket as evenly as possible, and will round-robin the requests across them, in this
-   * case each writer will target only one bucket at all times (many writers -> one bucket). Example:
-   * Configuration: numPartitions (writers) = 5, maxBuckets = 2
-   * Expected behavior:
-   * - Records for Bucket 0 will be "round robin" between Writers 0, 2 and 4
-   * - Records for Bucket 1 will always use Writer 1 and 3
-   * Notes:
-   * - maxNumWritersPerBucket determines when to reset the currentBucketWriterOffset to 0 for this bucketId
-   * - When numPartitions is not evenly divisible by maxBuckets, some buckets will have one more writer (extraWriter).
-   * In this example Bucket 0 has an "extra writer" to consider before resetting its offset to 0.
+   * writers per bucket as evenly as possible, and will round-robin the requests across them, in
+   * this case each writer will target only one bucket at all times (many writers -> one bucket).
+   *
+   * <p>Example: Configuration: numPartitions (writers) = 5, maxBuckets = 2
+   *
+   * <p>Expected behavior:
+   *
+   * <ul>
+   *   <li>Records for Bucket 0 will be "round robin" between Writers 0, 2 and 4
+   *   <li>Records for Bucket 1 will always use Writer 1 and 3
+   * </ul>
+   *
+   * <p>Notes:
+   *
+   * <ul>
+   *   <li>maxNumWritersPerBucket determines when to reset the currentBucketWriterOffset to 0 for
+   *       this bucketId
+   *   <li>When numPartitions is not evenly divisible by maxBuckets, some buckets will have one more
+   *       writer (extraWriter). In this example Bucket 0 has an "extra writer" to consider before
+   *       resetting its offset to 0.
+   * </ul>
    *
    * @return the destination partition index (writer subtask id)
    */
