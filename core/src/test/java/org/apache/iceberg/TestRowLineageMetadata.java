@@ -70,21 +70,21 @@ public class TestRowLineageMetadata {
   public void testSnapshotRowIDValidation() {
     Snapshot snapshot =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, null, null);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, null, null, null);
     assertThat(snapshot.firstRowId()).isNull();
     assertThat(snapshot.addedRows()).isNull();
 
     // added-rows will be set to null if first-row-id is null
     snapshot =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, 10L, null);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, null, 10L, null);
     assertThat(snapshot.firstRowId()).isNull();
     assertThat(snapshot.addedRows()).isNull();
 
     // added-rows and first-row-id can be 0
     snapshot =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 0L, 0L, null);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, 0L, 0L, null);
     assertThat(snapshot.firstRowId()).isEqualTo(0);
     assertThat(snapshot.addedRows()).isEqualTo(0);
 
@@ -100,6 +100,7 @@ public class TestRowLineageMetadata {
                     1,
                     "ml.avro",
                     null,
+                    null /* rootSizeInBytes */,
                     10L,
                     null,
                     null))
@@ -109,14 +110,38 @@ public class TestRowLineageMetadata {
     assertThatThrownBy(
             () ->
                 new BaseSnapshot(
-                    0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 0L, -1L, null))
+                    0 /* sequenceNumber */,
+                    1 /* snapshotId */,
+                    null /* parentId */,
+                    0 /* timestampMillis */,
+                    DataOperations.APPEND,
+                    null /* summary */,
+                    1 /* schemaId */,
+                    "ml.avro" /* manifestList */,
+                    null /* rootManifest */,
+                    null /* rootSizeInBytes */,
+                    0L /* firstRowId */,
+                    -1L /* addedRows */,
+                    null /* keyId */))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid added-rows (cannot be negative): -1");
 
     assertThatThrownBy(
             () ->
                 new BaseSnapshot(
-                    0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, -1L, 1L, null))
+                    0 /* sequenceNumber */,
+                    1 /* snapshotId */,
+                    null /* parentId */,
+                    0 /* timestampMillis */,
+                    DataOperations.APPEND,
+                    null /* summary */,
+                    1 /* schemaId */,
+                    "ml.avro" /* manifestList */,
+                    null /* rootManifest */,
+                    null /* rootSizeInBytes */,
+                    -1L /* firstRowId */,
+                    1L /* addedRows */,
+                    null /* keyId */))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid first-row-id (cannot be negative): -1");
   }
@@ -138,6 +163,7 @@ public class TestRowLineageMetadata {
             1,
             "foo",
             null,
+            null /* rootSizeInBytes */,
             base.nextRowId(),
             newRows,
             null);
@@ -157,6 +183,7 @@ public class TestRowLineageMetadata {
             1,
             "foo",
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             firstAddition.nextRowId(),
             newRows,
             null);
@@ -175,7 +202,7 @@ public class TestRowLineageMetadata {
 
     Snapshot invalidLastRow =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", null, null, newRows, null);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", null, null, null, newRows, null);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(base).addSnapshot(invalidLastRow))
         .isInstanceOf(ValidationException.class)
@@ -193,6 +220,7 @@ public class TestRowLineageMetadata {
             1,
             "foo",
             null,
+            null /* rootSizeInBytes */,
             base.nextRowId(),
             newRows,
             null);
@@ -209,6 +237,7 @@ public class TestRowLineageMetadata {
             1,
             "foo",
             null,
+            null /* rootSizeInBytes */,
             added.nextRowId() - 1,
             10L,
             null);

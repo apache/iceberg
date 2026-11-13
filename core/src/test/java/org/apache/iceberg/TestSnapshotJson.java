@@ -54,6 +54,7 @@ public class TestSnapshotJson {
             1,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             keyId);
@@ -87,6 +88,7 @@ public class TestSnapshotJson {
             null,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -121,6 +123,7 @@ public class TestSnapshotJson {
             3,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -163,6 +166,7 @@ public class TestSnapshotJson {
             null,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             firstRowId,
             addedRows,
             null);
@@ -344,17 +348,20 @@ public class TestSnapshotJson {
             1 /* schemaId */,
             null /* manifestList */,
             "root-manifest-23.parquet" /* rootManifest */,
+            1024L /* rootSizeInBytes */,
             0L /* firstRowId */,
             10L /* addedRows */,
             "key-1" /* keyId */);
 
     String json = SnapshotParser.toJson(expected, false);
     assertThat(json).contains("\"root-manifest\":\"root-manifest-23.parquet\"");
+    assertThat(json).contains("\"root-size-in-bytes\":1024");
     assertThat(json).doesNotContain("manifest-list");
 
     Snapshot snapshot = SnapshotParser.fromJson(json);
     assertThat(snapshot.manifestListLocation()).isNull();
     assertThat(snapshot.rootManifestLocation()).isEqualTo(expected.rootManifestLocation());
+    assertThat(snapshot.rootSizeInBytes()).isEqualTo(expected.rootSizeInBytes());
     assertThat(snapshot.keyId()).isEqualTo("key-1");
     assertThat(snapshot.firstRowId()).isEqualTo(0L);
     assertThat(snapshot.addedRows()).isEqualTo(10L);

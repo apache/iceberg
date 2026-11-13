@@ -121,6 +121,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -140,6 +141,7 @@ public class TestTableMetadata {
             7,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -268,6 +270,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -287,6 +290,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -377,6 +381,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -397,6 +402,7 @@ public class TestTableMetadata {
             7,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -467,6 +473,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -608,6 +615,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -627,6 +635,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -690,6 +699,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -709,6 +719,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -789,6 +800,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -808,6 +820,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -901,6 +914,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -920,6 +934,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -2114,6 +2129,7 @@ public class TestTableMetadata {
             null,
             "file:/s1.avro",
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -2131,6 +2147,7 @@ public class TestTableMetadata {
             null,
             "file:/s2.avro",
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -2161,6 +2178,7 @@ public class TestTableMetadata {
             null,
             "file:/s1.avro",
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             0L,
             5L,
             null);
@@ -2179,6 +2197,7 @@ public class TestTableMetadata {
             null,
             "file:/s2.avro",
             null,
+            null /* rootSizeInBytes */,
             0L,
             1L,
             null);
@@ -2205,6 +2224,7 @@ public class TestTableMetadata {
             null,
             "file:/s1.avro",
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             null,
             null,
             null);
@@ -2239,11 +2259,12 @@ public class TestTableMetadata {
 
     Snapshot parent =
         new BaseSnapshot(
-            1, 1L, null, 1_000L, null, null, null, "file:/s1.avro", null, 0L, 0L, null);
+            1, 1L, null, 1_000L, null, null, null, "file:/s1.avro", null, null, 0L, 0L, null);
     TableMetadata withParent = TableMetadata.buildFrom(base).addSnapshot(parent).build();
 
     Snapshot child =
-        new BaseSnapshot(2, 2L, 1L, 1_000L, null, null, null, "file:/s2.avro", null, 0L, 0L, null);
+        new BaseSnapshot(
+            2, 2L, 1L, 1_000L, null, null, null, "file:/s2.avro", null, null, 0L, 0L, null);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(withParent).addSnapshot(child))
         .isInstanceOf(ValidationException.class)
@@ -2277,6 +2298,7 @@ public class TestTableMetadata {
             null,
             "file:/s1.avro",
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             parentFirstRowId,
             parentAddedRows,
             null);
@@ -2298,6 +2320,7 @@ public class TestTableMetadata {
             null,
             "file:/s2.avro",
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             childFirstRowId,
             childAddedRows,
             null);
@@ -2332,6 +2355,7 @@ public class TestTableMetadata {
             null,
             "file:/s1.avro",
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             firstRowId,
             addedRows,
             null);

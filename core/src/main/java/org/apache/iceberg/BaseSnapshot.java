@@ -40,6 +40,7 @@ class BaseSnapshot implements Snapshot {
   private final long timestampMillis;
   private final String manifestListLocation;
   private final String rootManifestLocation;
+  private final Long rootSizeInBytes;
   private final String operation;
   private final Map<String, String> summary;
   private final Integer schemaId;
@@ -67,6 +68,7 @@ class BaseSnapshot implements Snapshot {
       Integer schemaId,
       String manifestList,
       String rootManifest,
+      Long rootSizeInBytes,
       Long firstRowId,
       Long addedRows,
       String keyId) {
@@ -78,6 +80,16 @@ class BaseSnapshot implements Snapshot {
         manifestList != null || rootManifest != null,
         "Snapshot %s must have a manifest list or a root manifest",
         snapshotId);
+    Preconditions.checkArgument(
+        rootManifest == null || rootSizeInBytes != null,
+        "Root manifest size is required when root manifest is set");
+    Preconditions.checkArgument(
+        rootManifest != null || rootSizeInBytes == null,
+        "Root manifest size is not allowed if root manifest is null");
+    Preconditions.checkArgument(
+        rootSizeInBytes == null || rootSizeInBytes >= 0,
+        "Invalid root manifest size (cannot be negative): %s",
+        rootSizeInBytes);
     Preconditions.checkArgument(
         firstRowId == null || firstRowId >= 0,
         "Invalid first-row-id (cannot be negative): %s",
@@ -98,6 +110,7 @@ class BaseSnapshot implements Snapshot {
     this.schemaId = schemaId;
     this.manifestListLocation = manifestList;
     this.rootManifestLocation = rootManifest;
+    this.rootSizeInBytes = rootSizeInBytes;
     this.v1ManifestLocations = null;
     this.firstRowId = firstRowId;
     this.addedRows = firstRowId != null ? addedRows : null;
@@ -122,6 +135,7 @@ class BaseSnapshot implements Snapshot {
     this.schemaId = schemaId;
     this.manifestListLocation = null;
     this.rootManifestLocation = null;
+    this.rootSizeInBytes = null;
     this.v1ManifestLocations = v1ManifestLocations;
     this.firstRowId = null;
     this.addedRows = null;
@@ -283,6 +297,11 @@ class BaseSnapshot implements Snapshot {
     return rootManifestLocation;
   }
 
+  @Override
+  public Long rootSizeInBytes() {
+    return rootSizeInBytes;
+  }
+
   private void cacheDeleteFileChanges(FileIO fileIO) {
     Preconditions.checkArgument(fileIO != null, "Cannot cache delete file changes: FileIO is null");
 
@@ -393,6 +412,7 @@ class BaseSnapshot implements Snapshot {
         .add("summary", summary)
         .add("manifest-list", manifestListLocation)
         .add("root-manifest", rootManifestLocation)
+        .add("root-size-in-bytes", rootSizeInBytes)
         .add("schema-id", schemaId)
         .add("first-row-id", firstRowId)
         .add("added-rows", addedRows)

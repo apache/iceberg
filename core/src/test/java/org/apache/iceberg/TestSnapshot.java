@@ -35,22 +35,22 @@ public class TestSnapshot extends TestBase {
   public void snapshotValueMethodsIncludeMetadataFields() {
     Snapshot snapshot =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 10L, 5L, "key-1");
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, 10L, 5L, "key-1");
     Snapshot same =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 10L, 5L, "key-1");
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, 10L, 5L, "key-1");
     Snapshot differentFirstRowId =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 11L, 5L, "key-1");
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, 11L, 5L, "key-1");
     Snapshot differentAddedRows =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 10L, 6L, "key-1");
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, 10L, 6L, "key-1");
     Snapshot differentKeyId =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 10L, 5L, "key-2");
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, 10L, 5L, "key-2");
     Snapshot withoutMetadataFields =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, null, null);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, null, null, null);
 
     assertThat(snapshot).isEqualTo(same);
     assertThat(snapshot.hashCode()).isEqualTo(same.hashCode());
@@ -62,7 +62,7 @@ public class TestSnapshot extends TestBase {
   }
 
   @TestTemplate
-  void snapshotWithRootManifestExposesLocation() {
+  void snapshotWithRootManifestExposesLocationAndSize() {
     Snapshot snapshot =
         new BaseSnapshot(
             0 /* sequenceNumber */,
@@ -74,12 +74,80 @@ public class TestSnapshot extends TestBase {
             1 /* schemaId */,
             null /* manifestList */,
             "root-manifest.parquet" /* rootManifest */,
+            1024L /* rootSizeInBytes */,
             10L /* firstRowId */,
             5L /* addedRows */,
             "key-1" /* keyId */);
 
     assertThat(snapshot.rootManifestLocation()).isEqualTo("root-manifest.parquet");
+    assertThat(snapshot.rootSizeInBytes()).isEqualTo(1024L);
     assertThat(snapshot.manifestListLocation()).isNull();
+  }
+
+  @TestTemplate
+  void rejectsRootManifestWithoutSize() {
+    assertThatThrownBy(
+            () ->
+                new BaseSnapshot(
+                    0 /* sequenceNumber */,
+                    1 /* snapshotId */,
+                    null /* parentId */,
+                    0 /* timestampMillis */,
+                    DataOperations.APPEND,
+                    null /* summary */,
+                    1 /* schemaId */,
+                    null /* manifestList */,
+                    "root-manifest.parquet" /* rootManifest */,
+                    null /* rootSizeInBytes */,
+                    10L /* firstRowId */,
+                    5L /* addedRows */,
+                    "key-1" /* keyId */))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Root manifest size is required when root manifest is set");
+  }
+
+  @TestTemplate
+  void rejectsRootSizeInBytesWithoutRootManifest() {
+    assertThatThrownBy(
+            () ->
+                new BaseSnapshot(
+                    0 /* sequenceNumber */,
+                    1 /* snapshotId */,
+                    null /* parentId */,
+                    0 /* timestampMillis */,
+                    DataOperations.APPEND,
+                    null /* summary */,
+                    1 /* schemaId */,
+                    "ml.avro" /* manifestList */,
+                    null /* rootManifest */,
+                    1024L /* rootSizeInBytes */,
+                    10L /* firstRowId */,
+                    5L /* addedRows */,
+                    "key-1" /* keyId */))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Root manifest size is not allowed if root manifest is null");
+  }
+
+  @TestTemplate
+  void rejectsNegativeRootSizeInBytes() {
+    assertThatThrownBy(
+            () ->
+                new BaseSnapshot(
+                    0 /* sequenceNumber */,
+                    1 /* snapshotId */,
+                    null /* parentId */,
+                    0 /* timestampMillis */,
+                    DataOperations.APPEND,
+                    null /* summary */,
+                    1 /* schemaId */,
+                    null /* manifestList */,
+                    "root-manifest.parquet" /* rootManifest */,
+                    -1L /* rootSizeInBytes */,
+                    10L /* firstRowId */,
+                    5L /* addedRows */,
+                    "key-1" /* keyId */))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid root manifest size (cannot be negative): -1");
   }
 
   @TestTemplate
@@ -96,6 +164,7 @@ public class TestSnapshot extends TestBase {
                     1 /* schemaId */,
                     "ml.avro" /* manifestList */,
                     "root-manifest.parquet" /* rootManifest */,
+                    1024L /* rootSizeInBytes */,
                     10L /* firstRowId */,
                     5L /* addedRows */,
                     "key-1" /* keyId */))
@@ -117,6 +186,7 @@ public class TestSnapshot extends TestBase {
                     1 /* schemaId */,
                     null /* manifestList */,
                     null /* rootManifest */,
+                    null /* rootSizeInBytes */,
                     10L /* firstRowId */,
                     5L /* addedRows */,
                     "key-1" /* keyId */))
@@ -137,6 +207,7 @@ public class TestSnapshot extends TestBase {
             1 /* schemaId */,
             null /* manifestList */,
             "root-manifest.parquet" /* rootManifest */,
+            1024L /* rootSizeInBytes */,
             10L /* firstRowId */,
             5L /* addedRows */,
             "key-1" /* keyId */);
