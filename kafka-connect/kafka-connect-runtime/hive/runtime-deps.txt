@@ -1,4 +1,6 @@
 aopalliance:aopalliance:1.0
+ch.qos.logback:logback-classic:1.2
+ch.qos.logback:logback-core:1.2
 ch.qos.reload4j:reload4j:1.2
 com.azure:azure-core-http-netty:1.16
 com.azure:azure-core:1.60
@@ -297,6 +299,7 @@ org.mongodb:bson:4.11
 org.reactivestreams:reactive-streams:1.0
 org.roaringbitmap:RoaringBitmap:1.6
 org.slf4j:slf4j-api:2.0
+org.slf4j:slf4j-reload4j:1.7
 org.threeten:threeten-extra:1.8
 org.threeten:threetenbp:1.7
 org.xerial.snappy:snappy-java:1.1

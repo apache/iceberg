@@ -75,9 +75,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
       extendsFrom runtimeClasspath
       // keep the hive distribution a superset of main by resolving shared jars to the same versions
       shouldResolveConsistentlyWith(runtimeClasspath)
-      // SLF4J 1.x bindings are ignored by slf4j-api 2.x
-      exclude group: 'ch.qos.logback'
-      exclude group: 'org.slf4j', module: 'slf4j-reload4j'
     }
     all {
       exclude group: 'javax.activation', module: 'activation'
