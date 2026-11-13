@@ -33,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Instant;
 import java.util.List;
 import java.util.stream.StreamSupport;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFiles;
@@ -50,6 +51,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
 class TestRewriteDataFiles extends MaintenanceTaskTestBase {
+  private static final String TEST_BRANCH = "test-branch";
 
   private static final FileFormat[] FILE_FORMATS =
       new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC};
@@ -619,18 +621,43 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
 
   @Test
   void testBranch() throws Exception {
+    Table table = createTableWithBranch(TEST_BRANCH);
+
+    rewriteAndAssertBranchCompacted(
+        table, RewriteDataFiles.builder().rewriteAll(true).branch(TEST_BRANCH));
+  }
+
+  @Test
+  void testRewriteOnCustomBranch() throws Exception {
+    Table table = createTableWithBranch(TEST_BRANCH);
+    RewriteDataFilesConfig config =
+        new RewriteDataFilesConfig(
+            table,
+            ImmutableMap.of(RewriteDataFilesConfig.BRANCH, TEST_BRANCH),
+            new Configuration());
+
+    rewriteAndAssertBranchCompacted(
+        table,
+        RewriteDataFiles.builder().rewriteAll(true).branch(SnapshotRef.MAIN_BRANCH).config(config));
+  }
+
+  /** Creates a table with a branch at two data files, while main gets a third one. */
+  private Table createTableWithBranch(String branchName) throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
     insert(table, 2, "b");
 
     // Create branch based on above inserts
-    String branchName = "test-branch";
     table.manageSnapshots().createBranch(branchName).commit();
 
     // Insert another file on main only (main has 3 files, branch stays at 2)
     insert(table, 3, "c");
+    return table;
+  }
 
-    appendRewriteDataFiles(RewriteDataFiles.builder().rewriteAll(true).branch(branchName));
+  private void rewriteAndAssertBranchCompacted(Table table, RewriteDataFiles.Builder builder)
+      throws Exception {
+    appendRewriteDataFiles(builder);
 
     runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
 
@@ -638,7 +665,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
 
     // Branch should be compacted from 2 files to 1
     assertThat(
-            table.snapshot(branchName).dataManifests(table.io()).stream()
+            table.snapshot(TEST_BRANCH).dataManifests(table.io()).stream()
                 .flatMap(
                     m ->
                         StreamSupport.stream(
@@ -646,7 +673,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
                 .count())
         .isEqualTo(1);
     SimpleDataUtil.assertTableRecords(
-        table, ImmutableList.of(createRecord(1, "a"), createRecord(2, "b")), branchName);
+        table, ImmutableList.of(createRecord(1, "a"), createRecord(2, "b")), TEST_BRANCH);
 
     // Main should be untouched with 3 files
     assertFileNum(table, 3, 0);

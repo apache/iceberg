@@ -144,6 +144,7 @@ class FilePlanner {
         leafPlanTasks.add(reader(leaf));
       } else {
         scanMetrics.skippedDataManifests().increment();
+        scanMetrics.totalDataManifests().increment();
       }
     }
 

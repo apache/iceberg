@@ -97,6 +97,12 @@ class ReassignDoc extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   }
 
   @Override
+  public Type file(Types.FileType file, Iterable<Type> fieldTypes) {
+    // the nested fields of a file cannot carry docs
+    return file;
+  }
+
+  @Override
   public Type primitive(Type.PrimitiveType primitive) {
     return primitive;
   }

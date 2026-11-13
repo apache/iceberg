@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -156,16 +157,9 @@ public class GenericRecord implements Record, StructLike {
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder();
-    sb.append("Record(");
-    for (int i = 0; i < values.length; i += 1) {
-      if (i != 0) {
-        sb.append(", ");
-      }
-      sb.append(values[i]);
-    }
-    sb.append(")");
-    return sb.toString();
+    return Arrays.stream(values)
+        .map(String::valueOf)
+        .collect(Collectors.joining(", ", "Record(", ")"));
   }
 
   @Override

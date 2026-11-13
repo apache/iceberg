@@ -556,6 +556,9 @@ class TestFilePlanner {
     assertThat(metrics.skippedDataManifests().value())
         .as("the pruned leaf is counted as a skipped data manifest")
         .isEqualTo(1L);
+    assertThat(metrics.totalDataManifests().value())
+        .as("every data manifest is counted: the root plus all four leaf refs")
+        .isEqualTo(5L);
   }
 
   @ParameterizedTest
@@ -626,6 +629,9 @@ class TestFilePlanner {
     assertThat(metrics.skippedDataManifests().value())
         .as("the pruned leaf ref is skipped")
         .isEqualTo(1L);
+    assertThat(metrics.totalDataManifests().value())
+        .as("every data manifest is counted: the root plus both leaf refs")
+        .isEqualTo(3L);
     assertThat(metrics.skippedDataFiles().value())
         .as("the pruned root and leaf data files are skipped")
         .isEqualTo(2L);
@@ -710,7 +716,6 @@ class TestFilePlanner {
         STATS_TYPE.fieldType(fieldName).asStructType(),
         lower,
         upper,
-        true, // tightBounds
         RECORD_COUNT,
         0, // nullValueCount
         0, // nanValueCount

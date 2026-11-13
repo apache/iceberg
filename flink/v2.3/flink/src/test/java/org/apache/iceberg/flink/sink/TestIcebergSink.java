@@ -156,6 +156,36 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @TestTemplate
+  void testCommittedSnapshotContainsSinkId() throws Exception {
+    List<Row> rows = createRows("");
+    DataStream<Row> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO).uid("mySourceId");
+
+    if (isTableSchema) {
+      IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .tableSchema(SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .writeParallelism(parallelism)
+          .append();
+    } else {
+      IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
+          .writeParallelism(parallelism)
+          .append();
+    }
+
+    env.execute("Test Iceberg DataStream.");
+
+    table.refresh();
+    Map<String, String> summary = table.currentSnapshot().summary();
+    assertThat(summary).containsKeys(SinkUtil.SINK_ID, SinkUtil.FLINK_JOB_ID);
+    assertThat(summary.get(SinkUtil.SINK_ID)).isNotEqualTo(summary.get(SinkUtil.FLINK_JOB_ID));
+  }
+
+  @TestTemplate
   void staticOverwriteReplacesTableInBatchJob() throws Exception {
     env.setRuntimeMode(RuntimeExecutionMode.BATCH);
 
