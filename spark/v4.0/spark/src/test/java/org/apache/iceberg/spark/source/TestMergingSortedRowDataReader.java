@@ -532,6 +532,33 @@ class TestMergingSortedRowDataReader extends TestBase {
   }
 
   @Test
+  void metricsIncludeValuesFromPreviousReader() throws IOException {
+    DataFile file1 = writeDataFile(record(1, "a"), record(3, "c"));
+    DataFile file2 = writeDataFile(record(2, "b"), record(4, "d"));
+
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    BaseScanTaskGroup<FileScanTask> taskGroup = new BaseScanTaskGroup<>(planFiles(table));
+    try (MergingSortedRowDataReader reader =
+        new MergingSortedRowDataReader(
+            table, table.io(), taskGroup, table.schema(), table.schema(), true, false)) {
+      // Spark passes the previous reader's metrics when a task reads several input partitions
+      reader.initMetricsValues(
+          new CustomTaskMetric[] {new TaskNumSplits(3), new TaskNumDeletes(4)});
+      while (reader.next()) {
+        // drain
+      }
+
+      Map<String, Long> metrics =
+          Arrays.stream(reader.currentMetricsValues())
+              .collect(Collectors.toMap(CustomTaskMetric::name, CustomTaskMetric::value));
+      assertThat(metrics)
+          .containsEntry(new TaskNumSplits(0).name(), 5L)
+          .containsEntry(new TaskNumDeletes(0).name(), 4L);
+    }
+  }
+
+  @Test
   void constructorClosesOpenedFilesWhenAnotherFileFailsToOpen() throws IOException {
     // Parquet reads files up to 1 MB into memory and closes the stream at once, so the file left
     // open must be larger than that
