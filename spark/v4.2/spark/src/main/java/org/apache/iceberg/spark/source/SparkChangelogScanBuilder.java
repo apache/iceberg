@@ -29,10 +29,13 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.ChangelogContext;
+import org.apache.spark.sql.connector.catalog.ChangelogContext.DeduplicationMode;
+import org.apache.spark.sql.connector.catalog.ChangelogRange;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Scan;
@@ -50,24 +53,9 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
           MetadataColumns.CHANGE_ORDINAL.name(),
           MetadataColumns.COMMIT_SNAPSHOT_ID.name());
 
-  private final Schema outputSchema;
-  private final ChangelogContext context;
-
   SparkChangelogScanBuilder(
       SparkSession spark, Table table, Schema schema, CaseInsensitiveStringMap options) {
-    this(spark, table, schema, schema, null, options);
-  }
-
-  SparkChangelogScanBuilder(
-      SparkSession spark,
-      Table table,
-      Schema dataSchema,
-      Schema outputSchema,
-      ChangelogContext context,
-      CaseInsensitiveStringMap options) {
-    super(spark, table, dataSchema, options);
-    this.outputSchema = outputSchema;
-    this.context = context;
+    super(spark, table, schema, options);
   }
 
   @Override
@@ -104,14 +92,6 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
 
   @Override
   public Scan build() {
-    if (context != null) {
-      IncrementalChangelogScan scan = buildIcebergScan(schema(), null, null);
-      Snapshot currentSnapshot = table().currentSnapshot();
-      Long endSnapshotId = currentSnapshot != null ? currentSnapshot.snapshotId() : null;
-      return new SparkChangelogScan(
-          spark(), table(), scan, readConf(), outputSchema, filters(), context, endSnapshotId);
-    }
-
     Long startSnapshotId = readConf().startSnapshotId();
     Long endSnapshotId = readConf().endSnapshotId();
     Long startTimestamp = readConf().startTimestamp();
@@ -151,7 +131,68 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
 
     Schema projection = projectionWithMetadataColumns();
     IncrementalChangelogScan scan = buildIcebergScan(projection, startSnapshotId, endSnapshotId);
-    return new SparkChangelogScan(spark(), table(), scan, readConf(), projection, filters());
+    return newScan(scan, projection, startSnapshotId, endSnapshotId, Set.of(), false);
+  }
+
+  Scan build(ChangelogContext context, Schema outputSchema) {
+    validateVersions(table(), context);
+    Snapshot currentSnapshot = table().currentSnapshot();
+    Long endSnapshotId = currentSnapshot != null ? currentSnapshot.snapshotId() : null;
+    return build(context, outputSchema, endSnapshotId);
+  }
+
+  private SparkChangelogScan build(
+      ChangelogContext context, Schema outputSchema, Long endSnapshotId) {
+    Snapshot oldest = null;
+    Snapshot latest = null;
+    Set<Long> excludedSnapshotIds = Sets.newHashSet();
+    if (endSnapshotId != null) {
+      for (Snapshot snapshot : SnapshotUtil.ancestorsBetween(table(), endSnapshotId, null)) {
+        if (includes(context, snapshot)) {
+          validateSnapshot(snapshot, context);
+          oldest = snapshot;
+          if (latest == null) {
+            latest = snapshot;
+          }
+        } else {
+          excludedSnapshotIds.add(snapshot.snapshotId());
+        }
+      }
+    }
+
+    if (oldest == null) {
+      return newScan(null, outputSchema, null, null, Set.of(), requiresPostProcessing(context));
+    }
+
+    IncrementalChangelogScan scan =
+        buildIcebergScan(schema(), oldest.parentId(), latest.snapshotId());
+    return newScan(
+        scan,
+        outputSchema,
+        oldest.parentId(),
+        latest.snapshotId(),
+        excludedSnapshotIds,
+        requiresPostProcessing(context));
+  }
+
+  private SparkChangelogScan newScan(
+      IncrementalChangelogScan scan,
+      Schema outputSchema,
+      Long startSnapshotId,
+      Long endSnapshotId,
+      Set<Long> excludedSnapshotIds,
+      boolean requiresRowLineage) {
+    return new SparkChangelogScan(
+        spark(),
+        table(),
+        scan,
+        readConf(),
+        outputSchema,
+        filters(),
+        startSnapshotId,
+        endSnapshotId,
+        excludedSnapshotIds,
+        requiresRowLineage);
   }
 
   private IncrementalChangelogScan buildIcebergScan(
@@ -178,13 +219,7 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
   }
 
   private SparkChangelogScan emptyChangelogScan() {
-    return new SparkChangelogScan(
-        spark(),
-        table(),
-        null /* no scan */,
-        readConf(),
-        projectionWithMetadataColumns(),
-        filters());
+    return newScan(null, projectionWithMetadataColumns(), null, null, Set.of(), false);
   }
 
   private boolean noSnapshotsAfter(long timestamp) {
@@ -217,5 +252,95 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
       }
     }
     return endSnapshotId;
+  }
+
+  static void validateRange(ChangelogContext context) {
+    if (context.range() instanceof ChangelogRange.VersionRange versions) {
+      long startVersion = parseVersion(versions.startingVersion());
+      Long endVersion =
+          versions.endingVersion().map(SparkChangelogScanBuilder::parseVersion).orElse(null);
+      Preconditions.checkArgument(
+          endVersion == null || startVersion <= endVersion,
+          "Cannot set startingVersion %s greater than endingVersion %s",
+          startVersion,
+          endVersion);
+    } else if (context.range() instanceof ChangelogRange.TimestampRange timestamps) {
+      Preconditions.checkArgument(
+          timestamps.endingTimestamp().isEmpty()
+              || timestamps.startingTimestamp() <= timestamps.endingTimestamp().get(),
+          "Cannot set startingTimestamp %s greater than endingTimestamp %s",
+          timestamps.startingTimestamp(),
+          timestamps.endingTimestamp().orElse(null));
+    }
+  }
+
+  static boolean requiresPostProcessing(ChangelogContext context) {
+    return context.deduplicationMode() != DeduplicationMode.NONE || context.computeUpdates();
+  }
+
+  private static boolean includes(ChangelogContext context, Snapshot snapshot) {
+    ChangelogRange range = context.range();
+    if (range instanceof ChangelogRange.VersionRange versions) {
+      long version = snapshot.sequenceNumber();
+      long startVersion = parseVersion(versions.startingVersion());
+      Long endVersion =
+          versions.endingVersion().map(SparkChangelogScanBuilder::parseVersion).orElse(null);
+      return (range.startingBoundInclusive() ? version >= startVersion : version > startVersion)
+          && (endVersion == null
+              || (range.endingBoundInclusive() ? version <= endVersion : version < endVersion));
+    } else if (range instanceof ChangelogRange.TimestampRange timestamps) {
+      long timestamp = snapshot.timestampMillis() * 1000;
+      return (timestamps.startingBoundInclusive()
+              ? timestamp >= timestamps.startingTimestamp()
+              : timestamp > timestamps.startingTimestamp())
+          && (timestamps.endingTimestamp().isEmpty()
+              || (timestamps.endingBoundInclusive()
+                  ? timestamp <= timestamps.endingTimestamp().get()
+                  : timestamp < timestamps.endingTimestamp().get()));
+    }
+
+    return true;
+  }
+
+  private static void validateVersions(Table table, ChangelogContext context) {
+    if (!(context.range() instanceof ChangelogRange.VersionRange range)) {
+      return;
+    }
+
+    long startVersion = parseVersion(range.startingVersion());
+    Long endVersion =
+        range.endingVersion().map(SparkChangelogScanBuilder::parseVersion).orElse(null);
+    Set<Long> versions = Sets.newHashSet();
+    for (Snapshot snapshot : SnapshotUtil.currentAncestors(table)) {
+      versions.add(snapshot.sequenceNumber());
+    }
+
+    Preconditions.checkArgument(
+        versions.contains(startVersion),
+        "Cannot find Iceberg snapshot with sequence number: %s",
+        startVersion);
+    Preconditions.checkArgument(
+        endVersion == null || versions.contains(endVersion),
+        "Cannot find Iceberg snapshot with sequence number: %s",
+        endVersion);
+  }
+
+  private static void validateSnapshot(Snapshot snapshot, ChangelogContext context) {
+    Preconditions.checkArgument(
+        snapshot.sequenceNumber() > 0,
+        "Cannot read Spark CDC from snapshot %s without a commit sequence number",
+        snapshot.snapshotId());
+    Preconditions.checkArgument(
+        !requiresPostProcessing(context) || snapshot.firstRowId() != null,
+        "Cannot read Spark CDC from snapshot %s without row lineage",
+        snapshot.snapshotId());
+  }
+
+  private static long parseVersion(String version) {
+    try {
+      return Long.parseLong(version);
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException("Invalid Iceberg snapshot sequence number: " + version, e);
+    }
   }
 }

@@ -23,14 +23,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.apache.iceberg.ChangelogScanTask;
-import org.apache.iceberg.ScanTaskGroup;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -403,7 +403,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  void filtersTimestampRangesWhenCommitTimeMovesBackwards() {
+  void filtersTimestampRangesWhenCommitTimeMovesBackwards() throws Exception {
     Table table = createCdcTable();
     Snapshot first = table.currentSnapshot();
     sql("INSERT INTO %s VALUES (2, 'b')", tableName);
@@ -418,13 +418,28 @@ class TestSparkChangelog extends TestBaseWithCatalog {
             Map.of(first.snapshotId(), 100L, second.snapshotId(), 90L, third.snapshotId(), 110L));
     ChangelogContext context =
         context(new ChangelogRange.TimestampRange(95000, Optional.of(115000L), true, true));
-    List<ScanTaskGroup<ChangelogScanTask>> groups =
-        SparkChangelogScan.planTasks(
-            skewed, table.newIncrementalChangelogScan(), context, third.snapshotId());
-    assertThat(groups).isNotEmpty();
-    assertThat(groups.stream().flatMap(group -> group.tasks().stream()))
-        .extracting(ChangelogScanTask::commitSnapshotId)
-        .containsOnly(first.snapshotId(), third.snapshotId());
+    Scan selected =
+        new SparkChangelog(skewed, context, CaseInsensitiveStringMap.empty())
+            .newScanBuilder(CaseInsensitiveStringMap.empty())
+            .build();
+    Scan all =
+        new SparkChangelog(
+                skewed,
+                context(new ChangelogRange.TimestampRange(85000, Optional.of(115000L), true, true)),
+                CaseInsensitiveStringMap.empty())
+            .newScanBuilder(CaseInsensitiveStringMap.empty())
+            .build();
+
+    assertThat(selected).isNotEqualTo(all);
+    assertThat(readChanges(selected.toBatch()))
+        .containsExactlyInAnyOrder(
+            row(1L, "a", "insert", first.sequenceNumber()),
+            row(3L, "c", "insert", third.sequenceNumber()));
+    assertThat(readChanges(all.toBatch()))
+        .containsExactlyInAnyOrder(
+            row(1L, "a", "insert", first.sequenceNumber()),
+            row(2L, "b", "insert", second.sequenceNumber()),
+            row(3L, "c", "insert", third.sequenceNumber()));
   }
 
   @TestTemplate
@@ -867,7 +882,12 @@ class TestSparkChangelog extends TestBaseWithCatalog {
   }
 
   private static Table withTimestamps(Table table, Map<Long, Long> timestamps) {
-    Table controlled = mock(Table.class, delegatesTo(table));
+    Table controlled =
+        mock(
+            Table.class,
+            withSettings()
+                .extraInterfaces(HasTableOperations.class)
+                .defaultAnswer(delegatesTo(table)));
     for (Snapshot snapshot : table.snapshots()) {
       Snapshot timed = mock(Snapshot.class, delegatesTo(snapshot));
       when(timed.timestampMillis()).thenReturn(timestamps.get(snapshot.snapshotId()));

@@ -81,11 +81,11 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
     super(table);
     this.context = Preconditions.checkNotNull(context, "Changelog context cannot be null");
     validateCdcOptions(options);
-    SparkChangelogScan.validateRange(context);
+    SparkChangelogScanBuilder.validateRange(context);
     Preconditions.checkArgument(
         TableUtil.formatVersion(table) >= 2,
         "Spark CDC requires format version 2 or later for commit sequence numbers");
-    boolean requiresRowLineage = SparkChangelogScan.requiresPostProcessing(context);
+    boolean requiresRowLineage = SparkChangelogScanBuilder.requiresPostProcessing(context);
     Preconditions.checkArgument(
         !requiresRowLineage || TableUtil.supportsRowLineage(table),
         "Spark CDC post-processing requires row lineage. "
@@ -144,8 +144,7 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
     validateCdcOptions(options);
     SparkChangelogScanBuilder builder =
-        new SparkChangelogScanBuilder(
-            spark(), table(), dataSchema, changelogSchema(), context, options);
-    return builder::build;
+        new SparkChangelogScanBuilder(spark(), table(), dataSchema, options);
+    return () -> builder.build(context, changelogSchema());
   }
 }
