@@ -1,0 +1,95 @@
+.container {
+  width: 100%;
+  max-width: 1140px;
+  margin-right: auto;
+  margin-left: auto;
+  padding-right: 15px;
+  padding-left: 15px;
+  margin-top: 3rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  margin-right: -15px;
+  margin-left: -15px;
+}
+
+.col-6 {
+  flex: 0 0 50%;
+  max-width: 50%;
+  padding-right: 15px;
+  padding-left: 15px;
+  box-sizing: border-box;
+}
+
+.center-vertically {
+  align-items: center; /* Center vertically */
+  justify-content: center; /* Center horizontally */
+  flex-direction: column; /* To stack content vertically */
+  text-align: center; /* Center text horizontally */
+}
+
+/* Summit Box Styles */
+.summit-box {
+  margin: 20px auto 15px auto;
+  padding: 10px 15px 15px 15px;
+  max-width: 600px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+.summit-box h4 {
+  text-align: center;
+  font-weight: 600;
+  font-size: 20px;
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.summit-link-item {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+}
+
+.summit-link-item:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+}
+
+.summit-link-item a {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Media query for smaller screens */
+@media (max-width: 767px) {
+  .col-6 {
+    flex: 0 0 100%; /* On smaller screens, make columns take up full width */
+    max-width: 100%;
+    padding-right: 15px;
+    padding-left: 15px;
+  }
+
+  div#termynal-expressive-sql {
+    left: 0;
+  }
+  
+  .summit-box {
+    max-width: 100%;
+    margin: 15px 10px;
+  }
+  
+  .summit-links {
+    flex-direction: column !important;
+  }
+  
+  .summit-link-item {
+    min-width: 100% !important;
+    max-width: 100% !important;
+  }
+}
