@@ -234,11 +234,11 @@ public class TestFlinkTableSink extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testFullOverwriteFromWriteOption() throws Exception {
+  public void testStaticOverwriteFromWriteOption() throws Exception {
     assumeThat(isStreamingJob)
         .as("Flink unbounded streaming does not support overwrite operation")
         .isFalse();
-    String tableName = "test_full_overwrite_option";
+    String tableName = "test_static_overwrite_option";
     sql(
         "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) WITH ('write.format.default'='%s')",
         tableName, format.name());
@@ -252,18 +252,18 @@ public class TestFlinkTableSink extends CatalogTestBase {
 
       SimpleDataUtil.assertTableRecords(
           partitionedTable, Lists.newArrayList(SimpleDataUtil.createRecord(4, "b")));
-      assertFullOverwriteSnapshot(partitionedTable);
+      assertStaticOverwriteSnapshot(partitionedTable);
     } finally {
       sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
     }
   }
 
   @TestTemplate
-  public void testFullOverwriteFromTableProperty() throws Exception {
+  public void testStaticOverwriteFromTableProperty() throws Exception {
     assumeThat(isStreamingJob)
         .as("Flink unbounded streaming does not support overwrite operation")
         .isFalse();
-    String tableName = "test_full_overwrite_property";
+    String tableName = "test_static_overwrite_property";
     sql(
         "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) "
             + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='static')",
@@ -278,19 +278,19 @@ public class TestFlinkTableSink extends CatalogTestBase {
 
       SimpleDataUtil.assertTableRecords(
           partitionedTable, Lists.newArrayList(SimpleDataUtil.createRecord(4, "b")));
-      assertFullOverwriteSnapshot(partitionedTable);
+      assertStaticOverwriteSnapshot(partitionedTable);
     } finally {
       sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
     }
   }
 
   @TestTemplate
-  public void testFullOverwriteFromEmptySourceRemovesAllRows() throws Exception {
+  public void testStaticOverwriteFromEmptySourceRemovesAllRows() throws Exception {
     assumeThat(isStreamingJob)
         .as("Flink unbounded streaming does not support overwrite operation")
         .isFalse();
-    String tableName = "test_full_overwrite_empty_source";
-    String sourceName = "test_full_overwrite_empty_source_input";
+    String tableName = "test_static_overwrite_empty_source";
+    String sourceName = "test_static_overwrite_empty_source_input";
     sql(
         "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) "
             + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='static')",
@@ -349,11 +349,11 @@ public class TestFlinkTableSink extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testPartitionClauseRejectedInFullOverwrite() {
+  public void testPartitionClauseRejectedInStaticOverwrite() {
     assumeThat(isStreamingJob)
         .as("Flink unbounded streaming does not support overwrite operation")
         .isFalse();
-    String tableName = "test_full_overwrite_partition_clause";
+    String tableName = "test_static_overwrite_partition_clause";
     sql(
         "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) "
             + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='static')",
@@ -372,7 +372,7 @@ public class TestFlinkTableSink extends CatalogTestBase {
 
   @TestTemplate
   public void testPartitionClauseRejectedWhenWriteOptionEnablesOverwrite() {
-    String tableName = "test_full_overwrite_partition_clause_option";
+    String tableName = "test_static_overwrite_partition_clause_option";
     sql(
         "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) "
             + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='static')",
@@ -395,11 +395,11 @@ public class TestFlinkTableSink extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testFullOverwriteReplacesFilesWrittenUnderOlderSpec() throws Exception {
+  public void testStaticOverwriteReplacesFilesWrittenUnderOlderSpec() throws Exception {
     assumeThat(isStreamingJob)
         .as("Flink unbounded streaming does not support overwrite operation")
         .isFalse();
-    String tableName = "test_full_overwrite_older_spec";
+    String tableName = "test_static_overwrite_older_spec";
     sql(
         "CREATE TABLE %s(id INT, data VARCHAR) "
             + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='static')",
@@ -416,13 +416,13 @@ public class TestFlinkTableSink extends CatalogTestBase {
 
       SimpleDataUtil.assertTableRecords(
           olderSpecTable, Lists.newArrayList(SimpleDataUtil.createRecord(3, "a")));
-      assertFullOverwriteSnapshot(olderSpecTable);
+      assertStaticOverwriteSnapshot(olderSpecTable);
     } finally {
       sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
     }
   }
 
-  private static void assertFullOverwriteSnapshot(Table table) {
+  private static void assertStaticOverwriteSnapshot(Table table) {
     table.refresh();
     Snapshot snapshot = table.currentSnapshot();
     assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);

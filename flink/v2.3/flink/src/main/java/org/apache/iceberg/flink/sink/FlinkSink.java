@@ -448,8 +448,8 @@ public class FlinkSink {
 
       flinkWriteConf = new FlinkWriteConf(table, writeOptions, readableConfig);
 
-      if (flinkWriteConf.overwriteMode() && flinkWriteConf.fullOverwrite()) {
-        SinkUtil.checkFullOverwriteRuntimeMode(rowDataInput);
+      if (flinkWriteConf.overwriteMode() && flinkWriteConf.staticOverwrite()) {
+        SinkUtil.checkStaticOverwriteRuntimeMode(rowDataInput);
       }
 
       // Find out the equality field id list based on the user-provided equality field column names.
@@ -542,7 +542,7 @@ public class FlinkSink {
           new IcebergFilesCommitterFactory(
               tableLoader,
               flinkWriteConf.overwriteMode(),
-              flinkWriteConf.fullOverwrite(),
+              flinkWriteConf.staticOverwrite(),
               snapshotProperties,
               flinkWriteConf.workerPoolSize(),
               flinkWriteConf.branch(),

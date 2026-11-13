@@ -85,7 +85,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // TableLoader to load iceberg table lazily.
   private final TableLoader tableLoader;
   private final boolean replacePartitions;
-  private final boolean fullOverwrite;
+  private final boolean staticOverwrite;
   private final Map<String, String> snapshotProperties;
 
   // A sorted map to maintain the completed data files for each pending checkpointId (which have not
@@ -132,7 +132,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       StreamOperatorParameters<Void> parameters,
       TableLoader tableLoader,
       boolean replacePartitions,
-      boolean fullOverwrite,
+      boolean staticOverwrite,
       Map<String, String> snapshotProperties,
       Integer workerPoolSize,
       String branch,
@@ -140,7 +140,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     super(parameters);
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
-    this.fullOverwrite = fullOverwrite;
+    this.staticOverwrite = staticOverwrite;
     this.snapshotProperties = snapshotProperties;
     this.workerPoolSize = workerPoolSize;
     this.branch = branch;
@@ -297,12 +297,12 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       long checkpointId) {
     long totalFiles = summary.dataFilesCount() + summary.deleteFilesCount();
     continuousEmptyCheckpoints = totalFiles == 0 ? continuousEmptyCheckpoints + 1 : 0;
-    // a full overwrite with no new files still commits, because it removes every row of the table
-    boolean fullTableOverwrite = replacePartitions && fullOverwrite;
+    // a static overwrite with no new files still commits, because it removes every row of the table
+    boolean replaceTable = replacePartitions && staticOverwrite;
     if (totalFiles != 0
-        || fullTableOverwrite
+        || replaceTable
         || continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0) {
-      if (fullTableOverwrite) {
+      if (replaceTable) {
         overwriteTable(pendingResults, summary, newFlinkJobId, operatorId, checkpointId);
       } else if (replacePartitions) {
         replacePartitions(pendingResults, summary, newFlinkJobId, operatorId, checkpointId);
@@ -360,7 +360,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
 
     commitOperation(
-        overwrite, summary, "full table overwrite", newFlinkJobId, operatorId, checkpointId);
+        overwrite, summary, "static overwrite", newFlinkJobId, operatorId, checkpointId);
   }
 
   private void commitDeltaTxn(

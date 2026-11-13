@@ -341,7 +341,7 @@ class TestIcebergCommitter extends TestBase {
   }
 
   @TestTemplate
-  public void testFullOverwriteReplacesAllPartitions() throws Exception {
+  public void testStaticOverwriteReplacesAllPartitions() throws Exception {
     appendPartitions("a", "b");
     IcebergCommitter committer = getCommitter(true, true);
 
@@ -363,7 +363,7 @@ class TestIcebergCommitter extends TestBase {
   }
 
   @TestTemplate
-  public void testFullOverwriteWithoutNewRowsRemovesAllRows() throws Exception {
+  public void testStaticOverwriteWithoutNewRowsRemovesAllRows() throws Exception {
     // other empty commits are skipped until the third empty checkpoint
     table.updateProperties().set(IcebergCommitter.MAX_CONTINUOUS_EMPTY_COMMITS, "3").commit();
     appendPartitions("a", "b");
@@ -381,7 +381,7 @@ class TestIcebergCommitter extends TestBase {
   }
 
   @TestTemplate
-  public void testFullOverwriteReplacesFilesWrittenUnderOlderSpec() throws Exception {
+  public void testStaticOverwriteReplacesFilesWrittenUnderOlderSpec() throws Exception {
     RowData unpartitionedRow = SimpleDataUtil.createRowData(0, "z");
     table
         .newAppend()
@@ -1547,19 +1547,19 @@ class TestIcebergCommitter extends TestBase {
     return getCommitter(false, false);
   }
 
-  private IcebergCommitter getCommitter(boolean replacePartitions, boolean fullOverwrite) {
-    return getCommitter(replacePartitions, fullOverwrite, true);
+  private IcebergCommitter getCommitter(boolean replacePartitions, boolean staticOverwrite) {
+    return getCommitter(replacePartitions, staticOverwrite, true);
   }
 
   private IcebergCommitter getCommitter(
-      boolean replacePartitions, boolean fullOverwrite, boolean isRestored) {
+      boolean replacePartitions, boolean staticOverwrite, boolean isRestored) {
     IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
     return new IcebergCommitter(
         tableLoader,
         branch,
         Collections.singletonMap("flink.test", TestIcebergCommitter.class.getName()),
         replacePartitions,
-        fullOverwrite,
+        staticOverwrite,
         10,
         "sinkId",
         metric,

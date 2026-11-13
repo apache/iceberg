@@ -72,7 +72,7 @@ public class FlinkWriteConf {
    * Whether an overwrite replaces every row in the table instead of only the partitions that
    * receive new rows.
    */
-  public boolean fullOverwrite() {
+  public boolean staticOverwrite() {
     String modeName =
         confParser
             .stringConf()

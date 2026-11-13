@@ -137,7 +137,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
         !overwrite || context.isBounded(),
         "Unbounded data stream doesn't support overwrite operation.");
     Preconditions.checkState(
-        staticPartition.isEmpty() || useDynamicSink || !fullTableOverwrite(),
+        staticPartition.isEmpty() || useDynamicSink || !replaceTable(),
         "Cannot overwrite PARTITION %s when %s is static: a static overwrite replaces the whole table.",
         staticPartition,
         FlinkWriteOptions.OVERWRITE_STRATEGY.key());
@@ -178,7 +178,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
         };
   }
 
-  private boolean fullTableOverwrite() {
+  private boolean replaceTable() {
     // a write option can turn overwrite on or off, so it takes priority over the planner's flag
     Map<String, String> writeOptions = Maps.newHashMap();
     writeOptions.put(FlinkWriteOptions.OVERWRITE_MODE.key(), Boolean.toString(overwrite));
@@ -189,7 +189,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
 
     try (TableLoader loader = tableLoader.clone()) {
       loader.open();
-      return new FlinkWriteConf(loader.loadTable(), writeOptions, readableConfig).fullOverwrite();
+      return new FlinkWriteConf(loader.loadTable(), writeOptions, readableConfig).staticOverwrite();
     } catch (IOException e) {
       throw new UncheckedIOException(
           "Failed to load iceberg table from table loader: " + tableLoader, e);

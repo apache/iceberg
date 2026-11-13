@@ -60,7 +60,7 @@ public class SinkUtil {
 
   private static final Logger LOG = LoggerFactory.getLogger(SinkUtil.class);
 
-  static void checkFullOverwriteRuntimeMode(DataStream<?> input) {
+  static void checkStaticOverwriteRuntimeMode(DataStream<?> input) {
     RuntimeExecutionMode runtimeMode =
         input.getExecutionEnvironment().getConfiguration().get(ExecutionOptions.RUNTIME_MODE);
     Preconditions.checkState(

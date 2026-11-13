@@ -1078,7 +1078,7 @@ public class TestIcebergFilesCommitter extends TestBase {
   }
 
   @TestTemplate
-  public void testFullOverwriteReplacesAllPartitions() throws Exception {
+  public void testStaticOverwriteReplacesAllPartitions() throws Exception {
     table.updateSpec().addField("data").commit();
     RowData rowA = SimpleDataUtil.createRowData(1, "a");
     RowData rowB = SimpleDataUtil.createRowData(2, "b");
@@ -1116,7 +1116,7 @@ public class TestIcebergFilesCommitter extends TestBase {
   }
 
   @TestTemplate
-  public void testFullOverwriteWithoutNewRowsRemovesAllRows() throws Exception {
+  public void testStaticOverwriteWithoutNewRowsRemovesAllRows() throws Exception {
     // other empty commits are skipped until the third empty checkpoint
     table.updateProperties().set(MAX_CONTINUOUS_EMPTY_COMMITS, "3").commit();
     table.updateSpec().addField("data").commit();
@@ -1182,7 +1182,7 @@ public class TestIcebergFilesCommitter extends TestBase {
   }
 
   @TestTemplate
-  public void testFullOverwriteReplacesFilesWrittenUnderOlderSpec() throws Exception {
+  public void testStaticOverwriteReplacesFilesWrittenUnderOlderSpec() throws Exception {
     RowData unpartitionedRow = SimpleDataUtil.createRowData(0, "z");
     table
         .newAppend()
@@ -1328,10 +1328,10 @@ public class TestIcebergFilesCommitter extends TestBase {
   }
 
   private OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> createStreamSink(
-      JobID jobID, boolean replacePartitions, boolean fullOverwrite) throws Exception {
+      JobID jobID, boolean replacePartitions, boolean staticOverwrite) throws Exception {
     TestOperatorFactory factory =
         new TestOperatorFactory(
-            table.location(), branch, table.spec(), replacePartitions, fullOverwrite);
+            table.location(), branch, table.spec(), replacePartitions, staticOverwrite);
     return new OneInputStreamOperatorTestHarness<>(factory, createEnvironment(jobID));
   }
 
@@ -1354,19 +1354,19 @@ public class TestIcebergFilesCommitter extends TestBase {
     private final String branch;
     private final PartitionSpec spec;
     private final boolean replacePartitions;
-    private final boolean fullOverwrite;
+    private final boolean staticOverwrite;
 
     private TestOperatorFactory(
         String tablePath,
         String branch,
         PartitionSpec spec,
         boolean replacePartitions,
-        boolean fullOverwrite) {
+        boolean staticOverwrite) {
       this.tablePath = tablePath;
       this.branch = branch;
       this.spec = spec;
       this.replacePartitions = replacePartitions;
-      this.fullOverwrite = fullOverwrite;
+      this.staticOverwrite = staticOverwrite;
     }
 
     @Override
@@ -1378,7 +1378,7 @@ public class TestIcebergFilesCommitter extends TestBase {
               params,
               new TestTableLoader(tablePath),
               replacePartitions,
-              fullOverwrite,
+              staticOverwrite,
               Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName()),
               ThreadPools.WORKER_THREAD_POOL_SIZE,
               branch,

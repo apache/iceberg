@@ -156,7 +156,7 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @TestTemplate
-  void fullOverwriteReplacesTableInBatchJob() throws Exception {
+  void staticOverwriteReplacesTableInBatchJob() throws Exception {
     env.setRuntimeMode(RuntimeExecutionMode.BATCH);
 
     List<Row> oldRows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"));
@@ -181,7 +181,7 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @TestTemplate
-  void fullOverwriteIsRejectedInStreamingJob() {
+  void staticOverwriteIsRejectedInStreamingJob() {
     DataStream<RowData> dataStream =
         env.addSource(createBoundedSource(createRows("")), ROW_TYPE_INFO)
             .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
