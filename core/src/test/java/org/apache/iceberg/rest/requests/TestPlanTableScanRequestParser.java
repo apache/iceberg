@@ -265,7 +265,7 @@ public class TestPlanTableScanRequestParser {
 
     String expectedJson =
         "{\"snapshot-id\":1,"
-            + "\"filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1},"
+            + "\"filter\":{\"type\":\"eq\",\"left\":{\"type\":\"reference\",\"name\":\"id\"},\"right\":1},"
             + "\"case-sensitive\":true,"
             + "\"use-snapshot-schema\":false}";
 
