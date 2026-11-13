@@ -533,6 +533,7 @@ The set of metadata columns is:
 | **`2147483541  _commit_snapshot_id`**             | `long`        | The snapshot ID in which the change occurred                                                                 |
 | **`2147483540  _row_id`**                         | `long`        | A unique long assigned for row lineage, see [Row Lineage](#row-lineage)                                  |
 | **`2147483539  _last_updated_sequence_number`**   | `long`        | The sequence number which last updated this row, see [Row Lineage](#row-lineage)              |
+| **`2147483538  _last_updated_timestamp`**         | `timestamptz` | The timestamp of the snapshot which last updated this row, see [Row Lineage](#row-lineage) |
 
 #### Row Lineage
 
@@ -540,8 +541,9 @@ In v3 and later, an Iceberg table must track row lineage fields for all newly cr
 
 * `_row_id` a unique long identifier for every row within the table. The value is assigned via inheritance when a row is first added to the table.
 * `_last_updated_sequence_number` the sequence number of the commit that last updated a row. The value is inherited when a row is first added or modified.
+* `_last_updated_timestamp` (v4 and later) the timestamp of the snapshot that last updated a row. The value is inherited when a row is first added or modified.
 
-These fields are assigned and updated by inheritance because the commit sequence number and starting row ID are not assigned until the snapshot is successfully committed. Inheritance is used to allow writing data and manifest files before values are known so that it is not necessary to rewrite data and manifest files when an optimistic commit is retried.
+These fields are assigned and updated by inheritance because the commit sequence number, snapshot timestamp, and starting row ID are not assigned until the snapshot is successfully committed. Inheritance is used to allow writing data and manifest files before values are known so that it is not necessary to rewrite data and manifest files when an optimistic commit is retried.
 
 Row lineage does not track lineage for rows updated via [Equality Deletes](#equality-delete-files), because engines using equality deletes avoid reading existing data before writing changes and can't provide the original row ID for the new rows. These updates are always treated as if the existing row was completely removed and a unique new row was added.
 
@@ -553,13 +555,15 @@ A data file with only new rows for the table may omit the `_last_updated_sequenc
 
 On read, if `_last_updated_sequence_number` is `null` it is assigned the `sequence_number` of the data file's manifest entry. The data sequence number of a data file is documented in [Sequence Number Inheritance](#sequence-number-inheritance).
 
+`_last_updated_timestamp` is set in the same way as `_last_updated_sequence_number`. On read, if `_last_updated_timestamp` is `null` it is assigned the `snapshot_timestamp` of the data file's tracking metadata, documented in [Snapshot Timestamp Inheritance](#snapshot-timestamp-inheritance).
+
 When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `first_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `first_row_id` is assigned when writing the snapshot root file and is documented in [Snapshot Root File First Row ID Assignment](#snapshot-root-file-first-row-id-assignment). Starting in v4, a data file in the root manifest is assigned a `first_row_id` in the same way. A snapshot's `first-row-id` is set to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
 
-When an existing row is moved to a different data file for any reason, writers should write `_row_id` and `_last_updated_sequence_number` according to the following rules:
+When an existing row is moved to a different data file for any reason, writers should write `_row_id`, `_last_updated_sequence_number`, and `_last_updated_timestamp` according to the following rules:
 
 1. The row's existing non-null `_row_id` must be copied into the new data file
-2. If the write has modified the row, the `_last_updated_sequence_number` field must be set to `null` (so that the modification's sequence number replaces the current value)
-3. If the write has not modified the row, the existing non-null `_last_updated_sequence_number` value must be copied to the new data file
+2. If the write has modified the row, the `_last_updated_sequence_number` and `_last_updated_timestamp` fields must be set to `null` (so that the modification's sequence number and snapshot timestamp replace the current values)
+3. If the write has not modified the row, the existing non-null `_last_updated_sequence_number` and `_last_updated_timestamp` values must be copied to the new data file
 
 Engines may model operations as deleting/inserting rows or as modifications to rows that preserve row ids.
 
@@ -620,6 +624,8 @@ Note that:
 * Snapshots created before upgrading to v3 do not have row IDs.
 * After upgrading, new snapshots in different branches will assign disjoint ID ranges to existing data files, based on the table's `next-row-id` when the snapshot is committed. For a data file in multiple branches, a writer may write the `first_row_id` from another branch or may assign a new `first_row_id` to the data file (to avoid large metadata rewrites).
 * Existing rows will inherit `_last_updated_sequence_number` from their containing data file.
+
+When a table is upgraded to v4, existing manifest lists and manifests are not rewritten. Manifest lists and manifests written before the upgrade do not have a `snapshot_timestamp` field and the field must be read as if it is `null`. When reading a manifest list written before v4, each manifest inherits the snapshot's `timestamp-ms` converted to microseconds, and entries in a manifest written before v4 inherit that manifest's `snapshot_timestamp`. As a result, rows in the table at the time of the upgrade have a `_last_updated_timestamp` equal to the `timestamp-ms` of the last snapshot before the upgrade, converted to microseconds.
 
 ### Partitioning
 
@@ -963,6 +969,7 @@ The contents of a file are part of a snapshot if its tracking `status` is **live
     | _optional_ | 5        | **`modified_snapshot_id`**    | `long`                                                              | Snapshot ID where the file was last modified. |
     | _optional_ | 3        | **`sequence_number`**         | `long`                                                              | Data sequence number of the file. Inherited when null. See [Sequence Number Inheritance](#sequence-number-inheritance). |
     | _optional_ | 4        | **`file_sequence_number`**    | `long`                                                              | File sequence number indicating when the file was added. Inherited when null. See [Sequence Number Inheritance](#sequence-number-inheritance). |
+    | _optional_ | 8        | **`snapshot_timestamp`**      | `timestamptz`                                                       | `timestamp-ms` of the snapshot that added or last modified the file's data, in microseconds. Inherited when null. See [Snapshot Timestamp Inheritance](#snapshot-timestamp-inheritance). |
     | _optional_ | 142      | **`first_row_id`**            | `long`                                                              | Base row ID for assigning `_row_id` values. See [First Row ID Inheritance](#first-row-id-inheritance). |
     | _optional_ | 6        | **`deleted_positions`**       | `binary`                                                            | Positions deleted via manifest DV in the `modified_snapshot_id` snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
     | _optional_ | 7        | **`replaced_positions`**      | `binary`                                                            | Positions replaced via manifest DV in the `modified_snapshot_id` snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
@@ -1106,6 +1113,7 @@ IDs in the range `10_000` (inclusive) to `200_000_000` (exclusive) are reserved 
 |---------------------------------|------------|-----------|-----------|
 | `_last_updated_sequence_number` | 2147483539 | 9000      | 9199 |
 | `_row_id`                       | 2147483540 | 9200      | 9399 |
+| `_last_updated_timestamp`       | 2147483538 | 9400      | 9599 |
 
 Each stats struct holds statistics for one table field. It may contain the following metrics:
 
@@ -1230,7 +1238,7 @@ A simple (and recommended) way for writers to adapt existing metadata for table 
 
 #### Inheritance
 
-Values for `snapshot_id`, `sequence_number`, and `file_sequence_number` are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the snapshot root file.
+Values for `snapshot_id`, `sequence_number`, `file_sequence_number`, and `snapshot_timestamp` are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the snapshot root file.
 
 ##### Sequence Number Inheritance
 
@@ -1247,6 +1255,17 @@ The data sequence number is inherited only if the entry status is ADDED, or MODI
 Inheriting sequence numbers through the metadata tree allows writing a new manifest without a known sequence number, so that a manifest can be written once and reused in commit retries. To change a sequence number for a retry, only the snapshot root file must be rewritten.
 
 Inheritance does not apply to v1, which does not have inherited fields like sequence number. When reading v1 manifests with no sequence number column, sequence numbers for all files must default to 0.
+
+##### Snapshot Timestamp Inheritance
+
+The `snapshot_timestamp` tracking field records the `timestamp-ms` of the snapshot that added or last modified a file's data, converted to microseconds. It is used to assign `_last_updated_timestamp` for [row lineage](#row-lineage).
+
+When writing a manifest, writers must set `snapshot_timestamp` as follows:
+
+* An ADDED entry or an entry MODIFIED by column files must have a `null` `snapshot_timestamp`.
+* Any other entry written to a new manifest must have a non-null `snapshot_timestamp` (inherited or previously persisted).
+
+When reading, a `null` `snapshot_timestamp` is inherited from its parent: entries in the root manifest inherit from the snapshot, and entries in a leaf manifest inherit from the leaf manifest's entry in the root manifest.
 
 ##### First Row ID Inheritance
 
@@ -2319,6 +2338,11 @@ Constraints are added in v4:
 * Table metadata may contain `constraints` and `last-constraint-id`
 * Snapshots may contain `constraint-statuses`
 * Upgrading a v2 or v3 table to v4 rewrites the table's `identifier-field-ids` as a `primary-key` constraint that is not enforced, unless a field cannot be used in a `primary-key` constraint
+
+Row lineage changes:
+
+* Tracking metadata has a `snapshot_timestamp` field, inherited when `null`
+* Row lineage has a `_last_updated_timestamp` metadata column, inherited from the data file's `snapshot_timestamp`
 
 ### Version 3
 
