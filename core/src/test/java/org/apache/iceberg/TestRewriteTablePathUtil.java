@@ -304,12 +304,9 @@ public class TestRewriteTablePathUtil extends TestBase {
   }
 
   @Test
-  void replacePathsRewritesRootManifestLocation() {
-    String rootManifestPath = "/metadata/root-manifest.parquet";
+  void replacePathsRejectsRootManifest() {
     String sourcePrefix = "s3://bucket/warehouse/table";
     String targetPrefix = "s3://bucket/restored/table";
-    String sourceRootManifest = sourcePrefix + rootManifestPath;
-    String targetRootManifest = targetPrefix + rootManifestPath;
     TableMetadata metadata =
         TableMetadata.newTableMetadata(
             SCHEMA, PartitionSpec.unpartitioned(), sourcePrefix, ImmutableMap.of());
@@ -323,18 +320,18 @@ public class TestRewriteTablePathUtil extends TestBase {
             null /* summary */,
             metadata.currentSchemaId(),
             null /* manifestList */,
-            sourceRootManifest,
+            sourcePrefix + "/metadata/root-manifest.parquet",
+            1024L /* rootSizeInBytes */,
             null /* firstRowId */,
             null /* addedRows */,
             null /* keyId */);
     TableMetadata withRootManifest =
         TableMetadata.buildFrom(metadata).addSnapshot(snapshot).build();
 
-    TableMetadata replaced =
-        RewriteTablePathUtil.replacePaths(withRootManifest, sourcePrefix, targetPrefix);
-
-    assertThat(replaced.snapshot(snapshot.snapshotId()).rootManifestLocation())
-        .isEqualTo(targetRootManifest);
+    assertThatThrownBy(
+            () -> RewriteTablePathUtil.replacePaths(withRootManifest, sourcePrefix, targetPrefix))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot rewrite paths for snapshot 1: root manifests are not supported");
   }
 
   @Test

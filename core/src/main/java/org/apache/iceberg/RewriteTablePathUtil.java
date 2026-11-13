@@ -241,8 +241,14 @@ public class RewriteTablePathUtil {
       TableMetadata metadata, String sourcePrefix, String targetPrefix) {
     List<Snapshot> newSnapshots = Lists.newArrayListWithCapacity(metadata.snapshots().size());
     for (Snapshot snapshot : metadata.snapshots()) {
+      if (snapshot.rootManifestLocation() != null) {
+        throw new UnsupportedOperationException(
+            String.format(
+                "Cannot rewrite paths for snapshot %s: root manifests are not supported",
+                snapshot.snapshotId()));
+      }
+
       String manifestList = snapshot.manifestListLocation();
-      String rootManifest = snapshot.rootManifestLocation();
       Snapshot newSnapshot =
           new BaseSnapshot(
               snapshot.sequenceNumber(),
@@ -253,7 +259,8 @@ public class RewriteTablePathUtil {
               snapshot.summary(),
               snapshot.schemaId(),
               manifestList == null ? null : newPath(manifestList, sourcePrefix, targetPrefix),
-              rootManifest == null ? null : newPath(rootManifest, sourcePrefix, targetPrefix),
+              null /* rootManifest */,
+              null /* rootSizeInBytes */,
               snapshot.firstRowId(),
               snapshot.addedRows(),
               snapshot.keyId());

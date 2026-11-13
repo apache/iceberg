@@ -51,6 +51,7 @@ public class SnapshotParser {
   private static final String MANIFESTS = "manifests";
   private static final String MANIFEST_LIST = "manifest-list";
   private static final String ROOT_MANIFEST = "root-manifest";
+  private static final String ROOT_SIZE_IN_BYTES = "root-size-in-bytes";
   private static final String SCHEMA_ID = "schema-id";
   private static final String FIRST_ROW_ID = "first-row-id";
   private static final String ADDED_ROWS = "added-rows";
@@ -87,6 +88,7 @@ public class SnapshotParser {
     String rootManifest = snapshot.rootManifestLocation();
     if (rootManifest != null) {
       generator.writeStringField(ROOT_MANIFEST, rootManifest);
+      generator.writeNumberField(ROOT_SIZE_IN_BYTES, snapshot.rootSizeInBytes());
     } else if (manifestList != null) {
       // write just the location. manifests should not be embedded in JSON along with a list
       generator.writeStringField(MANIFEST_LIST, manifestList);
@@ -182,6 +184,7 @@ public class SnapshotParser {
 
     String manifestList = JsonUtil.getStringOrNull(MANIFEST_LIST, node);
     String rootManifest = JsonUtil.getStringOrNull(ROOT_MANIFEST, node);
+    Long rootSizeInBytes = JsonUtil.getLongOrNull(ROOT_SIZE_IN_BYTES, node);
 
     if (manifestList != null || rootManifest != null) {
       return new BaseSnapshot(
@@ -194,6 +197,7 @@ public class SnapshotParser {
           schemaId,
           manifestList,
           rootManifest,
+          rootSizeInBytes,
           firstRowId,
           addedRows,
           keyId);

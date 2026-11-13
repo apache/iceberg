@@ -117,6 +117,7 @@ class TestV4ScanPlanning {
             table.schema().schemaId(),
             /* manifestList= */ null,
             rootLocation,
+            1024L,
             0L,
             addedRows,
             null);
