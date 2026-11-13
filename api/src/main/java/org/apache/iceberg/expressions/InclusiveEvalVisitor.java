@@ -63,6 +63,11 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
     return null;
   }
 
+  /** Return the literals that should be evaluated for the current input. */
+  protected <T> Collection<T> literals(Bound<T> term, Set<T> literalSet) {
+    return literalSet;
+  }
+
   @Override
   public Boolean alwaysTrue() {
     return ROWS_MIGHT_MATCH; // all rows match
@@ -301,7 +306,7 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
       return ROWS_CANNOT_MATCH;
     }
 
-    Collection<T> literals = literalSet;
+    Collection<T> literals = literals(term, literalSet);
 
     if (literals.size() > IN_PREDICATE_LIMIT) {
       // skip evaluating the predicate if the number of values is too big

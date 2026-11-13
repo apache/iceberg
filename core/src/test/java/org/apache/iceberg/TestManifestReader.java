@@ -23,15 +23,22 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import org.junit.jupiter.api.TestTemplate;
@@ -75,6 +82,102 @@ public class TestManifestReader extends TestBase {
           .usingRecursiveComparison(FILE_COMPARISON_CONFIG)
           .isEqualTo(Lists.newArrayList(FILE_A, FILE_B, FILE_C));
     }
+  }
+
+  @TestTemplate
+  public void testReaderUsesBucketSpecificMetricsForFileFiltering() throws IOException {
+    assertReaderUsesBucketSpecificMetricsForFileFiltering(1);
+  }
+
+  @TestTemplate
+  public void testReaderUsesBucketSpecificMetricsForLargeInPredicate() throws IOException {
+    assertReaderUsesBucketSpecificMetricsForFileFiltering(249);
+  }
+
+  private void assertReaderUsesBucketSpecificMetricsForFileFiltering(int foreignValueCount)
+      throws IOException {
+    table.updateSpec().removeField("data_bucket").addField(Expressions.bucket("id", 16)).commit();
+    PartitionSpec spec = table.spec();
+    Function<Integer, Integer> bucket =
+        Transforms.<Integer>bucket(16).bind(Types.IntegerType.get());
+
+    int partition = bucket.apply(100);
+    List<Integer> valuesInPartition = new ArrayList<>();
+    for (int value = 0; valuesInPartition.size() < 302; value += 1) {
+      if (bucket.apply(value) == partition) {
+        valuesInPartition.add(value);
+      }
+    }
+
+    int lower = valuesInPartition.get(0);
+    int upper = valuesInPartition.get(300);
+    int ownValueOutsideBounds = valuesInPartition.get(301);
+    List<Integer> queryValues = new ArrayList<>();
+    queryValues.add(ownValueOutsideBounds);
+    for (int value = lower + 1;
+        value < upper && queryValues.size() <= foreignValueCount;
+        value += 1) {
+      if (bucket.apply(value) != partition) {
+        queryValues.add(value);
+      }
+    }
+    assertThat(queryValues).hasSize(foreignValueCount + 1);
+
+    DataFile impossibleMatch =
+        fileWithIdBounds(spec, "/path/to/impossible-match.parquet", partition, lower, upper);
+    DataFile actualMatch =
+        fileWithIdBounds(
+            spec,
+            "/path/to/actual-match.parquet",
+            partition,
+            ownValueOutsideBounds,
+            ownValueOutsideBounds);
+    ManifestFile manifest = writeManifest(1000L, impossibleMatch, actualMatch);
+    Expression filter = Expressions.in("id", queryValues);
+
+    // A schema-only evaluator retains the file because a foreign-bucket literal falls inside its
+    // bounds. A large IN also exceeds the metrics evaluator's 200-value limit.
+    assertThat(new InclusiveMetricsEvaluator(table.schema(), filter).eval(impossibleMatch))
+        .isTrue();
+
+    InclusiveMetricsEvaluator partitionAwareEvaluator =
+        InclusiveMetricsEvaluator.forRowFilter(filter, spec, true);
+    assertThat(partitionAwareEvaluator.eval(actualMatch)).isTrue();
+    assertThat(partitionAwareEvaluator.eval(impossibleMatch)).isFalse();
+
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, FILE_IO, table.specs()).filterRows(filter)) {
+      assertThat(Streams.stream(reader).map(DataFile::location))
+          .containsExactly(actualMatch.location());
+    }
+  }
+
+  private static DataFile fileWithIdBounds(
+      PartitionSpec spec, String path, int partition, int lower, int upper) {
+    PartitionData partitionData = new PartitionData(spec.partitionType());
+    for (int pos = 0; pos < spec.fields().size(); pos += 1) {
+      if ("id".equals(spec.schema().findColumnName(spec.fields().get(pos).sourceId()))) {
+        partitionData.set(pos, partition);
+      }
+    }
+
+    int idFieldId = spec.schema().findField("id").fieldId();
+    return DataFiles.builder(spec)
+        .withPath(path)
+        .withFileSizeInBytes(10)
+        .withPartition(partitionData)
+        .withMetrics(
+            new Metrics(
+                5L,
+                null,
+                ImmutableMap.of(idFieldId, 5L),
+                ImmutableMap.of(idFieldId, 0L),
+                null,
+                ImmutableMap.of(
+                    idFieldId, Conversions.toByteBuffer(Types.IntegerType.get(), lower)),
+                ImmutableMap.of(
+                    idFieldId, Conversions.toByteBuffer(Types.IntegerType.get(), upper))))
+        .build();
   }
 
   @TestTemplate

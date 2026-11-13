@@ -21,10 +21,23 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.variants.Variant;
@@ -47,14 +60,27 @@ import org.apache.iceberg.variants.VariantObject;
  */
 public class InclusiveMetricsEvaluator {
   private final Expression expr;
+  private final Map<Set<?>, List<PartitionLiteralIndex>> partitionedLiterals;
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
-    this(schema, unbound, true);
+    this(schema, null, unbound, true);
   }
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
+    this(schema, null, unbound, caseSensitive);
+  }
+
+  public static InclusiveMetricsEvaluator forRowFilter(
+      Expression rowFilter, PartitionSpec spec, boolean caseSensitive) {
+    return new InclusiveMetricsEvaluator(spec.schema(), spec, rowFilter, caseSensitive);
+  }
+
+  private InclusiveMetricsEvaluator(
+      Schema schema, PartitionSpec spec, Expression unbound, boolean caseSensitive) {
     StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
+    this.partitionedLiterals =
+        spec != null ? indexPartitionedLiterals(spec, expr) : Collections.emptyMap();
   }
 
   /**
@@ -74,6 +100,7 @@ public class InclusiveMetricsEvaluator {
     private Map<Integer, Long> nanCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
+    private StructLike partition = null;
 
     private boolean eval(ContentFile<?> file) {
       if (file.recordCount() == 0) {
@@ -92,8 +119,35 @@ public class InclusiveMetricsEvaluator {
       this.nanCounts = file.nanValueCounts();
       this.lowerBounds = file.lowerBounds();
       this.upperBounds = file.upperBounds();
+      this.partition = file.partition();
 
       return ExpressionVisitors.visitEvaluator(expr, this);
+    }
+
+    @Override
+    protected <T> Collection<T> literals(Bound<T> term, Set<T> literalSet) {
+      List<PartitionLiteralIndex> indexes = partitionedLiterals.get(literalSet);
+      if (indexes == null) {
+        return literalSet;
+      }
+
+      Set<T> matching = null;
+      for (PartitionLiteralIndex index : indexes) {
+        Set<T> values = index.literals(partition);
+        if (values == null) {
+          return Collections.emptySet();
+        } else if (matching == null) {
+          matching = values;
+        } else {
+          matching = new HashSet<>(matching);
+          matching.retainAll(values);
+          if (matching.isEmpty()) {
+            return matching;
+          }
+        }
+      }
+
+      return matching != null ? matching : literalSet;
     }
 
     @Override
@@ -163,6 +217,74 @@ public class InclusiveMetricsEvaluator {
       }
 
       return null;
+    }
+  }
+
+  @SuppressWarnings({"unchecked", "IdentityHashMapUsage"})
+  private static Map<Set<?>, List<PartitionLiteralIndex>> indexPartitionedLiterals(
+      PartitionSpec spec, Expression expression) {
+    Map<Set<?>, List<PartitionLiteralIndex>> indexes = new IdentityHashMap<>();
+    ExpressionVisitors.visit(
+        expression,
+        new ExpressionVisitors.ExpressionVisitor<Void>() {
+          @Override
+          public <T> Void predicate(BoundPredicate<T> predicate) {
+            if (!predicate.isSetPredicate()
+                || predicate.op() != Expression.Operation.IN
+                || !(predicate.term() instanceof BoundReference)) {
+              return null;
+            }
+
+            Set<T> literals = predicate.asSetPredicate().literalSet();
+            List<PartitionField> fields = spec.getFieldsBySourceId(predicate.ref().fieldId());
+            if (fields == null) {
+              return null;
+            }
+
+            for (PartitionField field : fields) {
+              Transform<T, ?> transform = (Transform<T, ?>) field.transform();
+              if (transform.preservesOrder()
+                  || transform.project(field.name(), predicate) == null) {
+                continue;
+              }
+
+              Map<Object, Set<Object>> literalsByValue = new HashMap<>();
+              Function<T, ?> function = transform.bind(predicate.term().type());
+              for (T literal : literals) {
+                literalsByValue
+                    .computeIfAbsent(function.apply(literal), ignored -> new HashSet<>())
+                    .add(literal);
+              }
+
+              int position = spec.fields().indexOf(field);
+              indexes
+                  .computeIfAbsent(literals, ignored -> new ArrayList<>())
+                  .add(
+                      new PartitionLiteralIndex(
+                          position, spec.javaClasses()[position], literalsByValue));
+            }
+            return null;
+          }
+        });
+    return indexes;
+  }
+
+  private static class PartitionLiteralIndex {
+    private final int position;
+    private final Class<?> javaClass;
+    private final Map<Object, Set<Object>> literalsByValue;
+
+    private PartitionLiteralIndex(
+        int position, Class<?> javaClass, Map<Object, Set<Object>> literalsByValue) {
+      this.position = position;
+      this.javaClass = javaClass;
+      this.literalsByValue = literalsByValue;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> Set<T> literals(StructLike partition) {
+      Object partitionValue = partition.get(position, (Class<Object>) javaClass);
+      return (Set<T>) (Set<?>) literalsByValue.get(partitionValue);
     }
   }
 
