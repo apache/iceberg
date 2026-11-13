@@ -134,6 +134,11 @@ public class RESTCatalogServer {
     }
   }
 
+  /** Returns the port the started server listens on, also when it was started on port 0. */
+  int port() {
+    return ((ServerConnector) httpServer.getConnectors()[0]).getLocalPort();
+  }
+
   public void stop() throws Exception {
     if (httpServer != null) {
       httpServer.stop();
