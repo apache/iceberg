@@ -389,7 +389,12 @@ class Coordinator extends Channel {
     if (branch == null) {
       return table.currentSnapshot();
     }
-    return table.snapshot(branch);
+
+    // A commit to a branch that does not exist (not created yet, dropped, or expired) creates it
+    // from the current snapshot, and the offset validator checks that snapshot's ancestry (see
+    // SnapshotUtil.latestSnapshot(TableMetadata, String)), so read the offsets from the same place
+    Snapshot branchHead = table.snapshot(branch);
+    return branchHead != null ? branchHead : table.currentSnapshot();
   }
 
   private Map<Integer, Long> lastCommittedOffsetsForTable(Table table, String branch) {
