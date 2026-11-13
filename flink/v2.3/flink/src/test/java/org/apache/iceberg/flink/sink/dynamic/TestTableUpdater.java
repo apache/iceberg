@@ -178,6 +178,98 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
   }
 
   @Test
+  void caseInsensitiveUpdateReusesSpecWithDifferentlyCasedSourceColumn() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Schema tableSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "ts", Types.TimestampType.withoutZone()));
+    Table table =
+        catalog.createTable(
+            tableIdentifier, tableSchema, PartitionSpec.builderFor(tableSchema).day("ts").build());
+    int specCountBefore = table.specs().size();
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_INSENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater =
+        new TableUpdater(cache, catalog, CASE_INSENSITIVE, PRESERVE_COLUMNS);
+
+    Schema inputSchema =
+        new Schema(
+            Types.NestedField.optional(1, "ID", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "TS", Types.TimestampType.withoutZone()));
+    PartitionSpec inputSpec = PartitionSpec.builderFor(inputSchema).day("TS").build();
+
+    Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> result =
+        tableUpdater.update(
+            tableIdentifier, SnapshotRef.MAIN_BRANCH, inputSchema, inputSpec, TableCreator.DEFAULT);
+
+    assertThat(result.f1).isEqualTo(table.spec());
+    assertThat(catalog.loadTable(tableIdentifier).specs()).hasSize(specCountBefore);
+  }
+
+  @Test
+  void caseInsensitiveUpdateEvolvesSpecWithDifferentlyCasedSourceColumn() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Schema tableSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "ts", Types.TimestampType.withoutZone()));
+    catalog.createTable(
+        tableIdentifier, tableSchema, PartitionSpec.builderFor(tableSchema).day("ts").build());
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_INSENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater =
+        new TableUpdater(cache, catalog, CASE_INSENSITIVE, PRESERVE_COLUMNS);
+
+    Schema inputSchema =
+        new Schema(
+            Types.NestedField.optional(1, "ID", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "TS", Types.TimestampType.withoutZone()));
+    PartitionSpec inputSpec = PartitionSpec.builderFor(inputSchema).hour("TS").build();
+
+    Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> result =
+        tableUpdater.update(
+            tableIdentifier, SnapshotRef.MAIN_BRANCH, inputSchema, inputSpec, TableCreator.DEFAULT);
+
+    Table table = catalog.loadTable(tableIdentifier);
+    PartitionSpec expected = PartitionSpec.builderFor(tableSchema).hour("ts").build();
+    assertThat(result.f1).isEqualTo(table.spec());
+    assertThat(PartitionSpecEvolution.checkCompatibility(table.spec(), expected)).isTrue();
+  }
+
+  @Test
+  void updateWithHistoricalSpecWhoseSourceColumnWasDropped() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Schema tableSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "region", Types.StringType.get()));
+    Table table =
+        catalog.createTable(
+            tableIdentifier,
+            tableSchema,
+            PartitionSpec.builderFor(tableSchema).identity("region").build());
+    table.updateSpec().removeField("region").commit();
+    table.updateSchema().deleteColumn("region").commit();
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema inputSchema = new Schema(Types.NestedField.optional(1, "id", Types.IntegerType.get()));
+    PartitionSpec inputSpec = PartitionSpec.builderFor(inputSchema).identity("id").build();
+
+    Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> result =
+        tableUpdater.update(
+            tableIdentifier, SnapshotRef.MAIN_BRANCH, inputSchema, inputSpec, TableCreator.DEFAULT);
+
+    assertThat(result.f1).isEqualTo(catalog.loadTable(tableIdentifier).spec());
+    assertThat(PartitionSpecEvolution.checkCompatibility(result.f1, inputSpec)).isTrue();
+  }
+
+  @Test
   void testInvalidateOldCacheEntryOnUpdate() {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
