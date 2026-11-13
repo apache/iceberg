@@ -18,9 +18,9 @@
  */
 package org.apache.iceberg.spark.source.metrics;
 
-import org.apache.spark.sql.connector.metric.CustomSumMetric;
+import org.apache.spark.sql.connector.metric.CustomMetric;
 
-public class EffectiveSplitTargetSize extends CustomSumMetric {
+public class EffectiveSplitTargetSize implements CustomMetric {
 
   public static final String NAME = "effectiveSplitTargetSize";
 
@@ -32,5 +32,16 @@ public class EffectiveSplitTargetSize extends CustomSumMetric {
   @Override
   public String description() {
     return "effective split target size (bytes)";
+  }
+
+  @Override
+  public String aggregateTaskMetrics(long[] taskMetrics) {
+    // the driver reports one value per scan, which is not additive
+    long max = 0L;
+    for (long taskMetric : taskMetrics) {
+      max = Math.max(max, taskMetric);
+    }
+
+    return String.valueOf(max);
   }
 }

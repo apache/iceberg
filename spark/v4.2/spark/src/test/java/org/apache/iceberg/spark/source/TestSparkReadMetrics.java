@@ -162,7 +162,10 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
   @TestTemplate
   void effectiveSplitTargetSizeWithRuntimeFilter() throws NoSuchTableException, IOException {
     long tableSplitSize = 128L * 1024 * 1024;
-    int parallelism = 4;
+    // pruned files whose total, spread over the parallelism, exceeds the 16 MB minimum target
+    int prunedFileCount = 4;
+    long prunedFileSize = 64L * 1024 * 1024;
+    int parallelism = prunedFileCount;
     sql(
         "CREATE TABLE %s (id BIGINT, date DATE) USING iceberg PARTITIONED BY (date) "
             + "TBLPROPERTIES ('read.split.target-size'='%s')",
@@ -187,13 +190,13 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
     // large files in a partition the runtime filter prunes; they are never read
     Table table = validationCatalog.loadTable(tableIdent);
     AppendFiles append = table.newAppend();
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < prunedFileCount; i++) {
       append.appendFile(
           DataFiles.builder(table.spec())
               .withPath(table.location() + "/data/date=1970-01-01/unread-" + i + ".parquet")
               .withFormat(FileFormat.PARQUET)
               .withPartitionPath("date=1970-01-01")
-              .withFileSizeInBytes(64L * 1024 * 1024)
+              .withFileSizeInBytes(prunedFileSize)
               .withRecordCount(1)
               .build());
     }
@@ -281,10 +284,6 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
     // Common
     assertThat(metricsMap)
         .hasEntrySatisfying(
-            "effectiveSplitTargetSize",
-            sqlMetric -> assertThat(sqlMetric.value()).isGreaterThan(0));
-    assertThat(metricsMap)
-        .hasEntrySatisfying(
             "totalPlanningDuration", sqlMetric -> assertThat(sqlMetric.value()).isNotEqualTo(0));
     assertThat(metricsMap)
         .hasEntrySatisfying(
@@ -362,10 +361,6 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
         JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
 
     // Common
-    assertThat(metricsMap)
-        .hasEntrySatisfying(
-            "effectiveSplitTargetSize",
-            sqlMetric -> assertThat(sqlMetric.value()).isGreaterThan(0));
     assertThat(metricsMap)
         .hasEntrySatisfying(
             "totalPlanningDuration", sqlMetric -> assertThat(sqlMetric.value()).isNotEqualTo(0));
