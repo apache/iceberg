@@ -772,7 +772,16 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
           TableMetadata current,
           Set<Endpoint> endpoints,
           Map<String, String> readQueryParams) {
-        super(client, path, readHeaders, mutationHeaders, io, current, endpoints, readQueryParams);
+        super(
+            client,
+            path,
+            readHeaders,
+            mutationHeaders,
+            io,
+            null,
+            current,
+            endpoints,
+            readQueryParams);
       }
     }
 

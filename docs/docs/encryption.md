@@ -31,6 +31,8 @@ Two parameters are required to activate encryption of a table:
 1. Catalog property that specifies the KMS ("key management service"). It can be either `encryption.kms-type` for pre-defined KMS clients (`aws`, `azure`, `gcp` or `aliyun`) or `encryption.kms-impl` with the client class path for custom KMS clients.
 2. Table property `encryption.key-id`, that specifies the ID of a master key used to encrypt and decrypt the table. Master keys are stored and managed in the KMS.
 
+With the REST catalog, a configured KMS requires the client to use its own storage credentials: catalog initialization fails if `header.X-Iceberg-Access-Delegation` (in the catalog properties or the server's config response) requests any [access delegation](rest-protocol.md#storage-access-delegation) mechanism other than `none`.
+
 For more details on table encryption, see the "Appendix: Internals Overview" [subsection](#appendix-internals-overview).
 
 ## Example
