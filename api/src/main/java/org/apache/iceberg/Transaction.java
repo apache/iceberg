@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
 
 /** A transaction for performing multiple updates to a table. */
@@ -179,8 +180,14 @@ public interface Transaction {
   /**
    * Apply the pending changes from all actions and commit.
    *
+   * <p>This method may propagate {@link CommitStateUnknownException} when the underlying table
+   * operations cannot determine whether the commit succeeded or failed. Callers must not delete
+   * files that may have been included in a commit with an unknown outcome.
+   *
    * @throws ValidationException If any update cannot be applied to the current table metadata.
    * @throws CommitFailedException If the updates cannot be committed due to conflicts.
+   * @throws CommitStateUnknownException If it cannot be determined whether the commit succeeded or
+   *     failed.
    */
   void commitTransaction();
 }
