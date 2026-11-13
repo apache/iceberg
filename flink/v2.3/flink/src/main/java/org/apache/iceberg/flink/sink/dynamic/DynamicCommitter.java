@@ -355,12 +355,20 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
   }
 
   private static class MaxCommittedCheckpointIdValidator implements SnapshotAncestryValidator {
+    private final Table table;
+    private final String branch;
     private final long stagedCheckpointId;
     private final String sinkId;
     private final String flinkOperatorId;
 
     private MaxCommittedCheckpointIdValidator(
-        long stagedCheckpointId, String sinkId, String flinkOperatorId) {
+        Table table,
+        String branch,
+        long stagedCheckpointId,
+        String sinkId,
+        String flinkOperatorId) {
+      this.table = table;
+      this.branch = branch;
       this.stagedCheckpointId = stagedCheckpointId;
       this.sinkId = sinkId;
       this.flinkOperatorId = flinkOperatorId;
@@ -368,6 +376,12 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
 
     @Override
     public boolean validate(Iterable<Snapshot> baseSnapshots) {
+      // The ancestry of a branch without a ref is the ancestry of main, which holds nothing
+      // committed to this branch. The table is refreshed before each validation.
+      if (!table.refs().containsKey(branch)) {
+        return true;
+      }
+
       long maxCommittedCheckpointId =
           getMaxCommittedCheckpointId(baseSnapshots, sinkId, flinkOperatorId);
       if (maxCommittedCheckpointId >= stagedCheckpointId) {
@@ -406,7 +420,8 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
 
     operation.set(OPERATOR_ID, operatorId);
     operation.toBranch(branch);
-    operation.validateWith(new MaxCommittedCheckpointIdValidator(checkpointId, sinkId, operatorId));
+    operation.validateWith(
+        new MaxCommittedCheckpointIdValidator(table, branch, checkpointId, sinkId, operatorId));
 
     long startNano = System.nanoTime();
     try {
