@@ -266,6 +266,20 @@ class TestTrackedFileAdapters {
   }
 
   @Test
+  void dataFileRejectsColumnFiles() {
+    TrackedFile trackedDataFile = mock(TrackedFile.class);
+    when(trackedDataFile.contentType()).thenReturn(FileContent.DATA);
+    when(trackedDataFile.columnFiles())
+        .thenReturn(ImmutableList.of(Mockito.mock(ColumnFile.class)));
+    when(trackedDataFile.location()).thenReturn("s3://bucket/path/file.parquet");
+
+    assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(trackedDataFile, UNPARTITIONED))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(
+            "Cannot convert data file with column updates: %s", "s3://bucket/path/file.parquet");
+  }
+
+  @Test
   void dvDeleteFileAdapterDelegation() {
     DeletionVector dv =
         DeletionVectorStruct.builder()

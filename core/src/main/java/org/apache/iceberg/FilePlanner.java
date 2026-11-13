@@ -20,9 +20,9 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -36,6 +36,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.ThreadPools;
 
@@ -57,7 +59,7 @@ class FilePlanner {
 
   private String tableLocation = null;
   private Expression dataFilter = Expressions.alwaysTrue();
-  private int[] statsFieldIds = null;
+  private Set<Integer> statsFieldIds = null;
   private boolean ignoreResiduals = false;
   private boolean caseSensitive = true;
   private ScanMetrics scanMetrics = ScanMetrics.noop();
@@ -89,12 +91,21 @@ class FilePlanner {
 
   FilePlanner projectStats(int... fieldIds) {
     Preconditions.checkArgument(fieldIds != null, "Invalid field IDs: null");
-    this.statsFieldIds = Arrays.copyOf(fieldIds, fieldIds.length);
+    return projectStats(ArrayUtil.toIntList(fieldIds));
+  }
+
+  FilePlanner projectStats(Iterable<Integer> fieldIds) {
+    Preconditions.checkArgument(fieldIds != null, "Invalid field IDs: null");
+    this.statsFieldIds = Sets.newLinkedHashSet(fieldIds);
     return this;
   }
 
   FilePlanner ignoreResiduals() {
-    this.ignoreResiduals = true;
+    return ignoreResiduals(true);
+  }
+
+  FilePlanner ignoreResiduals(boolean shouldIgnoreResiduals) {
+    this.ignoreResiduals = shouldIgnoreResiduals;
     return this;
   }
 
