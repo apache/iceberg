@@ -1545,14 +1545,16 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
-    client
-        .withAuthSession(contextualSession)
-        .post(
-            paths.commitTransaction(),
-            new CommitTransactionRequest(tableChanges),
-            null,
-            mutationHeaders,
-            ErrorHandlers.tableCommitHandler());
+    RESTTableOperations.commitRequest(
+        () ->
+            client
+                .withAuthSession(contextualSession)
+                .post(
+                    paths.commitTransaction(),
+                    new CommitTransactionRequest(tableChanges),
+                    null,
+                    mutationHeaders,
+                    ErrorHandlers.tableCommitHandler()));
   }
 
   @Override
