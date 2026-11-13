@@ -92,7 +92,13 @@ public class TestHTTPClient {
   private static final int PORT = 1080;
   private static final String BEARER_AUTH_TOKEN = "auth_token";
   private static final String USER_AGENT = "User-Agent";
-  private static final String TEST_USER_AGENT = "Test-User-Agent";
+  private static final String TEST_USER_AGENT = "Test-User-Agent/1.0";
+  private static final String ICEBERG_JAVA_USER_AGENT =
+      "iceberg-java/"
+          + IcebergBuild.version()
+          + " (jvm "
+          + System.getProperty("java.version")
+          + ")";
   private static final String URI = String.format("http://127.0.0.1:%d", PORT);
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
 
@@ -131,6 +137,21 @@ public class TestHTTPClient {
   public static void stopServer() throws IOException {
     mockServer.stop();
     restClient.close();
+  }
+
+  @Test
+  public void testDefaultUserAgent() throws IOException {
+    String path = "default-user-agent";
+    HttpRequest mockRequest =
+        request("/" + path).withMethod("HEAD").withHeader(USER_AGENT, ICEBERG_JAVA_USER_AGENT);
+    mockServer.when(mockRequest, Times.exactly(1)).respond(response().withStatusCode(200));
+
+    try (RESTClient client =
+        HTTPClient.builder(ImmutableMap.of()).uri(URI).withAuthSession(AuthSession.EMPTY).build()) {
+      client.head(path, ImmutableMap.of(), ErrorHandlers.defaultErrorHandler());
+    }
+
+    mockServer.verify(mockRequest, VerificationTimes.exactly(1));
   }
 
   @Test
@@ -718,7 +739,7 @@ public class TestHTTPClient {
             .withHeader("Authorization", "Bearer " + BEARER_AUTH_TOKEN)
             .withHeader(HTTPClient.CLIENT_VERSION_HEADER, icebergBuildFullVersion)
             .withHeader(HTTPClient.CLIENT_GIT_COMMIT_SHORT_HEADER, icebergBuildGitCommitShort)
-            .withHeader(USER_AGENT, TEST_USER_AGENT);
+            .withHeader(USER_AGENT, TEST_USER_AGENT + " " + ICEBERG_JAVA_USER_AGENT);
 
     if (method.usesRequestBody()) {
       mockRequest = mockRequest.withBody(asJson);
