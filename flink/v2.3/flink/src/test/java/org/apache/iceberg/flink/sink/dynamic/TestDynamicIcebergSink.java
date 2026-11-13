@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 import static org.assertj.core.api.Assertions.tuple;
 
@@ -1864,6 +1865,24 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     assertThat(createSinkAndReturnUIds("test")).isEqualTo(createSinkAndReturnUIds("test"));
     assertThat(createSinkAndReturnUIds("test"))
         .doesNotContainAnyElementsOf(createSinkAndReturnUIds("test2"));
+  }
+
+  @Test
+  void staticOverwriteModeIsRejected() {
+    DataStream<DynamicIcebergDataImpl> dataStream =
+        env.fromData(
+            Collections.emptyList(), TypeInformation.of(new TypeHint<DynamicIcebergDataImpl>() {}));
+
+    assertThatThrownBy(
+            () ->
+                DynamicIcebergSink.forInput(dataStream)
+                    .generator(new ForwardGenerator())
+                    .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+                    .immediateTableUpdate(false)
+                    .set(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "static")
+                    .append())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Dynamic Iceberg sink does not support overwrite-mode=static");
   }
 
   @Test
