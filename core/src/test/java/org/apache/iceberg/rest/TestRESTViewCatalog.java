@@ -19,7 +19,9 @@
 package org.apache.iceberg.rest;
 
 import static org.apache.iceberg.rest.RequestMatcher.matches;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -41,10 +43,13 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -55,6 +60,7 @@ import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.view.ViewCatalogTests;
 import org.apache.iceberg.view.ViewMetadata;
 import org.eclipse.jetty.compression.gzip.GzipCompression;
@@ -72,6 +78,10 @@ import org.mockito.Mockito;
 
 public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
+  private static final ResourcePaths RESOURCE_PATHS = ResourcePaths.forCatalogProperties(Map.of());
+  private static final TableIdentifier IDENTIFIER = TableIdentifier.of("ns", "table");
+  private static final Schema REPLACEMENT_SCHEMA =
+      new Schema(required(1, "some_id", Types.IntegerType.get()));
 
   @TempDir protected Path temp;
 
@@ -318,6 +328,121 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     verifyViewExistsFallbackToGETRequest(
         ConfigResponse.builder().build(),
         ImmutableMap.of(RESTCatalogProperties.VIEW_ENDPOINTS_SUPPORTED, "true"));
+  }
+
+  private RESTCatalog catalogRejecting(String path, int responseCode) {
+    RESTCatalogAdapter adapter =
+        new RESTCatalogAdapter(backendCatalog) {
+          @Override
+          public <T extends RESTResponse> T execute(
+              HTTPRequest request,
+              Class<T> responseType,
+              Consumer<ErrorResponse> errorHandler,
+              Consumer<Map<String, String>> responseHeaders) {
+            if (request.path().equals(path)) {
+              errorHandler.accept(
+                  ErrorResponse.builder()
+                      .responseCode(responseCode)
+                      .withMessage("Rejected")
+                      .build());
+              throw new IllegalStateException("Error handler should have thrown");
+            }
+
+            return super.execute(request, responseType, errorHandler, responseHeaders);
+          }
+        };
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+    catalog.createNamespace(IDENTIFIER.namespace());
+    return catalog;
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {401, 403})
+  public void replaceTableViaTransactionWithoutViewAccess(int responseCode) {
+    RESTCatalog catalog = catalogRejecting(RESOURCE_PATHS.view(IDENTIFIER), responseCode);
+    catalog.buildTable(IDENTIFIER, SCHEMA).create();
+
+    catalog.buildTable(IDENTIFIER, REPLACEMENT_SCHEMA).replaceTransaction().commitTransaction();
+
+    assertThat(catalog.loadTable(IDENTIFIER).schema().findField("some_id")).isNotNull();
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {401, 403})
+  public void createOrReplaceTableViaTransactionWithoutViewAccess(int responseCode) {
+    RESTCatalog catalog = catalogRejecting(RESOURCE_PATHS.view(IDENTIFIER), responseCode);
+    catalog.buildTable(IDENTIFIER, SCHEMA).create();
+
+    catalog
+        .buildTable(IDENTIFIER, REPLACEMENT_SCHEMA)
+        .createOrReplaceTransaction()
+        .commitTransaction();
+
+    assertThat(catalog.loadTable(IDENTIFIER).schema().findField("some_id")).isNotNull();
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {401, 403})
+  public void createOrReplaceMissingTableViaTransactionWithoutViewAccess(int responseCode) {
+    RESTCatalog catalog = catalogRejecting(RESOURCE_PATHS.view(IDENTIFIER), responseCode);
+
+    catalog.buildTable(IDENTIFIER, SCHEMA).createOrReplaceTransaction().commitTransaction();
+
+    assertThat(catalog.tableExists(IDENTIFIER)).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {401, 403})
+  public void replaceMissingTableViaTransactionWithoutViewAccess(int responseCode) {
+    RESTCatalog catalog = catalogRejecting(RESOURCE_PATHS.view(IDENTIFIER), responseCode);
+
+    assertThatThrownBy(() -> catalog.buildTable(IDENTIFIER, SCHEMA).replaceTransaction())
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageStartingWith("Table does not exist: %s", IDENTIFIER);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {401, 403})
+  public void replaceViewWithoutTableAccess(int responseCode) {
+    RESTCatalog catalog = catalogRejecting(RESOURCE_PATHS.table(IDENTIFIER), responseCode);
+    catalog
+        .buildView(IDENTIFIER)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(IDENTIFIER.namespace())
+        .withQuery("spark", "select * from ns.tbl")
+        .create();
+
+    catalog
+        .buildView(IDENTIFIER)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(IDENTIFIER.namespace())
+        .withQuery("spark", "select * from ns.other")
+        .replace();
+
+    assertThat(catalog.loadView(IDENTIFIER).versions()).hasSize(2);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {401, 403})
+  public void replaceMissingViewWithoutTableAccess(int responseCode) {
+    RESTCatalog catalog = catalogRejecting(RESOURCE_PATHS.table(IDENTIFIER), responseCode);
+
+    assertThatThrownBy(
+            () ->
+                catalog
+                    .buildView(IDENTIFIER)
+                    .withSchema(SCHEMA)
+                    .withDefaultNamespace(IDENTIFIER.namespace())
+                    .withQuery("spark", "select * from ns.tbl")
+                    .replace())
+        .isInstanceOf(NoSuchViewException.class)
+        .hasMessageStartingWith("View does not exist: %s", IDENTIFIER);
   }
 
   @Test
