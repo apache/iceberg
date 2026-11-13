@@ -22,7 +22,7 @@ import java.io.Serializable;
 import java.util.Locale;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** Represents a boolean expression tree. */
+/** Represents an Iceberg expression: a value expression or a predicate. */
 public interface Expression extends Serializable {
   enum Operation {
     TRUE,
@@ -124,7 +124,10 @@ public interface Expression extends Serializable {
   }
 
   /** Returns the operation for an expression node. */
-  Operation op();
+  default Operation op() {
+    throw new UnsupportedOperationException(
+        getClass().getSimpleName() + " does not have an operation");
+  }
 
   /** Returns the negation of this expression, equivalent to not(this). */
   default Expression negate() {

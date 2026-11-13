@@ -23,6 +23,7 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.UUID;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 
 /**
@@ -30,7 +31,7 @@ import org.apache.iceberg.types.Type;
  *
  * @param <T> The Java type of the value wrapped by a {@link Literal}
  */
-public interface Literal<T> extends Serializable {
+public interface Literal<T> extends ValueExpression<T>, BoundExpression<T>, Serializable {
   static Literal<Boolean> of(boolean value) {
     return new Literals.BooleanLiteral(value);
   }
@@ -73,6 +74,11 @@ public interface Literal<T> extends Serializable {
 
   /** Returns the value wrapped by this literal. */
   T value();
+
+  @Override
+  default T eval(StructLike ignored) {
+    return value();
+  }
 
   /**
    * Converts this literal to a literal of the given type.
