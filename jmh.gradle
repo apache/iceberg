@@ -90,4 +90,14 @@ configure(jmhProjects) {
   }
 
   tasks.jmh.finalizedBy tasks.jmhReport
+
+  // iceberg-open-api has no main jar (jar task is disabled); exclude it from the JMH fat jar
+  // to prevent failures when the task tries to expand a file that was never produced.
+  // Benchmark sources do not use iceberg-open-api directly; test fixtures from that module
+  // are pulled in transitively via the Spark test classpath but are not needed at benchmark runtime.
+  afterEvaluate {
+    configurations.jmhRuntimeClasspath {
+      exclude group: 'org.apache.iceberg', module: 'iceberg-open-api'
+    }
+  }
 }
