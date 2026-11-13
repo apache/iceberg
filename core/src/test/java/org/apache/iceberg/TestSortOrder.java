@@ -222,6 +222,34 @@ public class TestSortOrder {
   }
 
   @TestTemplate
+  public void testSatisfiesTransformFollowedByAnotherField() {
+    SortOrder tsData =
+        SortOrder.builderFor(SCHEMA).asc("ts", NULLS_LAST).asc("data", NULLS_LAST).build();
+    SortOrder dayData =
+        SortOrder.builderFor(SCHEMA)
+            .asc(Expressions.day("ts"), NULLS_LAST)
+            .asc("data", NULLS_LAST)
+            .build();
+    SortOrder day = SortOrder.builderFor(SCHEMA).asc(Expressions.day("ts"), NULLS_LAST).build();
+    SortOrder dataTs =
+        SortOrder.builderFor(SCHEMA).asc("data", NULLS_LAST).asc("ts", NULLS_LAST).build();
+    SortOrder dataDay =
+        SortOrder.builderFor(SCHEMA)
+            .asc("data", NULLS_LAST)
+            .asc(Expressions.day("ts"), NULLS_LAST)
+            .build();
+
+    // rows tied on day(ts) are ordered by ts, not by data, so [ts, data] does not satisfy
+    // [day(ts), data]
+    assertThat(tsData.satisfies(dayData)).isFalse();
+    assertThat(dayData.satisfies(tsData)).isFalse();
+    assertThat(dayData.satisfies(dayData)).isTrue();
+    // a finer transform still satisfies a coarser one in the last position
+    assertThat(tsData.satisfies(day)).isTrue();
+    assertThat(dataTs.satisfies(dataDay)).isTrue();
+  }
+
+  @TestTemplate
   public void testSatisfiesTimestampFieldOrder() {
     SortOrder id = SortOrder.builderFor(SCHEMA).asc("ts", NULLS_LAST).build();
     SortOrder year = SortOrder.builderFor(SCHEMA).asc(Expressions.year("ts"), NULLS_LAST).build();
