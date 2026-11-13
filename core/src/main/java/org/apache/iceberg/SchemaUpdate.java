@@ -51,6 +51,16 @@ import org.slf4j.LoggerFactory;
 class SchemaUpdate implements UpdateSchema {
   private static final Logger LOG = LoggerFactory.getLogger(SchemaUpdate.class);
   private static final int TABLE_ROOT_ID = -1;
+  private static final Set<String> COLUMN_PROPERTY_PREFIXES =
+      ImmutableSet.of(
+          TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX,
+          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX,
+          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX,
+          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX,
+          TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX,
+          TableProperties.PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX,
+          TableProperties.PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX,
+          TableProperties.PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX);
 
   private final TableOperations ops;
   private final TableMetadata base;
@@ -504,27 +514,31 @@ class SchemaUpdate implements UpdateSchema {
       }
     }
 
-    // Transform the metrics if they exist
-    if (base != null && base.properties() != null) {
-      Schema newSchema = newMetadata.schema();
-      List<String> deletedColumns =
-          deletes.stream().map(schema::findColumnName).collect(Collectors.toList());
-      Map<String, String> renamedColumns =
-          updates.keySet().stream()
-              .filter(id -> !addedNameToId.containsValue(id)) // remove added columns
-              .filter(id -> !schema.findColumnName(id).equals(newSchema.findColumnName(id)))
-              .collect(Collectors.toMap(schema::findColumnName, newSchema::findColumnName));
+    // Keep name-keyed per-column properties in sync
+    boolean hasDeletesOrRenames =
+        !deletes.isEmpty()
+            || updates.keySet().stream().anyMatch(id -> !addedNameToId.containsValue(id));
+    if (base != null && base.properties() != null && hasDeletesOrRenames) {
+      Map<Integer, String> newIdToName = newMetadata.schema().idToName();
+      List<String> deletedColumns = Lists.newArrayList();
+      Map<String, String> renamedColumns = Maps.newHashMap();
+      // compare all fields so that nested fields of a deleted or renamed struct are included
+      schema
+          .idToName()
+          .forEach(
+              (id, name) -> {
+                String newName = newIdToName.get(id);
+                if (newName == null) {
+                  deletedColumns.add(name);
+                } else if (!newName.equals(name)) {
+                  renamedColumns.put(name, newName);
+                }
+              });
+
       if (!deletedColumns.isEmpty() || !renamedColumns.isEmpty()) {
-        Set<String> columnProperties =
-            ImmutableSet.of(
-                TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX,
-                TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX,
-                TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX,
-                TableProperties.PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX,
-                TableProperties.PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX);
         Map<String, String> updatedProperties =
             PropertyUtil.applySchemaChanges(
-                newMetadata.properties(), deletedColumns, renamedColumns, columnProperties);
+                newMetadata.properties(), deletedColumns, renamedColumns, COLUMN_PROPERTY_PREFIXES);
         newMetadata = newMetadata.replaceProperties(updatedProperties);
       }
     }
