@@ -31,7 +31,7 @@ import org.apache.iceberg.util.LocationUtil;
 class RootManifestFile implements ManifestFile {
   private static final int FORMAT_VERSION = 4;
 
-  static RootManifestFile from(Snapshot snapshot, FileIO io, String tableLocation) {
+  static RootManifestFile from(Snapshot snapshot, String tableLocation, FileIO io) {
     if (snapshot.keyId() != null) {
       throw new UnsupportedOperationException("Encrypted v4 root manifests are not supported");
     }

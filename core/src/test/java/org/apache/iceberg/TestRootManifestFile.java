@@ -145,7 +145,7 @@ class TestRootManifestFile {
     Mockito.when(io.newInputFile(resolved)).thenReturn(input);
     Mockito.when(input.getLength()).thenReturn(LENGTH);
 
-    RootManifestFile root = RootManifestFile.from(snapshot, io, "s3://bucket/db/table");
+    RootManifestFile root = RootManifestFile.from(snapshot, "s3://bucket/db/table", io);
 
     assertThat(root.path())
         .as("relative root location should resolve against the table location")
@@ -163,7 +163,7 @@ class TestRootManifestFile {
 
     assertThatThrownBy(
             () ->
-                RootManifestFile.from(snapshot, Mockito.mock(FileIO.class), "s3://bucket/db/table"))
+                RootManifestFile.from(snapshot, "s3://bucket/db/table", Mockito.mock(FileIO.class)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Encrypted v4 root manifests are not supported");
   }

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.V4TestHelpers.columnFile;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -29,6 +30,7 @@ import java.util.Map;
 import org.apache.iceberg.mumbling.MumblingTestUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
@@ -263,6 +265,32 @@ class TestTrackedFileAdapters {
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, UNPARTITIONED))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid content type for DataFile: %s", contentType);
+  }
+
+  @Test
+  void dataFileAdapterRejectsColumnFiles() {
+    TrackedFile file =
+        new TrackedFileStruct(
+            null,
+            FileContent.DATA,
+            DATA_FILE_LOCATION,
+            FileFormat.PARQUET,
+            1L,
+            1L,
+            null,
+            null,
+            null,
+            false,
+            null,
+            null,
+            null,
+            null,
+            null,
+            ImmutableList.of(columnFile("s3://bucket/data/col-1.parquet", ImmutableSet.of(1))));
+
+    assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, UNPARTITIONED))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Column files are not supported: %s", DATA_FILE_LOCATION);
   }
 
   @Test

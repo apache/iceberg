@@ -39,6 +39,11 @@ class TrackedFileAdapters {
         file.contentType() == FileContent.DATA,
         "Invalid content type for DataFile: %s",
         file.contentType());
+    List<ColumnFile> columnFiles = file.columnFiles();
+    if (columnFiles != null && !columnFiles.isEmpty()) {
+      throw new UnsupportedOperationException("Column files are not supported: " + file.location());
+    }
+
     return new TrackedDataFile(file, resolveSpecId(file, specsById));
   }
 

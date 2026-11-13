@@ -20,9 +20,9 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -34,6 +34,7 @@ import org.apache.iceberg.metrics.ScanMetricsUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ParallelIterable;
@@ -57,7 +58,7 @@ class FilePlanner {
 
   private String tableLocation = null;
   private Expression dataFilter = Expressions.alwaysTrue();
-  private int[] statsFieldIds = null;
+  private Set<Integer> statsFieldIds = null;
   private boolean ignoreResiduals = false;
   private boolean caseSensitive = true;
   private ScanMetrics scanMetrics = ScanMetrics.noop();
@@ -87,14 +88,14 @@ class FilePlanner {
     return this;
   }
 
-  FilePlanner projectStats(int... fieldIds) {
+  FilePlanner projectStats(Set<Integer> fieldIds) {
     Preconditions.checkArgument(fieldIds != null, "Invalid field IDs: null");
-    this.statsFieldIds = Arrays.copyOf(fieldIds, fieldIds.length);
+    this.statsFieldIds = ImmutableSet.copyOf(fieldIds);
     return this;
   }
 
-  FilePlanner ignoreResiduals() {
-    this.ignoreResiduals = true;
+  FilePlanner ignoreResiduals(boolean shouldIgnoreResiduals) {
+    this.ignoreResiduals = shouldIgnoreResiduals;
     return this;
   }
 
@@ -120,7 +121,6 @@ class FilePlanner {
 
     try (CloseableIterable<TrackedFile> rootEntries = reader(root)) {
       for (TrackedFile entry : rootEntries) {
-        rejectColumnFiles(entry);
         switch (entry.contentType()) {
           case DATA:
             rootDataFiles.add(TrackedFileAdapters.asDataFile(entry, specsById));
@@ -156,25 +156,13 @@ class FilePlanner {
 
     CloseableIterable<DataFile> leafDataFiles =
         CloseableIterable.transform(
-            leafFiles,
-            entry -> {
-              rejectColumnFiles(entry);
-              return TrackedFileAdapters.asDataFile(entry, specsById);
-            });
+            leafFiles, file -> TrackedFileAdapters.asDataFile(file, specsById));
 
     CloseableIterable<DataFile> dataFiles =
         CloseableIterable.concat(
             ImmutableList.of(CloseableIterable.of(rootDataFiles), leafDataFiles));
 
     return CloseableIterable.transform(dataFiles, this::createTask);
-  }
-
-  private static void rejectColumnFiles(TrackedFile entry) {
-    List<ColumnFile> columnFiles = entry.columnFiles();
-    if (columnFiles != null && !columnFiles.isEmpty()) {
-      throw new UnsupportedOperationException(
-          "Column files are not supported: " + entry.location());
-    }
   }
 
   private CloseableIterable<TrackedFile> reader(ManifestFile manifest) {

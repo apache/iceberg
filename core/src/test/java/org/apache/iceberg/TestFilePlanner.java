@@ -22,9 +22,7 @@ import static org.apache.iceberg.V4TestHelpers.FILE_SIZE_IN_BYTES;
 import static org.apache.iceberg.V4TestHelpers.FORMAT_VERSION_V4;
 import static org.apache.iceberg.V4TestHelpers.RECORD_COUNT;
 import static org.apache.iceberg.V4TestHelpers.SNAPSHOT_ID;
-import static org.apache.iceberg.V4TestHelpers.columnFile;
 import static org.apache.iceberg.V4TestHelpers.dataFile;
-import static org.apache.iceberg.V4TestHelpers.dataFileWithColumnFiles;
 import static org.apache.iceberg.V4TestHelpers.deletionVector;
 import static org.apache.iceberg.V4TestHelpers.manifestRef;
 import static org.apache.iceberg.V4TestHelpers.manifestRefWithStats;
@@ -310,7 +308,8 @@ class TestFilePlanner {
     int idFieldId = TABLE_SCHEMA.findField("id").fieldId();
     int dataFieldId = TABLE_SCHEMA.findField("data").fieldId();
     List<FileScanTask> tasks =
-        plan(root, UNPARTITIONED_SPECS, planner -> planner.projectStats(idFieldId));
+        plan(
+            root, UNPARTITIONED_SPECS, planner -> planner.projectStats(ImmutableSet.of(idFieldId)));
 
     assertThat(tasks)
         .extracting(
@@ -438,7 +437,7 @@ class TestFilePlanner {
 
     Expression filter = Expressions.and(Expressions.equal("id", 1), Expressions.equal("data", "x"));
     List<FileScanTask> tasks =
-        plan(root, MIXED_SPECS, planner -> planner.filterData(filter).ignoreResiduals());
+        plan(root, MIXED_SPECS, planner -> planner.filterData(filter).ignoreResiduals(true));
 
     assertThat(tasks)
         .as("ignoreResiduals forces an alwaysTrue residual for every file regardless of spec")
@@ -591,25 +590,6 @@ class TestFilePlanner {
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot read manifest with format version 0: only 4 is supported");
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  void columnFilesUnsupported(FileFormat format) throws IOException {
-    ManifestFile root =
-        writeManifest(
-            format,
-            EMPTY_PARTITION,
-            ImmutableList.of(
-                dataFileWithColumnFiles(
-                    FILE_A,
-                    ImmutableList.of(
-                        columnFile("s3://bucket/db/table/col-a.parquet", ImmutableSet.of(1))))));
-
-    FilePlanner planner = new FilePlanner(fileIO, root, TABLE_SCHEMA, UNPARTITIONED_SPECS);
-    assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Column files are not supported: " + FILE_A);
   }
 
   @ParameterizedTest

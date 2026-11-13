@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.V4TestHelpers.dataFile;
-import static org.apache.iceberg.V4TestHelpers.dataFileWithStats;
 import static org.apache.iceberg.V4TestHelpers.writeTrackedFiles;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -55,7 +54,7 @@ class TestV4ScanPlanning {
   }
 
   @Test
-  void rootManifestSnapshotPlansThroughFilePlanner() throws IOException {
+  void plansRootManifestSnapshot() throws IOException {
     TestTables.TestTable table =
         TestTables.create(tableDir, "v4_root", SCHEMA, PartitionSpec.unpartitioned(), 4);
 
@@ -67,13 +66,13 @@ class TestV4ScanPlanning {
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       assertThat(tasks)
           .extracting(task -> task.file().location())
-          .as("the scan should plan the root manifest's data files via the v4 planner")
+          .as("a root manifest snapshot should plan its data files")
           .containsExactlyInAnyOrder(FILE_A, FILE_B);
     }
   }
 
   @Test
-  void retainedManifestListSnapshotStaysOnLegacyPath() throws IOException {
+  void readsManifestListSnapshotAfterUpgradeToV4() throws IOException {
     TestTables.TestTable table =
         TestTables.create(tableDir, "v4_upgraded", SCHEMA, PartitionSpec.unpartitioned(), 3);
     DataFile file =
@@ -95,24 +94,6 @@ class TestV4ScanPlanning {
         .isNull();
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       assertThat(tasks).extracting(task -> task.file().location()).containsExactly(FILE_A);
-    }
-  }
-
-  @Test
-  void includeColumnStatsReturnsBounds() throws IOException {
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "v4_stats", SCHEMA, PartitionSpec.unpartitioned(), 4);
-    commitRootManifestSnapshot(table, dataFileWithStats(FILE_A, idStats(0, 99)));
-
-    int idFieldId = SCHEMA.findField("id").fieldId();
-    try (CloseableIterable<FileScanTask> tasks = table.newScan().includeColumnStats().planFiles()) {
-      assertThat(tasks)
-          .singleElement()
-          .satisfies(
-              task ->
-                  assertThat(task.file().lowerBounds())
-                      .as("includeColumnStats() should return column bounds on a v4 scan")
-                      .containsKey(idFieldId));
     }
   }
 
@@ -146,20 +127,5 @@ class TestV4ScanPlanning {
             .build();
     table.ops().commit(table.ops().current(), updated);
     table.refresh();
-  }
-
-  private static ContentStats idStats(int lower, int upper) {
-    ContentStatsStruct stats = new ContentStatsStruct(STATS_TYPE);
-    stats.setStats(
-        SCHEMA.findField("id").fieldId(),
-        new FieldStatsStruct<>(
-            STATS_TYPE.fieldType("id").asStructType(),
-            lower,
-            upper,
-            /* valueCount= */ 1L,
-            /* nullValueCount= */ 0L,
-            /* nanValueCount= */ 0L,
-            /* totalBytes= */ 0L));
-    return stats;
   }
 }

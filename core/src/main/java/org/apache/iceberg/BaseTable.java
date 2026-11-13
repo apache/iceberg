@@ -99,6 +99,11 @@ public class BaseTable
   }
 
   @Override
+  public boolean allowDistributedPlanning() {
+    return ops.current().formatVersion() < 4;
+  }
+
+  @Override
   public TableScan newScan() {
     return new DataTableScan(
         this, schema(), ImmutableTableScanContext.builder().metricsReporter(reporter).build());
