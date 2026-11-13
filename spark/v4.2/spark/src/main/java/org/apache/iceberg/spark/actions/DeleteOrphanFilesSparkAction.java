@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
+import java.math.RoundingMode;
 import java.net.URI;
 import java.sql.Timestamp;
 import java.util.Collections;
@@ -50,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.FileSystemWalker;
 import org.apache.iceberg.util.Pair;
@@ -111,6 +113,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
   private static final int MAX_ORPHAN_FILE_SAMPLE_SIZE_DEFAULT = 20000;
 
+  @VisibleForTesting static final int MAX_LISTED_FILES_PER_PARTITION = 100000;
+
   private static final Logger LOG = LoggerFactory.getLogger(DeleteOrphanFilesSparkAction.class);
   private static final Map<String, String> EQUAL_SCHEMES_DEFAULT = ImmutableMap.of("s3n,s3a", "s3");
   private static final int MAX_DRIVER_LISTING_DEPTH = 3;
@@ -118,7 +122,6 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private static final int MAX_EXECUTOR_LISTING_DEPTH = 2000;
   private static final int MAX_EXECUTOR_LISTING_DIRECT_SUB_DIRS = Integer.MAX_VALUE;
   private static final int DELETE_GROUP_SIZE = 100000;
-  private static final int MAX_LISTED_FILES_PER_PARTITION = 100000;
 
   private final SerializableConfiguration hadoopConf;
   private final int listingParallelism;
@@ -468,12 +471,14 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   }
 
   private JavaRDD<String> matchingFilesRDD(List<String> matchingFiles) {
+    return sparkContext().parallelize(matchingFiles, listedFilePartitions(matchingFiles.size()));
+  }
+
+  @VisibleForTesting
+  static int listedFilePartitions(int numFiles) {
     int numPartitions =
-        Math.max(
-            1,
-            (matchingFiles.size() + MAX_LISTED_FILES_PER_PARTITION - 1)
-                / MAX_LISTED_FILES_PER_PARTITION);
-    return sparkContext().parallelize(matchingFiles, numPartitions);
+        IntMath.divide(numFiles, MAX_LISTED_FILES_PER_PARTITION, RoundingMode.CEILING);
+    return Math.max(1, numPartitions);
   }
 
   private static Map<String, String> flattenMap(Map<String, String> map) {
