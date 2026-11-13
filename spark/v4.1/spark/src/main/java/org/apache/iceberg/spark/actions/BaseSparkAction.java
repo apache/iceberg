@@ -31,6 +31,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.iceberg.AllManifestsTable;
 import org.apache.iceberg.BaseTable;
@@ -64,6 +65,7 @@ import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
@@ -87,6 +89,10 @@ abstract class BaseSparkAction<ThisT> {
 
   protected static final Splitter COMMA_SPLITTER = Splitter.on(",");
   protected static final Joiner COMMA_JOINER = Joiner.on(',');
+
+  // read by withReusableDS; the actions that support it expose these as USE_CACHING constants
+  static final String USE_CACHING_OPTION = "use-caching";
+  static final boolean USE_CACHING_BY_DEFAULT = false;
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseSparkAction.class);
   private static final AtomicInteger JOB_COUNTER = new AtomicInteger();
@@ -132,6 +138,21 @@ abstract class BaseSparkAction<ThisT> {
 
   protected JobGroupInfo newJobGroupInfo(String groupId, String desc) {
     return new JobGroupInfo(groupId + "-" + JOB_COUNTER.incrementAndGet(), desc);
+  }
+
+  /** Applies func to ds, cached for the duration if the use-caching option is enabled. */
+  protected <T, U> U withReusableDS(Dataset<T> ds, Function<Dataset<T>, U> func) {
+    boolean useCaching =
+        PropertyUtil.propertyAsBoolean(options(), USE_CACHING_OPTION, USE_CACHING_BY_DEFAULT);
+    Dataset<T> reusableDS = useCaching ? ds.cache() : ds;
+
+    try {
+      return func.apply(reusableDS);
+    } finally {
+      if (useCaching) {
+        reusableDS.unpersist(false);
+      }
+    }
   }
 
   protected Table newStaticTable(TableMetadata metadata, FileIO io) {
