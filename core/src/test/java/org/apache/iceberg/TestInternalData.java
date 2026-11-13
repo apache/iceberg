@@ -21,11 +21,15 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 
+import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -172,6 +176,48 @@ public class TestInternalData {
   @Test
   public void registerToleratesExceptionInInitializerErrorOnInvoke() {
     assertThatNoException().isThrownBy(() -> register(ThrowsInitErrorOnInvoke.class.getName()));
+  }
+
+  @Test
+  void registersParquetWhenTheContextClassLoaderCannotSeeIceberg() throws Exception {
+    // formats are registered once per loaded copy of InternalData, so this needs a fresh copy
+    try (URLClassLoader isolated =
+        new URLClassLoader(TestHelpers.testClasspath(), ClassLoader.getPlatformClassLoader())) {
+      AtomicReference<Object> writeBuilder = new AtomicReference<>();
+      AtomicReference<Throwable> failure = new AtomicReference<>();
+      Thread thread =
+          new Thread(
+              () -> {
+                try {
+                  writeBuilder.set(writeParquet(isolated));
+                } catch (InvocationTargetException e) {
+                  failure.set(e.getCause());
+                } catch (Throwable e) {
+                  failure.set(e);
+                }
+              });
+      thread.setContextClassLoader(null);
+      thread.start();
+      thread.join();
+
+      assertThat(failure.get()).isNull();
+      assertThat(writeBuilder.get()).isNotNull();
+    }
+  }
+
+  private Object writeParquet(ClassLoader loader) throws ReflectiveOperationException {
+    Class<?> internalData = Class.forName("org.apache.iceberg.InternalData", true, loader);
+    assertThat(internalData).isNotSameAs(InternalData.class);
+
+    Class<?> fileFormat = Class.forName("org.apache.iceberg.FileFormat", true, loader);
+    Class<?> outputFile = Class.forName("org.apache.iceberg.io.OutputFile", true, loader);
+    Object parquet = fileFormat.getField("PARQUET").get(null);
+    Object file =
+        Class.forName("org.apache.iceberg.Files", true, loader)
+            .getMethod("localOutput", File.class)
+            .invoke(null, tempDir.resolve("internal.parquet").toFile());
+
+    return internalData.getMethod("write", fileFormat, outputFile).invoke(null, parquet, file);
   }
 
   private static void register(String className) throws ReflectiveOperationException {
