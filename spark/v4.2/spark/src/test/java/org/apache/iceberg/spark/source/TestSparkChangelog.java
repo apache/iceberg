@@ -241,7 +241,8 @@ class TestSparkChangelog extends TestBaseWithCatalog {
     Table table = createCdcTable();
     long firstVersion = table.currentSnapshot().sequenceNumber();
     SparkChangelog changelog =
-        new SparkChangelog(table, context(new ChangelogRange.UnboundedRange()));
+        new SparkChangelog(
+            table, context(new ChangelogRange.UnboundedRange()), CaseInsensitiveStringMap.empty());
     Scan pinned = changelog.newScanBuilder(CaseInsensitiveStringMap.empty()).build();
 
     sql("INSERT INTO %s VALUES (2, 'b')", tableName);
@@ -261,7 +262,8 @@ class TestSparkChangelog extends TestBaseWithCatalog {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
     SparkChangelog changelog =
-        new SparkChangelog(table, context(new ChangelogRange.UnboundedRange()));
+        new SparkChangelog(
+            table, context(new ChangelogRange.UnboundedRange()), CaseInsensitiveStringMap.empty());
     Scan empty = changelog.newScanBuilder(CaseInsensitiveStringMap.empty()).build();
 
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
@@ -344,7 +346,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
             new ChangelogRange.VersionRange(
                 String.valueOf(first), Optional.of(String.valueOf(first)), false, false));
     assertThat(
-            new SparkChangelog(table, empty)
+            new SparkChangelog(table, empty, CaseInsensitiveStringMap.empty())
                 .newScanBuilder(CaseInsensitiveStringMap.empty())
                 .build()
                 .toBatch()
@@ -391,7 +393,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
             false);
     assertThatThrownBy(
             () ->
-                new SparkChangelog(table, context)
+                new SparkChangelog(table, context, CaseInsensitiveStringMap.empty())
                     .newScanBuilder(CaseInsensitiveStringMap.empty())
                     .build()
                     .toBatch()

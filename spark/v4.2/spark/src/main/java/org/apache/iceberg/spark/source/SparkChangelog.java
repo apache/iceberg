@@ -77,10 +77,6 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
   private final ChangelogContext context;
   private final Schema dataSchema;
 
-  public SparkChangelog(Table table, ChangelogContext context) {
-    this(table, context, CaseInsensitiveStringMap.empty());
-  }
-
   public SparkChangelog(Table table, ChangelogContext context, CaseInsensitiveStringMap options) {
     super(table);
     this.context = Preconditions.checkNotNull(context, "Changelog context cannot be null");
