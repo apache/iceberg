@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.connect.channel;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,7 @@ import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.Offset;
 import org.apache.iceberg.connect.events.AvroUtil;
 import org.apache.iceberg.connect.events.Event;
+import org.apache.iceberg.connect.events.PayloadType;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -40,6 +42,8 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.InvalidProducerEpochException;
 import org.apache.kafka.common.errors.ProducerFencedException;
+import org.apache.kafka.common.header.Header;
+import org.apache.kafka.common.header.internals.RecordHeader;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +51,10 @@ import org.slf4j.LoggerFactory;
 abstract class Channel {
 
   private static final Logger LOG = LoggerFactory.getLogger(Channel.class);
+
+  // Headers that let a reader skip a control event without decoding it
+  static final String GROUP_ID_HEADER = "iceberg.connect.group-id";
+  static final String PAYLOAD_TYPE_HEADER = "iceberg.connect.payload-type";
 
   private final String controlTopic;
   private final String connectGroupId;
@@ -91,7 +99,17 @@ abstract class Channel {
                   LOG.info("Sending event of type: {}", event.type().name());
                   byte[] data = AvroUtil.encode(event);
                   // key by producer ID to keep event order
-                  return new ProducerRecord<>(controlTopic, producerId, data);
+                  return new ProducerRecord<>(
+                      controlTopic,
+                      null,
+                      producerId,
+                      data,
+                      ImmutableList.<Header>of(
+                          new RecordHeader(
+                              GROUP_ID_HEADER, event.groupId().getBytes(StandardCharsets.UTF_8)),
+                          new RecordHeader(
+                              PAYLOAD_TYPE_HEADER,
+                              event.type().name().getBytes(StandardCharsets.UTF_8))));
                 })
             .collect(Collectors.toList());
 
@@ -119,6 +137,14 @@ abstract class Channel {
 
   protected abstract boolean receive(Envelope envelope);
 
+  /**
+   * Returns whether {@link #receive(Envelope)} acts on events of the given type; events of other
+   * types may be skipped without being decoded.
+   */
+  protected boolean handles(PayloadType type) {
+    return true;
+  }
+
   protected void consumeAvailable(Duration pollDuration) {
     ConsumerRecords<String, byte[]> records = consumer.poll(pollDuration);
     while (!records.isEmpty()) {
@@ -138,6 +164,10 @@ abstract class Channel {
         // offset by one and keep the highest position seen.
         controlTopicOffsets.merge(record.partition(), record.offset() + 1, Long::max);
 
+        if (skipWithoutDecoding(record)) {
+          continue;
+        }
+
         Event event = AvroUtil.decode(record.value());
 
         if (event.groupId().equals(connectGroupId)) {
@@ -149,6 +179,43 @@ abstract class Channel {
       }
       records = consumer.poll(pollDuration);
     }
+  }
+
+  // Every task reads every control event, including the other tasks' DATA_WRITTEN replies, which
+  // carry full data file metadata. Records without these headers, such as those written by an
+  // older version, are decoded.
+  private boolean skipWithoutDecoding(ConsumerRecord<String, byte[]> record) {
+    String groupId = lastHeaderValue(record, GROUP_ID_HEADER);
+    if (groupId != null && !groupId.equals(connectGroupId)) {
+      return true;
+    }
+
+    String typeName = lastHeaderValue(record, PAYLOAD_TYPE_HEADER);
+    if (typeName == null) {
+      return false;
+    }
+
+    PayloadType type;
+    try {
+      type = PayloadType.valueOf(typeName);
+    } catch (IllegalArgumentException e) {
+      return false;
+    }
+
+    return !handles(type);
+  }
+
+  private static String lastHeaderValue(ConsumerRecord<String, byte[]> record, String key) {
+    if (record.headers() == null) {
+      return null;
+    }
+
+    Header header = record.headers().lastHeader(key);
+    if (header == null || header.value() == null) {
+      return null;
+    }
+
+    return new String(header.value(), StandardCharsets.UTF_8);
   }
 
   protected Map<Integer, Long> controlTopicOffsets() {

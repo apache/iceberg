@@ -52,6 +52,7 @@ import org.apache.iceberg.connect.events.CommitComplete;
 import org.apache.iceberg.connect.events.CommitToTable;
 import org.apache.iceberg.connect.events.DataWritten;
 import org.apache.iceberg.connect.events.Event;
+import org.apache.iceberg.connect.events.PayloadType;
 import org.apache.iceberg.connect.events.StartCommit;
 import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -138,6 +139,11 @@ class Coordinator extends Channel {
     if (commitState.isCommitTimedOut()) {
       commit(true);
     }
+  }
+
+  @Override
+  protected boolean handles(PayloadType type) {
+    return type == PayloadType.DATA_WRITTEN || type == PayloadType.DATA_COMPLETE;
   }
 
   @Override
