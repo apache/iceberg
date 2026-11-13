@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.iceberg.spark.source.metrics.ScanDuration;
 import org.apache.spark.sql.Dataset;
@@ -33,6 +35,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.metric.SQLMetric;
+import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -340,5 +343,66 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
     assertThat(metricsMap)
         .hasEntrySatisfying(
             "skippedDeleteFiles", sqlMetric -> assertThat(sqlMetric.value()).isEqualTo(0));
+  }
+
+  @TestTemplate
+  public void metricsWhenTaskReadsSeveralPartitions() {
+    sql(
+        "CREATE TABLE %s (id BIGINT, dep STRING, region STRING) USING iceberg "
+            + "PARTITIONED BY (dep, region) "
+            + "TBLPROPERTIES ('format-version'='2', 'write.delete.mode'='merge-on-read')",
+        tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, 'hr', 'us'), (2, 'hr', 'eu'), (3, 'hr', 'apac'), "
+            + "(4, 'ops', 'us'), (5, 'ops', 'eu'), (11, 'hr', 'us'), (12, 'hr', 'eu'), "
+            + "(13, 'hr', 'apac'), (14, 'ops', 'us'), (15, 'ops', 'eu')",
+        tableName);
+    // one deleted row in each of the 5 partitions
+    sql("DELETE FROM %s WHERE id > 10", tableName);
+
+    // joining on a subset of the partition keys makes Spark group the 3 hr and the 2 ops
+    // partitions into one task each, so every task opens several readers
+    Map<String, String> spjConf =
+        ImmutableMap.of(
+            SQLConf.V2_BUCKETING_ENABLED().key(),
+            "true",
+            SQLConf.V2_BUCKETING_ALLOW_JOIN_KEYS_SUBSET_OF_PARTITION_KEYS().key(),
+            "true",
+            SQLConf.REQUIRE_ALL_CLUSTER_KEYS_FOR_CO_PARTITION().key(),
+            "false",
+            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(),
+            "false",
+            SQLConf.AUTO_BROADCASTJOIN_THRESHOLD().key(),
+            "-1",
+            SparkSQLProperties.PRESERVE_DATA_GROUPING,
+            "true");
+
+    for (String vectorized : new String[] {"true", "false"}) {
+      sql(
+          "ALTER TABLE %s SET TBLPROPERTIES ('%s'='%s')",
+          tableName, TableProperties.PARQUET_VECTORIZATION_ENABLED, vectorized);
+
+      withSQLConf(
+          spjConf,
+          () -> {
+            Dataset<Row> df =
+                spark.sql(
+                    String.format(
+                        "SELECT * FROM %s a JOIN %s b ON a.dep = b.dep", tableName, tableName));
+            df.collect();
+
+            List<SparkPlan> scans =
+                seqAsJavaListConverter(df.queryExecution().executedPlan().collectLeaves()).asJava();
+            assertThat(scans).hasSize(2);
+            for (SparkPlan scan : scans) {
+              assertThat(scan.metrics().get("numSplits").get().value())
+                  .as("numSplits with vectorization %s", vectorized)
+                  .isEqualTo(5L);
+              assertThat(scan.metrics().get("numDeletes").get().value())
+                  .as("numDeletes with vectorization %s", vectorized)
+                  .isEqualTo(5L);
+            }
+          });
+    }
   }
 }
