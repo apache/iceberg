@@ -68,6 +68,7 @@ Version 4 of the Iceberg spec restructures metadata for improved performance and
 * New data type: `file`
 * Support for table [constraints](#constraints)
 * [Default value expressions](#default-values) for write defaults
+* New data type: `vector`
 
 The full set of changes are listed in [Appendix E](#version-4).
 
@@ -297,6 +298,7 @@ Supported primitive types are defined in the table below. Primitive types added 
 |                  | **`binary`**       | Arbitrary-length byte array                                              |                                                  |
 | [v3](#version-3) | **`geometry(C)`**  | Geospatial features from [OGC – Simple feature access][1001]. Edge-interpolation is always linear/planar. See [Appendix G](#appendix-g-geospatial-notes). Parameterized by CRS C. If not specified, C is `OGC:CRS84`. |                                                        |
 | [v3](#version-3) | **`geography(C, A)`**  | Geospatial features from [OGC – Simple feature access][1001]. See [Appendix G](#appendix-g-geospatial-notes). Parameterized by CRS C and edge-interpolation algorithm A. If not specified, C is `OGC:CRS84` and A is `spherical`. |
+| [v4](#version-4) | **`vector(E, D)`** | Fixed-length collection of finite numeric values with element type E and dimension D | E must be `int`, `long`, `float`, or `double`; D must be positive |
 
 Notes:
 
@@ -307,6 +309,14 @@ Notes:
 For details on how to serialize a schema to JSON, see Appendix C.
 
 [1001]: <https://portal.ogc.org/files/?artifact_id=25355> "OGC Simple feature access"
+
+##### Vector
+
+A non-null `vector(E, D)` contains exactly D elements of type E, and every element is non-null. `float` and `double` elements must be finite: `NaN`, `+Infinity`, and `-Infinity` are invalid. The vector value may be null only when the vector field is optional.
+
+A `vector` must not be promoted to another type. No type other than `unknown` may be promoted to `vector`. The element type and dimension must not change. A `list` of element type E is not a `vector(E, D)`, even if every list instance contains exactly D elements.
+
+Equality of vector values is element-wise, using the equality rules of element type.
 
 ##### CRS
 
@@ -384,7 +394,7 @@ Starting in v4, a field's `write-default` may be a [value expression](expression
 
 The `initial-default` must always be a literal value. A literal is itself a value expression, so existing `write-default` values remain valid value expressions.
 
-All columns of `unknown`, `variant`, `geometry`, `geography`, and `file` types must default to null. Non-null values for `initial-default` or `write-default` are invalid.
+All columns of `unknown`, `variant`, `geometry`, `geography`, `file`, and `vector` types must default to null. Non-null values for `initial-default` or `write-default` are invalid.
 
 Default values for the fields of a struct are tracked as `initial-default` and `write-default` at the field level. Default values for fields that are nested structs must not contain default values for the struct's fields (sub-fields). Sub-field defaults are tracked in sub-field's metadata. As a result, the default stored for a nested struct may be either null or a non-null struct with no field values. The effective default value is produced by setting each fields' default in a new struct.
 
@@ -729,6 +739,8 @@ Order id `0` is reserved for the unsorted order.
 
 Sorting floating-point numbers should produce the following behavior: `-NaN` < `-Infinity` < `-value` < `-0` < `0` < `value` < `Infinity` < `NaN`. This aligns with the implementation of Java floating-point types comparisons.
 
+Vector values of the same `vector(E, D)` type must be sorted lexicographically using the sort order of E.
+
 A data or delete file is associated with a sort order by the sort order's id within [a manifest](#manifests). Therefore, the table must declare all the sort orders for lookup. A table could also be configured with a default sort order id, indicating how the new data should be sorted by default. Writers should use this default sort order to sort the data on write, but are not required to if the default order is prohibitively expensive, as it would be for streaming writes.
 
 ### Constraints
@@ -767,6 +779,7 @@ The `field-ids` of a `unique` or `primary-key` constraint:
 * Must not reference fields of type `geometry` or `geography`, because Iceberg does not define equality for them
 * Must not reference fields of type `unknown`, because their values are always null
 * Must not reference fields of type `file` or their sub-fields
+* Must not reference fields of type `vector`
 
 A table may have at most one `primary-key` constraint. The fields of a `primary-key` constraint must be `required` and must not be nested in an optional struct, so that the schema rejects null keys even when the constraint is not enforced. The fields of a `unique` constraint may be optional or nested in optional structs, because a row in which any field is null is not compared.
 
@@ -1111,8 +1124,8 @@ Each stats struct holds statistics for one table field. It may contain the follo
 
 | Requirement | Offset | Name                      | Type                      | Included for                                  | Description |
 |-------------|--------|---------------------------|---------------------------|-----------------------------------------------|-------------|
-| _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type, or `geo_lower` for geo types |
-| _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type, or `geo_upper` for geo types |
+| _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | `variant` or all primitives except `vector`    | Lower bound stored as the field's type, or `geo_lower` for geo types |
+| _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | `variant` or all primitives except `vector`    | Upper bound stored as the field's type, or `geo_upper` for geo types |
 | _optional_  | 3      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
 | _optional_  | 4      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
 | _optional_  | 5      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
@@ -1878,6 +1891,7 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`binary`**|`bytes`||
 |**`struct`**|`record`||
 |**`list`**|`array`||
+|**`vector(E, D)`**|`array`|Array elements must use the Avro mapping for E and must not be null. The array must not have an `element-id` property. Readers and writers must enforce the vector dimension and element requirements.|
 |**`map`**|`array` of key-value records, or `map` when keys are strings (optional).|Array storage must use logical type name `map` and must store elements that are 2-field records. The first field is a non-null key and the second field is the value.|
 |**`variant`**|`record` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names. |Shredding is not supported in Avro.|
 |**`geometry`**|`bytes`|WKB format, see [Appendix G](#appendix-g-geospatial-notes)|
@@ -1913,6 +1927,8 @@ Values should be stored in Parquet using the types and logical type annotations 
 
 Lists must use the [3-level representation](https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#lists).
 
+Vectors must use the [`FINITE_VECTOR` representation](https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#finite-vectors), with `num_elements` set to D.
+
 | Type               | Parquet physical type                                                                                                                        | Logical type                                | Notes                                                          |
 |--------------------|----------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------|----------------------------------------------------------------|
 | **`unknown`**      | None                                                                                                                                         |                                             | Omit from data files                                           |
@@ -1934,6 +1950,7 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`binary`**       | `binary`                                                                                                                                     |                                             |                                                                |
 | **`struct`**       | `group`                                                                                                                                      |                                             |                                                                |
 | **`list`**         | `3-level list`                                                                                                                               | `LIST`                                      | See Parquet docs for 3-level representation.                   |
+| **`vector(E, D)`** | `3-level list`                                                                                                                               | `FINITE_VECTOR(D)`                          | The outer group carries the field ID of the vector. The `element` field must represent values of the Iceberg element type E using a Parquet representation permitted by `FINITE_VECTOR`. Writing and reading an element must preserve its value exactly. The ConvertedType must be `LIST`. The `list` and `element` fields must not be assigned field IDs. |
 | **`map`**          | `3-level map`                                                                                                                                | `MAP`                                       | See Parquet docs for 3-level representation.                   |
 | **`variant`**      | `group` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names. | `VARIANT`                                   | See Parquet docs for [Variant encoding](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md) and [Variant shredding encoding](https://github.com/apache/parquet-format/blob/master/VariantShredding.md). |
 | **`geometry`**     | `binary`                                                                                                                                     | `GEOMETRY`                                  | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                             |
@@ -1967,6 +1984,7 @@ When reading an `unknown` column, any corresponding column must be ignored and r
 | **`binary`**       | `binary`            |                                                      |                                                                                         |
 | **`struct`**       | `struct`            |                                                      |                                                                                         |
 | **`list`**         | `array`             |                                                      |                                                                                         |
+| **`vector(E, D)`** | Not supported       |                                                      |                                                                                         |
 | **`map`**          | `map`               |                                                      |                                                                                         |
 | **`variant`**      | `struct` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs. |  `iceberg.struct-type`=`VARIANT`   | Shredding is not supported in ORC.                                                 |
 | **`geometry`**     | `binary`            | `iceberg.binary-type`=`GEOMETRY`                     | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                                                      |
@@ -2064,6 +2082,7 @@ Types are serialized according to this table:
 |**`fixed(L)`**|`JSON string: "fixed[<L>]"`|`"fixed[16]"`|
 |**`binary`**|`JSON string: "binary"`|`"binary"`|
 |**`decimal(P, S)`**|`JSON string: "decimal(<P>, <S>)"`|`"decimal(9, 2)"`|
+|**`vector(E, D)`**|`JSON string: "vector(<E>, <D>)"`|`"vector(float, 768)"`|
 |**`struct`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": <field id int>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": <boolean>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": <type JSON>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"doc": <comment string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": <JSON encoding of default value>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": <JSON encoding of default value or value expression>`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}, ...`<br />&nbsp;&nbsp;`] }`|`{`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 1,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "id",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": true,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": "uuid",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": "0db3e2a8-9d1d-42b9-aa7b-74ebe558dceb",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": "ec5911be-b0a7-458c-8438-c9a3e53cffae"`<br />&nbsp;&nbsp;`}, {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 2,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "data",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": false,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`} ]`<br />`}`|
 |**`list`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": <id int>,`<br />&nbsp;&nbsp;`"element-required": <bool>`<br />&nbsp;&nbsp;`"element": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": 3,`<br />&nbsp;&nbsp;`"element-required": true,`<br />&nbsp;&nbsp;`"element": "string"`<br />`}`|
 |**`map`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": <key id int>,`<br />&nbsp;&nbsp;`"key": <type JSON>,`<br />&nbsp;&nbsp;`"value-id": <val id int>,`<br />&nbsp;&nbsp;`"value-required": <bool>`<br />&nbsp;&nbsp;`"value": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": 4,`<br />&nbsp;&nbsp;`"key": "string",`<br />&nbsp;&nbsp;`"value-id": 5,`<br />&nbsp;&nbsp;`"value-required": false,`<br />&nbsp;&nbsp;`"value": "double"`<br />`}`|
@@ -2229,6 +2248,7 @@ This serialization scheme is for storing single values as individual binary valu
 | **`decimal(P, S)`**          | Stores unscaled value as two’s-complement big-endian binary, using the minimum number of bytes for the value |
 | **`struct`**                 | Not supported                                                                                                |
 | **`list`**                   | Not supported                                                                                                |
+| **`vector(E, D)`**           | Not supported                                                                                                |
 | **`map`**                    | Not supported                                                                                                |
 | **`variant`**                | Not supported                                                                                                |
 | **`geometry`**               | WKB format, see [Appendix G](#appendix-g-geospatial-notes)                                                   |
@@ -2269,6 +2289,7 @@ The binary single-value serialization can be used to store the lower and upper b
 | **`binary`**       | **`JSON string`**                         | `"000102ff"`                               | Stored as a hexadecimal string |
 | **`struct`**       | **`JSON object by field ID`**             | `{"1": 1, "2": "bar"}`                     | Stores struct fields using the field ID as the JSON field name; field values are stored using this JSON single-value format |
 | **`list`**         | **`JSON array of values`**                | `[1, 2, 3]`                                | Stores a JSON array of values that are serialized using this JSON single-value format |
+| **`vector(E, D)`** | **`JSON array of values`**                | `[1.0, 2.0, 3.0]`                          | Stores exactly D values using E's JSON single-value format |
 | **`map`**          | **`JSON object of key and value arrays`** | `{ "keys": ["a", "b"], "values": [1, 2] }` | Stores arrays of keys and values; individual keys and values are serialized using this JSON single-value format |
 | **`geometry`**     | **`JSON string`**                         | `POINT (30 10)`                            | Stored using WKT representation, see [Appendix G](#appendix-g-geospatial-notes) |
 | **`geography`**    | **`JSON string`**                         | `POINT (30 10)`                            | Stored using WKT representation, see [Appendix G](#appendix-g-geospatial-notes) |
@@ -2280,6 +2301,8 @@ The binary single-value serialization can be used to store the lower and upper b
 Default value expressions are added in v4. A field's `write-default` may be a [value expression](expressions-spec.md) (see [Default values](#default-values)).
 
 The `file` type is added in v4.
+
+The `vector` type is added in v4.
 
 Relative path support is added in v4.
 

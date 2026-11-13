@@ -44,6 +44,7 @@ Iceberg tables support the following types:
 | **`geometry(C)`**     | Geospatial features with CRS parameter                                   | Linear edge-interpolation; added in v3          |
 | **`geography(C, A)`** | Geospatial features with CRS and edge algorithm                          | Non-linear edge-interpolation; added in v3      |
 | **`unknown`**         | Placeholder type for undetermined columns                                | Must be optional; added in v3                   |
+| **`vector(E, D)`**    | D-dimensional vector of finite numeric values with element type E         | Added in v4                                     |
 | **`struct<...>`**     | A record with named fields of any data type                              |                                                 |
 | **`list<E>`**         | A list with elements of any data type                                    |                                                 |
 | **`map<K, V>`**       | A map with keys and values of any data type                              |                                                 |
