@@ -155,6 +155,28 @@ class TestOAuth2Manager {
   }
 
   @Test
+  void contextualSessionWithCredentialsAndUnsupportedLegacyProperties() {
+    try (OAuth2Manager manager = new OAuth2Manager();
+        AuthSession catalogSession =
+            manager.catalogSession(server.restClient(), catalogProperties())) {
+      SessionContext context =
+          new SessionContext(
+              "session1",
+              "user",
+              Map.of(OAuth2Properties.TOKEN, "t0k3n"),
+              Map.of(
+                  OAuth2Properties.CREDENTIAL,
+                  CONTEXT_CLIENT_ID + ":" + CONTEXT_CLIENT_SECRET,
+                  OAuth2Properties.OAUTH2_SERVER_URI,
+                  server.tokenEndpoint().toString()));
+      assertThatThrownBy(() -> manager.contextualSession(context, catalogSession))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Session context contains unsupported legacy OAuth2 properties [token]");
+      assertThat(manager.cacheById().asMap()).isEmpty();
+    }
+  }
+
+  @Test
   void contextualSessionWithSameConfig() {
     try (OAuth2Manager manager = new OAuth2Manager();
         AuthSession catalogSession =

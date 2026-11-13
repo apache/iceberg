@@ -81,13 +81,15 @@ public class OAuth2Manager implements AuthManager {
         RESTUtil.merge(
             context.properties() != null ? context.properties() : Map.of(),
             context.credentials() != null ? context.credentials() : Map.of());
+
+    List<String> unsupported = legacyConfigAdapter.unsupportedProperties(contextProperties);
+    Preconditions.checkArgument(
+        unsupported.isEmpty(),
+        "Session context contains unsupported legacy OAuth2 properties %s",
+        unsupported);
+
     Map<String, String> migrated = legacyConfigAdapter.migrate(contextProperties);
     if (migrated.isEmpty()) {
-      List<String> unsupported = legacyConfigAdapter.unsupportedProperties(contextProperties);
-      Preconditions.checkArgument(
-          unsupported.isEmpty(),
-          "Session context contains unsupported legacy OAuth2 properties %s",
-          unsupported);
       return parent;
     }
 
