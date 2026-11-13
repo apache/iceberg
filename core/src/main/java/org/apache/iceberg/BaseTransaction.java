@@ -67,10 +67,14 @@ public class BaseTransaction implements Transaction {
   private final TransactionTable transactionTable;
   private final TableOperations transactionOps;
   private final List<PendingUpdate> updates;
-  // keep track of files deleted in the most recent commit; expire delete callbacks may run on a
-  // caller-provided executor, so the set must be safe for concurrent adds
-  private final Set<String> deletedFiles = Sets.newConcurrentHashSet();
+  private final Set<String> deletedFiles =
+      Sets.newHashSet(); // keep track of files deleted in the most recent commit
   private final Consumer<String> enqueueDelete = deletedFiles::add;
+  // files of the snapshots expired by the most recent attempt. the table references them until the
+  // transaction commits, so they are only deleted after a successful commit. expire delete
+  // callbacks may run on a caller-provided executor, so the set must be safe for concurrent adds
+  private final Set<String> expiredFiles = Sets.newConcurrentHashSet();
+  private final Consumer<String> enqueueExpiredFile = expiredFiles::add;
   private final TransactionType type;
   private TableMetadata base;
   private TableMetadata current;
@@ -128,7 +132,7 @@ public class BaseTransaction implements Transaction {
       ((SnapshotUpdate) update).deleteWith(enqueueDelete);
     } else if (update instanceof ExpireSnapshots) {
       // expired files must not be deleted before the transaction commits
-      ((ExpireSnapshots) update).deleteWith(enqueueDelete);
+      ((ExpireSnapshots) update).deleteWith(enqueueExpiredFile);
     }
 
     if (update instanceof SnapshotProducer) {
@@ -296,6 +300,8 @@ public class BaseTransaction implements Transaction {
       // concern, it is safe to delete all the deleted files from individual operations
       deleteUncommittedFiles(deletedFiles);
     }
+
+    deleteExpiredFiles();
   }
 
   private void commitReplaceTransaction(boolean orCreate) {
@@ -349,6 +355,8 @@ public class BaseTransaction implements Transaction {
       // a concern, it is safe to delete all the deleted files from individual operations
       deleteUncommittedFiles(deletedFiles);
     }
+
+    deleteExpiredFiles();
   }
 
   private void commitSimpleTransaction() {
@@ -415,6 +423,8 @@ public class BaseTransaction implements Transaction {
     } catch (RuntimeException e) {
       LOG.warn("Failed to load committed metadata, skipping clean-up", e);
     }
+
+    deleteExpiredFiles();
   }
 
   protected void cleanUp() {
@@ -440,11 +450,19 @@ public class BaseTransaction implements Transaction {
     CatalogUtil.deleteFiles(ops.io(), paths, "uncommitted");
   }
 
+  private void deleteExpiredFiles() {
+    // the commit succeeded, so the expired snapshots are no longer referenced by the table
+    CatalogUtil.deleteFiles(ops.io(), expiredFiles, "expired");
+  }
+
   private void applyUpdates(TableOperations underlyingOps) {
     if (base != underlyingOps.refresh()) {
       // use refreshed the metadata
       this.base = underlyingOps.current();
       this.current = underlyingOps.current();
+      // the updates are applied again on the new base, so drop the files that an earlier attempt
+      // expired. the snapshots may be referenced by the new base
+      expiredFiles.clear();
       for (PendingUpdate update : updates) {
         // re-commit each update in the chain to apply it and update current
         try {
@@ -748,6 +766,11 @@ public class BaseTransaction implements Transaction {
   @VisibleForTesting
   Set<String> deletedFiles() {
     return deletedFiles;
+  }
+
+  @VisibleForTesting
+  Set<String> expiredFiles() {
+    return expiredFiles;
   }
 
   /**

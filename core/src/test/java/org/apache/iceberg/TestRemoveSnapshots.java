@@ -31,16 +31,19 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.BulkDeletionFailureException;
@@ -450,7 +453,7 @@ public class TestRemoveSnapshots extends TestBase {
     removeSnapshots(tx.table()).expireOlderThan(t3).retainLast(1).commit();
 
     // nothing is committed to the table yet, so the expired files must still exist
-    assertThat(((BaseTransaction) tx).deletedFiles())
+    assertThat(((BaseTransaction) tx).expiredFiles())
         .contains(
             firstSnapshot.manifestListLocation(),
             secondSnapshot.manifestListLocation(),
@@ -484,16 +487,18 @@ public class TestRemoveSnapshots extends TestBase {
     }
     assertThat(expiredManifestLists).hasSize(3);
 
+    ExecutorService deleteExecutor = Executors.newFixedThreadPool(4);
     Transaction tx = table.newTransaction();
-    removeSnapshots(tx.table())
-        .executeDeleteWith(Executors.newFixedThreadPool(4))
-        .expireOlderThan(t4)
-        .commit();
+    try {
+      removeSnapshots(tx.table()).executeDeleteWith(deleteExecutor).expireOlderThan(t4).commit();
+    } finally {
+      deleteExecutor.shutdown();
+    }
 
     // deletes ran on the caller-provided executor, all of them must be queued and none applied.
     // FILE_B was replaced in an expired snapshot; FILE_A was replaced by the retained one, so
     // incremental cleanup keeps it
-    assertThat(((BaseTransaction) tx).deletedFiles())
+    assertThat(((BaseTransaction) tx).expiredFiles())
         .containsAll(expiredManifestLists)
         .contains(FILE_B.location());
     for (String manifestList : expiredManifestLists) {
@@ -506,6 +511,68 @@ public class TestRemoveSnapshots extends TestBase {
     for (String manifestList : expiredManifestLists) {
       assertThat(new File(manifestList)).doesNotExist();
     }
+  }
+
+  @TestTemplate
+  public void testExpireInTransactionRetryDropsDeletesFromEarlierAttempt() throws IOException {
+    // expiring a staged snapshot removes a snapshot outside of main, which needs reachable cleanup
+    assumeThat(incrementalCleanup).isFalse();
+
+    File stagedDataFile = Files.createFile(temp.resolve("data-staged.parquet")).toFile();
+    DataFile stagedFile =
+        DataFiles.builder(SPEC)
+            .withPath(stagedDataFile.toString())
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=1")
+            .withRecordCount(1)
+            .build();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    long mainSnapshotId = table.currentSnapshot().snapshotId();
+    table.newAppend().appendFile(stagedFile).stageOnly().commit();
+    Snapshot stagedSnapshot =
+        Iterables.getOnlyElement(
+            Iterables.filter(table.snapshots(), s -> s.snapshotId() != mainSnapshotId));
+    long tAfterCommits = waitUntilAfter(stagedSnapshot.timestampMillis());
+
+    // the first attempt expires the staged snapshot and queues its data file
+    Transaction tx = table.newTransaction();
+    removeSnapshots(tx.table()).expireOlderThan(tAfterCommits).commit();
+
+    // a concurrent cherry-pick publishes the staged data file in a new snapshot on main
+    table.newAppend().appendFile(FILE_C).commit();
+    table.manageSnapshots().cherrypick(stagedSnapshot.snapshotId()).commit();
+
+    // the transaction is re-applied on the new base and must only delete what the retry expired
+    tx.commitTransaction();
+
+    assertThat(table.snapshot(stagedSnapshot.snapshotId())).isNull();
+    assertThat(new File(stagedSnapshot.manifestListLocation())).doesNotExist();
+    assertThat(stagedDataFile).exists();
+  }
+
+  @TestTemplate
+  public void testExpireInTransactionKeepsFilesWhenCommitFails() {
+    table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "0").commit();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    waitUntilAfter(firstSnapshot.timestampMillis());
+
+    table.newAppend().appendFile(FILE_B).commit();
+    long t2 = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Transaction tx = table.newTransaction();
+    removeSnapshots(tx.table()).expireOlderThan(t2).commit();
+
+    table.ops().failCommits(1);
+    assertThatThrownBy(tx::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
+
+    // the table still references the snapshot, so its files must survive the failed commit
+    assertThat(table.snapshot(firstSnapshot.snapshotId())).isNotNull();
+    assertThat(new File(firstSnapshot.manifestListLocation())).exists();
   }
 
   @TestTemplate
