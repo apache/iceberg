@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
@@ -71,28 +71,8 @@ class SparkStagedScan extends SparkScan {
   }
 
   @Override
-  public boolean equals(Object other) {
-    if (this == other) {
-      return true;
-    }
-
-    if (other == null || getClass() != other.getClass()) {
-      return false;
-    }
-
-    SparkStagedScan that = (SparkStagedScan) other;
-    return table().name().equals(that.table().name())
-        && Objects.equals(table().uuid(), that.table().uuid())
-        && Objects.equals(taskSetId, that.taskSetId)
-        && readSchema().equals(that.readSchema())
-        && splitSize == that.splitSize
-        && splitLookback == that.splitLookback
-        && openFileCost == that.openFileCost;
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(
+  protected List<Object> equalityKey() {
+    return Arrays.asList(
         table().name(),
         table().uuid(),
         taskSetId,
