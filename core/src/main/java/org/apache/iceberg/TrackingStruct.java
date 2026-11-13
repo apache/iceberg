@@ -141,8 +141,9 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     }
 
     boolean isAdded = status == EntryStatus.ADDED;
+    boolean isModified = status == EntryStatus.MODIFIED;
 
-    if (null == dataSequenceNumber && (isAdded || manifestSeqNumber == 0)) {
+    if (null == dataSequenceNumber && (isAdded || isModified || manifestSeqNumber == 0)) {
       this.dataSequenceNumber = manifestSeqNumber;
     }
 

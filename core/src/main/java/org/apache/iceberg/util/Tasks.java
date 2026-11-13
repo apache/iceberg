@@ -503,67 +503,51 @@ public class Tasks {
     return false;
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static Collection<Throwable> waitFor(Collection<Future<?>> futures) {
-    while (true) {
-      int numFinished = 0;
+    List<Throwable> uncaught = Lists.newArrayList();
+    Error error = null;
+    try {
+      // block on each future in turn and collect any uncaught exceptions
       for (Future<?> future : futures) {
-        if (future.isDone()) {
-          numFinished += 1;
-        }
-      }
-
-      if (numFinished == futures.size()) {
-        List<Throwable> uncaught = Lists.newArrayList();
-        // all of the futures are done, get any uncaught exceptions
-        for (Future<?> future : futures) {
-          try {
-            future.get();
-
-          } catch (InterruptedException e) {
-            LOG.warn("Interrupted while getting future results", e);
-            for (Throwable t : uncaught) {
-              e.addSuppressed(t);
-            }
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
-
-          } catch (CancellationException e) {
-            // ignore cancellations
-
-          } catch (ExecutionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof Error) {
-              for (Throwable t : uncaught) {
-                cause.addSuppressed(t);
-              }
-              throw (Error) cause;
-            }
-
-            if (cause != null) {
-              uncaught.add(e);
-            }
-
-            LOG.warn("Task threw uncaught exception", cause);
-          }
-        }
-
-        return uncaught;
-
-      } else {
         try {
-          Thread.sleep(10);
-        } catch (InterruptedException e) {
-          LOG.warn("Interrupted while waiting for tasks to finish", e);
+          future.get();
 
-          for (Future<?> future : futures) {
-            future.cancel(true);
+        } catch (CancellationException e) {
+          // ignore cancellations
+
+        } catch (ExecutionException e) {
+          Throwable cause = e.getCause();
+          if (cause instanceof Error && error == null) {
+            // thrown once all futures are done
+            error = (Error) cause;
+          } else if (cause != null) {
+            uncaught.add(e);
           }
-          Thread.currentThread().interrupt();
-          throw new RuntimeException(e);
+
+          LOG.warn("Task threw uncaught exception", cause);
         }
       }
+    } catch (InterruptedException e) {
+      LOG.warn("Interrupted while waiting for tasks to finish", e);
+      for (Throwable t : uncaught) {
+        e.addSuppressed(t);
+      }
+
+      for (Future<?> future : futures) {
+        future.cancel(true);
+      }
+      Thread.currentThread().interrupt();
+      throw new RuntimeException(e);
     }
+
+    if (error != null) {
+      for (Throwable t : uncaught) {
+        error.addSuppressed(t);
+      }
+      throw error;
+    }
+
+    return uncaught;
   }
 
   /** A range, [ 0, size ) */

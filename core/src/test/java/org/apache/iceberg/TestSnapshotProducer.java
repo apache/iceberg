@@ -31,16 +31,21 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSnapshotProducer extends TestBase {
@@ -402,5 +407,108 @@ public class TestSnapshotProducer extends TestBase {
         .as("Main's monotonicity must be relative to main's parent, not the branch head")
         .isEqualTo(mainNewTs)
         .isLessThan(branchTs);
+  }
+
+  @TestTemplate
+  public void commitDoesNotReadCommittedManifestList() {
+    String tableName = "no-manifest-list-reread";
+    TestTables.LocalFileIO spyFileIO = Mockito.spy(new TestTables.LocalFileIO());
+    TestTables.TestTable testTable =
+        TestTables.create(
+            tableDir,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, tableDir, spyFileIO));
+
+    testTable.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    Snapshot committed = testTable.currentSnapshot();
+    assertThat(committed).isNotNull();
+    Mockito.verify(spyFileIO, Mockito.never()).newInputFile(committed.manifestListLocation());
+  }
+
+  @TestTemplate
+  public void fastForwardCherryPickReadsCommittedManifestList() {
+    String tableName = "fast-forward-cherry-pick";
+    TestTables.LocalFileIO spyFileIO = Mockito.spy(new TestTables.LocalFileIO());
+    TestTables.TestTable testTable =
+        TestTables.create(
+            tableDir,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, tableDir, spyFileIO));
+
+    testTable.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    long parentId = testTable.currentSnapshot().snapshotId();
+    // cherry-pick fast-forwards a delete without loading its manifests
+    testTable.newDelete().deleteFile(FILE_A).stageOnly().commit();
+    Snapshot staged =
+        Streams.stream(testTable.snapshots())
+            .filter(snapshot -> snapshot.snapshotId() != parentId)
+            .findFirst()
+            .orElseThrow();
+
+    Mockito.clearInvocations(spyFileIO);
+    testTable.manageSnapshots().cherrypick(staged.snapshotId()).commit();
+
+    assertThat(testTable.currentSnapshot().snapshotId()).isEqualTo(staged.snapshotId());
+    Mockito.verify(spyFileIO, Mockito.atLeastOnce()).newInputFile(staged.manifestListLocation());
+    assertThat(staged.allManifests(testTable.io()))
+        .allSatisfy(manifest -> assertThat(new File(manifest.path())).exists());
+  }
+
+  @TestTemplate
+  public void cleanupUsesManifestsOfCommittedAttempt() {
+    String tableName = "committed-attempt-cleanup";
+    AtomicBoolean throwAfterCommit = new AtomicBoolean(false);
+    TestTables.TestTableOperations ops =
+        new TestTables.TestTableOperations(tableName, tableDir) {
+          @Override
+          public void commit(TableMetadata base, TableMetadata updatedMetadata) {
+            super.commit(base, updatedMetadata);
+            if (throwAfterCommit.getAndSet(false)) {
+              throw new CommitFailedException("Injected failure after commit");
+            }
+          }
+        };
+    TestTables.TestTable retryTable =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, ops);
+    retryTable
+        .updateProperties()
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1")
+        .set(TableProperties.COMMIT_MIN_RETRY_WAIT_MS, "0")
+        .commit();
+    retryTable.newAppend().appendFile(FILE_A).commit();
+
+    // the first attempt commits but reports failure, so the retry finds its snapshot committed
+    throwAfterCommit.set(true);
+    retryTable.newAppend().appendFile(FILE_B).commit();
+
+    Snapshot committed = retryTable.currentSnapshot();
+    assertThat(committed.allManifests(retryTable.io()))
+        .allSatisfy(manifest -> assertThat(new File(manifest.path())).exists());
+
+    Set<String> referencedManifests = Sets.newHashSet();
+    for (Snapshot snapshot : retryTable.snapshots()) {
+      for (ManifestFile manifest : snapshot.allManifests(retryTable.io())) {
+        referencedManifests.add(new File(manifest.path()).getName());
+      }
+    }
+    assertThat(listManifestFiles(tableDir))
+        .extracting(File::getName)
+        .containsExactlyInAnyOrderElementsOf(referencedManifests);
+    assertThat(listManifestLists(tableDir))
+        .extracting(File::getName)
+        .containsExactlyInAnyOrder(
+            Streams.stream(retryTable.snapshots())
+                .map(snapshot -> new File(snapshot.manifestListLocation()).getName())
+                .toArray(String[]::new));
   }
 }

@@ -63,6 +63,9 @@ interface TrackedFile {
   String CONTENT_STATS_NAME = "content_stats";
   String CONTENT_STATS_DOC = "Content statistics for this entry";
 
+  Types.NestedField TIGHT_STATS =
+      Types.NestedField.optional(
+          151, "tight_stats", Types.BooleanType.get(), "Whether the file's statistics are tight");
   Types.NestedField SORT_ORDER_ID =
       Types.NestedField.optional(
           140, "sort_order_id", Types.IntegerType.get(), "ID of the sort order for this file");
@@ -87,6 +90,9 @@ interface TrackedFile {
           "split_offsets",
           Types.ListType.ofRequired(133, Types.LongType.get()),
           "Split offsets for the data file");
+  Types.NestedField COLUMN_FILES =
+      Types.NestedField.optional(
+          158, "column_files", Types.ListType.ofRequired(159, ColumnFile.schema()), "Column files");
 
   private static List<Types.NestedField> fields(
       Types.StructType partitionType, Types.StructType contentStatsType) {
@@ -105,11 +111,13 @@ interface TrackedFile {
             CONTENT_STATS_NAME,
             typeOrUnknown(contentStatsType),
             CONTENT_STATS_DOC),
+        TIGHT_STATS,
         SORT_ORDER_ID,
         DELETION_VECTOR,
         MANIFEST_INFO,
         KEY_METADATA,
-        SPLIT_OFFSETS);
+        SPLIT_OFFSETS,
+        COLUMN_FILES);
   }
 
   private static Type typeOrUnknown(Types.StructType structType) {
@@ -163,6 +171,9 @@ interface TrackedFile {
   /** Returns the content stats for this entry. */
   ContentStats contentStats();
 
+  /** Returns whether the file's statistics are tight. */
+  boolean tightStats();
+
   /** Returns the ID of the sort order for this file, or null. */
   Integer sortOrderId();
 
@@ -177,6 +188,9 @@ interface TrackedFile {
 
   /** Returns the list of recommended split locations, or null. */
   List<Long> splitOffsets();
+
+  /** Returns the column files for this file. */
+  List<ColumnFile> columnFiles();
 
   /** Copies this tracked file. */
   TrackedFile copy();

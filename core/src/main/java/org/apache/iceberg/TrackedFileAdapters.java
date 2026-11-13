@@ -212,6 +212,11 @@ class TrackedFileAdapters {
     public Map<Integer, ByteBuffer> upperBounds() {
       return ContentStatsBackedMap.upperBounds(file().contentStats());
     }
+
+    @Override
+    public boolean tightStats() {
+      return file().tightStats();
+    }
   }
 
   /** Adapts a TrackedFile DATA entry to the {@link DataFile} interface. */
@@ -628,6 +633,11 @@ class TrackedFileAdapters {
     }
 
     @Override
+    public boolean tightStats() {
+      return file.tightStats();
+    }
+
+    @Override
     public Integer sortOrderId() {
       return file.sortOrderId();
     }
@@ -650,6 +660,11 @@ class TrackedFileAdapters {
     @Override
     public List<Long> splitOffsets() {
       return file.splitOffsets();
+    }
+
+    @Override
+    public List<ColumnFile> columnFiles() {
+      return null;
     }
 
     @Override
@@ -749,6 +764,11 @@ class TrackedFileAdapters {
     }
 
     @Override
+    public boolean tightStats() {
+      return false;
+    }
+
+    @Override
     public Integer sortOrderId() {
       // Manifests have no table sort order.
       return null;
@@ -771,6 +791,11 @@ class TrackedFileAdapters {
 
     @Override
     public List<Long> splitOffsets() {
+      return null;
+    }
+
+    @Override
+    public List<ColumnFile> columnFiles() {
       return null;
     }
 

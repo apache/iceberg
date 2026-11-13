@@ -21,9 +21,9 @@ package org.apache.iceberg.flink.maintenance.operator;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.state.ListState;
@@ -43,6 +43,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
@@ -70,9 +71,9 @@ import org.slf4j.LoggerFactory;
  * <ol>
  *   <li>{@link #refreshStagingCursor}: updates {@link #lastStagingSnapshotId} from the most recent
  *       committer marker on the target branch.
- *   <li>{@link #ensureIndexCurrent}: rebuilds the worker index from main when there is no index
- *       yet, when external commits (e.g. compaction) have advanced main, or when the staging
- *       snapshot picked for this cycle is the one the previous cycle planned.
+ *   <li>{@link #ensureIndexCurrent}: applies the external commits (e.g. compaction) since the
+ *       indexed snapshot to the worker index, or rebuilds it, see {@link
+ *       #externalCommitsSinceIndex} and {@link #deltaReadsMoreThanRebuild}.
  *   <li>{@link #processStagingSnapshot}: resolve the chosen staging snapshot's eq deletes against
  *       the (now-current) index, pass through any DV files, and index the snapshot's new data files
  *       for the next cycle.
@@ -82,12 +83,15 @@ import org.slf4j.LoggerFactory;
  * {@link #advancePhase()}.
  *
  * <p>An {@link EqualityConvertPlan} with the current cycle's metadata is emitted via the {@link
- * #METADATA_STREAM} side output after the read commands.
+ * #METADATA_STREAM} side output after the read commands. The planner emits phase watermarks before
+ * that plan. A {@link EqualityConvertPlan#cycleStart} marker is emitted first, before any phase
+ * watermark. The marker tells the committer a cycle has started, and the committer holds watermarks
+ * until the commit.
  *
  * <p>Assumes a single equality-field set supplied via the builder; staging eq-deletes with a
  * different {@code equalityFieldIds} fail fast in {@link #retrieveStagingFiles}. Concurrent writes
- * on the target branch are handled by {@link #ensureIndexCurrent} reindexing from the new main
- * snapshot; commit-time conflicts are caught by {@code RowDelta.validateFromSnapshot}.
+ * on the target branch are handled by {@link #ensureIndexCurrent} reindexing the new main commits;
+ * commit-time conflicts are caught by {@code RowDelta.validateFromSnapshot}.
  */
 @Internal
 public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
@@ -105,6 +109,9 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   private static final String PROCESSED_STAGING_SNAPSHOT_NUM_METRIC = "processedStagingSnapshotNum";
   private static final String SKIPPED_NO_OP_CYCLES_METRIC = "skippedNoOpCycles";
   private static final String REINDEX_COUNT_METRIC = "reindexCount";
+  private static final String INCREMENTAL_REINDEX_COUNT_METRIC = "incrementalReindexCount";
+
+  private static final int STATE_VERSION = 1;
 
   private final String tableName;
   private final String taskName;
@@ -120,10 +127,12 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   private transient ListState<Long> indexSnapshotState;
   // Generation of the worker's current index build.
   private transient ListState<Long> indexGenerationState;
-  // Staging snapshot the last emitted plan covered.
+  // Staging snapshot the index changed for until its conversion commit shows up on the target.
   private transient ListState<Long> pendingStagingSnapshotState;
   // Equality field IDs the index was built with, allows to detect reconfiguration.
   private transient ListState<Integer> eqFieldIdsState;
+  // Absent in state of a version that recorded the index as current before it was complete.
+  private transient ListState<Integer> stateVersionState;
 
   private transient Table table;
 
@@ -131,8 +140,8 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   private transient Long lastStagingSnapshotId;
   private transient Long indexSnapshotId;
   private transient long indexGeneration;
-  // Staging snapshot the last emitted plan covered, checkpointed so it survives a restore taken
-  // mid-cycle. Selecting it again means that cycle never committed.
+  // Staging snapshot the index changed for until its conversion commit shows up on the target
+  // branch, checkpointed so it survives a restore taken mid-cycle.
   private transient Long pendingStagingSnapshotId;
 
   private transient long nextPhaseTs;
@@ -141,6 +150,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   private transient Counter processedStagingSnapshotNumCounter;
   private transient Counter skippedNoOpCyclesCounter;
   private transient Counter reindexCounter;
+  private transient Counter incrementalReindexCounter;
   private transient Counter errorCounter;
 
   public EqualityConvertPlanner(
@@ -178,6 +188,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
         taskMetricGroup.counter(PROCESSED_STAGING_SNAPSHOT_NUM_METRIC);
     this.skippedNoOpCyclesCounter = taskMetricGroup.counter(SKIPPED_NO_OP_CYCLES_METRIC);
     this.reindexCounter = taskMetricGroup.counter(REINDEX_COUNT_METRIC);
+    this.incrementalReindexCounter = taskMetricGroup.counter(INCREMENTAL_REINDEX_COUNT_METRIC);
     this.errorCounter = taskMetricGroup.counter(TableMaintenanceMetrics.ERROR_COUNTER);
   }
 
@@ -235,6 +246,20 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
           "pendingStagingSnapshotId state should hold at most one value");
       pendingStagingSnapshotId = stateValue;
     }
+
+    stateVersionState =
+        context
+            .getOperatorStateStore()
+            .getListState(new ListStateDescriptor<>("stateVersion", Types.INT));
+
+    // The index recorded by an older version can be incomplete while it looks current.
+    if (context.isRestored() && !stateVersionState.get().iterator().hasNext()) {
+      LOG.info(
+          "Restored state of an older version for table {} task {}, rebuilding the worker index.",
+          tableName,
+          taskName);
+      indexSnapshotId = null;
+    }
   }
 
   @Override
@@ -257,6 +282,9 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     if (pendingStagingSnapshotId != null) {
       pendingStagingSnapshotState.add(pendingStagingSnapshotId);
     }
+
+    stateVersionState.clear();
+    stateVersionState.add(STATE_VERSION);
   }
 
   @Override
@@ -264,18 +292,24 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     long triggerTs = element.getTimestamp();
     nextPhaseTs = Math.max(triggerTs, nextPhaseTs + 1);
 
+    // Mark cycle start before the first phase watermark. The committer holds back watermarks from
+    // here until the plan arrives; without the marker it cannot tell a phase watermark emitted
+    // before the plan from an idle watermark that must be forwarded, and forwarding the former
+    // would release the maintenance lock before the commit.
+    output.collect(METADATA_STREAM, new StreamRecord<>(EqualityConvertPlan.cycleStart(triggerTs)));
+
     Long currentMainSnapshotId = lastMainSnapshotId;
     try {
       table.refresh();
       Snapshot mainSnapshot = table.snapshot(targetBranch);
       currentMainSnapshotId = mainSnapshot != null ? mainSnapshot.snapshotId() : null;
 
-      LastCommittedWork committedWork = refreshStagingCursor(mainSnapshot);
+      refreshStagingCursor(mainSnapshot);
 
       Snapshot nextToProcess =
           nextUnprocessedStagingSnapshot(table.snapshot(stagingBranch), mainSnapshot);
 
-      ensureIndexCurrent(mainSnapshot, committedWork, nextToProcess);
+      ensureIndexCurrent(mainSnapshot);
 
       if (nextToProcess == null) {
         LOG.info("Nothing new to convert on staging branch '{}'.", stagingBranch);
@@ -294,78 +328,293 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
 
   /**
    * Updates {@link #lastStagingSnapshotId} from the most recent committer marker on the target
-   * branch. Returns the discovered work, or null when the target has not moved since the last
-   * trigger and the cursor therefore cannot have changed.
+   * branch. Does nothing when the target has not moved since the last trigger and the cursor
+   * therefore cannot have changed.
    */
-  private LastCommittedWork refreshStagingCursor(Snapshot mainSnapshot) {
+  private void refreshStagingCursor(Snapshot mainSnapshot) {
     Long currentMainSnapshotId = mainSnapshot != null ? mainSnapshot.snapshotId() : null;
 
     if (Objects.equals(lastMainSnapshotId, currentMainSnapshotId)) {
-      return null;
+      return;
     }
 
-    LastCommittedWork info = discoverLastCommittedWork(mainSnapshot);
-    updateLastStagingSnapshotId(info);
-    return info;
+    updateLastStagingSnapshotId(discoverLastCommittedWork(mainSnapshot));
   }
 
-  /**
-   * Rebuilds the worker index when it is missing, when external commits have advanced the target
-   * branch, or when {@code nextToProcess} is the staging snapshot the previous plan covered.
-   * Resolving an eq delete consumes the index entries it matches, so a cycle that failed after its
-   * delete phase left the index without them; the cursor only advances once the committer's marker
-   * is on the target branch, so planning the same staging snapshot again means that cycle did not
-   * commit and nothing else has rebuilt the index.
-   */
-  private void ensureIndexCurrent(
-      Snapshot mainSnapshot, LastCommittedWork committedWork, Snapshot nextToProcess) {
+  /** Brings the worker index up to date with {@code mainSnapshot} by a delta or a rebuild. */
+  private void ensureIndexCurrent(Snapshot mainSnapshot) {
     if (mainSnapshot == null) {
+      // The target branch has no rows, so the index must not have any either. A new generation
+      // makes the worker drop the rows indexed so far, e.g. by a cycle that did not commit.
+      indexGeneration++;
+      indexSnapshotId = null;
+      pendingStagingSnapshotId = null;
       lastMainSnapshotId = null;
       return;
     }
 
-    boolean bootstrap = indexSnapshotId == null;
-    boolean reindex =
-        !bootstrap && committedWork != null && committedWork.externalCommitCount() > 0;
-    boolean replan =
-        !bootstrap
-            && nextToProcess != null
-            && Objects.equals(pendingStagingSnapshotId, nextToProcess.snapshotId());
-
-    if (bootstrap || reindex || replan) {
-      LOG.info(
-          "{} worker index from main snapshot {} for field IDs {}.",
-          bootstrap ? "Bootstrapping" : "Reindexing",
-          mainSnapshot.snapshotId(),
-          eqFieldIds);
-      rebuildIndex(mainSnapshot, !bootstrap);
+    List<Snapshot> externalCommits = externalCommitsSinceIndex(mainSnapshot);
+    // If anything goes wrong, the index will be rebuilt.
+    indexSnapshotId = null;
+    if (externalCommits == null || deltaReadsMoreThanRebuild(mainSnapshot, externalCommits)) {
+      rebuildIndex(mainSnapshot);
+    } else {
+      emitIncrementalReindex(mainSnapshot, externalCommits);
     }
 
+    indexSnapshotId = mainSnapshot.snapshotId();
+    pendingStagingSnapshotId = null;
     lastMainSnapshotId = mainSnapshot.snapshotId();
   }
 
   /**
+   * Returns the commits after the indexed snapshot that this converter did not make, newest first,
+   * or {@code null} if the index needs a rebuild. The conversion commit of the planned staging
+   * snapshot is not among them, as its cycle already updated the index.
+   *
+   * <p>After a restore, the conversion commit can come from a retry that ran on an index rebuilt at
+   * a later head. The restored index plus the delta then also holds the rows the external commits
+   * added and the retry's eq deletes matched. The conversion commit deleted those rows, so
+   * resolving them again only adds a position the DV already holds. A rebuild that fails part way
+   * clears {@link #indexSnapshotId}, and the committer does not commit a conversion on a generation
+   * whose update failed downstream.
+   */
+  private List<Snapshot> externalCommitsSinceIndex(Snapshot mainSnapshot) {
+    if (indexSnapshotId == null) {
+      return null;
+    }
+
+    List<Snapshot> externalCommits = Lists.newArrayList();
+    boolean plannedSnapshotCommitted = false;
+    Snapshot current = mainSnapshot;
+    while (current != null && current.snapshotId() != indexSnapshotId) {
+      String committedStaging =
+          current.summary().get(EqualityConvertCommitter.COMMITTED_STAGING_SNAPSHOT_PROPERTY);
+      if (committedStaging == null) {
+        externalCommits.add(current);
+      } else if (pendingStagingSnapshotId != null
+          && Long.parseLong(committedStaging) == pendingStagingSnapshotId) {
+        plannedSnapshotCommitted = true;
+      } else {
+        return null;
+      }
+
+      current = parentOf(current);
+    }
+
+    // A null current means the walk passed the root, or an expired parent, without reaching the
+    // indexed snapshot.
+    if (current == null || (pendingStagingSnapshotId != null && !plannedSnapshotCommitted)) {
+      return null;
+    }
+
+    return externalCommits;
+  }
+
+  private boolean deltaReadsMoreThanRebuild(Snapshot mainSnapshot, List<Snapshot> externalCommits) {
+    // The manifest list counts bound the delta before any manifest is read or any DataFile is held.
+    // A file added and removed within the range counts twice, although the delta reads it once.
+    long deltaRows = 0L;
+    for (Snapshot snapshot : externalCommits) {
+      for (ManifestFile manifest : snapshot.dataManifests(table.io())) {
+        if (Objects.equals(manifest.snapshotId(), snapshot.snapshotId())) {
+          if (!hasRowCounts(manifest)) {
+            logMissingRowCounts(manifest, mainSnapshot);
+            return true;
+          }
+
+          deltaRows += manifest.addedRowsCount() + manifest.deletedRowsCount();
+        }
+      }
+    }
+
+    if (deltaRows == 0L) {
+      return false;
+    }
+
+    long rebuildRows = 0L;
+    for (ManifestFile manifest : mainSnapshot.dataManifests(table.io())) {
+      if (!hasRowCounts(manifest)) {
+        logMissingRowCounts(manifest, mainSnapshot);
+        return true;
+      }
+
+      rebuildRows += manifest.addedRowsCount() + manifest.existingRowsCount();
+    }
+
+    if (deltaRows <= rebuildRows) {
+      return false;
+    }
+
+    LOG.info(
+        "The external commits since the indexed snapshot change {} rows, more than the {} rows of "
+            + "main snapshot {}. Rebuilding the worker index instead of applying them.",
+        deltaRows,
+        rebuildRows,
+        mainSnapshot.snapshotId());
+    return true;
+  }
+
+  // The row counts are required by the spec, but a writer may leave them out.
+  private static boolean hasRowCounts(ManifestFile manifest) {
+    return manifest.addedRowsCount() != null
+        && manifest.existingRowsCount() != null
+        && manifest.deletedRowsCount() != null;
+  }
+
+  private static void logMissingRowCounts(ManifestFile manifest, Snapshot mainSnapshot) {
+    LOG.warn(
+        "Manifest {} of snapshot {} has no row counts. "
+            + "Rebuilding the worker index instead of applying the external commits to main snapshot {}.",
+        manifest.path(),
+        manifest.snapshotId(),
+        mainSnapshot.snapshotId());
+  }
+
+  /** Applies the data-file changes of {@code externalCommits} to the worker index in one phase. */
+  private void emitIncrementalReindex(Snapshot mainSnapshot, List<Snapshot> externalCommits) {
+    int addedFileNum = 0;
+    int removedFileNum = 0;
+    Set<String> removedLater = Sets.newHashSet();
+    Set<String> addedLater = Sets.newHashSet();
+
+    // Traverse from latest to oldest to figure out which files have been added-then-deleted.
+    // We don't have a defined ordering in the parallel reader tasks, which is why we need to
+    // prevent the same file being added and removed. We can simply skip processing it in that case.
+    for (Snapshot snapshot : externalCommits) {
+      if (!hasFileChanges(
+          snapshot,
+          manifest -> manifest.hasAddedFiles() || manifest.hasDeletedFiles(),
+          SnapshotSummary.ADDED_FILES_PROP,
+          SnapshotSummary.ADDED_DELETE_FILES_PROP,
+          SnapshotSummary.DELETED_FILES_PROP)) {
+        // No data added or removed, e.g. a manifest rewrite, for which SnapshotChanges would read
+        // every manifest to find no file change. Skip.
+        continue;
+      }
+
+      SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+      validateTargetDeleteFiles(snapshot, changes);
+
+      for (DataFile dataFile : changes.addedDataFiles()) {
+        // Make sure to not index a file which has already been removed.
+        if (!removedLater.remove(dataFile.location())) {
+          addedLater.add(dataFile.location());
+          emitAddedDataFile(
+              mainSnapshot, // Column stats cost memory and the reader doesn't need them.
+              dataFile.copyWithoutStats());
+          addedFileNum++;
+        }
+      }
+
+      for (DataFile dataFile : changes.removedDataFiles()) {
+        // The worker could apply this removal after the newer add of the same file and lose its
+        // rows. Failing makes the next trigger rebuild the index.
+        Preconditions.checkState(
+            !addedLater.contains(dataFile.location()),
+            "Data file %s is removed and added again within the delta to main snapshot %s. The next trigger rebuilds the worker index",
+            dataFile.location(),
+            mainSnapshot.snapshotId());
+        removedLater.add(dataFile.location());
+        // We need to emit the removed file even if an earlier snapshot in the range adds the
+        // file, which we will detect and skip. Removing a file which is never added will not change
+        // the index. Otherwise, we would have to traverse the snapshot chain twice.
+        emitRemovedDataFile(mainSnapshot, dataFile);
+        removedFileNum++;
+      }
+    }
+
+    if (addedFileNum == 0 && removedFileNum == 0) {
+      return;
+    }
+
+    incrementalReindexCounter.inc();
+    LOG.info(
+        "Incrementally reindexing worker index to main snapshot {} for field IDs {}: {} added and "
+            + "{} removed data files.",
+        mainSnapshot.snapshotId(),
+        eqFieldIds,
+        addedFileNum,
+        removedFileNum);
+    advancePhase();
+  }
+
+  private void emitRemovedDataFile(Snapshot mainSnapshot, DataFile dataFile) {
+    output.collect(
+        new StreamRecord<>(
+            ReadCommand.removedDataFile(
+                reindexTask(dataFile),
+                mainSnapshot.snapshotId(),
+                indexGeneration,
+                dataSequenceNumber(dataFile)),
+            nextPhaseTs));
+  }
+
+  private void emitAddedDataFile(Snapshot mainSnapshot, DataFile dataFile) {
+    output.collect(
+        new StreamRecord<>(
+            ReadCommand.dataFile(
+                reindexTask(dataFile),
+                mainSnapshot.snapshotId(),
+                indexGeneration,
+                dataSequenceNumber(dataFile)),
+            nextPhaseTs));
+  }
+
+  // Mirrors the reader's check on the delete files of a rebuild.
+  private void validateTargetDeleteFiles(Snapshot snapshot, SnapshotChanges changes) {
+    if (stagingOnTargetBranch) {
+      // On a shared branch, equality deletes on the target are the converter's input.
+      return;
+    }
+
+    for (DeleteFile deleteFile : changes.addedDeleteFiles()) {
+      Preconditions.checkState(
+          deleteFile.content() != FileContent.EQUALITY_DELETES,
+          "Snapshot %s on target branch '%s' adds an equality delete file %s; the converter "
+              + "expects equality deletes only on the staging branch, converted to DVs on the "
+              + "target.",
+          snapshot.snapshotId(),
+          targetBranch,
+          deleteFile.location());
+    }
+  }
+
+  private FileScanTask reindexTask(DataFile dataFile) {
+    // The task carries no DVs, and a DV added to a retained file is ignored, so the positions these
+    // DVs delete stay indexed. A Flink writer adds such a DV for rows it updates within one
+    // checkpoint. Resolving one only adds a position the DV already holds.
+    return new FlinkAddedRowsScanTask(dataFile, table.specs().get(dataFile.specId()));
+  }
+
+  /**
    * Re-emits every data row on {@code mainSnapshot} so the worker's index holds all their positions
-   * again, optionally preceded by a CLEAR_INDEX broadcast that evicts keyed entries the re-emission
-   * will not re-add (e.g. a PK whose data file was removed by a CoW commit). A bootstrap has no
-   * earlier index and so nothing to evict.
+   * again, preceded by a CLEAR_INDEX broadcast that evicts keyed entries the re-emission will not
+   * re-add (e.g. a PK whose data file was removed by a CoW commit). The broadcast also goes out
+   * when the index is not trusted, as restored state of an older version, an emptied target, or a
+   * rebuild or delta that failed part way can leave such entries.
    *
    * <p>The worker detects stale state by comparing the generation stamped on the commands it
    * receives with the one it stored, so every rebuild hands out a higher generation, including a
    * rebuild while the target branch stands still.
+   *
+   * <p>Clears {@link #indexSnapshotId} before emitting anything, and the caller records the head
+   * only after this returns. Neither the next trigger nor a restore from a checkpoint taken after a
+   * rebuild that failed part way trusts the index it left.
    */
-  private void rebuildIndex(Snapshot mainSnapshot, boolean evictStaleKeys) {
+  private void rebuildIndex(Snapshot mainSnapshot) {
+    LOG.info(
+        "Reindexing worker index from main snapshot {} for field IDs {}.",
+        mainSnapshot.snapshotId(),
+        eqFieldIds);
+
+    indexSnapshotId = null;
     long generation = indexGeneration + 1;
+    output.collect(
+        CLEAR_BROADCAST_STREAM,
+        new StreamRecord<>(IndexCommand.clearBeforeReindex(mainSnapshot.snapshotId(), generation)));
+    reindexCounter.inc();
 
-    if (evictStaleKeys) {
-      output.collect(
-          CLEAR_BROADCAST_STREAM,
-          new StreamRecord<>(
-              IndexCommand.clearBeforeReindex(mainSnapshot.snapshotId(), generation)));
-      reindexCounter.inc();
-    }
-
-    indexSnapshotId = mainSnapshot.snapshotId();
     indexGeneration = generation;
     emitMainDataReadCommands(mainSnapshot);
   }
@@ -390,7 +639,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   /**
    * Walks main back from head looking for the most recent snapshot tagged with {@link
    * EqualityConvertCommitter#COMMITTED_STAGING_SNAPSHOT_PROPERTY}. Returns the staging snapshot id
-   * recorded there (or {@code null} if not reached) and the count of intervening external commits.
+   * recorded there, or {@code null} if not reached.
    *
    * <p>The walk stops at whichever comes first:
    *
@@ -401,7 +650,6 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
    */
   private LastCommittedWork discoverLastCommittedWork(Snapshot mainSnapshot) {
     Long lastCommittedStaging = null;
-    int externalCount = 0;
     boolean reachedLastInspected = false;
     Snapshot current = mainSnapshot;
     while (current != null) {
@@ -417,15 +665,13 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
         break;
       }
 
-      externalCount++;
       current = parentOf(current);
     }
 
-    return new LastCommittedWork(lastCommittedStaging, externalCount, reachedLastInspected);
+    return new LastCommittedWork(lastCommittedStaging, reachedLastInspected);
   }
 
-  private record LastCommittedWork(
-      Long lastCommittedStaging, int externalCommitCount, boolean reachedLastInspected) {}
+  private record LastCommittedWork(Long lastCommittedStaging, boolean reachedLastInspected) {}
 
   /**
    * Walks staging history from head back to the stop point and returns the oldest unprocessed
@@ -462,21 +708,24 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
       stopAt = findCommonAncestor(stagingHead, mainSnapshot);
     }
 
+    List<Snapshot> unprocessed = Lists.newArrayList();
     Snapshot current = stagingHead;
-    Snapshot oldestUnprocessed = null;
     while (current != null) {
       if (stopAt != null && current.snapshotId() == stopAt) {
         break;
       }
 
-      if (!shouldSkip(current)) {
-        oldestUnprocessed = current;
-      }
-
+      unprocessed.add(current);
       current = parentOf(current);
     }
 
-    return oldestUnprocessed;
+    for (Snapshot snapshot : Lists.reverse(unprocessed)) {
+      if (!shouldSkip(snapshot)) {
+        return snapshot;
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -524,7 +773,8 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
                 stagingSnapshot.snapshotId(),
                 currentMainSnapshotId,
                 triggerTs,
-                nextPhaseTs)));
+                nextPhaseTs,
+                indexGeneration)));
 
     advancePhase();
   }
@@ -671,7 +921,8 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     output.collect(
         METADATA_STREAM,
         new StreamRecord<>(
-            EqualityConvertPlan.noOp(currentMainSnapshotId, triggerTimestamp, nextPhaseTs)));
+            EqualityConvertPlan.noOp(
+                currentMainSnapshotId, triggerTimestamp, nextPhaseTs, indexGeneration)));
     advancePhase();
   }
 
@@ -691,7 +942,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
         output.collect(
             new StreamRecord<>(
                 ReadCommand.dataFile(
-                    task, indexSnapshotId, indexGeneration, dataSequenceNumber(task.file())),
+                    task, commitSnapshotId, indexGeneration, dataSequenceNumber(task.file())),
                 nextPhaseTs));
       }
     } catch (IOException e) {
@@ -729,35 +980,79 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
    *       #ensureIndexCurrent} when the next eq-delete arrives.
    * </ul>
    *
-   * <p>Filter checks read per-snapshot counts from {@link Snapshot#summary()}; we don't parse
-   * manifests here. Manifest parsing happens later in {@link #retrieveStagingFiles} only for the
+   * <p>The checks use the summary counts of the snapshot when it reports them. Otherwise they read
+   * the manifest list of the snapshot and, on a shared branch, the delete manifests the snapshot
+   * wrote. Reading the data files happens later in {@link #retrieveStagingFiles} only for the
    * chosen snapshot.
    */
   private boolean shouldSkip(Snapshot snapshot) {
-    Map<String, String> summary = snapshot.summary();
-    if (summary.containsKey(EqualityConvertCommitter.COMMITTED_STAGING_SNAPSHOT_PROPERTY)) {
+    if (snapshot
+        .summary()
+        .containsKey(EqualityConvertCommitter.COMMITTED_STAGING_SNAPSHOT_PROPERTY)) {
       return true;
     }
 
-    long addedDataFiles = summaryCount(summary, SnapshotSummary.ADDED_FILES_PROP);
-    long addedDeleteFiles = summaryCount(summary, SnapshotSummary.ADDED_DELETE_FILES_PROP);
-    if (addedDataFiles == 0 && addedDeleteFiles == 0) {
+    if (!hasFileChanges(
+        snapshot,
+        ManifestFile::hasAddedFiles,
+        SnapshotSummary.ADDED_FILES_PROP,
+        SnapshotSummary.ADDED_DELETE_FILES_PROP)) {
       LOG.info(
           "Skipping staging snapshot {}: no added data or delete files.", snapshot.snapshotId());
       return true;
     }
 
-    if (stagingOnTargetBranch
-        && summaryCount(summary, SnapshotSummary.ADD_EQ_DELETE_FILES_PROP) == 0) {
+    if (stagingOnTargetBranch && !addsEqualityDeletes(snapshot)) {
       return true;
     }
 
     return false;
   }
 
-  private static long summaryCount(Map<String, String> summary, String key) {
-    String value = summary.get(key);
-    return value == null ? 0L : Long.parseLong(value);
+  /**
+   * Iceberg Java leaves out zero counts, and other writers may leave out counts of any value, so a
+   * missing count falls back to the manifest list.
+   */
+  private boolean hasFileChanges(
+      Snapshot snapshot, Predicate<ManifestFile> manifestCheck, String... countProperties) {
+    boolean allReported = true;
+    for (String property : countProperties) {
+      String count = snapshot.summary().get(property);
+      if (count == null) {
+        allReported = false;
+      } else if (Long.parseLong(count) > 0) {
+        return true;
+      }
+    }
+
+    return !allReported && checkManifestList(snapshot, manifestCheck);
+  }
+
+  private boolean checkManifestList(Snapshot snapshot, Predicate<ManifestFile> predicate) {
+    for (ManifestFile manifest : snapshot.allManifests(table.io())) {
+      if (Objects.equals(manifest.snapshotId(), snapshot.snapshotId())
+          && predicate.test(manifest)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private boolean addsEqualityDeletes(Snapshot snapshot) {
+    String count = snapshot.summary().get(SnapshotSummary.ADD_EQ_DELETE_FILES_PROP);
+    if (count != null) {
+      return Long.parseLong(count) > 0;
+    }
+
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+    for (DeleteFile deleteFile : changes.addedDeleteFiles()) {
+      if (deleteFile.content() == FileContent.EQUALITY_DELETES) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -823,6 +1118,11 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   @VisibleForTesting
   long reindexCount() {
     return reindexCounter.getCount();
+  }
+
+  @VisibleForTesting
+  long incrementalReindexCount() {
+    return incrementalReindexCounter.getCount();
   }
 
   @VisibleForTesting

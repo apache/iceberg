@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -38,6 +39,7 @@ import org.apache.iceberg.flink.sink.PartitionKeySelector;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,7 +68,7 @@ class HashKeyGenerator {
     this.keySelectorCache = new LRUCache<>(maxCacheSize);
   }
 
-  int generateKey(DynamicRecord dynamicRecord) throws Exception {
+  int generateKey(DynamicRecord dynamicRecord) {
     return generateKey(dynamicRecord, null, null, null);
   }
 
@@ -81,6 +83,8 @@ class HashKeyGenerator {
         DynamicSinkUtil.resolveEqualityFieldNames(dynamicRecord.equalityFields(), effectiveSchema);
     DistributionMode effectiveDistributionMode =
         MoreObjects.firstNonNull(dynamicRecord.distributionMode(), DistributionMode.NONE);
+    Set<String> effectiveDistributionFields =
+        MoreObjects.firstNonNull(dynamicRecord.distributionFields(), Collections.emptySet());
     SelectorKey cacheKey =
         new SelectorKey(
             tableIdent,
@@ -91,7 +95,8 @@ class HashKeyGenerator {
             dynamicRecord.spec(),
             effectiveEqualityFields,
             effectiveDistributionMode,
-            Math.min(dynamicRecord.writeParallelism(), maxWriteParallelism));
+            Math.min(dynamicRecord.writeParallelism(), maxWriteParallelism),
+            effectiveDistributionFields);
     KeySelector<RowData, Integer> keySelector =
         keySelectorCache.computeIfAbsent(
             cacheKey,
@@ -102,7 +107,8 @@ class HashKeyGenerator {
                     MoreObjects.firstNonNull(tableSpec, dynamicRecord.spec()),
                     effectiveDistributionMode,
                     effectiveEqualityFields,
-                    Math.min(dynamicRecord.writeParallelism(), maxWriteParallelism)));
+                    Math.min(dynamicRecord.writeParallelism(), maxWriteParallelism),
+                    effectiveDistributionFields));
     try {
       return keySelector.getKey(
           overrideRowData != null ? overrideRowData : dynamicRecord.rowData());
@@ -117,23 +123,51 @@ class HashKeyGenerator {
       PartitionSpec spec,
       DistributionMode mode,
       Set<String> equalityFields,
-      int writeParallelism) {
+      int writeParallelism,
+      Set<String> distributionFields) {
     LOG.debug(
         "Creating new KeySelector for table '{}' with distribution mode '{}'", tableName, mode);
+
     switch (mode) {
       case NONE:
+        if (!distributionFields.isEmpty()) {
+          LOG.warn(
+              "{}: Distribution fields {} are ignored when distribution mode is set to NONE",
+              tableName,
+              distributionFields);
+        }
+
         if (equalityFields.isEmpty()) {
           return tableKeySelector(tableName, writeParallelism, maxWriteParallelism);
         } else {
           LOG.info(
               "{}: Distribute rows by equality fields, because there are equality fields set",
               tableName);
-          return equalityFieldKeySelector(
-              tableName, schema, equalityFields, writeParallelism, maxWriteParallelism);
+          return fieldKeySelector(
+              tableName,
+              schema,
+              DynamicSinkUtil.getEqualityFieldIds(equalityFields, schema),
+              writeParallelism,
+              maxWriteParallelism);
         }
 
       case HASH:
-        if (equalityFields.isEmpty()) {
+        if (!distributionFields.isEmpty()) {
+          Preconditions.checkArgument(
+              equalityFields.isEmpty() || equalityFields.containsAll(distributionFields),
+              "%s: Invalid distribution fields '%s'. Expected distribution fields to be a subset of "
+                  + "equality fields '%s'.",
+              tableName,
+              distributionFields,
+              equalityFields);
+          LOG.info("{}: Distribute rows by distribution fields {}", tableName, distributionFields);
+          return fieldKeySelector(
+              tableName,
+              schema,
+              DynamicSinkUtil.distributionFieldIds(distributionFields, schema),
+              writeParallelism,
+              maxWriteParallelism);
+        } else if (equalityFields.isEmpty()) {
           if (spec.isUnpartitioned()) {
             LOG.warn(
                 "{}: Fallback to use 'none' distribution mode, because there are no equality fields set "
@@ -150,8 +184,12 @@ class HashKeyGenerator {
                 "{}: Distribute rows by equality fields, because there are equality fields set "
                     + "and table is unpartitioned",
                 tableName);
-            return equalityFieldKeySelector(
-                tableName, schema, equalityFields, writeParallelism, maxWriteParallelism);
+            return fieldKeySelector(
+                tableName,
+                schema,
+                DynamicSinkUtil.getEqualityFieldIds(equalityFields, schema),
+                writeParallelism,
+                maxWriteParallelism);
           } else {
             // Compare by fully-qualified name: a partition source that is a nested field has a
             // simple name (e.g. "name") that differs from the dotted equality-field name (e.g.
@@ -187,8 +225,12 @@ class HashKeyGenerator {
                   + "and {}='range' is not supported yet in flink",
               tableName,
               WRITE_DISTRIBUTION_MODE);
-          return equalityFieldKeySelector(
-              tableName, schema, equalityFields, writeParallelism, maxWriteParallelism);
+          return fieldKeySelector(
+              tableName,
+              schema,
+              DynamicSinkUtil.getEqualityFieldIds(equalityFields, schema),
+              writeParallelism,
+              maxWriteParallelism);
         }
 
       default:
@@ -197,17 +239,14 @@ class HashKeyGenerator {
     }
   }
 
-  private static KeySelector<RowData, Integer> equalityFieldKeySelector(
+  private static KeySelector<RowData, Integer> fieldKeySelector(
       String tableName,
       Schema schema,
-      Set<String> equalityFields,
+      Set<Integer> fieldIds,
       int writeParallelism,
       int maxWriteParallelism) {
     return new TargetLimitedKeySelector(
-        new EqualityFieldKeySelector(
-            schema,
-            FlinkSchemaUtil.convert(schema),
-            DynamicSinkUtil.getEqualityFieldIds(equalityFields, schema)),
+        new EqualityFieldKeySelector(schema, FlinkSchemaUtil.convert(schema), fieldIds),
         tableName,
         writeParallelism,
         maxWriteParallelism);
@@ -317,18 +356,20 @@ class HashKeyGenerator {
 
   /**
    * Cache key for the {@link KeySelector}. Only contains the {@link Schema} and the {@link
-   * PartitionSpec} if their ids are not provided.
+   * PartitionSpec} if their ids are not provided. The schema is compared by its struct, because
+   * {@link Schema} has no value equality and callers may pass a new instance for every record.
    */
   static class SelectorKey {
     private final String tableName;
     private final String branch;
     private final Integer schemaId;
     private final Integer specId;
-    private final Schema schema;
+    private final Types.StructType schema;
     private final PartitionSpec spec;
     private final Set<String> equalityFields;
     private final DistributionMode distributionMode;
     private final int writeParallelism;
+    private final Set<String> distributionFields;
 
     SelectorKey(
         String tableName,
@@ -339,19 +380,22 @@ class HashKeyGenerator {
         PartitionSpec spec,
         Set<String> equalityFields,
         DistributionMode distributionMode,
-        int writeParallelism) {
+        int writeParallelism,
+        Set<String> distributionFields) {
       this.tableName = tableName;
       this.branch = branch;
       this.schemaId = tableSchemaId;
       this.specId = tableSpecId;
-      this.schema = tableSchemaId == null ? schema : null;
+      this.schema = tableSchemaId == null ? schema.asStruct() : null;
       this.spec = tableSpecId == null ? spec : null;
       this.equalityFields = equalityFields;
       this.distributionMode = distributionMode;
       this.writeParallelism = writeParallelism;
+      this.distributionFields = distributionFields;
     }
 
     @Override
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public boolean equals(Object other) {
       if (this == other) {
         return true;
@@ -370,7 +414,8 @@ class HashKeyGenerator {
           && Objects.equals(spec, that.spec)
           && Objects.equals(equalityFields, that.equalityFields)
           && distributionMode == that.distributionMode
-          && writeParallelism == that.writeParallelism;
+          && writeParallelism == that.writeParallelism
+          && Objects.equals(distributionFields, that.distributionFields);
     }
 
     @Override
@@ -384,7 +429,8 @@ class HashKeyGenerator {
           spec,
           equalityFields,
           distributionMode,
-          writeParallelism);
+          writeParallelism,
+          distributionFields);
     }
 
     @Override
@@ -399,6 +445,7 @@ class HashKeyGenerator {
           .add("equalityFields", equalityFields)
           .add("distributionMode", distributionMode)
           .add("writeParallelism", writeParallelism)
+          .add("distributionFields", distributionFields)
           .toString();
     }
   }

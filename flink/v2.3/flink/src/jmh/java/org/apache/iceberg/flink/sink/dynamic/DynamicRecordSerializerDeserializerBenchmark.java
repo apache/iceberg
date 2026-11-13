@@ -110,7 +110,12 @@ public class DynamicRecordSerializerDeserializerBenchmark {
             "hadoop",
             new Configuration(),
             ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getPath()));
-    this.type = new DynamicRecordInternalType(catalogLoader, true, 100);
+    this.type =
+        new DynamicRecordInternalType(
+            catalogLoader,
+            true,
+            100,
+            FlinkDynamicSinkOptions.INPUT_SCHEMAS_PER_TABLE_CACHE_MAX_SIZE.defaultValue());
   }
 
   @Benchmark

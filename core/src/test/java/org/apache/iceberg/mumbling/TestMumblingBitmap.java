@@ -28,6 +28,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.stream.IntStream;
+import org.apache.iceberg.ManifestBitmap;
+import org.apache.iceberg.mumbling.MumblingBitmap.Mutable;
 import org.junit.jupiter.api.Test;
 
 class TestMumblingBitmap {
@@ -774,6 +777,443 @@ class TestMumblingBitmap {
         .isEqualTo(dense(DENSE_CONTAINER).buffer());
     assertThat(serialized.slice(containersOffset + 33, 2)).isEqualTo(sparse(254, 255).buffer());
     assertThat(serialized.slice(containersOffset + 35, 2)).isEqualTo(sparse(3, 7).buffer());
+  }
+
+  @Test
+  public void testMergeSparseIntoSparse() {
+    int[] positions = new int[] {0, 10, 20, 255};
+    int[] otherPositions = new int[] {0, 15, 20, 30, 255};
+
+    Mutable bitmap = bitmap(sparse(positions)).asMutable();
+    bitmap.merge(bitmap(sparse(otherPositions)));
+
+    assertThat(bitmap.cardinality()).isEqualTo(6);
+    assertThat(bitmap.descriptorArray()).containsExactly(6);
+    assertSet(bitmap, 0, positions);
+    assertSet(bitmap, 0, otherPositions);
+  }
+
+  @Test
+  public void testMergeSparseIntoSparseConvertsToDense() {
+    int[] positions = range(0, 20);
+    int[] otherPositions = range(10, 40);
+
+    Mutable bitmap = bitmap(sparse(positions)).asMutable();
+    bitmap.merge(bitmap(sparse(otherPositions)));
+
+    assertThat(bitmap.cardinality()).isEqualTo(40);
+    assertThat(bitmap.descriptorArray()).containsExactly(32);
+    assertSet(bitmap, 0, positions);
+    assertSet(bitmap, 0, otherPositions);
+  }
+
+  @Test
+  public void testMergeSparseIntoDense() {
+    int[] otherPositions = new int[] {0, 15, 40, 100, 255};
+
+    Mutable bitmap = bitmap(dense(DENSE_CONTAINER)).asMutable();
+    bitmap.merge(bitmap(sparse(otherPositions)));
+
+    assertThat(bitmap.cardinality()).isEqualTo(35);
+    assertThat(bitmap.descriptorArray()).containsExactly(32);
+    assertSet(bitmap, 0, DENSE_CONTAINER);
+    assertSet(bitmap, 0, otherPositions);
+  }
+
+  @Test
+  public void testMergeDenseIntoSparse() {
+    int[] positions = new int[] {0, 15, 40, 100, 255};
+
+    Mutable bitmap = bitmap(sparse(positions)).asMutable();
+    bitmap.merge(bitmap(dense(DENSE_CONTAINER)));
+
+    assertThat(bitmap.cardinality()).isEqualTo(35);
+    assertThat(bitmap.descriptorArray()).containsExactly(32);
+    assertSet(bitmap, 0, positions);
+    assertSet(bitmap, 0, DENSE_CONTAINER);
+  }
+
+  @Test
+  public void testMergeDenseIntoDense() {
+    // positions 48-79
+    byte[] otherDense = new byte[32];
+    otherDense[6] = (byte) 0xFF;
+    otherDense[7] = (byte) 0xFF;
+    otherDense[8] = (byte) 0xFF;
+    otherDense[9] = (byte) 0xFF;
+
+    Mutable bitmap = bitmap(dense(DENSE_CONTAINER)).asMutable();
+    bitmap.merge(bitmap(dense(otherDense)));
+
+    assertThat(bitmap.cardinality()).isEqualTo(56);
+    assertThat(bitmap.descriptorArray()).containsExactly(32);
+    assertSet(bitmap, 0, DENSE_CONTAINER);
+    assertSet(bitmap, 0, otherDense);
+  }
+
+  @Test
+  public void testMergeSparseIntoSparseWithDenseArray() {
+    int[] positions = range(0, 31);
+    int[] otherPositions = new int[] {0, 255};
+
+    Mutable bitmap = bitmap(sparse(positions)).asMutable();
+    assertThat(bitmap.set(0)).as("Converts to dense but does not set a new bit").isFalse();
+
+    bitmap.merge(bitmap(sparse(otherPositions)));
+
+    assertThat(bitmap.cardinality()).isEqualTo(32);
+    assertThat(bitmap.descriptorArray()).containsExactly(32);
+    assertSet(bitmap, 0, positions);
+    assertSet(bitmap, 0, otherPositions);
+  }
+
+  @Test
+  public void testMergeSparseWithDenseArrayIntoEmpty() {
+    int[] otherPositions = range(0, 31);
+
+    Mutable other = bitmap(sparse(otherPositions)).asMutable();
+    assertThat(other.set(0)).as("Converts to dense but does not set a new bit").isFalse();
+
+    Mutable bitmap = MumblingBitmap.newMutableBitmap();
+    bitmap.merge(other);
+
+    assertThat(bitmap.cardinality()).isEqualTo(31);
+    assertThat(bitmap.descriptorArray()).containsExactly(31);
+    assertSet(bitmap, 0, otherPositions);
+  }
+
+  @Test
+  public void testMergeSparseWithDenseArrayIntoSparse() {
+    int[] positions = new int[] {0, 30};
+    int[] otherPositions = range(0, 31);
+
+    Mutable other = bitmap(sparse(otherPositions)).asMutable();
+    assertThat(other.set(0)).as("Converts to dense but does not set a new bit").isFalse();
+
+    Mutable bitmap = bitmap(sparse(positions)).asMutable();
+    bitmap.merge(other);
+
+    assertThat(bitmap.cardinality()).isEqualTo(31);
+    assertThat(bitmap.descriptorArray()).containsExactly(31);
+    assertSet(bitmap, 0, positions);
+    assertSet(bitmap, 0, otherPositions);
+  }
+
+  @Test
+  public void testMergeDenseIntoSparseWithDenseArray() {
+    int[] positions = range(0, 31);
+
+    Mutable bitmap = bitmap(sparse(positions)).asMutable();
+    assertThat(bitmap.set(0)).as("Converts to dense but does not set a new bit").isFalse();
+
+    bitmap.merge(bitmap(dense(DENSE_CONTAINER)));
+
+    assertThat(bitmap.cardinality()).isEqualTo(48);
+    assertThat(bitmap.descriptorArray()).containsExactly(32);
+    assertSet(bitmap, 0, positions);
+    assertSet(bitmap, 0, DENSE_CONTAINER);
+  }
+
+  @Test
+  public void testMergeSparseWithDenseArrayIntoSparseWithDenseArray() {
+    int[] positions = range(0, 31);
+    int[] otherPositions = range(1, 32);
+
+    Mutable bitmap = bitmap(sparse(positions)).asMutable();
+    assertThat(bitmap.set(0)).as("Converts to dense but does not set a new bit").isFalse();
+
+    Mutable other = bitmap(sparse(otherPositions)).asMutable();
+    assertThat(other.set(1)).as("Converts to dense but does not set a new bit").isFalse();
+
+    bitmap.merge(other);
+
+    assertThat(bitmap.cardinality()).isEqualTo(32);
+    assertThat(bitmap.descriptorArray()).containsExactly(32);
+    assertSet(bitmap, 0, positions);
+    assertSet(bitmap, 0, otherPositions);
+  }
+
+  @Test
+  public void testMergeSparseWithDenseArrayIntoDense() {
+    int[] otherPositions = range(0, 31);
+
+    Mutable other = bitmap(sparse(otherPositions)).asMutable();
+    assertThat(other.set(0)).as("Converts to dense but does not set a new bit").isFalse();
+
+    Mutable bitmap = bitmap(dense(DENSE_CONTAINER)).asMutable();
+    bitmap.merge(other);
+
+    assertThat(bitmap.cardinality()).isEqualTo(48);
+    assertThat(bitmap.descriptorArray()).containsExactly(32);
+    assertSet(bitmap, 0, DENSE_CONTAINER);
+    assertSet(bitmap, 0, otherPositions);
+  }
+
+  @Test
+  public void testMergeEmptyContainers() {
+    int[] positions = new int[] {0, 10, 255};
+    int[] otherPositions = new int[] {0, 15, 255};
+
+    Mutable bitmap =
+        bitmap(sparse(), dense(DENSE_CONTAINER), sparse(positions), sparse()).asMutable();
+    bitmap.merge(bitmap(sparse(otherPositions), sparse(), sparse(), dense(DENSE_CONTAINER)));
+
+    assertThat(bitmap.cardinality()).isEqualTo(70);
+    assertThat(bitmap.descriptorArray()).containsExactly(3, 32, 3, 32);
+    assertSet(bitmap, 0, otherPositions);
+    assertSet(bitmap, 1, DENSE_CONTAINER);
+    assertSet(bitmap, 2, positions);
+    assertSet(bitmap, 3, DENSE_CONTAINER);
+  }
+
+  @Test
+  public void testMergeIntoEmptyBitmap() {
+    int[] otherPositions = new int[] {0, 15, 255};
+
+    Mutable bitmap = MumblingBitmap.newMutableBitmap();
+    bitmap.merge(bitmap(sparse(otherPositions), dense(DENSE_CONTAINER)));
+
+    assertThat(bitmap.cardinality()).isEqualTo(35);
+    assertThat(bitmap.descriptorArray()).containsExactly(3, 32);
+    assertSet(bitmap, 0, otherPositions);
+    assertSet(bitmap, 1, DENSE_CONTAINER);
+  }
+
+  @Test
+  public void testMergeEmptyBitmap() {
+    int[] positions = new int[] {0, 10, 255};
+
+    Mutable bitmap = bitmap(sparse(positions), dense(DENSE_CONTAINER)).asMutable();
+    bitmap.merge(MumblingBitmap.newMutableBitmap());
+
+    assertThat(bitmap.cardinality()).isEqualTo(35);
+    assertThat(bitmap.descriptorArray()).containsExactly(3, 32);
+    assertSet(bitmap, 0, positions);
+    assertSet(bitmap, 1, DENSE_CONTAINER);
+  }
+
+  @Test
+  public void testMergeWithMoreContainers() {
+    int[] positions = new int[] {0, 10, 255};
+    int[] otherPositions = new int[] {0, 15, 255};
+
+    Mutable bitmap = bitmap(sparse(positions)).asMutable();
+    bitmap.merge(
+        bitmap(sparse(otherPositions), dense(DENSE_CONTAINER), sparse(), sparse(otherPositions)));
+
+    assertThat(bitmap.cardinality()).isEqualTo(39);
+    assertThat(bitmap.descriptorArray()).containsExactly(4, 32, 0, 3);
+    assertSet(bitmap, 0, positions);
+    assertSet(bitmap, 0, otherPositions);
+    assertSet(bitmap, 1, DENSE_CONTAINER);
+    assertSet(bitmap, 3, otherPositions);
+  }
+
+  @Test
+  public void testMergeArgumentWithFewerContainers() {
+    int[] positions = new int[] {0, 10, 255};
+    int[] otherPositions = new int[] {0, 15, 255};
+
+    Mutable bitmap =
+        bitmap(sparse(positions), dense(DENSE_CONTAINER), sparse(), sparse(positions)).asMutable();
+    bitmap.merge(bitmap(sparse(otherPositions)));
+
+    assertThat(bitmap.cardinality()).isEqualTo(39);
+    assertThat(bitmap.descriptorArray()).containsExactly(4, 32, 0, 3);
+    assertSet(bitmap, 0, positions);
+    assertSet(bitmap, 0, otherPositions);
+    assertSet(bitmap, 1, DENSE_CONTAINER);
+    assertSet(bitmap, 3, positions);
+  }
+
+  @Test
+  public void testMergeWithEmptyContainerGaps() {
+    int[] positions = new int[] {0, 10, 255};
+    int[] otherPositions = new int[] {0, 15, 255};
+
+    Mutable bitmap =
+        bitmap(sparse(positions), sparse(), sparse(), dense(DENSE_CONTAINER)).asMutable();
+    bitmap.merge(
+        bitmap(sparse(), sparse(otherPositions), sparse(), sparse(), dense(DENSE_CONTAINER)));
+
+    assertThat(bitmap.cardinality()).isEqualTo(70);
+    assertThat(bitmap.descriptorArray()).containsExactly(3, 3, 0, 32, 32);
+    assertSet(bitmap, 0, positions);
+    assertSet(bitmap, 1, otherPositions);
+    assertSet(bitmap, 3, DENSE_CONTAINER);
+    assertSet(bitmap, 4, DENSE_CONTAINER);
+  }
+
+  @Test
+  public void testMergeIntoOverlayAndBaseContainers() {
+    int[] positions = new int[] {0, 10, 255};
+    int[] otherPositions = new int[] {0, 15, 255};
+
+    Mutable bitmap = bitmap(sparse(positions), dense(DENSE_CONTAINER)).asMutable();
+    assertThat(bitmap.set(5)).isTrue(); // creates an overlay for container 0 only
+
+    bitmap.merge(bitmap(sparse(otherPositions), sparse(otherPositions)));
+
+    assertThat(bitmap.cardinality()).isEqualTo(39);
+    assertThat(bitmap.descriptorArray()).containsExactly(5, 32);
+    assertThat(bitmap.isSet(5)).isTrue();
+    assertSet(bitmap, 0, positions);
+    assertSet(bitmap, 0, otherPositions);
+    assertSet(bitmap, 1, DENSE_CONTAINER);
+    assertSet(bitmap, 1, otherPositions);
+  }
+
+  @Test
+  public void testMergeBitmapWithBufferOffset() {
+    int[] positions = new int[] {0, 10, 255};
+    int[] otherPositions = new int[] {0, 15, 255};
+
+    // positions 48-79
+    byte[] otherDense = new byte[32];
+    otherDense[6] = (byte) 0xFF;
+    otherDense[7] = (byte) 0xFF;
+    otherDense[8] = (byte) 0xFF;
+    otherDense[9] = (byte) 0xFF;
+
+    Mutable bitmap = bitmap(sparse(positions), dense(DENSE_CONTAINER)).asMutable();
+    bitmap.merge(new MumblingBitmap(relocate(build(sparse(otherPositions), dense(otherDense)))));
+
+    assertThat(bitmap.cardinality()).isEqualTo(60);
+    assertThat(bitmap.descriptorArray()).containsExactly(4, 32);
+    assertSet(bitmap, 0, positions);
+    assertSet(bitmap, 0, otherPositions);
+    assertSet(bitmap, 1, DENSE_CONTAINER);
+    assertSet(bitmap, 1, otherDense);
+  }
+
+  @Test
+  public void testMergeMutableWithoutOverlays() {
+    int[] positions = new int[] {0, 10, 255};
+    int[] otherPositions = new int[] {0, 15, 255};
+
+    // positions 48-79
+    byte[] otherDense = new byte[32];
+    otherDense[6] = (byte) 0xFF;
+    otherDense[7] = (byte) 0xFF;
+    otherDense[8] = (byte) 0xFF;
+    otherDense[9] = (byte) 0xFF;
+
+    Mutable other = bitmap(sparse(otherPositions), dense(otherDense)).asMutable();
+
+    Mutable bitmap = bitmap(sparse(positions), dense(DENSE_CONTAINER)).asMutable();
+    bitmap.merge(other);
+
+    assertThat(bitmap.cardinality()).isEqualTo(60);
+    assertThat(bitmap.descriptorArray()).containsExactly(4, 32);
+    assertSet(bitmap, 0, positions);
+    assertSet(bitmap, 0, otherPositions);
+    assertSet(bitmap, 1, DENSE_CONTAINER);
+    assertSet(bitmap, 1, otherDense);
+  }
+
+  @Test
+  public void testMergeMutableWithOverlays() {
+    int[] positions = new int[] {0, 10, 255};
+    int[] otherPositions = new int[] {0, 15, 255};
+    int[] otherDensePositions = range(48, 80);
+
+    Mutable other = MumblingBitmap.newMutableBitmap();
+    for (int pos : otherPositions) {
+      assertThat(other.set(pos)).isTrue();
+    }
+
+    for (int pos : otherDensePositions) {
+      assertThat(other.set(256 + pos)).isTrue();
+    }
+
+    Mutable bitmap = bitmap(sparse(positions), dense(DENSE_CONTAINER)).asMutable();
+    bitmap.merge(other);
+
+    assertThat(bitmap.cardinality()).isEqualTo(60);
+    assertThat(bitmap.descriptorArray()).containsExactly(4, 32);
+    assertSet(bitmap, 0, positions);
+    assertSet(bitmap, 0, otherPositions);
+    assertSet(bitmap, 1, DENSE_CONTAINER);
+    assertSet(bitmap, 1, otherDensePositions);
+  }
+
+  @Test
+  public void testMergeMutableWithMixedOverlays() {
+    int[] positions = new int[] {0, 10, 255};
+    int[] otherPositions = new int[] {0, 15, 255};
+
+    // positions 48-79
+    byte[] otherDense = new byte[32];
+    otherDense[6] = (byte) 0xFF;
+    otherDense[7] = (byte) 0xFF;
+    otherDense[8] = (byte) 0xFF;
+    otherDense[9] = (byte) 0xFF;
+
+    Mutable other = bitmap(sparse(otherPositions), dense(otherDense)).asMutable();
+    assertThat(other.set(356)).isTrue(); // creates an overlay for container 1 only
+
+    Mutable bitmap = bitmap(sparse(positions), dense(DENSE_CONTAINER)).asMutable();
+    bitmap.merge(other);
+
+    assertThat(bitmap.cardinality()).isEqualTo(61);
+    assertThat(bitmap.descriptorArray()).containsExactly(4, 32);
+    assertSet(bitmap, 0, positions);
+    assertSet(bitmap, 0, otherPositions);
+    assertSet(bitmap, 1, DENSE_CONTAINER);
+    assertSet(bitmap, 1, otherDense);
+    assertThat(bitmap.isSet(356)).isTrue();
+  }
+
+  @Test
+  public void testMergeDoesNotShareContainers() {
+    int[] otherPositions = range(0, 31);
+
+    Mutable other = bitmap(sparse(otherPositions), dense(DENSE_CONTAINER)).asMutable();
+    assertThat(other.set(0)).as("Converts to dense but does not set a new bit").isFalse();
+
+    // merging into empty containers copies the sparse and dense arrays
+    Mutable bitmap = MumblingBitmap.newMutableBitmap();
+    bitmap.merge(other);
+    assertThat(bitmap.cardinality()).isEqualTo(63);
+    assertThat(bitmap.descriptorArray()).containsExactly(31, 32);
+
+    assertThat(bitmap.set(100)).isTrue();
+    assertThat(bitmap.set(356)).isTrue();
+    assertThat(bitmap.cardinality()).isEqualTo(65);
+    assertThat(other.isSet(100)).isFalse();
+    assertThat(other.isSet(356)).isFalse();
+    assertThat(other.cardinality()).isEqualTo(63);
+
+    assertThat(other.set(101)).isTrue();
+    assertThat(other.set(357)).isTrue();
+    assertThat(other.cardinality()).isEqualTo(65);
+    assertThat(bitmap.isSet(101)).isFalse();
+    assertThat(bitmap.isSet(357)).isFalse();
+    assertThat(bitmap.cardinality()).isEqualTo(65);
+  }
+
+  /** Returns the positions from {@code start} (inclusive) to {@code end} (exclusive). */
+  private static int[] range(int start, int end) {
+    return IntStream.range(start, end).toArray();
+  }
+
+  private static void assertSet(ManifestBitmap bitmap, int containerIndex, int[] positions) {
+    for (int pos : positions) {
+      assertThat(bitmap.isSet(containerIndex * 256 + pos))
+          .as("Position %s in container %s", pos, containerIndex)
+          .isTrue();
+    }
+  }
+
+  /** Asserts that the positions set in a dense container's bytes are set in the bitmap. */
+  private static void assertSet(ManifestBitmap bitmap, int containerIndex, byte[] dense) {
+    for (int pos = 0; pos < 256; pos += 1) {
+      if ((dense[pos >>> 3] & (0x80 >>> (pos & 0b111))) != 0) {
+        assertThat(bitmap.isSet(containerIndex * 256 + pos))
+            .as("Position %s in container %s", pos, containerIndex)
+            .isTrue();
+      }
+    }
   }
 
   /** Copy into a buffer with garbage padding outside of position and limit. */
