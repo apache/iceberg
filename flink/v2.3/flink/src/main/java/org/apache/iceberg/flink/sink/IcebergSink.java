@@ -313,6 +313,10 @@ public class IcebergSink
 
   @Override
   public DataStream<RowData> addPreWriteTopology(DataStream<RowData> inputDataStream) {
+    if (overwriteMode && fullOverwrite) {
+      SinkUtil.checkFullOverwriteRuntimeMode(inputDataStream);
+    }
+
     return distributeDataStream(inputDataStream);
   }
 

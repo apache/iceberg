@@ -32,10 +32,14 @@ import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.RuntimeExecutionMode;
+import org.apache.flink.configuration.ExecutionOptions;
+import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkWriteConf;
+import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -55,6 +59,17 @@ public class SinkUtil {
   private SinkUtil() {}
 
   private static final Logger LOG = LoggerFactory.getLogger(SinkUtil.class);
+
+  static void checkFullOverwriteRuntimeMode(DataStream<?> input) {
+    RuntimeExecutionMode runtimeMode =
+        input.getExecutionEnvironment().getConfiguration().get(ExecutionOptions.RUNTIME_MODE);
+    Preconditions.checkState(
+        runtimeMode == RuntimeExecutionMode.BATCH,
+        "Cannot run a full overwrite (%s=full) in %s mode: %s must be BATCH",
+        FlinkWriteOptions.OVERWRITE_STRATEGY.key(),
+        runtimeMode,
+        ExecutionOptions.RUNTIME_MODE.key());
+  }
 
   static Set<Integer> checkAndGetEqualityFieldIds(Table table, List<String> equalityFieldColumns) {
     Set<Integer> equalityFieldIds = Sets.newHashSet(table.schema().identifierFieldIds());

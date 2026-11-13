@@ -109,8 +109,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private transient IcebergFilesCommitterMetrics committerMetrics;
   private transient ManifestOutputFileFactory manifestOutputFileFactory;
   private transient long maxCommittedCheckpointId;
-  private transient boolean hasCommitted;
-  private transient boolean isRestored;
   private transient int continuousEmptyCheckpoints;
   private transient int maxContinuousEmptyCommits;
   // There're two cases that we restore from flink checkpoints: the first case is restoring from
@@ -174,8 +172,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     this.jobIdState = context.getOperatorStateStore().getListState(JOB_ID_DESCRIPTOR);
-    this.isRestored = context.isRestored();
-    if (isRestored) {
+    if (context.isRestored()) {
       Iterable<String> jobIdIterable = jobIdState.get();
       if (jobIdIterable == null || !jobIdIterable.iterator().hasNext()) {
         LOG.warn(
@@ -300,15 +297,11 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       long checkpointId) {
     long totalFiles = summary.dataFilesCount() + summary.deleteFilesCount();
     continuousEmptyCheckpoints = totalFiles == 0 ? continuousEmptyCheckpoints + 1 : 0;
+    // a full overwrite with no new files still commits, because it removes every row of the table
     boolean fullTableOverwrite = replacePartitions && fullOverwrite;
-    // a full overwrite with no new files removes every row of the table, so it commits only before
-    // the first commit of a job that started without state; any other one would remove the rows
-    // the job has written
-    boolean commitEmpty =
-        fullTableOverwrite
-            ? !isRestored && !hasCommitted
-            : continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0;
-    if (totalFiles != 0 || commitEmpty) {
+    if (totalFiles != 0
+        || fullTableOverwrite
+        || continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0) {
       if (fullTableOverwrite) {
         overwriteTable(pendingResults, summary, newFlinkJobId, operatorId, checkpointId);
       } else if (replacePartitions) {
@@ -436,7 +429,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     long startNano = System.nanoTime();
     operation.commit(); // abort is automatically called if this fails.
     long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano);
-    this.hasCommitted = true;
     LOG.info(
         "Committed {} to table: {}, branch: {}, checkpointId {} in {} ms",
         description,

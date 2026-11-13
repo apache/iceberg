@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -155,23 +156,53 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @TestTemplate
-  void testFullOverwriteKeepsRowsOnCheckpointsAfterLastRow() throws Exception {
-    List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
-    DataStream<RowData> dataStream =
-        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
-            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+  void fullOverwriteReplacesTableInBatchJob() throws Exception {
+    env.setRuntimeMode(RuntimeExecutionMode.BATCH);
 
-    IcebergSink.forRowData(dataStream)
+    List<Row> oldRows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"));
+    IcebergSink.forRowData(batchInput(oldRows))
+        .table(table)
+        .tableLoader(tableLoader)
+        .writeParallelism(parallelism)
+        .append();
+    env.execute("Test Iceberg DataStream");
+
+    List<Row> newRows = Lists.newArrayList(Row.of(3, "foo"));
+    IcebergSink.forRowData(batchInput(newRows))
         .table(table)
         .tableLoader(tableLoader)
         .writeParallelism(parallelism)
         .overwrite(true)
         .set(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "full")
         .append();
-
     env.execute("Test Iceberg DataStream");
 
-    SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
+    SimpleDataUtil.assertTableRows(table, convertToRowData(newRows));
+  }
+
+  @TestTemplate
+  void fullOverwriteIsRejectedInStreamingJob() {
+    DataStream<RowData> dataStream =
+        env.addSource(createBoundedSource(createRows("")), ROW_TYPE_INFO)
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    IcebergSink.forRowData(dataStream)
+        .table(table)
+        .tableLoader(tableLoader)
+        .overwrite(true)
+        .set(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "full")
+        .append();
+
+    assertThatThrownBy(() -> env.execute("Test Iceberg DataStream"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot run a full overwrite (overwrite-mode=full) in STREAMING mode: "
+                + "execution.runtime-mode must be BATCH");
+  }
+
+  private DataStream<RowData> batchInput(List<Row> rows) {
+    return env.fromData(rows, ROW_TYPE_INFO)
+        .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
   }
 
   @TestTemplate

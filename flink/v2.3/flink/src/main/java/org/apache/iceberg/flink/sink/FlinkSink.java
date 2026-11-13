@@ -448,6 +448,10 @@ public class FlinkSink {
 
       flinkWriteConf = new FlinkWriteConf(table, writeOptions, readableConfig);
 
+      if (flinkWriteConf.overwriteMode() && flinkWriteConf.fullOverwrite()) {
+        SinkUtil.checkFullOverwriteRuntimeMode(rowDataInput);
+      }
+
       // Find out the equality field id list based on the user-provided equality field column names.
       Set<Integer> equalityFieldIds =
           SinkUtil.checkAndGetEqualityFieldIds(table, equalityFieldColumns);
