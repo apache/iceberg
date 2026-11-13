@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.arrow.vectorized;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -27,13 +28,17 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader.ConstantVectorReader;
+import org.apache.iceberg.parquet.ParquetValueReader;
+import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetVariantVisitor;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
+import org.apache.iceberg.parquet.VariantReaderBuilder;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
@@ -41,6 +46,8 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReader<?>> {
+  private static final String TYPED_VALUE = "typed_value";
+
   private final MessageType parquetSchema;
   private final Schema icebergSchema;
   private final BufferAllocator rootAllocator;
@@ -163,14 +170,41 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
       return null;
     }
 
+    if (isShredded(variant.asGroupType())) {
+      // shredded variants are read by the row-based reader built in variant()
+      return null;
+    }
+
     return new VectorizedVariantVisitor(
         currentPath(), parquetSchema, icebergSchema, rootAllocator, setArrowValidityVector);
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   public VectorizedReader<?> variant(
       Types.VariantType iVariant, GroupType variant, VectorizedReader<?> result) {
-    return result;
+    // variants inside lists and maps are not read vectorized, like primitive()
+    if (iVariant == null
+        || parquetSchema.getMaxRepetitionLevel(currentPath()) > 0
+        || !isShredded(variant)) {
+      return result;
+    }
+
+    String[] path = currentPath();
+    ParquetValueReader<Variant> reader =
+        (ParquetValueReader<Variant>)
+            ParquetVariantVisitor.visit(
+                variant, new VariantReaderBuilder(parquetSchema, Arrays.asList(path)));
+    int definitionLevel = parquetSchema.getMaxDefinitionLevel(path) - 1;
+
+    return new VectorizedArrowReader.RowBasedVariantReader(
+        icebergSchema.findField(variant.getId().intValue()),
+        ParquetValueReaders.option(variant, definitionLevel, reader),
+        rootAllocator);
+  }
+
+  private static boolean isShredded(GroupType variant) {
+    return variant.containsField(TYPED_VALUE);
   }
 
   @Override

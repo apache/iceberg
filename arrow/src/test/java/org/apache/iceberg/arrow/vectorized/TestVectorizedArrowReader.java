@@ -19,9 +19,22 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.iceberg.arrow.ArrowAllocation;
+import org.apache.iceberg.parquet.ParquetValueReader;
+import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.types.Types.VariantType;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantValue;
+import org.apache.iceberg.variants.Variants;
 import org.junit.jupiter.api.Test;
 
 class TestVectorizedArrowReader {
@@ -219,5 +232,92 @@ class TestVectorizedArrowReader {
     reader.close();
 
     assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory()).isEqualTo(allocatedBefore);
+  }
+
+  @Test
+  void rowBasedVariantReaderTracksNullsAcrossReusedBatches() {
+    long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
+
+    Variant first = Variant.of(Variants.metadata("a"), Variants.of(1));
+    Variant second = Variant.of(Variants.metadata(), Variants.of("x"));
+    VectorizedArrowReader reader =
+        new VectorizedArrowReader.RowBasedVariantReader(
+            NestedField.optional(2, "data", VariantType.get()),
+            variantReader(null, first, second, null, first),
+            ArrowAllocation.rootAllocator());
+    reader.setBatchSize(2);
+
+    VectorHolder holder = reader.read(null, 2);
+    assertVariants(holder, null, first);
+    VarBinaryVector metadataVector =
+        (VarBinaryVector) ((VectorHolder.VariantVectorHolder) holder).metadataHolder().vector();
+    VarBinaryVector valueVector =
+        (VarBinaryVector) ((VectorHolder.VariantVectorHolder) holder).valueHolder().vector();
+
+    // a reused batch must overwrite every row's nullability, not keep the previous batch's
+    holder = reader.read(holder, 2);
+    assertVariants(holder, second, null);
+    assertThat(((VectorHolder.VariantVectorHolder) holder).metadataHolder().vector())
+        .as("reuse must not allocate a new vector")
+        .isSameAs(metadataVector);
+    assertThat(((VectorHolder.VariantVectorHolder) holder).valueHolder().vector())
+        .as("reuse must not allocate a new vector")
+        .isSameAs(valueVector);
+
+    // the last batch of a row group is usually shorter than the batch size
+    holder = reader.read(holder, 1);
+    assertVariants(holder, first);
+
+    reader.close();
+
+    assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory()).isEqualTo(allocatedBefore);
+  }
+
+  private static void assertVariants(VectorHolder holder, Variant... expected) {
+    assertThat(holder).isInstanceOf(VectorHolder.VariantVectorHolder.class);
+    VectorHolder.VariantVectorHolder variantHolder = (VectorHolder.VariantVectorHolder) holder;
+    VectorHolder metadataHolder = variantHolder.metadataHolder();
+    VectorHolder valueHolder = variantHolder.valueHolder();
+    VarBinaryVector metadataVector = (VarBinaryVector) metadataHolder.vector();
+    VarBinaryVector valueVector = (VarBinaryVector) valueHolder.vector();
+
+    assertThat(variantHolder.numValues()).isEqualTo(expected.length);
+    assertThat(metadataVector.getValueCount()).isEqualTo(expected.length);
+    assertThat(valueVector.getValueCount()).isEqualTo(expected.length);
+    int expectedNulls = 0;
+    for (int i = 0; i < expected.length; i += 1) {
+      if (expected[i] == null) {
+        expectedNulls += 1;
+        assertThat(metadataHolder.nullabilityHolder().isNullAt(i)).isEqualTo((byte) 1);
+        assertThat(valueHolder.nullabilityHolder().isNullAt(i)).isEqualTo((byte) 1);
+      } else {
+        assertThat(metadataHolder.nullabilityHolder().isNullAt(i)).isEqualTo((byte) 0);
+        assertThat(valueHolder.nullabilityHolder().isNullAt(i)).isEqualTo((byte) 0);
+        assertThat(metadataVector.get(i)).isEqualTo(serialize(expected[i].metadata()));
+        assertThat(valueVector.get(i)).isEqualTo(serialize(expected[i].value()));
+      }
+    }
+
+    assertThat(metadataHolder.nullabilityHolder().numNulls()).isEqualTo(expectedNulls);
+    assertThat(valueHolder.nullabilityHolder().numNulls()).isEqualTo(expectedNulls);
+  }
+
+  private static byte[] serialize(VariantMetadata metadata) {
+    byte[] bytes = new byte[metadata.sizeInBytes()];
+    metadata.writeTo(ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN), 0);
+    return bytes;
+  }
+
+  private static byte[] serialize(VariantValue value) {
+    byte[] bytes = new byte[value.sizeInBytes()];
+    value.writeTo(ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN), 0);
+    return bytes;
+  }
+
+  @SuppressWarnings("unchecked")
+  private static ParquetValueReader<Variant> variantReader(Variant first, Variant... rest) {
+    ParquetValueReader<Variant> reader = mock(ParquetValueReader.class);
+    when(reader.read(any())).thenReturn(first, rest);
+    return reader;
   }
 }

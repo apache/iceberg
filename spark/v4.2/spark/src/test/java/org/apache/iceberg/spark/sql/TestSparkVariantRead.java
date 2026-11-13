@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -33,10 +34,12 @@ import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
@@ -53,6 +56,7 @@ import org.apache.spark.unsafe.types.VariantVal;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import scala.collection.JavaConverters;
@@ -498,16 +502,7 @@ public class TestSparkVariantRead extends TestBase {
         executeAndKeepPlan(
             () -> rows.addAll(spark.table(shreddedTable).select("id").collectAsList()));
     assertThat(rows).extracting(r -> r.getLong(0)).containsExactlyInAnyOrder(1L, 2L);
-
-    List<SparkPlan> leaves = JavaConverters.seqAsJavaList(plan.collectLeaves());
-    assertThat(leaves)
-        .singleElement()
-        .isInstanceOfSatisfying(
-            BatchScanExec.class,
-            scan ->
-                assertThat(scan.supportsColumnar())
-                    .as("Scan should be columnar only when vectorization is enabled")
-                    .isEqualTo(vectorized));
+    assertColumnarScan(plan, vectorized);
 
     sql("DROP TABLE IF EXISTS %s", shreddedTable);
   }
@@ -557,6 +552,66 @@ public class TestSparkVariantRead extends TestBase {
     sql("DROP TABLE IF EXISTS %s", noStatsTable);
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void readShreddedArrayEnabledBySessionConf(boolean required)
+      throws IOException, NoSuchTableException, ParseException {
+    String table = CATALOG + ".default.var_shredded_array";
+    sql("DROP TABLE IF EXISTS %s", table);
+    sql(
+        "CREATE TABLE %s (id BIGINT, %s) USING iceberg TBLPROPERTIES ('format-version'='3')",
+        table, required ? "v VARIANT NOT NULL" : "v VARIANT");
+    insertShredded(
+        "INSERT INTO %s VALUES (1, parse_json('{\"a\": [1, 2]}')), (2, parse_json('{\"a\": [3]}'))",
+        table);
+
+    Table icebergTable = Spark3Util.loadIcebergTable(spark, table);
+    assertThat(icebergTable.schema().findField("v").isRequired()).isEqualTo(required);
+    assertHasTypedValueSubtree(icebergTable);
+
+    List<Row> rows = assertVectorizedMatchesRowReader(table);
+    assertThat(rows).extracting(row -> row.getLong(0)).containsExactly(1L, 2L);
+    assertLongArray(toVariant(rows.get(0)).getFieldByKey("a"), 1L, 2L);
+    assertLongArray(toVariant(rows.get(1)).getFieldByKey("a"), 3L);
+
+    sql("DROP TABLE IF EXISTS %s", table);
+  }
+
+  @Test
+  void readMixedShreddedAndUnshreddedFiles()
+      throws IOException, NoSuchTableException, ParseException {
+    String table = CATALOG + ".default.var_mixed_files";
+    sql("DROP TABLE IF EXISTS %s", table);
+    sql(
+        "CREATE TABLE %s (id BIGINT, v VARIANT) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        table);
+    spark
+        .sql("SELECT 1L AS id, parse_json('{\"name\":\"alice\",\"age\":30}') AS v")
+        .coalesce(1)
+        .writeTo(table)
+        .append();
+    insertShredded(
+        "INSERT INTO %s SELECT /*+ COALESCE(1) */ * FROM ("
+            + "SELECT 2L AS id, CAST(NULL AS VARIANT) AS v "
+            + "UNION ALL SELECT 3L, parse_json('{\"a\":[1,2]}') "
+            + "UNION ALL SELECT 4L, parse_json('{\"a\":[3]}'))",
+        table);
+
+    Table icebergTable = Spark3Util.loadIcebergTable(spark, table);
+    assertThat(shreddedFiles(icebergTable)).containsExactlyInAnyOrder(false, true);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.batch-size'='2')", table);
+
+    List<Row> rows = assertVectorizedMatchesRowReader(table);
+    assertThat(rows).extracting(row -> row.getLong(0)).containsExactly(1L, 2L, 3L, 4L);
+    assertThat(toVariant(rows.get(0)).getFieldByKey("name").getString()).isEqualTo("alice");
+    assertThat(rows.get(1).isNullAt(1)).isTrue();
+    assertLongArray(toVariant(rows.get(2)).getFieldByKey("a"), 1L, 2L);
+    assertLongArray(toVariant(rows.get(3)).getFieldByKey("a"), 3L);
+
+    sql("DROP TABLE IF EXISTS %s", table);
+  }
+
   private void setVectorization(boolean on) {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
@@ -570,18 +625,10 @@ public class TestSparkVariantRead extends TestBase {
   }
 
   private static void assertHasTypedValueSubtree(Table table) throws IOException {
-    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      assertThat(tasks).isNotEmpty();
-      for (FileScanTask task : tasks) {
-        HadoopInputFile inputFile =
-            HadoopInputFile.fromPath(new Path(task.file().location()), new Configuration());
-        try (ParquetFileReader reader = ParquetFileReader.open(inputFile)) {
-          assertThat(containsTypedValue(reader.getFileMetaData().getSchema()))
-              .as("Expected variant column to be shredded with a typed_value subtree")
-              .isTrue();
-        }
-      }
-    }
+    assertThat(shreddedFiles(table))
+        .as("Expected variant column to be shredded with a typed_value subtree")
+        .isNotEmpty()
+        .containsOnly(true);
   }
 
   private static boolean containsTypedValue(org.apache.parquet.schema.Type type) {
@@ -594,5 +641,80 @@ public class TestSparkVariantRead extends TestBase {
       }
     }
     return false;
+  }
+
+  private void insertShredded(String query, Object... args) {
+    withSQLConf(ImmutableMap.of(SparkSQLProperties.SHRED_VARIANTS, "true"), () -> sql(query, args));
+  }
+
+  private List<Row> assertVectorizedMatchesRowReader(String table) {
+    List<Row> expected = readSortedById(table, false);
+    List<Row> actual = readSortedById(table, true);
+
+    assertThat(actual).hasSameSizeAs(expected);
+    for (int i = 0; i < expected.size(); i += 1) {
+      Row expectedRow = expected.get(i);
+      Row actualRow = actual.get(i);
+      assertThat(actualRow.getLong(0)).isEqualTo(expectedRow.getLong(0));
+      assertThat(actualRow.isNullAt(1)).isEqualTo(expectedRow.isNullAt(1));
+      if (!expectedRow.isNullAt(1)) {
+        VariantVal expectedVariant = (VariantVal) expectedRow.get(1);
+        VariantVal actualVariant = (VariantVal) actualRow.get(1);
+        assertThat(actualVariant.getMetadata()).isEqualTo(expectedVariant.getMetadata());
+        assertThat(actualVariant.getValue()).isEqualTo(expectedVariant.getValue());
+      }
+    }
+
+    return actual;
+  }
+
+  private List<Row> readSortedById(String table, boolean vectorized) {
+    setVectorization(table, vectorized);
+    List<Row> rows = Lists.newArrayList();
+    SparkPlan plan =
+        executeAndKeepPlan(() -> rows.addAll(spark.table(table).select("id", "v").collectAsList()));
+    assertColumnarScan(plan, vectorized);
+
+    rows.sort(Comparator.comparingLong(row -> row.getLong(0)));
+    return rows;
+  }
+
+  private static void assertColumnarScan(SparkPlan plan, boolean columnar) {
+    List<SparkPlan> leaves = JavaConverters.seqAsJavaList(plan.collectLeaves());
+    assertThat(leaves)
+        .singleElement()
+        .isInstanceOfSatisfying(
+            BatchScanExec.class,
+            scan ->
+                assertThat(scan.supportsColumnar())
+                    .as("Scan should be columnar only when vectorization is enabled")
+                    .isEqualTo(columnar));
+  }
+
+  private static Variant toVariant(Row row) {
+    VariantVal variant = (VariantVal) row.get(1);
+    return new Variant(variant.getValue(), variant.getMetadata());
+  }
+
+  private static void assertLongArray(Variant array, long... expected) {
+    assertThat(array.arraySize()).isEqualTo(expected.length);
+    for (int i = 0; i < expected.length; i += 1) {
+      assertThat(array.getElementAtIndex(i).getLong()).isEqualTo(expected[i]);
+    }
+  }
+
+  private static List<Boolean> shreddedFiles(Table table) throws IOException {
+    List<Boolean> shredded = Lists.newArrayList();
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      for (FileScanTask task : tasks) {
+        HadoopInputFile inputFile =
+            HadoopInputFile.fromPath(new Path(task.file().location()), new Configuration());
+        try (ParquetFileReader reader = ParquetFileReader.open(inputFile)) {
+          shredded.add(containsTypedValue(reader.getFileMetaData().getSchema()));
+        }
+      }
+    }
+
+    return shredded;
   }
 }

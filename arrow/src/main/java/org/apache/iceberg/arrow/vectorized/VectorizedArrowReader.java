@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.arrow.vectorized;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.arrow.memory.ArrowBuf;
@@ -36,6 +38,7 @@ import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMicroVector;
 import org.apache.arrow.vector.TimeStampNanoTZVector;
 import org.apache.arrow.vector.TimeStampNanoVector;
+import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -45,9 +48,11 @@ import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.ArrowSchemaUtil;
 import org.apache.iceberg.arrow.vectorized.parquet.VectorizedColumnIterator;
 import org.apache.iceberg.parquet.ParquetUtil;
+import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.PageReadStore;
@@ -1091,6 +1096,116 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     @Override
     public String toString() {
       return "VectorizedVariantReader";
+    }
+  }
+
+  static final class RowBasedVariantReader extends VectorizedArrowReader {
+    private final ParquetValueReader<Variant> reader;
+    private final BufferAllocator allocator;
+    private int batchSize = DEFAULT_BATCH_SIZE;
+    private VarBinaryVector metadataVector;
+    private VarBinaryVector valueVector;
+    private NullabilityHolder nulls;
+    private ByteBuffer metadataBuffer = ByteBuffer.allocate(0).order(ByteOrder.LITTLE_ENDIAN);
+    private ByteBuffer valueBuffer = ByteBuffer.allocate(0).order(ByteOrder.LITTLE_ENDIAN);
+
+    RowBasedVariantReader(
+        Types.NestedField icebergField,
+        ParquetValueReader<Variant> reader,
+        BufferAllocator allocator) {
+      super(icebergField);
+      this.reader = reader;
+      this.allocator = allocator;
+    }
+
+    @Override
+    public VectorHolder read(VectorHolder reuse, int numValsToRead) {
+      if (metadataVector == null) {
+        this.metadataVector = newVector(icebergField().name() + ".metadata");
+        this.valueVector = newVector(icebergField().name() + ".value");
+      } else {
+        metadataVector.setValueCount(0);
+        valueVector.setValueCount(0);
+      }
+
+      if (nulls == null || nulls.size() < numValsToRead) {
+        this.nulls = new NullabilityHolder(Math.max(batchSize, numValsToRead));
+      } else {
+        nulls.reset();
+      }
+
+      for (int i = 0; i < numValsToRead; i += 1) {
+        Variant variant = reader.read(null);
+        if (variant == null) {
+          metadataVector.setNull(i);
+          valueVector.setNull(i);
+          nulls.setNull(i);
+        } else {
+          int metadataSize = variant.metadata().sizeInBytes();
+          this.metadataBuffer = ensureCapacity(metadataBuffer, metadataSize);
+          variant.metadata().writeTo(metadataBuffer, 0);
+          metadataVector.setSafe(i, metadataBuffer.array(), 0, metadataSize);
+
+          int valueSize = variant.value().sizeInBytes();
+          this.valueBuffer = ensureCapacity(valueBuffer, valueSize);
+          variant.value().writeTo(valueBuffer, 0);
+          valueVector.setSafe(i, valueBuffer.array(), 0, valueSize);
+
+          nulls.setNotNull(i);
+        }
+      }
+
+      metadataVector.setValueCount(numValsToRead);
+      valueVector.setValueCount(numValsToRead);
+
+      return new VectorHolder.VariantVectorHolder(
+          icebergField(),
+          numValsToRead,
+          VectorHolder.vectorHolder(metadataVector, icebergField(), nulls),
+          VectorHolder.vectorHolder(valueVector, icebergField(), nulls));
+    }
+
+    private static ByteBuffer ensureCapacity(ByteBuffer buffer, int size) {
+      if (buffer.capacity() >= size) {
+        return buffer;
+      }
+
+      return ByteBuffer.allocate(Math.max(size, 2 * buffer.capacity()))
+          .order(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    private VarBinaryVector newVector(String name) {
+      VarBinaryVector vector = new VarBinaryVector(name, allocator);
+      vector.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
+      vector.allocateNewSafe();
+      return vector;
+    }
+
+    @Override
+    public void setRowGroupInfo(
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
+      reader.setPageSource(source);
+    }
+
+    @Override
+    public void setBatchSize(int batchSize) {
+      this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
+    }
+
+    @Override
+    public void close() {
+      if (metadataVector != null) {
+        metadataVector.close();
+      }
+
+      if (valueVector != null) {
+        valueVector.close();
+      }
+    }
+
+    @Override
+    public String toString() {
+      return "RowBasedVariantReader";
     }
   }
 }
