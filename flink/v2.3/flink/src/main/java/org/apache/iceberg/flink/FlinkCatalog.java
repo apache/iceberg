@@ -104,7 +104,7 @@ import org.slf4j.LoggerFactory;
  * independent of the partition of Flink.
  */
 @Internal
-public class FlinkCatalog extends AbstractCatalog {
+public class FlinkCatalog extends AbstractCatalog implements AutoCloseable {
   private static final Logger LOG = LoggerFactory.getLogger(FlinkCatalog.class);
   private static final String FLINK_DIALECT = "flink";
 
