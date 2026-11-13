@@ -24,6 +24,7 @@ if (jdkVersion != '17' && jdkVersion != '21') {
 def flinkVersions = (System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")).split(",")
 def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
 def scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+def kafkaVersions = (System.getProperty("kafkaVersions") != null ? System.getProperty("kafkaVersions") : System.getProperty("defaultKafkaVersions")).split(",")
 def jmhProjects = [project(":iceberg-core"), project(":iceberg-data")]
 
 if (flinkVersions.contains("1.20")) {
@@ -56,6 +57,10 @@ if (sparkVersions.contains("4.1")) {
 if (sparkVersions.contains("4.2")) {
     jmhProjects.add(project(":iceberg-spark:iceberg-spark-4.2_2.13"))
     jmhProjects.add(project(":iceberg-spark:iceberg-spark-extensions-4.2_2.13"))
+}
+
+if (kafkaVersions.contains("3")) {
+  jmhProjects.add(project(":iceberg-kafka-connect:iceberg-kafka-connect"))
 }
 
 configure(jmhProjects) {
