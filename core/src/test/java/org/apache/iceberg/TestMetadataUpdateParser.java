@@ -382,6 +382,7 @@ public class TestMetadataUpdateParser {
             schemaId,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             firstRowId,
             addedRows,
             "key-1");
@@ -416,6 +417,7 @@ public class TestMetadataUpdateParser {
             schemaId,
             manifestList,
             null /* rootManifest */,
+            null /* rootSizeInBytes */,
             lastRowId,
             addedRows,
             "key-1");
@@ -442,6 +444,7 @@ public class TestMetadataUpdateParser {
             3 /* schemaId */,
             null /* manifestList */,
             rootManifest,
+            1024L /* rootSizeInBytes */,
             0L /* firstRowId */,
             10L /* addedRows */,
             "key-1" /* keyId */);

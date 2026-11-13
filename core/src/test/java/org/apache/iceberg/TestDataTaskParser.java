@@ -220,6 +220,7 @@ public class TestDataTaskParser {
                 1,
                 "file:/tmp/manifest1.avro",
                 null /* rootManifest */,
+                null /* rootSizeInBytes */,
                 null,
                 null,
                 null),
@@ -233,6 +234,7 @@ public class TestDataTaskParser {
                 1,
                 "file:/tmp/manifest2.avro",
                 null /* rootManifest */,
+                null /* rootSizeInBytes */,
                 null,
                 null,
                 null));
