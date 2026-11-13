@@ -556,6 +556,10 @@ public class NessieIcebergClient implements AutoCloseable {
     }
 
     if (existingContent.getType() != type) {
+      if (type == Content.Type.ICEBERG_TABLE) {
+        return false;
+      }
+
       throw new RuntimeException(
           String.format(
               "Cannot drop %s: not matching with the type `%s`",

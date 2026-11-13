@@ -39,6 +39,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.projectnessie.client.api.NessieApiV1;
 import org.projectnessie.client.ext.NessieApiVersion;
 import org.projectnessie.client.ext.NessieApiVersions;
@@ -99,6 +101,24 @@ public class TestNessieViewCatalog extends ViewCatalogTests<NessieCatalog> {
       api = null;
       hadoopConfig = null;
     }
+  }
+
+  @ParameterizedTest(name = "purge = {0}")
+  @ValueSource(booleans = {false, true})
+  public void dropTablePreservesView(boolean purge) {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+    catalog().createNamespace(identifier.namespace());
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withQuery("spark", "select * from ns.tbl")
+            .create();
+
+    assertThat(catalog().dropTable(identifier, purge)).isFalse();
+    assertThat(catalog().viewExists(identifier)).isTrue();
+    assertThat(catalog().loadView(identifier).uuid()).isEqualTo(view.uuid());
   }
 
   private void resetData() throws NessieConflictException, NessieNotFoundException {
