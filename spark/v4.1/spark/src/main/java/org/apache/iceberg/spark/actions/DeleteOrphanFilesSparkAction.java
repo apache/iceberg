@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
+import java.math.RoundingMode;
 import java.net.URI;
 import java.sql.Timestamp;
 import java.util.Collections;
@@ -50,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.FileSystemWalker;
 import org.apache.iceberg.util.Pair;
@@ -110,6 +112,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   static final String MAX_ORPHAN_FILE_SAMPLE_SIZE = "max-orphan-file-sample-size";
 
   private static final int MAX_ORPHAN_FILE_SAMPLE_SIZE_DEFAULT = 20000;
+
+  @VisibleForTesting static final int MAX_LISTED_FILES_PER_PARTITION = 100000;
 
   private static final Logger LOG = LoggerFactory.getLogger(DeleteOrphanFilesSparkAction.class);
   private static final Map<String, String> EQUAL_SCHEMES_DEFAULT = ImmutableMap.of("s3n,s3a", "s3");
@@ -431,7 +435,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
           predicate,
           matchingFiles::add);
 
-      JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
+      JavaRDD<String> matchingFileRDD = matchingFilesRDD(matchingFiles);
       return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
     } else {
       Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
@@ -447,7 +451,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
           subDirs::add,
           matchingFiles::add);
 
-      JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
+      JavaRDD<String> matchingFileRDD = matchingFilesRDD(matchingFiles);
 
       if (subDirs.isEmpty()) {
         return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
@@ -464,6 +468,17 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
       return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING());
     }
+  }
+
+  private JavaRDD<String> matchingFilesRDD(List<String> matchingFiles) {
+    return sparkContext().parallelize(matchingFiles, listedFilePartitions(matchingFiles.size()));
+  }
+
+  @VisibleForTesting
+  static int listedFilePartitions(int numFiles) {
+    int numPartitions =
+        IntMath.divide(numFiles, MAX_LISTED_FILES_PER_PARTITION, RoundingMode.CEILING);
+    return Math.max(1, numPartitions);
   }
 
   private static Map<String, String> flattenMap(Map<String, String> map) {
