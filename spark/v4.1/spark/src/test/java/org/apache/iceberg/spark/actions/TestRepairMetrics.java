@@ -121,7 +121,8 @@ class TestRepairMetrics {
             SortOrder.unsorted());
 
     Metrics metrics =
-        RepairMetrics.readMetrics(Files.localInput(file.location()), file, noMetrics, null, schema);
+        RepairMetrics.expectedMetrics(
+            Files.localInput(file.location()), file, noMetrics, null, schema);
 
     assertThat(metrics.lowerBounds()).isEqualTo(file.lowerBounds());
     assertThat(metrics.upperBounds()).isEqualTo(file.upperBounds());
@@ -153,7 +154,7 @@ class TestRepairMetrics {
             .build();
 
     Metrics metrics =
-        RepairMetrics.readMetrics(
+        RepairMetrics.expectedMetrics(
             Files.localInput(corrupt.location()),
             corrupt,
             MetricsConfig.getDefault(),
@@ -178,7 +179,7 @@ class TestRepairMetrics {
                 template.copy("f", 1.0F, "d", 2.0D)));
 
     Metrics metrics =
-        RepairMetrics.readMetrics(
+        RepairMetrics.expectedMetrics(
             Files.localInput(file.location()),
             file,
             MetricsConfig.getDefault(),
@@ -195,14 +196,14 @@ class TestRepairMetrics {
     Schema schema = new Schema(MetadataColumns.DELETE_FILE_PATH, MetadataColumns.DELETE_FILE_POS);
 
     Metrics singleMetrics =
-        RepairMetrics.readMetrics(
+        RepairMetrics.expectedMetrics(
             Files.localInput(single.location()),
             single,
             MetricsConfig.forPositionDelete(),
             null,
             schema);
     Metrics multipleMetrics =
-        RepairMetrics.readMetrics(
+        RepairMetrics.expectedMetrics(
             Files.localInput(multiple.location()),
             multiple,
             MetricsConfig.forPositionDelete(),

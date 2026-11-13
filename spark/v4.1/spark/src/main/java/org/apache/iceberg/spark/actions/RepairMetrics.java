@@ -79,7 +79,11 @@ class RepairMetrics {
     return format == FileFormat.PARQUET || format == FileFormat.ORC || format == FileFormat.AVRO;
   }
 
-  static Metrics readMetrics(
+  /**
+   * Returns the metrics the entry of a file should have: those read from the file, plus the stored
+   * stats that the file itself can't reproduce.
+   */
+  static Metrics expectedMetrics(
       InputFile input,
       ContentFile<?> file,
       MetricsConfig config,
@@ -152,11 +156,11 @@ class RepairMetrics {
       return false;
     }
 
-    return !countsMatch(file.columnSizes(), metrics.columnSizes())
-        || !countsMatch(file.valueCounts(), metrics.valueCounts())
-        || !countsMatch(file.nullValueCounts(), metrics.nullValueCounts())
-        || !boundsMatch(file.lowerBounds(), metrics.lowerBounds())
-        || !boundsMatch(file.upperBounds(), metrics.upperBounds());
+    return !mapsMatch(file.columnSizes(), metrics.columnSizes())
+        || !mapsMatch(file.valueCounts(), metrics.valueCounts())
+        || !mapsMatch(file.nullValueCounts(), metrics.nullValueCounts())
+        || !mapsMatch(file.lowerBounds(), metrics.lowerBounds())
+        || !mapsMatch(file.upperBounds(), metrics.upperBounds());
   }
 
   static ContentFile<?> withStats(
@@ -214,12 +218,7 @@ class RepairMetrics {
     return bounds;
   }
 
-  private static boolean countsMatch(Map<Integer, Long> stored, Map<Integer, Long> actual) {
-    return Objects.equals(normalize(stored), normalize(actual));
-  }
-
-  private static boolean boundsMatch(
-      Map<Integer, ByteBuffer> stored, Map<Integer, ByteBuffer> actual) {
+  private static <T> boolean mapsMatch(Map<Integer, T> stored, Map<Integer, T> actual) {
     return Objects.equals(normalize(stored), normalize(actual));
   }
 
