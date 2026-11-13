@@ -30,7 +30,6 @@ import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
-import org.apache.iceberg.BaseMetastoreOperations;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ClientPool;
@@ -120,7 +119,6 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
   public void doCommit(ViewMetadata base, ViewMetadata metadata) {
     boolean newView = base == null;
     String newMetadataLocation = writeNewMetadataIfRequired(metadata);
-    boolean hiveEngineEnabled = false;
 
     CommitStatus commitStatus = CommitStatus.FAILURE;
     boolean updateHiveView = false;
@@ -153,37 +151,8 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
         LOG.debug("Committing new view: {}", fullName);
       }
 
-      tbl.setSd(
-          HiveOperationsBase.storageDescriptor(
-              metadata.schema(),
-              metadata.location(),
-              hiveEngineEnabled)); // set to pick up any schema changes
-
-      String metadataLocation =
-          tbl.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
       String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
-      if (!Objects.equals(baseMetadataLocation, metadataLocation)) {
-        throw new CommitFailedException(
-            "Cannot commit: Base metadata location '%s' is not same as the current view metadata location '%s' for %s.%s",
-            baseMetadataLocation, metadataLocation, database, viewName);
-      }
-
-      // get Iceberg props that have been removed
-      Set<String> removedProps = emptySet();
-      if (base != null) {
-        removedProps =
-            base.properties().keySet().stream()
-                .filter(key -> !metadata.properties().containsKey(key))
-                .collect(Collectors.toSet());
-      }
-      HMSTablePropertyHelper.updateHmsTableForIcebergView(
-          newMetadataLocation,
-          tbl,
-          metadata,
-          removedProps,
-          maxHiveTablePropertySize,
-          currentMetadataLocation(),
-          sqlFor(metadata));
+      updateHmsTable(tbl, base, metadata, baseMetadataLocation, newMetadataLocation);
       lock.ensureActive();
 
       try {
@@ -210,16 +179,6 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
 
       } catch (Throwable e) {
         if (e.getMessage() != null
-            && e.getMessage()
-                .contains(
-                    "The table has been modified. The parameter value for key '"
-                        + BaseMetastoreTableOperations.METADATA_LOCATION_PROP
-                        + "' is")) {
-          throw new CommitFailedException(
-              e, "The view %s.%s has been modified concurrently", database, viewName);
-        }
-
-        if (e.getMessage() != null
             && e.getMessage().contains("Table/View 'HIVE_LOCKS' does not exist")) {
           throw new RuntimeException(
               "Failed to acquire locks from metastore because the underlying metastore "
@@ -228,18 +187,40 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
               e);
         }
 
-        LOG.error(
-            "Cannot tell if commit to {}.{} succeeded, attempting to reconnect and check.",
-            database,
-            viewName,
-            e);
-        commitStatus = BaseMetastoreOperations.CommitStatus.UNKNOWN;
-        commitStatus =
-            checkCommitStatus(
-                viewName,
-                newMetadataLocation,
-                metadata.properties(),
-                () -> checkCurrentMetadataLocation(newMetadataLocation));
+        commitStatus = CommitStatus.UNKNOWN;
+        if (e.getMessage() != null
+            && e.getMessage()
+                .contains(
+                    "The table has been modified. The parameter value for key '"
+                        + BaseMetastoreTableOperations.METADATA_LOCATION_PROP
+                        + "' is")) {
+          // The HMS client may retry an alter that already succeeded, after a network issue for
+          // example, and hit this exception, so check whether the commit was applied. No pending
+          // request can succeed after this exception, so the strict status check is safe.
+          commitStatus =
+              checkCommitStatusStrict(
+                  viewName,
+                  newMetadataLocation,
+                  metadata.properties(),
+                  () -> checkCurrentMetadataLocation(newMetadataLocation));
+          if (commitStatus == CommitStatus.FAILURE) {
+            throw new CommitFailedException(
+                e, "The view %s.%s has been modified concurrently", database, viewName);
+          }
+        } else {
+          LOG.error(
+              "Cannot tell if commit to {}.{} succeeded, attempting to reconnect and check.",
+              database,
+              viewName,
+              e);
+          commitStatus =
+              checkCommitStatus(
+                  viewName,
+                  newMetadataLocation,
+                  metadata.properties(),
+                  () -> checkCurrentMetadataLocation(newMetadataLocation));
+        }
+
         switch (commitStatus) {
           case SUCCESS:
             break;
@@ -266,6 +247,42 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
 
     LOG.info(
         "Committed to view {} with the new metadata location {}", fullName, newMetadataLocation);
+  }
+
+  private void updateHmsTable(
+      Table tbl,
+      ViewMetadata base,
+      ViewMetadata metadata,
+      String baseMetadataLocation,
+      String newMetadataLocation) {
+    tbl.setSd(
+        HiveOperationsBase.storageDescriptor(
+            metadata.schema(), metadata.location(), false)); // set to pick up any schema changes
+
+    String metadataLocation =
+        tbl.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
+    if (!Objects.equals(baseMetadataLocation, metadataLocation)) {
+      throw new CommitFailedException(
+          "Cannot commit: Base metadata location '%s' is not same as the current view metadata location '%s' for %s.%s",
+          baseMetadataLocation, metadataLocation, database, viewName);
+    }
+
+    // get Iceberg props that have been removed
+    Set<String> removedProps = emptySet();
+    if (base != null) {
+      removedProps =
+          base.properties().keySet().stream()
+              .filter(key -> !metadata.properties().containsKey(key))
+              .collect(Collectors.toSet());
+    }
+    HMSTablePropertyHelper.updateHmsTableForIcebergView(
+        newMetadataLocation,
+        tbl,
+        metadata,
+        removedProps,
+        maxHiveTablePropertySize,
+        currentMetadataLocation(),
+        sqlFor(metadata));
   }
 
   /**
