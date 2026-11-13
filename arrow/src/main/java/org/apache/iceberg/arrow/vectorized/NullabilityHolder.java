@@ -75,6 +75,12 @@ public class NullabilityHolder {
     return numNulls;
   }
 
+  /**
+   * Resets the null count for the next batch.
+   *
+   * <p>Markers set for the previous batch are not cleared, so callers must set the marker for every
+   * index before reading it, as the vectorized readers do for each batch.
+   */
   public void reset() {
     numNulls = 0;
   }
