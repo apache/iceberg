@@ -185,6 +185,15 @@ public class TestSnapshotUtil {
     assertThat(snapshotIter).isExhausted();
   }
 
+  @Test
+  void snapshotAfterNonAncestor() {
+    assertThatThrownBy(() -> SnapshotUtil.snapshotAfter(table, snapshotBranchId))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot find snapshot after %s: not an ancestor of table's current snapshot",
+            snapshotBranchId);
+  }
+
   private void expectedSnapshots(long[] snapshotIdExpected, Iterable<Snapshot> snapshotsActual) {
     long[] actualSnapshots =
         StreamSupport.stream(snapshotsActual.spliterator(), false)
