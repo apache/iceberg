@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -253,12 +254,11 @@ class Coordinator extends Channel {
       return;
     }
 
-    if (tableReference.uuid() != null && !tableReference.uuid().equals(table.uuid())) {
-      LOG.warn(
-          "Skipping commits to table {} due to target table mismatch.  Expected: {} Received: {}",
-          tableIdentifier,
-          table.uuid(),
-          tableReference.uuid());
+    List<Envelope> envelopes =
+        envelopeList.stream()
+            .filter(envelope -> isForTable(envelope, tableIdentifier, table))
+            .collect(Collectors.toList());
+    if (envelopes.isEmpty()) {
       return;
     }
 
@@ -275,7 +275,7 @@ class Coordinator extends Channel {
     String offsetsJson = offsetsToJson(mergedOffsets);
 
     List<DataWritten> payloads =
-        envelopeList.stream()
+        envelopes.stream()
             .filter(
                 envelope -> {
                   Long minOffset = committedOffsets.get(envelope.partition());
@@ -345,7 +345,10 @@ class Coordinator extends Channel {
           new Event(
               config.connectGroupId(),
               new CommitToTable(
-                  commitState.currentCommitId(), tableReference, snapshotId, validThroughTs));
+                  commitState.currentCommitId(),
+                  TableReference.of(tableReference.catalog(), tableIdentifier, table.uuid()),
+                  snapshotId,
+                  validThroughTs));
       send(event);
 
       LOG.info(
@@ -356,6 +359,21 @@ class Coordinator extends Channel {
           commitState.currentCommitId(),
           validThroughTs);
     }
+  }
+
+  private static boolean isForTable(
+      Envelope envelope, TableIdentifier tableIdentifier, Table table) {
+    UUID uuid = ((DataWritten) envelope.event().payload()).tableReference().uuid();
+    if (uuid != null && !uuid.equals(table.uuid())) {
+      LOG.warn(
+          "Skipping commits to table {} due to target table mismatch.  Expected: {} Received: {}",
+          tableIdentifier,
+          table.uuid(),
+          uuid);
+      return false;
+    }
+
+    return true;
   }
 
   private SnapshotAncestryValidator offsetValidator(
