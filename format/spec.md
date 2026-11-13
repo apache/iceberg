@@ -866,7 +866,7 @@ A manifest file must store metadata as properties in the file's key-value metada
 
 #### Content file uniqueness
 
-Within a snapshot, each content file must be referenced by at most one live manifest entry across all manifests; otherwise, the snapshot has undefined behavior. Writers should not produce multiple manifest entries for the same content file in a snapshot (for example, both ADDED and DELETED entries for the same file). Writers are not required to validate uniqueness at commit time.
+Within a snapshot, each content file must be referenced by at most one [live](#manifest-schema) manifest entry across all manifests; otherwise, the snapshot has undefined behavior. Writers should not produce a DELETED entry for a content file that also has a live entry in the same snapshot. Writers are not required to validate uniqueness at commit time.
 
 #### Manifest Schema
 
