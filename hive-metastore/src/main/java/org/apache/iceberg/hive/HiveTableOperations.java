@@ -542,6 +542,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   }
 
   private void encryptionPropsFromMetadata(Map<String, String> tableProperties) {
+    // Encryption properties of an existing table come from HMS. Uncommitted metadata only
+    // configures encryption for a table that is being created.
+    if (currentMetadataLocation() != null) {
+      return;
+    }
+
     if (tableKeyId == null) {
       tableKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
     }
