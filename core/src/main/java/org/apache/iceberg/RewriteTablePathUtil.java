@@ -294,7 +294,7 @@ public class RewriteTablePathUtil {
     manifestFiles.forEach(
         mf ->
             Preconditions.checkArgument(
-                mf.path().startsWith(sourcePrefix),
+                isUnderPrefix(mf.path(), sourcePrefix),
                 "Encountered manifest file %s not under the source prefix %s",
                 mf.path(),
                 sourcePrefix));
@@ -473,7 +473,7 @@ public class RewriteTablePathUtil {
     DataFile dataFile = entry.file();
     String sourceDataFilePath = dataFile.location();
     Preconditions.checkArgument(
-        sourceDataFilePath.startsWith(sourcePrefix),
+        isUnderPrefix(sourceDataFilePath, sourcePrefix),
         "Encountered data file %s not under the source prefix %s",
         sourceDataFilePath,
         sourcePrefix);
@@ -563,7 +563,7 @@ public class RewriteTablePathUtil {
       DeleteFile file, PartitionSpec spec, String sourcePrefix, String targetPrefix) {
     String path = file.location();
 
-    if (!path.startsWith(sourcePrefix)) {
+    if (!isUnderPrefix(path, sourcePrefix)) {
       throw new UnsupportedOperationException(
           "Expected delete file to be under the source prefix: "
               + sourcePrefix
@@ -588,7 +588,7 @@ public class RewriteTablePathUtil {
       long fileSizeInBytes) {
     String path = file.location();
     Preconditions.checkArgument(
-        path.startsWith(sourcePrefix),
+        isUnderPrefix(path, sourcePrefix),
         "Expected delete file %s to start with prefix: %s",
         path,
         sourcePrefix);
@@ -628,7 +628,7 @@ public class RewriteTablePathUtil {
     }
 
     String oldReferencedDataFile = deleteFile.referencedDataFile();
-    if (oldReferencedDataFile.startsWith(sourcePrefix)) {
+    if (isUnderPrefix(oldReferencedDataFile, sourcePrefix)) {
       return newPath(oldReferencedDataFile, sourcePrefix, targetPrefix);
     }
 
@@ -672,7 +672,7 @@ public class RewriteTablePathUtil {
       PositionDeleteReaderWriter posDeleteReaderWriter)
       throws IOException {
     String path = deleteFile.location();
-    if (!path.startsWith(sourcePrefix)) {
+    if (!isUnderPrefix(path, sourcePrefix)) {
       throw new UnsupportedOperationException(
           String.format("Expected delete file %s to start with prefix: %s", path, sourcePrefix));
     }
@@ -747,7 +747,7 @@ public class RewriteTablePathUtil {
         // Get the original properties and update the referenced data file path
         Map<String, String> properties = Maps.newHashMap(blobMetadata.properties());
         String referencedDataFile = properties.get("referenced-data-file");
-        if (referencedDataFile != null && referencedDataFile.startsWith(sourcePrefix)) {
+        if (referencedDataFile != null && isUnderPrefix(referencedDataFile, sourcePrefix)) {
           String newReferencedDataFile = newPath(referencedDataFile, sourcePrefix, targetPrefix);
           properties.put("referenced-data-file", newReferencedDataFile);
         }
@@ -784,7 +784,7 @@ public class RewriteTablePathUtil {
       Record record, String sourcePrefix, String targetPrefix) {
     PositionDelete delete = PositionDelete.create();
     String oldPath = (String) record.get(0);
-    if (!oldPath.startsWith(sourcePrefix)) {
+    if (!isUnderPrefix(oldPath, sourcePrefix)) {
       throw new UnsupportedOperationException(
           "Expected delete file to be under the source prefix: "
               + sourcePrefix
@@ -857,13 +857,36 @@ public class RewriteTablePathUtil {
    * @throws IllegalArgumentException if path is not under or equal to prefix
    */
   public static String relativize(String path, String prefix) {
-    String toRemove = maybeAppendFileSeparator(prefix);
-    String normalizedPath = maybeAppendFileSeparator(path);
-    if (!normalizedPath.startsWith(toRemove)) {
+    String normalizedPath = normalizeLocalFileUri(path);
+    String normalizedPrefix = normalizeLocalFileUri(prefix);
+    String toRemove = maybeAppendFileSeparator(normalizedPrefix);
+    String pathWithSeparator = maybeAppendFileSeparator(normalizedPath);
+
+    if (!pathWithSeparator.startsWith(toRemove)) {
       throw new IllegalArgumentException(
-          String.format("Path %s does not start with %s", normalizedPath, toRemove));
+          String.format("Path %s does not start with %s", pathWithSeparator, toRemove));
     }
-    return normalizedPath.equals(toRemove) ? "" : path.substring(toRemove.length());
+
+    return pathWithSeparator.equals(toRemove) ? "" : normalizedPath.substring(toRemove.length());
+  }
+
+  private static boolean isUnderPrefix(String path, String prefix) {
+    if (!path.startsWith("file:/") || !prefix.startsWith("file:/")) {
+      return path.startsWith(prefix);
+    }
+
+    String normalizedPath = normalizeLocalFileUri(path);
+    String normalizedPrefix = normalizeLocalFileUri(prefix);
+    return maybeAppendFileSeparator(normalizedPath)
+        .startsWith(maybeAppendFileSeparator(normalizedPrefix));
+  }
+
+  private static String normalizeLocalFileUri(String path) {
+    if (path.startsWith("file:///")) {
+      return "file:/" + path.substring("file:///".length());
+    }
+
+    return path;
   }
 
   public static String maybeAppendFileSeparator(String path) {

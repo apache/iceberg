@@ -1589,6 +1589,49 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @TestTemplate
+  public void testRewriteWithEquivalentLocalFileUriPrefix() {
+    String sourcePrefix = tableLocation;
+    assertThat(sourcePrefix).startsWith("file:/");
+
+    String alternateSourcePrefix =
+        sourcePrefix.startsWith("file:///")
+            ? "file:/" + sourcePrefix.substring("file:///".length())
+            : "file:///" + sourcePrefix.substring("file:/".length());
+
+    assertThat(alternateSourcePrefix).isNotEqualTo(sourcePrefix);
+
+    String targetPrefix = targetTableDir.toUri().toString();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(table)
+            .rewriteLocationPrefix(alternateSourcePrefix, targetPrefix)
+            .execute();
+
+    assertThat(result.fileListLocation()).isNotBlank();
+    assertThat(result.latestVersion()).isNotBlank();
+
+    List<String> filesToMove =
+        spark
+            .read()
+            .format("text")
+            .load(result.fileListLocation())
+            .as(Encoders.STRING())
+            .collectAsList();
+
+    assertThat(filesToMove).isNotEmpty();
+
+    for (String entry : filesToMove) {
+      String[] paths = entry.split(",", 2);
+      assertThat(paths).hasSize(2);
+      assertThat(paths[0]).isNotBlank();
+      assertThat(paths[1]).startsWith(targetPrefix);
+    }
+
+    assertThat(filesToMove).anyMatch(entry -> entry.contains(".metadata.json"));
+  }
+
+  @TestTemplate
   public void testKryoDeserializeBroadcastValues() {
     sparkContext.getConf().set("spark.serializer", "org.apache.spark.serializer.KryoSerializer");
     RewriteTablePathSparkAction action =

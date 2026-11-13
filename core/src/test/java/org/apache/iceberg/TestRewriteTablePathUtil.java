@@ -126,6 +126,81 @@ public class TestRewriteTablePathUtil extends TestBase {
   }
 
   @Test
+  public void testEquivalentLocalFileUris() {
+    String shortPrefix = "file:/tmp/warehouse";
+    String triplePrefix = "file:///tmp/warehouse";
+
+    assertThat(
+            RewriteTablePathUtil.relativize(
+                "file:///tmp/warehouse/db/table/metadata/v1.json", shortPrefix))
+        .isEqualTo("db/table/metadata/v1.json");
+
+    assertThat(
+            RewriteTablePathUtil.relativize(
+                "file:/tmp/warehouse/db/table/metadata/v1.json", triplePrefix))
+        .isEqualTo("db/table/metadata/v1.json");
+
+    assertThat(RewriteTablePathUtil.relativize(triplePrefix, shortPrefix)).isEmpty();
+
+    assertThat(RewriteTablePathUtil.relativize(shortPrefix, triplePrefix)).isEmpty();
+
+    assertThat(
+            RewriteTablePathUtil.newPath(
+                "file:///tmp/warehouse/db/table/data/file.parquet",
+                shortPrefix,
+                "file:///tmp/relocated"))
+        .isEqualTo("file:///tmp/relocated/db/table/data/file.parquet");
+
+    assertThat(
+            RewriteTablePathUtil.stagingPath(
+                "file:/tmp/warehouse/db/table/metadata/v1.json", triplePrefix, "/tmp/staging"))
+        .isEqualTo("/tmp/staging/db/table/metadata/v1.json");
+
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            "file:///tmp/warehouse/db/table/",
+            ImmutableMap.of());
+
+    assertThat(
+            RewriteTablePathUtil.replacePaths(metadata, shortPrefix, "file:/tmp/relocated")
+                .location())
+        .isEqualTo("file:/tmp/relocated/db/table");
+  }
+
+  @Test
+  public void testLocalFileUriPrefixDoesNotMatchUnrelatedPaths() {
+    assertThatThrownBy(
+            () ->
+                RewriteTablePathUtil.relativize(
+                    "file:///tmp/warehouse-other/data.parquet", "file:/tmp/warehouse"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
+
+    assertThatThrownBy(
+            () ->
+                RewriteTablePathUtil.relativize(
+                    "file://server/tmp/warehouse/data.parquet", "file:/tmp/warehouse"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
+
+    assertThatThrownBy(
+            () ->
+                RewriteTablePathUtil.relativize(
+                    "file:////tmp/warehouse/data.parquet", "file:/tmp/warehouse"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
+
+    assertThatThrownBy(
+            () ->
+                RewriteTablePathUtil.relativize(
+                    "s3:/bucket/warehouse/data.parquet", "s3://bucket/warehouse"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
+  }
+
+  @Test
   public void testRelativizeInvalid() {
     // Path does not start with prefix
     assertThatThrownBy(() -> RewriteTablePathUtil.relativize("/other/path", "/source/table"))
