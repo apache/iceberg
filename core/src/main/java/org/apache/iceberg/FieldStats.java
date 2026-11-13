@@ -38,10 +38,14 @@ public interface FieldStats<T> {
   T upperBound();
 
   /**
-   * Whether {@link #lowerBound()} and {@link #upperBound()} are equal to the min and max values for
-   * the column.
+   * Returns whether the bounds are known to be exact.
+   *
+   * @deprecated will be removed in 1.14.0; use {@link DataFile#tightStats()} instead.
    */
-  boolean tightBounds();
+  @Deprecated
+  default boolean tightBounds() {
+    return false;
+  }
 
   /** Whether a value count is tracked for this field. */
   boolean hasValueCount();

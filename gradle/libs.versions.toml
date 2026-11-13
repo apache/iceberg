@@ -52,7 +52,7 @@ findbugs-jsr305 = "3.0.2"
 flink120 = { strictly = "1.20.1"}
 flink22 = { strictly = "2.2.0"}
 flink23 = { strictly = "2.3.0"}
-google-libraries-bom = "26.90.0"
+google-libraries-bom = "26.91.0"
 gcs-analytics-core = "1.6.0"
 guava = "33.7.2-jre"
 hadoop3 = "3.4.3"
@@ -82,7 +82,7 @@ nessie = "0.109.0"
 netty-buffer = "4.2.19.Final"
 object-client-bundle = "3.3.2"
 orc = "1.9.9"
-parquet = "1.18.1"
+parquet = "1.18.2"
 roaringbitmap = "1.6.29"
 scala-collection-compat = "2.14.0"
 slf4j = "2.0.18"

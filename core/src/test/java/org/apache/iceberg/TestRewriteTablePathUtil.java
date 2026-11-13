@@ -304,6 +304,40 @@ public class TestRewriteTablePathUtil extends TestBase {
   }
 
   @Test
+  void replacePathsRewritesRootManifestLocation() {
+    String rootManifestPath = "/metadata/root-manifest.parquet";
+    String sourcePrefix = "s3://bucket/warehouse/table";
+    String targetPrefix = "s3://bucket/restored/table";
+    String sourceRootManifest = sourcePrefix + rootManifestPath;
+    String targetRootManifest = targetPrefix + rootManifestPath;
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), sourcePrefix, ImmutableMap.of());
+    Snapshot snapshot =
+        new BaseSnapshot(
+            1 /* sequenceNumber */,
+            1L /* snapshotId */,
+            null /* parentId */,
+            System.currentTimeMillis(),
+            DataOperations.APPEND,
+            null /* summary */,
+            metadata.currentSchemaId(),
+            null /* manifestList */,
+            sourceRootManifest,
+            null /* firstRowId */,
+            null /* addedRows */,
+            null /* keyId */);
+    TableMetadata withRootManifest =
+        TableMetadata.buildFrom(metadata).addSnapshot(snapshot).build();
+
+    TableMetadata replaced =
+        RewriteTablePathUtil.replacePaths(withRootManifest, sourcePrefix, targetPrefix);
+
+    assertThat(replaced.snapshot(snapshot.snapshotId()).rootManifestLocation())
+        .isEqualTo(targetRootManifest);
+  }
+
+  @Test
   public void testNewPathTableRename() {
     // Rename /tableX to /table (target is substring of source name)
     assertThat(RewriteTablePathUtil.newPath("/tableX/data/file.parquet", "/tableX", "/table"))

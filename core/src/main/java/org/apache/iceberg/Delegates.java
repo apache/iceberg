@@ -248,6 +248,11 @@ class Delegates {
     }
 
     @Override
+    public boolean tightStats() {
+      return wrapped.tightStats();
+    }
+
+    @Override
     public ByteBuffer keyMetadata() {
       return wrapped.keyMetadata();
     }

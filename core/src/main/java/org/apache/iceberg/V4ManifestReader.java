@@ -223,7 +223,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private void incrementSkipCount(TrackedFile file) {
     switch (file.contentType()) {
       case DATA -> scanMetrics.skippedDataFiles().increment();
-      case DATA_MANIFEST -> scanMetrics.skippedDataManifests().increment();
+      case DATA_MANIFEST -> {
+        scanMetrics.skippedDataManifests().increment();
+        scanMetrics.totalDataManifests().increment();
+      }
       case DELETE_MANIFEST -> scanMetrics.skippedDeleteManifests().increment();
       default ->
           throw new UnsupportedOperationException(
@@ -236,6 +239,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     FileFormat format = FileFormat.fromFileName(file.location());
 
     scanMetrics.scannedDataManifests().increment();
+    scanMetrics.totalDataManifests().increment();
 
     InternalData.ReadBuilder readBuilder =
         InternalData.read(format, file)
@@ -568,7 +572,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       Set<Integer> ids = Sets.newHashSet(REQUIRED_COLUMN_IDS);
 
       // project the full stats struct that corresponds to each field for which stats are needed
-      statsFieldIds().stream().map(StatsUtil::toBaseId).forEach(ids::add);
+      Set<Integer> statsIds = statsFieldIds();
+      statsIds.stream().map(StatsUtil::toBaseId).forEach(ids::add);
+
+      if (!statsIds.isEmpty()) {
+        ids.add(TrackedFile.TIGHT_STATS.fieldId());
+      }
 
       if (includePartition) {
         ids.add(TrackedFile.SPEC_ID.fieldId());

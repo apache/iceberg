@@ -1124,15 +1124,12 @@ project(':iceberg-snowflake') {
 
 project(':iceberg-open-api') {
   apply plugin: 'java-test-fixtures'
-  apply plugin: 'com.gradleup.shadow'
 
   // There are no main sources, so drop the implicit test fixtures -> main component dependency that
   // would otherwise put the disabled main JAR on consumers' classpaths
   configurations.testFixturesApi.dependencies.removeIf {
     it instanceof ProjectDependency && it.path == project.path
   }
-
-  build.dependsOn shadowJar
 
   dependencies {
     testImplementation project(':iceberg-api')
@@ -1154,7 +1151,6 @@ project(':iceberg-open-api') {
     testFixturesImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testFixturesImplementation project(':iceberg-aws')
     testFixturesImplementation project(':iceberg-gcp')
-    testFixturesImplementation project(':iceberg-bigquery')
     testFixturesImplementation project(':iceberg-azure')
     testFixturesImplementation(libs.hadoop3.common) {
       exclude group: 'org.slf4j'
@@ -1177,8 +1173,8 @@ project(':iceberg-open-api') {
       exclude group: 'commons-cli', module: 'commons-cli'
       exclude group: 'com.github.pjfanning', module: 'jersey-json'
     }
+    testFixturesImplementation 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.6.0'
     testFixturesImplementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    testFixturesImplementation libs.junit.jupiter
 
     testFixturesImplementation libs.slf4j.api
     testFixturesImplementation libs.slf4j.simple
@@ -1189,6 +1185,7 @@ project(':iceberg-open-api') {
     testFixturesImplementation libs.sqlite.jdbc
 
     testFixturesCompileOnly libs.apiguardian
+    testFixturesCompileOnly libs.junit.jupiter
 
     testFixturesRuntimeOnly project(':iceberg-aws-bundle')
     testFixturesRuntimeOnly project(':iceberg-azure-bundle')
@@ -1219,16 +1216,45 @@ project(':iceberg-open-api') {
   }
   check.dependsOn('validateRESTCatalogSpec')
 
-  shadowJar {
-    archiveBaseName.set("iceberg-open-api-test-fixtures-runtime")
-    archiveClassifier.set(null)
-    configurations = [project.configurations.testFixturesRuntimeClasspath]
-    from sourceSets.testFixtures.output
-    zip64 true
-
-    manifest {
-      attributes 'Main-Class': 'org.apache.iceberg.rest.RESTCatalogServer'
+  // Runtime JARs for the iceberg-rest-fixture Docker image
+  configurations {
+    restFixtureRuntime {
+      canBeConsumed = false
+      extendsFrom testFixturesImplementation
+      // hadoop-common dependencies not needed by HadoopFileIO
+      exclude group: 'org.apache.hadoop', module: 'hadoop-annotations'
+      exclude group: 'org.apache.hadoop.thirdparty', module: 'hadoop-shaded-protobuf_3_25'
+      exclude group: 'org.apache.commons', module: 'commons-math3'
+      exclude group: 'org.apache.commons', module: 'commons-text'
+      exclude group: 'org.apache.httpcomponents'
+      exclude group: 'commons-logging'
+      exclude group: 'commons-net'
+      exclude group: 'commons-codec'
+      exclude group: 'javax.servlet'
+      exclude group: 'javax.servlet.jsp'
+      exclude group: 'jakarta.activation'
+      exclude group: 'org.codehaus.jettison'
+      exclude group: 'org.bouncycastle'
+      exclude group: 'com.nimbusds'
+      exclude group: 'io.netty'
+      // Annotation-only JARs, not needed at runtime
+      exclude group: 'com.google.errorprone', module: 'error_prone_annotations'
+      exclude group: 'org.jspecify', module: 'jspecify'
     }
+  }
+
+  dependencies {
+    restFixtureRuntime project(path: ':iceberg-aws-bundle', configuration: 'shadow')
+    restFixtureRuntime project(path: ':iceberg-azure-bundle', configuration: 'shadow')
+    restFixtureRuntime project(path: ':iceberg-gcp-bundle', configuration: 'shadow')
+  }
+
+  tasks.register('stageRESTFixtureRuntime', Sync) {
+    description = 'Stages the REST fixture runtime JARs'
+    group = 'build'
+    into layout.buildDirectory.dir('rest-fixture-runtime')
+    from configurations.restFixtureRuntime
+    from tasks.named('testFixturesJar')
   }
 
   jar {
