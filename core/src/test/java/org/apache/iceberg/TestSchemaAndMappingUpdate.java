@@ -311,6 +311,7 @@ public class TestSchemaAndMappingUpdate extends TestBase {
 
     table.updateSchema().addColumn("location", LOCATION_TYPE).commit();
     assertThat(table.properties())
+        .doesNotContainKey(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "location.lat")
         .doesNotContainKey(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "location.lat");
   }
 
