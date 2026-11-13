@@ -55,6 +55,8 @@ import org.apache.iceberg.catalog.LoadContext;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -69,6 +71,7 @@ import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -122,6 +125,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     implements Configurable<Object>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
+  private static final String ACCESS_DELEGATION_HEADER = "X-Iceberg-Access-Delegation";
+  private static final String NO_ACCESS_DELEGATION = "none";
+  private static final Splitter COMMA_SPLITTER = Splitter.on(',').trimResults().omitEmptyStrings();
 
   // these default endpoints must not be updated in order to maintain backwards compatibility with
   // legacy servers
@@ -172,6 +178,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
+  private KeyManagementClient keyManagementClient = null;
   private String namespaceSeparator = null;
   private ScanPlanningMode clientScanPlanningMode = null;
 
@@ -284,6 +291,21 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
+
+    if (mergedProps.containsKey(CatalogProperties.ENCRYPTION_KMS_TYPE)
+        || mergedProps.containsKey(CatalogProperties.ENCRYPTION_KMS_IMPL)) {
+      boolean allowAccessDelegation =
+          PropertyUtil.propertyAsBoolean(
+              props,
+              RESTCatalogProperties.ALLOW_ACCESS_DELEGATION,
+              RESTCatalogProperties.ALLOW_ACCESS_DELEGATION_DEFAULT);
+      if (!allowAccessDelegation) {
+        checkNoAccessDelegation(RESTUtil.configHeaders(mergedProps));
+      }
+
+      this.keyManagementClient = EncryptionUtil.createKmsClient(mergedProps);
+      this.closeables.addCloseable(this.keyManagementClient);
+    }
 
     if (reportingViaRestEnabled) {
       this.metricsExecutor = ThreadPools.newFixedThreadPool("rest-metrics-reporter", 1);
@@ -1415,6 +1437,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         readHeaders,
         mutationHeaderSupplier,
         fileIO,
+        keyManagementClient,
         current,
         supportedEndpoints,
         readQueryParams);
@@ -1456,6 +1479,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         readHeaders,
         mutationHeaderSupplier,
         fileIO,
+        keyManagementClient,
         updateType,
         createChanges,
         current,
@@ -1515,6 +1539,21 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 ErrorHandlers.configErrorHandler());
     configResponse.validate();
     return configResponse;
+  }
+
+  private static void checkNoAccessDelegation(Map<String, String> headers) {
+    for (Map.Entry<String, String> header : headers.entrySet()) {
+      if (ACCESS_DELEGATION_HEADER.equalsIgnoreCase(header.getKey())) {
+        for (String mechanism : COMMA_SPLITTER.split(header.getValue())) {
+          Preconditions.checkState(
+              NO_ACCESS_DELEGATION.equalsIgnoreCase(mechanism),
+              "Cannot request access delegation (%s: %s) with a client-side KMS unless %s is true",
+              header.getKey(),
+              header.getValue(),
+              RESTCatalogProperties.ALLOW_ACCESS_DELEGATION);
+        }
+      }
+    }
   }
 
   private void checkIdentifierIsValid(TableIdentifier tableIdentifier) {
