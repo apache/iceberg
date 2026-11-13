@@ -55,7 +55,12 @@ subprojects {
       }
 
       // add LICENSE and NOTICE
-      [jar, sourceJar, javadocJar, testJar].each { task ->
+      def licensedJars = [jar, sourceJar, javadocJar, testJar]
+      if (isOpenApi) {
+        licensedJars << testFixturesJar
+      }
+
+      licensedJars.each { task ->
         task.dependsOn rootProject.tasks.buildInfo
         task.from("${rootDir}/build") {
           include 'iceberg-build.properties'
