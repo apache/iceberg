@@ -22,7 +22,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
@@ -58,7 +57,7 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -213,22 +212,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               ? Integer.parseInt(dekLengthFromHMS)
               : TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT;
 
-      encryptedKeys =
-          Optional.ofNullable(current().encryptionKeys())
-              .map(Lists::newLinkedList)
-              .orElseGet(Lists::newLinkedList);
-
-      // Active transactions may still need keys that are not in committed metadata.
-      if (encryptionManager != null) {
-        Set<String> keyIdsFromMetadata =
-            encryptedKeys.stream().map(EncryptedKey::keyId).collect(Collectors.toSet());
-
-        for (EncryptedKey keyFromEM : EncryptionUtil.encryptionKeys(encryptionManager).values()) {
-          if (!keyIdsFromMetadata.contains(keyFromEM.keyId())) {
-            encryptedKeys.add(keyFromEM);
-          }
-        }
-      }
+      // Open transactions may still need keys that are not in committed metadata. Known keys are
+      // in the encryption manager, or in encryptedKeys if an earlier refresh discarded the manager.
+      Iterable<EncryptedKey> knownKeys =
+          encryptionManager != null
+              ? EncryptionUtil.encryptionKeys(encryptionManager).values()
+              : encryptedKeys;
+      Map<String, EncryptedKey> keysById = Maps.newLinkedHashMap();
+      current().encryptionKeys().forEach(key -> keysById.put(key.keyId(), key));
+      knownKeys.forEach(key -> keysById.putIfAbsent(key.keyId(), key));
+      encryptedKeys = List.copyOf(keysById.values());
 
       // Force re-creation of encryption manager with updated keys
       encryptingFileIO = null;

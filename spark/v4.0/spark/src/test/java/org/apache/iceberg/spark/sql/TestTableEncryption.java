@@ -186,6 +186,29 @@ public class TestTableEncryption extends CatalogTestBase {
   }
 
   @TestTemplate
+  void transactionCanReadAfterMetadataCommits() {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+    List<DataFile> dataFiles = currentDataFiles(table);
+    DataFile file = dataFiles.get(0);
+
+    Transaction transaction = table.newTransaction();
+    transaction.newFastAppend().appendFile(file).commit();
+
+    // Commit twice to check that the transaction's keys survive back-to-back refreshes.
+    table.updateProperties().set("prop", "first").commit();
+    table.updateProperties().set("prop", "second").commit();
+
+    assertThat(SnapshotChanges.builderFor(transaction.table()).build().addedDataFiles())
+        .extracting(DataFile::location)
+        .containsExactly(file.location());
+
+    transaction.commitTransaction();
+
+    assertThat(currentDataFiles(table)).hasSize(dataFiles.size() + 1);
+  }
+
+  @TestTemplate
   public void testConcurrentAppendTransactions() {
     validationCatalog.initialize(catalogName, catalogConfig);
     Table table = validationCatalog.loadTable(tableIdent);
