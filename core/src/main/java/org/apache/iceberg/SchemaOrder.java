@@ -111,6 +111,11 @@ class SchemaOrder {
     }
 
     @Override
+    public List<Integer> file(Types.FileType file, Iterable<List<Integer>> fieldResults) {
+      return struct(file.asStruct(), fieldResults);
+    }
+
+    @Override
     public List<Integer> variant(Types.VariantType variant) {
       return null;
     }
