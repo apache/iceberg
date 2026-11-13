@@ -19,6 +19,7 @@
 package org.apache.iceberg.actions;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -205,6 +206,17 @@ public class BinPackRewriteFilePlanner
                 || group.stream().anyMatch(this::tooHighDeleteRatio));
   }
 
+  /**
+   * Returns the columns whose stats the planned tasks carry.
+   *
+   * <p>An empty collection keeps planning free of column stats.
+   *
+   * @return names of the columns whose stats are loaded with each planned file
+   */
+  protected Collection<String> statsColumns() {
+    return ImmutableList.of();
+  }
+
   @Override
   protected long defaultTargetFileSize() {
     return PropertyUtil.propertyAsLong(
@@ -292,6 +304,11 @@ public class BinPackRewriteFilePlanner
 
     if (snapshotId != null) {
       scan = scan.useSnapshot(snapshotId);
+    }
+
+    Collection<String> statsColumns = statsColumns();
+    if (!statsColumns.isEmpty()) {
+      scan = scan.includeColumnStats(statsColumns);
     }
 
     CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles();

@@ -18,12 +18,15 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -46,11 +49,22 @@ class SparkShufflingDataRewritePlanner extends BinPackRewriteFilePlanner {
 
   public static final double COMPRESSION_FACTOR_DEFAULT = 1.0;
 
+  private final List<String> statsColumns;
   private double compressionFactor;
 
   SparkShufflingDataRewritePlanner(
       Table table, Expression filter, Long snapshotId, boolean caseSensitive) {
+    this(table, filter, snapshotId, caseSensitive, ImmutableList.of());
+  }
+
+  SparkShufflingDataRewritePlanner(
+      Table table,
+      Expression filter,
+      Long snapshotId,
+      boolean caseSensitive,
+      List<String> statsColumns) {
     super(table, filter, snapshotId, caseSensitive);
+    this.statsColumns = ImmutableList.copyOf(statsColumns);
   }
 
   @Override
@@ -65,6 +79,11 @@ class SparkShufflingDataRewritePlanner extends BinPackRewriteFilePlanner {
   public void init(Map<String, String> options) {
     super.init(options);
     this.compressionFactor = compressionFactor(options);
+  }
+
+  @Override
+  protected Collection<String> statsColumns() {
+    return statsColumns;
   }
 
   @Override

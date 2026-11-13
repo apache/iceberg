@@ -113,7 +113,8 @@ public class TestSparkFileRewriteRunners extends TestBase {
         .containsExactlyInAnyOrder(
             SparkZOrderFileRewriteRunner.SHUFFLE_PARTITIONS_PER_FILE,
             SparkZOrderFileRewriteRunner.MAX_OUTPUT_SIZE,
-            SparkZOrderFileRewriteRunner.VAR_LENGTH_CONTRIBUTION);
+            SparkZOrderFileRewriteRunner.VAR_LENGTH_CONTRIBUTION,
+            CurveQuantization.QUANTIZATION_BITS);
   }
 
   @Test
@@ -183,6 +184,8 @@ public class TestSparkFileRewriteRunners extends TestBase {
     assertThat(rewriter.description()).isEqualTo("HILBERT");
     assertThat(rewriter.validOptions())
         .as("Rewriter must report all supported options")
-        .containsExactlyInAnyOrder(SparkHilbertFileRewriteRunner.SHUFFLE_PARTITIONS_PER_FILE);
+        .containsExactlyInAnyOrder(
+            SparkHilbertFileRewriteRunner.SHUFFLE_PARTITIONS_PER_FILE,
+            CurveQuantization.QUANTIZATION_BITS);
   }
 }
