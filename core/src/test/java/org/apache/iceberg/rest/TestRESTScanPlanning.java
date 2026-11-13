@@ -49,6 +49,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
+import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Scan;
 import org.apache.iceberg.ScanTask;
@@ -304,6 +305,35 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
       assertThat(tasks).hasSize(1);
       assertThat(tasks.get(0).asFileScanTask().file().location()).isEqualTo(FILE_A.location());
       assertThat(tasks.get(0).asFileScanTask().deletes()).isEmpty();
+    }
+  }
+
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  void columnStatsOutsideProjection(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
+      throws IOException {
+    configurePlanningBehavior(planMode);
+    restCatalog.createNamespace(NS);
+    Table table =
+        restCatalog.createTable(TableIdentifier.of(NS, "stats_outside_projection"), SCHEMA);
+    int statsFieldId = table.schema().findField("data").fieldId();
+    long recordCount = 2L;
+    Map<Integer, Long> valueCounts = Map.of(statsFieldId, recordCount);
+    DataFile file =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/stats.parquet")
+            .withFileSizeInBytes(10)
+            .withMetrics(new Metrics(recordCount, null, valueCounts, null, null, null, null))
+            .build();
+    table.newAppend().appendFile(file).commit();
+    setParserContext(table);
+
+    try (CloseableIterable<FileScanTask> tasks =
+        table.newScan().select("id").includeColumnStats(List.of("data")).planFiles()) {
+      assertThat(Lists.newArrayList(tasks))
+          .singleElement()
+          .satisfies(task -> assertThat(task.file().valueCounts()).isEqualTo(valueCounts));
     }
   }
 

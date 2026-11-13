@@ -171,7 +171,7 @@ class RESTTableScan extends DataTableScan {
     if (columnsToKeepStats() != null) {
       statsFields =
           columnsToKeepStats().stream()
-              .map(columnId -> schema().findColumnName(columnId))
+              .map(tableSchema()::findColumnName)
               .collect(Collectors.toList());
     }
 
