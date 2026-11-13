@@ -64,6 +64,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.spark.actions.SparkActions;
+import org.apache.iceberg.spark.source.SparkChangelog;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.SparkView;
@@ -82,6 +83,8 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.ViewUtil;
+import org.apache.spark.sql.connector.catalog.Changelog;
+import org.apache.spark.sql.connector.catalog.ChangelogContext;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.NamespaceChange;
 import org.apache.spark.sql.connector.catalog.StagedTable;
@@ -223,6 +226,17 @@ public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContex
   public Table loadTable(Identifier ident, long timestampMicros, LoadContext context)
       throws NoSuchTableException {
     return load(ident, TimeTravel.timestampMicros(timestampMicros), context);
+  }
+
+  @Override
+  public Changelog loadChangelog(
+      Identifier ident, ChangelogContext context, CaseInsensitiveStringMap options)
+      throws NoSuchTableException {
+    try {
+      return new SparkChangelog(icebergCatalog.loadTable(buildIdentifier(ident)), context, options);
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      throw new NoSuchTableException(ident);
+    }
   }
 
   @Override

@@ -136,6 +136,74 @@ public class TestChangelogTable extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  void readsMixedSnapshotAndTimestampBounds() {
+    createTable();
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot first = table.currentSnapshot();
+    waitUntilAfter(first.timestampMillis());
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot second = table.currentSnapshot();
+    waitUntilAfter(second.timestampMillis());
+    sql("INSERT INTO %s VALUES (3, 'c')", tableName);
+
+    assertThat(
+            rowsToJava(
+                collect(
+                    spark
+                        .read()
+                        .option(SparkReadOptions.START_SNAPSHOT_ID, first.snapshotId())
+                        .option(SparkReadOptions.END_TIMESTAMP, second.timestampMillis()))))
+        .containsExactly(row(2, "b", "INSERT", 0, second.snapshotId()));
+    assertThat(
+            rowsToJava(
+                collect(
+                    spark
+                        .read()
+                        .option(SparkReadOptions.START_TIMESTAMP, first.timestampMillis())
+                        .option(SparkReadOptions.END_SNAPSHOT_ID, second.snapshotId()))))
+        .containsExactly(row(2, "b", "INSERT", 0, second.snapshotId()));
+  }
+
+  @TestTemplate
+  void readsThroughEndingSnapshotWithoutStartingBound() {
+    createTable();
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot first = table.currentSnapshot();
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot second = table.currentSnapshot();
+    sql("INSERT INTO %s VALUES (3, 'c')", tableName);
+
+    assertThat(changelogRecords(null, second))
+        .containsExactly(
+            row(1, "a", "INSERT", 0, first.snapshotId()),
+            row(2, "b", "INSERT", 1, second.snapshotId()));
+  }
+
+  @TestTemplate
+  void readsAfterExpiredExclusiveStartingSnapshot() {
+    createTable();
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot first = table.currentSnapshot();
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot second = table.currentSnapshot();
+    table.expireSnapshots().expireSnapshotId(first.snapshotId()).cleanExpiredFiles(false).commit();
+    assertThat(table.snapshot(first.snapshotId())).isNull();
+    sql("REFRESH TABLE %s", tableName);
+
+    assertThat(changelogRecords(first, second))
+        .containsExactly(row(2, "b", "INSERT", 0, second.snapshotId()));
+  }
+
+  @TestTemplate
   public void testQueryWithTimeRange() {
     createTable();
 

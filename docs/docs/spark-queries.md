@@ -103,6 +103,43 @@ For `string` and `binary` inputs, it keeps the first `width` characters or bytes
 These functions are especially useful when you want to inspect how Iceberg transforms values or
 when writing filters for queries and row-level operations that align with partition transforms.
 
+### Native change data capture in Spark 4.2
+
+Native CDC reads use Iceberg snapshot sequence numbers as commit versions. The bounds below
+include commits 20 through 25. Required snapshots and their data files must still be retained.
+The current implementation supports batch reads of copy-on-write changes in format v2 and later;
+streaming reads and delete-file changelog scans are not supported.
+
+Without row lineage, raw mode returns all added and removed rows, including unchanged rows
+copied during a file rewrite:
+
+```sql
+SELECT * FROM prod.db.table CHANGES FROM VERSION 20 TO VERSION 25
+WITH (deduplicationMode = 'none', computeUpdates = 'false');
+```
+
+Native output contains user columns plus `_change_type`, `_commit_version`, `_commit_timestamp`,
+`_row_id`, and `_last_updated_sequence_number`. Update images use `update_preimage` and
+`update_postimage`. Native post-processing uses Iceberg row lineage and requires valid lineage
+in the selected snapshots and files.
+
+The native options have the same meaning in SQL and DataFrame reads:
+
+| Option | Default | Behavior |
+| --- | --- | --- |
+| `startingVersion`, `endingVersion` | Unbounded | Select snapshot sequence numbers, not snapshot IDs. An ending version requires a starting version. |
+| `startingTimestamp`, `endingTimestamp` | Unbounded | Select commits by timestamp. An ending timestamp requires a starting timestamp. Do not mix timestamp and version bounds. |
+| `startingBoundInclusive`, `endingBoundInclusive` | `true` | Include the respective endpoint. In SQL, use `EXCLUSIVE` after the corresponding version or timestamp to exclude it. |
+| `deduplicationMode` | `dropCarryovers` | `none` returns raw changes; `dropCarryovers` removes rewrite carry-overs within each commit; `netChanges` also removes intermediate changes across commits. |
+| `computeUpdates` | `false` | Pair deletes and inserts into update images. Requires carry-over removal. |
+
+`dropCarryovers` and `netChanges` require row lineage and support both values of `computeUpdates`.
+Raw mode requires `computeUpdates=false`.
+
+CDC rejects ordinary time-travel options (`versionAsOf`, `timestampAsOf`, and legacy options),
+`branch`, and Iceberg's `start-snapshot-id`/`end-snapshot-id` and `start-timestamp`/`end-timestamp`.
+Use the native CDC range options to select changes.
+
 ### Time travel Queries with SQL
 Spark supports time travel in SQL queries using `TIMESTAMP AS OF` or `VERSION AS OF` clauses.
 The `VERSION AS OF` clause can contain a long snapshot ID or a string branch or tag name.

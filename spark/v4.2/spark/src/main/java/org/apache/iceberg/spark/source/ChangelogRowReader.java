@@ -20,10 +20,10 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.iceberg.AddedRowsScanTask;
 import org.apache.iceberg.ChangelogScanTask;
-import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DataFile;
@@ -40,13 +40,12 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
-import org.apache.spark.sql.catalyst.expressions.JoinedRow;
 import org.apache.spark.sql.connector.read.PartitionReader;
-import org.apache.spark.unsafe.types.UTF8String;
 
 class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
     implements PartitionReader<InternalRow> {
+
+  private final ChangelogRowAdapter rowAdapter;
 
   ChangelogRowReader(SparkInputPartition partition) {
     this(
@@ -65,35 +64,37 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
       Schema expectedSchema,
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
-    super(
+    this(
         table,
         fileIO,
         taskGroup,
-        ChangelogUtil.dropChangelogMetadata(expectedSchema),
+        ChangelogRowAdapter.create(table, expectedSchema),
         caseSensitive,
         cacheDeleteFilesOnExecutors);
   }
 
-  @Override
-  protected CloseableIterator<InternalRow> open(ChangelogScanTask task) {
-    JoinedRow cdcRow = new JoinedRow();
-
-    cdcRow.withRight(changelogMetadata(task));
-
-    CloseableIterable<InternalRow> rows = openChangelogScanTask(task);
-    CloseableIterable<InternalRow> cdcRows = CloseableIterable.transform(rows, cdcRow::withLeft);
-
-    return cdcRows.iterator();
+  private ChangelogRowReader(
+      Table table,
+      FileIO fileIO,
+      ScanTaskGroup<ChangelogScanTask> taskGroup,
+      ChangelogRowAdapter rowAdapter,
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors) {
+    super(
+        table,
+        fileIO,
+        taskGroup,
+        rowAdapter.dataSchema(),
+        caseSensitive,
+        cacheDeleteFilesOnExecutors);
+    this.rowAdapter = rowAdapter;
   }
 
-  private static InternalRow changelogMetadata(ChangelogScanTask task) {
-    InternalRow metadataRow = new GenericInternalRow(3);
-
-    metadataRow.update(0, UTF8String.fromString(task.operation().name()));
-    metadataRow.update(1, task.changeOrdinal());
-    metadataRow.update(2, task.commitSnapshotId());
-
-    return metadataRow;
+  @Override
+  protected CloseableIterator<InternalRow> open(ChangelogScanTask task) {
+    Function<InternalRow, InternalRow> rowMapper = rowAdapter.rowMapper(task);
+    CloseableIterable<InternalRow> rows = openChangelogScanTask(task);
+    return CloseableIterable.transform(rows, rowMapper).iterator();
   }
 
   private CloseableIterable<InternalRow> openChangelogScanTask(ChangelogScanTask task) {
