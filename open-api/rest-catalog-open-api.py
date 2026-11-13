@@ -155,74 +155,6 @@ class ExpressionType(RootModel[str]):
     )
 
 
-class TrueExpression(BaseModel):
-    """
-    Deprecated. Use the bare boolean literal `true` as a predicate instead.
-
-    """
-
-    type: Literal['true'] = Field(
-        ...,
-        examples=[
-            [
-                'true',
-                'false',
-                'eq',
-                'and',
-                'or',
-                'not',
-                'in',
-                'not-in',
-                'lt',
-                'lt-eq',
-                'gt',
-                'gt-eq',
-                'not-eq',
-                'starts-with',
-                'not-starts-with',
-                'is-null',
-                'not-null',
-                'is-nan',
-                'not-nan',
-            ]
-        ],
-    )
-
-
-class FalseExpression(BaseModel):
-    """
-    Deprecated. Use the bare boolean literal `false` as a predicate instead.
-
-    """
-
-    type: Literal['false'] = Field(
-        ...,
-        examples=[
-            [
-                'true',
-                'false',
-                'eq',
-                'and',
-                'or',
-                'not',
-                'in',
-                'not-in',
-                'lt',
-                'lt-eq',
-                'gt',
-                'gt-eq',
-                'not-eq',
-                'starts-with',
-                'not-starts-with',
-                'is-null',
-                'not-null',
-                'is-nan',
-                'not-nan',
-            ]
-        ],
-    )
-
-
 class IdReference(BaseModel):
     """
     A bound reference to a field by field ID.
@@ -2337,8 +2269,6 @@ class Type(RootModel[VariantType | PrimitiveType | StructType | ListType | MapTy
 class Predicate(
     RootModel[
         bool
-        | TrueExpression
-        | FalseExpression
         | AndOrPredicate
         | NotPredicate
         | UnaryPredicate
@@ -2348,8 +2278,6 @@ class Predicate(
 ):
     root: (
         bool
-        | TrueExpression
-        | FalseExpression
         | AndOrPredicate
         | NotPredicate
         | UnaryPredicate
