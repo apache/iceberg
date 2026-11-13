@@ -180,6 +180,29 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     return false;
   }
 
+  /**
+   * Mark this entry as deleted in the given snapshot.
+   *
+   * @param newSnapshotId the snapshot ID in which the entry was deleted
+   */
+  void markDeleted(long newSnapshotId) {
+    mark(EntryStatus.DELETED, newSnapshotId);
+  }
+
+  /**
+   * Mark this entry as replaced in the given snapshot.
+   *
+   * @param newSnapshotId the snapshot ID in which the entry was replaced
+   */
+  void markReplaced(long newSnapshotId) {
+    mark(EntryStatus.REPLACED, newSnapshotId);
+  }
+
+  private void mark(EntryStatus newStatus, long newSnapshotId) {
+    this.status = newStatus;
+    this.snapshotId = newSnapshotId;
+  }
+
   @Override
   public EntryStatus status() {
     return status;

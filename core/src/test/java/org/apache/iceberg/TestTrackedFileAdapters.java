@@ -495,6 +495,7 @@ class TestTrackedFileAdapters {
     assertThat(manifest.sequenceNumber()).isEqualTo(DATA_SEQUENCE_NUMBER);
     assertThat(manifest.minSequenceNumber()).isEqualTo(MANIFEST_INFO.minSequenceNumber());
     assertThat(manifest.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(manifest.tracking()).isSameAs(MANIFEST_TRACKING);
     assertThat(manifest.addedFilesCount()).isEqualTo(MANIFEST_INFO.addedFilesCount());
     assertThat(manifest.addedRowsCount()).isEqualTo(MANIFEST_INFO.addedRowsCount());
     assertThat(manifest.existingFilesCount()).isEqualTo(MANIFEST_INFO.existingFilesCount());
