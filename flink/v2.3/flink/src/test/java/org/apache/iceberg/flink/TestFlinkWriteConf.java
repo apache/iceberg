@@ -44,7 +44,7 @@ class TestFlinkWriteConf {
   void before() throws IOException {
     table = createTable(ImmutableMap.of());
     fullOverwriteTable =
-        createTable(ImmutableMap.of(FlinkWriteOptions.OVERWRITE_STRATEGY_TABLE_PROPERTY, "full"));
+        createTable(ImmutableMap.of(FlinkWriteOptions.OVERWRITE_STRATEGY_TABLE_PROPERTY, "static"));
   }
 
   @Test
@@ -56,7 +56,7 @@ class TestFlinkWriteConf {
   @Test
   void fullOverwriteFromWriteOption() {
     Map<String, String> options =
-        ImmutableMap.of(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "FULL");
+        ImmutableMap.of(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "STATIC");
     FlinkWriteConf conf = new FlinkWriteConf(table, options, new Configuration());
     assertThat(conf.fullOverwrite()).isTrue();
   }
@@ -64,7 +64,7 @@ class TestFlinkWriteConf {
   @Test
   void fullOverwriteFromFlinkConfig() {
     Configuration flinkConf = new Configuration();
-    flinkConf.set(FlinkWriteOptions.OVERWRITE_STRATEGY, "full");
+    flinkConf.set(FlinkWriteOptions.OVERWRITE_STRATEGY, "static");
     FlinkWriteConf conf = new FlinkWriteConf(table, ImmutableMap.of(), flinkConf);
     assertThat(conf.fullOverwrite()).isTrue();
   }
@@ -79,7 +79,7 @@ class TestFlinkWriteConf {
   @Test
   void fullOverwriteWithoutTable() {
     Map<String, String> options =
-        ImmutableMap.of(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "full");
+        ImmutableMap.of(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "static");
     assertThat(new FlinkWriteConf(options, new Configuration()).fullOverwrite()).isTrue();
     assertThat(new FlinkWriteConf(ImmutableMap.of(), new Configuration()).fullOverwrite())
         .isFalse();
@@ -91,51 +91,51 @@ class TestFlinkWriteConf {
         createTable(
             ImmutableMap.of(FlinkWriteOptions.OVERWRITE_STRATEGY_TABLE_PROPERTY, "dynamic"));
     Map<String, String> options =
-        ImmutableMap.of(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "full");
+        ImmutableMap.of(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "static");
     FlinkWriteConf conf = new FlinkWriteConf(dynamicTable, options, new Configuration());
     assertThat(conf.fullOverwrite()).isTrue();
   }
 
   @Test
-  void fullWriteOptionIsAllowedWhenTablePropertyIsFull() {
+  void staticWriteOptionIsAllowedWhenTablePropertyIsStatic() {
     Map<String, String> options =
-        ImmutableMap.of(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "full");
+        ImmutableMap.of(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "static");
     FlinkWriteConf conf = new FlinkWriteConf(fullOverwriteTable, options, new Configuration());
     assertThat(conf.fullOverwrite()).isTrue();
   }
 
   @Test
-  void dynamicWriteOptionIsRejectedWhenTablePropertyIsFull() {
+  void dynamicWriteOptionIsRejectedWhenTablePropertyIsStatic() {
     Map<String, String> options =
         ImmutableMap.of(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "dynamic");
     FlinkWriteConf conf = new FlinkWriteConf(fullOverwriteTable, options, new Configuration());
     assertThatThrownBy(conf::fullOverwrite)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Invalid overwrite-mode=dynamic: table property write.flink.overwrite-mode=full "
-                + "requires a full overwrite");
+            "Invalid overwrite-mode=dynamic: table property write.flink.overwrite-mode=static "
+                + "requires a static overwrite");
   }
 
   @Test
-  void dynamicFlinkConfigIsRejectedWhenTablePropertyIsFull() {
+  void dynamicFlinkConfigIsRejectedWhenTablePropertyIsStatic() {
     Configuration flinkConf = new Configuration();
     flinkConf.set(FlinkWriteOptions.OVERWRITE_STRATEGY, "dynamic");
     FlinkWriteConf conf = new FlinkWriteConf(fullOverwriteTable, ImmutableMap.of(), flinkConf);
     assertThatThrownBy(conf::fullOverwrite)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Invalid overwrite-mode=dynamic: table property write.flink.overwrite-mode=full "
-                + "requires a full overwrite");
+            "Invalid overwrite-mode=dynamic: table property write.flink.overwrite-mode=static "
+                + "requires a static overwrite");
   }
 
   @Test
   void unknownOverwriteModeIsRejected() {
     Map<String, String> options =
-        ImmutableMap.of(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "static");
+        ImmutableMap.of(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "unknown");
     FlinkWriteConf conf = new FlinkWriteConf(table, options, new Configuration());
     assertThatThrownBy(conf::fullOverwrite)
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid overwrite mode: static, expected one of: dynamic, full");
+        .hasMessage("Invalid overwrite mode: unknown, expected one of: dynamic, static");
   }
 
   private Table createTable(Map<String, String> properties) throws IOException {

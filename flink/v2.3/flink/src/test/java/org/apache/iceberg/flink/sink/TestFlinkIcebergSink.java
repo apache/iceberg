@@ -153,7 +153,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
         .tableLoader(tableLoader)
         .writeParallelism(parallelism)
         .overwrite(true)
-        .set(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "full")
+        .set(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "static")
         .append();
     env.execute("Test Iceberg DataStream");
 
@@ -172,11 +172,11 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
                     .table(table)
                     .tableLoader(tableLoader)
                     .overwrite(true)
-                    .set(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "full")
+                    .set(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "static")
                     .append())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
-            "Cannot run a full overwrite (overwrite-mode=full) in STREAMING mode: "
+            "Cannot run a static overwrite (overwrite-mode=static) in STREAMING mode: "
                 + "execution.runtime-mode must be BATCH");
   }
 

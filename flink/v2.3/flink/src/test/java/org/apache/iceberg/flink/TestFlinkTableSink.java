@@ -248,7 +248,7 @@ public class TestFlinkTableSink extends CatalogTestBase {
           validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, tableName));
       sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
 
-      sql("INSERT OVERWRITE %s /*+ OPTIONS('overwrite-mode'='full') */ SELECT 4, 'b'", tableName);
+      sql("INSERT OVERWRITE %s /*+ OPTIONS('overwrite-mode'='static') */ SELECT 4, 'b'", tableName);
 
       SimpleDataUtil.assertTableRecords(
           partitionedTable, Lists.newArrayList(SimpleDataUtil.createRecord(4, "b")));
@@ -266,7 +266,7 @@ public class TestFlinkTableSink extends CatalogTestBase {
     String tableName = "test_full_overwrite_property";
     sql(
         "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) "
-            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='full')",
+            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='static')",
         tableName, format.name());
 
     try {
@@ -293,7 +293,7 @@ public class TestFlinkTableSink extends CatalogTestBase {
     String sourceName = "test_full_overwrite_empty_source_input";
     sql(
         "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) "
-            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='full')",
+            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='static')",
         tableName, format.name());
     sql("CREATE TABLE %s(id INT, data VARCHAR)", sourceName);
 
@@ -318,14 +318,14 @@ public class TestFlinkTableSink extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testDynamicOverwriteOptionRejectedWhenTablePropertyIsFull() {
+  public void testDynamicOverwriteOptionRejectedWhenTablePropertyIsStatic() {
     assumeThat(isStreamingJob)
         .as("Flink unbounded streaming does not support overwrite operation")
         .isFalse();
     String tableName = "test_full_overwrite_blocked";
     sql(
         "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) "
-            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='full')",
+            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='static')",
         tableName, format.name());
 
     try {
@@ -336,8 +336,8 @@ public class TestFlinkTableSink extends CatalogTestBase {
                       tableName))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessage(
-              "Invalid overwrite-mode=dynamic: table property write.flink.overwrite-mode=full "
-                  + "requires a full overwrite");
+              "Invalid overwrite-mode=dynamic: table property write.flink.overwrite-mode=static "
+                  + "requires a static overwrite");
     } finally {
       sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
     }
@@ -351,15 +351,15 @@ public class TestFlinkTableSink extends CatalogTestBase {
     String tableName = "test_full_overwrite_partition_clause";
     sql(
         "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) "
-            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='full')",
+            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='static')",
         tableName, format.name());
 
     try {
       assertThatThrownBy(() -> sql("INSERT OVERWRITE %s PARTITION (data='a') SELECT 6", tableName))
           .isInstanceOf(IllegalStateException.class)
           .hasMessage(
-              "Cannot overwrite PARTITION {data=a} when overwrite-mode is full: "
-                  + "a full overwrite replaces the whole table.");
+              "Cannot overwrite PARTITION {data=a} when overwrite-mode is static: "
+                  + "a static overwrite replaces the whole table.");
     } finally {
       sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
     }
@@ -370,7 +370,7 @@ public class TestFlinkTableSink extends CatalogTestBase {
     String tableName = "test_full_overwrite_partition_clause_option";
     sql(
         "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) "
-            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='full')",
+            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='static')",
         tableName, format.name());
 
     try {
@@ -382,8 +382,8 @@ public class TestFlinkTableSink extends CatalogTestBase {
                       tableName))
           .isInstanceOf(IllegalStateException.class)
           .hasMessage(
-              "Cannot overwrite PARTITION {data=a} when overwrite-mode is full: "
-                  + "a full overwrite replaces the whole table.");
+              "Cannot overwrite PARTITION {data=a} when overwrite-mode is static: "
+                  + "a static overwrite replaces the whole table.");
     } finally {
       sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
     }
@@ -397,7 +397,7 @@ public class TestFlinkTableSink extends CatalogTestBase {
     String tableName = "test_full_overwrite_older_spec";
     sql(
         "CREATE TABLE %s(id INT, data VARCHAR) "
-            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='full')",
+            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='static')",
         tableName, format.name());
 
     try {

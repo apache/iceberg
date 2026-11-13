@@ -138,7 +138,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
         "Unbounded data stream doesn't support overwrite operation.");
     Preconditions.checkState(
         staticPartition.isEmpty() || useDynamicSink || !fullTableOverwrite(),
-        "Cannot overwrite PARTITION %s when %s is full: a full overwrite replaces the whole table.",
+        "Cannot overwrite PARTITION %s when %s is static: a static overwrite replaces the whole table.",
         staticPartition,
         FlinkWriteOptions.OVERWRITE_STRATEGY.key());
 
@@ -199,7 +199,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
   @Override
   public void applyStaticPartition(Map<String, String> partition) {
     // The flink's PartitionFanoutWriter will handle the static partition write policy
-    // automatically. The partition is kept only to reject it in full overwrite mode.
+    // automatically. The partition is kept only to reject it in static overwrite mode.
     this.staticPartition = partition;
   }
 

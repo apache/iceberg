@@ -579,7 +579,7 @@ public class DynamicIcebergSink
       FlinkWriteConf flinkWriteConf = new FlinkWriteConf(writeOptions, readableConfig);
       Preconditions.checkArgument(
           !flinkWriteConf.fullOverwrite(),
-          "Dynamic Iceberg sink does not support %s=full",
+          "Dynamic Iceberg sink does not support %s=static",
           FlinkWriteOptions.OVERWRITE_STRATEGY.key());
       if (flinkWriteConf.writeParallelism() != null) {
         result.setParallelism(flinkWriteConf.writeParallelism());

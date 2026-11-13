@@ -73,8 +73,8 @@ public class FlinkWriteConf {
    * Whether an overwrite replaces every row in the table instead of only the partitions that
    * receive new rows.
    *
-   * @throws IllegalArgumentException if the table property requires a full overwrite and the write
-   *     option or Flink config asks for a different mode
+   * @throws IllegalArgumentException if the table property requires a static overwrite and the
+   *     write option or Flink config asks for a different mode
    */
   public boolean fullOverwrite() {
     String tableValue =
@@ -92,16 +92,16 @@ public class FlinkWriteConf {
         tableValue != null ? OverwriteStrategy.fromName(tableValue) : null;
     OverwriteStrategy jobStrategy = jobValue != null ? OverwriteStrategy.fromName(jobValue) : null;
     Preconditions.checkArgument(
-        tableStrategy != OverwriteStrategy.FULL
+        tableStrategy != OverwriteStrategy.STATIC
             || jobStrategy == null
-            || jobStrategy == OverwriteStrategy.FULL,
-        "Invalid %s=%s: table property %s=%s requires a full overwrite",
+            || jobStrategy == OverwriteStrategy.STATIC,
+        "Invalid %s=%s: table property %s=%s requires a static overwrite",
         FlinkWriteOptions.OVERWRITE_STRATEGY.key(),
         jobValue,
         FlinkWriteOptions.OVERWRITE_STRATEGY_TABLE_PROPERTY,
         tableValue);
 
-    return jobStrategy == OverwriteStrategy.FULL || tableStrategy == OverwriteStrategy.FULL;
+    return jobStrategy == OverwriteStrategy.STATIC || tableStrategy == OverwriteStrategy.STATIC;
   }
 
   public boolean upsertMode() {

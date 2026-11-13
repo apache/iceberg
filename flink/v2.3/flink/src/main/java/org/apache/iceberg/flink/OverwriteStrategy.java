@@ -23,11 +23,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Which rows an overwrite replaces: {@link #DYNAMIC} replaces only the partitions that receive new
- * rows, {@link #FULL} replaces every row in the table.
+ * rows, {@link #STATIC} replaces every row in the table.
  */
 enum OverwriteStrategy {
   DYNAMIC,
-  FULL;
+  STATIC;
 
   static OverwriteStrategy fromName(String name) {
     Preconditions.checkArgument(name != null, "Invalid overwrite mode: null");
@@ -35,7 +35,7 @@ enum OverwriteStrategy {
       return OverwriteStrategy.valueOf(name.toUpperCase(Locale.ROOT));
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(
-          String.format("Invalid overwrite mode: %s, expected one of: dynamic, full", name));
+          String.format("Invalid overwrite mode: %s, expected one of: dynamic, static", name));
     }
   }
 }

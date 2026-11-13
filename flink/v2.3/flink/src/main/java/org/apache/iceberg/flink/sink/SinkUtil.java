@@ -65,7 +65,7 @@ public class SinkUtil {
         input.getExecutionEnvironment().getConfiguration().get(ExecutionOptions.RUNTIME_MODE);
     Preconditions.checkState(
         runtimeMode == RuntimeExecutionMode.BATCH,
-        "Cannot run a full overwrite (%s=full) in %s mode: %s must be BATCH",
+        "Cannot run a static overwrite (%s=static) in %s mode: %s must be BATCH",
         FlinkWriteOptions.OVERWRITE_STRATEGY.key(),
         runtimeMode,
         ExecutionOptions.RUNTIME_MODE.key());

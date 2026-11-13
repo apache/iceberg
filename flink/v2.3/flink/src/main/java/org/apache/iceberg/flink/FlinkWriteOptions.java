@@ -62,7 +62,7 @@ public class FlinkWriteOptions {
       ConfigOptions.key("overwrite-enabled").booleanType().defaultValue(false);
 
   // Which rows an overwrite replaces: "dynamic" replaces only the partitions that receive new
-  // rows, "full" replaces every row in the table.
+  // rows, "static" replaces every row in the table.
   public static final ConfigOption<String> OVERWRITE_STRATEGY =
       ConfigOptions.key("overwrite-mode").stringType().noDefaultValue();
 
