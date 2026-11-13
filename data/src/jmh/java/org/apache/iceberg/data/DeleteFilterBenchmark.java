@@ -34,6 +34,8 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -164,7 +166,10 @@ public class DeleteFilterBenchmark {
       tasks = Lists.newArrayList(planned);
     }
     FileScanTask task = Iterables.getOnlyElement(tasks);
-    this.filter = new GenericDeleteFilter(table.io(), task, table.schema(), table.schema());
+    InputFilesDecryptor decryptor =
+        InputFilesDecryptor.fromTasks(
+            tasks, EncryptingFileIO.combine(table.io(), table.encryption()));
+    this.filter = new GenericDeleteFilter(decryptor, task, table.schema(), table.schema());
     this.filterInput = materializeFilterInput(rows, filter.requiredSchema());
   }
 
