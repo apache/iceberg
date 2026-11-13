@@ -327,15 +327,11 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     operation.toBranch(branch);
 
     // Check again inside the commit, because another commit for this checkpoint can land after the
-    // up-front getMaxCommittedCheckpointId() read. Like that read, this only applies after a
-    // restore: a stateless start may reuse the job ID with checkpoint IDs starting from 1 again.
-    if (isRestored) {
-      operation.validateWith(
-          new SinkUtil.MaxCommittedCheckpointIdValidator(
-              checkpointId,
-              snapshotSummary ->
-                  SinkUtil.writtenBySameJob(snapshotSummary, newFlinkJobId, operatorId)));
-    }
+    // up-front getMaxCommittedCheckpointIdBySink() read.
+    operation.validateWith(
+        new SinkUtil.MaxCommittedCheckpointIdValidator(
+            checkpointId,
+            snapshotSummary -> SinkUtil.writtenBySameSink(snapshotSummary, sinkId, operatorId)));
 
     long startNano = System.nanoTime();
     try {

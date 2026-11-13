@@ -127,7 +127,10 @@ public class SinkUtil {
 
     while (snapshot != null) {
       Map<String, String> summary = snapshot.summary();
-      if (writtenBySameJob(summary, flinkJobId, operatorId)) {
+      String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
+      String snapshotOperatorId = summary.get(OPERATOR_ID);
+      if (flinkJobId.equals(snapshotFlinkJobId)
+          && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId))) {
         String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
         if (value != null) {
           lastCommittedCheckpointId = Long.parseLong(value);
@@ -139,17 +142,6 @@ public class SinkUtil {
     }
 
     return lastCommittedCheckpointId;
-  }
-
-  /**
-   * Returns whether a snapshot was committed by the given Flink job and operator. Snapshots without
-   * an operator ID match any operator.
-   */
-  static boolean writtenBySameJob(
-      Map<String, String> summary, String flinkJobId, String operatorId) {
-    String snapshotOperatorId = summary.get(OPERATOR_ID);
-    return flinkJobId.equals(summary.get(FLINK_JOB_ID))
-        && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId));
   }
 
   /**

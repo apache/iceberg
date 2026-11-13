@@ -82,6 +82,7 @@ import org.junit.jupiter.api.io.TempDir;
 class TestIcebergCommitterDuplicateCommit {
 
   private static final String OPERATOR_ID = "flink-sink";
+  private static final String SINK_ID = "sinkId";
   private static final String JOB_ID = "jobId";
   private static final long CHECKPOINT_ID = 1L;
   private static final long ROW_COUNT = 5L;
@@ -186,10 +187,9 @@ class TestIcebergCommitterDuplicateCommit {
         Collections.singletonMap("flink.test", getClass().getName()),
         false,
         10,
-        "sinkId",
+        SINK_ID,
         metrics,
         false,
-        true,
         0);
   }
 
@@ -275,6 +275,7 @@ class TestIcebergCommitterDuplicateCommit {
             buildIcebergWriteAggregator(myJobID, OPERATOR_ID)
                 .writeToManifest(Lists.newArrayList(writeResult), checkpoint),
             myJobID,
+            SINK_ID,
             OPERATOR_ID,
             checkpoint);
     CommittableWithLineage<IcebergCommittable> committableWithLineage =
@@ -286,7 +287,8 @@ class TestIcebergCommitterDuplicateCommit {
   }
 
   private IcebergWriteAggregator buildIcebergWriteAggregator(String myJobId, String operatorId) {
-    IcebergWriteAggregator icebergWriteAggregator = spy(new IcebergWriteAggregator(tableLoader));
+    IcebergWriteAggregator icebergWriteAggregator =
+        spy(new IcebergWriteAggregator(tableLoader, SINK_ID));
     StreamTask ctx = mock(StreamTask.class);
     Environment env = mock(Environment.class);
     StreamingRuntimeContext streamingRuntimeContext = mock(StreamingRuntimeContext.class);

@@ -377,7 +377,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     operation.validateWith(
         new SinkUtil.MaxCommittedCheckpointIdValidator(
             checkpointId,
-            snapshotSummary -> writtenBySameSink(snapshotSummary, sinkId, operatorId)));
+            snapshotSummary -> SinkUtil.writtenBySameSink(snapshotSummary, sinkId, operatorId)));
 
     long startNano = System.nanoTime();
     try {
