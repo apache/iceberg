@@ -278,6 +278,13 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       String newFlinkJobId,
       String sinkId,
       String operatorId) {
+    CommitSummary summary = new CommitSummary();
+    summary.addAll(pendingResults);
+    Preconditions.checkState(
+        summary.deleteFilesCount() == 0,
+        "Cannot overwrite partitions of table %s with delete files.",
+        table.name());
+
     // Iceberg tables are unsorted. So the order of the append data does not matter.
     // Hence, we commit everything in one snapshot.
     ReplacePartitions dynamicOverwrite = table.newReplacePartitions().scanManifestsWith(workerPool);
@@ -287,9 +294,6 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
         Arrays.stream(result.dataFiles()).forEach(dynamicOverwrite::addFile);
       }
     }
-
-    CommitSummary summary = new CommitSummary();
-    summary.addAll(pendingResults);
 
     commitOperation(
         table,
