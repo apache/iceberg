@@ -745,7 +745,7 @@ public class TableMetadata implements Serializable {
         .setDefaultPartitionSpec(freshSpec)
         .setDefaultSortOrder(freshSortOrder)
         .setLocation(newLocation)
-        .setProperties(persistedProperties(updatedProperties))
+        .setProperties(unreservedProperties(updatedProperties))
         .build();
   }
 
