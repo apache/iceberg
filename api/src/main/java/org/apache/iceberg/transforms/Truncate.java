@@ -326,21 +326,21 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
         return Expressions.predicate(predicate.op(), name);
       } else if (predicate.isLiteralPredicate()) {
         BoundLiteralPredicate<CharSequence> pred = predicate.asLiteralPredicate();
-        int length = codePointCount(pred.literal().value());
+        int codePoints = codePointCount(pred.literal().value());
         switch (pred.op()) {
           case STARTS_WITH:
-            if (length < width()) {
+            if (codePoints < width()) {
               return Expressions.predicate(pred.op(), name, pred.literal().value());
-            } else if (length == width()) {
+            } else if (codePoints == width()) {
               return Expressions.equal(name, pred.literal().value());
             }
 
             return ProjectionUtil.truncateArray(name, pred, this);
 
           case NOT_STARTS_WITH:
-            if (length < width()) {
+            if (codePoints < width()) {
               return Expressions.predicate(pred.op(), name, pred.literal().value());
-            } else if (length == width()) {
+            } else if (codePoints == width()) {
               return Expressions.notEqual(name, pred.literal().value());
             }
 
@@ -366,21 +366,21 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
         return Expressions.predicate(predicate.op(), name);
       } else if (predicate instanceof BoundLiteralPredicate) {
         BoundLiteralPredicate<CharSequence> pred = predicate.asLiteralPredicate();
-        int length = codePointCount(pred.literal().value());
+        int codePoints = codePointCount(pred.literal().value());
         switch (pred.op()) {
           case STARTS_WITH:
-            if (length < width()) {
+            if (codePoints < width()) {
               return Expressions.predicate(pred.op(), name, pred.literal().value());
-            } else if (length == width()) {
+            } else if (codePoints == width()) {
               return Expressions.equal(name, pred.literal().value());
             }
 
             return null;
 
           case NOT_STARTS_WITH:
-            if (length < width()) {
+            if (codePoints < width()) {
               return Expressions.predicate(pred.op(), name, pred.literal().value());
-            } else if (length == width()) {
+            } else if (codePoints == width()) {
               return Expressions.notEqual(name, pred.literal().value());
             }
 
