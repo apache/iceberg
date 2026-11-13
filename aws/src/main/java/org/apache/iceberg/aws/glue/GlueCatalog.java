@@ -434,12 +434,17 @@ public class GlueCatalog extends BaseMetastoreCatalog
             .parameters(fromTable.parameters())
             .storageDescriptor(fromTable.storageDescriptor());
 
-    glue.createTable(
-        CreateTableRequest.builder()
-            .catalogId(awsProperties.glueCatalogId())
-            .databaseName(toTableDbName)
-            .tableInput(tableInputBuilder.name(toTableName).build())
-            .build());
+    try {
+      glue.createTable(
+          CreateTableRequest.builder()
+              .catalogId(awsProperties.glueCatalogId())
+              .databaseName(toTableDbName)
+              .tableInput(tableInputBuilder.name(toTableName).build())
+              .build());
+    } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
+      throw new AlreadyExistsException(
+          e, "Cannot rename %s to %s because table already exists", from, to);
+    }
     LOG.info("created rename destination table {}", to);
 
     try {
@@ -451,12 +456,16 @@ public class GlueCatalog extends BaseMetastoreCatalog
           from,
           to,
           e);
-      glue.deleteTable(
-          DeleteTableRequest.builder()
-              .catalogId(awsProperties.glueCatalogId())
-              .databaseName(toTableDbName)
-              .name(toTableName)
-              .build());
+      try {
+        dropTable(to, false);
+      } catch (Exception rollbackException) {
+        LOG.error(
+            "Failed to rollback rename of {} to {}, both tables may exist in Glue",
+            from,
+            to,
+            rollbackException);
+        e.addSuppressed(rollbackException);
+      }
       throw e;
     }
 
