@@ -65,36 +65,33 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
   @Test
   public void testPartitionStatsOnEmptyTable() throws Exception {
     Table testTable =
-        TestTables.create(
-            tempDir("empty_table"), "empty_table", SCHEMA, SPEC, 2, fileFormatProperty);
+        TestTables.create(tempDir, "empty_table", SCHEMA, SPEC, 2, fileFormatProperty);
     assertThat(PartitionStatsHandler.computeAndWriteStatsFile(testTable)).isNull();
   }
 
   @Test
   public void testPartitionStatsOnEmptyBranch() throws Exception {
     Table testTable =
-        TestTables.create(
-            tempDir("empty_branch"), "empty_branch", SCHEMA, SPEC, 2, fileFormatProperty);
+        TestTables.create(tempDir, "empty_branch", SCHEMA, SPEC, 2, fileFormatProperty);
     testTable.manageSnapshots().createBranch("b1").commit();
     long branchSnapshot = testTable.refs().get("b1").snapshotId();
     assertThat(PartitionStatsHandler.computeAndWriteStatsFile(testTable, branchSnapshot)).isNull();
   }
 
   @Test
-  public void testPartitionStatsOnInvalidSnapshot() throws Exception {
+  public void testPartitionStatsOnInvalidSnapshot() {
     Table testTable =
-        TestTables.create(
-            tempDir("invalid_snapshot"), "invalid_snapshot", SCHEMA, SPEC, 2, fileFormatProperty);
+        TestTables.create(tempDir, "invalid_snapshot", SCHEMA, SPEC, 2, fileFormatProperty);
     assertThatThrownBy(() -> PartitionStatsHandler.computeAndWriteStatsFile(testTable, 42L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Snapshot not found: 42");
   }
 
   @Test
-  public void testPartitionStatsOnUnPartitionedTable() throws Exception {
+  public void testPartitionStatsOnUnPartitionedTable() {
     Table testTable =
         TestTables.create(
-            tempDir("unpartitioned_table"),
+            tempDir,
             "unpartitioned_table",
             SCHEMA,
             PartitionSpec.unpartitioned(),
@@ -152,7 +149,7 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
 
     Table testTable =
         TestTables.create(
-            tempDir("test_all_type_" + formatVersion),
+            tempDir,
             "test_all_type_" + formatVersion,
             schema,
             spec,
@@ -222,7 +219,7 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
     Table testTable =
         TestTables.create(
-            tempDir("test_partition_stats_optional_" + formatVersion),
+            tempDir,
             "test_partition_stats_optional_" + formatVersion,
             SCHEMA,
             spec,
@@ -297,8 +294,7 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
 
   @Test
   public void testCopyOnWriteDelete() throws Exception {
-    Table testTable =
-        TestTables.create(tempDir("my_test"), "my_test", SCHEMA, SPEC, 2, fileFormatProperty);
+    Table testTable = TestTables.create(tempDir, "my_test", SCHEMA, SPEC, 2, fileFormatProperty);
 
     DataFile dataFile1 =
         DataFiles.builder(SPEC)
@@ -340,8 +336,7 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
 
   @Test
   public void testLatestStatsFile() throws Exception {
-    Table testTable =
-        TestTables.create(tempDir("stats_file"), "stats_file", SCHEMA, SPEC, 2, fileFormatProperty);
+    Table testTable = TestTables.create(tempDir, "stats_file", SCHEMA, SPEC, 2, fileFormatProperty);
 
     DataFile dataFile =
         FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
@@ -376,8 +371,7 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
   @Test
   public void testLatestStatsFileWithBranch() throws Exception {
     Table testTable =
-        TestTables.create(
-            tempDir("stats_file_branch"), "stats_file_branch", SCHEMA, SPEC, 2, fileFormatProperty);
+        TestTables.create(tempDir, "stats_file_branch", SCHEMA, SPEC, 2, fileFormatProperty);
     DataFile dataFile =
         FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
 
@@ -417,8 +411,7 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
   public void testFullComputeFallbackWithInvalidStats() throws Exception {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
     Table testTable =
-        TestTables.create(
-            tempDir("invalid_schema"), "invalid_schema", SCHEMA, spec, 2, fileFormatProperty);
+        TestTables.create(tempDir, "invalid_schema", SCHEMA, spec, 2, fileFormatProperty);
     DataFile dataFile = FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of(42));
     testTable.newAppend().appendFile(dataFile).commit();
 
