@@ -68,6 +68,21 @@ public class FlinkWriteConf {
         .parse();
   }
 
+  /**
+   * Whether an overwrite replaces every row in the table instead of only the partitions that
+   * receive new rows.
+   */
+  public boolean staticOverwrite() {
+    String modeName =
+        confParser
+            .stringConf()
+            .option(FlinkWriteOptions.OVERWRITE_STRATEGY.key())
+            .flinkConfig(FlinkWriteOptions.OVERWRITE_STRATEGY)
+            .tableProperty(FlinkWriteOptions.OVERWRITE_STRATEGY_TABLE_PROPERTY)
+            .parseOptional();
+    return modeName != null && OverwriteStrategy.fromName(modeName) == OverwriteStrategy.STATIC;
+  }
+
   public boolean upsertMode() {
     return confParser
         .booleanConf()

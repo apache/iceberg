@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.List;
@@ -26,9 +28,12 @@ import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
+import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -226,6 +231,206 @@ public class TestFlinkTableSink extends CatalogTestBase {
     } finally {
       sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
     }
+  }
+
+  @TestTemplate
+  public void testStaticOverwriteFromWriteOption() throws Exception {
+    assumeThat(isStreamingJob)
+        .as("Flink unbounded streaming does not support overwrite operation")
+        .isFalse();
+    String tableName = "test_static_overwrite_option";
+    sql(
+        "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) WITH ('write.format.default'='%s')",
+        tableName, format.name());
+
+    try {
+      Table partitionedTable =
+          validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, tableName));
+      sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
+
+      sql("INSERT OVERWRITE %s /*+ OPTIONS('overwrite-mode'='static') */ SELECT 4, 'b'", tableName);
+
+      SimpleDataUtil.assertTableRecords(
+          partitionedTable, Lists.newArrayList(SimpleDataUtil.createRecord(4, "b")));
+      assertStaticOverwriteSnapshot(partitionedTable);
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+    }
+  }
+
+  @TestTemplate
+  public void testStaticOverwriteFromTableProperty() throws Exception {
+    assumeThat(isStreamingJob)
+        .as("Flink unbounded streaming does not support overwrite operation")
+        .isFalse();
+    String tableName = "test_static_overwrite_property";
+    sql(
+        "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) "
+            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='static')",
+        tableName, format.name());
+
+    try {
+      Table partitionedTable =
+          validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, tableName));
+      sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
+
+      sql("INSERT OVERWRITE %s SELECT 4, 'b'", tableName);
+
+      SimpleDataUtil.assertTableRecords(
+          partitionedTable, Lists.newArrayList(SimpleDataUtil.createRecord(4, "b")));
+      assertStaticOverwriteSnapshot(partitionedTable);
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+    }
+  }
+
+  @TestTemplate
+  public void testStaticOverwriteFromEmptySourceRemovesAllRows() throws Exception {
+    assumeThat(isStreamingJob)
+        .as("Flink unbounded streaming does not support overwrite operation")
+        .isFalse();
+    String tableName = "test_static_overwrite_empty_source";
+    String sourceName = "test_static_overwrite_empty_source_input";
+    sql(
+        "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) "
+            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='static')",
+        tableName, format.name());
+    sql("CREATE TABLE %s(id INT, data VARCHAR)", sourceName);
+
+    try {
+      Table partitionedTable =
+          validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, tableName));
+      sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
+
+      sql("INSERT OVERWRITE %s SELECT id, data FROM %s", tableName, sourceName);
+
+      SimpleDataUtil.assertTableRecords(partitionedTable, Lists.newArrayList());
+      partitionedTable.refresh();
+      Snapshot snapshot = partitionedTable.currentSnapshot();
+      assertThat(snapshot.operation()).isEqualTo(DataOperations.DELETE);
+      assertThat(snapshot.summary())
+          .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "3")
+          .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "0");
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, sourceName);
+    }
+  }
+
+  @TestTemplate
+  public void testDynamicOverwriteOptionOverridesStaticTableProperty() throws Exception {
+    assumeThat(isStreamingJob)
+        .as("Flink unbounded streaming does not support overwrite operation")
+        .isFalse();
+    String tableName = "test_dynamic_option_static_property";
+    sql(
+        "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) "
+            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='static')",
+        tableName, format.name());
+
+    try {
+      Table partitionedTable =
+          validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, tableName));
+      sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
+
+      sql(
+          "INSERT OVERWRITE %s /*+ OPTIONS('overwrite-mode'='dynamic') */ SELECT 4, 'b'",
+          tableName);
+
+      SimpleDataUtil.assertTableRecords(
+          partitionedTable,
+          Lists.newArrayList(
+              SimpleDataUtil.createRecord(1, "a"),
+              SimpleDataUtil.createRecord(4, "b"),
+              SimpleDataUtil.createRecord(3, "c")));
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+    }
+  }
+
+  @TestTemplate
+  public void testPartitionClauseRejectedInStaticOverwrite() {
+    assumeThat(isStreamingJob)
+        .as("Flink unbounded streaming does not support overwrite operation")
+        .isFalse();
+    String tableName = "test_static_overwrite_partition_clause";
+    sql(
+        "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) "
+            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='static')",
+        tableName, format.name());
+
+    try {
+      assertThatThrownBy(() -> sql("INSERT OVERWRITE %s PARTITION (data='a') SELECT 6", tableName))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage(
+              "Cannot overwrite PARTITION {data=a} when overwrite-mode is static: "
+                  + "a static overwrite replaces the whole table.");
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+    }
+  }
+
+  @TestTemplate
+  public void testPartitionClauseRejectedWhenWriteOptionEnablesOverwrite() {
+    String tableName = "test_static_overwrite_partition_clause_option";
+    sql(
+        "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) "
+            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='static')",
+        tableName, format.name());
+
+    try {
+      assertThatThrownBy(
+              () ->
+                  sql(
+                      "INSERT INTO %s /*+ OPTIONS('overwrite-enabled'='true') */ "
+                          + "PARTITION (data='a') SELECT 6",
+                      tableName))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage(
+              "Cannot overwrite PARTITION {data=a} when overwrite-mode is static: "
+                  + "a static overwrite replaces the whole table.");
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+    }
+  }
+
+  @TestTemplate
+  public void testStaticOverwriteReplacesFilesWrittenUnderOlderSpec() throws Exception {
+    assumeThat(isStreamingJob)
+        .as("Flink unbounded streaming does not support overwrite operation")
+        .isFalse();
+    String tableName = "test_static_overwrite_older_spec";
+    sql(
+        "CREATE TABLE %s(id INT, data VARCHAR) "
+            + "WITH ('write.format.default'='%s', 'write.flink.overwrite-mode'='static')",
+        tableName, format.name());
+
+    try {
+      sql("INSERT INTO %s VALUES (0, 'z')", tableName);
+      Table olderSpecTable =
+          validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, tableName));
+      olderSpecTable.updateSpec().addField("data").commit();
+      sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+
+      sql("INSERT OVERWRITE %s SELECT 3, 'a'", tableName);
+
+      SimpleDataUtil.assertTableRecords(
+          olderSpecTable, Lists.newArrayList(SimpleDataUtil.createRecord(3, "a")));
+      assertStaticOverwriteSnapshot(olderSpecTable);
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+    }
+  }
+
+  private static void assertStaticOverwriteSnapshot(Table table) {
+    table.refresh();
+    Snapshot snapshot = table.currentSnapshot();
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+    assertThat(snapshot.summary())
+        .doesNotContainKey(SnapshotSummary.REPLACE_PARTITIONS_PROP)
+        .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "3")
+        .containsEntry(SnapshotSummary.ADDED_FILES_PROP, "1")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "1");
   }
 
   @TestTemplate
