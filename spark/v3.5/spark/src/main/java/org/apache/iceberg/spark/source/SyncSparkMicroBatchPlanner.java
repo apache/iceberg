@@ -33,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.spark.sql.connector.read.streaming.ReadAllAvailable;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -131,6 +132,12 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
 
     Snapshot curSnapshot = table().snapshot(startingOffset.snapshotId());
     validateCurrentSnapshotExists(curSnapshot, startingOffset);
+
+    // An unbounded limit has no per-file limit to enforce, so only the latest valid snapshot's
+    // manifests are indexed instead of reading every manifest between the start and the head.
+    if (limit instanceof ReadAllAvailable) {
+      return latestOffsetForUnbounded(startingOffset, curSnapshot);
+    }
 
     // Use the pre-computed snapshotId when Trigger.AvailableNow is enabled.
     long latestSnapshotId =
@@ -232,6 +239,41 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
 
     // if no new data arrived, then return null.
     return latestStreamingOffset.equals(startingOffset) ? null : latestStreamingOffset;
+  }
+
+  private StreamingOffset latestOffsetForUnbounded(
+      StreamingOffset startingOffset, Snapshot curSnapshot) {
+    Snapshot lastValidSnapshot;
+    if (lastOffsetForTriggerAvailableNow != null) {
+      lastValidSnapshot = table().snapshot(lastOffsetForTriggerAvailableNow.snapshotId());
+      validateCurrentSnapshotExists(lastValidSnapshot, lastOffsetForTriggerAvailableNow);
+    } else {
+      lastValidSnapshot = curSnapshot;
+      Snapshot next;
+      do {
+        next = nextValidSnapshot(lastValidSnapshot);
+        if (next != null) {
+          lastValidSnapshot = next;
+        }
+      } while (next != null);
+    }
+
+    StreamingOffset latestStreamingOffset =
+        new StreamingOffset(lastValidSnapshot.snapshotId(), endPosition(lastValidSnapshot), false);
+    return latestStreamingOffset.equals(startingOffset) ? null : latestStreamingOffset;
+  }
+
+  // Existing entries in merged manifests also take positions, so the end position can be larger
+  // than the snapshot's added-file count.
+  private long endPosition(Snapshot snapshot) {
+    List<Pair<ManifestFile, Integer>> indexedManifests =
+        MicroBatches.skippedManifestIndexesFromSnapshot(table().io(), snapshot, 0, false);
+    if (indexedManifests.isEmpty()) {
+      return 0;
+    }
+
+    Pair<ManifestFile, Integer> lastManifest = indexedManifests.get(indexedManifests.size() - 1);
+    return lastManifest.second() + lastManifest.first().addedFilesCount();
   }
 
   @Override
