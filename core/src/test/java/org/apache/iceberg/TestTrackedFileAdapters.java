@@ -25,16 +25,28 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Comparator;
 import java.util.Map;
+import java.util.stream.Stream;
+import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.mumbling.MumblingTestUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.BinaryUtil;
+import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.UnicodeUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 
 class TestTrackedFileAdapters {
@@ -86,11 +98,21 @@ class TestTrackedFileAdapters {
   private static final int DATA_FILE_POS_ORDINAL =
       DataFile.getType(Types.StructType.of()).fields().size();
 
+  private static final int ID_FIELD_ID = 1;
+  private static final int SCORE_FIELD_ID = 2;
+  private static final int TS_FIELD_ID = 4;
   private static final Schema TABLE_SCHEMA =
       new Schema(
           optional(1, "id", Types.IntegerType.get()),
           optional(2, "score", Types.FloatType.get()),
           optional(3, "geom", Types.GeometryType.crs84()));
+  private static final Schema SCHEMA_WITH_TS =
+      new Schema(
+          ImmutableList.<Types.NestedField>builder()
+              .addAll(TABLE_SCHEMA.columns())
+              .add(optional(TS_FIELD_ID, "ts", Types.TimestampType.withZone()))
+              .build());
+  private static final long RECORD_COUNT = 100L;
   private static final Types.StructType CONTENT_STATS_TYPE =
       StatsUtil.statsReadSchema(TABLE_SCHEMA, ImmutableList.of(1, 2, 3));
   private static final FieldStats<?> ID_STATS =
@@ -654,7 +676,8 @@ class TestTrackedFileAdapters {
 
   @Test
   void dataTrackedFileAdapterFromDataFile() {
-    TrackedFile result = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(DATA_FILE);
+    TrackedFile result =
+        TrackedFileAdapters.forDataFile(TABLE_SCHEMA, UNPARTITIONED).wrap(DATA_FILE);
 
     assertThat(result.tracking()).isNull();
     assertWrappedDataFileMatchesFileFields(result, DATA_FILE);
@@ -663,7 +686,7 @@ class TestTrackedFileAdapters {
   @Test
   void dataTrackedFileAdapterFromExistingManifestEntry() {
     TrackedFile result =
-        TrackedFileAdapters.forDataFile(TABLE_SCHEMA)
+        TrackedFileAdapters.forDataFile(TABLE_SCHEMA, UNPARTITIONED)
             .wrap(
                 new GenericManifestEntry<DataFile>(
                         ManifestEntry.getSchema(UNPARTITIONED_SPEC.partitionType()).asStruct())
@@ -681,7 +704,8 @@ class TestTrackedFileAdapters {
 
   @Test
   void dataTrackedFileAdapterReuse() {
-    TrackedFileAdapters.DataTrackedFile adapter = TrackedFileAdapters.forDataFile(TABLE_SCHEMA);
+    TrackedFileAdapters.DataTrackedFile adapter =
+        TrackedFileAdapters.forDataFile(TABLE_SCHEMA, UNPARTITIONED);
 
     adapter.wrap(DATA_FILE);
     assertWrappedDataFileMatchesFileFields(adapter, DATA_FILE);
@@ -711,7 +735,8 @@ class TestTrackedFileAdapters {
 
   @Test
   void dataTrackedFileAdapterRejectsNullFile() {
-    TrackedFileAdapters.DataTrackedFile adapter = TrackedFileAdapters.forDataFile(TABLE_SCHEMA);
+    TrackedFileAdapters.DataTrackedFile adapter =
+        TrackedFileAdapters.forDataFile(TABLE_SCHEMA, UNPARTITIONED);
     assertThatThrownBy(() -> adapter.wrap((DataFile) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Invalid file: null");
@@ -721,13 +746,15 @@ class TestTrackedFileAdapters {
   void dataTrackedFileAdapterUnwrapsToOriginalTrackedFile() {
     TrackedFile original = trackedFile(FileContent.DATA);
     DataFile adapted = TrackedFileAdapters.asDataFile(original, UNPARTITIONED);
-    TrackedFile roundTripped = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(adapted);
+    TrackedFile roundTripped =
+        TrackedFileAdapters.forDataFile(TABLE_SCHEMA, UNPARTITIONED).wrap(adapted);
     assertThat(roundTripped).isSameAs(original);
   }
 
   @Test
   void dataTrackedFileAdapterContentStats() {
-    TrackedFile result = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(DATA_FILE_WITH_METRICS);
+    TrackedFile result =
+        TrackedFileAdapters.forDataFile(TABLE_SCHEMA, UNPARTITIONED).wrap(DATA_FILE_WITH_METRICS);
 
     ContentStats stats = result.contentStats();
     assertThat(stats).isNotNull();
@@ -741,7 +768,8 @@ class TestTrackedFileAdapters {
 
   @Test
   void dataTrackedFileAdapterWithoutMetricsHasNoContentStats() {
-    TrackedFile result = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(DATA_FILE);
+    TrackedFile result =
+        TrackedFileAdapters.forDataFile(TABLE_SCHEMA, UNPARTITIONED).wrap(DATA_FILE);
 
     assertThat(result.contentStats()).isNull();
   }
@@ -760,7 +788,9 @@ class TestTrackedFileAdapters {
             ImmutableList.of(0L),
             null,
             null);
-    TrackedFile result = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(partitioned);
+    TrackedFile result =
+        TrackedFileAdapters.forDataFile(PARTITION_SCHEMA, specsById(PARTITIONED_SPEC))
+            .wrap(partitioned);
 
     assertThat(result.partition())
         .usingComparator(Comparators.forType(PARTITIONED_SPEC.partitionType()))
@@ -830,6 +860,296 @@ class TestTrackedFileAdapters {
     assertThatThrownBy(() -> TrackedFileAdapters.forManifestFile().wrap(manifest))
         .isInstanceOf(count.exceptionType())
         .hasMessage("Cannot convert manifest %s: %s", MANIFEST_LOCATION, count.message());
+  }
+
+  @Test
+  void dataTrackedFileAdapterFillsStatsFromIdentityPartition() {
+    PartitionSpec spec = PartitionSpec.builderFor(TABLE_SCHEMA).identity("id").build();
+    DataFile file = dataFile(spec, Row.of(17), new Metrics(RECORD_COUNT));
+
+    ContentStats stats =
+        TrackedFileAdapters.forDataFile(TABLE_SCHEMA, specsById(spec)).wrap(file).contentStats();
+
+    FieldStats<?> idStats = stats.statsFor(ID_FIELD_ID);
+    assertThat(idStats.valueCount()).isEqualTo(RECORD_COUNT);
+    assertThat(idStats.nullValueCount()).isZero();
+    assertThat(idStats.hasNanValueCount()).isFalse();
+    assertBounds(idStats, 17, 17);
+  }
+
+  @Test
+  void dataTrackedFileAdapterFillsStatsFromNullPartition() {
+    PartitionSpec spec = PartitionSpec.builderFor(TABLE_SCHEMA).identity("id").build();
+    DataFile file = dataFile(spec, Row.of((Object) null), new Metrics(RECORD_COUNT));
+
+    ContentStats stats =
+        TrackedFileAdapters.forDataFile(TABLE_SCHEMA, specsById(spec)).wrap(file).contentStats();
+
+    FieldStats<?> idStats = stats.statsFor(ID_FIELD_ID);
+    assertThat(idStats.valueCount()).isEqualTo(RECORD_COUNT);
+    assertThat(idStats.nullValueCount()).isEqualTo(RECORD_COUNT);
+    assertBounds(idStats, null, null);
+  }
+
+  private static Stream<Arguments> floatingPointPartitionValues() {
+    return Stream.of(
+        Arguments.of(Types.FloatType.get(), Float.NaN, RECORD_COUNT, null),
+        Arguments.of(Types.FloatType.get(), 17.0f, 0L, 17.0f),
+        Arguments.of(Types.DoubleType.get(), Double.NaN, RECORD_COUNT, null),
+        Arguments.of(Types.DoubleType.get(), 17.0d, 0L, 17.0d));
+  }
+
+  @ParameterizedTest(name = "{0} partition value {1}")
+  @MethodSource("floatingPointPartitionValues")
+  void dataTrackedFileAdapterFillsStatsFromFloatingPointPartition(
+      Type type, Object value, long nanValueCount, Object bound) {
+    Schema schema = new Schema(optional(1, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("value").build();
+    DataFile file = dataFile(spec, Row.of(value), new Metrics(RECORD_COUNT));
+
+    ContentStats stats =
+        TrackedFileAdapters.forDataFile(schema, specsById(spec)).wrap(file).contentStats();
+
+    FieldStats<?> valueStats = stats.statsFor(1);
+    assertThat(valueStats.nullValueCount()).isZero();
+    assertThat(valueStats.nanValueCount()).isEqualTo(nanValueCount);
+    assertBounds(valueStats, bound, bound);
+  }
+
+  @Test
+  void dataTrackedFileAdapterKeepsColumnBounds() {
+    PartitionSpec spec = PartitionSpec.builderFor(TABLE_SCHEMA).truncate("id", 10).build();
+    Metrics columnBounds =
+        new Metrics(
+            RECORD_COUNT,
+            null, // columnSizes
+            ImmutableMap.of(ID_FIELD_ID, RECORD_COUNT),
+            ImmutableMap.of(ID_FIELD_ID, 0L),
+            null, // nanValueCounts
+            ImmutableMap.of(ID_FIELD_ID, Conversions.toByteBuffer(Types.IntegerType.get(), 12)),
+            ImmutableMap.of(ID_FIELD_ID, Conversions.toByteBuffer(Types.IntegerType.get(), 15)));
+    DataFile file = dataFile(spec, Row.of(10), columnBounds);
+
+    ContentStats stats =
+        TrackedFileAdapters.forDataFile(TABLE_SCHEMA, specsById(spec)).wrap(file).contentStats();
+
+    assertBounds(stats.statsFor(ID_FIELD_ID), 12, 15);
+  }
+
+  private static Stream<Arguments> truncatedColumnBounds() {
+    String value = "books-and-magazines";
+    ByteBuffer binaryValue = ByteBuffer.wrap(value.getBytes(StandardCharsets.UTF_8));
+    return Stream.of(
+        Arguments.of(
+            Types.StringType.get(),
+            value,
+            UnicodeUtil.truncateStringMin(value, 16),
+            UnicodeUtil.truncateStringMax(value, 16)),
+        Arguments.of(
+            Types.BinaryType.get(),
+            binaryValue,
+            BinaryUtil.truncateBinaryMin(binaryValue, 16),
+            BinaryUtil.truncateBinaryMax(binaryValue, 16)));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("truncatedColumnBounds")
+  void dataTrackedFileAdapterFillsBoundsFromPartitionWhenColumnBoundsMayBeTruncated(
+      Type type, Object value, Object truncatedLower, Object truncatedUpper) {
+    Schema schema = new Schema(optional(1, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("value").build();
+    Metrics truncatedBounds =
+        new Metrics(
+            RECORD_COUNT,
+            null, // columnSizes
+            ImmutableMap.of(1, RECORD_COUNT),
+            ImmutableMap.of(1, 0L),
+            null, // nanValueCounts
+            ImmutableMap.of(1, Conversions.toByteBuffer(type, truncatedLower)),
+            ImmutableMap.of(1, Conversions.toByteBuffer(type, truncatedUpper)));
+    DataFile file = dataFile(spec, Row.of(value), truncatedBounds);
+
+    ContentStats stats =
+        TrackedFileAdapters.forDataFile(schema, specsById(spec)).wrap(file).contentStats();
+
+    FieldStats<Object> valueStats = stats.statsFor(1);
+    Comparator<Object> comparator = Comparators.forType(type.asPrimitiveType());
+    assertThat(valueStats.lowerBound()).usingComparator(comparator).isEqualTo(value);
+    assertThat(valueStats.upperBound()).usingComparator(comparator).isEqualTo(value);
+  }
+
+  @Test
+  void dataTrackedFileAdapterKeepsStatsForOtherColumns() {
+    PartitionSpec spec = PartitionSpec.builderFor(TABLE_SCHEMA).identity("id").build();
+    Metrics scoreStats =
+        new Metrics(
+            RECORD_COUNT,
+            null, // columnSizes
+            ImmutableMap.of(SCORE_FIELD_ID, RECORD_COUNT),
+            ImmutableMap.of(SCORE_FIELD_ID, 5L),
+            ImmutableMap.of(SCORE_FIELD_ID, 3L),
+            ImmutableMap.of(SCORE_FIELD_ID, Conversions.toByteBuffer(Types.FloatType.get(), 1.0f)),
+            ImmutableMap.of(
+                SCORE_FIELD_ID, Conversions.toByteBuffer(Types.FloatType.get(), 100.0f)));
+    DataFile file = dataFile(spec, Row.of(17), scoreStats);
+
+    ContentStats stats =
+        TrackedFileAdapters.forDataFile(TABLE_SCHEMA, specsById(spec)).wrap(file).contentStats();
+
+    assertThat(stats.type())
+        .isEqualTo(
+            StatsUtil.statsReadSchema(TABLE_SCHEMA, ImmutableList.of(ID_FIELD_ID, SCORE_FIELD_ID)));
+    assertBounds(stats.statsFor(ID_FIELD_ID), 17, 17);
+    FieldStats<?> adaptedScoreStats = stats.statsFor(SCORE_FIELD_ID);
+    assertThat(adaptedScoreStats.nullValueCount()).isEqualTo(5L);
+    assertThat(adaptedScoreStats.nanValueCount()).isEqualTo(3L);
+    assertBounds(adaptedScoreStats, 1.0f, 100.0f);
+  }
+
+  @Test
+  void dataTrackedFileAdapterIgnoresVoidPartition() {
+    PartitionSpec spec = PartitionSpec.builderFor(TABLE_SCHEMA).alwaysNull("id").build();
+    DataFile file = dataFile(spec, Row.of((Object) null), new Metrics(RECORD_COUNT));
+
+    TrackedFile result = TrackedFileAdapters.forDataFile(TABLE_SCHEMA, specsById(spec)).wrap(file);
+
+    assertThat(result.contentStats()).isNull();
+  }
+
+  @Test
+  void dataTrackedFileAdapterRejectsDroppedPartitionSource() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA_WITH_TS).identity("ts").build();
+    DataFile file =
+        dataFile(
+            spec,
+            Row.of(DateTimeUtil.isoTimestamptzToMicros("2024-03-05T10:15:30.000000+00:00")),
+            new Metrics(RECORD_COUNT));
+    TrackedFileAdapters.DataTrackedFile adapter =
+        TrackedFileAdapters.forDataFile(TABLE_SCHEMA, specsById(spec));
+
+    assertThatThrownBy(() -> adapter.wrap(file))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot convert data file %s: partition source column was dropped: 1000: ts: identity(4)",
+            DATA_FILE_LOCATION);
+  }
+
+  private static Stream<Arguments> transformsThatDoNotPreserveOrder() {
+    return Stream.of(
+        Arguments.of(Transforms.bucket(16), "bucket[16]"),
+        Arguments.of(Transforms.fromString("unknown"), "unknown"));
+  }
+
+  @ParameterizedTest(name = "{1}")
+  @MethodSource("transformsThatDoNotPreserveOrder")
+  void dataTrackedFileAdapterRejectsTransformThatDoesNotPreserveOrder(
+      Transform<?, ?> transform, String transformName) {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(TABLE_SCHEMA).add(ID_FIELD_ID, 1000, "id_part", transform).build();
+    DataFile file = dataFile(spec, Row.of(3), new Metrics(RECORD_COUNT));
+    TrackedFileAdapters.DataTrackedFile adapter =
+        TrackedFileAdapters.forDataFile(TABLE_SCHEMA, specsById(spec));
+
+    assertThatThrownBy(() -> adapter.wrap(file))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot convert data file %s: partition field does not preserve order: "
+                + "1000: id_part: %s(1)",
+            DATA_FILE_LOCATION, transformName);
+  }
+
+  @Test
+  void dataTrackedFileAdapterNarrowestBoundsForTruncate() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(TABLE_SCHEMA)
+            .truncate("id", 10)
+            .add(ID_FIELD_ID, 1001, "id_trunc_4", Transforms.truncate(4))
+            .build();
+    // the partition of id = 11
+    DataFile file = dataFile(spec, Row.of(10, 8), new Metrics(RECORD_COUNT));
+
+    ContentStats stats =
+        TrackedFileAdapters.forDataFile(TABLE_SCHEMA, specsById(spec)).wrap(file).contentStats();
+
+    assertBounds(stats.statsFor(ID_FIELD_ID), 10, 11);
+  }
+
+  @Test
+  void dataTrackedFileAdapterNarrowestBoundsForIdentityAndDay() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA_WITH_TS).identity("ts").day("ts").build();
+    long ts = DateTimeUtil.isoTimestamptzToMicros("2024-03-05T10:15:30.000000+00:00");
+    DataFile file =
+        dataFile(
+            spec, Row.of(ts, DateTimeUtil.isoDateToDays("2024-03-05")), new Metrics(RECORD_COUNT));
+
+    ContentStats stats =
+        TrackedFileAdapters.forDataFile(SCHEMA_WITH_TS, specsById(spec)).wrap(file).contentStats();
+
+    assertBounds(stats.statsFor(TS_FIELD_ID), ts, ts);
+  }
+
+  @Test
+  void dataTrackedFileAdapterNarrowestBoundsSkipsMissingUpperBound() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(PARTITION_SCHEMA)
+            .identity("category")
+            .truncate("category", 1)
+            .build();
+    // truncate(1) of the max code point has no higher prefix, so it has no upper bound
+    String maxCodePoint = new String(Character.toChars(Character.MAX_CODE_POINT));
+    DataFile file = dataFile(spec, Row.of(maxCodePoint, maxCodePoint), new Metrics(RECORD_COUNT));
+    int categoryId = PARTITION_SCHEMA.findField("category").fieldId();
+
+    ContentStats stats =
+        TrackedFileAdapters.forDataFile(PARTITION_SCHEMA, specsById(spec))
+            .wrap(file)
+            .contentStats();
+
+    FieldStats<CharSequence> categoryStats = stats.statsFor(categoryId);
+    assertThat(categoryStats.upperBound())
+        .usingComparator(Comparators.charSequences())
+        .isEqualTo(maxCodePoint);
+  }
+
+  @Test
+  void dataTrackedFileAdapterRejectsMissingSpec() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(TABLE_SCHEMA).identity("id").withSpecId(1).build();
+    DataFile file = dataFile(spec, Row.of(17), new Metrics(RECORD_COUNT));
+    TrackedFileAdapters.DataTrackedFile adapter =
+        TrackedFileAdapters.forDataFile(TABLE_SCHEMA, ImmutableMap.of());
+
+    assertThatThrownBy(() -> adapter.wrap(file))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find partition spec for spec ID: 1");
+  }
+
+  @Test
+  void dataTrackedFileAdapterReuseAcrossSpecs() {
+    PartitionSpec idSpec =
+        PartitionSpec.builderFor(TABLE_SCHEMA).identity("id").withSpecId(0).build();
+    PartitionSpec scoreSpec =
+        PartitionSpec.builderFor(TABLE_SCHEMA)
+            .add(SCORE_FIELD_ID, 1001, "score", Transforms.identity())
+            .withSpecId(1)
+            .build();
+    TrackedFileAdapters.DataTrackedFile adapter =
+        TrackedFileAdapters.forDataFile(
+            TABLE_SCHEMA, ImmutableMap.of(idSpec.specId(), idSpec, scoreSpec.specId(), scoreSpec));
+
+    ContentStats idFileStats =
+        adapter.wrap(dataFile(idSpec, Row.of(17), new Metrics(RECORD_COUNT))).contentStats();
+    assertBounds(idFileStats.statsFor(ID_FIELD_ID), 17, 17);
+
+    ContentStats scoreFileStats =
+        adapter.wrap(dataFile(scoreSpec, Row.of(17.0f), new Metrics(RECORD_COUNT))).contentStats();
+    assertThat(scoreFileStats.statsFor(ID_FIELD_ID)).isNull();
+    assertBounds(scoreFileStats.statsFor(SCORE_FIELD_ID), 17.0f, 17.0f);
+  }
+
+  private static void assertBounds(FieldStats<?> stats, Object lowerBound, Object upperBound) {
+    assertThat(stats.lowerBound()).isEqualTo(lowerBound);
+    assertThat(stats.upperBound()).isEqualTo(upperBound);
   }
 
   private static void assertWrappedDataFileMatchesFileFields(TrackedFile result, DataFile file) {
@@ -960,6 +1280,15 @@ class TestTrackedFileAdapters {
         .offset(128L)
         .sizeInBytes(256L)
         .cardinality(10L)
+        .build();
+  }
+
+  private static DataFile dataFile(PartitionSpec spec, StructLike partition, Metrics metrics) {
+    return DataFiles.builder(spec)
+        .withPath(DATA_FILE_LOCATION)
+        .withFileSizeInBytes(1024L)
+        .withPartition(partition)
+        .withMetrics(metrics)
         .build();
   }
 }
