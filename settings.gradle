@@ -70,6 +70,13 @@ project(':delta-lake').name = 'iceberg-delta-lake'
 project(':open-api').name = 'iceberg-open-api'
 project(':mr').name = 'iceberg-mr'
 
+// GPU merge-on-read through TornadoVM and RAPIDS cuDF. Built only where a TornadoVM SDK is set up,
+// because its API jars come from that SDK rather than from a repository.
+if (System.getenv('TORNADOVM_HOME') != null) {
+  include 'tornadovm'
+  project(':tornadovm').name = 'iceberg-tornadovm'
+}
+
 if (null != System.getProperty("allModules")) {
   System.setProperty("flinkVersions", System.getProperty("knownFlinkVersions"))
   System.setProperty("sparkVersions", System.getProperty("knownSparkVersions"))
@@ -185,6 +192,13 @@ if (sparkVersions.contains("4.2")) {
   project(":iceberg-spark:spark-extensions-4.2_2.13").name = "iceberg-spark-extensions-4.2_2.13"
   project(":iceberg-spark:spark-runtime-4.2_2.13").projectDir = file('spark/v4.2/spark-runtime')
   project(":iceberg-spark:spark-runtime-4.2_2.13").name = "iceberg-spark-runtime-4.2_2.13"
+}
+
+// Spark 4.2 on the GPU, through the merge-on-read scan above and Spark 4.2's reader and rewrite hooks.
+if (System.getenv('TORNADOVM_HOME') != null && sparkVersions.contains("4.2")) {
+  include 'tornadovm-spark'
+  project(':tornadovm-spark').projectDir = file('tornadovm/spark')
+  project(':tornadovm-spark').name = 'iceberg-tornadovm-spark'
 }
 
 if (kafkaVersions.contains("3")) {

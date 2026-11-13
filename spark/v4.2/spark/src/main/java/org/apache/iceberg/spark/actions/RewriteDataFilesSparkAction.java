@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -52,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
@@ -82,8 +84,15 @@ public class RewriteDataFilesSparkAction
 
   public static final boolean CACHE_DELETE_FILES_DEFAULT = false;
 
+  /**
+   * Selects a {@link FileRewriteRunnerProvider} by name for a bin-pack rewrite. Defaults to the
+   * session property {@link SparkSQLProperties#REWRITE_RUNNER_PROVIDER}, if set.
+   */
+  public static final String REWRITE_RUNNER_PROVIDER = "rewrite-runner-provider";
+
   private static final Set<String> VALID_OPTIONS =
       ImmutableSet.of(
+          REWRITE_RUNNER_PROVIDER,
           MAX_CONCURRENT_FILE_GROUP_REWRITES,
           MAX_FILE_GROUP_SIZE_BYTES,
           PARTIAL_PROGRESS_ENABLED,
@@ -227,12 +236,56 @@ public class RewriteDataFilesSparkAction
             ? new SparkShufflingDataRewritePlanner(table, filter, startingSnapshotId, caseSensitive)
             : new BinPackRewriteFilePlanner(table, filter, startingSnapshotId, caseSensitive);
 
+    String providerName = runnerProviderName();
+    if (providerName != null
+        && (runner == null || runner instanceof SparkBinPackFileRewriteRunner)) {
+      FileRewriteRunner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> provided =
+          providedRunner(providerName);
+      if (provided != null) {
+        this.runner = provided;
+      }
+    }
+
     // Default to BinPack if no strategy selected
     if (this.runner == null) {
       this.runner = new SparkBinPackFileRewriteRunner(spark(), table);
     }
 
     validateAndInitOptions();
+  }
+
+  private String runnerProviderName() {
+    String fromOption = options().get(REWRITE_RUNNER_PROVIDER);
+    Preconditions.checkArgument(
+        fromOption == null || runner == null || runner instanceof SparkBinPackFileRewriteRunner,
+        "Cannot use %s with %s: it applies to bin-pack rewrites only",
+        REWRITE_RUNNER_PROVIDER,
+        runner == null ? null : runner.description());
+    return fromOption != null
+        ? fromOption
+        : spark().conf().get(SparkSQLProperties.REWRITE_RUNNER_PROVIDER, null);
+  }
+
+  private FileRewriteRunner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> providedRunner(
+      String name) {
+    List<String> available = Lists.newArrayList();
+    for (FileRewriteRunnerProvider provider : ServiceLoader.load(FileRewriteRunnerProvider.class)) {
+      if (name.equals(provider.name())) {
+        FileRewriteRunner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> provided =
+            provider.create(spark(), table);
+        if (provided == null) {
+          LOG.info("Rewrite runner provider {} declined {}, using bin-pack", name, table.name());
+        }
+
+        return provided;
+      }
+
+      available.add(provider.name());
+    }
+
+    throw new IllegalArgumentException(
+        String.format(
+            "Cannot find rewrite runner provider %s, available providers: %s", name, available));
   }
 
   @VisibleForTesting

@@ -71,7 +71,7 @@ configure(jmhProjects) {
     forceGC = true
     includeTests = true
     humanOutputFile = file(jmhOutputPath)
-    jvmArgs = ['-Xmx32g']
+    jvmArgs = ['-Xmx32g'] + (project.hasProperty('extraJvmArgs') ? project.extraJvmArgs : [])
     resultsFile = file(jmhJsonOutputPath)
     resultFormat = 'JSON'
     includes = [jmhIncludeRegex]
@@ -90,4 +90,32 @@ configure(jmhProjects) {
   }
 
   tasks.jmh.finalizedBy tasks.jmhReport
+
+  // -PjmhJvmArgsAppend="..." adds JVM arguments after jvmArgs, e.g. a GPU runtime's argfile.
+  if (project.hasProperty('jmhJvmArgsAppend')) {
+    jmh {
+      jvmArgsAppend = project.property('jmhJvmArgsAppend').toString().split(' ').findAll { it } as List
+    }
+  }
+
+  // The Spark 4.2 merge-on-read benchmarks also run on the GPU scan when that module is built.
+  if (project.name.startsWith('iceberg-spark-4.2_') && rootProject.findProject(':iceberg-tornadovm') != null) {
+    dependencies {
+      jmh project(':iceberg-tornadovm')
+    }
+    // That module targets Java 21 (FFM); only the benchmarks resolve and compile at 21.
+    configurations.matching { it.name in ['jmhCompileClasspath', 'jmhRuntimeClasspath'] }.configureEach {
+      attributes { attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21) }
+    }
+    tasks.matching { it.name in ['compileJmhJava', 'jmhCompileGeneratedClasses'] }.configureEach {
+      options.release = 21
+      options.compilerArgs += ['--enable-preview']
+    }
+    tasks.matching { it.name == 'jmhRunBytecodeGenerator' }.configureEach {
+      jvmArgs.add('--enable-preview')
+    }
+  } else if (project.name.startsWith('iceberg-spark-4.2_')) {
+    // Without the GPU module (no TORNADOVM_HOME), its benchmarks are left out.
+    sourceSets.jmh.java.exclude '**/*GpuBenchmark.java'
+  }
 }
