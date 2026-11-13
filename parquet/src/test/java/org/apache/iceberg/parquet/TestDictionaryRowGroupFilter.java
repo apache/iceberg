@@ -1367,6 +1367,205 @@ public class TestDictionaryRowGroupFilter {
         .isTrue();
   }
 
+  @TestTemplate
+  public void testSignedZeroDictionaryFiltering() throws IOException {
+    Schema signedZeroSchema =
+        new Schema(
+            required(1, "float_col", FloatType.get()), required(2, "double_col", DoubleType.get()));
+
+    File parquetFile = new File(temp.toFile(), "signed-zero.parquet");
+    OutputFile outputFile = Files.localOutput(parquetFile);
+
+    try (FileAppender<Record> appender =
+        Parquet.write(outputFile).schema(signedZeroSchema).writerVersion(writerVersion).build()) {
+      GenericRecordBuilder builder =
+          new GenericRecordBuilder(convert(signedZeroSchema, "signed_zero"));
+
+      for (int i = 0; i < 1000; i += 1) {
+        builder.set("float_col", -0.0F);
+        builder.set("double_col", -0.0D);
+        appender.add(builder.build());
+      }
+    }
+
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(Files.localInput(parquetFile)))) {
+      assertThat(reader.getRowGroups()).hasSize(1);
+
+      BlockMetaData rowGroup = reader.getRowGroups().get(0);
+      MessageType fileSchema = reader.getFileMetaData().getSchema();
+      DictionaryPageReadStore dictionaries = reader.getNextDictionaryReader();
+
+      assertThat(getColumnForName(rowGroup, "float_col").getEncodings())
+          .containsAnyOf(Encoding.RLE_DICTIONARY, Encoding.PLAIN_DICTIONARY);
+      assertThat(getColumnForName(rowGroup, "double_col").getEncodings())
+          .containsAnyOf(Encoding.RLE_DICTIONARY, Encoding.PLAIN_DICTIONARY);
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(signedZeroSchema, equal("float_col", +0.0F))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .as("Float -0.0 must match +0.0")
+          .isTrue();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(signedZeroSchema, equal("double_col", +0.0D))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .as("Double -0.0 must match +0.0")
+          .isTrue();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(
+                      signedZeroSchema, greaterThanOrEqual("float_col", +0.0F))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .as("Float -0.0 must satisfy >= +0.0")
+          .isTrue();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(
+                      signedZeroSchema, greaterThanOrEqual("double_col", +0.0D))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .as("Double -0.0 must satisfy >= +0.0")
+          .isTrue();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(signedZeroSchema, in("float_col", +0.0F))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .as("Float -0.0 must match IN (+0.0)")
+          .isTrue();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(signedZeroSchema, in("double_col", +0.0D))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .as("Double -0.0 must match IN (+0.0)")
+          .isTrue();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(signedZeroSchema, notEqual("float_col", +0.0F))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .as("Float -0.0 must not match != +0.0")
+          .isFalse();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(signedZeroSchema, notEqual("double_col", +0.0D))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .as("Double -0.0 must not match != +0.0")
+          .isFalse();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(signedZeroSchema, notIn("float_col", +0.0F))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .as("Float -0.0 must not match NOT IN (+0.0)")
+          .isFalse();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(signedZeroSchema, notIn("double_col", +0.0D))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .as("Double -0.0 must not match NOT IN (+0.0)")
+          .isFalse();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(signedZeroSchema, equal("float_col", -0.0F))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .as("Float -0.0 must match -0.0")
+          .isTrue();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(signedZeroSchema, equal("double_col", -0.0D))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .as("Double -0.0 must match -0.0")
+          .isTrue();
+    }
+  }
+
+  @TestTemplate
+  public void testMixedSignedZeroDictionaryFiltering() throws IOException {
+    Schema signedZeroSchema =
+        new Schema(
+            required(1, "float_col", FloatType.get()), required(2, "double_col", DoubleType.get()));
+
+    File parquetFile = new File(temp.toFile(), "mixed-signed-zero.parquet");
+
+    try (FileAppender<Record> appender =
+        Parquet.write(Files.localOutput(parquetFile))
+            .schema(signedZeroSchema)
+            .writerVersion(writerVersion)
+            .build()) {
+      GenericRecordBuilder builder =
+          new GenericRecordBuilder(convert(signedZeroSchema, "mixed_signed_zero"));
+
+      for (int i = 0; i < 1000; i += 1) {
+        builder.set("float_col", i % 2 == 0 ? +0.0F : -0.0F);
+        builder.set("double_col", i % 2 == 0 ? +0.0D : -0.0D);
+        appender.add(builder.build());
+      }
+    }
+
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(Files.localInput(parquetFile)))) {
+      assertThat(reader.getRowGroups()).hasSize(1);
+
+      BlockMetaData rowGroup = reader.getRowGroups().get(0);
+      MessageType fileSchema = reader.getFileMetaData().getSchema();
+      DictionaryPageReadStore dictionaries = reader.getNextDictionaryReader();
+
+      assertThat(getColumnForName(rowGroup, "float_col").getEncodings())
+          .containsAnyOf(Encoding.RLE_DICTIONARY, Encoding.PLAIN_DICTIONARY);
+      assertThat(getColumnForName(rowGroup, "double_col").getEncodings())
+          .containsAnyOf(Encoding.RLE_DICTIONARY, Encoding.PLAIN_DICTIONARY);
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(signedZeroSchema, equal("float_col", -0.0F))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .isTrue();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(signedZeroSchema, equal("double_col", +0.0D))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .isTrue();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(signedZeroSchema, notEqual("float_col", +0.0F))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .isFalse();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(signedZeroSchema, notEqual("double_col", -0.0D))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .isFalse();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(signedZeroSchema, notIn("float_col", +0.0F))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .isFalse();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(signedZeroSchema, notIn("double_col", -0.0D))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .isFalse();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(
+                      signedZeroSchema, and(equal("float_col", +0.0F), in("float_col", -0.0F)))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .as("AND predicates must share signed-zero-aware dictionary semantics")
+          .isTrue();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(
+                      signedZeroSchema, or(equal("double_col", -0.0D), equal("double_col", 1.0D)))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .as("OR must retain a matching signed-zero predicate")
+          .isTrue();
+
+      assertThat(
+              new ParquetDictionaryRowGroupFilter(
+                      signedZeroSchema, and(equal("float_col", +0.0F), equal("float_col", 1.0F)))
+                  .shouldRead(fileSchema, rowGroup, dictionaries))
+          .as("AND must prune when one predicate cannot match")
+          .isFalse();
+    }
+  }
+
   private ColumnChunkMetaData getColumnForName(BlockMetaData rowGroup, String columnName) {
     ColumnPath columnPath = ColumnPath.fromDotString(columnName);
     for (ColumnChunkMetaData column : rowGroup.getColumns()) {
