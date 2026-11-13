@@ -35,7 +35,6 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.GenericManifestFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
@@ -49,7 +48,6 @@ import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.RewriteManifests;
 import org.apache.iceberg.RollingManifestWriter;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
@@ -77,7 +75,6 @@ import org.apache.iceberg.spark.SparkDeleteFile;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.ScanTaskUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
@@ -376,32 +373,6 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
       RewriteManifests rewriteManifests = table.rewriteManifests();
       deletedManifests.forEach(rewriteManifests::deleteManifest);
       addedManifests.forEach(rewriteManifests::addManifest);
-      Set<String> deletedPaths =
-          deletedManifests.stream().map(ManifestFile::path).collect(Collectors.toSet());
-      // The validator receives the refreshed parent on every commit attempt, including retries.
-      // Recompute totals against that parent so concurrent changes are included in the summary.
-      rewriteManifests.validateWith(
-          snapshots -> {
-            Snapshot parent = Iterables.getFirst(snapshots, null);
-            if (parent == null) {
-              return false;
-            }
-
-            List<ManifestFile> manifests =
-                parent.allManifests(table.io()).stream()
-                    .filter(manifest -> !deletedPaths.contains(manifest.path()))
-                    .collect(Collectors.toList());
-            manifests.addAll(addedManifests);
-            try {
-              updateSnapshotTotals(rewriteManifests, manifests);
-            } catch (Exception e) {
-              // validation runs before the commit is published, so core and the handler below can
-              // safely delete the staged and replacement manifests
-              throw new SnapshotTotalsFailure(e);
-            }
-
-            return true;
-          });
       commit(rewriteManifests);
 
       if (shouldStageManifests) {
@@ -417,94 +388,6 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
       }
 
       throw e;
-    }
-  }
-
-  private static class SnapshotTotalsFailure extends RuntimeException implements CleanableFailure {
-    SnapshotTotalsFailure(Exception cause) {
-      super("Cannot update snapshot totals during repair", cause);
-    }
-  }
-
-  private void updateSnapshotTotals(RewriteManifests update, List<ManifestFile> manifests) {
-    Broadcast<Table> tableBroadcast =
-        sparkContext().broadcast(SerializableTableWithSize.copyOf(table));
-    List<Row> totals =
-        spark()
-            .createDataset(manifests, Encoders.javaSerialization(ManifestFile.class))
-            .mapPartitions(
-                new ReadSnapshotTotals(tableBroadcast),
-                Encoders.tuple(Encoders.STRING(), Encoders.LONG()))
-            .toDF("metric", "value")
-            .groupBy("metric")
-            .sum("value")
-            .collectAsList();
-    totals.forEach(row -> update.set(row.getString(0), Long.toString(row.getLong(1))));
-  }
-
-  private static class ReadSnapshotTotals
-      implements MapPartitionsFunction<ManifestFile, Tuple2<String, Long>> {
-    private static final List<String> COLUMNS =
-        ImmutableList.of(
-            "content",
-            "file_format",
-            "record_count",
-            "file_size_in_bytes",
-            "content_size_in_bytes");
-
-    private final Broadcast<Table> tableBroadcast;
-
-    ReadSnapshotTotals(Broadcast<Table> tableBroadcast) {
-      this.tableBroadcast = tableBroadcast;
-    }
-
-    @Override
-    public Iterator<Tuple2<String, Long>> call(Iterator<ManifestFile> manifests) throws Exception {
-      Table table = tableBroadcast.value();
-      Map<String, Long> totals = Maps.newHashMap();
-      totals.put(SnapshotSummary.TOTAL_RECORDS_PROP, 0L);
-      totals.put(SnapshotSummary.TOTAL_FILE_SIZE_PROP, 0L);
-      totals.put(SnapshotSummary.TOTAL_DATA_FILES_PROP, 0L);
-      totals.put(SnapshotSummary.TOTAL_DELETE_FILES_PROP, 0L);
-      totals.put(SnapshotSummary.TOTAL_POS_DELETES_PROP, 0L);
-      totals.put(SnapshotSummary.TOTAL_EQ_DELETES_PROP, 0L);
-      while (manifests.hasNext()) {
-        ManifestFile manifest = manifests.next();
-        if (manifest.snapshotId() == null) {
-          // Replacement entries have explicit lineage, but readers also require a manifest ID.
-          manifest = GenericManifestFile.copyOf(manifest).withSnapshotId(-1L).build();
-        }
-
-        try (ManifestReader<?> reader =
-            manifest.content() == ManifestContent.DATA
-                ? ManifestFiles.read(manifest, table.io(), table.specs())
-                : ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
-          for (ContentFile<?> file : reader.select(COLUMNS)) {
-            totals.merge(
-                SnapshotSummary.TOTAL_FILE_SIZE_PROP,
-                ScanTaskUtil.contentSizeInBytes(file),
-                Long::sum);
-            switch (file.content()) {
-              case DATA -> {
-                totals.merge(SnapshotSummary.TOTAL_DATA_FILES_PROP, 1L, Long::sum);
-                totals.merge(SnapshotSummary.TOTAL_RECORDS_PROP, file.recordCount(), Long::sum);
-              }
-              case POSITION_DELETES -> {
-                totals.merge(SnapshotSummary.TOTAL_DELETE_FILES_PROP, 1L, Long::sum);
-                totals.merge(SnapshotSummary.TOTAL_POS_DELETES_PROP, file.recordCount(), Long::sum);
-              }
-              case EQUALITY_DELETES -> {
-                totals.merge(SnapshotSummary.TOTAL_DELETE_FILES_PROP, 1L, Long::sum);
-                totals.merge(SnapshotSummary.TOTAL_EQ_DELETES_PROP, file.recordCount(), Long::sum);
-              }
-            }
-          }
-        }
-      }
-
-      return totals.entrySet().stream()
-          .map(entry -> new Tuple2<>(entry.getKey(), entry.getValue()))
-          .iterator();
     }
   }
 

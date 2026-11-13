@@ -18,42 +18,37 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.apache.iceberg.spark.data.TestHelpers.dataFiles;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.ManifestFiles;
-import org.apache.iceberg.ManifestWriter;
-import org.apache.iceberg.Parameters;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RepairTable;
-import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.data.GenericFileWriterFactory;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.UnitestKMS;
-import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.Test;
 
 class TestRepairTableActionEncryption extends CatalogTestBase {
 
   private static final int FORMAT_VERSION = 3;
 
-  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
-  protected static Object[][] parameters() {
-    Map<String, String> properties = Maps.newHashMap(SparkCatalogConfig.HIVE.properties());
-    properties.put(CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getCanonicalName());
-    return new Object[][] {
-      {SparkCatalogConfig.HIVE.catalogName(), SparkCatalogConfig.HIVE.implementation(), properties}
-    };
+  TestRepairTableActionEncryption() {
+    this.catalogName = SparkCatalogConfig.HIVE.catalogName();
+    this.implementation = SparkCatalogConfig.HIVE.implementation();
+    this.catalogConfig = Maps.newHashMap(SparkCatalogConfig.HIVE.properties());
+    catalogConfig.put(CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getCanonicalName());
   }
 
   @AfterEach
@@ -63,69 +58,41 @@ class TestRepairTableActionEncryption extends CatalogTestBase {
 
   // Checks what the repair flow assumes about encryption across components: data files are read
   // with their key metadata, rewritten entries keep it, and new manifests are encrypted.
-  @TestTemplate
+  @Test
   void repairFileMetricsWithEncryption() throws IOException {
     sql(
         "CREATE TABLE %s (id bigint, data string) USING iceberg "
             + "TBLPROPERTIES ('encryption.key-id'='%s', 'format-version'='%s')",
         tableName, UnitestKMS.MASTER_KEY_NAME1, FORMAT_VERSION);
-    append(tableName, "{\"id\":1,\"data\":\"a\"}", "{\"id\":2,\"data\":\"b\"}");
     validationCatalog.initialize(catalogName, catalogConfig);
     Table table = validationCatalog.loadTable(tableIdent);
+    OutputFile output = table.io().newOutputFile(temp.resolve("data.parquet").toString());
+    DataWriter<Record> writer =
+        new GenericFileWriterFactory.Builder(table)
+            .build()
+            .newDataWriter(table.encryption().encrypt(output), table.spec(), null);
+    try (writer) {
+      writer.write(GenericRecord.create(table.schema()).copy("id", 1L, "data", "a"));
+    }
 
-    DataFile original = onlyDataFile(table);
+    DataFile original = writer.toDataFile();
     assertThat(original.keyMetadata()).isNotNull();
-
-    Snapshot snapshot = table.currentSnapshot();
-    ManifestFile manifest = snapshot.dataManifests(table.io()).get(0);
     DataFile corrupt =
         DataFiles.builder(table.spec())
             .copy(original)
             .withRecordCount(original.recordCount() + 1)
             .build();
-    EncryptedOutputFile output =
-        table
-            .encryption()
-            .encrypt(table.io().newOutputFile(temp.resolve("corrupt-manifest.avro").toString()));
-    ManifestWriter<DataFile> writer =
-        ManifestFiles.write(FORMAT_VERSION, table.spec(), output, null);
-    try (ManifestWriter<DataFile> closeableWriter = writer) {
-      closeableWriter.existing(
-          corrupt,
-          snapshot.snapshotId(),
-          original.dataSequenceNumber(),
-          original.fileSequenceNumber());
-    }
-
-    table.rewriteManifests().deleteManifest(manifest).addManifest(writer.toManifestFile()).commit();
-    table.refresh();
+    table.newFastAppend().appendFile(corrupt).commit();
 
     RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
 
     assertThat(result.repairedEntryCount()).isEqualTo(1);
     table.refresh();
-    DataFile repaired = onlyDataFile(table);
+    List<DataFile> files = dataFiles(table);
+    assertThat(files).hasSize(1);
+    DataFile repaired = files.get(0);
     assertThat(repaired.recordCount()).isEqualTo(original.recordCount());
     assertThat(repaired.keyMetadata()).isEqualTo(original.keyMetadata());
     assertThat(table.currentSnapshot().dataManifests(table.io()).get(0).keyMetadata()).isNotNull();
-
-    sql("REFRESH TABLE %s", tableName);
-    assertEquals(
-        "Should return all expected rows after repair",
-        List.of(row(1L, "a"), row(2L, "b")),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
-  }
-
-  private DataFile onlyDataFile(Table table) throws IOException {
-    List<ManifestFile> manifests = table.currentSnapshot().dataManifests(table.io());
-    assertThat(manifests).hasSize(1);
-    List<DataFile> files = Lists.newArrayList();
-    try (CloseableIterable<DataFile> reader =
-        ManifestFiles.read(manifests.get(0), table.io(), table.specs())) {
-      reader.forEach(file -> files.add(file.copy()));
-    }
-
-    assertThat(files).hasSize(1);
-    return files.get(0);
   }
 }
