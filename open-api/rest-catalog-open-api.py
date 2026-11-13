@@ -791,9 +791,45 @@ class Sha256QueryLocal(Action):
     action: Literal['sha-256-query-local']
 
 
+class KeyManagementCredential(BaseModel):
+    """
+    Provider-specific credential config for accessing one or more KMS keys required by an encrypted
+    table operation.
+
+    The key-management provider is advertised in catalog configuration, such as `encryption.kms-type`
+    returned from `/v1/config`. The `config` map contains provider-specific properties for the
+    selected key-management provider.
+
+    Catalogs that return `key-management-credentials` must include credentials for all KMS keys required
+    by the operation. Clients should select credentials by matching the IDs of KMS keys used to wrap
+    or unwrap table key encryption keys (KEKs) against `kms-key-ids`.
+
+    These IDs may be specified by the `encryption.key-id` table property or recorded in the
+    `encrypted-by-id` fields of KMS-wrapped KEK entries in `encryption-keys`.
+
+    Credential configs should use provider-specific expiration mechanisms where available and should
+    be scoped to the minimum required KMS operations and listed KMS key IDs where the provider
+    supports it.
+
+    """
+
+    kms_key_ids: list[str] = Field(
+        ...,
+        alias='kms-key-ids',
+        description='Identifiers of KMS keys used to wrap or unwrap table key encryption keys (KEKs). These identify\nkeys managed by the KMS, rather than table-internal encryption keys.\n',
+    )
+    config: dict[str, str] = Field(
+        ...,
+        description='Provider-specific credential configuration for accessing the listed KMS key IDs.',
+    )
+
+
 class LoadCredentialsResponse(BaseModel):
     storage_credentials: list[StorageCredential] = Field(
         ..., alias='storage-credentials'
+    )
+    key_management_credentials: list[KeyManagementCredential] | None = Field(
+        None, alias='key-management-credentials'
     )
 
 
@@ -1973,6 +2009,13 @@ class LoadTableResult(BaseModel):
     Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
     Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
 
+    ## Key Management Credentials
+
+    Credentials for KMS / key-management systems are provided through the `key-management-credentials` field.
+
+    When `key-management-credentials` contains a credential for a KMS key ID, clients must use it
+    for that key instead of locally configured KMS credentials.
+
     ## Remote Signing
 
     If remote signing for a specific storage provider is enabled, the server SHOULD use the `remote-signing-config`
@@ -2002,6 +2045,9 @@ class LoadTableResult(BaseModel):
     )
     read_restrictions: ReadRestrictions | None = Field(None, alias='read-restrictions')
     labels: Labels | None = None
+    key_management_credentials: list[KeyManagementCredential] | None = Field(
+        None, alias='key-management-credentials'
+    )
 
 
 class ScanTasks(BaseModel):
@@ -2455,6 +2501,11 @@ class CompletedPlanningResult(ScanTasks):
         None,
         alias='storage-credentials',
         description='Storage credentials for accessing the files returned in the scan result.\nIf the server returns storage credentials as part of the completed scan planning response, the expectation is for the client to use these credentials to read the files returned in the FileScanTasks as part of the scan result.',
+    )
+    key_management_credentials: list[KeyManagementCredential] | None = Field(
+        None,
+        alias='key-management-credentials',
+        description='KMS credentials for encrypted files returned in the scan result.\nIf the server returns key-management credentials as part of the completed scan planning response, the expectation is for the client to use these credentials to access the KMS keys required to read encrypted files returned in the FileScanTasks as part of the scan result.',
     )
 
 
