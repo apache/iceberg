@@ -309,7 +309,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     protected void nextVal(
         FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
       vectorizedDefinitionLevelReader
-          .timestampInt96Reader()
+          .timestampInt96Reader(vector)
           .nextBatch(vector, numVals, typeWidth, batchSize, holder, valuesReader);
     }
 
@@ -317,7 +317,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     protected void nextDictEncodedVal(
         FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
       vectorizedDefinitionLevelReader
-          .timestampInt96Reader()
+          .timestampInt96Reader(vector)
           .nextDictEncodedBatch(
               vector,
               numVals,
