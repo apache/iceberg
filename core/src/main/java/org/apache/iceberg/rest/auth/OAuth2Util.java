@@ -499,7 +499,9 @@ public class OAuth2Util {
      */
     public Pair<Integer, TimeUnit> refresh(RESTClient client) {
       if (token() != null && config.keepRefreshed()) {
-        AtomicReference<OAuthTokenResponse> ref = new AtomicReference<>(null);
+        // keep the time each request was sent, so that an expiry derived from expires_in counts
+        // from the attempt that succeeded, not from before any retries
+        AtomicReference<TimedTokenResponse> ref = new AtomicReference<>(null);
         boolean isSuccessful =
             Tasks.foreach(ref)
                 .suppressFailureWhenFinished()
@@ -523,13 +525,14 @@ public class OAuth2Util {
           return null;
         }
 
-        OAuthTokenResponse response = ref.get();
+        long requestStartMillis = ref.get().requestStartMillis();
+        OAuthTokenResponse response = ref.get().response();
         this.config =
             AuthConfig.builder()
                 .from(config())
                 .token(response.token())
                 .tokenType(response.issuedTokenType())
-                .expiresAtMillis(OAuth2Util.expiresAtMillis(response.token()))
+                .expiresAtMillis(expiresAtMillis(response, requestStartMillis))
                 .build();
         Map<String, String> currentHeaders = this.headers;
         this.headers = RESTUtil.merge(currentHeaders, authHeaders(config.token()));
@@ -542,30 +545,48 @@ public class OAuth2Util {
       return null;
     }
 
-    private OAuthTokenResponse refreshCurrentToken(RESTClient client) {
+    /** A token response together with the time its request was sent. */
+    private record TimedTokenResponse(long requestStartMillis, OAuthTokenResponse response) {
+      /** Returns null for a null response, so that a failed request stays "no result". */
+      static TimedTokenResponse of(long requestStartMillis, OAuthTokenResponse response) {
+        if (response == null) {
+          return null;
+        }
+        return new TimedTokenResponse(requestStartMillis, response);
+      }
+    }
+
+    private TimedTokenResponse refreshCurrentToken(RESTClient client) {
       if (null != expiresAtMillis() && expiresAtMillis() <= System.currentTimeMillis()) {
         // the token has already expired, attempt to refresh using the credential
         return refreshExpiredToken(client);
       } else {
         // attempt a normal refresh
-        return refreshToken(client, config, headers(), token(), tokenType(), optionalOAuthParams());
+        long requestStartMillis = System.currentTimeMillis();
+        OAuthTokenResponse response =
+            refreshToken(client, config, headers(), token(), tokenType(), optionalOAuthParams());
+        return TimedTokenResponse.of(requestStartMillis, response);
       }
     }
 
-    private OAuthTokenResponse refreshExpiredToken(RESTClient client) {
+    private TimedTokenResponse refreshExpiredToken(RESTClient client) {
       if (credential() == null) {
         return null;
       }
 
+      long requestStartMillis = System.currentTimeMillis();
+      OAuthTokenResponse response;
       if (config.exchangeEnabled()) {
         Map<String, String> basicHeaders =
             RESTUtil.merge(headers(), basicAuthHeaders(credential()));
-        return refreshToken(
-            client, config, basicHeaders, token(), tokenType(), optionalOAuthParams());
+        response =
+            refreshToken(client, config, basicHeaders, token(), tokenType(), optionalOAuthParams());
       } else {
-        return fetchToken(
-            client, Map.of(), credential(), scope(), oauth2ServerUri(), optionalOAuthParams());
+        response =
+            fetchToken(
+                client, Map.of(), credential(), scope(), oauth2ServerUri(), optionalOAuthParams());
       }
+      return TimedTokenResponse.of(requestStartMillis, response);
     }
 
     /**
@@ -627,15 +648,10 @@ public class OAuth2Util {
 
       if (null != expiresAtMillis && expiresAtMillis <= startTimeMillis) {
         Pair<Integer, TimeUnit> expiration = session.refresh(client);
-        // if expiration is non-null, then token refresh was successful
+        // if expiration is non-null, the response carried expires_in, so refresh() has stored a
+        // non-null expiry on the session (from the token's exp claim or from expires_in)
         if (expiration != null) {
-          if (null != session.expiresAtMillis()) {
-            // use the new expiration time from the refreshed token
-            expiresAtMillis = session.expiresAtMillis();
-          } else {
-            // otherwise use the expiration time from the token response
-            expiresAtMillis = startTimeMillis + expiration.second().toMillis(expiration.first());
-          }
+          expiresAtMillis = session.expiresAtMillis();
         } else {
           // token refresh failed, don't reattempt with the original expiration
           expiresAtMillis = null;
@@ -693,6 +709,7 @@ public class OAuth2Util {
       if (issuedTokenType == null) {
         issuedTokenType = OAuth2Properties.ACCESS_TOKEN_TYPE;
       }
+      Long expiresAtMillis = expiresAtMillis(response, startTimeMillis);
       AuthSession session =
           new AuthSession(
               RESTUtil.merge(parent.headers(), authHeaders(response.token())),
@@ -701,19 +718,30 @@ public class OAuth2Util {
                   .token(response.token())
                   .tokenType(issuedTokenType)
                   .credential(credential)
-                  .expiresAtMillis(OAuth2Util.expiresAtMillis(response.token()))
+                  .expiresAtMillis(expiresAtMillis)
                   .build());
-
-      Long expiresAtMillis = session.expiresAtMillis();
-      if (null == expiresAtMillis && response.expiresInSeconds() != null) {
-        expiresAtMillis = startTimeMillis + TimeUnit.SECONDS.toMillis(response.expiresInSeconds());
-      }
 
       if (null != executor && null != expiresAtMillis) {
         scheduleTokenRefresh(client, executor, session, expiresAtMillis);
       }
 
       return session;
+    }
+
+    /**
+     * Returns when the token in the response expires: the JWT {@code exp} claim when the token is a
+     * JWT, otherwise {@code startTimeMillis} plus the {@code expires_in} of the response, or {@code
+     * null} when neither is available.
+     *
+     * <p>Opaque (non-JWT) access tokens only convey their lifetime through {@code expires_in}, so
+     * callers that only consult the token would otherwise never know when the session expires.
+     */
+    private static Long expiresAtMillis(OAuthTokenResponse response, long startTimeMillis) {
+      Long expiresAtMillis = OAuth2Util.expiresAtMillis(response.token());
+      if (null == expiresAtMillis && response.expiresInSeconds() != null) {
+        expiresAtMillis = startTimeMillis + TimeUnit.SECONDS.toMillis(response.expiresInSeconds());
+      }
+      return expiresAtMillis;
     }
 
     public static AuthSession fromTokenExchange(

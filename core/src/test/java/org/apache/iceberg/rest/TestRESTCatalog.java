@@ -2110,9 +2110,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                       any(),
                       any());
 
-              // verify the first token exchange - since an exception is thrown, we're performing
-              // retries
-              Mockito.verify(adapter, times(2))
+              // verify the token exchange with the catalog token was attempted and failed. How
+              // many times depends on whether the retry runs before or after the 1s token expires:
+              // once expired, the session switches to the credential flow instead of retrying
+              Mockito.verify(adapter, atLeastOnce())
                   .postForm(
                       eq(oauth2ServerUri),
                       argThat(firstRefreshRequest::equals),
