@@ -159,9 +159,23 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void close(Collection<TopicPartition> closedPartitions) {
-    // Always try to stop the worker to avoid duplicates.
-    stopWorker();
+    try {
+      // Always try to stop the worker to avoid duplicates.
+      stopWorker();
+    } catch (RuntimeException e) {
+      try {
+        stopCoordinatorAndResetOffsets(closedPartitions);
+      } catch (RuntimeException suppressed) {
+        e.addSuppressed(suppressed);
+      }
 
+      throw e;
+    }
+
+    stopCoordinatorAndResetOffsets(closedPartitions);
+  }
+
+  private void stopCoordinatorAndResetOffsets(Collection<TopicPartition> closedPartitions) {
     // Defensive: close called without prior initialization (should not happen).
     if (!isInitialized.get()) {
       LOG.warn("Close unexpectedly called on committer {} without partition assignment", taskId);
@@ -232,8 +246,11 @@ public class CommitterImpl implements Committer {
 
   private void stopWorker() {
     if (worker != null) {
-      worker.stop();
-      worker = null;
+      try {
+        worker.stop();
+      } finally {
+        worker = null;
+      }
     }
   }
 
