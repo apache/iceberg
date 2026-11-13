@@ -97,35 +97,29 @@ class TestFlinkWriteConf {
   }
 
   @Test
-  void staticWriteOptionIsAllowedWhenTablePropertyIsStatic() {
-    Map<String, String> options =
-        ImmutableMap.of(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "static");
-    FlinkWriteConf conf = new FlinkWriteConf(fullOverwriteTable, options, new Configuration());
-    assertThat(conf.fullOverwrite()).isTrue();
-  }
-
-  @Test
-  void dynamicWriteOptionIsRejectedWhenTablePropertyIsStatic() {
+  void writeOptionOverridesStaticTableProperty() {
     Map<String, String> options =
         ImmutableMap.of(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "dynamic");
     FlinkWriteConf conf = new FlinkWriteConf(fullOverwriteTable, options, new Configuration());
-    assertThatThrownBy(conf::fullOverwrite)
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Invalid overwrite-mode=dynamic: table property write.flink.overwrite-mode=static "
-                + "requires a static overwrite");
+    assertThat(conf.fullOverwrite()).isFalse();
   }
 
   @Test
-  void dynamicFlinkConfigIsRejectedWhenTablePropertyIsStatic() {
+  void flinkConfigOverridesStaticTableProperty() {
     Configuration flinkConf = new Configuration();
     flinkConf.set(FlinkWriteOptions.OVERWRITE_STRATEGY, "dynamic");
     FlinkWriteConf conf = new FlinkWriteConf(fullOverwriteTable, ImmutableMap.of(), flinkConf);
-    assertThatThrownBy(conf::fullOverwrite)
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Invalid overwrite-mode=dynamic: table property write.flink.overwrite-mode=static "
-                + "requires a static overwrite");
+    assertThat(conf.fullOverwrite()).isFalse();
+  }
+
+  @Test
+  void writeOptionOverridesFlinkConfig() {
+    Map<String, String> options =
+        ImmutableMap.of(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "dynamic");
+    Configuration flinkConf = new Configuration();
+    flinkConf.set(FlinkWriteOptions.OVERWRITE_STRATEGY, "static");
+    FlinkWriteConf conf = new FlinkWriteConf(table, options, flinkConf);
+    assertThat(conf.fullOverwrite()).isFalse();
   }
 
   @Test

@@ -61,7 +61,7 @@ To replace every row of a partitioned table, including partitions that receive n
 INSERT OVERWRITE sample /*+ OPTIONS('overwrite-mode'='static') */ SELECT id, data FROM other_table;
 ```
 
-The table property `write.flink.overwrite-mode` sets the mode for a job that does not set `overwrite-mode`. When it is `static`, a job that sets `overwrite-mode` to `dynamic` fails, and `INSERT OVERWRITE` with a `PARTITION` clause fails. A static overwrite is one snapshot with operation `overwrite` whose `total-data-files` equals its `added-data-files`.
+The table property `write.flink.overwrite-mode` sets the mode for a job that does not set `overwrite-mode`. In `static` mode, `INSERT OVERWRITE` with a `PARTITION` clause fails. A static overwrite is one snapshot with operation `overwrite` whose `total-data-files` equals its `added-data-files`.
 
 A static overwrite runs only in a batch job. `INSERT OVERWRITE` already requires one, and a DataStream job must set `execution.runtime-mode` to `BATCH`. A static overwrite whose query returns no rows removes every row of the table.
 

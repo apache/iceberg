@@ -27,7 +27,6 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * A class for common Iceberg configs for Flink writes.
@@ -72,36 +71,16 @@ public class FlinkWriteConf {
   /**
    * Whether an overwrite replaces every row in the table instead of only the partitions that
    * receive new rows.
-   *
-   * @throws IllegalArgumentException if the table property requires a static overwrite and the
-   *     write option or Flink config asks for a different mode
    */
   public boolean fullOverwrite() {
-    String tableValue =
-        confParser
-            .stringConf()
-            .tableProperty(FlinkWriteOptions.OVERWRITE_STRATEGY_TABLE_PROPERTY)
-            .parseOptional();
-    String jobValue =
+    String modeName =
         confParser
             .stringConf()
             .option(FlinkWriteOptions.OVERWRITE_STRATEGY.key())
             .flinkConfig(FlinkWriteOptions.OVERWRITE_STRATEGY)
+            .tableProperty(FlinkWriteOptions.OVERWRITE_STRATEGY_TABLE_PROPERTY)
             .parseOptional();
-    OverwriteStrategy tableStrategy =
-        tableValue != null ? OverwriteStrategy.fromName(tableValue) : null;
-    OverwriteStrategy jobStrategy = jobValue != null ? OverwriteStrategy.fromName(jobValue) : null;
-    Preconditions.checkArgument(
-        tableStrategy != OverwriteStrategy.STATIC
-            || jobStrategy == null
-            || jobStrategy == OverwriteStrategy.STATIC,
-        "Invalid %s=%s: table property %s=%s requires a static overwrite",
-        FlinkWriteOptions.OVERWRITE_STRATEGY.key(),
-        jobValue,
-        FlinkWriteOptions.OVERWRITE_STRATEGY_TABLE_PROPERTY,
-        tableValue);
-
-    return jobStrategy == OverwriteStrategy.STATIC || tableStrategy == OverwriteStrategy.STATIC;
+    return modeName != null && OverwriteStrategy.fromName(modeName) == OverwriteStrategy.STATIC;
   }
 
   public boolean upsertMode() {
