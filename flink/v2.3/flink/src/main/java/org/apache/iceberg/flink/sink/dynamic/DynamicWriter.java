@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
@@ -156,8 +157,10 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
 
   @Override
   public void close() throws Exception {
-    for (TaskWriter<RowData> writer : writers.values()) {
-      writer.close();
+    try (Closeable ignored = DynamicSinkUtil.closeable(catalog)) {
+      for (TaskWriter<RowData> writer : writers.values()) {
+        writer.close();
+      }
     }
   }
 

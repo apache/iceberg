@@ -18,10 +18,12 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.io.Closeable;
 import java.util.Collections;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -84,6 +86,11 @@ class DynamicSinkUtil {
     }
 
     return distributionFieldIds;
+  }
+
+  @Nullable
+  static Closeable closeable(@Nullable Catalog catalog) {
+    return catalog instanceof Closeable closeable ? closeable : null;
   }
 
   static int safeAbs(int input) {
