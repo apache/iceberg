@@ -143,7 +143,7 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
     HIVE_METASTORE_EXTENSION.metastoreClient().createTable(hiveTable);
 
     catalog.setListAllTables(true);
-    assertThat(catalog.listTables(ns)).containsExactly(identifier).hasSize(1);
+    assertThat(catalog.listTables(ns)).isEmpty();
 
     assertThat(catalog.viewExists(identifier)).isFalse();
 
@@ -241,9 +241,7 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
 
     catalog.setListAllTables(true);
 
-    assertThat(catalog.listTables(ns))
-        .containsExactly(TableIdentifier.of(ns, hiveViewName))
-        .hasSize(1);
+    assertThat(catalog.listTables(ns)).isEmpty();
 
     assertThat(catalog.listViews(ns)).hasSize(0);
 
@@ -256,6 +254,7 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
     assertThat(catalog.viewExists(identifier)).isTrue();
 
     assertThat(catalog.listViews(ns)).containsExactly(identifier).hasSize(1);
+    assertThat(catalog.listTables(ns)).isEmpty();
   }
 
   @Test
