@@ -328,6 +328,16 @@ public final class ORCSchemaUtil {
 
     switch (type.typeId()) {
       case STRUCT:
+        if (fieldId != Integer.MIN_VALUE && !mapping.containsKey(fieldId)) {
+          Types.NestedField field = root.findField(fieldId);
+          if (field != null && field.initialDefaultLiteral() != null) {
+            throw new UnsupportedOperationException(
+                String.format(
+                    "ORC cannot read default value for field %s (%s): %s",
+                    root.findColumnName(fieldId), type, field.initialDefaultLiteral()));
+          }
+        }
+
         orcType = TypeDescription.createStruct();
         for (Types.NestedField nestedField : type.asStructType().fields()) {
           // Using suffix _r to avoid potential underlying issues in ORC reader

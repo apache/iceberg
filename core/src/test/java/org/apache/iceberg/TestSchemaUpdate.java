@@ -2590,4 +2590,24 @@ public class TestSchemaUpdate {
 
     assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
+
+  @Test
+  void updateColumnDefaultToCurrentEmptyStructIsNoop() {
+    Schema schema =
+        new Schema(
+            optional("point")
+                .withId(1)
+                .ofType(Types.StructType.of(optional(2, "x", Types.IntegerType.get())))
+                .withWriteDefault(Literal.emptyStruct())
+                .build());
+
+    // a column with pending updates cannot be deleted
+    Schema result =
+        new SchemaUpdate(schema, 2)
+            .updateColumnDefault("point", Literal.emptyStruct())
+            .deleteColumn("point")
+            .apply();
+
+    assertThat(result.findField(1)).isNull();
+  }
 }

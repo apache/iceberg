@@ -93,14 +93,14 @@ public class SchemaParser {
         generator.writeStringField(DOC, field.doc());
       }
 
-      if (field.initialDefault() != null) {
+      if (field.initialDefaultLiteral() != null) {
         generator.writeFieldName(INITIAL_DEFAULT);
-        SingleValueParser.toJson(field.type(), field.initialDefault(), generator);
+        defaultToJson(field.type(), field.initialDefaultLiteral(), generator);
       }
 
-      if (field.writeDefault() != null) {
+      if (field.writeDefaultLiteral() != null) {
         generator.writeFieldName(WRITE_DEFAULT);
-        SingleValueParser.toJson(field.type(), field.writeDefault(), generator);
+        defaultToJson(field.type(), field.writeDefaultLiteral(), generator);
       }
 
       generator.writeEndObject();
@@ -195,9 +195,30 @@ public class SchemaParser {
     throw new IllegalArgumentException("Cannot parse type from json: " + json);
   }
 
+  private static void defaultToJson(Type type, Literal<?> defaultValue, JsonGenerator generator)
+      throws IOException {
+    if (type.isStructType()) {
+      // the defaults of a struct's fields are stored with those fields
+      generator.writeStartObject();
+      generator.writeEndObject();
+    } else {
+      SingleValueParser.toJson(type, defaultValue.value(), generator);
+    }
+  }
+
   private static Literal<?> defaultFromJson(String defaultField, Type type, JsonNode json) {
     if (json.has(defaultField)) {
-      Object value = SingleValueParser.fromJson(type, json.get(defaultField));
+      JsonNode defaultJson = json.get(defaultField);
+      if (type.isStructType()) {
+        Preconditions.checkArgument(
+            defaultJson.isObject() && defaultJson.isEmpty(),
+            "Cannot parse default as a %s value: %s (must be an empty object)",
+            type,
+            defaultJson);
+        return Literal.emptyStruct();
+      }
+
+      Object value = SingleValueParser.fromJson(type, defaultJson);
       if (type instanceof Types.TimestampNanoType) {
         // Call Expressions.nanos instead of Expressions.lit to prevent overflow
         // https://github.com/apache/iceberg/issues/13160
