@@ -197,6 +197,28 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void readStreamAfterPartitionSpecRevert() throws Exception {
+    table.updateSpec().addField("data").commit();
+    sql("REFRESH TABLE %s", tableName);
+    appendData(Lists.newArrayList(new SimpleRecord(1, "one")));
+    appendData(Lists.newArrayList(new SimpleRecord(2, "two")));
+    table.refresh();
+    table.updateSpec().removeField("data").commit();
+    sql("REFRESH TABLE %s", tableName);
+    appendData(Lists.newArrayList(new SimpleRecord(3, "three")));
+    appendData(Lists.newArrayList(new SimpleRecord(4, "four")));
+
+    StreamingQuery query = startStream();
+
+    assertThat(rowsAvailable(query))
+        .containsExactlyInAnyOrder(
+            new SimpleRecord(1, "one"),
+            new SimpleRecord(2, "two"),
+            new SimpleRecord(3, "three"),
+            new SimpleRecord(4, "four"));
+  }
+
+  @TestTemplate
   public void testReadStreamWithMaxFiles1() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
