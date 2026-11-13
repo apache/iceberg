@@ -415,17 +415,9 @@ public class Spark3Util {
         case "truncate":
           return org.apache.iceberg.expressions.Expressions.truncate(colName, findWidth(transform));
         case "zorder":
-          return new Zorder(
-              Stream.of(transform.references())
-                  .map(ref -> DOT.join(ref.fieldNames()))
-                  .map(org.apache.iceberg.expressions.Expressions::ref)
-                  .collect(Collectors.toList()));
+          return new Zorder(references(transform));
         case "hilbert":
-          return new Hilbert(
-              Stream.of(transform.references())
-                  .map(ref -> DOT.join(ref.fieldNames()))
-                  .map(org.apache.iceberg.expressions.Expressions::ref)
-                  .collect(Collectors.toList()));
+          return new Hilbert(references(transform));
         default:
           throw new UnsupportedOperationException("Transform is not supported: " + transform);
       }
@@ -437,6 +429,15 @@ public class Spark3Util {
     } else {
       throw new UnsupportedOperationException("Cannot convert unknown expression: " + expr);
     }
+  }
+
+  private static List<org.apache.iceberg.expressions.NamedReference<?>> references(
+      Transform transform) {
+    return Stream.of(transform.references())
+        .map(ref -> DOT.join(ref.fieldNames()))
+        .<org.apache.iceberg.expressions.NamedReference<?>>map(
+            org.apache.iceberg.expressions.Expressions::ref)
+        .collect(Collectors.toList());
   }
 
   /**
