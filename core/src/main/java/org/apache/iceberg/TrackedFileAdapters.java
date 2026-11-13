@@ -199,11 +199,6 @@ class TrackedFileAdapters {
     }
 
     @Override
-    public Map<Integer, Long> totalBytes() {
-      return ContentStatsBackedMap.totalBytes(file().contentStats());
-    }
-
-    @Override
     public Map<Integer, ByteBuffer> lowerBounds() {
       return ContentStatsBackedMap.lowerBounds(file().contentStats());
     }
@@ -1032,7 +1027,6 @@ class TrackedFileAdapters {
     return isPresent(file.valueCounts())
         || isPresent(file.nullValueCounts())
         || isPresent(file.nanValueCounts())
-        || isPresent(file.totalBytes())
         || isPresent(file.lowerBounds())
         || isPresent(file.upperBounds());
   }

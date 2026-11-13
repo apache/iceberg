@@ -271,7 +271,6 @@ public class TestSparkParquetWriter {
     assertThat(metrics.recordCount()).isEqualTo(3L);
     assertThat(metrics.valueCounts()).containsEntry(1, 3L);
     assertThat(metrics.nullValueCounts()).containsEntry(1, 1L);
-    assertThat(metrics.totalBytes()).containsEntry(1, (long) point.length + line.length);
     assertThat(
             Conversions.<GeospatialBound>fromByteBuffer(geometryType, metrics.lowerBounds().get(1)))
         .isEqualTo(GeospatialBound.createXY(-5.0, 10.0));
@@ -282,8 +281,7 @@ public class TestSparkParquetWriter {
 
   @ParameterizedTest
   @MethodSource("geometriesWithoutBounds")
-  void geometryMetricsHaveNoBounds(byte[] wkb, long expectedNullCount, long expectedTotalBytes)
-      throws IOException {
+  void geometryMetricsHaveNoBounds(byte[] wkb, long expectedNullCount) throws IOException {
     Schema schema = new Schema(optional(1, "geom", Types.GeometryType.crs84()));
 
     Metrics metrics = writeMetrics(schema, geometryRow(wkb), geometryRow(wkb));
@@ -291,15 +289,12 @@ public class TestSparkParquetWriter {
     assertThat(metrics.recordCount()).isEqualTo(2L);
     assertThat(metrics.valueCounts()).containsEntry(1, 2L);
     assertThat(metrics.nullValueCounts()).containsEntry(1, expectedNullCount);
-    assertThat(metrics.totalBytes()).containsEntry(1, expectedTotalBytes);
     assertThat(metrics.lowerBounds()).isEmpty();
     assertThat(metrics.upperBounds()).isEmpty();
   }
 
   private static Stream<Arguments> geometriesWithoutBounds() {
-    byte[] emptyPoint = pointWkb(Double.NaN, Double.NaN);
-    return Stream.of(
-        Arguments.of(null, 2L, 0L), Arguments.of(emptyPoint, 0L, 2L * emptyPoint.length));
+    return Stream.of(Arguments.of(null, 2L), Arguments.of(pointWkb(Double.NaN, Double.NaN), 0L));
   }
 
   private Metrics writeMetrics(Schema schema, InternalRow... rows) throws IOException {

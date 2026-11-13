@@ -57,7 +57,6 @@ public class FileMetadata {
     private Map<Integer, Long> nanValueCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
-    private Map<Integer, Long> totalBytes = null;
     private Map<Integer, Type> originalTypes = null;
     private ByteBuffer keyMetadata = null;
     private Integer sortOrderId = null;
@@ -87,7 +86,6 @@ public class FileMetadata {
       this.nanValueCounts = null;
       this.lowerBounds = null;
       this.upperBounds = null;
-      this.totalBytes = null;
       this.sortOrderId = null;
     }
 
@@ -108,7 +106,6 @@ public class FileMetadata {
       this.nanValueCounts = toCopy.nanValueCounts();
       this.lowerBounds = toCopy.lowerBounds();
       this.upperBounds = toCopy.upperBounds();
-      this.totalBytes = toCopy.totalBytes();
       this.keyMetadata =
           toCopy.keyMetadata() == null ? null : ByteBuffers.copy(toCopy.keyMetadata());
       this.sortOrderId = toCopy.sortOrderId();
@@ -205,7 +202,6 @@ public class FileMetadata {
       this.nanValueCounts = metrics.nanValueCounts();
       this.lowerBounds = metrics.lowerBounds();
       this.upperBounds = metrics.upperBounds();
-      this.totalBytes = metrics.totalBytes();
       this.originalTypes = metrics.originalTypes();
       return this;
     }
@@ -304,7 +300,6 @@ public class FileMetadata {
               nanValueCounts,
               lowerBounds,
               upperBounds,
-              totalBytes,
               originalTypes),
           equalityFieldIds,
           sortOrderId,

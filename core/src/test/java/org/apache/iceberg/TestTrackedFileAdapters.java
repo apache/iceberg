@@ -101,7 +101,7 @@ class TestTrackedFileAdapters {
           CONTENT_STATS_TYPE.fieldType("score").asStructType(), 2, 1.0f, 100.0f, 100L, 10L, 3L);
   private static final FieldStats<?> GEOM_STATS =
       StatsTestUtil.mockFieldStats(
-          CONTENT_STATS_TYPE.fieldType("geom").asStructType(), 3, null, null, 100L, 20L, null, 12L);
+          CONTENT_STATS_TYPE.fieldType("geom").asStructType(), 3, null, null, 100L, 20L, null);
   private static final ContentStatsStruct CONTENT_STATS =
       new ContentStatsStruct(CONTENT_STATS_TYPE);
 
@@ -244,7 +244,6 @@ class TestTrackedFileAdapters {
     assertThat(dataFile.nullValueCounts())
         .containsOnly(Map.entry(1, 5L), Map.entry(2, 10L), Map.entry(3, 20L));
     assertThat(dataFile.nanValueCounts()).containsOnly(Map.entry(2, 3L));
-    assertThat(dataFile.totalBytes()).containsOnly(Map.entry(3, 12L));
     assertThat(dataFile.lowerBounds())
         .containsOnly(
             Map.entry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),
@@ -721,8 +720,8 @@ class TestTrackedFileAdapters {
   void dataTrackedFileAdapterUnwrapsToOriginalTrackedFile() {
     TrackedFile original = trackedFile(FileContent.DATA);
     DataFile adapted = TrackedFileAdapters.asDataFile(original, UNPARTITIONED);
-    TrackedFile roundTripped = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(adapted);
-    assertThat(roundTripped).isSameAs(original);
+    TrackedFile unwrapped = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(adapted);
+    assertThat(unwrapped).isSameAs(original);
   }
 
   @Test
@@ -936,22 +935,22 @@ class TestTrackedFileAdapters {
   /** Minimal file for the rejection and null-tracking tests. */
   private static TrackedFileStruct trackedFile(FileContent contentType) {
     return new TrackedFileStruct(
-        null,
+        null, // tracking
         contentType,
         DATA_FILE_LOCATION,
         FileFormat.PARQUET,
-        1L,
-        1L,
-        null,
-        null,
-        null,
-        false,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null);
+        1L, // recordCount
+        1L, // fileSizeInBytes
+        null, // specId
+        null, // partition
+        null, // contentStats
+        false, // tightStats
+        null, // sortOrderId
+        null, // deletionVector
+        null, // manifestInfo
+        null, // keyMetadata
+        null, // splitOffsets
+        null); // columnFiles
   }
 
   private static DeletionVector deletionVector() {

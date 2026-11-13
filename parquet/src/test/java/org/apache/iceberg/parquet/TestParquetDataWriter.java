@@ -27,10 +27,8 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import org.apache.iceberg.DataFile;
@@ -149,13 +147,6 @@ public class TestParquetDataWriter {
 
     DataFile dataFile = dataWriter.toDataFile();
     assertThat(dataFile.recordCount()).isEqualTo(geoRecords.size());
-    assertThat(dataFile.totalBytes())
-        .containsOnly(Map.entry(2, 2L * geom.remaining()), Map.entry(3, (long) geog.remaining()));
-    assertThat(dataFile.copy().totalBytes()).isEqualTo(dataFile.totalBytes());
-    assertThat(dataFile.copyWithStats(Set.of(2)).totalBytes())
-        .containsOnly(Map.entry(2, 2L * geom.remaining()));
-    assertThat(dataFile.copyWithStats(Set.of(1)).totalBytes()).isNull();
-    assertThat(dataFile.copyWithoutStats().totalBytes()).isNull();
 
     List<Record> writtenRecords;
     try (CloseableIterable<Record> reader =
