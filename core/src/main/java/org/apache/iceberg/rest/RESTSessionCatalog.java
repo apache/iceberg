@@ -1378,7 +1378,16 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           RemoteSigningConfigParser.toJson(remoteSigningConfig));
     }
 
-    return newFileIO(context, fullConf.buildKeepingLast(), storageCredentials);
+    Map<String, String> ioProperties = Maps.newHashMap(fullConf.buildKeepingLast());
+    ioProperties.remove(RESTCatalogProperties.CREDENTIALS_ENDPOINT);
+    if (!storageCredentials.isEmpty() && endpoints.contains(Endpoint.V1_TABLE_CREDENTIALS)) {
+      ioProperties.put(
+          RESTCatalogProperties.CREDENTIALS_ENDPOINT,
+          RESTUtil.resolveEndpoint(
+              properties().get(CatalogProperties.URI), paths.credentials(tableIdentifier)));
+    }
+
+    return newFileIO(context, ioProperties, storageCredentials);
   }
 
   /**

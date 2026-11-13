@@ -21,7 +21,6 @@ package org.apache.iceberg.aws;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.function.Predicate;
-import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.VendedCredentialsProvider;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynMethods;
@@ -117,9 +116,12 @@ public class AwsClientProperties implements Serializable {
                 properties,
                 Predicate.not(property -> property.startsWith(CLIENT_CREDENTIAL_PROVIDER_PREFIX))),
             PropertyUtil.propertiesWithPrefix(properties, CLIENT_CREDENTIAL_PROVIDER_PREFIX));
+    // The shared endpoint also serves FileIO refresh and does not opt into client refresh.
+    String clientRefreshEndpoint = properties.get(REFRESH_CREDENTIALS_ENDPOINT);
     this.refreshCredentialsEndpoint =
-        RESTUtil.resolveEndpoint(
-            properties.get(CatalogProperties.URI), properties.get(REFRESH_CREDENTIALS_ENDPOINT));
+        Strings.isNullOrEmpty(clientRefreshEndpoint)
+            ? clientRefreshEndpoint
+            : RESTUtil.resolveCredentialEndpoint(properties, clientRefreshEndpoint);
     this.refreshCredentialsEnabled =
         PropertyUtil.propertyAsBoolean(properties, REFRESH_CREDENTIALS_ENABLED, true);
     this.legacyMd5pluginEnabled =

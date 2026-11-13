@@ -51,13 +51,12 @@ public class OAuth2RefreshCredentialsHandler
   private AuthSession authSession;
 
   private OAuth2RefreshCredentialsHandler(Map<String, String> properties) {
-    Preconditions.checkArgument(
-        null != properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT),
-        "Invalid credentials endpoint: null");
+    this.credentialsEndpoint =
+        RESTUtil.resolveCredentialEndpoint(
+            properties, properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT));
+    Preconditions.checkArgument(null != credentialsEndpoint, "Invalid credentials endpoint: null");
     Preconditions.checkArgument(
         null != properties.get(CatalogProperties.URI), "Invalid catalog endpoint: null");
-    this.credentialsEndpoint =
-        properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT);
     this.catalogEndpoint = properties.get(CatalogProperties.URI);
     this.properties = properties;
   }

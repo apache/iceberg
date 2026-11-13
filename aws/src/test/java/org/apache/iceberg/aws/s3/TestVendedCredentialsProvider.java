@@ -121,6 +121,78 @@ public class TestVendedCredentialsProvider {
   }
 
   @Test
+  void fetchesCredentialsWithoutSessionTokenOrExpiry() {
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    LoadCredentialsResponse response =
+        ImmutableLoadCredentialsResponse.builder()
+            .addCredentials(
+                ImmutableCredential.builder()
+                    .prefix("s3://bucket/path")
+                    .putConfig(S3FileIOProperties.ACCESS_KEY_ID, "access-key")
+                    .putConfig(S3FileIOProperties.SECRET_ACCESS_KEY, "secret-key")
+                    .build())
+            .build();
+    mockServer
+        .when(mockRequest)
+        .respond(response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200));
+
+    try (VendedCredentialsProvider provider = VendedCredentialsProvider.create(PROPERTIES)) {
+      assertThat(provider.fetchCredentials().credentials())
+          .containsExactlyElementsOf(response.credentials());
+    }
+
+    mockServer.verify(mockRequest, VerificationTimes.once());
+  }
+
+  @Test
+  void resolvesRelativeCredentialsUri() {
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpResponse mockResponse =
+        response(
+                LoadCredentialsResponseParser.toJson(
+                    ImmutableLoadCredentialsResponse.builder().build()))
+            .withStatusCode(200);
+    mockServer.when(mockRequest).respond(mockResponse);
+
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(
+            ImmutableMap.of(
+                VendedCredentialsProvider.URI,
+                "/credentials",
+                CatalogProperties.URI,
+                CATALOG_URI))) {
+      assertThat(provider.fetchCredentials().credentials()).isEmpty();
+    }
+
+    mockServer.verify(mockRequest, VerificationTimes.once());
+  }
+
+  @Test
+  void usesCatalogCredentialsEndpoint() {
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpResponse mockResponse =
+        response(
+                LoadCredentialsResponseParser.toJson(
+                    ImmutableLoadCredentialsResponse.builder().build()))
+            .withStatusCode(200);
+    mockServer.when(mockRequest).respond(mockResponse);
+
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(
+            ImmutableMap.of(
+                RESTCatalogProperties.CREDENTIALS_ENDPOINT,
+                CREDENTIALS_URI,
+                VendedCredentialsProvider.URI,
+                "https://legacy.example/wrong",
+                CatalogProperties.URI,
+                CATALOG_URI))) {
+      assertThat(provider.fetchCredentials().credentials()).isEmpty();
+    }
+
+    mockServer.verify(mockRequest, VerificationTimes.once());
+  }
+
+  @Test
   public void accessKeyIdAndSecretAccessKeyWithoutToken() {
     HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
     LoadCredentialsResponse response =

@@ -25,9 +25,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTUtil;
@@ -181,10 +181,12 @@ public class GCPProperties implements Serializable {
           new Date(Long.parseLong(properties.get(GCS_OAUTH2_TOKEN_EXPIRES_AT)));
     }
 
+    // The shared endpoint also serves FileIO refresh and does not opt into client refresh.
+    String clientRefreshEndpoint = properties.get(GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT);
     gcsOauth2RefreshCredentialsEndpoint =
-        RESTUtil.resolveEndpoint(
-            properties.get(CatalogProperties.URI),
-            properties.get(GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT));
+        Strings.isNullOrEmpty(clientRefreshEndpoint)
+            ? null
+            : RESTUtil.resolveCredentialEndpoint(properties, clientRefreshEndpoint);
     gcsOauth2RefreshCredentialsEnabled =
         PropertyUtil.propertyAsBoolean(properties, GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED, true);
     gcsNoAuth = Boolean.parseBoolean(properties.getOrDefault(GCS_NO_AUTH, "false"));

@@ -27,8 +27,16 @@ import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
+import com.google.auth.oauth2.OAuth2Credentials;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestGCPProperties {
 
@@ -89,6 +97,58 @@ public class TestGCPProperties {
         .isPresent()
         .get()
         .isEqualTo("/v1/credentials");
+  }
+
+  @Test
+  void usesCatalogCredentialsEndpoint() {
+    String endpoint = "https://catalog.example/table/credentials";
+    GCPProperties properties =
+        new GCPProperties(
+            ImmutableMap.of(
+                RESTCatalogProperties.CREDENTIALS_ENDPOINT,
+                endpoint,
+                GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
+                "/legacy"));
+
+    assertThat(properties.oauth2RefreshCredentialsEndpoint()).contains(endpoint);
+  }
+
+  @Test
+  void emptyClientRefreshEndpointDoesNotUseCatalogCredentialsEndpoint() {
+    GCPProperties properties =
+        new GCPProperties(
+            ImmutableMap.of(
+                RESTCatalogProperties.CREDENTIALS_ENDPOINT,
+                "https://catalog.example/table/credentials",
+                GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
+                ""));
+
+    assertThat(properties.oauth2RefreshCredentialsEndpoint()).isEmpty();
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void sharedEndpointDoesNotEnableClientRefresh(boolean hasExpiration) throws Exception {
+    ImmutableMap.Builder<String, String> config =
+        ImmutableMap.<String, String>builder()
+            .put(GCS_OAUTH2_TOKEN, "token")
+            .put(CatalogProperties.URI, "https://catalog.example")
+            .put(
+                RESTCatalogProperties.CREDENTIALS_ENDPOINT,
+                "https://catalog.example/table/credentials");
+    if (hasExpiration) {
+      config.put(
+          GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT,
+          Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli()));
+    }
+    GCPProperties properties = new GCPProperties(config.buildOrThrow());
+
+    try (CloseableGroup closeableGroup = new CloseableGroup()) {
+      OAuth2Credentials credentials =
+          GCPAuthUtils.oauth2CredentialsFromGcpProperties(properties, closeableGroup);
+      assertThat(credentials).isExactlyInstanceOf(OAuth2Credentials.class);
+      assertThat(credentials.getAccessToken().getTokenValue()).isEqualTo("token");
+    }
   }
 
   @Test
