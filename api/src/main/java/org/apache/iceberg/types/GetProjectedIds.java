@@ -47,7 +47,7 @@ class GetProjectedIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
 
   @Override
   public Set<Integer> field(Types.NestedField field, Set<Integer> fieldResult) {
-    if ((includeStructIds && field.type().isStructType())
+    if ((includeStructIds && (field.type().isStructType() || field.type().isFileType()))
         || field.type().isPrimitiveType()
         || field.type().isVariantType()) {
       fieldIds.add(field.fieldId());
@@ -73,6 +73,11 @@ class GetProjectedIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
       }
     }
     return fieldIds;
+  }
+
+  @Override
+  public Set<Integer> file(Types.FileType file, List<Set<Integer>> fieldResults) {
+    return struct(file.asStruct(), fieldResults);
   }
 
   @Override
