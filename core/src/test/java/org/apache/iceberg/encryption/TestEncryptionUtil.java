@@ -28,7 +28,13 @@ import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 public class TestEncryptionUtil {
@@ -67,6 +73,60 @@ public class TestEncryptionUtil {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot set both KMS type (aws) and KMS impl (org.apache.iceberg.aws.AwsKeyManagementClient)");
+  }
+
+  @Test
+  void keyIdUnchanged() {
+    TableMetadata unencrypted = metadataWithKeyId(null);
+    TableMetadata encrypted = metadataWithKeyId("keyA");
+
+    EncryptionUtil.checkKeyIdUnchanged(null, encrypted);
+    EncryptionUtil.checkKeyIdUnchanged(unencrypted, metadataWithKeyId(null));
+    EncryptionUtil.checkKeyIdUnchanged(encrypted, metadataWithKeyId("keyA"));
+  }
+
+  @Test
+  void keyIdRemoved() {
+    assertThatThrownBy(
+            () ->
+                EncryptionUtil.checkKeyIdUnchanged(
+                    metadataWithKeyId("keyA"), metadataWithKeyId(null)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot remove key ID from an encrypted table");
+  }
+
+  @Test
+  void keyIdModified() {
+    assertThatThrownBy(
+            () ->
+                EncryptionUtil.checkKeyIdUnchanged(
+                    metadataWithKeyId("keyA"), metadataWithKeyId("keyB")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot modify key ID of an encrypted table");
+  }
+
+  @Test
+  void keyIdAdded() {
+    assertThatThrownBy(
+            () ->
+                EncryptionUtil.checkKeyIdUnchanged(
+                    metadataWithKeyId(null), metadataWithKeyId("keyA")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot modify key ID of an encrypted table");
+  }
+
+  private static TableMetadata metadataWithKeyId(String keyId) {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(TableProperties.FORMAT_VERSION, "3");
+    if (keyId != null) {
+      properties.put(TableProperties.ENCRYPTION_TABLE_KEY, keyId);
+    }
+
+    return TableMetadata.newTableMetadata(
+        new Schema(Types.NestedField.required(1, "id", Types.LongType.get())),
+        PartitionSpec.unpartitioned(),
+        "file:/tmp/table",
+        properties);
   }
 
   static class UnitTestCustomClassLoader extends ClassLoader {

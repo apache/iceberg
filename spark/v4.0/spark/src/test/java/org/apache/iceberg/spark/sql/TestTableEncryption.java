@@ -36,18 +36,23 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.actions.RewriteManifests;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.encryption.Ciphers;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
@@ -67,6 +72,8 @@ import org.junit.jupiter.api.TestTemplate;
 import org.mockito.internal.util.collections.Iterables;
 
 public class TestTableEncryption extends CatalogTestBase {
+  private static final String UNENCRYPTED_TABLE = "unencrypted_table";
+
   private static Map<String, String> appendCatalogEncryptionProperties(Map<String, String> props) {
     Map<String, String> newProps = Maps.newHashMap();
     newProps.putAll(props);
@@ -99,6 +106,7 @@ public class TestTableEncryption extends CatalogTestBase {
   @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS %s", tableName(UNENCRYPTED_TABLE));
   }
 
   @TestTemplate
@@ -175,6 +183,30 @@ public class TestTableEncryption extends CatalogTestBase {
 
     // Refresh must preserve the keys for the transaction's uncommitted snapshot.
     table.refresh();
+
+    assertThat(SnapshotChanges.builderFor(transaction.table()).build().addedDataFiles())
+        .extracting(DataFile::location)
+        .containsExactly(file.location());
+
+    transaction.commitTransaction();
+
+    assertThat(currentDataFiles(table)).hasSize(dataFiles.size() + 1);
+  }
+
+  @TestTemplate
+  void transactionCanReadAfterMetadataCommits() {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+    List<DataFile> dataFiles = currentDataFiles(table);
+    DataFile file = dataFiles.get(0);
+
+    Transaction transaction = table.newTransaction();
+    transaction.newFastAppend().appendFile(file).commit();
+
+    // Both commits are needed. The second refreshes twice before the encryption manager is
+    // rebuilt, which used to drop the transaction's keys.
+    table.updateProperties().set("prop", "first").commit();
+    table.updateProperties().set("prop", "second").commit();
 
     assertThat(SnapshotChanges.builderFor(transaction.table()).build().addedDataFiles())
         .extracting(DataFile::location)
@@ -303,6 +335,76 @@ public class TestTableEncryption extends CatalogTestBase {
             () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('encryption.key-id'='abcd')", tableName))
         .isInstanceOf(SparkException.class)
         .hasMessage("Unsupported table change: Cannot modify key ID of an encrypted table");
+  }
+
+  @TestTemplate
+  public void testRejectedKeyIdOnUnencryptedTable() {
+    String unencryptedTable = tableName(UNENCRYPTED_TABLE);
+    sql(
+        "CREATE TABLE %s (id bigint) USING iceberg TBLPROPERTIES ('format-version'='3')",
+        unencryptedTable);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s SET TBLPROPERTIES ('encryption.key-id'='%s')",
+                    unencryptedTable, UnitestKMS.MASTER_KEY_NAME1))
+        .isInstanceOf(SparkException.class)
+        .hasMessage("Unsupported table change: Cannot modify key ID of an encrypted table");
+
+    // The rejected key ID must not be used for later writes to the table
+    sql("INSERT INTO %s VALUES (1)", unencryptedTable);
+
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(TableIdentifier.of("default", UNENCRYPTED_TABLE));
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(1);
+  }
+
+  @TestTemplate
+  public void testRejectedKeyIdInTransactionOnUnencryptedTable() {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    TableIdentifier identifier = TableIdentifier.of("default", UNENCRYPTED_TABLE);
+    Table table =
+        validationCatalog.createTable(
+            identifier,
+            new Schema(optional(1, "id", Types.LongType.get())),
+            PartitionSpec.unpartitioned(),
+            Map.of(TableProperties.FORMAT_VERSION, "3"));
+    DataFile file =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    Transaction transaction = table.newTransaction();
+    transaction
+        .updateProperties()
+        .set(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+        .commit();
+    transaction.newFastAppend().appendFile(file).commit();
+    assertThatThrownBy(transaction::commitTransaction)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot modify key ID of an encrypted table");
+
+    // The rejected key ID must not be used for later writes to the table
+    table.newFastAppend().appendFile(file).commit();
+
+    Table loaded = validationCatalog.loadTable(identifier);
+    assertThat(loaded.currentSnapshot().allManifests(loaded.io())).hasSize(1);
+  }
+
+  @TestTemplate
+  public void testUnencryptedTableIgnoresDataKeyLength() {
+    String unencryptedTable = tableName(UNENCRYPTED_TABLE);
+    sql(
+        "CREATE TABLE %s (id bigint) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', 'encryption.data-key-length'='not-a-number')",
+        unencryptedTable);
+
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(TableIdentifier.of("default", UNENCRYPTED_TABLE));
+    assertThat(table.encryption()).isInstanceOf(PlaintextEncryptionManager.class);
   }
 
   @TestTemplate
