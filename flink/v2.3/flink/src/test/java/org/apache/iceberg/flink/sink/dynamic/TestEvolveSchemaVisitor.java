@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.UpdateSchema;
@@ -311,6 +312,44 @@ public class TestEvolveSchemaVisitor {
           TABLE, updateApi, currentSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
       assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
     }
+  }
+
+  @Test
+  void optionalTargetKeepsIdentifierFieldRequired() {
+    Schema existingSchema =
+        new Schema(
+            List.of(required(1, "id", IntegerType.get()), required(2, "data", StringType.get())),
+            Set.of(1));
+    Schema targetSchema =
+        new Schema(optional(1, "id", IntegerType.get()), optional(2, "data", StringType.get()));
+
+    UpdateSchema updateApi = loadUpdateApi(existingSchema);
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, existingSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema newSchema = updateApi.apply();
+    assertThat(newSchema.findField("id").isRequired()).isTrue();
+    assertThat(newSchema.findField("data").isOptional()).isTrue();
+    assertThat(newSchema.identifierFieldIds()).containsExactly(1);
+  }
+
+  @Test
+  void optionalTargetKeepsStructOfIdentifierFieldRequired() {
+    Schema existingSchema =
+        new Schema(
+            List.of(required(1, "aStruct", StructType.of(required(2, "id", IntegerType.get())))),
+            Set.of(2));
+    Schema targetSchema =
+        new Schema(optional(1, "aStruct", StructType.of(optional(2, "id", IntegerType.get()))));
+
+    UpdateSchema updateApi = loadUpdateApi(existingSchema);
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, existingSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema newSchema = updateApi.apply();
+    assertThat(newSchema.findField("aStruct").isRequired()).isTrue();
+    assertThat(newSchema.findField("aStruct.id").isRequired()).isTrue();
+    assertThat(newSchema.identifierFieldIds()).containsExactly(2);
   }
 
   @Test

@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -61,6 +62,7 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
   private final Schema targetSchema;
   private final boolean caseSensitive;
   private final boolean dropUnusedColumns;
+  private final Set<Integer> identifierFieldIdsWithParents;
 
   private EvolveSchemaVisitor(
       TableIdentifier identifier,
@@ -75,6 +77,8 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
     this.targetSchema = targetSchema;
     this.caseSensitive = caseSensitive;
     this.dropUnusedColumns = dropUnusedColumns;
+    this.identifierFieldIdsWithParents =
+        CompareSchemasVisitor.identifierFieldIdsWithParents(existingSchema);
   }
 
   /**
@@ -223,7 +227,10 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
         existingField.type(),
         targetField.type());
 
-    boolean needsOptionalUpdate = targetField.isOptional() && existingField.isRequired();
+    boolean needsOptionalUpdate =
+        targetField.isOptional()
+            && existingField.isRequired()
+            && !identifierFieldIdsWithParents.contains(existingField.fieldId());
     boolean handledByDataConversion =
         CompareSchemasVisitor.isDataConversionPossible(targetField.type(), existingField.type());
     boolean needsTypeUpdate =
