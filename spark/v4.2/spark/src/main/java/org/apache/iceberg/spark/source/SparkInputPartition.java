@@ -29,9 +29,8 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.HasPartitionKey;
-import org.apache.spark.sql.connector.read.InputPartition;
 
-class SparkInputPartition implements InputPartition, HasPartitionKey, Serializable {
+class SparkInputPartition implements IcebergInputPartition, HasPartitionKey, Serializable {
   private final Types.StructType groupingKeyType;
   private final ScanTaskGroup<?> taskGroup;
   private final Broadcast<Table> tableBroadcast;
@@ -72,23 +71,28 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
     return new StructInternalRow(groupingKeyType).setStruct(taskGroup.groupingKey());
   }
 
+  @Override
   @SuppressWarnings("unchecked")
   public <T extends ScanTask> ScanTaskGroup<T> taskGroup() {
     return (ScanTaskGroup<T>) taskGroup;
   }
 
+  @Override
   public <T extends ScanTask> boolean allTasksOfType(Class<T> javaClass) {
     return taskGroup.tasks().stream().allMatch(javaClass::isInstance);
   }
 
+  @Override
   public Table table() {
     return tableBroadcast.value();
   }
 
+  @Override
   public FileIO io() {
     return fileIOBroadcast.value();
   }
 
+  @Override
   public boolean isCaseSensitive() {
     return caseSensitive;
   }
@@ -97,6 +101,7 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
     return cacheDeleteFilesOnExecutors;
   }
 
+  @Override
   public Schema projection() {
     if (projection == null) {
       this.projection = SchemaParser.fromJson(projectionString);

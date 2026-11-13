@@ -1,0 +1,2 @@
+org.apache.iceberg.spark.source.TestReaderFactoryProviders$Counting
+org.apache.iceberg.spark.source.TestReaderFactoryProviders$Declining
