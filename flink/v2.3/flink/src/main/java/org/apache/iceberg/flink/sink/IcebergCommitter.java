@@ -326,8 +326,28 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     operation.set(SinkUtil.OPERATOR_ID, operatorId);
     operation.toBranch(branch);
 
+    // Check again inside the commit, because another commit for this checkpoint can land after the
+    // up-front getMaxCommittedCheckpointIdBySink() read.
+    operation.validateWith(
+        new SinkUtil.MaxCommittedCheckpointIdValidator(
+            checkpointId,
+            snapshotSummary -> SinkUtil.writtenBySameSink(snapshotSummary, sinkId, operatorId)));
+
     long startNano = System.nanoTime();
-    operation.commit(); // abort is automatically called if this fails.
+    try {
+      operation.commit(); // abort is automatically called if this fails.
+    } catch (SinkUtil.MaxCommittedCheckpointMismatchException e) {
+      LOG.info(
+          "Skipping commit operation {} because the {} branch of the {} table already contains changes for checkpoint {}."
+              + " This can occur when a failure prevents the committer from receiving confirmation of a"
+              + " successful commit, causing the Flink job to retry committing the same set of changes.",
+          description,
+          branch,
+          table.name(),
+          checkpointId,
+          e);
+      return;
+    }
     long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano);
     LOG.info(
         "Committed {} to table: {}, branch: {}, checkpointId {} in {} ms",
