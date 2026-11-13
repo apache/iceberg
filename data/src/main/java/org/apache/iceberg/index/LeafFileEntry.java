@@ -31,8 +31,8 @@ import org.apache.iceberg.types.Types;
  *
  * <p>Leaf files are standard Iceberg data files (Parquet). Each row's key values keep their
  * original field IDs from the source table's schema; a key value can be a {@code String}, {@code
- * Long}, or {@code Integer}. Single-column transforms (IDENTITY, HASH) use one key column; composite
- * transforms (e.g. Hilbert) use several, in key-column order.
+ * Long}, or {@code Integer}. Single-column transforms (IDENTITY, HASH) use one key column;
+ * composite transforms (e.g. Hilbert) use several, in key-column order.
  */
 public class LeafFileEntry {
 
@@ -73,7 +73,8 @@ public class LeafFileEntry {
         Types.NestedField.required(
             TRANSFORM_VALUE_FIELD_ID, TRANSFORM_VALUE_FIELD_NAME, Types.LongType.get()));
     fields.add(
-        Types.NestedField.required(FILE_PATH_FIELD_ID, FILE_PATH_FIELD_NAME, Types.StringType.get()));
+        Types.NestedField.required(
+            FILE_PATH_FIELD_ID, FILE_PATH_FIELD_NAME, Types.StringType.get()));
     fields.add(
         Types.NestedField.required(POSITION_FIELD_ID, POSITION_FIELD_NAME, Types.LongType.get()));
     return new Schema(fields);

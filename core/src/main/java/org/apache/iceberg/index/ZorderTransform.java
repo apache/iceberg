@@ -88,7 +88,10 @@ public class ZorderTransform implements TransformFunction, Serializable {
     } else if (value instanceof String) {
       ordered =
           ZOrderByteUtils.stringToOrderedBytes(
-              (String) value, length, ByteBuffer.allocate(length), StandardCharsets.UTF_8.newEncoder());
+              (String) value,
+              length,
+              ByteBuffer.allocate(length),
+              StandardCharsets.UTF_8.newEncoder());
     } else {
       throw new IllegalArgumentException(
           "Unsupported type for ZORDER transform: " + value.getClass().getName());
