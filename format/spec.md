@@ -89,7 +89,7 @@ This table format tracks individual data files in a table instead of directories
 
 Table state is maintained in metadata files. All changes to table state create a new metadata file and replace the old metadata with an atomic swap. The table metadata file tracks the table schema, partitioning config, custom properties, and snapshots of the table contents. A snapshot represents the state of a table at some time and is used to access the complete set of data files in the table.
 
-Data files in snapshots are tracked by one or more manifest files that contain a row for each data file in the table, the file's partition data, an optional colocated deletion vector (v4), and its metrics. The data in a snapshot is the union of all live files in its manifests; each live file may only appear once (see [Content file uniqueness](#content-file-uniqueness)). Manifest files are reused across snapshots to avoid rewriting metadata that is slow-changing. Manifests can track data files with any subset of a table and are not associated with partitions.
+Data files in snapshots are tracked by one or more manifest files that contain a row for each data file in the table, the file's partition data, its metrics, and, starting in v4, an optional colocated deletion vector and optional column files. The data in a snapshot is the union of all live files in its manifests; each live file may only appear once (see [Content file uniqueness](#content-file-uniqueness)). Manifest files are reused across snapshots to avoid rewriting metadata that is slow-changing. Manifests can track data files with any subset of a table and are not associated with partitions.
 
 In v1-v3, the manifests that make up a snapshot are stored in a manifest list file. Each manifest list stores metadata about manifests, including partition stats and data file counts. These stats are used to avoid reading manifests that are not required for an operation. Starting in v4, manifest lists are replaced by a single root manifest per snapshot, which can contain references to data files, data manifests, and delete manifests in a unified structure.
 
@@ -160,6 +160,7 @@ Version 4 of the Iceberg spec adds support for relative locations in metadata, e
 * **Delete manifest** -- A file that lists delete files to be associated with data files at planning time.
 * **Data file** -- A file that contains rows of a table.
 * **Delete file** -- A file that encodes rows of a table that are deleted by position or data values.
+* **Column file** -- (v4+) A file that stores the values of one or more fields for a data file or a leaf manifest.
 * **Absolute path** -- A path string that includes a [URI](https://datatracker.ietf.org/doc/html/rfc3986#section-3.1) scheme and can be used directly.
 * **Relative path** -- A path string without a URI scheme that must be [resolved](#path-resolution) against the table location.
 
@@ -562,6 +563,8 @@ When an existing row is moved to a different data file for any reason, writers s
 3. If the write has not modified the row, the existing non-null `_last_updated_sequence_number` value must be copied to the new data file
 
 Engines may model operations as deleting/inserting rows or as modifications to rows that preserve row ids.
+
+When column files are added to a data file, `_last_updated_sequence_number` is handled as described in [Writing Column Files](#writing-column-files).
 
 ##### Row lineage example
 
@@ -1236,13 +1239,13 @@ Values for `snapshot_id`, `sequence_number`, and `file_sequence_number` are inhe
 
 Manifests track the sequence number when a data or delete file was added to the table.
 
-The `sequence_number` field represents the data sequence number. It is set when a file is added to the dataset and must not change unless a column file is added. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
+The `sequence_number` field represents the data sequence number. It is set when a file is added to the dataset and must not change unless a column file is added to a data file. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
 The `file_sequence_number` field represents the sequence number of the snapshot that added the file and must also remain unchanged upon assigning at commit. The file sequence number can't be used for pruning delete files as the data within the file may have an older data sequence number.
 
 When adding a new file to a leaf manifest, its data and file sequence numbers are set to `null` because the snapshot's sequence number is not assigned until the snapshot is successfully committed. When reading, sequence numbers are inherited by replacing `null` with the manifest's sequence number from the snapshot root file.
 It is also possible to add a new file with data that logically belongs to an older sequence number. In that case, the data sequence number must be provided explicitly and not inherited. However, the file sequence number must be always assigned when the snapshot is successfully committed.
 
-The data sequence number is inherited only if the entry status is ADDED, or MODIFIED by adding a column file. The file sequence number is inherited only if the entry status is ADDED. When writing an existing file to a new manifest or marking an existing file as deleted, the data and file sequence numbers must be non-null and set to the original values that were either inherited or provided at the commit time.
+The data sequence number is inherited only if the entry status is ADDED, or MODIFIED by adding a column file to a data file. The file sequence number is inherited only if the entry status is ADDED. When writing an existing file to a new manifest or marking an existing file as deleted, the data and file sequence numbers must be non-null and set to the original values that were either inherited or provided at the commit time.
 
 Inheriting sequence numbers through the metadata tree allows writing a new manifest without a known sequence number, so that a manifest can be written once and reused in commit retries. To change a sequence number for a retry, only the snapshot root file must be rewritten.
 
@@ -1790,7 +1793,7 @@ The rows in the delete file must be sorted by `file_path` then `pos` to optimize
 
 Equality delete files identify deleted rows in a collection of data files by one or more column values, and may optionally contain additional columns of the deleted row.
 
-Equality delete files must not be added to v4 tables. Equality deletes cannot be added as an entry to a v4 manifest. Equality delete files referenced by v2 or v3 delete manifests must still be applied in a v4 table.
+Equality delete files must not be added to v4 tables. Equality deletes cannot be added as an entry to a v4 manifest. Equality delete files referenced by v2 or v3 delete manifests must still be applied in a v4 table. Adding column files to a data file sets its data sequence number to that snapshot's sequence number, so existing equality delete files no longer apply to it (see [Writing Column Files](#writing-column-files)).
 
 Equality delete files store any subset of a table's columns and use the table's field ids. The _delete columns_ are the columns of the delete file used to match data rows. Delete columns are identified by id in the delete file [metadata column `equality_ids`](#manifests). The column restrictions for columns used in equality delete files are the same as those for [identifier fields](#identifier-field-ids) with the exception that optional columns and columns nested under optional structs are allowed (if a parent struct column is null it implies the leaf column is null).
 
@@ -1842,6 +1845,79 @@ If a delete column in an equality delete file is later dropped from the table, i
 #### Delete File Stats
 
 Manifests hold the same statistics for delete files and data files. For delete files, the metrics describe the values that were deleted.
+
+### Column Files
+
+A data file or leaf manifest may store fields in column files listed in [`column_files`](#column-file-fields). The data file or leaf manifest whose `column_files` lists a column file is that column file's _base file_. A column file can use any supported Iceberg file format and must have the same row count as its base file.
+
+A column file stores the values of the fields whose IDs are in its `field_ids`. A list or map is stored as a whole, including every field nested in it. For a struct, the column file stores whether the struct is null. Fields nested in the struct are stored only if their IDs are also in `field_ids`. Readers must ignore fields in a column file whose IDs are not in its `field_ids`. In this section, a field _contains_ every field nested in it, at any depth.
+
+When a column file is added, each ID in its `field_ids` must identify a field in the schema of its base file, or `_last_updated_sequence_number` (see [Writing Column Files](#writing-column-files)). The schema of a data file is the current table schema. The schema of a leaf manifest is the tracked file schema.
+
+#### Writing Column Files
+
+A column file stores a value for every row of its base file, including rows whose values did not change. Values for deleted rows, and for fields in a null struct, should be null.
+
+An added column file must follow these rules for `field_ids`. A field must be in `field_ids` if a rule requires it for at least one row where every struct that contains the field is non-null after the update.
+
+- A field nested in a list or map must not be in `field_ids`. When such a field changes, the list or map must be in `field_ids`.
+- Each field whose value changes must be in `field_ids`.
+- Each struct that changes between null and non-null must be in `field_ids`.
+- If a struct changes from null to non-null, each field directly nested in it must be in `field_ids`, even if the field is null.
+
+See [Column file example](#column-file-example).
+
+When column files are added to a data file or a leaf manifest, the writer must produce a MODIFIED entry and a REPLACED entry as described in [Updating Tracking Metadata](#updating-tracking-metadata). The MODIFIED entry and the REPLACED entry may be written to different manifests.
+
+The `tracking` fields of the MODIFIED entry are set as described in [Updating Tracking Metadata](#updating-tracking-metadata) and [Sequence Number Inheritance](#sequence-number-inheritance), and `tracking.snapshot_id` must be the previous entry's (inherited) snapshot ID. The fields of the MODIFIED entry outside `tracking` must match the previous entry, except for the following:
+
+- `partition`:
+    - For a data file, an added column file's `field_ids` may have the ID of a partition source field, or of a field that contains one, only if all live rows share the same partition values after the update. `partition` must be set to those values.
+- `sort_order_id`:
+    - If an added column file lists a field that is, or contains, a field in the sort order, `sort_order_id` must be null.
+- `content_stats`:
+    - Stats for a field listed in an added column file, and for its nested fields, must be recomputed or omitted.
+    - For a leaf manifest, stats that summarize a listed field must be recomputed or omitted.
+- `tight_stats`:
+    - If `tight_stats` is true, `content_stats` must be tight for the live rows after the update (see [Stats Tightness](#stats-tightness)).
+- `deletion_vector`:
+    - For a data file, every delete that applied to it before the column files were added must be written into the MODIFIED entry's `deletion_vector`.
+- `column_files`:
+    - Each field listed in an added column file must be removed from the `field_ids` of the previous entry's column files. A column file with no remaining `field_ids` must be removed.
+    - For a data file, one of the added column files must have the `_last_updated_sequence_number` ID in its `field_ids`, so that rows changed by the added column files get a new `_last_updated_sequence_number`. In that column file:
+        - If the added column files change the row, `_last_updated_sequence_number` must be set to `null` (so that the sequence number of the snapshot that added the column files replaces the current value).
+        - If the added column files do not change the row and the row is not deleted, the existing `_last_updated_sequence_number` value, with null resolved as in [Row lineage assignment](#row-lineage-assignment), must be copied to the new column file.
+
+#### Reading Column Files
+
+Each projected field, including each field nested in a projected field, must be read from the column file whose `field_ids` has its ID. A field nested in a list or map is read with that list or map. Other projected fields are read from the base file, using [Column Projection](#column-projection) for a data file. A column file of a data file is also read using [Column Projection](#column-projection).
+
+If a struct is null in a row, every field nested in it is null in that row, including a field read from a column file.
+
+A column file and its base file are aligned by row position before the attached deletion vector is applied. The scan schema must be used for field types and nullability. Null values in a column file may represent deleted rows.
+
+#### Column file example
+
+This example demonstrates which field IDs a column file must have in its `field_ids`, using this schema and one row of a data file. Column files are named `column_file_1`, `column_file_2`, and so on. The `_last_updated_sequence_number` ID that each update also adds to `field_ids` is left out.
+
+```
+2: optional struct customer {
+  3: optional string name;
+  4: optional struct address {
+    5: optional string street;
+    6: optional string city;
+  }
+}
+8: optional list<string> tags; // element field ID 9
+```
+
+| Row before the update | Update | Valid column files | Invalid column files | Notes |
+|---|---|---|---|---|
+| `customer` is null | `SET name = 'andrew'` | `column_file_1` with `field_ids = [2, 3, 4]`, and `address` null | `column_file_1` with `field_ids = [3]` | `customer` must be in `field_ids`, or it is read as null from the base file and hides `name`. `address` is in `field_ids` because it is directly nested in `customer`, which changed from null to non-null. Its fields are not, because `address` is null after the update. |
+| `address` is `{street: '1 Elm', city: 'Austin'}` | `SET address = null` | `column_file_1` with `field_ids = [4]` | | `street` and `city` are not in `field_ids` because `address` is null after the update. |
+| `address` is null in `column_file_1` with `field_ids = [4]` | `SET street = '2 Oak'` | `column_file_2` with `field_ids = [4, 5, 6]`, and `city` null | `column_file_2` with `field_ids = [4, 5]` | `city` must be in `field_ids`, or it is read as `'Austin'` from the base file. `column_file_1` has no fields left and is removed. |
+| `name` and `address` are in `column_file_1` with `field_ids = [3, 4, 5, 6]` | `SET name = 'bo'` | `column_file_2` with `field_ids = [3]` | | `column_file_1` now has `field_ids = [4, 5, 6]`. It still stores the old `name`, and readers ignore it. |
+| Any | `SET tags[0] = 'x'` | `column_file_1` with `field_ids = [8]`, holding the entire list | `column_file_1` with `field_ids = [9]` | A field nested in a list cannot be in `field_ids`, so the whole list is replaced. |
 
 ## Appendix A: Format-specific Requirements
 
@@ -2319,6 +2395,10 @@ Constraints are added in v4:
 * Table metadata may contain `constraints` and `last-constraint-id`
 * Snapshots may contain `constraint-statuses`
 * Upgrading a v2 or v3 table to v4 rewrites the table's `identifier-field-ids` as a `primary-key` constraint that is not enforced, unless a field cannot be used in a `primary-key` constraint
+
+Column files are added in v4.
+
+* Data files and v4 leaf manifests may have column files that store the values of one or more fields (see [Column Files](#column-files))
 
 ### Version 3
 
