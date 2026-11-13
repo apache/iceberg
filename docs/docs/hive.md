@@ -357,27 +357,37 @@ The Hive table schema is kept in sync with the Iceberg table. If an outside sour
 changes the schema, the Hive table immediately reflects the changes. You alter the table schema using Hive commands:
 
 * Rename a table
+
 ```sql
 ALTER TABLE orders RENAME TO renamed_orders;
 ```
 
 * Add a column
+
 ```sql
 ALTER TABLE orders ADD COLUMNS (nickname string);
 ```
+
 * Rename a column
+
 ```sql
 ALTER TABLE orders CHANGE COLUMN item fruit string;
 ```
+
 * Reorder columns
+
 ```sql
 ALTER TABLE orders CHANGE COLUMN quantity quantity int AFTER price;
 ```
+
 * Change a column type - only if the Iceberg defined the column type change as safe
+
 ```sql
 ALTER TABLE orders CHANGE COLUMN price price long;
 ```
+
 * Drop column by using REPLACE COLUMN to remove the old column
+
 ```sql
 ALTER TABLE orders REPLACE COLUMNS (remaining string);
 ```
@@ -389,10 +399,13 @@ ALTER TABLE orders REPLACE COLUMNS (remaining string);
 You change the partitioning schema using the following commands:
 
 * Change the partitioning schema to new identity partitions:
+
 ```sql
 ALTER TABLE default.customers SET PARTITION SPEC (last_name);
 ```
+
 * Alternatively, provide a partition specification:
+
 ```sql
 ALTER TABLE order SET PARTITION SPEC (month(ts));
 ```
