@@ -41,6 +41,15 @@ class PrefixedS3Client implements AutoCloseable {
       Map<String, String> properties,
       SerializableSupplier<S3Client> s3,
       SerializableSupplier<S3AsyncClient> s3Async) {
+    this(storagePrefix, properties, s3, s3Async, null);
+  }
+
+  PrefixedS3Client(
+      String storagePrefix,
+      Map<String, String> properties,
+      SerializableSupplier<S3Client> s3,
+      SerializableSupplier<S3AsyncClient> s3Async,
+      Object factory) {
     Preconditions.checkArgument(
         !Strings.isNullOrEmpty(storagePrefix), "Invalid storage prefix: null or empty");
     Preconditions.checkArgument(null != properties, "Invalid properties: null");
@@ -48,9 +57,13 @@ class PrefixedS3Client implements AutoCloseable {
     this.s3 = s3;
     this.s3Async = s3Async;
     this.s3FileIOProperties = new S3FileIOProperties(properties);
+    Object clientFactory = factory;
+    if (clientFactory == null && (s3 == null || s3Async == null)) {
+      clientFactory = S3FileIOAwsClientFactories.initialize(properties);
+    }
+
     // Do not override s3 client if it was provided
     if (s3 == null) {
-      Object clientFactory = S3FileIOAwsClientFactories.initialize(properties);
       if (clientFactory instanceof S3FileIOAwsClientFactory) {
         this.s3 = ((S3FileIOAwsClientFactory) clientFactory)::s3;
       }
@@ -64,7 +77,6 @@ class PrefixedS3Client implements AutoCloseable {
 
     // Do not override s3Async client if it was provided
     if (s3Async == null) {
-      Object clientFactory = S3FileIOAwsClientFactories.initialize(properties);
       if (clientFactory instanceof S3FileIOAwsClientFactory) {
         this.s3Async = ((S3FileIOAwsClientFactory) clientFactory)::s3Async;
       }
