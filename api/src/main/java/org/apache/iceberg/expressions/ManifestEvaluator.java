@@ -117,6 +117,11 @@ public class ManifestEvaluator {
     }
 
     @Override
+    public <T> Boolean predicate(BoundValuePredicate<T> pred) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
     public <T> Boolean isNull(BoundReference<T> ref) {
       int pos = Accessors.toPosition(ref.accessor());
       // no need to check whether the field is required because binding evaluates that case

@@ -608,6 +608,20 @@ public class TestEvaluator {
   }
 
   @Test
+  void nullIsNotLessThanValue() {
+    Evaluator evaluator = new Evaluator(STRUCT, lessThan("z", 7));
+
+    assertThat(evaluator.eval(TestHelpers.Row.of(1, 2.0, null))).isFalse();
+  }
+
+  @Test
+  void nanIsNotGreaterThanValue() {
+    Evaluator evaluator = new Evaluator(STRUCT, greaterThan("y", 1.0));
+
+    assertThat(evaluator.eval(TestHelpers.Row.of(1, Double.NaN, null))).isFalse();
+  }
+
+  @Test
   public void testIn() {
     assertThat(in("s", 7, 8, 9).literals()).hasSize(3);
     assertThat(in("s", 7, 8.1, Long.MAX_VALUE).literals()).hasSize(3);

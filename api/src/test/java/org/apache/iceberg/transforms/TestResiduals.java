@@ -32,6 +32,7 @@ import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -216,6 +217,15 @@ public class TestResiduals {
 
     residual = resEval.residualFor(Row.of((Object) null));
     assertThat(residual).as("null in [a, b, c] => false").isEqualTo(alwaysFalse());
+  }
+
+  @Test
+  void startsWithNullStringPartitionIsAlwaysFalse() {
+    Schema schema = new Schema(Types.NestedField.optional(50, "category", Types.StringType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("category").build();
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec, startsWith("category", "a"), true);
+
+    assertThat(resEval.residualFor(Row.of((Object) null))).isEqualTo(alwaysFalse());
   }
 
   @Test

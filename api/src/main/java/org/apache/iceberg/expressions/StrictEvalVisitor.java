@@ -71,6 +71,11 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
   }
 
   @Override
+  public <T> Boolean predicate(BoundValuePredicate<T> pred) {
+    return ROWS_MIGHT_NOT_MATCH;
+  }
+
+  @Override
   public Boolean alwaysTrue() {
     return ROWS_MUST_MATCH; // all rows match
   }
