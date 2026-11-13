@@ -50,7 +50,6 @@ import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
@@ -308,8 +307,7 @@ class TestFilePlanner {
     int idFieldId = TABLE_SCHEMA.findField("id").fieldId();
     int dataFieldId = TABLE_SCHEMA.findField("data").fieldId();
     List<FileScanTask> tasks =
-        plan(
-            root, UNPARTITIONED_SPECS, planner -> planner.projectStats(ImmutableSet.of(idFieldId)));
+        plan(root, UNPARTITIONED_SPECS, planner -> planner.projectStats(idFieldId));
 
     assertThat(tasks)
         .extracting(
@@ -437,7 +435,7 @@ class TestFilePlanner {
 
     Expression filter = Expressions.and(Expressions.equal("id", 1), Expressions.equal("data", "x"));
     List<FileScanTask> tasks =
-        plan(root, MIXED_SPECS, planner -> planner.filterData(filter).ignoreResiduals(true));
+        plan(root, MIXED_SPECS, planner -> planner.filterData(filter).ignoreResiduals());
 
     assertThat(tasks)
         .as("ignoreResiduals forces an alwaysTrue residual for every file regardless of spec")

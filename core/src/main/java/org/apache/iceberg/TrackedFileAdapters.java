@@ -41,7 +41,8 @@ class TrackedFileAdapters {
         file.contentType());
     List<ColumnFile> columnFiles = file.columnFiles();
     if (columnFiles != null && !columnFiles.isEmpty()) {
-      throw new UnsupportedOperationException("Column files are not supported: " + file.location());
+      throw new UnsupportedOperationException(
+          "Cannot convert data file with column updates: " + file.location());
     }
 
     return new TrackedDataFile(file, resolveSpecId(file, specsById));

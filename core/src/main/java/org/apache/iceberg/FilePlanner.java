@@ -34,9 +34,10 @@ import org.apache.iceberg.metrics.ScanMetricsUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.ThreadPools;
 
@@ -88,10 +89,19 @@ class FilePlanner {
     return this;
   }
 
-  FilePlanner projectStats(Set<Integer> fieldIds) {
+  FilePlanner projectStats(int... fieldIds) {
     Preconditions.checkArgument(fieldIds != null, "Invalid field IDs: null");
-    this.statsFieldIds = ImmutableSet.copyOf(fieldIds);
+    return projectStats(ArrayUtil.toIntList(fieldIds));
+  }
+
+  FilePlanner projectStats(Iterable<Integer> fieldIds) {
+    Preconditions.checkArgument(fieldIds != null, "Invalid field IDs: null");
+    this.statsFieldIds = Sets.newLinkedHashSet(fieldIds);
     return this;
+  }
+
+  FilePlanner ignoreResiduals() {
+    return ignoreResiduals(true);
   }
 
   FilePlanner ignoreResiduals(boolean shouldIgnoreResiduals) {

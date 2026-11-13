@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.V4TestHelpers.columnFile;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -30,7 +29,6 @@ import java.util.Map;
 import org.apache.iceberg.mumbling.MumblingTestUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
@@ -268,29 +266,17 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void dataFileAdapterRejectsColumnFiles() {
-    TrackedFile file =
-        new TrackedFileStruct(
-            null,
-            FileContent.DATA,
-            DATA_FILE_LOCATION,
-            FileFormat.PARQUET,
-            1L,
-            1L,
-            null,
-            null,
-            null,
-            false,
-            null,
-            null,
-            null,
-            null,
-            null,
-            ImmutableList.of(columnFile("s3://bucket/data/col-1.parquet", ImmutableSet.of(1))));
+  void dataFileRejectsColumnFiles() {
+    TrackedFile trackedDataFile = mock(TrackedFile.class);
+    when(trackedDataFile.contentType()).thenReturn(FileContent.DATA);
+    when(trackedDataFile.columnFiles())
+        .thenReturn(ImmutableList.of(Mockito.mock(ColumnFile.class)));
+    when(trackedDataFile.location()).thenReturn("s3://bucket/path/file.parquet");
 
-    assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, UNPARTITIONED))
+    assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(trackedDataFile, UNPARTITIONED))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Column files are not supported: %s", DATA_FILE_LOCATION);
+        .hasMessage(
+            "Cannot convert data file with column updates: %s", "s3://bucket/path/file.parquet");
   }
 
   @Test
