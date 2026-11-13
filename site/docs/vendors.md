@@ -77,6 +77,10 @@ Collate is an AI-native data catalog and governance platform built on [OpenMetad
 
 [Crunchy Data Warehouse](https://www.crunchydata.com/products/warehouse) is a modern data warehouse built on PostgreSQL. Crunchy Data Warehouse extends unmodified PostgreSQL to provide support for fully transactional Iceberg tables and high performance analytics. Crunchy Data Warehouse is available as a managed service on AWS via [Crunchy Bridge](https://www.crunchydata.com/products/crunchy-bridge), fully managed PostgreSQL as a service. Crunchy Data Warehouse can create Iceberg tables directly from a PostgreSQL database or external URLs and can read, query, and update Iceberg tables using PostgreSQL syntax. Using a hybrid query engine that combines PostgreSQL and DuckDB, Crunchy Data Warehouse enables high performance analytical queries of Iceberg tables.
 
+### [Databasin](https://databasin.ai/)
+
+[Databasin](https://databasin.ai/) is a data platform for hospitals, academic medical centers and universities. Its lakehouse uses Apache Iceberg as the default table format: pipelines land data from sources such as Epic Clarity and Workday in Iceberg tables, and Databasin Sail, a Spark-compatible engine, runs Spark SQL and PySpark on them, including `MERGE`, `OPTIMIZE`, snapshot expiry and other table maintenance. Trino and DuckDB query the same tables without copying data. Databasin runs as a managed cloud service or in the customer's own Azure subscription. Learn more about [Iceberg in Databasin](https://databasin.ai/docs/lakehouse/multi-engine/).
+
 ### [Databricks](https://www.databricks.com/)
 
 [Databricks](https://www.databricks.com/) uses an open lakehouse architecture to power its Data Intelligence Platform and provide a unified foundation for all data and governance, combined with AI models tuned to an organization’s unique characteristics. Through [Unity Catalog](https://www.databricks.com/product/unity-catalog), users can manage and govern all structured data, unstructured data, business metrics and AI models across open data formats like Delta Lake, Apache Iceberg, Hudi, Parquet and more.
