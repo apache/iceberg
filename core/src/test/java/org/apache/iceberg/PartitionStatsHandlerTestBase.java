@@ -340,6 +340,64 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
         .allMatch(s -> (s.dataRecordCount() == 0 && s.dataFileCount() == 0));
   }
 
+  @TestTemplate
+  public void incrementalComputeAfterRemovingPartitionField() throws Exception {
+    Table testTable =
+        TestTables.create(
+            tempDir("remove_partition_field_" + formatVersion),
+            "remove_partition_field_" + formatVersion,
+            SCHEMA,
+            SPEC,
+            formatVersion,
+            fileFormatProperty);
+    testTable
+        .newAppend()
+        .appendFile(FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A")))
+        .commit();
+    computeAndCommitStats(testTable);
+
+    // c3 is the first field of the new spec, but the second field of the unified partition type
+    testTable.updateSpec().removeField("c2").commit();
+    testTable
+        .newAppend()
+        .appendFile(FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("A")))
+        .appendFile(FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("B")))
+        .commit();
+    computeAndCommitStats(testTable);
+    testTable
+        .newAppend()
+        .appendFile(FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("A")))
+        .commit();
+    computeAndCommitStats(testTable);
+    List<PartitionStatistics> incrementalStats = partitionStats(testTable);
+
+    UpdatePartitionStatistics removeStats = testTable.updatePartitionStatistics();
+    testTable
+        .partitionStatisticsFiles()
+        .forEach(file -> removeStats.removePartitionStatistics(file.snapshotId()));
+    removeStats.commit();
+    computeAndCommitStats(testTable);
+    List<PartitionStatistics> fullStats = partitionStats(testTable);
+
+    Comparator<StructLike> comparator = Comparators.forType(Partitioning.partitionType(testTable));
+    assertThat(incrementalStats)
+        .usingElementComparator((stats1, stats2) -> isEqual(comparator, stats1, stats2) ? 0 : 1)
+        .containsExactlyElementsOf(fullStats);
+  }
+
+  private static void computeAndCommitStats(Table table) throws Exception {
+    table
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(table))
+        .commit();
+  }
+
+  private static List<PartitionStatistics> partitionStats(Table table) throws Exception {
+    try (CloseableIterable<PartitionStatistics> stats = table.newPartitionStatisticsScan().scan()) {
+      return Lists.newArrayList(stats);
+    }
+  }
+
   @Test
   void incrementalStatsStaySortedByPartition(@TempDir File tempDir) throws Exception {
     Table testTable = TestTables.create(tempDir, "sorted", SCHEMA, SPEC, 2, fileFormatProperty);
