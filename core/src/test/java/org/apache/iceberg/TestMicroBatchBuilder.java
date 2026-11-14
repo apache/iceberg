@@ -19,12 +19,19 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.MicroBatches.MicroBatch;
+import org.apache.iceberg.MicroBatches.MicroBatchBuilder;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -139,6 +146,80 @@ public class TestMicroBatchBuilder extends TestBase {
     assertThat(batch5.sizeInBytes()).isEqualTo(0);
     assertThat(batch5.tasks()).isEmpty();
     assertThat(batch5.lastIndexOfSnapshot()).isTrue();
+  }
+
+  @TestTemplate
+  void planFullScanPositionsMatchLiveManifestEntries() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    table.newFastAppend().appendFile(FILE_C).commit();
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot snapshot = table.currentSnapshot();
+
+    List<String> liveFiles = Lists.newArrayList();
+    for (ManifestFile manifest : snapshot.dataManifests(table.io())) {
+      try (CloseableIterable<FileScanTask> tasks =
+          MicroBatches.openManifestFile(
+              table.io(), table.specs(), true, snapshot, manifest, true)) {
+        tasks.forEach(task -> liveFiles.add(task.file().location()));
+      }
+    }
+
+    MicroBatchBuilder builder = MicroBatches.from(snapshot, table.io()).specsById(table.specs());
+    List<FileScanTask> slices = Lists.newArrayList(builder.planFullScan(0, 1));
+    slices.addAll(builder.planFullScan(1, 2));
+
+    assertThat(builder.fullScanFileCount()).isEqualTo(liveFiles.size());
+    assertThat(liveFiles).containsExactlyInAnyOrder(FILE_B.location(), FILE_C.location());
+    assertThat(slices).extracting(task -> task.file().location()).isEqualTo(liveFiles);
+  }
+
+  @TestTemplate
+  void planFullScanAttachesDeletesWithinSlices() throws IOException {
+    assumeThat(formatVersion).isGreaterThan(1);
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    table.newRowDelta().addDeletes(fileADeletes()).addDeletes(fileBDeletes()).commit();
+    Snapshot snapshot = table.currentSnapshot();
+
+    Map<String, List<String>> expectedDeletes = Maps.newHashMap();
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      tasks.forEach(task -> expectedDeletes.put(task.file().location(), deleteLocations(task)));
+    }
+
+    MicroBatchBuilder builder = MicroBatches.from(snapshot, table.io()).specsById(table.specs());
+    List<FileScanTask> slices = Lists.newArrayList(builder.planFullScan(0, 1));
+    slices.addAll(builder.planFullScan(1, 2));
+
+    assertThat(slices).hasSize(2);
+    for (FileScanTask task : slices) {
+      assertThat(deleteLocations(task))
+          .isNotEmpty()
+          .isEqualTo(expectedDeletes.get(task.file().location()));
+    }
+  }
+
+  @TestTemplate
+  void planFullScanAttachesEqualityDeletesOnDroppedColumns() {
+    assumeThat(formatVersion).isGreaterThan(1);
+    table.updateSchema().addColumn("category", Types.StringType.get()).commit();
+    int categoryId = table.schema().findField("category").fieldId();
+    table.newFastAppend().appendFile(FILE_A).commit();
+    DeleteFile categoryDeletes =
+        newEqualityDeleteFile(table.spec().specId(), "data_bucket=0", categoryId);
+    table.newRowDelta().addDeletes(categoryDeletes).commit();
+    table.updateSchema().deleteColumn("category").commit();
+
+    List<FileScanTask> tasks =
+        MicroBatches.from(table.currentSnapshot(), table.io())
+            .specsById(table.specs())
+            .schemasById(table.schemas())
+            .planFullScan(0, 1);
+
+    assertThat(tasks).hasSize(1);
+    assertThat(deleteLocations(tasks.get(0))).containsExactly(categoryDeletes.location());
+  }
+
+  private static List<String> deleteLocations(FileScanTask task) {
+    return task.deletes().stream().map(ContentFile::location).sorted().toList();
   }
 
   private static DataFile file(String name) {

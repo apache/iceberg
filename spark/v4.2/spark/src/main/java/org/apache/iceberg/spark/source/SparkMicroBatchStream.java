@@ -97,7 +97,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
             sparkContext.hadoopConfiguration(),
             () -> {
               table.refresh();
-              return MicroBatchUtils.determineStartingOffset(table, fromTimestamp);
+              return MicroBatchUtils.determineInitialOffset(
+                  table, fromTimestamp, readConf.streamFromSnapshot());
             });
     this.initialOffset = initialOffsetStore.initialOffset();
   }
@@ -128,7 +129,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
         "Invalid start offset: %s is not a StreamingOffset",
         start);
 
-    if (end.equals(StreamingOffset.START_OFFSET)) {
+    if (end.equals(StreamingOffset.START_OFFSET) || end.equals(start)) {
       return new InputPartition[0];
     }
 
@@ -257,8 +258,12 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     // to read in this run. A resumed stream continues from its offset and is capped at the latest
     // snapshot the planner reads, since a cap at a skipped snapshot is never reached.
     this.noSnapshotMatchedForTriggerAvailableNow = StreamingOffset.START_OFFSET.equals(lastOffset);
-    this.lastOffsetForTriggerAvailableNow =
-        noSnapshotMatchedForTriggerAvailableNow ? planner.latestValidSnapshotOffset() : lastOffset;
+    if (noSnapshotMatchedForTriggerAvailableNow) {
+      this.lastOffsetForTriggerAvailableNow = planner.latestValidSnapshotOffset();
+    } else {
+      // null when nothing lies past the initial offset
+      this.lastOffsetForTriggerAvailableNow = lastOffset != null ? lastOffset : initialOffset;
+    }
 
     LOG.info("lastOffset for Trigger.AvailableNow is {}", lastOffsetForTriggerAvailableNow);
 

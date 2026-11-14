@@ -23,6 +23,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -62,15 +64,14 @@ public class MicroBatches {
     ManifestGroup manifestGroup =
         new ManifestGroup(io, ImmutableList.of(manifestFile))
             .specsById(specsById)
-            .caseSensitive(caseSensitive);
+            .caseSensitive(caseSensitive)
+            .ignoreDeleted();
     if (!scanAllFiles) {
       manifestGroup =
-          manifestGroup
-              .filterManifestEntries(
-                  entry ->
-                      entry.snapshotId() == snapshot.snapshotId()
-                          && entry.status() == ManifestEntry.Status.ADDED)
-              .ignoreDeleted();
+          manifestGroup.filterManifestEntries(
+              entry ->
+                  entry.snapshotId() == snapshot.snapshotId()
+                      && entry.status() == ManifestEntry.Status.ADDED);
     }
 
     return manifestGroup.planFiles();
@@ -186,6 +187,7 @@ public class MicroBatches {
     private final FileIO io;
     private boolean caseSensitive;
     private Map<Integer, PartitionSpec> specsById;
+    private Map<Integer, Schema> schemasById;
 
     private MicroBatchBuilder(Snapshot snapshot, FileIO io) {
       this.snapshot = snapshot;
@@ -200,6 +202,11 @@ public class MicroBatches {
 
     public MicroBatchBuilder specsById(Map<Integer, PartitionSpec> specs) {
       this.specsById = specs;
+      return this;
+    }
+
+    public MicroBatchBuilder schemasById(Map<Integer, Schema> schemas) {
+      this.schemasById = schemas;
       return this;
     }
 
@@ -318,6 +325,82 @@ public class MicroBatches {
           currentSizeInBytes,
           tasks,
           isLastIndex);
+    }
+
+    /** Returns the number of live data files in the snapshot, the end position for planFullScan. */
+    public long fullScanFileCount() {
+      long count = 0;
+      for (ManifestFile manifest : snapshot.dataManifests(io)) {
+        count += manifest.addedFilesCount() + manifest.existingFilesCount();
+      }
+
+      return count;
+    }
+
+    /**
+     * Plans tasks, with deletes attached, for the live data files at positions {@code
+     * [startFileIndex, endFileIndex)} of the snapshot.
+     *
+     * <p>Positions range over {@code [0, fullScanFileCount())} and are stable for a snapshot.
+     * Requires {@link #specsById(Map)}; set {@link #schemasById(Map)} so that equality deletes on
+     * dropped columns can be matched. Returned tasks do not carry column stats.
+     */
+    public List<FileScanTask> planFullScan(long startFileIndex, long endFileIndex) {
+      Preconditions.checkState(specsById != null, "Cannot plan full scan: specsById is not set");
+      Preconditions.checkArgument(
+          startFileIndex >= 0, "Invalid start file index: %s (must be >= 0)", startFileIndex);
+      List<FileScanTask> tasks = Lists.newArrayList();
+      if (startFileIndex >= endFileIndex) {
+        return tasks;
+      }
+
+      DeleteFileIndex deletes =
+          DeleteFileIndex.builderFor(io, snapshot.deleteManifests(io))
+              .specsById(specsById)
+              .schemasById(schemasById)
+              .caseSensitive(caseSensitive)
+              .build();
+
+      List<Pair<ManifestFile, Integer>> indexedManifests =
+          skipManifests(indexManifests(snapshot.dataManifests(io)), startFileIndex);
+      for (Pair<ManifestFile, Integer> indexedManifest : indexedManifests) {
+        long position = indexedManifest.second();
+        if (position >= endFileIndex) {
+          break;
+        }
+
+        ManifestFile manifest = indexedManifest.first();
+        PartitionSpec spec = specsById.get(manifest.partitionSpecId());
+        String schemaString = SchemaParser.toJson(spec.schema());
+        String specString = PartitionSpecParser.toJson(spec);
+        ResidualEvaluator residuals =
+            ResidualEvaluator.of(spec, Expressions.alwaysTrue(), caseSensitive);
+
+        try (CloseableIterable<ManifestEntry<DataFile>> entries =
+                ManifestFiles.read(manifest, io, specsById)
+                    .caseSensitive(caseSensitive)
+                    .liveEntries();
+            CloseableIterator<ManifestEntry<DataFile>> entryIter = entries.iterator()) {
+          while (entryIter.hasNext() && position < endFileIndex) {
+            ManifestEntry<DataFile> entry = entryIter.next();
+            if (position >= startFileIndex) {
+              tasks.add(
+                  new BaseFileScanTask(
+                      entry.file().copyWithoutStats(),
+                      deletes.forEntry(entry),
+                      schemaString,
+                      specString,
+                      residuals));
+            }
+
+            position++;
+          }
+        } catch (IOException ioe) {
+          LOG.warn("Failed to close manifest reader for {}", manifest.path(), ioe);
+        }
+      }
+
+      return tasks;
     }
   }
 }
