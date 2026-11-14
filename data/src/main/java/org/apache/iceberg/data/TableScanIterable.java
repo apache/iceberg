@@ -29,8 +29,8 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
   private final GenericReader reader;
   private final CloseableIterable<CombinedScanTask> tasks;
 
-  TableScanIterable(TableScan scan, boolean reuseContainers) {
-    this.reader = new GenericReader(scan, reuseContainers);
+  TableScanIterable(TableScan scan, boolean reuseContainers, boolean shareEqDeletes) {
+    this.reader = new GenericReader(scan, reuseContainers, shareEqDeletes);
     // start planning tasks in the background
     this.tasks = scan.planTasks();
   }
