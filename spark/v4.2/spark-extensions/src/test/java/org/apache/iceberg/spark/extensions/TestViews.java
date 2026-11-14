@@ -125,6 +125,161 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  void showColumnsOfView() {
+    String viewName = viewName("show_columns_view");
+    sql(
+        "CREATE VIEW %s (renamed_id, renamed_data) AS SELECT id, data FROM %s",
+        viewName, tableName);
+
+    assertThat(sql("SHOW COLUMNS IN %s", viewName))
+        .containsExactly(row("renamed_id"), row("renamed_data"));
+  }
+
+  @TestTemplate
+  void showColumnsOfViewWithNamespace() {
+    String viewName = viewName("show_columns_view");
+    sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, tableName);
+
+    assertThat(sql("SHOW COLUMNS IN %s FROM %s", viewName, NAMESPACE)).containsExactly(row("id"));
+  }
+
+  @TestTemplate
+  void showColumnsOfViewWithConflictingNamespace() {
+    String viewName = viewName("show_columns_view");
+    sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, tableName);
+
+    for (String namespace : List.of("other", "other.default")) {
+      assertThatThrownBy(
+              () ->
+                  sql(
+                      "SHOW COLUMNS IN %s.%s.%s FROM %s",
+                      catalogName, NAMESPACE, viewName, namespace))
+          .isInstanceOf(AnalysisException.class)
+          .hasMessageContaining("SHOW_COLUMNS_WITH_CONFLICT_NAMESPACE")
+          .hasMessageContaining("`" + namespace.replace(".", "`.`") + "`");
+    }
+  }
+
+  @TestTemplate
+  void showColumnsOfViewWithCaseInsensitiveNamespace() {
+    String viewName = viewName("show_columns_view");
+    sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, tableName);
+
+    withSQLConf(
+        ImmutableMap.of("spark.sql.caseSensitive", "false"),
+        () ->
+            assertThat(
+                    sql("SHOW COLUMNS IN %s.%s.%s FROM DEFAULT", catalogName, NAMESPACE, viewName))
+                .containsExactly(row("id")));
+  }
+
+  @TestTemplate
+  void showColumnsOfViewWithCaseSensitiveNamespace() {
+    String viewName = viewName("show_columns_view");
+    sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, tableName);
+
+    withSQLConf(
+        ImmutableMap.of("spark.sql.caseSensitive", "true"),
+        () ->
+            assertThatThrownBy(
+                    () ->
+                        sql(
+                            "SHOW COLUMNS IN %s.%s.%s FROM DEFAULT",
+                            catalogName, NAMESPACE, viewName))
+                .isInstanceOf(AnalysisException.class)
+                .hasMessageContaining("SHOW COLUMNS")
+                .hasMessageContaining("DEFAULT"));
+  }
+
+  @TestTemplate
+  void showColumnsOfTemporaryViewShadowsPersistentView() {
+    String viewName = viewName("show_columns_view");
+    sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, tableName);
+    sql("CREATE TEMPORARY VIEW %s AS SELECT 1 AS temp_id", viewName);
+
+    try {
+      assertThat(sql("SHOW COLUMNS IN %s", viewName)).containsExactly(row("temp_id"));
+    } finally {
+      sql("DROP VIEW %s", viewName);
+    }
+  }
+
+  @TestTemplate
+  void showColumnsOfGlobalTemporaryView() {
+    String viewName = viewName("show_columns_view");
+    sql("CREATE GLOBAL TEMPORARY VIEW %s AS SELECT 1 AS temp_id", viewName);
+
+    try {
+      assertThat(sql("SHOW COLUMNS IN global_temp.%s", viewName)).containsExactly(row("temp_id"));
+    } finally {
+      sql("DROP VIEW global_temp.%s", viewName);
+    }
+  }
+
+  @TestTemplate
+  void showColumnsOfTable() {
+    assertThat(sql("SHOW COLUMNS IN %s", tableName)).containsExactly(row("id"), row("data"));
+  }
+
+  @TestTemplate
+  void analyzeViewUnsupported() {
+    String viewName = viewName("analyze_view");
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", viewName, tableName);
+
+    for (String suffix : List.of("", " NOSCAN")) {
+      assertThatThrownBy(() -> sql("ANALYZE TABLE %s COMPUTE STATISTICS%s", viewName, suffix))
+          .isInstanceOf(AnalysisException.class)
+          .hasMessageContaining("UNSUPPORTED_FEATURE.TABLE_OPERATION")
+          .hasMessageContaining("ANALYZE TABLE")
+          .hasMessageContaining(String.format("`%s`.`%s`.`%s`", catalogName, NAMESPACE, viewName));
+    }
+  }
+
+  @TestTemplate
+  void analyzeViewColumnsUnsupported() {
+    String viewName = viewName("analyze_columns_view");
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", viewName, tableName);
+
+    for (String columns : List.of("FOR COLUMNS id", "FOR ALL COLUMNS")) {
+      assertThatThrownBy(() -> sql("ANALYZE TABLE %s COMPUTE STATISTICS %s", viewName, columns))
+          .isInstanceOf(AnalysisException.class)
+          .hasMessageContaining("UNSUPPORTED_FEATURE.TABLE_OPERATION")
+          .hasMessageContaining("ANALYZE TABLE ... FOR COLUMNS")
+          .hasMessageContaining(String.format("`%s`.`%s`.`%s`", catalogName, NAMESPACE, viewName));
+    }
+  }
+
+  @TestTemplate
+  void analyzeCachedTemporaryViewColumns() {
+    String viewName = viewName("analyze_view");
+    sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, tableName);
+    sql("CREATE TEMPORARY VIEW %s AS SELECT 1 AS temp_id", viewName);
+
+    try {
+      sql("CACHE TABLE %s", viewName);
+      sql("ANALYZE TABLE %s COMPUTE STATISTICS FOR COLUMNS temp_id", viewName);
+    } finally {
+      sql("UNCACHE TABLE %s", viewName);
+      sql("DROP VIEW %s", viewName);
+    }
+  }
+
+  @TestTemplate
+  void analyzeTemporaryViewRetainsSparkError() {
+    String viewName = viewName("analyze_view");
+    sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, tableName);
+    sql("CREATE TEMPORARY VIEW %s AS SELECT 1 AS temp_id", viewName);
+
+    try {
+      assertThatThrownBy(() -> sql("ANALYZE TABLE %s COMPUTE STATISTICS", viewName))
+          .isInstanceOf(AnalysisException.class)
+          .hasMessageContaining("EXPECT_PERMANENT_VIEW_NOT_TEMP");
+    } finally {
+      sql("DROP VIEW %s", viewName);
+    }
+  }
+
+  @TestTemplate
   public void readFromView() throws NoSuchTableException {
     insertRows(10);
     String viewName = viewName("simpleView");
