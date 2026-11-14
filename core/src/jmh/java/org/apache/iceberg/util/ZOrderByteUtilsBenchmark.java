@@ -31,10 +31,12 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Timeout;
+import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 @Fork(1)
 @State(Scope.Benchmark)
+@Warmup(iterations = 3)
 @Measurement(iterations = 5)
 @BenchmarkMode(Mode.SingleShotTime)
 @Timeout(time = 1000, timeUnit = TimeUnit.HOURS)
