@@ -2035,6 +2035,95 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat(actualContents).containsExactlyInAnyOrder(0, 0, 0, 0, 2, 2);
   }
 
+  @TestTemplate
+  public void partitionsTableRefreshesSchemaAfterPartitionSpecEvolution() {
+    String tableName = "partitions-refresh";
+    File unpartitionedTableDir = new File(tableDir, tableName);
+    Table baseTable =
+        TestTables.create(
+            unpartitionedTableDir, tableName, SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+
+    Table partitionsTable = new PartitionsTable(baseTable);
+
+    assertThat(partitionsTable.schema().findField("partition")).isNull();
+    assertThat(partitionsTable.schema().findField("spec_id")).isNull();
+
+    Table writer = TestTables.load(unpartitionedTableDir, tableName);
+    writer.updateSpec().addField("id").commit();
+
+    // Refresh the wrapped base table without refreshing the metadata table state.
+    baseTable.refresh();
+    assertThat(partitionsTable.schema().findField("partition.id")).isNull();
+
+    partitionsTable.refresh();
+
+    assertThat(partitionsTable.schema().findField("partition.id")).isNotNull();
+    assertThat(partitionsTable.schema().findField("spec_id")).isNotNull();
+    assertThat(partitionsTable.newScan().schema().findField("partition.id")).isNotNull();
+  }
+
+  @TestTemplate
+  public void positionDeletesTableRefreshesSchemaAfterPartitionSpecEvolution() {
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
+
+    PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
+
+    assertThat(positionDeletesTable.schema().findField("partition.id")).isNull();
+
+    Table writer = load();
+    writer.updateSpec().addField("id").commit();
+
+    table.refresh();
+    assertThat(positionDeletesTable.schema().findField("partition.id")).isNull();
+
+    positionDeletesTable.refresh();
+
+    assertThat(positionDeletesTable.schema().findField("partition.id")).isNotNull();
+    assertThat(positionDeletesTable.newBatchScan().schema().findField("partition.id")).isNotNull();
+  }
+
+  @TestTemplate
+  public void positionDeletesTableRefreshesSpecsAfterPartitionSpecEvolution() {
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
+
+    PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
+    int previousSpecId = table.spec().specId();
+
+    Table writer = load();
+    writer.updateSpec().addField("id").commit();
+    int currentSpecId = writer.spec().specId();
+
+    table.refresh();
+    assertThat(positionDeletesTable.spec().specId()).isEqualTo(previousSpecId);
+
+    positionDeletesTable.refresh();
+
+    assertThat(positionDeletesTable.spec().specId()).isEqualTo(currentSpecId);
+    assertThat(positionDeletesTable.specs().keySet())
+        .containsExactlyInAnyOrder(previousSpecId, currentSpecId);
+  }
+
+  @TestTemplate
+  public void positionDeletesTableRefreshesSchemaAfterBaseTableSchemaEvolution() {
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
+
+    PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
+
+    assertThat(positionDeletesTable.schema().findField("row.new_column")).isNull();
+
+    Table writer = load();
+    writer.updateSchema().addColumn("new_column", Types.StringType.get()).commit();
+
+    table.refresh();
+    assertThat(positionDeletesTable.schema().findField("row.new_column")).isNull();
+
+    positionDeletesTable.refresh();
+
+    assertThat(positionDeletesTable.schema().findField("row.new_column")).isNotNull();
+    assertThat(positionDeletesTable.newBatchScan().schema().findField("row.new_column"))
+        .isNotNull();
+  }
+
   private int rowCount(TableScan scan) throws IOException {
     int count = 0;
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
