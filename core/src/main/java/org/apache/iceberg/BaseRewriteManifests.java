@@ -140,6 +140,17 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     Preconditions.checkArgument(
         manifest.sequenceNumber() == -1, "Sequence must be assigned during commit");
 
+    int tableFormatVersion = ops().current().formatVersion();
+    if (tableFormatVersion > 1) {
+      int manifestFormatVersion = ManifestReader.formatVersion(ops().io().newInputFile(manifest));
+      Preconditions.checkArgument(
+          manifestFormatVersion > 1,
+          "Cannot add v%s manifest to a v%s table: %s",
+          manifestFormatVersion,
+          tableFormatVersion,
+          manifest.path());
+    }
+
     if (canInheritSnapshotId() && manifest.snapshotId() == null) {
       addedManifests.add(manifest);
     } else {
