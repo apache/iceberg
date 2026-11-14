@@ -92,6 +92,23 @@ public class TestNotStartsWith {
   }
 
   @Test
+  void truncateProjectionsCountCodePoints() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).truncate(COLUMN, 2).build();
+    // a supplementary character is one code point but two UTF-16 chars
+    String smile = "😀";
+
+    assertProjectionInclusive(
+        spec, notStartsWith(COLUMN, smile), smile, Expression.Operation.NOT_STARTS_WITH);
+    assertProjectionInclusive(
+        spec, notStartsWith(COLUMN, smile + "a"), smile + "a", Expression.Operation.NOT_EQ);
+
+    assertProjectionStrict(
+        spec, notStartsWith(COLUMN, smile), smile, Expression.Operation.NOT_STARTS_WITH);
+    assertProjectionStrict(
+        spec, notStartsWith(COLUMN, smile + "a"), smile + "a", Expression.Operation.NOT_EQ);
+  }
+
+  @Test
   public void testTruncateStringWhenProjectedPredicateTermIsLongerThanWidth() {
     Truncate<String> trunc = Truncate.get(2);
     UnboundPredicate<String> expr = notStartsWith(COLUMN, "abcde");
