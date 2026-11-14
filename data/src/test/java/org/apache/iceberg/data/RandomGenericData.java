@@ -47,28 +47,39 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
 
 public class RandomGenericData {
+  private static final float DEFAULT_NULL_PERCENTAGE = 0.05f;
+  private static final int RANDOM_LIST_LENGTH = -1;
+
   private RandomGenericData() {}
 
   public static List<Record> generate(Schema schema, int numRecords, long seed) {
     return Lists.newArrayList(
-        generateIcebergGenerics(schema, numRecords, () -> new RandomRecordGenerator(seed)));
+        generateIcebergGenerics(schema, numRecords, () -> RandomRecordGenerator.create(seed)));
+  }
+
+  public static List<Record> generateWithFixedLengthList(
+      Schema schema, int numRecords, long seed, int listLength) {
+    return Lists.newArrayList(
+        generateIcebergGenerics(
+            schema, numRecords, () -> RandomRecordGenerator.withFixedListLength(seed, listLength)));
   }
 
   public static Iterable<Record> generateFallbackRecords(
       Schema schema, int numRecords, long seed, long numDictRows) {
     return generateIcebergGenerics(
-        schema, numRecords, () -> new FallbackGenerator(seed, numDictRows));
+        schema, numRecords, () -> FallbackGenerator.create(seed, numDictRows));
   }
 
   public static Iterable<Record> generateDictionaryEncodableRecords(
       Schema schema, int numRecords, long seed) {
-    return generateIcebergGenerics(schema, numRecords, () -> new DictionaryEncodedGenerator(seed));
+    return generateIcebergGenerics(
+        schema, numRecords, () -> DictionaryEncodedGenerator.create(seed));
   }
 
   public static Iterable<Record> generateDictionaryEncodableRecords(
       Schema schema, int numRecords, long seed, float nullPercentage) {
     return generateIcebergGenerics(
-        schema, numRecords, () -> new DictionaryEncodedGenerator(seed, nullPercentage));
+        schema, numRecords, () -> DictionaryEncodedGenerator.create(seed, nullPercentage));
   }
 
   private static Iterable<Record> generateIcebergGenerics(
@@ -95,12 +106,16 @@ public class RandomGenericData {
   }
 
   private static class RandomRecordGenerator extends RandomDataGenerator<Record> {
-    private RandomRecordGenerator(long seed) {
-      super(seed);
+    private RandomRecordGenerator(long seed, float nullPercentage, int fixedListLength) {
+      super(seed, nullPercentage, fixedListLength);
     }
 
-    private RandomRecordGenerator(long seed, float nullPercentage) {
-      super(seed, nullPercentage);
+    static RandomRecordGenerator create(long seed) {
+      return new RandomRecordGenerator(seed, DEFAULT_NULL_PERCENTAGE, RANDOM_LIST_LENGTH);
+    }
+
+    static RandomRecordGenerator withFixedListLength(long seed, int fixedListLength) {
+      return new RandomRecordGenerator(seed, DEFAULT_NULL_PERCENTAGE, fixedListLength);
     }
 
     @Override
@@ -122,12 +137,16 @@ public class RandomGenericData {
   }
 
   private static class DictionaryEncodedGenerator extends RandomRecordGenerator {
-    DictionaryEncodedGenerator(long seed) {
-      super(seed);
+    private DictionaryEncodedGenerator(long seed, float nullPercentage) {
+      super(seed, nullPercentage, RANDOM_LIST_LENGTH);
     }
 
-    DictionaryEncodedGenerator(long seed, float nullPercentage) {
-      super(seed, nullPercentage);
+    static DictionaryEncodedGenerator create(long seed) {
+      return new DictionaryEncodedGenerator(seed, DEFAULT_NULL_PERCENTAGE);
+    }
+
+    static DictionaryEncodedGenerator create(long seed, float nullPercentage) {
+      return new DictionaryEncodedGenerator(seed, nullPercentage);
     }
 
     @Override
@@ -138,7 +157,7 @@ public class RandomGenericData {
       // with
       // limited values("0","1","2"). It's impossible for us to request the generator to generate
       // more than 3 keys,
-      // otherwise we will get in a infinite loop in RandomDataGenerator#map.
+      // otherwise we will get in an infinite loop in RandomDataGenerator#map.
       return 3;
     }
 
@@ -152,9 +171,13 @@ public class RandomGenericData {
     private final long dictionaryEncodedRows;
     private long rowCount = 0;
 
-    FallbackGenerator(long seed, long numDictionaryEncoded) {
-      super(seed);
+    private FallbackGenerator(long seed, long numDictionaryEncoded) {
+      super(seed, DEFAULT_NULL_PERCENTAGE, RANDOM_LIST_LENGTH);
       this.dictionaryEncodedRows = numDictionaryEncoded;
+    }
+
+    static FallbackGenerator create(long seed, long numDictionaryEncoded) {
+      return new FallbackGenerator(seed, numDictionaryEncoded);
     }
 
     @Override
@@ -171,21 +194,21 @@ public class RandomGenericData {
   public abstract static class RandomDataGenerator<T>
       extends TypeUtil.CustomOrderSchemaVisitor<Object> {
     private static final int MAX_ENTRIES = 20;
-    private static final float DEFAULT_NULL_PERCENTAGE = 0.05f;
-
     private final Random random;
     private final float nullPercentage;
+    private final int fixedListLength;
 
-    protected RandomDataGenerator(long seed) {
-      this(seed, DEFAULT_NULL_PERCENTAGE);
-    }
-
-    protected RandomDataGenerator(long seed, float nullPercentage) {
+    protected RandomDataGenerator(long seed, float nullPercentage, int fixedListLength) {
       Preconditions.checkArgument(
           0.0f <= nullPercentage && nullPercentage <= 1.0f,
           "Percentage needs to be in the range (0.0, 1.0)");
+      Preconditions.checkArgument(
+          fixedListLength == RANDOM_LIST_LENGTH || fixedListLength >= 0,
+          "Fixed list length must be non-negative: %s",
+          fixedListLength);
       this.random = new Random(seed);
       this.nullPercentage = nullPercentage;
+      this.fixedListLength = fixedListLength;
     }
 
     protected int getMaxEntries() {
@@ -212,7 +235,8 @@ public class RandomGenericData {
 
     @Override
     public Object list(Types.ListType list, Supplier<Object> elementResult) {
-      int numElements = random.nextInt(getMaxEntries());
+      int numElements =
+          fixedListLength == RANDOM_LIST_LENGTH ? random.nextInt(getMaxEntries()) : fixedListLength;
 
       List<Object> result = Lists.newArrayListWithExpectedSize(numElements);
       for (int i = 0; i < numElements; i += 1) {

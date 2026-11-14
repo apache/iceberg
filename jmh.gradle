@@ -71,7 +71,8 @@ configure(jmhProjects) {
     forceGC = true
     includeTests = true
     humanOutputFile = file(jmhOutputPath)
-    jvmArgs = ['-Xmx32g']
+    jvmArgs = ['-Xmx32g',
+               '--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED']
     resultsFile = file(jmhJsonOutputPath)
     resultFormat = 'JSON'
     includes = [jmhIncludeRegex]
@@ -90,4 +91,22 @@ configure(jmhProjects) {
   }
 
   tasks.jmh.finalizedBy tasks.jmhReport
+}
+
+project(':iceberg-data') {
+  dependencies {
+    annotationProcessor 'org.openjdk.jmh:jmh-generator-annprocess:1.37'
+    jmh project(':iceberg-arrow')
+    jmh(libs.arrow.vector) {
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+    jmh(libs.arrow.memory.netty) {
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'io.netty', module: 'netty-buffer'
+    }
+    jmhRuntimeOnly libs.netty.buffer
+  }
 }

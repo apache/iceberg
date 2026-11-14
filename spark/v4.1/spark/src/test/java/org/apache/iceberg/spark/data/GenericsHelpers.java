@@ -307,7 +307,7 @@ public class GenericsHelpers {
     List<?> expectedElements = Lists.newArrayList(expected);
     for (int i = 0; i < expectedElements.size(); i += 1) {
       Object expectedValue = expectedElements.get(i);
-      Object actualValue = actual.get(i, convert(elementType));
+      Object actualValue = actual.isNullAt(i) ? null : actual.get(i, convert(elementType));
 
       assertEqualsUnsafe(elementType, expectedValue, actualValue);
     }
