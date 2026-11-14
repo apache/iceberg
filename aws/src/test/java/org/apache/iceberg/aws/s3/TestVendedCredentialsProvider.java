@@ -315,6 +315,74 @@ public class TestVendedCredentialsProvider {
   }
 
   @Test
+  public void multipleS3CredentialsWithStoragePrefix() {
+    Credential tableCredential = s3Credential("s3://bucket/warehouse/table", "Table");
+    LoadCredentialsResponse response =
+        ImmutableLoadCredentialsResponse.builder()
+            .addCredentials(
+                s3Credential("s3://bucket/warehouse", "Warehouse"),
+                tableCredential,
+                s3Credential("s3://bucket/warehouse/table-other", "Other"))
+            .build();
+    mockServer
+        .when(request("/v1/credentials").withMethod(HttpMethod.GET.name()))
+        .respond(response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200));
+
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(
+            ImmutableMap.<String, String>builder()
+                .putAll(PROPERTIES)
+                .put(VendedCredentialsProvider.STORAGE_PREFIX, "s3://bucket/warehouse/table")
+                .buildOrThrow())) {
+      verifyCredentials(provider.resolveCredentials(), tableCredential);
+    }
+  }
+
+  @Test
+  public void multipleS3CredentialsWithoutMatchingStoragePrefix() {
+    LoadCredentialsResponse response =
+        ImmutableLoadCredentialsResponse.builder()
+            .addCredentials(
+                s3Credential("s3://bucket/warehouse/table1", "Table1"),
+                s3Credential("s3://bucket/warehouse/table2", "Table2"))
+            .build();
+    mockServer
+        .when(request("/v1/credentials").withMethod(HttpMethod.GET.name()))
+        .respond(response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200));
+
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(
+            ImmutableMap.<String, String>builder()
+                .putAll(PROPERTIES)
+                .put(VendedCredentialsProvider.STORAGE_PREFIX, "s3://bucket/warehouse/table3")
+                .buildOrThrow())) {
+      assertThatThrownBy(provider::resolveCredentials)
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage(
+              "Invalid S3 Credentials: no S3 credential for storage prefix s3://bucket/warehouse/table3");
+    }
+  }
+
+  @Test
+  public void singleS3CredentialWithOtherStoragePrefix() {
+    Credential credential = s3Credential("s3://bucket/warehouse/table1", "Table1");
+    LoadCredentialsResponse response =
+        ImmutableLoadCredentialsResponse.builder().addCredentials(credential).build();
+    mockServer
+        .when(request("/v1/credentials").withMethod(HttpMethod.GET.name()))
+        .respond(response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200));
+
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(
+            ImmutableMap.<String, String>builder()
+                .putAll(PROPERTIES)
+                .put(VendedCredentialsProvider.STORAGE_PREFIX, "s3")
+                .buildOrThrow())) {
+      verifyCredentials(provider.resolveCredentials(), credential);
+    }
+  }
+
+  @Test
   public void nonExpiredTokenInProperties() {
     HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
     String expiresAt = Long.toString(Instant.now().plus(10, ChronoUnit.HOURS).toEpochMilli());
@@ -583,6 +651,22 @@ public class TestVendedCredentialsProvider {
     }
 
     mockServer.verify(mockRequest, VerificationTimes.once());
+  }
+
+  private static Credential s3Credential(String prefix, String suffix) {
+    return ImmutableCredential.builder()
+        .prefix(prefix)
+        .config(
+            ImmutableMap.of(
+                S3FileIOProperties.ACCESS_KEY_ID,
+                "accessKey" + suffix,
+                S3FileIOProperties.SECRET_ACCESS_KEY,
+                "secretAccessKey" + suffix,
+                S3FileIOProperties.SESSION_TOKEN,
+                "sessionToken" + suffix,
+                S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli())))
+        .build();
   }
 
   private void verifyCredentials(AwsCredentials awsCredentials, Credential credential) {

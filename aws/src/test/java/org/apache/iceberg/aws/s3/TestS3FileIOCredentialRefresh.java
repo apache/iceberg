@@ -48,6 +48,7 @@ import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
 import org.mockserver.verify.VerificationTimes;
+import software.amazon.awssdk.identity.spi.AwsSessionCredentialsIdentity;
 
 public class TestS3FileIOCredentialRefresh {
 
@@ -179,6 +180,80 @@ public class TestS3FileIOCredentialRefresh {
                         S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS, secondRefreshExpiryMs);
               });
     }
+  }
+
+  @Test
+  public void prefixedClientsRefreshWithTheirOwnCredential() {
+    String expiredMs = Long.toString(Instant.now().minus(1, ChronoUnit.MINUTES).toEpochMilli());
+    String expiresAtMs = Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli());
+
+    LoadCredentialsResponse refreshResponse =
+        ImmutableLoadCredentialsResponse.builder()
+            .addCredentials(
+                ImmutableCredential.builder()
+                    .prefix("s3://bucket/warehouse")
+                    .config(s3CredentialConfig("Warehouse", expiresAtMs))
+                    .build(),
+                ImmutableCredential.builder()
+                    .prefix("s3://bucket/warehouse/table")
+                    .config(s3CredentialConfig("Table", expiresAtMs))
+                    .build())
+            .build();
+    mockServer
+        .when(request("/v1/credentials").withMethod(HttpMethod.GET.name()))
+        .respond(
+            response(LoadCredentialsResponseParser.toJson(refreshResponse)).withStatusCode(200));
+
+    Map<String, String> properties =
+        ImmutableMap.of(
+            AwsClientProperties.CLIENT_REGION,
+            "us-east-1",
+            AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
+            CREDENTIALS_URI,
+            CatalogProperties.URI,
+            CATALOG_URI,
+            "init-creation-stacktrace",
+            "false");
+
+    try (S3FileIO fileIO = new S3FileIO()) {
+      fileIO.initialize(properties);
+      // Expired credentials make each client fetch new ones from the refresh endpoint.
+      fileIO.setCredentials(
+          List.of(
+              StorageCredential.create(
+                  "s3://bucket/warehouse", s3CredentialConfig("InitialWarehouse", expiredMs)),
+              StorageCredential.create(
+                  "s3://bucket/warehouse/table", s3CredentialConfig("InitialTable", expiredMs))));
+
+      assertThat(resolveIdentity(fileIO, "s3://bucket/warehouse/table/data/file.parquet"))
+          .extracting(AwsSessionCredentialsIdentity::accessKeyId)
+          .isEqualTo("accessKeyTable");
+      assertThat(resolveIdentity(fileIO, "s3://bucket/warehouse/other/file.parquet"))
+          .extracting(AwsSessionCredentialsIdentity::accessKeyId)
+          .isEqualTo("accessKeyWarehouse");
+    }
+  }
+
+  private static AwsSessionCredentialsIdentity resolveIdentity(S3FileIO fileIO, String path) {
+    return (AwsSessionCredentialsIdentity)
+        fileIO
+            .client(path)
+            .serviceClientConfiguration()
+            .credentialsProvider()
+            .resolveIdentity()
+            .join();
+  }
+
+  private static Map<String, String> s3CredentialConfig(String suffix, String expiresAtMs) {
+    return ImmutableMap.of(
+        S3FileIOProperties.ACCESS_KEY_ID,
+        "accessKey" + suffix,
+        S3FileIOProperties.SECRET_ACCESS_KEY,
+        "secretAccessKey" + suffix,
+        S3FileIOProperties.SESSION_TOKEN,
+        "sessionToken" + suffix,
+        S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+        expiresAtMs);
   }
 
   @Test
