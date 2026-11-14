@@ -26,6 +26,7 @@ import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.DateDayVector;
+import org.apache.arrow.vector.ExtensionTypeVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
@@ -201,9 +202,12 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           case UUID:
           case FIXED_WIDTH_BINARY:
           case FIXED_LENGTH_DECIMAL:
+            // UUID is allocated as the canonical Arrow UUID extension vector, whose storage is a
+            // FixedSizeBinaryVector. Read into the underlying storage vector; it shares buffers and
+            // value count with the extension vector held in the VectorHolder.
             vectorizedColumnIterator
                 .fixedSizeBinaryBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(storageVector(vec), typeWidth, nullabilityHolder);
             break;
         }
       }
@@ -215,6 +219,18 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         numValsToRead);
     return new VectorHolder(
         columnDescriptor, vec, dictEncoded, dictionary, nullabilityHolder, icebergField);
+  }
+
+  /**
+   * Returns the underlying storage vector for an extension-typed vector (e.g. the {@link
+   * FixedSizeBinaryVector} backing a canonical Arrow UUID vector), or the vector itself when it is
+   * not an extension vector. The storage vector shares its buffers, validity and value count with
+   * the extension vector, so reading into it transparently populates the extension vector.
+   */
+  private static FieldVector storageVector(FieldVector vector) {
+    return vector instanceof ExtensionTypeVector
+        ? ((ExtensionTypeVector<?>) vector).getUnderlyingVector()
+        : vector;
   }
 
   private void allocateFieldVector(boolean dictionaryEncodedVector) {
@@ -495,7 +511,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     public Optional<LogicalTypeVisitorResult> visit(
         LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
       FieldVector vector = arrowField.createVector(rootAlloc);
-      ((FixedSizeBinaryVector) vector).allocateNew(batchSize);
+      ((FixedSizeBinaryVector) storageVector(vector)).allocateNew(batchSize);
       return Optional.of(
           new LogicalTypeVisitorResult(vector, ReadType.UUID, primitive.getTypeLength()));
     }
