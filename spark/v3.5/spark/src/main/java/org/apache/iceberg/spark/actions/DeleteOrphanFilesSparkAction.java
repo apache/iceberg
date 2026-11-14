@@ -258,7 +258,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     Dataset<FileURI> validFileIdentDS = validFileIdentDS();
 
     Dataset<String> orphanFileDS =
-        findOrphanFiles(actualFileIdentDS, validFileIdentDS, prefixMismatchMode);
+        findOrphanFiles(actualFileIdentDS, validFileIdentDS, prefixMismatchMode, streamResults());
     try {
       return deleteFiles(orphanFileDS);
     } finally {
@@ -267,9 +267,9 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   }
 
   /**
-   * Deletes orphan files from the cached dataset.
+   * Deletes orphan files from the dataset.
    *
-   * @param orphanFileDS the cached dataset of orphan files
+   * @param orphanFileDS the dataset of orphan files
    * @return result with orphan file paths
    */
   private DeleteOrphanFiles.Result deleteFiles(Dataset<String> orphanFileDS) {
@@ -350,7 +350,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   static Dataset<String> findOrphanFiles(
       Dataset<FileURI> actualFileIdentDS,
       Dataset<FileURI> validFileIdentDS,
-      PrefixMismatchMode prefixMismatchMode) {
+      PrefixMismatchMode prefixMismatchMode,
+      boolean streamResults) {
 
     SetAccumulator<Pair<String, String>> conflicts = new SetAccumulator<>();
     actualFileIdentDS.sparkSession().sparkContext().register(conflicts);
@@ -362,7 +363,12 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
             .joinWith(validFileIdentDS, joinCond, "leftouter")
             .mapPartitions(new FindOrphanFiles(prefixMismatchMode, conflicts), Encoders.STRING());
 
-    // Cache and force computation to populate conflicts accumulator
+    if (prefixMismatchMode != PrefixMismatchMode.ERROR && !streamResults) {
+      return orphanFileDS;
+    }
+
+    // Caching avoids recomputation in toLocalIterator. Eager evaluation populates conflicts and
+    // completes discovery before deletion starts.
     orphanFileDS = orphanFileDS.cache();
 
     try {
