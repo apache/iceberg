@@ -95,4 +95,17 @@ class RequestMatcher {
                 && req.path().equals(path)
                 && req.headers().entries().containsAll(HTTPHeaders.of(headers).entries()));
   }
+
+  public static HTTPRequest containsHeaders(
+      HTTPRequest.HTTPMethod method,
+      String path,
+      Map<String, String> headers,
+      Map<String, String> parameters) {
+    return argThat(
+        req ->
+            req.method() == method
+                && req.path().equals(path)
+                && req.headers().entries().containsAll(HTTPHeaders.of(headers).entries())
+                && req.queryParameters().equals(parameters));
+  }
 }
