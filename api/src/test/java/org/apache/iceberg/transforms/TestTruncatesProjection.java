@@ -502,4 +502,34 @@ public class TestTruncatesProjection {
     assertProjectionInclusiveValue(
         spec, notIn("value", value, anotherValue), Expression.Operation.TRUE);
   }
+
+  @Test
+  void integerBoundaryProjection() {
+    Schema schema = new Schema(optional(1, "value", Types.IntegerType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
+
+    assertProjectionInclusiveValue(
+        spec, lessThan("value", Integer.MIN_VALUE), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, greaterThan("value", Integer.MAX_VALUE), Expression.Operation.TRUE);
+    assertProjectionStrictValue(
+        spec, lessThanOrEqual("value", Integer.MAX_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, greaterThanOrEqual("value", Integer.MIN_VALUE), Expression.Operation.FALSE);
+  }
+
+  @Test
+  void longBoundaryProjection() {
+    Schema schema = new Schema(optional(1, "value", Types.LongType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
+
+    assertProjectionInclusiveValue(
+        spec, lessThan("value", Long.MIN_VALUE), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, greaterThan("value", Long.MAX_VALUE), Expression.Operation.TRUE);
+    assertProjectionStrictValue(
+        spec, lessThanOrEqual("value", Long.MAX_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, greaterThanOrEqual("value", Long.MIN_VALUE), Expression.Operation.FALSE);
+  }
 }
