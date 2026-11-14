@@ -155,6 +155,10 @@ abstract class Channel {
     return controlTopicOffsets;
   }
 
+  Admin admin() {
+    return admin;
+  }
+
   /**
    * Commits consumer offsets in a separate Kafka transaction on the coordinator's transactional
    * producer, committing a partition's offset only when it advances past the last committed value.
