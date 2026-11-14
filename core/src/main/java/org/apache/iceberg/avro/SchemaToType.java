@@ -30,9 +30,15 @@ import org.apache.iceberg.types.Types;
 
 class SchemaToType extends AvroSchemaVisitor<Type> {
   private final Schema root;
+  private final boolean timeAsNumber;
 
   SchemaToType(Schema root) {
+    this(root, false);
+  }
+
+  SchemaToType(Schema root, boolean timeAsNumber) {
     this.root = root;
+    this.timeAsNumber = timeAsNumber;
     if (root.getType() == Schema.Type.RECORD) {
       this.nextId = root.getFields().size();
     }
@@ -189,7 +195,8 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
 
     } else if (logical instanceof LogicalTypes.TimeMillis
         || logical instanceof LogicalTypes.TimeMicros) {
-      return Types.TimeType.get();
+      // as numbers the logical type is ignored, so the time is the int or long Avro stores it as
+      return timeAsNumber ? null : Types.TimeType.get();
 
     } else if (logical instanceof LogicalTypes.TimestampMillis
         || logical instanceof LogicalTypes.TimestampMicros) {
