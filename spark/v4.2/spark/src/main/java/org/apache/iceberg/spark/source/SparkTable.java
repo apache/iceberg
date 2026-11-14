@@ -216,15 +216,9 @@ public class SparkTable extends BaseSparkTable
   public boolean canDeleteWhere(Predicate[] predicates) {
     Preconditions.checkArgument(timeTravel == null, "Cannot delete from table with time travel");
 
-    Expression deleteExpr = Expressions.alwaysTrue();
-
-    for (Predicate predicate : predicates) {
-      Expression expr = SparkV2Filters.convert(predicate);
-      if (expr != null) {
-        deleteExpr = Expressions.and(deleteExpr, expr);
-      } else {
-        return false;
-      }
+    Expression deleteExpr = SparkV2Filters.convertForDelete(predicates);
+    if (deleteExpr == null) {
+      return false;
     }
 
     String scanBranch =
@@ -280,7 +274,9 @@ public class SparkTable extends BaseSparkTable
 
   @Override
   public void deleteWhere(Predicate[] predicates) {
-    Expression deleteExpr = SparkV2Filters.convert(predicates);
+    Expression deleteExpr = SparkV2Filters.convertForDelete(predicates);
+    Preconditions.checkArgument(
+        deleteExpr != null, "Cannot convert Spark delete predicates to Iceberg expressions");
 
     if (deleteExpr == Expressions.alwaysFalse()) {
       LOG.info("Skipping the delete operation as the condition is always false");
