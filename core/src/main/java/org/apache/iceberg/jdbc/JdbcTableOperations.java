@@ -32,6 +32,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
@@ -115,7 +116,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
         String oldMetadataLocation = base.metadataFileLocation();
         // Start atomic update
         LOG.debug("Committing existing table: {}", tableName());
-        updateTable(newMetadataLocation, oldMetadataLocation);
+        updateTable(newMetadataLocation, oldMetadataLocation, metadata);
       } else {
         // table not exists create it
         LOG.debug("Committing new table: {}", tableName());
@@ -146,7 +147,8 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
-  private void updateTable(String newMetadataLocation, String oldMetadataLocation)
+  private void updateTable(
+      String newMetadataLocation, String oldMetadataLocation, TableMetadata metadata)
       throws SQLException, InterruptedException {
     int updatedRecords =
         JdbcUtil.updateTable(
@@ -159,9 +161,21 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
 
     if (updatedRecords == 1) {
       LOG.debug("Successfully committed to existing table: {}", tableIdentifier);
-    } else {
-      throw new CommitFailedException(
-          "Failed to update table %s from catalog %s", tableIdentifier, catalogName);
+      return;
+    }
+
+    // zero rows is either a concurrent commit or a replay of this commit's own update after the
+    // connection pool reconnected, so look for the new location before failing
+    switch (checkCommitStatusStrict(newMetadataLocation, metadata)) {
+      case SUCCESS ->
+          LOG.info("Commit to {} was already applied, treating it as successful", tableIdentifier);
+      case UNKNOWN ->
+          throw new CommitStateUnknownException(
+              new CommitFailedException(
+                  "Failed to update table %s from catalog %s", tableIdentifier, catalogName));
+      case FAILURE ->
+          throw new CommitFailedException(
+              "Failed to update table %s from catalog %s", tableIdentifier, catalogName);
     }
   }
 
