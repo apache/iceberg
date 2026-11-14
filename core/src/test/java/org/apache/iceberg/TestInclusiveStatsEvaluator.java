@@ -23,6 +23,7 @@ import static org.apache.iceberg.StatsTestUtil.fieldStats;
 import static org.apache.iceberg.StatsTestUtil.trackedFile;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -34,6 +35,8 @@ import org.apache.iceberg.expressions.TestInclusiveMetricsEvaluator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedFile> {
   private static final Types.StructType STATS_TYPE =
@@ -280,6 +283,34 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
 
     assertThat(shouldRead(LOCATION_SCHEMA, notNull("location.alt"), file))
         .as("Should read: location.alt has a value in every row")
+        .isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(longs = {0, 1})
+  void notNullWithoutValueCount(long nullCount) {
+    TrackedFile file =
+        trackedFile(
+            "file.avro",
+            2,
+            contentStats(STATS_TYPE, fieldStats(STATS_TYPE, 2, null, null, null, nullCount, null)));
+
+    assertThat(shouldRead(SCHEMA, notNull("no_stats"), file))
+        .as("Should read: a null count alone does not imply all values are null")
+        .isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(longs = {0, 1})
+  void notNaNWithoutValueCount(long nanCount) {
+    TrackedFile file =
+        trackedFile(
+            "file.avro",
+            2,
+            contentStats(STATS_TYPE, fieldStats(STATS_TYPE, 13, null, null, null, null, nanCount)));
+
+    assertThat(shouldRead(SCHEMA, notNaN("no_nan_stats"), file))
+        .as("Should read: a NaN count alone does not imply all values are NaN")
         .isTrue();
   }
 
