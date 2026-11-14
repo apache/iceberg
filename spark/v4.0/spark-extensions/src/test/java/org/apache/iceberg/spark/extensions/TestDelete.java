@@ -1479,6 +1479,60 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   }
 
   @TestTemplate
+  public void testMetadataDeleteWithWapIdIsStaged() throws NoSuchTableException {
+    assumeThat(branch).as("WAP ID only works for table identifier without branch").isNull();
+
+    createAndInitPartitionedTable();
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
+        tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
+
+    append(tableName, new Employee(1, "hr"), new Employee(5, "eng"));
+
+    String wapId = "wap_metadata_delete";
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_ID, wapId),
+        () -> sql("DELETE FROM %s WHERE dep = 'hr'", tableName));
+
+    assertThat(sql("SELECT id, dep FROM %s ORDER BY id", tableName))
+        .as("Metadata delete must not modify the current branch when a WAP ID is set")
+        .containsExactly(row(1, "hr"), row(5, "eng"));
+    assertThat(
+            sql(
+                "SELECT snapshot_id FROM %s.snapshots WHERE summary['wap.id'] = '%s'",
+                tableName, wapId))
+        .as("Metadata delete should be staged with the WAP ID")
+        .hasSize(1);
+  }
+
+  @TestTemplate
+  public void testRowLevelDeleteWithWapIdIsStaged() throws NoSuchTableException {
+    assumeThat(branch).as("WAP ID only works for table identifier without branch").isNull();
+
+    createAndInitPartitionedTable();
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
+        tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
+
+    append(tableName, new Employee(1, "hr"), new Employee(5, "hr"));
+
+    String wapId = "wap_row_level_delete";
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_ID, wapId),
+        () -> sql("DELETE FROM %s WHERE id = 1", tableName));
+
+    assertThat(sql("SELECT id, dep FROM %s ORDER BY id", tableName))
+        .as("Row-level delete must not modify the current branch when a WAP ID is set")
+        .containsExactly(row(1, "hr"), row(5, "hr"));
+    assertThat(
+            sql(
+                "SELECT snapshot_id FROM %s.snapshots WHERE summary['wap.id'] = '%s'",
+                tableName, wapId))
+        .as("Row-level delete should be staged with the WAP ID")
+        .hasSize(1);
+  }
+
+  @TestTemplate
   public void testDeleteWithFilterOnNestedColumn() {
     createAndInitNestedColumnsTable();
 

@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.CURRENT_SNAPSHOT_ID;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -36,6 +37,7 @@ import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
@@ -63,6 +65,7 @@ import org.apache.iceberg.spark.SparkTableProperties;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
+import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
@@ -426,6 +429,15 @@ public class SparkTable
 
     if (writeBranch != null) {
       deleteFiles.toBranch(writeBranch);
+    }
+
+    // honor spark.wap.id for metadata deletes so the change is staged rather than applied to the
+    // current branch
+    SparkWriteConf writeConf =
+        new SparkWriteConf(sparkSession(), icebergTable, Collections.emptyMap());
+    if (writeConf.wapEnabled() && writeConf.wapId() != null) {
+      deleteFiles.set(SnapshotSummary.STAGED_WAP_ID_PROP, writeConf.wapId());
+      deleteFiles.stageOnly();
     }
 
     if (!CommitMetadata.commitProperties().isEmpty()) {
