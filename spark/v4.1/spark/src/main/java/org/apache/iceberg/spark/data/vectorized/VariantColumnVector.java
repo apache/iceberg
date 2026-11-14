@@ -32,8 +32,19 @@ public class VariantColumnVector extends ColumnVector {
 
   VariantColumnVector(VectorHolder.VariantVectorHolder holder) {
     super(DataTypes.VariantType);
-    this.valueChild = new IcebergArrowColumnVector(holder.valueHolder());
     this.metadataChild = new IcebergArrowColumnVector(holder.metadataHolder());
+    this.valueChild =
+        new IcebergArrowColumnVector(holder.valueHolder()) {
+          @Override
+          public byte[] getBinary(int rowId) {
+            if (isNullAt(rowId) && !metadataChild.isNullAt(rowId)) {
+              // A present Variant with no payload must be read as Variant null (00).
+              return new byte[] {0};
+            }
+
+            return super.getBinary(rowId);
+          }
+        };
   }
 
   @Override
@@ -49,17 +60,17 @@ public class VariantColumnVector extends ColumnVector {
 
   @Override
   public boolean hasNull() {
-    return valueChild.hasNull();
+    return metadataChild.hasNull();
   }
 
   @Override
   public int numNulls() {
-    return valueChild.numNulls();
+    return metadataChild.numNulls();
   }
 
   @Override
   public boolean isNullAt(int rowId) {
-    return valueChild.isNullAt(rowId);
+    return metadataChild.isNullAt(rowId);
   }
 
   // getChild is what getVariant() calls: child(0) = value, child(1) = metadata
