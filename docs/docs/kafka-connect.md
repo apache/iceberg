@@ -415,9 +415,10 @@ The `CopyValue` SMT copies a value from one field to a new field.
 ### DmsTransform
 _(Experimental)_
 
-The `DmsTransform` SMT transforms an AWS DMS formatted message for use by the sink's CDC feature.
+The `DmsTransform` SMT transforms an AWS DMS formatted message.
 It will promote the `data` element fields to top level and add the following metadata fields:
 `_cdc.op`, `_cdc.ts`, and `_cdc.source`.
+The sink does not apply CDC operations, so every record is appended.
 
 ##### Configuration
 
@@ -426,9 +427,10 @@ The SMT currently has no configuration.
 ### DebeziumTransform
 _(Experimental)_
 
-The `DebeziumTransform` SMT transforms a Debezium formatted message for use by the sink's CDC feature.
+The `DebeziumTransform` SMT transforms a Debezium formatted message.
 It will promote the `before` or `after` element fields to top level and add the following metadata fields:
 `_cdc.op`, `_cdc.ts`, `_cdc.offset`, `_cdc.source`, `_cdc.target`, and `_cdc.key`.
+The sink does not apply CDC operations, so every record is appended.
 
 ##### Configuration
 
