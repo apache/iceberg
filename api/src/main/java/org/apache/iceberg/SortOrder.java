@@ -126,8 +126,13 @@ public class SortOrder implements Serializable {
     UnboundSortOrder.Builder builder = UnboundSortOrder.builder().withOrderId(orderId);
 
     for (SortField field : fields) {
-      builder.addSortField(
-          field.transform().toString(), field.sourceId(), field.direction(), field.nullOrder());
+      if (field.sourceIds().size() > 1) {
+        builder.addSortField(
+            field.transform().toString(), field.sourceIds(), field.direction(), field.nullOrder());
+      } else {
+        builder.addSortField(
+            field.transform().toString(), field.sourceId(), field.direction(), field.nullOrder());
+      }
     }
 
     return builder.build();
@@ -260,6 +265,16 @@ public class SortOrder implements Serializable {
       return this;
     }
 
+    Builder addSortField(
+        Transform<?, ?> transform,
+        List<Integer> sourceIds,
+        SortDirection direction,
+        NullOrder nullOrder) {
+      SortField sortField = new SortField(transform, sourceIds, direction, nullOrder);
+      fields.add(sortField);
+      return this;
+    }
+
     public SortOrder build() {
       SortOrder sortOrder = buildUnchecked();
       checkCompatibility(sortOrder, schema);
@@ -297,18 +312,20 @@ public class SortOrder implements Serializable {
 
   public static void checkCompatibility(SortOrder sortOrder, Schema schema) {
     for (SortField field : sortOrder.fields) {
-      Type sourceType = schema.findType(field.sourceId());
-      ValidationException.check(
-          sourceType != null, "Cannot find source column for sort field: %s", field);
-      ValidationException.check(
-          sourceType.isPrimitiveType(),
-          "Cannot sort by non-primitive source field: %s",
-          sourceType);
-      ValidationException.check(
-          field.transform().canTransform(sourceType),
-          "Invalid source type %s for transform: %s",
-          sourceType,
-          field.transform());
+      for (int srcId : field.sourceIds()) {
+        Type sourceType = schema.findType(srcId);
+        ValidationException.check(
+            sourceType != null, "Cannot find source column for sort field: %s", field);
+        ValidationException.check(
+            sourceType.isPrimitiveType(),
+            "Cannot sort by non-primitive source field: %s",
+            sourceType);
+        ValidationException.check(
+            field.transform().canTransform(sourceType),
+            "Invalid source type %s for transform: %s",
+            sourceType,
+            field.transform());
+      }
     }
   }
 }
