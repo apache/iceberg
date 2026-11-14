@@ -285,7 +285,11 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
           rowDelta.validateFromSnapshot(scan.snapshotId());
         }
 
-        if (command == UPDATE || command == MERGE) {
+        if (command == UPDATE) {
+          // data files that the UPDATE does not modify have no rows matching its condition
+          rowDelta.validateDeletedFiles();
+          rowDelta.validateNoConflictingDeleteFilesForModifiedDataFiles();
+        } else if (command == MERGE) {
           rowDelta.validateDeletedFiles();
           rowDelta.validateNoConflictingDeleteFiles();
         }

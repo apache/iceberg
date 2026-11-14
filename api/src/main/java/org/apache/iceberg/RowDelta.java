@@ -151,8 +151,10 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
    * operation.
    *
    * <p>This method must be called when the table is queried to produce a row delta for UPDATE and
-   * MERGE operations independently of the isolation level. Calling this method isn't required for
-   * DELETE operations as it is OK to delete a record that is also deleted concurrently.
+   * MERGE operations independently of the isolation level, unless an UPDATE calls {@link
+   * #validateNoConflictingDeleteFilesForModifiedDataFiles()} instead. Calling this method isn't
+   * required for DELETE operations as it is OK to delete a record that is also deleted
+   * concurrently.
    *
    * <p>Validation uses the conflict detection filter passed to {@link
    * #conflictDetectionFilter(Expression)} and applies to operations that happened after the
@@ -161,4 +163,32 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
    * @return this for method chaining
    */
   RowDelta validateNoConflictingDeleteFiles();
+
+  /**
+   * Enables validation that delete files added concurrently do not conflict with this commit's
+   * operation, like {@link #validateNoConflictingDeleteFiles()} but limited to the data files this
+   * commit modifies: those its position deletes and deletion vectors apply to, and those it
+   * removes.
+   *
+   * <p>Concurrent position deletes and deletion vectors that apply to a single other data file do
+   * not conflict. Concurrent equality deletes and position deletes that may apply to more than one
+   * data file still conflict, and so does every concurrent delete file if this commit adds such a
+   * delete file itself.
+   *
+   * <p>This method can be called instead of {@link #validateNoConflictingDeleteFiles()} for UPDATE
+   * operations. A concurrent delete of a row that the UPDATE only reads, such as through a subquery
+   * in its condition, is not detected. It is not sufficient for a MERGE whose inserts depend on
+   * target rows that it matched without modifying them.
+   *
+   * <p>Validation uses the conflict detection filter passed to {@link
+   * #conflictDetectionFilter(Expression)} and applies to operations that happened after the
+   * snapshot passed to {@link #validateFromSnapshot(long)}.
+   *
+   * @return this for method chaining
+   */
+  default RowDelta validateNoConflictingDeleteFilesForModifiedDataFiles() {
+    throw new UnsupportedOperationException(
+        getClass().getName()
+            + " does not implement validateNoConflictingDeleteFilesForModifiedDataFiles");
+  }
 }
