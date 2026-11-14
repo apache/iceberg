@@ -49,11 +49,10 @@ Tags can be used for retaining important historical snapshots for auditing purpo
 The above diagram demonstrates retaining important historical snapshot with the following retention policy, defined
 via Spark SQL.
 
-1. Retain 1 snapshot per week for 1 month. This can be achieved by tagging the weekly snapshot and setting the tag retention to be a month.
-snapshots will be kept, and the branch reference itself will be retained for 1 week.
+1. Retain 1 snapshot per week for 1 month. This can be achieved by tagging the weekly snapshot and setting the tag retention to one month. The tagged snapshots will be kept, and the tag reference itself will be retained for one month.
 ```sql
--- Create a tag for the first end of week snapshot. Retain the snapshot for a week
-ALTER TABLE prod.db.table CREATE TAG `EOW-01` AS OF VERSION 7 RETAIN 7 DAYS;
+-- Create a tag for the first end-of-week snapshot. Retain the snapshot for a month.
+ALTER TABLE prod.db.table CREATE TAG `EOW-01` AS OF VERSION 7 RETAIN 30 DAYS;
 ```
 
 2. Retain 1 snapshot per month for 6 months. This can be achieved by tagging the monthly snapshot and setting the tag retention to be 6 months.
