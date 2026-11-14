@@ -22,14 +22,19 @@ import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import org.apache.iceberg.AddedRowsScanTask;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.ContentFile;
+import org.apache.iceberg.DeletedDataFileScanTask;
+import org.apache.iceberg.DeletedRowsScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MergeableScanTask;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.SplittableScanTask;
@@ -52,6 +57,35 @@ public class TableScanUtil {
 
   public static boolean hasDeletes(FileScanTask task) {
     return !task.deletes().isEmpty();
+  }
+
+  public static List<ContentFile<?>> referencedFiles(ScanTask task) {
+    if (task instanceof FileScanTask fileTask) {
+      return ImmutableList.<ContentFile<?>>builder()
+          .add(fileTask.file())
+          .addAll(fileTask.deletes())
+          .build();
+    } else if (task instanceof AddedRowsScanTask addedRowsTask) {
+      return ImmutableList.<ContentFile<?>>builder()
+          .add(addedRowsTask.file())
+          .addAll(addedRowsTask.deletes())
+          .build();
+    } else if (task instanceof DeletedDataFileScanTask deletedDataFileTask) {
+      return ImmutableList.<ContentFile<?>>builder()
+          .add(deletedDataFileTask.file())
+          .addAll(deletedDataFileTask.existingDeletes())
+          .build();
+    } else if (task instanceof DeletedRowsScanTask deletedRowsTask) {
+      return ImmutableList.<ContentFile<?>>builder()
+          .add(deletedRowsTask.file())
+          .addAll(deletedRowsTask.addedDeletes())
+          .addAll(deletedRowsTask.existingDeletes())
+          .build();
+    } else if (task instanceof PositionDeletesScanTask positionDeletesTask) {
+      return ImmutableList.of(positionDeletesTask.file());
+    }
+
+    throw new IllegalArgumentException("Unsupported scan task type: " + task.getClass().getName());
   }
 
   public static CloseableIterable<FileScanTask> splitFiles(
