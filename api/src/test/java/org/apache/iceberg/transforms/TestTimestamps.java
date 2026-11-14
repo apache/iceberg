@@ -21,12 +21,65 @@ package org.apache.iceberg.transforms;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.SerializableFunction;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestTimestamps {
+  private static Stream<Arguments> temporalTransformTypes() {
+    return Stream.of(
+            Types.TimestampType.withoutZone(),
+            Types.TimestampType.withZone(),
+            Types.TimestampNanoType.withoutZone(),
+            Types.TimestampNanoType.withZone())
+        .flatMap(
+            type ->
+                Stream.of(ChronoUnit.YEARS, ChronoUnit.MONTHS, ChronoUnit.DAYS, ChronoUnit.HOURS)
+                    .map(unit -> Arguments.of(type, unit)));
+  }
+
+  @ParameterizedTest
+  @MethodSource("temporalTransformTypes")
+  void temporalTransformsAtSecondRollover(Type type, ChronoUnit unit) {
+    boolean nanos = type.typeId() == Type.TypeID.TIMESTAMP_NANO;
+    long unitsPerSecond = nanos ? 1_000_000_000L : DateTimeUtil.MICROS_PER_SECOND;
+    Transform<Long, Integer> transform =
+        switch (unit) {
+          case YEARS -> Transforms.year();
+          case MONTHS -> Transforms.month();
+          case DAYS -> Transforms.day();
+          case HOURS -> Transforms.hour();
+          default -> throw new IllegalArgumentException("Unsupported unit: " + unit);
+        };
+    SerializableFunction<Long, Integer> bound = transform.bind(type);
+    LocalDateTime epoch = DateTimeUtil.EPOCH.toLocalDateTime();
+
+    for (int year : new int[] {1900, 1969, 1970, 2000}) {
+      LocalDateTime boundary = LocalDateTime.of(year, 1, 1, 0, 0);
+      long timestamp =
+          nanos
+              ? DateTimeUtil.nanosFromTimestamp(boundary)
+              : DateTimeUtil.microsFromTimestamp(boundary);
+      int expected = Math.toIntExact(unit.between(epoch, boundary));
+
+      for (long offset :
+          new long[] {-1, 0, unitsPerSecond - 2, unitsPerSecond - 1, unitsPerSecond}) {
+        assertThat(bound.apply(timestamp + offset))
+            .as("%s %s at %s + %s", type, transform, boundary, offset)
+            .isEqualTo(offset < 0 ? expected - 1 : expected);
+      }
+    }
+  }
+
   @Test
   public void testMicrosSatisfiesOrderOfDates() {
     assertThat(Timestamps.MICROS_TO_HOUR.satisfiesOrderOf(Dates.DAY)).isTrue();
