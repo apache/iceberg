@@ -49,13 +49,13 @@ class BaseSnapshot implements Snapshot {
   private final String keyId;
 
   // lazily initialized
-  private transient List<ManifestFile> allManifests = null;
-  private transient List<ManifestFile> dataManifests = null;
-  private transient List<ManifestFile> deleteManifests = null;
-  private transient List<DataFile> addedDataFiles = null;
-  private transient List<DataFile> removedDataFiles = null;
-  private transient List<DeleteFile> addedDeleteFiles = null;
-  private transient List<DeleteFile> removedDeleteFiles = null;
+  private transient volatile List<ManifestFile> allManifests = null;
+  private transient volatile List<ManifestFile> dataManifests = null;
+  private transient volatile List<ManifestFile> deleteManifests = null;
+  private transient volatile List<DataFile> addedDataFiles = null;
+  private transient volatile List<DataFile> removedDataFiles = null;
+  private transient volatile List<DeleteFile> addedDeleteFiles = null;
+  private transient volatile List<DeleteFile> removedDeleteFiles = null;
 
   BaseSnapshot(
       long sequenceNumber,
@@ -178,7 +178,7 @@ class BaseSnapshot implements Snapshot {
     return keyId;
   }
 
-  private void cacheManifests(FileIO fileIO) {
+  private synchronized void cacheManifests(FileIO fileIO) {
     Preconditions.checkState(
         rootManifestLocation == null,
         "Cannot read manifests from snapshot %s: root manifests are not supported",
@@ -283,8 +283,12 @@ class BaseSnapshot implements Snapshot {
     return rootManifestLocation;
   }
 
-  private void cacheDeleteFileChanges(FileIO fileIO) {
+  private synchronized void cacheDeleteFileChanges(FileIO fileIO) {
     Preconditions.checkArgument(fileIO != null, "Cannot cache delete file changes: FileIO is null");
+
+    if (addedDeleteFiles != null && removedDeleteFiles != null) {
+      return;
+    }
 
     ImmutableList.Builder<DeleteFile> adds = ImmutableList.builder();
     ImmutableList.Builder<DeleteFile> deletes = ImmutableList.builder();
@@ -317,8 +321,12 @@ class BaseSnapshot implements Snapshot {
     this.removedDeleteFiles = deletes.build();
   }
 
-  private void cacheDataFileChanges(FileIO fileIO) {
+  private synchronized void cacheDataFileChanges(FileIO fileIO) {
     Preconditions.checkArgument(fileIO != null, "Cannot cache data file changes: FileIO is null");
+
+    if (addedDataFiles != null && removedDataFiles != null) {
+      return;
+    }
 
     ImmutableList.Builder<DataFile> adds = ImmutableList.builder();
     ImmutableList.Builder<DataFile> deletes = ImmutableList.builder();
