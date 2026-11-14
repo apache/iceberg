@@ -183,6 +183,10 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     integrationImplementation libs.analyticsaccelerator.s3
   }
 
+  test {
+    useJUnitPlatform()
+  }
+
   task integrationTest(type: Test) {
     useJUnitPlatform()
     testClassesDirs = sourceSets.integration.output.classesDirs
