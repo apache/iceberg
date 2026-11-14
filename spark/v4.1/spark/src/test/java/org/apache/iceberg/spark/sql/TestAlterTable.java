@@ -330,4 +330,35 @@ public class TestAlterTable extends CatalogTestBase {
               "Cannot specify the '%s' because it's a reserved table property", reservedProp);
     }
   }
+
+  @TestTemplate
+  void evolveUnknownTypeToPrimitive() {
+    // Hive Metastore inherently rejects 'UnknownType' during table creation. Skip for Hive
+    // catalogs.
+    org.assertj.core.api.Assumptions.assumeThat(catalogName)
+        .isNotEqualTo("testhive")
+        .isNotEqualTo("spark_catalog");
+
+    String voidTableName = tableName + "_void";
+
+    // Create a table with format-version 3 and a VOID type column
+    sql(
+        "CREATE TABLE %s (id INT, payload VOID) USING iceberg TBLPROPERTIES ('format-version'='3')",
+        voidTableName);
+
+    // Alter column type from VOID (UnknownType) to STRING
+    sql("ALTER TABLE %s ALTER COLUMN payload TYPE STRING", voidTableName);
+
+    // Verify the schema evolution succeeded using the correct identifier
+    org.apache.iceberg.catalog.TableIdentifier voidIdent =
+        org.apache.iceberg.catalog.TableIdentifier.of(
+            org.apache.iceberg.catalog.Namespace.of("default"), tableIdent.name() + "_void");
+    org.apache.iceberg.Table table = validationCatalog.loadTable(voidIdent);
+
+    org.assertj.core.api.Assertions.assertThat(table.schema().findField("payload").type())
+        .isEqualTo(org.apache.iceberg.types.Types.StringType.get());
+
+    // Cleanup
+    sql("DROP TABLE IF EXISTS %s", voidTableName);
+  }
 }
