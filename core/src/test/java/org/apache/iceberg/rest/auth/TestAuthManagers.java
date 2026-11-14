@@ -55,6 +55,18 @@ class TestAuthManagers {
   }
 
   @Test
+  void bearerExplicit() {
+    try (AuthManager manager =
+        AuthManagers.loadAuthManager(
+            "test", Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_BEARER))) {
+      assertThat(manager).isInstanceOf(BearerAuthManager.class);
+    }
+    assertThat(streamCaptor.toString())
+        .contains(
+            "Loading AuthManager implementation: org.apache.iceberg.rest.auth.BearerAuthManager");
+  }
+
+  @Test
   void oauth2InferredFromToken() {
     try (AuthManager manager =
         AuthManagers.loadAuthManager("test", Map.of(OAuth2Properties.TOKEN, "irrelevant"))) {
