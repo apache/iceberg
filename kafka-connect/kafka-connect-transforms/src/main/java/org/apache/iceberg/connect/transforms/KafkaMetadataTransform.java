@@ -97,7 +97,7 @@ public class KafkaMetadataTransform implements Transformation<SinkRecord> {
   private static final String KEY_METADATA_FIELD_NAME = "field_name";
   private static final String KEY_METADATA_IS_NESTED = "nested";
   private static final String DEFAULT_METADATA_FIELD_NAME = "_kafka_metadata";
-  private static RecordAppender recordAppender;
+  private RecordAppender recordAppender;
 
   private static final ConfigDef CONFIG_DEF =
       new ConfigDef()
