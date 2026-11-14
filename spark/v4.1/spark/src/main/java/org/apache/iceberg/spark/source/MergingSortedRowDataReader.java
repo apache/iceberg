@@ -45,7 +45,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Exceptions;
@@ -342,17 +341,15 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
 
       // Iceberg orders UUIDs by bit pattern and Spark orders them as strings:
       // https://github.com/apache/iceberg/issues/14216
-      Type.TypeID resultType = sortField.transform().getResultType(field.type()).typeId();
       Preconditions.checkArgument(
-          resultType != Type.TypeID.UUID,
+          !SparkOrderingUtil.isUuid(sortField, field),
           "Cannot merge on UUID sort key %s: Iceberg and Spark order UUIDs differently",
           field.name());
 
       // Iceberg orders -0.0 before 0.0 and Spark treats them as equal, so the next sort key breaks
       // the tie differently
-      boolean floatingPoint = resultType == Type.TypeID.FLOAT || resultType == Type.TypeID.DOUBLE;
       Preconditions.checkArgument(
-          !floatingPoint || i == sortFields.size() - 1,
+          !SparkOrderingUtil.isFloatingPoint(sortField, field) || i == sortFields.size() - 1,
           "Cannot merge on floating point sort key %s followed by other sort keys: "
               + "Iceberg and Spark order -0.0 and 0.0 differently",
           field.name());

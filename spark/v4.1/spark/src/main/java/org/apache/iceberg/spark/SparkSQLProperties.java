@@ -40,6 +40,16 @@ public class SparkSQLProperties {
       "spark.sql.iceberg.planning.preserve-data-grouping";
   public static final boolean PRESERVE_DATA_GROUPING_DEFAULT = false;
 
+  // Controls whether to preserve the sort ordering of data while reading
+  public static final String PRESERVE_DATA_ORDERING =
+      "spark.sql.iceberg.planning.preserve-data-ordering";
+  public static final boolean PRESERVE_DATA_ORDERING_DEFAULT = false;
+
+  // Controls the max number of files in a task when preserving data ordering
+  public static final String PRESERVE_DATA_ORDERING_MAX_FILES_PER_TASK =
+      "spark.sql.iceberg.planning.preserve-data-ordering.max-files-per-task";
+  public static final int PRESERVE_DATA_ORDERING_MAX_FILES_PER_TASK_DEFAULT = 64;
+
   // Controls whether to push down aggregate (MAX/MIN/COUNT) to Iceberg
   public static final String AGGREGATE_PUSH_DOWN_ENABLED =
       "spark.sql.iceberg.aggregate-push-down.enabled";

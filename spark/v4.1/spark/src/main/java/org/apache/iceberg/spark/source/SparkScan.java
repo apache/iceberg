@@ -181,7 +181,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
         groupingKeyType(),
         taskGroups(),
         projection,
-        hashCode());
+        hashCode(),
+        isOrderingEnabled());
   }
 
   @Override
@@ -371,6 +372,11 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       new PositionalDeleteFiles(),
       new SkippedDeleteFiles()
     };
+  }
+
+  /** Returns true if the scan reports an ordering and reads each task group in that order. */
+  protected boolean isOrderingEnabled() {
+    return false;
   }
 
   protected long adjustSplitSize(List<? extends ScanTask> tasks, long splitSize) {

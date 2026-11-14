@@ -158,8 +158,14 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   @Override
   public String description() {
     return String.format(
-        "IcebergCopyOnWriteScan(table=%s, schemaId=%s, snapshotId=%s, branch=%s, filters=%s, groupedBy=%s)",
-        table(), schema().schemaId(), snapshotId(), branch, filtersDesc(), groupingKeyDesc());
+        "IcebergCopyOnWriteScan(table=%s, schemaId=%s, snapshotId=%s, branch=%s, filters=%s, groupedBy=%s, orderedBy=%s)",
+        table(),
+        schema().schemaId(),
+        snapshotId(),
+        branch,
+        filtersDesc(),
+        groupingKeyDesc(),
+        orderingDesc());
   }
 
   private static boolean isFilePathInPredicate(Predicate predicate) {
