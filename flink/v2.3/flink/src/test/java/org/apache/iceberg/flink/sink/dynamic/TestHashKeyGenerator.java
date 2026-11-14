@@ -896,7 +896,7 @@ class TestHashKeyGenerator {
                     Collections.emptySet(),
                     Collections.singleton("does_not_exist"),
                     GenericRowData.of(1, StringData.fromString("foo"))))
-        .isInstanceOf(NullPointerException.class)
+        .isInstanceOf(DynamicRecordException.class)
         .hasMessageContaining(
             "Missing distribution field 'does_not_exist'. "
                 + "Expected distribution field 'does_not_exist' to exist in the table schema.");

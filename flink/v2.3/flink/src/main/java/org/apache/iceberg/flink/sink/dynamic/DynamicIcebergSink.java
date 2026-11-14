@@ -20,9 +20,13 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.api.connector.sink2.CommitterInitContext;
@@ -31,6 +35,8 @@ import org.apache.flink.api.connector.sink2.SinkWriter;
 import org.apache.flink.api.connector.sink2.SupportsCommitter;
 import org.apache.flink.api.connector.sink2.WriterInitContext;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
@@ -43,11 +49,14 @@ import org.apache.flink.streaming.api.connector.sink2.SupportsPreCommitTopology;
 import org.apache.flink.streaming.api.connector.sink2.SupportsPreWriteTopology;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
+import org.apache.flink.streaming.api.datastream.SideOutputDataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.runtime.operators.sink.SinkWriterOperatorFactory;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.OutputTag;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
@@ -235,6 +244,8 @@ public class DynamicIcebergSink
     private final Map<String, String> snapshotSummary = Maps.newHashMap();
     private ReadableConfig readableConfig = new Configuration();
     private TableCreator tableCreator = TableCreator.DEFAULT;
+    private Consumer<DataStream<Tuple2<DynamicRecord, Exception>>> errorStreamConsumer = null;
+    private DynamicRecordExceptionFilter errorStreamFilter = null;
 
     Builder() {}
 
@@ -295,6 +306,41 @@ public class DynamicIcebergSink
      */
     public Builder<T> tableCreator(TableCreator tableCreationFunction) {
       this.tableCreator = tableCreationFunction;
+      return this;
+    }
+
+    /**
+     * Set a consumer for the error stream of records that cannot be processed. When set, a record
+     * that fails while it is converted to the table schema, validated, or while the table is
+     * updated for it is routed to this stream (as {@code (DynamicRecord, Exception)}) instead of
+     * failing the job, where the user can sink it to a dead-letter destination. A failure thrown by
+     * {@link DynamicRecordGenerator#generate} itself is not diverted. When unset (default) such a
+     * failure fails the job.
+     *
+     * <p>Must be paired with {@link #errorStreamFilter(DynamicRecordExceptionFilter)}, which
+     * whitelists the failures to divert; failures the filter rejects propagate and fail the job so
+     * Flink can retry transient/systemic failures.
+     *
+     * <p>A record with a null value for a required column is rejected before it is written, so it
+     * can be diverted as well.
+     *
+     * <p>This covers the convert/update stages, where records are validated before being written.
+     * The write stage itself is fail-fast: a failure there restarts the job.
+     */
+    public Builder<T> errorStreamConsumer(
+        Consumer<DataStream<Tuple2<DynamicRecord, Exception>>> streamConsumer) {
+      this.errorStreamConsumer = streamConsumer;
+      return this;
+    }
+
+    /**
+     * Set the filter that classifies which convert/update-stage failures are diverted to the {@link
+     * #errorStreamConsumer(Consumer) error stream}. Keeps diversion fail-safe: only failures the
+     * filter whitelists are diverted; everything else propagates and fails the job. Must be set
+     * together with {@link #errorStreamConsumer(Consumer)}.
+     */
+    public Builder<T> errorStreamFilter(DynamicRecordExceptionFilter filter) {
+      this.errorStreamFilter = filter;
       return this;
     }
 
@@ -515,6 +561,12 @@ public class DynamicIcebergSink
     public DataStreamSink<DynamicRecordInternal> append() {
       uidPrefix = Optional.ofNullable(uidPrefix).orElse("");
 
+      Preconditions.checkArgument(
+          (errorStreamConsumer == null) == (errorStreamFilter == null),
+          "errorStreamConsumer and errorStreamFilter must be set together: a consumer without a "
+              + "filter would divert nothing, and a filter without a consumer would silently drop "
+              + "records.");
+
       FlinkDynamicSinkConf flinkDynamicSinkConf =
           new FlinkDynamicSinkConf(writeOptions, readableConfig);
       Configuration flinkConfig = fromReadableConfig();
@@ -541,7 +593,8 @@ public class DynamicIcebergSink
                       tableCreator,
                       flinkDynamicSinkConf,
                       writeOptions,
-                      flinkConfig))
+                      flinkConfig,
+                      errorStreamFilter))
               .setParallelism(input.getParallelism())
               .uid(prefixIfNotNull(uidPrefix, "-generator"))
               .name(operatorName("generator"))
@@ -554,18 +607,19 @@ public class DynamicIcebergSink
       DynamicIcebergSink sink = build(converted, sideOutputType);
 
       // Shuffle path: table update side output + main output → sinkTo()
-      DataStream<DynamicRecordInternal> shuffleInput =
+      SingleOutputStreamOperator<DynamicRecordInternal> updated =
           converted
               .getSideOutput(
                   new OutputTag<>(
                       DynamicRecordProcessor.DYNAMIC_TABLE_UPDATE_STREAM, sideOutputType))
               .keyBy((KeySelector<DynamicRecordInternal, String>) DynamicRecordInternal::tableName)
-              .map(
-                  new DynamicTableUpdateOperator(catalogLoader, tableCreator, flinkDynamicSinkConf))
+              .process(
+                  new DynamicTableUpdateOperator(
+                      catalogLoader, tableCreator, flinkDynamicSinkConf, errorStreamFilter))
               .uid(prefixIfNotNull(uidPrefix, "-updater"))
               .name(operatorName("Updater"))
-              .returns(type)
-              .union(converted);
+              .returns(type);
+      DataStream<DynamicRecordInternal> shuffleInput = updated.union(converted);
 
       DataStreamSink<DynamicRecordInternal> result =
           shuffleInput
@@ -581,6 +635,34 @@ public class DynamicIcebergSink
         result.setParallelism(flinkWriteConf.writeParallelism());
       }
 
+      if (errorStreamConsumer != null) {
+        OutputTag<Tuple2<DynamicRecordInternal, Exception>> errorStreamOutputTag =
+            new OutputTag<>(
+                DynamicRecordProcessor.ERROR_STREAM,
+                new TupleTypeInfo<>(sideOutputType, TypeInformation.of(Exception.class)));
+
+        SideOutputDataStream<Tuple2<DynamicRecordInternal, Exception>> erroneousFromProcessor =
+            converted.getSideOutput(errorStreamOutputTag);
+        SideOutputDataStream<Tuple2<DynamicRecordInternal, Exception>> erroneousFromUpdater =
+            updated.getSideOutput(errorStreamOutputTag);
+
+        DataStream<Tuple2<DynamicRecord, Exception>> errorStream =
+            erroneousFromProcessor
+                .union(erroneousFromUpdater)
+                .map(
+                    (MapFunction<
+                            Tuple2<DynamicRecordInternal, Exception>,
+                            Tuple2<DynamicRecord, Exception>>)
+                        tuple -> Tuple2.of(toDynamicRecord(tuple.f0), tuple.f1))
+                .uid(prefixIfNotNull(uidPrefix, "-error-mapper"))
+                .returns(
+                    new TupleTypeInfo<>(
+                        TypeInformation.of(DynamicRecord.class),
+                        TypeInformation.of(Exception.class)));
+
+        errorStreamConsumer.accept(errorStream);
+      }
+
       return result;
     }
 
@@ -588,6 +670,30 @@ public class DynamicIcebergSink
       return readableConfig instanceof Configuration
           ? (Configuration) readableConfig
           : Configuration.fromMap(readableConfig.toMap());
+    }
+
+    /**
+     * Rebuilds the public {@link DynamicRecord} handed to the error stream from the internal
+     * record, preserving {@code upsertMode} and {@code equalityFields} (mapping the internal
+     * field-ids back to column names via the record schema). Routing hints (distribution mode,
+     * write parallelism) are not meaningful for an errored record and are left at their defaults.
+     */
+    private static DynamicRecord toDynamicRecord(DynamicRecordInternal internal) {
+      Schema schema = internal.schema();
+      DynamicRecord record =
+          new DynamicRecord(
+              TableIdentifier.parse(internal.tableName()),
+              internal.branch(),
+              schema,
+              internal.rowData(),
+              internal.spec());
+      record.setUpsertMode(internal.upsertMode());
+      Set<Integer> equalityFieldIds = internal.equalityFields();
+      if (equalityFieldIds != null && !equalityFieldIds.isEmpty()) {
+        record.setEqualityFields(
+            equalityFieldIds.stream().map(schema::findColumnName).collect(Collectors.toSet()));
+      }
+      return record;
     }
   }
 

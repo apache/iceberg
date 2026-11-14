@@ -21,14 +21,44 @@ package org.apache.iceberg.flink.sink.dynamic;
 import java.util.Collections;
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 
 class DynamicSinkUtil {
 
   private DynamicSinkUtil() {}
+
+  /**
+   * Validates that a record's upsert configuration is writable, before it is shuffled to the
+   * writer. Upsert requires non-empty equality fields, and every partition source column must be an
+   * equality field. Throws {@link IllegalStateException} otherwise so the convert/update stage can
+   * divert the record (or fail the job) instead of letting it reach the write stage.
+   */
+  static void validateUpsert(
+      boolean upsertMode, PartitionSpec spec, Set<Integer> equalityFieldIds) {
+    if (!upsertMode) {
+      return;
+    }
+
+    if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
+      throw new DynamicRecordException(
+          "Equality field columns shouldn't be empty when configuring to use UPSERT data.");
+    }
+
+    if (spec != null && !spec.isUnpartitioned()) {
+      for (PartitionField partitionField : spec.fields()) {
+        if (!equalityFieldIds.contains(partitionField.sourceId())) {
+          throw new DynamicRecordException(
+              String.format(
+                  "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",
+                  partitionField, equalityFieldIds));
+        }
+      }
+    }
+  }
 
   static Set<Integer> getEqualityFieldIds(Set<String> equalityFields, Schema schema) {
     if (equalityFields == null || equalityFields.isEmpty()) {
@@ -42,8 +72,11 @@ class DynamicSinkUtil {
     Set<Integer> equalityFieldIds = Sets.newHashSetWithExpectedSize(equalityFields.size());
     for (String equalityField : equalityFields) {
       Types.NestedField field = schema.findField(equalityField);
-      Preconditions.checkNotNull(
-          field, "Equality field %s does not exist in schema", equalityField);
+      if (field == null) {
+        throw new DynamicRecordException(
+            String.format("Equality field %s does not exist in schema", equalityField));
+      }
+
       equalityFieldIds.add(field.fieldId());
     }
 
@@ -75,11 +108,13 @@ class DynamicSinkUtil {
     Set<Integer> distributionFieldIds = Sets.newHashSetWithExpectedSize(distributionFields.size());
     for (String distributionField : distributionFields) {
       Types.NestedField field = schema.findField(distributionField);
-      Preconditions.checkNotNull(
-          field,
-          "Missing distribution field '%s'. Expected distribution field '%s' to exist in the table schema.",
-          distributionField,
-          distributionField);
+      if (field == null) {
+        throw new DynamicRecordException(
+            String.format(
+                "Missing distribution field '%s'. Expected distribution field '%s' to exist in the table schema.",
+                distributionField, distributionField));
+      }
+
       distributionFieldIds.add(field.fieldId());
     }
 

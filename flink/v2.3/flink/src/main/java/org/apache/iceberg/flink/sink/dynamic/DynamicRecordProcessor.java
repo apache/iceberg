@@ -18,11 +18,15 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.functions.OpenContext;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.table.data.RowData;
@@ -42,6 +46,8 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
 
   @VisibleForTesting static final String DYNAMIC_FORWARD_STREAM = "dynamic-forward-stream";
 
+  @VisibleForTesting static final String ERROR_STREAM = "error-stream";
+
   private final DynamicRecordGenerator<T> generator;
   private final CatalogLoader catalogLoader;
   private final Map<String, String> writeProperties;
@@ -53,13 +59,17 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   private final int inputSchemasPerTableCacheMaximumSize;
   private final TableCreator tableCreator;
   private final boolean caseSensitive;
+  private final DynamicRecordExceptionFilter errorFilter;
 
   private transient TableMetadataCache tableCache;
   private transient HashKeyGenerator hashKeyGenerator;
   private transient TableUpdater updater;
   private transient OutputTag<DynamicRecordInternal> updateStream;
   private transient OutputTag<DynamicRecordInternal> forwardStream;
+  private transient OutputTag<Tuple2<DynamicRecordInternal, Exception>> errorStream;
   private transient Collector<DynamicRecordInternal> collector;
+  private transient DynamicRecordInternal prepared;
+  private transient OutputTag<DynamicRecordInternal> preparedTag;
   private transient DynamicRecordWithConfig dynamicRecordWithConfig;
   private transient Context context;
 
@@ -69,7 +79,8 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       TableCreator tableCreator,
       FlinkDynamicSinkConf sinkConfig,
       Map<String, String> writeProperties,
-      Configuration flinkConfig) {
+      Configuration flinkConfig,
+      DynamicRecordExceptionFilter errorFilter) {
     this.generator = generator;
     this.catalogLoader = catalogLoader;
     this.flinkConfig = flinkConfig;
@@ -81,6 +92,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     this.tableCreator = tableCreator;
     this.caseSensitive = sinkConfig.caseSensitive();
     this.dropUnusedColumns = sinkConfig.dropUnusedColumns();
+    this.errorFilter = errorFilter;
   }
 
   @Override
@@ -114,6 +126,16 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
                   catalogLoader, true, cacheMaximumSize, inputSchemasPerTableCacheMaximumSize)) {};
     }
 
+    if (errorFilter != null) {
+      errorStream =
+          new OutputTag<>(
+              ERROR_STREAM,
+              new TupleTypeInfo<>(
+                  new DynamicRecordInternalType(
+                      catalogLoader, true, cacheMaximumSize, inputSchemasPerTableCacheMaximumSize),
+                  TypeInformation.of(Exception.class)));
+    }
+
     this.dynamicRecordWithConfig =
         new DynamicRecordWithConfig(new FlinkWriteConf(writeProperties, flinkConfig));
     generator.open(openContext);
@@ -130,7 +152,47 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   @Override
   public void collect(DynamicRecord inputData) {
     DynamicRecordWithConfig data = dynamicRecordWithConfig.wrap(inputData);
+    try {
+      prepare(data);
+    } catch (RuntimeException e) {
+      // Divert only failures the filter whitelists; otherwise propagate so Flink can retry.
+      if (errorFilter != null && errorFilter.shouldDivert(e)) {
+        context.output(
+            errorStream,
+            Tuple2.of(
+                new DynamicRecordInternal(
+                    data.tableIdentifier().toString(),
+                    data.branch(),
+                    data.schema(),
+                    data.rowData(),
+                    data.spec(),
+                    -1,
+                    data.upsertMode(),
+                    equalityFieldIdsOrEmpty(data)),
+                e));
+        return;
+      }
 
+      throw e;
+    }
+
+    // Emitting runs the operators chained to this one: their failures are not about this record.
+    if (preparedTag != null) {
+      context.output(preparedTag, prepared);
+    } else {
+      collector.collect(prepared);
+    }
+  }
+
+  private static Set<Integer> equalityFieldIdsOrEmpty(DynamicRecord data) {
+    try {
+      return DynamicSinkUtil.getEqualityFieldIds(data.equalityFields(), data.schema());
+    } catch (RuntimeException e) {
+      return Collections.emptySet();
+    }
+  }
+
+  private void prepare(DynamicRecordWithConfig data) {
     boolean isForward = isForwardEligible(data);
     boolean exists = tableCache.exists(data.tableIdentifier());
     String foundBranch = exists ? tableCache.branch(data.tableIdentifier(), data.branch()) : null;
@@ -154,7 +216,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
         Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> newData =
             updater.update(
                 data.tableIdentifier(), data.branch(), data.schema(), data.spec(), tableCreator);
-        emit(
+        prepareEmit(
             data,
             newData.f0.resolvedTableSchema(),
             newData.f0.recordConverter(),
@@ -165,8 +227,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
         // Key them with the record's own schema, spec and row: the raw row is laid out by the
         // record's schema, so the table's schema or spec cannot be used with it.
         int writerKey = hashKeyGenerator.generateKey(data);
-        context.output(
-            updateStream,
+        this.prepared =
             new DynamicRecordInternal(
                 data.tableIdentifier().toString(),
                 data.branch(),
@@ -175,10 +236,11 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
                 data.spec(),
                 writerKey,
                 data.upsertMode(),
-                DynamicSinkUtil.getEqualityFieldIds(data.equalityFields(), data.schema())));
+                DynamicSinkUtil.getEqualityFieldIds(data.equalityFields(), data.schema()));
+        this.preparedTag = updateStream;
       }
     } else {
-      emit(
+      prepareEmit(
           data,
           foundSchema.resolvedTableSchema(),
           foundSchema.recordConverter(),
@@ -187,16 +249,21 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     }
   }
 
-  private void emit(
+  private void prepareEmit(
       DynamicRecord data,
       Schema schema,
       DataConverter recordConverter,
       PartitionSpec spec,
       boolean forward) {
+    Set<Integer> equalityFieldIds =
+        DynamicSinkUtil.getEqualityFieldIds(data.equalityFields(), schema);
+    // Validate before writing: an invalid upsert config or a record that cannot be converted to the
+    // target schema throws here and is diverted/failed at this stage, never reaching the writer.
+    DynamicSinkUtil.validateUpsert(data.upsertMode(), spec, equalityFieldIds);
     RowData rowData = (RowData) recordConverter.convert(data.rowData());
     // writerKey is unused in the forward path.
     int writerKey = forward ? -1 : hashKeyGenerator.generateKey(data, schema, spec, rowData);
-    DynamicRecordInternal record =
+    this.prepared =
         new DynamicRecordInternal(
             data.tableIdentifier().toString(),
             data.branch(),
@@ -205,12 +272,8 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
             spec,
             writerKey,
             data.upsertMode(),
-            DynamicSinkUtil.getEqualityFieldIds(data.equalityFields(), schema));
-    if (forward) {
-      context.output(forwardStream, record);
-    } else {
-      collector.collect(record);
-    }
+            equalityFieldIds);
+    this.preparedTag = forward ? forwardStream : null;
   }
 
   @Override

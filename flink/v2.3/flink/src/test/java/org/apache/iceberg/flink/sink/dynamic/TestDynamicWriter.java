@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.net.URI;
@@ -277,21 +276,6 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
     assertThat(
             dyamicWriter.getMetrics().writerMetrics(TABLE1.name()).getFlushedDataFiles().getCount())
         .isEqualTo(1);
-  }
-
-  @Test
-  void testDynamicWriterUpsertNoEqualityFields() {
-    Catalog catalog = CATALOG_EXTENSION.catalog();
-    DynamicWriter dyamicWriter = createDynamicWriter(catalog);
-    Table table1 = CATALOG_EXTENSION.catalog().createTable(TABLE1, SimpleDataUtil.SCHEMA);
-
-    DynamicRecordInternal record = getDynamicRecordInternal(table1);
-    record.setUpsertMode(true);
-
-    assertThatThrownBy(() -> dyamicWriter.write(record, null))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Equality field columns shouldn't be empty when configuring to use UPSERT data.");
   }
 
   @Test
