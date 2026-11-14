@@ -32,8 +32,10 @@ import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
@@ -42,6 +44,8 @@ import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.InvalidProducerEpochException;
 import org.apache.kafka.common.errors.ProducerFencedException;
+import org.apache.kafka.connect.sink.SinkRecord;
+import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -200,5 +204,65 @@ public class TestCommitterImpl {
 
     committer.save(Collections.emptyList());
     assertThat(field.get(committer)).isNull();
+  }
+
+  @Test
+  public void testCloseRewindsPartitionsWhoseBufferedRecordsWereDiscarded()
+      throws NoSuchFieldException, IllegalAccessException {
+    TopicPartition p0 = new TopicPartition("topic1", 0);
+    TopicPartition p1 = new TopicPartition("topic1", 1);
+    MemberDescription member =
+        new MemberDescription(
+            null, Optional.empty(), null, null, new MemberAssignment(ImmutableSet.of(p0, p1)));
+
+    CommitterImpl committer = new CommitterImpl();
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.connectGroupId()).thenReturn("test-group");
+    KafkaClientFactory clientFactory = mock(KafkaClientFactory.class);
+    when(clientFactory.createAdmin()).thenReturn(mock(Admin.class));
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Worker worker = mock(Worker.class);
+    setField(committer, "config", config);
+    setField(committer, "clientFactory", clientFactory);
+    setField(committer, "context", context);
+    setField(committer, "worker", worker);
+    ((AtomicBoolean) getField(committer, "isInitialized")).set(true);
+
+    committer.save(
+        ImmutableList.of(record(p0, 5L), record(p0, 6L), record(p1, 7L), record(p1, 8L)));
+
+    try (MockedStatic<KafkaUtils> mockKafkaUtils = mockStatic(KafkaUtils.class)) {
+      ConsumerGroupDescription groupDescription = mock(ConsumerGroupDescription.class);
+      when(groupDescription.members()).thenReturn(ImmutableList.of(member));
+      mockKafkaUtils
+          .when(() -> KafkaUtils.consumerGroupDescription(any(), any()))
+          .thenReturn(groupDescription);
+
+      // p1 is revoked and p0 stays assigned: the worker's records for both are discarded
+      committer.close(ImmutableList.of(p1));
+
+      verify(worker).stop();
+      mockKafkaUtils.verify(
+          () -> KafkaUtils.seekToLastCommittedOffsets(context, ImmutableMap.of(p0, 5L, p1, 7L)));
+    }
+  }
+
+  private static SinkRecord record(TopicPartition topicPartition, long offset) {
+    return new SinkRecord(
+        topicPartition.topic(), topicPartition.partition(), null, null, null, "value", offset);
+  }
+
+  private static void setField(CommitterImpl committer, String name, Object value)
+      throws NoSuchFieldException, IllegalAccessException {
+    Field field = CommitterImpl.class.getDeclaredField(name);
+    field.setAccessible(true);
+    field.set(committer, value);
+  }
+
+  private static Object getField(CommitterImpl committer, String name)
+      throws NoSuchFieldException, IllegalAccessException {
+    Field field = CommitterImpl.class.getDeclaredField(name);
+    field.setAccessible(true);
+    return field.get(committer);
   }
 }
