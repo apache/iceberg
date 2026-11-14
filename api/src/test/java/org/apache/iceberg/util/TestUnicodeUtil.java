@@ -72,6 +72,7 @@ class TestUnicodeUtil {
   void truncateStringMax() {
     // longer than the length: the maximum increments the last retained code point
     assertThat(UnicodeUtil.truncateStringMax("abcde", 3)).isEqualTo("abd");
+    assertThat(UnicodeUtil.truncateStringMax("abc\u0000", 3)).isEqualTo("abd");
 
     // equal to or shorter than the length: the input is already a valid upper bound
     assertThat(UnicodeUtil.truncateStringMax("abc", 3)).isEqualTo("abc");

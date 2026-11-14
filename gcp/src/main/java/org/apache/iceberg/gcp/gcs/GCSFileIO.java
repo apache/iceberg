@@ -51,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.iceberg.util.ThreadPools;
@@ -220,6 +221,11 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   }
 
   private void scheduleCredentialRefresh() {
+    if (!PropertyUtil.propertyAsBoolean(
+        properties, GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED, true)) {
+      return;
+    }
+
     storageCredentials.stream()
         .map(
             storageCredential ->

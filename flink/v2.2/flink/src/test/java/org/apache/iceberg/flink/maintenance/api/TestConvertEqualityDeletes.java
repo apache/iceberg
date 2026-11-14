@@ -62,6 +62,8 @@ import org.apache.iceberg.flink.maintenance.operator.MetricsReporterFactoryForTe
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
@@ -932,8 +934,8 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
   void testReindexEvictsGhostKeyAfterExternalDataFileRemoval() throws Exception {
     // CoW removal case: an external commit removes a data file, leaving a stale
     // PK in the worker's index. A later staging eq-delete for that PK must NOT produce a DV
-    // referencing the removed file. The external commit advances main, so the next cycle reindexes
-    // and the worker clears the ghost key before resolving the delete.
+    // referencing the removed file. The external commit advances main, so the next cycle evicts the
+    // removed file's rows from the index before resolving the delete.
     Table table = createTableWithDelete(3);
     insert(table, 1, "a");
     table.refresh();
@@ -963,7 +965,7 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
       assertRecords(table, ImmutableList.of(createRecord(1, "a")));
 
       // External CoW-style removal: drop file1 (id=1) from main without re-adding the row. The
-      // worker's index still holds the ghost id=1 -> file1 until the next reindex clears it.
+      // worker's index still holds the ghost id=1 -> file1 until the next cycle evicts it.
       table.newDelete().deleteFile(file1).commit();
       table.refresh();
       assertRecords(table, ImmutableList.of());
@@ -1576,6 +1578,139 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
       assertThat(infra.sink().poll(Duration.ofSeconds(10)).success()).isTrue();
 
       assertRecords(table, ImmutableList.of(createRecord(1, "a"), createRecord(2, "b")));
+    } finally {
+      closeJobClient(jobClient);
+    }
+  }
+
+  @Test
+  void testReindexAcrossAppendThenRewriteInOneRange() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    insert(table, 3, "c");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile firstDelete = writeEqualityDelete(table, 3, "c");
+    table.newRowDelta().addDeletes(firstDelete).toBranch(STAGING_BRANCH).commit();
+
+    appendConvertTask(STAGING_BRANCH);
+
+    JobClient jobClient = null;
+    try {
+      jobClient = infra.env().executeAsync();
+
+      long time1 = System.currentTimeMillis();
+      infra.source().sendRecord(Trigger.create(time1, 0), time1);
+      assertThat(infra.sink().poll(Duration.ofSeconds(10)).success()).isTrue();
+
+      // Two external commits land before the next conversion: an append, then a rewrite replacing
+      // the appended file.
+      DataFile appended = writeDataFile(table, createRecord(2, "b"));
+      table.newAppend().appendFile(appended).commit();
+      DataFile rewritten = writeDataFile(table, createRecord(2, "b"));
+      table.newRewrite().deleteFile(appended).addFile(rewritten).commit();
+      table.refresh();
+
+      DeleteFile secondDelete = writeEqualityDelete(table, 2, "b");
+      table.newRowDelta().addDeletes(secondDelete).toBranch(STAGING_BRANCH).commit();
+
+      long time2 = time1 + 1;
+      infra.source().sendRecord(Trigger.create(time2, 0), time2);
+      TaskResult result2 = infra.sink().poll(Duration.ofSeconds(10));
+      assertThat(result2.exceptions()).isEmpty();
+      assertThat(result2.success()).isTrue();
+
+      table.refresh();
+      // A DV on the appended file would mean its rows were indexed although it left the table.
+      assertThat(dvReferencedDataFiles(table))
+          .contains(rewritten.location())
+          .doesNotContain(appended.location());
+      assertRecords(table, ImmutableList.of(createRecord(1, "a")));
+    } finally {
+      closeJobClient(jobClient);
+    }
+  }
+
+  @Test
+  void testReindexAcrossCompactionOfFileWithDV() throws Exception {
+    Table table = createTableWithDelete(3);
+    DataFile original =
+        new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
+            .writeFile(
+                ImmutableList.of(createRecord(1, "a"), createRecord(2, "b"), createRecord(3, "c")));
+    table.newAppend().appendFile(original).commit();
+    // The compaction leaves this file alone, so its delta stays below a rebuild of main.
+    insert(
+        table,
+        ImmutableList.of(createRecord(10, "x"), createRecord(11, "x"), createRecord(12, "x")));
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile firstDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(firstDelete).toBranch(STAGING_BRANCH).commit();
+
+    appendConvertTask(STAGING_BRANCH);
+
+    JobClient jobClient = null;
+    try {
+      jobClient = infra.env().executeAsync();
+
+      long time1 = System.currentTimeMillis();
+      infra.source().sendRecord(Trigger.create(time1, 0), time1);
+      assertThat(infra.sink().poll(Duration.ofSeconds(10)).success()).isTrue();
+
+      table.refresh();
+      assertRecords(
+          table,
+          ImmutableList.of(
+              createRecord(2, "b"),
+              createRecord(3, "c"),
+              createRecord(10, "x"),
+              createRecord(11, "x"),
+              createRecord(12, "x")));
+
+      // The compaction replaces the data file together with the DV of the first conversion. The
+      // index still holds the rows of the file that the DV does not delete.
+      DeleteFile dv =
+          Iterables.getOnlyElement(table.currentSnapshot().addedDeleteFiles(table.io()));
+      DataFile compacted =
+          new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
+              .writeFile(ImmutableList.of(createRecord(2, "b"), createRecord(3, "c")));
+      table
+          .newRewrite()
+          .validateFromSnapshot(table.currentSnapshot().snapshotId())
+          .rewriteFiles(
+              ImmutableSet.of(original),
+              ImmutableSet.of(dv),
+              ImmutableSet.of(compacted),
+              ImmutableSet.of())
+          .commit();
+      table.refresh();
+
+      DeleteFile secondDelete = writeEqualityDelete(table, 2, "b");
+      table.newRowDelta().addDeletes(secondDelete).toBranch(STAGING_BRANCH).commit();
+
+      long time2 = time1 + 1;
+      infra.source().sendRecord(Trigger.create(time2, 0), time2);
+      TaskResult result2 = infra.sink().poll(Duration.ofSeconds(10));
+      assertThat(result2.exceptions()).isEmpty();
+      assertThat(result2.success()).isTrue();
+
+      table.refresh();
+      // A DV on the original file would mean its row stayed in the index after the compaction.
+      assertThat(dvReferencedDataFiles(table))
+          .contains(compacted.location())
+          .doesNotContain(original.location());
+      assertRecords(
+          table,
+          ImmutableList.of(
+              createRecord(3, "c"),
+              createRecord(10, "x"),
+              createRecord(11, "x"),
+              createRecord(12, "x")));
     } finally {
       closeJobClient(jobClient);
     }

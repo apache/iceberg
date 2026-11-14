@@ -39,6 +39,12 @@ class TrackedFileAdapters {
         file.contentType() == FileContent.DATA,
         "Invalid content type for DataFile: %s",
         file.contentType());
+    List<ColumnFile> columnFiles = file.columnFiles();
+    if (columnFiles != null && !columnFiles.isEmpty()) {
+      throw new UnsupportedOperationException(
+          "Cannot convert data file with column updates: " + file.location());
+    }
+
     return new TrackedDataFile(file, resolveSpecId(file, specsById));
   }
 
@@ -211,6 +217,11 @@ class TrackedFileAdapters {
     @Override
     public Map<Integer, ByteBuffer> upperBounds() {
       return ContentStatsBackedMap.upperBounds(file().contentStats());
+    }
+
+    @Override
+    public boolean tightStats() {
+      return file().tightStats();
     }
   }
 
@@ -628,6 +639,11 @@ class TrackedFileAdapters {
     }
 
     @Override
+    public boolean tightStats() {
+      return file.tightStats();
+    }
+
+    @Override
     public Integer sortOrderId() {
       return file.sortOrderId();
     }
@@ -751,6 +767,11 @@ class TrackedFileAdapters {
     @Override
     public ContentStats contentStats() {
       return null;
+    }
+
+    @Override
+    public boolean tightStats() {
+      return false;
     }
 
     @Override

@@ -70,40 +70,53 @@ public class TestRowLineageMetadata {
   public void testSnapshotRowIDValidation() {
     Snapshot snapshot =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, null);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, null, null);
     assertThat(snapshot.firstRowId()).isNull();
     assertThat(snapshot.addedRows()).isNull();
 
     // added-rows will be set to null if first-row-id is null
     snapshot =
-        new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 10L, null);
+        new BaseSnapshot(
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, 10L, null);
     assertThat(snapshot.firstRowId()).isNull();
     assertThat(snapshot.addedRows()).isNull();
 
     // added-rows and first-row-id can be 0
     snapshot =
-        new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 0L, 0L, null);
+        new BaseSnapshot(
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 0L, 0L, null);
     assertThat(snapshot.firstRowId()).isEqualTo(0);
     assertThat(snapshot.addedRows()).isEqualTo(0);
 
     assertThatThrownBy(
             () ->
                 new BaseSnapshot(
-                    0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, null, null))
+                    0,
+                    1,
+                    null,
+                    0,
+                    DataOperations.APPEND,
+                    null,
+                    1,
+                    "ml.avro",
+                    null,
+                    10L,
+                    null,
+                    null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid added-rows (required when first-row-id is set): null");
 
     assertThatThrownBy(
             () ->
                 new BaseSnapshot(
-                    0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 0L, -1L, null))
+                    0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 0L, -1L, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid added-rows (cannot be negative): -1");
 
     assertThatThrownBy(
             () ->
                 new BaseSnapshot(
-                    0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", -1L, 1L, null))
+                    0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, -1L, 1L, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid first-row-id (cannot be negative): -1");
   }
@@ -116,7 +129,18 @@ public class TestRowLineageMetadata {
 
     Snapshot addRows =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.nextRowId(), newRows, null);
+            0,
+            1,
+            null,
+            0,
+            DataOperations.APPEND,
+            null,
+            1,
+            "foo",
+            null,
+            base.nextRowId(),
+            newRows,
+            null);
 
     TableMetadata firstAddition = TableMetadata.buildFrom(base).addSnapshot(addRows).build();
 
@@ -132,6 +156,7 @@ public class TestRowLineageMetadata {
             null,
             1,
             "foo",
+            null /* rootManifest */,
             firstAddition.nextRowId(),
             newRows,
             null);
@@ -149,7 +174,8 @@ public class TestRowLineageMetadata {
     TableMetadata base = baseMetadata();
 
     Snapshot invalidLastRow =
-        new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", null, newRows, null);
+        new BaseSnapshot(
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", null, null, newRows, null);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(base).addSnapshot(invalidLastRow))
         .isInstanceOf(ValidationException.class)
@@ -158,12 +184,34 @@ public class TestRowLineageMetadata {
     // add rows to check TableMetadata validation; Snapshot rejects negative next-row-id
     Snapshot addRows =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.nextRowId(), newRows, null);
+            0,
+            1,
+            null,
+            0,
+            DataOperations.APPEND,
+            null,
+            1,
+            "foo",
+            null,
+            base.nextRowId(),
+            newRows,
+            null);
     TableMetadata added = TableMetadata.buildFrom(base).addSnapshot(addRows).build();
 
     Snapshot invalidNewRows =
         new BaseSnapshot(
-            1, 2, 1L, 1, DataOperations.APPEND, null, 1, "foo", added.nextRowId() - 1, 10L, null);
+            1,
+            2,
+            1L,
+            1,
+            DataOperations.APPEND,
+            null,
+            1,
+            "foo",
+            null,
+            added.nextRowId() - 1,
+            10L,
+            null);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(added).addSnapshot(invalidNewRows))
         .isInstanceOf(ValidationException.class)

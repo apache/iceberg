@@ -190,6 +190,11 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
   }
 
   @Override
+  public Map<String, Integer> file(Types.FileType file, List<Map<String, Integer>> fieldResults) {
+    return struct(file.asStruct(), fieldResults);
+  }
+
+  @Override
   public Map<String, Integer> variant(Types.VariantType variant) {
     return nameToId;
   }
