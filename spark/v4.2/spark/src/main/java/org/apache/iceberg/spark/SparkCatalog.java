@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.hadoop.conf.Configuration;
@@ -93,7 +94,9 @@ import org.apache.spark.sql.connector.catalog.TableChange.RemoveProperty;
 import org.apache.spark.sql.connector.catalog.TableChange.SetProperty;
 import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.connector.catalog.TableSummary;
+import org.apache.spark.sql.connector.catalog.TransactionalCatalogPlugin;
 import org.apache.spark.sql.connector.catalog.View;
+import org.apache.spark.sql.connector.catalog.transactions.TransactionInfo;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -127,7 +130,8 @@ import org.slf4j.LoggerFactory;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContext {
+public class SparkCatalog extends BaseCatalog
+    implements SparkSupportsLoadContext, TransactionalCatalogPlugin {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
@@ -1026,6 +1030,12 @@ public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContex
     return catalogName;
   }
 
+  @Override
+  public org.apache.spark.sql.connector.catalog.transactions.Transaction beginTransaction(
+      TransactionInfo info) {
+    return new SparkTransaction(this, info);
+  }
+
   private static void commitChanges(
       org.apache.iceberg.Table table,
       SetProperty setLocation,
@@ -1081,12 +1091,20 @@ public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContex
 
   private Table load(Identifier ident, TimeTravel timeTravel, LoadContext context)
       throws NoSuchTableException {
+    return load(ident, timeTravel, id -> icebergCatalog.loadTable(buildIdentifier(id), context));
+  }
+
+  Table load(
+      Identifier ident,
+      TimeTravel timeTravel,
+      Function<Identifier, org.apache.iceberg.Table> tableLoader)
+      throws NoSuchTableException {
     if (isPathIdentifier(ident)) {
       return loadPath((PathIdentifier) ident, timeTravel);
     }
 
     try {
-      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident), context);
+      org.apache.iceberg.Table table = tableLoader.apply(ident);
       return SparkTable.create(table, timeTravel);
 
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -1096,10 +1114,10 @@ public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContex
 
       // if the original load didn't work, try using the namespace as an identifier because
       // the original identifier may include a snapshot selector or may point to the changelog
-      TableIdentifier namespaceAsIdent = buildIdentifier(namespaceToIdentifier(ident.namespace()));
+      Identifier namespaceIdentifier = namespaceToIdentifier(ident.namespace());
       org.apache.iceberg.Table table;
       try {
-        table = icebergCatalog.loadTable(namespaceAsIdent, context);
+        table = tableLoader.apply(namespaceIdentifier);
       } catch (Exception ignored) {
         // the namespace does not identify a table, so it cannot be a table with a snapshot selector
         // throw an exception for the original identifier
