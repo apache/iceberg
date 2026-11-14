@@ -18,11 +18,14 @@
  */
 package org.apache.iceberg.expressions;
 
+import static org.apache.iceberg.expressions.PathUtil.PathSegment.Index;
+import static org.apache.iceberg.expressions.PathUtil.PathSegment.Name;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
@@ -30,9 +33,13 @@ import org.junit.jupiter.params.provider.FieldSource;
 @SuppressWarnings({"AvoidEscapedUnicodeCharacters", "IllegalTokenText"})
 public class TestPathUtil {
 
+  private static List<PathUtil.PathSegment> names(String... names) {
+    return java.util.Arrays.stream(names).map(Name::new).collect(Collectors.toList());
+  }
+
   @Test
   public void testSimplePath() {
-    assertThat(PathUtil.parse("$.event.id")).isEqualTo(List.of("event", "id"));
+    assertThat(PathUtil.parse("$.event.id")).isEqualTo(names("event", "id"));
   }
 
   private static final String[] VALID_PATHS =
@@ -40,8 +47,18 @@ public class TestPathUtil {
         "$", // root path
         "$.event_id",
         "$.event.id",
+        "$['event_id']", // bracket form
+        "$.event['x.y']", // mixed: dot then bracket
+        "$['event']['id']", // bracket then bracket
+        "$['a'].b", // bracket then dot
         "$.\u2603", // snowman
         "$.\uD834\uDD1E", // surrogate pair, U+1D11E
+        "$.matrix[0][1]",
+        "$.basket[0][2].a",
+        "$.items[0].tags[1]",
+        "$['matrix'][0][1]",
+        "$['items'][0]['tags'][1]",
+        "$['basket'][0][2]['a']",
       };
 
   @ParameterizedTest
@@ -55,9 +72,7 @@ public class TestPathUtil {
         null,
         "",
         "event_id", // missing root
-        "$['event_id']", // uses bracket notation
         "$..event_id", // uses recursive descent
-        "$.events[0].event_id", // uses position accessor
         "$.events.*", // uses wildcard
         "$.0invalid", // starts with a digit
         "$._\uD834", // dangling high surrogate
@@ -79,6 +94,10 @@ public class TestPathUtil {
         new String[] {"$.a.b.c", "$['a']['b']['c']"},
         new String[] {"$.\u2603", "$['☃']"},
         new String[] {"$.a\uD834\uDD1Eb.x", "$['a\uD834\uDD1Eb']['x']"},
+        // Dot shorthand vs bracket form for names; array steps use unquoted [n] in both.
+        new String[] {"$.matrix[0][1]", "$['matrix'][0][1]"},
+        new String[] {"$.items[0].tags[1]", "$['items'][0]['tags'][1]"},
+        new String[] {"$.basket[0][2].a", "$['basket'][0][2]['a']"},
       };
 
   @ParameterizedTest
@@ -122,5 +141,164 @@ public class TestPathUtil {
   @FieldSource("ESCAPE_CASES")
   public void testPathEscaping(String name, String escaped) {
     assertThat(PathUtil.rfc9535escape(name)).isEqualTo(escaped);
+  }
+
+  @ParameterizedTest
+  @FieldSource("ESCAPE_CASES")
+  public void testPathUnescapeRoundTrip(String name, String escaped) {
+    assertThat(PathUtil.rfc9535unescape(escaped)).isEqualTo(name);
+  }
+
+  @ParameterizedTest
+  @FieldSource("NORMALIZED_PATHS")
+  public void testParseDotAndBracketAgree(String dotPath, String normalizedPath) {
+    assertThat(PathUtil.parse(dotPath)).isEqualTo(PathUtil.parse(normalizedPath));
+  }
+
+  @Test
+  public void testParseSingleSegmentWithDot() {
+    assertThat(PathUtil.parse("$['a.b']")).isEqualTo(names("a.b"));
+    assertThat(PathUtil.parse("$['user.name']")).isEqualTo(names("user.name"));
+  }
+
+  @Test
+  public void testParseDistinctFromDotSplit() {
+    assertThat(PathUtil.parse("$.a.b")).isEqualTo(names("a", "b"));
+    assertThat(PathUtil.parse("$['a.b']")).isEqualTo(names("a.b"));
+  }
+
+  @Test
+  public void testParseNormalizedRoundTrip() {
+    for (Object[] row : NORMALIZED_FIELD_LISTS) {
+      @SuppressWarnings("unchecked")
+      List<String> fields = (List<String>) row[0];
+      String normalized = (String) row[1];
+      assertThat(PathUtil.toNormalizedPath(PathUtil.parse(normalized))).isEqualTo(normalized);
+      assertThat(PathUtil.parse(normalized))
+          .isEqualTo(fields.stream().map(Name::new).collect(Collectors.toList()));
+    }
+  }
+
+  @Test
+  public void testParseRoot() {
+    assertThat(PathUtil.parse("$")).isEqualTo(List.of());
+    assertThat(PathUtil.toNormalizedPath(PathUtil.parse("$"))).isEqualTo("$");
+  }
+
+  /**
+   * Bracket paths can represent keys that dot notation cannot (empty name, {@code []}, {@code ..}).
+   */
+  @Test
+  public void testParseSpecialFieldNames() {
+    assertThat(PathUtil.parse("$['']")).isEqualTo(names(""));
+    assertThat(PathUtil.parse("$['[]']")).isEqualTo(names("[]"));
+    assertThat(PathUtil.parse("$['..']")).isEqualTo(names(".."));
+    assertThat(PathUtil.parse("$['*']")).isEqualTo(names("*"));
+    assertThat(PathUtil.parse("$['[']")).isEqualTo(names("["));
+    assertThat(PathUtil.parse("$[']']")).isEqualTo(names("]"));
+    // RFC 9535 simple escape \f in a quoted segment (also covered in ESCAPE_CASES round-trips)
+    assertThat(PathUtil.parse("$['\\f']")).isEqualTo(List.of(new Name("\f")));
+
+    assertThat(PathUtil.toNormalizedPath(PathUtil.parse("$['']"))).isEqualTo("$['']");
+    assertThat(PathUtil.toNormalizedPath(PathUtil.parse("$['[]']"))).isEqualTo("$['[]']");
+    assertThat(PathUtil.toNormalizedPath(PathUtil.parse("$['..']"))).isEqualTo("$['..']");
+  }
+
+  @Test
+  public void testParseNestedWithSpecialMiddleSegment() {
+    assertThat(PathUtil.parse("$['a']['..']['b']")).isEqualTo(names("a", "..", "b"));
+    assertThat(PathUtil.toNormalizedPath(List.of("a", "..", "b"))).isEqualTo("$['a']['..']['b']");
+  }
+
+  @Test
+  public void testParseMixedDotAndBracket() {
+    assertThat(PathUtil.parse("$.a['b.c']")).isEqualTo(names("a", "b.c"));
+    assertThat(PathUtil.parse("$.events['user.name'].id"))
+        .isEqualTo(names("events", "user.name", "id"));
+    assertThat(PathUtil.toNormalizedPath(PathUtil.parse("$.a['b.c']"))).isEqualTo("$['a']['b.c']");
+  }
+
+  @Test
+  public void testParseMixedBracketThenDot() {
+    assertThat(PathUtil.parse("$['x.y'].z")).isEqualTo(names("x.y", "z"));
+    assertThat(PathUtil.toNormalizedPath(PathUtil.parse("$['x.y'].z"))).isEqualTo("$['x.y']['z']");
+  }
+
+  @Test
+  public void testParseArrayIndexSegments() {
+    assertThat(PathUtil.parse("$.matrix[0][1]"))
+        .isEqualTo(List.of(new Name("matrix"), new Index(0), new Index(1)));
+    assertThat(PathUtil.toNormalizedPath(PathUtil.parse("$.matrix[0][1]")))
+        .isEqualTo("$['matrix'][0][1]");
+
+    assertThat(PathUtil.parse("$.basket[0][2].a"))
+        .isEqualTo(List.of(new Name("basket"), new Index(0), new Index(2), new Name("a")));
+    assertThat(PathUtil.toNormalizedPath(PathUtil.parse("$.basket[0][2].a")))
+        .isEqualTo("$['basket'][0][2]['a']");
+
+    assertThat(PathUtil.parse("$.items[0].tags[1]"))
+        .isEqualTo(List.of(new Name("items"), new Index(0), new Name("tags"), new Index(1)));
+    assertThat(PathUtil.toNormalizedPath(PathUtil.parse("$.items[0].tags[1]")))
+        .isEqualTo("$['items'][0]['tags'][1]");
+
+    assertThat(PathUtil.parse("$.events[0].event_id"))
+        .isEqualTo(List.of(new Name("events"), new Index(0), new Name("event_id")));
+    assertThat(PathUtil.toNormalizedPath(PathUtil.parse("$.events[0].event_id")))
+        .isEqualTo("$['events'][0]['event_id']");
+
+    assertThat(PathUtil.parse("$['items'][0]['tags'][1]"))
+        .isEqualTo(PathUtil.parse("$.items[0].tags[1]"));
+    assertThat(PathUtil.parse("$['matrix'][0][1]")).isEqualTo(PathUtil.parse("$.matrix[0][1]"));
+  }
+
+  @Test
+  public void testParseArrayIndexRoundTrip() {
+    // parse(toNormalizedPath(parse(x))) == parse(x) for paths with [n] segments
+    for (String[] pair : NORMALIZED_PATHS) {
+      String normalized = pair[1];
+      if (normalized.contains("[") && !normalized.contains("['")) {
+        // normalized path has array indices; round-trip must be stable
+        assertThat(PathUtil.parse(PathUtil.toNormalizedPath(PathUtil.parse(normalized))))
+            .isEqualTo(PathUtil.parse(normalized));
+      }
+    }
+    // explicit cases to be clear about what is covered
+    for (String path :
+        new String[] {
+          "$['matrix'][0][1]",
+          "$['items'][0]['tags'][1]",
+          "$['basket'][0][2]['a']",
+          "$['events'][0]['event_id']",
+        }) {
+      assertThat(PathUtil.parse(PathUtil.toNormalizedPath(PathUtil.parse(path))))
+          .isEqualTo(PathUtil.parse(path));
+    }
+  }
+
+  private static final String[] INVALID_PARSE_PATHS =
+      new String[] {
+        null,
+        "",
+        "event_id",
+        "$.a..b",
+        "$.events.*",
+        "$$", // second $ is not a path step after root
+        "$['a'", // unclosed
+        "$[", // [ without quoted ['...'] or index
+        "$['a']x", // trailing junk
+        "$.['a']", // empty dot segment before bracket
+        "$a.b", // missing separator after $
+        "$.a[]", // empty array index
+        "$.a[2147483648]", // index does not fit in int
+        "$.a[-1]", // negative index (not valid JSONPath index syntax here)
+      };
+
+  @ParameterizedTest
+  @FieldSource("INVALID_PARSE_PATHS")
+  public void testParseInvalid(String path) {
+    assertThatThrownBy(() -> PathUtil.parse(path))
+        .as("parse of %s", path)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("(Unsupported|Invalid) path.*");
   }
 }

@@ -102,6 +102,12 @@ public class Expressions {
     return new UnboundTransform<>(ref(name), Transforms.truncate(width));
   }
 
+  /**
+   * Extract a field from a variant column. {@code path} is a small RFC 9535-style JSONPath: root
+   * {@code $}, then steps are {@code .name}, {@code ['name']} (RFC 9535 escapes inside quotes), or
+   * {@code [n]} for a zero-based array index. You can mix these ({@code $.a['b.c']}, {@code
+   * $.items[0].tags[1]}). {@link UnboundExtract#path()} returns the normalized string.
+   */
   public static <T> UnboundTerm<T> extract(String name, String path, String type) {
     return new UnboundExtract<>(ref(name), path, type);
   }
