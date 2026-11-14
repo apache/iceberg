@@ -95,11 +95,11 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.metadata.path                                 | table location + /metadata  | Base location for metadata files                                                                                                                                                                                                                   |
 | write.files.path                                    | table location + /files     | Base location for files referenced by `file` columns; engines write newly created `file` column data under this path                                                                                                                          |
 | write.delete.mode                                   | copy-on-write               | Mode used for delete commands: copy-on-write or merge-on-read (v2 and above)                                                                                                                                                                       |
-| write.delete.isolation-level                        | serializable                | Isolation level for delete commands: serializable or snapshot                                                                                                                                                                                      |
+| write.delete.isolation-level                        | serializable                | Isolation level for delete commands: serializable or snapshot [2]                                                                                                                                                                                  |
 | write.update.mode                                   | copy-on-write               | Mode used for update commands: copy-on-write or merge-on-read (v2 and above)                                                                                                                                                                       |
-| write.update.isolation-level                        | serializable                | Isolation level for update commands: serializable or snapshot                                                                                                                                                                                      |
+| write.update.isolation-level                        | serializable                | Isolation level for update commands: serializable or snapshot [2]                                                                                                                                                                                  |
 | write.merge.mode                                    | copy-on-write               | Mode used for merge commands: copy-on-write or merge-on-read (v2 and above)                                                                                                                                                                        |
-| write.merge.isolation-level                         | serializable                | Isolation level for merge commands: serializable or snapshot                                                                                                                                                                                       |
+| write.merge.isolation-level                         | serializable                | Isolation level for merge commands: serializable or snapshot [2]                                                                                                                                                                                   |
 | write.delete.granularity                            | partition                   | Controls the granularity of generated delete files: partition or file                                                                                                                                                                              |
 
 Notes:
@@ -109,6 +109,11 @@ Notes:
    - counts: Only count metrics are persisted (value_counts, null_value_counts, nan_value_counts).
    - truncate(length): Persists counts plus truncated bounds (lower_bounds, upper_bounds). Truncation applies only to string and binary types; all other types are stored as-is.
    - full: Persists all metrics, including full lower_bounds and upper_bounds.
+
+2. Isolation levels apply only to row-level operations: DELETE, UPDATE and MERGE. Appends have no
+   isolation level. Concurrent appends are resolved by commit retry rather than by a data conflict
+   check, so these properties have no effect on append or INSERT. See
+   [Reliability](reliability.md#retry-validation).
 
 ### Encryption properties
 
