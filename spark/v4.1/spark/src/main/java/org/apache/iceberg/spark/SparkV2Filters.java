@@ -60,6 +60,7 @@ import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.UserDefinedScalarFunc;
+import org.apache.spark.sql.connector.expressions.VariantGet;
 import org.apache.spark.sql.connector.expressions.filter.And;
 import org.apache.spark.sql.connector.expressions.filter.Not;
 import org.apache.spark.sql.connector.expressions.filter.Or;
@@ -354,7 +355,12 @@ public class SparkV2Filters {
 
   private static boolean canConvertToTerm(
       org.apache.spark.sql.connector.expressions.Expression expr) {
-    return isRef(expr) || isSystemFunc(expr);
+    return isRef(expr) || isSystemFunc(expr) || isVariantGetExpr(expr);
+  }
+
+  private static boolean isVariantGetExpr(
+      org.apache.spark.sql.connector.expressions.Expression expr) {
+    return expr instanceof VariantGet && isRef(((VariantGet) expr).child());
   }
 
   private static boolean isRef(org.apache.spark.sql.connector.expressions.Expression expr) {
@@ -439,11 +445,20 @@ public class SparkV2Filters {
   private static <T> UnboundTerm<Object> toTerm(T input) {
     if (input instanceof NamedReference) {
       return Expressions.ref(SparkUtil.toColumnName((NamedReference) input));
+    } else if (input instanceof VariantGet) {
+      return variantGetToTerm((VariantGet) input);
     } else if (input instanceof UserDefinedScalarFunc) {
       return udfToTerm((UserDefinedScalarFunc) input);
     } else {
       return null;
     }
+  }
+
+  private static UnboundTerm<Object> variantGetToTerm(VariantGet vg) {
+    String column = SparkUtil.toColumnName((NamedReference) vg.child());
+    String path = vg.path();
+    String type = toIcebergTypeName(vg.targetType().catalogString());
+    return Expressions.extract(column, path, type);
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -480,5 +495,15 @@ public class SparkV2Filters {
     }
 
     return null;
+  }
+
+  private static String toIcebergTypeName(String sparkTypeName) {
+    // Spark catalogString uses "bigint"; Iceberg expects "long".
+    switch (sparkTypeName.toLowerCase(Locale.ROOT)) {
+      case "bigint":
+        return "long";
+      default:
+        return sparkTypeName;
+    }
   }
 }
