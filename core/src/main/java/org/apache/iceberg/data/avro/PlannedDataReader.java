@@ -160,6 +160,15 @@ public class PlannedDataReader<T> implements DatumReader<T>, SupportsRowPosition
             }
             return GenericReaders.timestampMillis();
 
+          case "local-timestamp-micros":
+            return GenericReaders.timestamps();
+
+          case "local-timestamp-nanos":
+            return GenericReaders.timestampNanos();
+
+          case "local-timestamp-millis":
+            return GenericReaders.timestampMillis();
+
           case "decimal":
             return ValueReaders.decimal(
                 ValueReaders.decimalBytesReader(primitive),
