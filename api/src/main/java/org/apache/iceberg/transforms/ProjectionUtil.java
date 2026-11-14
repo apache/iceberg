@@ -44,11 +44,17 @@ class ProjectionUtil {
     int boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
+        if (boundary == Integer.MIN_VALUE) {
+          return null;
+        }
         // adjust closed and then transform ltEq
         return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1));
       case LT_EQ:
         return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
       case GT:
+        if (boundary == Integer.MAX_VALUE) {
+          return null;
+        }
         // adjust closed and then transform gtEq
         return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1));
       case GT_EQ:
@@ -67,10 +73,16 @@ class ProjectionUtil {
       case LT:
         return predicate(Expression.Operation.LT, name, transform.apply(boundary));
       case LT_EQ:
+        if (boundary == Integer.MAX_VALUE) {
+          return null;
+        }
         return predicate(Expression.Operation.LT, name, transform.apply(boundary + 1));
       case GT:
         return predicate(Expression.Operation.GT, name, transform.apply(boundary));
       case GT_EQ:
+        if (boundary == Integer.MIN_VALUE) {
+          return null;
+        }
         return predicate(Expression.Operation.GT, name, transform.apply(boundary - 1));
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
@@ -90,10 +102,16 @@ class ProjectionUtil {
       case LT:
         return predicate(Expression.Operation.LT, name, transform.apply(boundary));
       case LT_EQ:
+        if (boundary == Long.MAX_VALUE) {
+          return null;
+        }
         return predicate(Expression.Operation.LT, name, transform.apply(boundary + 1L));
       case GT:
         return predicate(Expression.Operation.GT, name, transform.apply(boundary));
       case GT_EQ:
+        if (boundary == Long.MIN_VALUE) {
+          return null;
+        }
         return predicate(Expression.Operation.GT, name, transform.apply(boundary - 1L));
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
@@ -111,11 +129,17 @@ class ProjectionUtil {
     long boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
+        if (boundary == Long.MIN_VALUE) {
+          return null;
+        }
         // adjust closed and then transform ltEq
         return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1L));
       case LT_EQ:
         return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
       case GT:
+        if (boundary == Long.MAX_VALUE) {
+          return null;
+        }
         // adjust closed and then transform gtEq
         return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1L));
       case GT_EQ:
