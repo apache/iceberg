@@ -265,6 +265,11 @@ class TrackedFileAdapters {
     public DataFile copyWithStats(Set<Integer> requestedColumnIds) {
       return new TrackedDataFile(file().copyWithStats(requestedColumnIds), specId());
     }
+
+    @Override
+    public List<ColumnFile> columnFiles() {
+      return file().columnFiles();
+    }
   }
 
   /**
@@ -528,6 +533,11 @@ class TrackedFileAdapters {
     @Override
     public int formatVersion() {
       return file.manifestInfo().formatVersion();
+    }
+
+    @Override
+    public List<ColumnFile> columnFiles() {
+      return file.columnFiles();
     }
 
     @Override

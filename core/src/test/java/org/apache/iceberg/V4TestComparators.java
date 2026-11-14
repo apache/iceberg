@@ -90,7 +90,7 @@ class V4TestComparators {
           Comparator.comparing(
               ids -> Lists.newArrayList(Sets.newTreeSet(ids)),
               Comparators.forType(ColumnFile.FIELD_IDS.type().asListType())));
-  private static final Comparator<ColumnFile> COLUMN_FILE =
+  static final Comparator<ColumnFile> COLUMN_FILE =
       Comparator.nullsFirst(
           Comparator.comparing(ColumnFile::location, natural())
               .thenComparing(ColumnFile::fieldIds, FIELD_IDS)

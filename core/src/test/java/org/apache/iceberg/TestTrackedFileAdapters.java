@@ -25,7 +25,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.mumbling.MumblingTestUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -78,6 +80,11 @@ class TestTrackedFileAdapters {
           .withSpecId(PARTITIONED_SPEC_ID)
           .build();
   private static final PartitionData PARTITION = partition("books");
+  private static final ColumnFile COLUMN_FILE_1 =
+      new ColumnFileStruct("column_file_1.parquet", Set.of(1, 2), FileFormat.PARQUET, 256L, null);
+  private static final ColumnFile COLUMN_FILE_2 =
+      new ColumnFileStruct("column_file_2.parquet", Set.of(3), FileFormat.PARQUET, 1024L, null);
+  private static final List<ColumnFile> COLUMN_FILES = List.of(COLUMN_FILE_1, COLUMN_FILE_2);
 
   // these are populated by readers using the setter with the position of the field.
   private static final int MANIFEST_LOCATION_ORDINAL = Tracking.schema().fields().size();
@@ -216,7 +223,7 @@ class TestTrackedFileAdapters {
             null,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
             ImmutableList.of(50L, 100L),
-            null);
+            COLUMN_FILES);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(PARTITIONED_SPEC));
 
@@ -253,6 +260,7 @@ class TestTrackedFileAdapters {
         .containsOnly(
             Map.entry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1000)),
             Map.entry(2, Conversions.toByteBuffer(Types.FloatType.get(), 100.0f)));
+    assertThat(dataFile.columnFiles()).containsExactly(COLUMN_FILE_1, COLUMN_FILE_2);
   }
 
   @ParameterizedTest
@@ -394,6 +402,9 @@ class TestTrackedFileAdapters {
     assertThat(actual.manifestLocation()).isEqualTo(expected.manifestLocation());
     assertThat(actual.keyMetadata()).isEqualTo(expected.keyMetadata());
     assertThat(actual.splitOffsets()).isEqualTo(expected.splitOffsets());
+    assertThat(actual.columnFiles())
+        .usingElementComparator(V4TestComparators.COLUMN_FILE)
+        .isEqualTo(expected.columnFiles());
   }
 
   private static void assertSameDeleteFile(DeleteFile actual, DeleteFile expected) {
@@ -453,7 +464,7 @@ class TestTrackedFileAdapters {
         null, // manifestInfo
         KEY_METADATA,
         ImmutableList.of(50L, 100L), // splitOffsets
-        null); // columnFiles
+        COLUMN_FILES);
   }
 
   @ParameterizedTest
@@ -497,7 +508,7 @@ class TestTrackedFileAdapters {
             MANIFEST_INFO,
             MANIFEST_KEY_METADATA,
             null, // splitOffsets
-            null); // columnFiles
+            COLUMN_FILES);
 
     ManifestFile manifest = TrackedFileAdapters.asManifestFile(file);
 
@@ -524,6 +535,7 @@ class TestTrackedFileAdapters {
     assertThat(manifest.manifestDeletionVector().buffer())
         .isEqualTo(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()));
     assertThat(manifest.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
+    assertThat(manifest.columnFiles()).containsExactly(COLUMN_FILE_1, COLUMN_FILE_2);
     assertThat(manifest.partitions()).isNull();
     assertThatThrownBy(manifest::partitionSpecId)
         .isInstanceOf(UnsupportedOperationException.class)
