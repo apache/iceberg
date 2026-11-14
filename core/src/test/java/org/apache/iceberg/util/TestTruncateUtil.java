@@ -18,12 +18,29 @@
  */
 package org.apache.iceberg.util;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatException;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TestTruncateUtil {
+  @ParameterizedTest
+  @ValueSource(ints = {1_500_000_000, 2_000_000_000, Integer.MAX_VALUE})
+  void largeIntegerWidth(int width) {
+    assertThat(TruncateUtil.truncateInt(width, width - 1)).isZero();
+    assertThat(TruncateUtil.truncateInt(width, width)).isEqualTo(width);
+    assertThat(TruncateUtil.truncateInt(width, -1)).isEqualTo(-width);
+  }
+
+  @Test
+  void largeWidthForNarrowIntegers() {
+    assertThat(TruncateUtil.truncateByte(Integer.MAX_VALUE, Byte.MAX_VALUE)).isZero();
+    assertThat(TruncateUtil.truncateShort(Integer.MAX_VALUE, Short.MAX_VALUE)).isZero();
+  }
+
   @Test
   public void testInvalidInputWidthBehavior() {
     assertThatNoException()
