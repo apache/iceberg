@@ -244,9 +244,19 @@ public class ExpressionUtil {
       return ((NamedReference<?>) term).name();
     } else if (term instanceof BoundReference) {
       return ((BoundReference<?>) term).name();
+    } else if (term instanceof UnboundExtract) {
+      UnboundExtract<?> extract = (UnboundExtract<?>) term;
+      return describeExtract(extract.ref(), extract.path(), extract.type());
+    } else if (term instanceof BoundExtract) {
+      BoundExtract<?> extract = (BoundExtract<?>) term;
+      return describeExtract(extract.ref(), extract.path(), extract.type());
     } else {
       throw new UnsupportedOperationException("Unsupported term: " + term);
     }
+  }
+
+  private static String describeExtract(Term ref, String path, Type type) {
+    return String.format(Locale.ROOT, "extract(%s, path=%s, type=%s)", describe(ref), path, type);
   }
 
   public static <T> UnboundTerm<T> unbind(BoundTerm<T> term) {

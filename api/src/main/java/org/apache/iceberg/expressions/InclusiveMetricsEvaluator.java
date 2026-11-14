@@ -26,6 +26,7 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantObject;
@@ -167,6 +168,7 @@ public class InclusiveMetricsEvaluator {
   }
 
   private static VariantObject parseBounds(ByteBuffer buffer) {
-    return Variant.from(buffer).value().asObject();
+    Variant bounds = Conversions.fromByteBuffer(Types.VariantType.get(), buffer);
+    return bounds.value().asObject();
   }
 }
