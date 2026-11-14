@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import org.apache.iceberg.types.Types;
 
 /** Tracking information for a manifest entry. */
-interface Tracking {
+public interface Tracking {
   Types.NestedField STATUS =
       Types.NestedField.required(
           0,

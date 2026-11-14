@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.ScanMetrics;
+import org.apache.iceberg.mumbling.MumblingBitmaps;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -80,6 +82,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private final Set<Integer> requestedStatsFieldIds;
   private final boolean isUncommitted;
   private final ScanMetrics scanMetrics;
+  private final boolean changes;
+  private final boolean deletedReference;
+  private final long changeSnapshotId;
+  private final ManifestBitmap deletedPositions;
+  private final ManifestBitmap replacedPositions;
 
   private V4ManifestReader(
       ManifestFile manifest,
@@ -91,7 +98,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       Map<Integer, StructProjection> partitionProjections,
       Set<Integer> requestedStatsFieldIds,
       boolean isUncommitted,
-      ScanMetrics scanMetrics) {
+      ScanMetrics scanMetrics,
+      boolean changes,
+      boolean deletedReference,
+      long changeSnapshotId,
+      ManifestBitmap deletedPositions,
+      ManifestBitmap replacedPositions) {
     this.manifest = manifest;
     this.dv = manifest.manifestDeletionVector();
     this.io = io;
@@ -103,6 +115,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     this.requestedStatsFieldIds = requestedStatsFieldIds;
     this.isUncommitted = isUncommitted;
     this.scanMetrics = scanMetrics;
+    this.changes = changes;
+    this.deletedReference = deletedReference;
+    this.changeSnapshotId = changeSnapshotId;
+    this.deletedPositions = deletedPositions;
+    this.replacedPositions = replacedPositions;
   }
 
   @VisibleForTesting
@@ -118,20 +135,34 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
     files = CloseableIterable.transform(files, this::projectPartition);
 
-    if (dv != null) {
-      files =
-          CloseableIterable.filter(
-              files, file -> file.tracking().isLive() && !isDeletedByMDV(file));
+    if (changes) {
+      if (deletedReference) {
+        // the whole manifest is deleted, so its live entries are newly deleted as of the
+        // deletion snapshot
+        files = CloseableIterable.filter(files, this::isLive);
+      } else {
+        files = CloseableIterable.filter(files, this::isChange);
+      }
     } else {
-      files = CloseableIterable.filter(files, file -> file.tracking().isLive());
+      files = CloseableIterable.filter(files, this::isLive);
     }
 
     if (statsFilter != null) {
+      // Aggregate bounds on a manifest reference cover only live entries, so they cannot prune
+      // a reference when reading changes: a non-live change may lie outside those bounds.
       files =
           CloseableIterable.filter(
               this::incrementSkipCount,
               files,
-              file -> statsFilter.eval(file.contentStats(), file.recordCount()));
+              file ->
+                  (changes && isManifest(file))
+                      || statsFilter.eval(file.contentStats(), file.recordCount()));
+    } else if (changes) {
+      files =
+          CloseableIterable.filter(
+              this::incrementSkipCount,
+              files,
+              file -> isManifest(file) || file.recordCount() != 0L);
     } else {
       files =
           CloseableIterable.filter(
@@ -143,7 +174,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       files = CloseableIterable.filter(files, file -> isManifest(file) || matchesPartition(file));
     }
 
-    return CloseableIterable.transform(files, this::copyResolved).iterator();
+    files = CloseableIterable.transform(files, this::copyResolved);
+    if (changes) {
+      files = CloseableIterable.transform(files, this::reclassify);
+    }
+
+    return files.iterator();
   }
 
   private Function<TrackedFile, TrackedFile> applyInheritance() {
@@ -197,6 +233,44 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
   private boolean isDeletedByMDV(TrackedFile file) {
     return dv.isSet(Math.toIntExact(file.tracking().manifestPos()));
+  }
+
+  private boolean isLive(TrackedFile file) {
+    return file.tracking().isLive() && (dv == null || !isDeletedByMDV(file));
+  }
+
+  private boolean isChange(TrackedFile file) {
+    Tracking tracking = file.tracking();
+    int pos = Math.toIntExact(tracking.manifestPos());
+    if (isMarkedDeleted(pos) || isMarkedReplaced(pos)) {
+      return true;
+    }
+
+    // otherwise the entry is a change only if its own status snapshot is the reference's snapshot
+    return switch (tracking.status()) {
+      case ADDED, DELETED, REPLACED -> matchesChangeSnapshot(tracking.snapshotId());
+      case MODIFIED -> {
+        Long modifiedSnapshotId = tracking.modifiedSnapshotId();
+        Preconditions.checkArgument(
+            modifiedSnapshotId != null,
+            "Invalid modified entry %s: modified_snapshot_id is null",
+            file.location());
+        yield matchesChangeSnapshot(modifiedSnapshotId);
+      }
+      case EXISTING -> false;
+    };
+  }
+
+  private boolean matchesChangeSnapshot(long snapshotId) {
+    return snapshotId == changeSnapshotId;
+  }
+
+  private boolean isMarkedDeleted(int pos) {
+    return deletedPositions != null && deletedPositions.isSet(pos);
+  }
+
+  private boolean isMarkedReplaced(int pos) {
+    return replacedPositions != null && replacedPositions.isSet(pos);
   }
 
   private boolean matchesPartition(TrackedFile trackedFile) {
@@ -319,12 +393,39 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return copy;
   }
 
+  private TrackedFile reclassify(TrackedFile file) {
+    TrackingStruct tracking = (TrackingStruct) file.tracking();
+    if (!tracking.isLive()) {
+      return file;
+    }
+
+    if (deletedReference) {
+      tracking.markDeleted(changeSnapshotId);
+      return file;
+    }
+
+    int pos = Math.toIntExact(tracking.manifestPos());
+    if (isMarkedDeleted(pos)) {
+      tracking.markDeleted(changeSnapshotId);
+    } else if (isMarkedReplaced(pos)) {
+      tracking.markReplaced(changeSnapshotId);
+    }
+
+    return file;
+  }
+
   private static boolean isManifest(TrackedFile trackedFile) {
     FileContent content = trackedFile.contentType();
     return content == FileContent.DATA_MANIFEST || content == FileContent.DELETE_MANIFEST;
   }
 
   static class Builder {
+    private enum Mode {
+      DEFAULT,
+      SCAN_PLANNING,
+      CHANGES
+    }
+
     private final ManifestFile manifest;
     private final FileIO io;
     private final Schema tableSchema;
@@ -334,7 +435,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private String tableLocation = null;
     private Expression rowFilter = Expressions.alwaysTrue();
     private boolean caseSensitive = true;
-    private boolean scanPlanning = false;
+    private Mode mode = Mode.DEFAULT;
     private Set<String> requestedColumns = null;
     private Schema requestedProjection = null;
     private Set<Integer> requestedStatsFieldIds = null;
@@ -400,9 +501,24 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       Preconditions.checkState(
           !isUncommitted, "Cannot plan scan using uncommitted manifest: %s", manifest.path());
       Preconditions.checkState(
+          mode != Mode.CHANGES, "Cannot use forScanPlanning() with forChanges()");
+      Preconditions.checkState(
           requestedColumns == null && requestedProjection == null,
           "Cannot use forScanPlanning() with select(Iterable<String>) or project(Schema)");
-      this.scanPlanning = true;
+      this.mode = Mode.SCAN_PLANNING;
+      return this;
+    }
+
+    /** Configures the reader to produce changed entries (added, modified, deleted, replaced). */
+    Builder forChanges() {
+      Preconditions.checkState(
+          !isUncommitted, "Cannot read changes from uncommitted manifest: %s", manifest.path());
+      Preconditions.checkState(
+          mode != Mode.SCAN_PLANNING, "Cannot use forChanges() with forScanPlanning()");
+      Preconditions.checkState(
+          requestedColumns == null && requestedProjection == null,
+          "Cannot use forChanges() with select(Iterable<String>) or project(Schema)");
+      this.mode = Mode.CHANGES;
       return this;
     }
 
@@ -416,7 +532,9 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     Builder select(Iterable<String> newColumns) {
       Preconditions.checkArgument(newColumns != null, "Invalid columns: null");
       Preconditions.checkState(
-          !scanPlanning, "Cannot use select(Iterable<String>) with forScanPlanning()");
+          mode != Mode.SCAN_PLANNING, "Cannot use select(Iterable<String>) with forScanPlanning()");
+      Preconditions.checkState(
+          mode != Mode.CHANGES, "Cannot use select(Iterable<String>) with forChanges()");
       Preconditions.checkArgument(
           requestedStatsFieldIds == null, "Cannot use projectStats with select");
       Preconditions.checkState(
@@ -428,7 +546,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     /** Sets the exact schema to read; used in place of {@link #select(Iterable)}. */
     Builder project(Schema newProjection) {
       Preconditions.checkArgument(newProjection != null, "Invalid projection: null");
-      Preconditions.checkState(!scanPlanning, "Cannot use project(Schema) with forScanPlanning()");
+      Preconditions.checkState(
+          mode != Mode.SCAN_PLANNING, "Cannot use project(Schema) with forScanPlanning()");
+      Preconditions.checkState(
+          mode != Mode.CHANGES, "Cannot use project(Schema) with forChanges()");
       Preconditions.checkArgument(
           requestedStatsFieldIds == null, "Cannot use projectStats with project");
       Preconditions.checkState(
@@ -467,12 +588,15 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     V4ManifestReader build() {
-      if (scanPlanning && requestedStatsFieldIds == null) {
+      if (mode != Mode.DEFAULT && requestedStatsFieldIds == null) {
         // only return stats that were requested
         requestedStatsFieldIds = ImmutableSet.of();
       }
 
       Map<Integer, Evaluator> partitionFilters = projectFilters();
+      boolean changes = mode == Mode.CHANGES;
+      Tracking tracking = changes ? manifest.tracking() : null;
+      boolean deletedReference = tracking != null && tracking.status() == EntryStatus.DELETED;
 
       return new V4ManifestReader(
           manifest,
@@ -484,7 +608,44 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           partitionProjections(),
           requestedStatsFieldIds,
           isUncommitted,
-          scanMetrics);
+          scanMetrics,
+          changes,
+          deletedReference,
+          changes ? resolveChangeSnapshotId(tracking) : 0L,
+          tracking != null ? readBitmap(tracking.deletedPositions()) : null,
+          tracking != null ? readBitmap(tracking.replacedPositions()) : null);
+    }
+
+    private long resolveChangeSnapshotId(Tracking tracking) {
+      if (tracking == null) {
+        return manifest.snapshotId();
+      }
+
+      EntryStatus status = tracking.status();
+      Preconditions.checkArgument(
+          status == EntryStatus.ADDED
+              || status == EntryStatus.MODIFIED
+              || status == EntryStatus.DELETED,
+          "Cannot read changes from a %s manifest reference: %s",
+          status,
+          manifest.path());
+
+      if (status == EntryStatus.MODIFIED) {
+        Long modifiedSnapshotId = tracking.modifiedSnapshotId();
+        Preconditions.checkArgument(
+            modifiedSnapshotId != null,
+            "Cannot read changes from a modified manifest without modified_snapshot_id: %s",
+            manifest.path());
+        return modifiedSnapshotId;
+      }
+
+      // ADDED stamps the creation snapshot and DELETED stamps the deletion snapshot into the
+      // reference's snapshot ID.
+      return manifest.snapshotId();
+    }
+
+    private static ManifestBitmap readBitmap(ByteBuffer positions) {
+      return positions != null ? MumblingBitmaps.read(positions) : null;
     }
 
     private InclusiveStatsEvaluator statsFilter() {
@@ -525,11 +686,14 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     private Schema readSchema(boolean includePartition) {
-      if (scanPlanning) {
+      if (mode != Mode.DEFAULT) {
         Types.StructType statsProjection = StatsUtil.statsReadSchema(tableSchema, statsFieldIds());
+        // changes mode needs modified_snapshot_id and the deleted/replaced position bitmaps
+        Types.StructType trackingType =
+            mode == Mode.CHANGES ? TrackingStruct.BASE_TYPE : TrackingStruct.SCAN_TYPE;
         return TypeUtil.replaceFieldTypes(
             TrackedFile.readSchema(unionPartitionType, statsProjection),
-            ImmutableMap.of(TrackedFile.TRACKING.fieldId(), TrackingStruct.SCAN_TYPE));
+            ImmutableMap.of(TrackedFile.TRACKING.fieldId(), trackingType));
       }
 
       Preconditions.checkState(metricsConfig != null, "Metrics config is required");

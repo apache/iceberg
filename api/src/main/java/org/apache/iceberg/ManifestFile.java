@@ -235,6 +235,11 @@ public interface ManifestFile {
     return null;
   }
 
+  /** Returns the tracking information for this manifest, or null if absent. */
+  default Tracking tracking() {
+    return null;
+  }
+
   /** Returns the writer format version of the manifest, or 0 if it predates format tracking. */
   default int formatVersion() {
     return 0;
