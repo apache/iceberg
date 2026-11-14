@@ -23,10 +23,14 @@ import com.google.api.client.util.Maps;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageBatch;
+import com.google.cloud.storage.StorageBatchResult;
+import com.google.cloud.storage.StorageException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -333,16 +337,59 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
 
   @SuppressWarnings("resource")
   private void internalDeleteFiles(Stream<BlobId> blobIdsToDelete) {
-    Streams.stream(
-            Iterators.partition(
-                blobIdsToDelete.iterator(),
-                clientForStoragePath(ROOT_STORAGE_PREFIX).gcpProperties().deleteBatchSize()))
-        .forEach(
-            batch -> {
-              if (!batch.isEmpty()) {
-                clientForStoragePath(batch.get(0).toGsUtilUri()).storage().delete(batch);
-              }
-            });
+    int failedDeletions =
+        Streams.stream(
+                Iterators.partition(
+                    blobIdsToDelete.iterator(),
+                    clientForStoragePath(ROOT_STORAGE_PREFIX).gcpProperties().deleteBatchSize()))
+            .filter(batch -> !batch.isEmpty())
+            .mapToInt(
+                batch ->
+                    deleteBatch(clientForStoragePath(batch.get(0).toGsUtilUri()).storage(), batch))
+            .sum();
+
+    if (failedDeletions > 0) {
+      throw new BulkDeletionFailureException(failedDeletions);
+    }
+  }
+
+  /**
+   * Deletes a batch of objects and returns how many actually failed to delete.
+   *
+   * <p>GCS reports a missing object as {@code false} (HTTP 404) rather than an error, so we let
+   * those pass: a retried cleanup often re-deletes files a previous attempt already removed. Only a
+   * {@link StorageException} such as HTTP 403 (access denied) is a genuine failure. If the batch
+   * request itself fails, every object in it is reported as failed.
+   *
+   * @return the number of objects that failed to delete, zero if all succeeded
+   */
+  private static int deleteBatch(Storage storage, List<BlobId> blobIds) {
+    StorageBatch batch = storage.batch();
+    Map<BlobId, StorageBatchResult<Boolean>> results = new LinkedHashMap<>();
+    blobIds.forEach(blobId -> results.put(blobId, batch.delete(blobId)));
+
+    try {
+      batch.submit();
+    } catch (StorageException e) {
+      if (Thread.currentThread().isInterrupted()) {
+        throw e;
+      }
+
+      LOG.warn("Failed to submit batch delete of {} objects", blobIds.size(), e);
+      return blobIds.size();
+    }
+
+    int failures = 0;
+    for (Map.Entry<BlobId, StorageBatchResult<Boolean>> entry : results.entrySet()) {
+      try {
+        entry.getValue().get();
+      } catch (StorageException | IllegalStateException e) {
+        LOG.warn("Failed to delete object at path {}", entry.getKey().toGsUtilUri(), e);
+        failures++;
+      }
+    }
+
+    return failures;
   }
 
   @Override
