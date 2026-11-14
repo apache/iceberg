@@ -41,6 +41,10 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
   /**
    * Add a {@link DeleteFile} to the table.
    *
+   * <p>A deletion vector added concurrently for the same data file may be merged into this
+   * operation's deletion vector instead of failing the commit; see {@link
+   * #validateNoConflictingDeleteFiles()} for the conditions.
+   *
    * @param deletes a delete file of rows to delete
    * @return this for method chaining
    */
@@ -112,6 +116,10 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
    * a delete may be part of a transaction that reads and re-appends a row. This method is used to
    * validate deletes for the transaction case.
    *
+   * <p>Removing a deletion vector that a concurrent delete operation has already replaced does not
+   * fail this validation when the concurrent deletion vector is merged into this operation's
+   * deletion vector; see {@link #validateNoConflictingDeleteFiles()}.
+   *
    * @return this for method chaining
    */
   RowDelta validateDeletedFiles();
@@ -153,6 +161,10 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
    * <p>This method must be called when the table is queried to produce a row delta for UPDATE and
    * MERGE operations independently of the isolation level. Calling this method isn't required for
    * DELETE operations as it is OK to delete a record that is also deleted concurrently.
+   *
+   * <p>When this validation is not enabled and the operation does not add or remove data files,
+   * deletion vectors added concurrently by delete operations for the same data files are merged
+   * into this operation's deletion vectors instead of failing the commit.
    *
    * <p>Validation uses the conflict detection filter passed to {@link
    * #conflictDetectionFilter(Expression)} and applies to operations that happened after the
