@@ -29,6 +29,7 @@ import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.parquet.ParquetValueReader;
+import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.VariantType;
 import org.apache.iceberg.variants.Variant;
@@ -273,11 +274,56 @@ class TestVectorizedArrowReader {
     assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory()).isEqualTo(allocatedBefore);
   }
 
+  @Test
+  void rowBasedVariantReaderGrowsNullsForLargerRead() {
+    long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
+
+    Variant value = Variant.of(Variants.metadata(), Variants.of(1));
+    VectorizedArrowReader reader =
+        new VectorizedArrowReader.RowBasedVariantReader(
+            NestedField.optional(2, "data", VariantType.get()),
+            variantReader(value, value, null, value, null),
+            ArrowAllocation.rootAllocator());
+    reader.setBatchSize(2);
+
+    VectorHolder holder = reader.read(null, 2);
+    assertVariants(holder, value, value);
+    holder = reader.read(holder, 3);
+    assertVariants(holder, null, value, null);
+
+    reader.close();
+
+    assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory()).isEqualTo(allocatedBefore);
+  }
+
+  @Test
+  void rowBasedVariantReaderResolvesZeroBatchSizeToTheDefault() {
+    long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
+
+    VectorizedArrowReader reader =
+        new VectorizedArrowReader.RowBasedVariantReader(
+            NestedField.optional(2, "data", VariantType.get()),
+            variantReader(null),
+            ArrowAllocation.rootAllocator());
+    reader.setBatchSize(0);
+
+    VectorHolder.VariantVectorHolder holder =
+        (VectorHolder.VariantVectorHolder) reader.read(null, 1);
+    assertThat(holder.metadataHolder().nullabilityHolder().size())
+        .isEqualTo(VectorizedArrowReader.DEFAULT_BATCH_SIZE);
+
+    reader.close();
+
+    assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory()).isEqualTo(allocatedBefore);
+  }
+
   private static void assertVariants(VectorHolder holder, Variant... expected) {
     assertThat(holder).isInstanceOf(VectorHolder.VariantVectorHolder.class);
     VectorHolder.VariantVectorHolder variantHolder = (VectorHolder.VariantVectorHolder) holder;
     VectorHolder metadataHolder = variantHolder.metadataHolder();
     VectorHolder valueHolder = variantHolder.valueHolder();
+    assertThat(metadataHolder.icebergField().type()).isEqualTo(BinaryType.get());
+    assertThat(valueHolder.icebergField().type()).isEqualTo(BinaryType.get());
     VarBinaryVector metadataVector = (VarBinaryVector) metadataHolder.vector();
     VarBinaryVector valueVector = (VarBinaryVector) valueHolder.vector();
 

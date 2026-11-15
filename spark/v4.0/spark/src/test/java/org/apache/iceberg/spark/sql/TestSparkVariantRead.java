@@ -32,6 +32,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -44,6 +45,7 @@ import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -612,6 +614,40 @@ public class TestSparkVariantRead extends TestBase {
     sql("DROP TABLE IF EXISTS %s", table);
   }
 
+  @Test
+  void readShreddedVariantAcrossRowGroups()
+      throws IOException, NoSuchTableException, ParseException {
+    String table = CATALOG + ".default.var_shredded_row_groups";
+    sql("DROP TABLE IF EXISTS %s", table);
+    sql(
+        "CREATE TABLE %s (id BIGINT, v VARIANT) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', '%s'='1', '%s'='1', '%s'='1')",
+        table,
+        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES,
+        TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT,
+        TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT);
+    insertShredded(
+        "INSERT INTO %s SELECT /*+ COALESCE(1) */ * FROM ("
+            + "SELECT 1L AS id, CAST(NULL AS VARIANT) AS v "
+            + "UNION ALL SELECT 2L, parse_json('{\"a\":[1,2]}') "
+            + "UNION ALL SELECT 3L, parse_json('{\"a\":[3]}'))",
+        table);
+
+    Table icebergTable = Spark3Util.loadIcebergTable(spark, table);
+    assertHasTypedValueSubtree(icebergTable);
+    assertThat(footers(icebergTable))
+        .singleElement()
+        .satisfies(footer -> assertThat(footer.getBlocks()).hasSizeGreaterThan(1));
+
+    List<Row> rows = assertVectorizedMatchesRowReader(table);
+    assertThat(rows).extracting(row -> row.getLong(0)).containsExactly(1L, 2L, 3L);
+    assertThat(rows.get(0).isNullAt(1)).isTrue();
+    assertLongArray(toVariant(rows.get(1)).getFieldByKey("a"), 1L, 2L);
+    assertLongArray(toVariant(rows.get(2)).getFieldByKey("a"), 3L);
+
+    sql("DROP TABLE IF EXISTS %s", table);
+  }
+
   private void setVectorization(boolean on) {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
@@ -705,16 +741,25 @@ public class TestSparkVariantRead extends TestBase {
 
   private static List<Boolean> shreddedFiles(Table table) throws IOException {
     List<Boolean> shredded = Lists.newArrayList();
+    for (ParquetMetadata footer : footers(table)) {
+      shredded.add(containsTypedValue(footer.getFileMetaData().getSchema()));
+    }
+
+    return shredded;
+  }
+
+  private static List<ParquetMetadata> footers(Table table) throws IOException {
+    List<ParquetMetadata> footers = Lists.newArrayList();
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       for (FileScanTask task : tasks) {
         HadoopInputFile inputFile =
             HadoopInputFile.fromPath(new Path(task.file().location()), new Configuration());
         try (ParquetFileReader reader = ParquetFileReader.open(inputFile)) {
-          shredded.add(containsTypedValue(reader.getFileMetaData().getSchema()));
+          footers.add(reader.getFooter());
         }
       }
     }
 
-    return shredded;
+    return footers;
   }
 }

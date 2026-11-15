@@ -1100,6 +1100,13 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   static final class RowBasedVariantReader extends VectorizedArrowReader {
+    private static final Types.NestedField METADATA_FIELD =
+        Types.NestedField.required(
+            VectorizedVariantVisitor.UNUSED_FIELD_ID, "metadata", Types.BinaryType.get());
+    private static final Types.NestedField VALUE_FIELD =
+        Types.NestedField.optional(
+            VectorizedVariantVisitor.UNUSED_FIELD_ID, "value", Types.BinaryType.get());
+
     private final ParquetValueReader<Variant> reader;
     private final BufferAllocator allocator;
     private int batchSize = DEFAULT_BATCH_SIZE;
@@ -1161,8 +1168,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       return new VectorHolder.VariantVectorHolder(
           icebergField(),
           numValsToRead,
-          VectorHolder.vectorHolder(metadataVector, icebergField(), nulls),
-          VectorHolder.vectorHolder(valueVector, icebergField(), nulls));
+          VectorHolder.vectorHolder(metadataVector, METADATA_FIELD, nulls),
+          VectorHolder.vectorHolder(valueVector, VALUE_FIELD, nulls));
     }
 
     private static ByteBuffer ensureCapacity(ByteBuffer buffer, int size) {
