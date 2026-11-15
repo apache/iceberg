@@ -42,8 +42,6 @@ import org.apache.iceberg.spark.source.metrics.AddedPositionalDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.AddedPositionalDeletes;
 import org.apache.iceberg.spark.source.metrics.AddedRecords;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MaxTaskWriteDuration;
-import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MedianTaskWriteDuration;
-import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MinTaskWriteDuration;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteCloseDuration;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteDuration;
 import org.apache.iceberg.spark.source.metrics.RemovedDataFiles;
@@ -317,8 +315,6 @@ public class SparkWriteUtil {
       new TotalPositionalDeletes(),
       new TotalRecords(),
       new WriteDuration(),
-      new MinTaskWriteDuration(),
-      new MedianTaskWriteDuration(),
       new MaxTaskWriteDuration(),
       new WriteCloseDuration()
     };

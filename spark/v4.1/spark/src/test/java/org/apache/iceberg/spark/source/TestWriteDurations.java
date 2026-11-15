@@ -25,8 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MaxTaskWriteDuration;
-import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MedianTaskWriteDuration;
-import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MinTaskWriteDuration;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteCloseDuration;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteDuration;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
@@ -48,8 +46,6 @@ class TestWriteDurations {
 
     assertThat(metrics)
         .containsEntry(WriteDuration.NAME, 1_000L)
-        .containsEntry(MinTaskWriteDuration.NAME, 10L)
-        .containsEntry(MedianTaskWriteDuration.NAME, 30L)
         .containsEntry(MaxTaskWriteDuration.NAME, 900L)
         .containsEntry(WriteCloseDuration.NAME, 15L);
   }
@@ -60,8 +56,6 @@ class TestWriteDurations {
 
     assertThat(metrics)
         .containsEntry(WriteDuration.NAME, 0L)
-        .containsEntry(MinTaskWriteDuration.NAME, 0L)
-        .containsEntry(MedianTaskWriteDuration.NAME, 0L)
         .containsEntry(MaxTaskWriteDuration.NAME, 0L)
         .containsEntry(WriteCloseDuration.NAME, 0L);
   }

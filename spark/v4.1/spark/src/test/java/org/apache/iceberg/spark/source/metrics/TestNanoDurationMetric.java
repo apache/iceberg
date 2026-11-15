@@ -22,8 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Locale;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MaxTaskWriteDuration;
-import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MedianTaskWriteDuration;
-import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MinTaskWriteDuration;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteCloseDuration;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteDuration;
 import org.apache.spark.sql.connector.metric.CustomMetric;
@@ -60,13 +58,7 @@ class TestNanoDurationMetric {
 
   @ParameterizedTest
   @ValueSource(
-      classes = {
-        WriteDuration.class,
-        MinTaskWriteDuration.class,
-        MedianTaskWriteDuration.class,
-        MaxTaskWriteDuration.class,
-        WriteCloseDuration.class
-      })
+      classes = {WriteDuration.class, MaxTaskWriteDuration.class, WriteCloseDuration.class})
   void sparkCanRecreateMetricFromClassName(Class<? extends CustomMetric> metricClass)
       throws ReflectiveOperationException {
     // the SQL UI aggregates a metric by loading its class name with a public no-arg constructor
