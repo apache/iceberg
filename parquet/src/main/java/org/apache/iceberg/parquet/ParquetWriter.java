@@ -57,7 +57,6 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final int columnIndexTruncateLength;
   private final ParquetFileWriter.Mode writeMode;
   private final OutputFile output;
-  private final ParquetConfiguration conf;
   private final InternalFileEncryptor fileEncryptor;
   private final boolean trackUncompressedSize;
 
@@ -102,7 +101,6 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
         conf.getInt(COLUMN_INDEX_TRUNCATE_LENGTH, DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
     this.writeMode = writeMode;
     this.output = output;
-    this.conf = conf;
     this.rowGroupOrdinal = 0;
     this.fileEncryptor =
         (encryptionProperties == null ? null : new InternalFileEncryptor(encryptionProperties));
@@ -115,7 +113,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       try {
         this.writer =
             new ParquetFileWriter(
-                ParquetIO.file(output, conf),
+                ParquetIO.file(output),
                 parquetSchema,
                 writeMode,
                 targetRowGroupSize,
