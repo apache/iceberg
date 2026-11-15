@@ -21,40 +21,37 @@ package org.apache.iceberg.spark.source;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MaxTaskWriteDuration;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteCloseDuration;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteDuration;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
+import org.apache.spark.sql.connector.write.DataWriter;
+import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.junit.jupiter.api.Test;
 
-class TestWriteDurations {
+class TestWriteTimer {
+  private static final WriterCommitMessage TASK_MESSAGE = new WriterCommitMessage() {};
 
   @Test
-  void driverMetricsReportTaskSpread() {
-    List<WriteDurations> tasks =
-        List.of(
-            WriteDurations.of(40L, 1L),
-            WriteDurations.of(10L, 2L),
-            WriteDurations.of(900L, 3L),
-            WriteDurations.of(20L, 4L),
-            WriteDurations.of(30L, 5L));
+  void driverReportsTotalAndMaxTaskWriteDuration() throws Exception {
+    WriteTimer.Totals totals = new WriteTimer.Totals();
+    for (long writeNanos : new long[] {40L, 10L, 900L, 20L, 30L}) {
+      WriteTimer timer = new WriteTimer(0, 0L);
+      timer.recordStorageWrite(writeNanos, 0L);
+      WriterCommitMessage message = timer.wrap(new CommitOnlyWriter()).commit();
+      assertThat(totals.unwrap(message)).isSameAs(TASK_MESSAGE);
+    }
 
-    Map<String, Long> metrics = values(WriteDurations.driverMetrics(null, tasks));
-
-    assertThat(metrics)
+    assertThat(values(totals.driverMetrics(null)))
         .containsEntry(WriteDuration.NAME, 1_000L)
-        .containsEntry(MaxTaskWriteDuration.NAME, 900L)
-        .containsEntry(WriteCloseDuration.NAME, 15L);
+        .containsEntry(MaxTaskWriteDuration.NAME, 900L);
   }
 
   @Test
   void driverMetricsWithNoTasks() {
-    Map<String, Long> metrics = values(WriteDurations.driverMetrics(null, List.of()));
-
-    assertThat(metrics)
+    assertThat(values(new WriteTimer.Totals().driverMetrics(null)))
         .containsEntry(WriteDuration.NAME, 0L)
         .containsEntry(MaxTaskWriteDuration.NAME, 0L)
         .containsEntry(WriteCloseDuration.NAME, 0L);
@@ -63,5 +60,21 @@ class TestWriteDurations {
   private static Map<String, Long> values(CustomTaskMetric[] metrics) {
     return Arrays.stream(metrics)
         .collect(Collectors.toMap(CustomTaskMetric::name, CustomTaskMetric::value));
+  }
+
+  private static class CommitOnlyWriter implements DataWriter<Object> {
+    @Override
+    public void write(Object record) {}
+
+    @Override
+    public WriterCommitMessage commit() {
+      return TASK_MESSAGE;
+    }
+
+    @Override
+    public void abort() {}
+
+    @Override
+    public void close() {}
   }
 }

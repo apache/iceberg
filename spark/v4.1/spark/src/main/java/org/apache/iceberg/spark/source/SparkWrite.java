@@ -23,7 +23,6 @@ import static org.apache.iceberg.IsolationLevel.SNAPSHOT;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
@@ -56,7 +55,6 @@ import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.RollingDataWriter;
 import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
@@ -118,7 +116,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
 
   private boolean cleanupOnAbort = false;
   private InMemoryMetricsReporter metricsReporter;
-  private List<WriteDurations> taskWriteDurations = ImmutableList.of();
+  private WriteTimer.Totals writeTimes = new WriteTimer.Totals();
 
   SparkWrite(
       SparkSession spark,
@@ -289,23 +287,22 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
   private DataFileSet files(WriterCommitMessage[] messages) {
     DataFileSet files = DataFileSet.create();
     // every commit path funnels through here, so this is where task write times are collected
-    List<WriteDurations> durations = Lists.newArrayListWithExpectedSize(messages.length);
+    WriteTimer.Totals totals = new WriteTimer.Totals();
 
     for (WriterCommitMessage message : messages) {
       if (message != null) {
-        TaskCommit taskCommit = (TaskCommit) message;
+        TaskCommit taskCommit = (TaskCommit) totals.unwrap(message);
         files.addAll(Arrays.asList(taskCommit.files()));
-        durations.add(taskCommit.writeDurations());
       }
     }
 
-    this.taskWriteDurations = durations;
+    this.writeTimes = totals;
     return files;
   }
 
   @Override
   public CustomTaskMetric[] reportDriverMetrics() {
-    return WriteDurations.driverMetrics(metricsReporter, taskWriteDurations);
+    return writeTimes.driverMetrics(metricsReporter);
   }
 
   @Override
@@ -681,15 +678,9 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
 
   public static class TaskCommit implements WriterCommitMessage {
     private final DataFile[] taskFiles;
-    private final WriteDurations writeDurations;
 
-    TaskCommit(DataFile[] taskFiles, WriteDurations writeDurations) {
+    TaskCommit(DataFile[] taskFiles) {
       this.taskFiles = taskFiles;
-      this.writeDurations = writeDurations;
-    }
-
-    WriteDurations writeDurations() {
-      return writeDurations;
     }
 
     // Reports bytesWritten and recordsWritten to the Spark output metrics.
@@ -780,21 +771,22 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
       Function<InternalRow, InternalRow> rowLineageExtractor = new ExtractRowLineage(writeSchema);
 
       if (spec.isUnpartitioned()) {
-        return new UnpartitionedDataWriter(
-            writerFactory, fileFactory, io, spec, targetFileSize, rowLineageExtractor, timer);
+        return timer.wrap(
+            new UnpartitionedDataWriter(
+                writerFactory, fileFactory, io, spec, targetFileSize, rowLineageExtractor));
 
       } else {
-        return new PartitionedDataWriter(
-            writerFactory,
-            fileFactory,
-            io,
-            spec,
-            writeSchema,
-            dsSchema,
-            targetFileSize,
-            useFanoutWriter,
-            rowLineageExtractor,
-            timer);
+        return timer.wrap(
+            new PartitionedDataWriter(
+                writerFactory,
+                fileFactory,
+                io,
+                spec,
+                writeSchema,
+                dsSchema,
+                targetFileSize,
+                useFanoutWriter,
+                rowLineageExtractor));
       }
     }
   }
@@ -809,9 +801,8 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
         FileIO io,
         PartitionSpec spec,
         long targetFileSize,
-        Function<InternalRow, InternalRow> rowLineageExtractor,
-        WriteTimer timer) {
-      super(rowLineageExtractor, timer);
+        Function<InternalRow, InternalRow> rowLineageExtractor) {
+      super(rowLineageExtractor);
       this.delegate =
           new RollingDataWriter<>(writerFactory, fileFactory, io, targetFileSize, spec, null);
       this.io = io;
@@ -832,8 +823,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
       close();
 
       DataWriteResult result = delegate.result();
-      TaskCommit taskCommit =
-          new TaskCommit(result.dataFiles().toArray(new DataFile[0]), timer().finish());
+      TaskCommit taskCommit = new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
       taskCommit.reportOutputMetrics();
       return taskCommit;
     }
@@ -848,7 +838,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
 
     @Override
     public void close() throws IOException {
-      timer().timeClose(delegate::close);
+      delegate.close();
     }
   }
 
@@ -868,9 +858,8 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
         StructType dataSparkType,
         long targetFileSize,
         boolean fanoutEnabled,
-        Function<InternalRow, InternalRow> rowLineageExtractor,
-        WriteTimer timer) {
-      super(rowLineageExtractor, timer);
+        Function<InternalRow, InternalRow> rowLineageExtractor) {
+      super(rowLineageExtractor);
       if (fanoutEnabled) {
         this.delegate = new FanoutDataWriter<>(writerFactory, fileFactory, io, targetFileSize);
       } else {
@@ -898,8 +887,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
       close();
 
       DataWriteResult result = delegate.result();
-      TaskCommit taskCommit =
-          new TaskCommit(result.dataFiles().toArray(new DataFile[0]), timer().finish());
+      TaskCommit taskCommit = new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
       taskCommit.reportOutputMetrics();
       return taskCommit;
     }
@@ -914,24 +902,17 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
 
     @Override
     public void close() throws IOException {
-      timer().timeClose(delegate::close);
+      delegate.close();
     }
   }
 
   private abstract static class DataWriterWithLineage<T> implements DataWriter<T> {
     private final Function<InternalRow, InternalRow> rowLineageExtractor;
-    private final WriteTimer timer;
 
-    DataWriterWithLineage(
-        Function<InternalRow, InternalRow> rowLineageExtractor, WriteTimer timer) {
+    DataWriterWithLineage(Function<InternalRow, InternalRow> rowLineageExtractor) {
       Preconditions.checkArgument(
           rowLineageExtractor != null, "Row lineage extractor cannot be null");
       this.rowLineageExtractor = rowLineageExtractor;
-      this.timer = timer;
-    }
-
-    protected WriteTimer timer() {
-      return timer;
     }
 
     protected InternalRow decorateWithRowLineage(InternalRow meta, InternalRow record) {

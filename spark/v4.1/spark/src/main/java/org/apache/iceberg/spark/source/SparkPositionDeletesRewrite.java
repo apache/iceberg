@@ -40,7 +40,6 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitioningDVWriter;
 import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.PositionDeletesRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
@@ -90,7 +89,7 @@ public class SparkPositionDeletesRewrite implements Write {
   private final StructLike partition;
   private final Map<String, String> writeProperties;
   private InMemoryMetricsReporter metricsReporter;
-  private List<WriteDurations> taskWriteDurations = ImmutableList.of();
+  private WriteTimer.Totals writeTimes = new WriteTimer.Totals();
 
   /**
    * Constructs a {@link SparkPositionDeletesRewrite}.
@@ -141,7 +140,7 @@ public class SparkPositionDeletesRewrite implements Write {
 
   @Override
   public CustomTaskMetric[] reportDriverMetrics() {
-    return WriteDurations.driverMetrics(metricsReporter, taskWriteDurations);
+    return writeTimes.driverMetrics(metricsReporter);
   }
 
   @Override
@@ -189,17 +188,16 @@ public class SparkPositionDeletesRewrite implements Write {
     private List<DeleteFile> files(WriterCommitMessage[] messages) {
       List<DeleteFile> files = Lists.newArrayList();
       // both commit and abort funnel through here, so this is where task write times are collected
-      List<WriteDurations> durations = Lists.newArrayListWithExpectedSize(messages.length);
+      WriteTimer.Totals totals = new WriteTimer.Totals();
 
       for (WriterCommitMessage message : messages) {
         if (message != null) {
-          DeleteTaskCommit taskCommit = (DeleteTaskCommit) message;
+          DeleteTaskCommit taskCommit = (DeleteTaskCommit) totals.unwrap(message);
           files.addAll(Arrays.asList(taskCommit.files()));
-          durations.add(taskCommit.writeDurations());
         }
       }
 
-      SparkPositionDeletesRewrite.this.taskWriteDurations = durations;
+      SparkPositionDeletesRewrite.this.writeTimes = totals;
       return files;
     }
   }
@@ -262,7 +260,7 @@ public class SparkPositionDeletesRewrite implements Write {
               .build();
 
       if (formatVersion >= 3) {
-        return new DVWriter(table, deleteFileFactory, dsSchema, specId, partition, timer);
+        return timer.wrap(new DVWriter(table, deleteFileFactory, dsSchema, specId, partition));
       } else {
         SparkFileWriterFactory writerFactory =
             SparkFileWriterFactory.builderFor(table)
@@ -270,16 +268,16 @@ public class SparkPositionDeletesRewrite implements Write {
                 .writeProperties(writeProperties)
                 .build();
 
-        return new DeleteWriter(
-            table,
-            writerFactory,
-            deleteFileFactory,
-            targetFileSize,
-            deleteGranularity,
-            dsSchema,
-            specId,
-            partition,
-            timer);
+        return timer.wrap(
+            new DeleteWriter(
+                table,
+                writerFactory,
+                deleteFileFactory,
+                targetFileSize,
+                deleteGranularity,
+                dsSchema,
+                specId,
+                partition));
       }
     }
   }
@@ -294,7 +292,6 @@ public class SparkPositionDeletesRewrite implements Write {
    * assumption that all incoming deletes belong to the same partition.
    */
   private static class DeleteWriter implements DataWriter<InternalRow> {
-    private final WriteTimer timer;
     private final SparkFileWriterFactory writerFactory;
     private final OutputFileFactory deleteFileFactory;
     private final long targetFileSize;
@@ -323,7 +320,6 @@ public class SparkPositionDeletesRewrite implements Write {
      *     are required to have the same spec id.
      * @param partition partition value of incoming position delete. All incoming partition deletes
      *     are required to have the same partition.
-     * @param timer records storage write time for this task
      */
     DeleteWriter(
         Table table,
@@ -333,9 +329,7 @@ public class SparkPositionDeletesRewrite implements Write {
         DeleteGranularity deleteGranularity,
         StructType dsSchema,
         int specId,
-        StructLike partition,
-        WriteTimer timer) {
-      this.timer = timer;
+        StructLike partition) {
       this.deleteFileFactory = deleteFileFactory;
       this.targetFileSize = targetFileSize;
       this.deleteGranularity = deleteGranularity;
@@ -371,7 +365,7 @@ public class SparkPositionDeletesRewrite implements Write {
     @Override
     public WriterCommitMessage commit() throws IOException {
       close();
-      return new DeleteTaskCommit(allDeleteFiles(), timer.finish());
+      return new DeleteTaskCommit(allDeleteFiles());
     }
 
     @Override
@@ -383,12 +377,9 @@ public class SparkPositionDeletesRewrite implements Write {
     @Override
     public void close() throws IOException {
       if (!closed) {
-        timer.timeClose(
-            () -> {
-              if (writer != null) {
-                writer.close();
-              }
-            });
+        if (writer != null) {
+          writer.close();
+        }
         this.closed = true;
       }
     }
@@ -418,7 +409,6 @@ public class SparkPositionDeletesRewrite implements Write {
    * supports DVs.
    */
   private static class DVWriter implements DataWriter<InternalRow> {
-    private final WriteTimer timer;
     private final PositionDelete<InternalRow> positionDelete;
     private final FileIO io;
     private final PartitionSpec spec;
@@ -438,16 +428,13 @@ public class SparkPositionDeletesRewrite implements Write {
      *     are required to have the same spec id.
      * @param partition partition value of incoming position delete. All incoming partition deletes
      *     are required to have the same partition.
-     * @param timer records storage write time for this task
      */
     DVWriter(
         Table table,
         OutputFileFactory deleteFileFactory,
         StructType dsSchema,
         int specId,
-        StructLike partition,
-        WriteTimer timer) {
-      this.timer = timer;
+        StructLike partition) {
       this.positionDelete = PositionDelete.create();
       this.io = table.io();
       this.spec = table.specs().get(specId);
@@ -468,7 +455,7 @@ public class SparkPositionDeletesRewrite implements Write {
     @Override
     public WriterCommitMessage commit() throws IOException {
       close();
-      return new DeleteTaskCommit(allDeleteFiles(), timer.finish());
+      return new DeleteTaskCommit(allDeleteFiles());
     }
 
     @Override
@@ -480,12 +467,9 @@ public class SparkPositionDeletesRewrite implements Write {
     @Override
     public void close() throws IOException {
       if (!closed) {
-        timer.timeClose(
-            () -> {
-              if (null != dvWriter) {
-                dvWriter.close();
-              }
-            });
+        if (null != dvWriter) {
+          dvWriter.close();
+        }
         this.closed = true;
       }
     }
@@ -497,15 +481,9 @@ public class SparkPositionDeletesRewrite implements Write {
 
   public static class DeleteTaskCommit implements WriterCommitMessage {
     private final DeleteFile[] taskFiles;
-    private final WriteDurations writeDurations;
 
-    DeleteTaskCommit(List<DeleteFile> deleteFiles, WriteDurations writeDurations) {
+    DeleteTaskCommit(List<DeleteFile> deleteFiles) {
       this.taskFiles = deleteFiles.toArray(new DeleteFile[0]);
-      this.writeDurations = writeDurations;
-    }
-
-    WriteDurations writeDurations() {
-      return writeDurations;
     }
 
     DeleteFile[] files() {
