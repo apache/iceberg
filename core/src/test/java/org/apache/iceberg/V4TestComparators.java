@@ -40,6 +40,14 @@ import org.apache.iceberg.types.Types;
 class V4TestComparators {
   private V4TestComparators() {}
 
+  public static Comparator<TrackedFile> trackedFileWithoutStatus() {
+    return trackedFile((a, b) -> 0, Types.StructType.of());
+  }
+
+  public static Comparator<TrackedFile> trackedFileWithoutStatus(Types.StructType partitionType) {
+    return trackedFile((a, b) -> 0, Types.StructType.of());
+  }
+
   public static Comparator<TrackedFile> trackedFileStatusOnly(Types.StructType partitionType) {
     return trackedFile(STATUS_ONLY_TRACKING, partitionType);
   }
