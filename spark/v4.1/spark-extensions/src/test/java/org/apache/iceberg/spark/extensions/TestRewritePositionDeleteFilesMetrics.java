@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -41,27 +42,29 @@ import scala.jdk.javaapi.CollectionConverters;
  * procedure rather than a plain SQL write.
  */
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestRewritePositionDeleteFilesMetrics extends ExtensionsTestBase {
+class TestRewritePositionDeleteFilesMetrics extends ExtensionsTestBase {
 
   @AfterEach
-  public void removeTables() {
+  void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
   @TestTemplate
-  public void writeDurationForDVRewrite() throws Exception {
-    // v3 tables rewrite deletes through DVWriter rather than DeleteWriter
-    createTableWithDeletes(3);
+  void writeDurationForDVRewrite() throws Exception {
+    // position deletes from v2 are rewritten as DVs through DVWriter after upgrading to v3
+    createTableWithDeletes(2);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='3')", tableName);
 
+    long lastSetupExecutionId = lastExecutionId();
     sql(
         "CALL %s.system.rewrite_position_delete_files("
             + "table => '%s', options => map('rewrite-all','true'))",
         catalogName, tableIdent);
 
-    assertThat(maxMetricValue(new WriteDuration().description()))
+    assertThat(maxMetricValue(new WriteDuration().description(), lastSetupExecutionId))
         .as("write duration should be reported by the DV rewrite")
         .isGreaterThan(0);
-    assertThat(maxMetricValue(new WriteCloseDuration().description()))
+    assertThat(maxMetricValue(new WriteCloseDuration().description(), lastSetupExecutionId))
         .as("write close duration should be reported by the DV rewrite")
         .isGreaterThan(0);
   }
@@ -90,29 +93,49 @@ public class TestRewritePositionDeleteFilesMetrics extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void writeDurationForPositionDeletesRewrite() throws Exception {
+  void writeDurationForPositionDeletesRewrite() throws Exception {
     createTableWithDeletes(2);
 
+    long lastSetupExecutionId = lastExecutionId();
     sql(
         "CALL %s.system.rewrite_position_delete_files("
             + "table => '%s', options => map('rewrite-all','true'))",
         catalogName, tableIdent);
 
-    // the rewrite runs as its own SQL execution, so look for the write node across executions
-    assertThat(maxMetricValue(new WriteDuration().description()))
+    assertThat(maxMetricValue(new WriteDuration().description(), lastSetupExecutionId))
         .as("write duration should be reported by the position deletes rewrite")
         .isGreaterThan(0);
-    assertThat(maxMetricValue(new WriteCloseDuration().description()))
+    assertThat(maxMetricValue(new WriteCloseDuration().description(), lastSetupExecutionId))
         .as("write close duration should be reported by the position deletes rewrite")
         .isGreaterThan(0);
   }
 
-  /** Looks up a metric by the description Spark stores in the UI, across all executions. */
-  private long maxMetricValue(String metricDescription) {
+  private long lastExecutionId() throws TimeoutException {
+    spark.sparkContext().listenerBus().waitUntilEmpty();
+    long lastId = -1L;
+    for (SQLExecutionUIData execution :
+        CollectionConverters.asJava(spark.sharedState().statusStore().executionsList())) {
+      lastId = Math.max(lastId, execution.executionId());
+    }
+
+    return lastId;
+  }
+
+  /**
+   * Looks up a metric by the description Spark stores in the UI, across the executions started
+   * after the given execution ID.
+   */
+  private long maxMetricValue(String metricDescription, long afterExecutionId)
+      throws TimeoutException {
+    spark.sparkContext().listenerBus().waitUntilEmpty();
     SQLAppStatusStore statusStore = spark.sharedState().statusStore();
     long max = 0L;
 
     for (SQLExecutionUIData execution : CollectionConverters.asJava(statusStore.executionsList())) {
+      if (execution.executionId() <= afterExecutionId) {
+        continue;
+      }
+
       Map<Object, String> metricValues =
           CollectionConverters.asJava(
               statusStore.execution(execution.executionId()).get().metricValues());
