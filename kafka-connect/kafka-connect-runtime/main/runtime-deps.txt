@@ -45,9 +45,9 @@ com.google.apis:google-api-services-storage:v1-rev20260524-2.0
 com.google.auth:google-auth-library-credentials:1.57
 com.google.auth:google-auth-library-oauth2-http:1.57
 com.google.auto.value:auto-value-annotations:1.11
-com.google.cloud.gcs.analytics:client:1.6
-com.google.cloud.gcs.analytics:common:1.6
-com.google.cloud.gcs.analytics:gcs-analytics-core:1.6
+com.google.cloud.gcs.analytics:client:1.7
+com.google.cloud.gcs.analytics:common:1.7
+com.google.cloud.gcs.analytics:gcs-analytics-core:1.7
 com.google.cloud.opentelemetry:detector-resources-support:0.36
 com.google.cloud.opentelemetry:exporter-metrics:0.36
 com.google.cloud.opentelemetry:shared-resourcemapping:0.36
