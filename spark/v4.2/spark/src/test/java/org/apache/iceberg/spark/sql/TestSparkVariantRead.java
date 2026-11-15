@@ -453,9 +453,7 @@ public class TestSparkVariantRead extends TestBase {
     assertHasTypedValueSubtree(table);
 
     sql("ALTER TABLE %s SET TBLPROPERTIES ('write.parquet.shred-variants'='false')", toggleTable);
-    setVectorization(toggleTable, vectorized);
-
-    List<Row> rows = spark.table(toggleTable).select("id", "v").orderBy("id").collectAsList();
+    List<Row> rows = readSortedById(toggleTable, vectorized);
     assertThat(rows).hasSize(2);
     Variant v1 =
         new Variant(
@@ -536,9 +534,7 @@ public class TestSparkVariantRead extends TestBase {
 
     Table table = Spark3Util.loadIcebergTable(spark, noStatsTable);
     assertHasTypedValueSubtree(table);
-    setVectorization(noStatsTable, true);
-
-    List<Row> rows = spark.table(noStatsTable).select("id", "v").orderBy("id").collectAsList();
+    List<Row> rows = assertVectorizedMatchesRowReader(noStatsTable);
     assertThat(rows).hasSize(2);
     Variant v1 =
         new Variant(
@@ -580,25 +576,39 @@ public class TestSparkVariantRead extends TestBase {
   }
 
   @Test
+  void readMixedObjectShreddedAndUnshreddedFiles()
+      throws IOException, NoSuchTableException, ParseException {
+    String table = CATALOG + ".default.var_mixed_object_files";
+    writeUnshreddedThenShreddedFile(
+        table, "{\"name\":\"bob\",\"age\":25}", "{\"name\":\"carol\",\"age\":41}");
+
+    Table icebergTable = Spark3Util.loadIcebergTable(spark, table);
+    assertThat(shreddedFiles(icebergTable)).containsExactlyInAnyOrder(false, true);
+    int variantId = icebergTable.schema().findField("v").fieldId();
+    try (CloseableIterable<FileScanTask> tasks =
+        icebergTable.newScan().includeColumnStats().planFiles()) {
+      assertThat(tasks)
+          .anyMatch(
+              task ->
+                  task.file().lowerBounds() != null
+                      && task.file().lowerBounds().containsKey(variantId));
+    }
+
+    List<Row> rows = assertVectorizedMatchesRowReader(table);
+    assertThat(rows).extracting(row -> row.getLong(0)).containsExactly(1L, 2L, 3L, 4L);
+    assertThat(toVariant(rows.get(0)).getFieldByKey("name").getString()).isEqualTo("alice");
+    assertThat(rows.get(1).isNullAt(1)).isTrue();
+    assertThat(toVariant(rows.get(2)).getFieldByKey("name").getString()).isEqualTo("bob");
+    assertThat(toVariant(rows.get(3)).getFieldByKey("age").getLong()).isEqualTo(41L);
+
+    sql("DROP TABLE IF EXISTS %s", table);
+  }
+
+  @Test
   void readMixedShreddedAndUnshreddedFiles()
       throws IOException, NoSuchTableException, ParseException {
     String table = CATALOG + ".default.var_mixed_files";
-    sql("DROP TABLE IF EXISTS %s", table);
-    sql(
-        "CREATE TABLE %s (id BIGINT, v VARIANT) USING iceberg "
-            + "TBLPROPERTIES ('format-version'='3')",
-        table);
-    spark
-        .sql("SELECT 1L AS id, parse_json('{\"name\":\"alice\",\"age\":30}') AS v")
-        .coalesce(1)
-        .writeTo(table)
-        .append();
-    insertShredded(
-        "INSERT INTO %s SELECT /*+ COALESCE(1) */ * FROM ("
-            + "SELECT 2L AS id, CAST(NULL AS VARIANT) AS v "
-            + "UNION ALL SELECT 3L, parse_json('{\"a\":[1,2]}') "
-            + "UNION ALL SELECT 4L, parse_json('{\"a\":[3]}'))",
-        table);
+    writeUnshreddedThenShreddedFile(table, "{\"a\":[1,2]}", "{\"a\":[3]}");
 
     Table icebergTable = Spark3Util.loadIcebergTable(spark, table);
     assertThat(shreddedFiles(icebergTable)).containsExactlyInAnyOrder(false, true);
@@ -677,6 +687,26 @@ public class TestSparkVariantRead extends TestBase {
       }
     }
     return false;
+  }
+
+  private void writeUnshreddedThenShreddedFile(String table, String thirdValue, String fourthValue)
+      throws NoSuchTableException {
+    sql("DROP TABLE IF EXISTS %s", table);
+    sql(
+        "CREATE TABLE %s (id BIGINT, v VARIANT) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        table);
+    spark
+        .sql("SELECT 1L AS id, parse_json('{\"name\":\"alice\",\"age\":30}') AS v")
+        .coalesce(1)
+        .writeTo(table)
+        .append();
+    insertShredded(
+        "INSERT INTO %s SELECT /*+ COALESCE(1) */ * FROM ("
+            + "SELECT 2L AS id, CAST(NULL AS VARIANT) AS v "
+            + "UNION ALL SELECT 3L, parse_json('%s') "
+            + "UNION ALL SELECT 4L, parse_json('%s'))",
+        table, thirdValue, fourthValue);
   }
 
   private void insertShredded(String query, Object... args) {
