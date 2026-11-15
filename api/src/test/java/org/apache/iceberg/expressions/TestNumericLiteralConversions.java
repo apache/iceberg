@@ -137,6 +137,14 @@ public class TestNumericLiteralConversions {
   }
 
   @Test
+  void doubleInfinitiesToFloat() {
+    for (double value : new double[] {Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY}) {
+      Literal<Float> converted = Literal.of(value).to(Types.FloatType.get());
+      assertThat(converted.value()).isEqualTo((float) value);
+    }
+  }
+
+  @Test
   public void testDoubleToDecimalConversion() {
     Literal<Double> lit = Literal.of(34.56D);
 
