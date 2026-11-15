@@ -19,11 +19,15 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.metrics.InMemoryMetricsReporter;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.ObjectArrays;
 import org.apache.iceberg.spark.SparkWriteUtil;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MaxTaskWriteDuration;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MedianTaskWriteDuration;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MinTaskWriteDuration;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteCloseDuration;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteDuration;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
@@ -173,23 +177,28 @@ class WriteTimer {
 
   /** Write times summed over the committed tasks of a write, reported by the driver. */
   static class Totals {
+    private final List<Long> taskWriteNanos = Lists.newArrayList();
     private long writeNanos = 0L;
-    private long maxTaskWriteNanos = 0L;
     private long closeNanos = 0L;
 
     /** Adds the times of a task and returns the commit message of its wrapped writer. */
     WriterCommitMessage unwrap(WriterCommitMessage message) {
       TimedCommit commit = (TimedCommit) message;
       this.writeNanos += commit.writeNanos;
-      this.maxTaskWriteNanos = Math.max(maxTaskWriteNanos, commit.writeNanos);
+      taskWriteNanos.add(commit.writeNanos);
       this.closeNanos += commit.closeNanos;
       return WriteTimer.unwrap(message);
     }
 
     CustomTaskMetric[] driverMetrics(InMemoryMetricsReporter metricsReporter) {
+      taskWriteNanos.sort(null);
+      int numTasks = taskWriteNanos.size();
       CustomTaskMetric[] durationMetrics = {
         taskMetric(WriteDuration.NAME, writeNanos),
-        taskMetric(MaxTaskWriteDuration.NAME, maxTaskWriteNanos),
+        taskMetric(MinTaskWriteDuration.NAME, numTasks > 0 ? taskWriteNanos.get(0) : 0L),
+        taskMetric(
+            MedianTaskWriteDuration.NAME, numTasks > 0 ? taskWriteNanos.get(numTasks / 2) : 0L),
+        taskMetric(MaxTaskWriteDuration.NAME, numTasks > 0 ? taskWriteNanos.get(numTasks - 1) : 0L),
         taskMetric(WriteCloseDuration.NAME, closeNanos)
       };
 

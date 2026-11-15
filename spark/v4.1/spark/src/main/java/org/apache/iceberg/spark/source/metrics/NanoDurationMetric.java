@@ -77,6 +77,22 @@ public abstract class NanoDurationMetric extends CustomSumMetric {
     }
   }
 
+  public static class MinTaskWriteDuration extends NanoDurationMetric {
+    public static final String NAME = "minTaskWriteDuration";
+
+    public MinTaskWriteDuration() {
+      super(NAME, "storage write duration (min task)");
+    }
+  }
+
+  public static class MedianTaskWriteDuration extends NanoDurationMetric {
+    public static final String NAME = "medianTaskWriteDuration";
+
+    public MedianTaskWriteDuration() {
+      super(NAME, "storage write duration (median task)");
+    }
+  }
+
   public static class MaxTaskWriteDuration extends NanoDurationMetric {
     public static final String NAME = "maxTaskWriteDuration";
 

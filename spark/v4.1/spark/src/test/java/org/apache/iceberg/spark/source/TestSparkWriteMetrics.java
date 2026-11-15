@@ -38,6 +38,8 @@ import org.apache.iceberg.spark.source.metrics.AddedPositionalDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.AddedPositionalDeletes;
 import org.apache.iceberg.spark.source.metrics.AddedRecords;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MaxTaskWriteDuration;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MedianTaskWriteDuration;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MinTaskWriteDuration;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteCloseDuration;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteDuration;
 import org.apache.iceberg.spark.source.metrics.RemovedDataFiles;
@@ -221,8 +223,12 @@ public class TestSparkWriteMetrics extends TestBaseWithCatalog {
         .hasEntrySatisfying(AddedDataFiles.NAME, metric -> assertThat(metric.value()).isEqualTo(4));
 
     long total = metricsMap.get(WriteDuration.NAME).value();
+    long min = metricsMap.get(MinTaskWriteDuration.NAME).value();
+    long median = metricsMap.get(MedianTaskWriteDuration.NAME).value();
     long max = metricsMap.get(MaxTaskWriteDuration.NAME).value();
-    assertThat(max).isGreaterThan(0);
+    assertThat(min).isGreaterThan(0);
+    assertThat(median).isGreaterThanOrEqualTo(min);
+    assertThat(max).isGreaterThanOrEqualTo(median);
     assertThat(total).isGreaterThanOrEqualTo(max);
     assertThat(metricsMap)
         .hasEntrySatisfying(
