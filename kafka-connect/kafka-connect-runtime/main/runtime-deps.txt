@@ -8,11 +8,11 @@ com.azure:azure-storage-common:12.35
 com.azure:azure-storage-file-datalake:12.29
 com.azure:azure-storage-internal-avro:12.21
 com.azure:azure-xml:1.2
-com.fasterxml.jackson.core:jackson-annotations:2.22
-com.fasterxml.jackson.core:jackson-core:2.22
-com.fasterxml.jackson.core:jackson-databind:2.22
-com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.22
-com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.22
+com.fasterxml.jackson.core:jackson-annotations:2.23
+com.fasterxml.jackson.core:jackson-core:2.23
+com.fasterxml.jackson.core:jackson-databind:2.23
+com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.23
+com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.23
 com.fasterxml.woodstox:woodstox-core:6.7
 com.github.ben-manes.caffeine:caffeine:3.3
 com.github.luben:zstd-jni:1.5
