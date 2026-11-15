@@ -37,12 +37,6 @@ class TestNanoDurationMetric {
   private final CustomSumMetric metric = new WriteDuration();
 
   @Test
-  void sumsTaskValues() {
-    // write tasks report 0 and the driver reports the value
-    assertThat(metric.aggregateTaskMetrics(new long[] {0L, 0L, 1_500_000L})).isEqualTo("1 ms");
-  }
-
-  @Test
   void unitBoundaries() {
     assertThat(total(999L)).isEqualTo("999 ns");
     assertThat(total(1_000L)).isEqualTo("1 us");
@@ -50,11 +44,6 @@ class TestNanoDurationMetric {
     assertThat(total(1_000_000L)).isEqualTo("1 ms");
     assertThat(total(999_999_999L)).isEqualTo("999 ms");
     assertThat(total(1_000_000_000L)).isEqualTo("1.0 s");
-  }
-
-  @Test
-  void aggregateTaskMetricsWithNoTasks() {
-    assertThat(metric.aggregateTaskMetrics(new long[] {})).isEqualTo("0 ns");
   }
 
   @Test

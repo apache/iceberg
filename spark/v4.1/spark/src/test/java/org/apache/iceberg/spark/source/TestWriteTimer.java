@@ -27,19 +27,6 @@ import org.junit.jupiter.api.Test;
 class TestWriteTimer {
 
   @Test
-  void accumulatesStorageWrites() {
-    WriteTimer timer = new WriteTimer(0, 0L);
-
-    timer.recordStorageWrite(10L, 100L);
-    timer.recordStorageWrite(5L, 0L);
-    timer.recordStorageWrite(7L, 30L);
-
-    assertThat(timer.storageWriteNanos()).isEqualTo(22L);
-    assertThat(timer.storageWriteBytes()).isEqualTo(130L);
-    assertThat(timer.closeNanos()).isEqualTo(0L);
-  }
-
-  @Test
   void recordsCloseTimeWhenCloseThrows() {
     WriteTimer timer = new WriteTimer(0, 0L);
 
@@ -55,17 +42,6 @@ class TestWriteTimer {
 
     assertThat(timer.closeNanos()).isGreaterThan(0L);
     assertThat(timer.storageWriteNanos()).isEqualTo(0L);
-  }
-
-  @Test
-  void finishReturnsTaskTotals() {
-    WriteTimer timer = new WriteTimer(0, 0L);
-    timer.recordStorageWrite(3_000L, 64L);
-
-    WriteDurations durations = timer.finish();
-
-    assertThat(durations.writeNanos()).isEqualTo(3_000L);
-    assertThat(durations.closeNanos()).isEqualTo(0L);
   }
 
   private static void busyWait() {

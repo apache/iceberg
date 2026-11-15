@@ -325,26 +325,7 @@ public class SparkWriteUtil {
   }
 
   public static CustomTaskMetric[] customTaskMetrics(InMemoryMetricsReporter metricsReporter) {
-    return customTaskMetrics(metricsReporter, new long[0], 0L);
-  }
-
-  /**
-   * Builds the driver-side metrics for a write, combining the commit report with the storage write
-   * time of each task and the total time tasks spent closing writers.
-   */
-  public static CustomTaskMetric[] customTaskMetrics(
-      InMemoryMetricsReporter metricsReporter, long[] taskWriteNanos, long closeNanos) {
     List<CustomTaskMetric> metrics = Lists.newArrayList();
-    long[] sortedWriteNanos = Arrays.copyOf(taskWriteNanos, taskWriteNanos.length);
-    Arrays.sort(sortedWriteNanos);
-    int numTasks = sortedWriteNanos.length;
-    addValue(new WriteDuration(), Arrays.stream(sortedWriteNanos).sum(), metrics);
-    addValue(new MinTaskWriteDuration(), numTasks > 0 ? sortedWriteNanos[0] : 0L, metrics);
-    addValue(
-        new MedianTaskWriteDuration(), numTasks > 0 ? sortedWriteNanos[numTasks / 2] : 0L, metrics);
-    addValue(
-        new MaxTaskWriteDuration(), numTasks > 0 ? sortedWriteNanos[numTasks - 1] : 0L, metrics);
-    addValue(new WriteCloseDuration(), closeNanos, metrics);
     if (metricsReporter != null) {
       CommitReport commitReport = metricsReporter.commitReport();
       if (commitReport != null) {
@@ -375,22 +356,6 @@ public class SparkWriteUtil {
       }
     }
     return metrics.toArray(new CustomTaskMetric[0]);
-  }
-
-  private static void addValue(
-      CustomMetric metric, long value, List<CustomTaskMetric> taskMetrics) {
-    taskMetrics.add(
-        new CustomTaskMetric() {
-          @Override
-          public String name() {
-            return metric.name();
-          }
-
-          @Override
-          public long value() {
-            return value;
-          }
-        });
   }
 
   private static void addValue(

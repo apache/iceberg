@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.EnumSet;
 import java.util.Map;
-import org.apache.hadoop.fs.Abortable;
-import org.apache.hadoop.fs.CanSetDropBehind;
 import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -33,8 +31,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.StreamCapabilities;
 import org.apache.hadoop.fs.Syncable;
 import org.apache.hadoop.fs.permission.FsPermission;
-import org.apache.hadoop.fs.statistics.IOStatistics;
-import org.apache.hadoop.fs.statistics.IOStatisticsSource;
 import org.apache.hadoop.util.Progressable;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.FileIO;
@@ -163,7 +159,7 @@ class TimedFileIO implements FileIO {
   }
 
   private static class TimedHadoopStream extends OutputStream
-      implements Syncable, StreamCapabilities, IOStatisticsSource, Abortable, CanSetDropBehind {
+      implements Syncable, StreamCapabilities {
     private final FSDataOutputStream stream;
     private final WriteTimer timer;
 
@@ -235,21 +231,6 @@ class TimedFileIO implements FileIO {
     @Override
     public boolean hasCapability(String capability) {
       return stream.hasCapability(capability);
-    }
-
-    @Override
-    public IOStatistics getIOStatistics() {
-      return stream.getIOStatistics();
-    }
-
-    @Override
-    public AbortableResult abort() {
-      return stream.abort();
-    }
-
-    @Override
-    public void setDropBehind(Boolean dropBehind) throws IOException {
-      stream.setDropBehind(dropBehind);
     }
   }
 

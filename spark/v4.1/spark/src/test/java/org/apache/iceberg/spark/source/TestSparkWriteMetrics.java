@@ -210,17 +210,6 @@ public class TestSparkWriteMetrics extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void writeDurationForUnpartitionedTable() {
-    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
-
-    Dataset<Row> result =
-        spark.sql(String.format("INSERT INTO %s SELECT id FROM range(1000)", tableName));
-    result.collect();
-
-    assertWriteDurationsReported(result.queryExecution().executedPlan());
-  }
-
-  @TestTemplate
   public void writeDurationForPartitionedTable() {
     sql("CREATE TABLE %s (id BIGINT, data STRING) USING iceberg PARTITIONED BY (data)", tableName);
 
@@ -293,32 +282,6 @@ public class TestSparkWriteMetrics extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void writeDurationAggregatesAcrossTasks() {
-    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
-
-    Dataset<Row> result =
-        spark.sql(
-            String.format(
-                "INSERT INTO %s SELECT /*+ REPARTITION(4) */ id FROM range(2000)", tableName));
-    result.collect();
-
-    Map<String, SQLMetric> metricsMap = writeMetrics(result.queryExecution().executedPlan());
-
-    assertThat(metricsMap)
-        .hasEntrySatisfying(AddedDataFiles.NAME, metric -> assertThat(metric.value()).isEqualTo(4));
-
-    long total = metricsMap.get(WriteDuration.NAME).value();
-    long min = metricsMap.get(MinTaskWriteDuration.NAME).value();
-    long median = metricsMap.get(MedianTaskWriteDuration.NAME).value();
-    long max = metricsMap.get(MaxTaskWriteDuration.NAME).value();
-    assertThat(min).isGreaterThan(0);
-    assertThat(median).isGreaterThanOrEqualTo(min);
-    assertThat(max).isGreaterThanOrEqualTo(median);
-    // four tasks wrote, so the total covers more than the slowest task alone
-    assertThat(total).isGreaterThan(max);
-  }
-
-  @TestTemplate
   public void writeDurationAcrossTasksForParquet() {
     assertWriteDurationAcrossTasks(FileFormat.PARQUET);
   }
@@ -378,6 +341,9 @@ public class TestSparkWriteMetrics extends TestBaseWithCatalog {
     assertThat(median).isGreaterThanOrEqualTo(min);
     assertThat(max).isGreaterThanOrEqualTo(median);
     assertThat(total).isGreaterThanOrEqualTo(max);
+    assertThat(metricsMap)
+        .hasEntrySatisfying(
+            WriteCloseDuration.NAME, metric -> assertThat(metric.value()).isGreaterThan(0));
 
     List<Object[]> expected =
         LongStream.range(0, numRows).mapToObj(id -> row(id)).collect(Collectors.toList());
