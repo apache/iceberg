@@ -24,11 +24,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.iceberg.spark.source.metrics.MaxTaskWriteDuration;
-import org.apache.iceberg.spark.source.metrics.MedianTaskWriteDuration;
-import org.apache.iceberg.spark.source.metrics.MinTaskWriteDuration;
-import org.apache.iceberg.spark.source.metrics.WriteCloseDuration;
-import org.apache.iceberg.spark.source.metrics.WriteDuration;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MaxTaskWriteDuration;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MedianTaskWriteDuration;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MinTaskWriteDuration;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteCloseDuration;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteDuration;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.junit.jupiter.api.Test;
 

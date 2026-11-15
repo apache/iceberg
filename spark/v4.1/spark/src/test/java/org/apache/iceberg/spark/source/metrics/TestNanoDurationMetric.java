@@ -21,8 +21,16 @@ package org.apache.iceberg.spark.source.metrics;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Locale;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MaxTaskWriteDuration;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MedianTaskWriteDuration;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MinTaskWriteDuration;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteCloseDuration;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteDuration;
+import org.apache.spark.sql.connector.metric.CustomMetric;
 import org.apache.spark.sql.connector.metric.CustomSumMetric;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TestNanoDurationMetric {
 
@@ -61,13 +69,23 @@ class TestNanoDurationMetric {
     }
   }
 
-  @Test
-  void metricNames() {
-    assertThat(new WriteDuration().name()).isEqualTo("writeDuration");
-    assertThat(new MinTaskWriteDuration().name()).isEqualTo("minTaskWriteDuration");
-    assertThat(new MedianTaskWriteDuration().name()).isEqualTo("medianTaskWriteDuration");
-    assertThat(new MaxTaskWriteDuration().name()).isEqualTo("maxTaskWriteDuration");
-    assertThat(new WriteCloseDuration().name()).isEqualTo("writeCloseDuration");
+  @ParameterizedTest
+  @ValueSource(
+      classes = {
+        WriteDuration.class,
+        MinTaskWriteDuration.class,
+        MedianTaskWriteDuration.class,
+        MaxTaskWriteDuration.class,
+        WriteCloseDuration.class
+      })
+  void sparkCanRecreateMetricFromClassName(Class<? extends CustomMetric> metricClass)
+      throws ReflectiveOperationException {
+    // the SQL UI aggregates a metric by loading its class name with a public no-arg constructor
+    CustomMetric recreated =
+        (CustomMetric) Class.forName(metricClass.getName()).getConstructor().newInstance();
+
+    assertThat(recreated).isInstanceOf(metricClass);
+    assertThat(recreated.aggregateTaskMetrics(new long[] {0L, 1_500_000L})).isEqualTo("1 ms");
   }
 
   private String total(long nanos) {
