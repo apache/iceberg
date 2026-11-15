@@ -20,8 +20,16 @@ package org.apache.iceberg.spark.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.SnapshotChanges;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.iceberg.spark.source.metrics.AddedDataFiles;
 import org.apache.iceberg.spark.source.metrics.AddedDeleteFiles;
@@ -308,6 +316,72 @@ public class TestSparkWriteMetrics extends TestBaseWithCatalog {
     assertThat(max).isGreaterThanOrEqualTo(median);
     // four tasks wrote, so the total covers more than the slowest task alone
     assertThat(total).isGreaterThan(max);
+  }
+
+  @TestTemplate
+  public void writeDurationAcrossTasksForParquet() {
+    assertWriteDurationAcrossTasks(FileFormat.PARQUET);
+  }
+
+  @TestTemplate
+  public void writeDurationAcrossTasksForOrc() {
+    assertWriteDurationAcrossTasks(FileFormat.ORC);
+  }
+
+  @TestTemplate
+  public void writeDurationAcrossTasksForAvro() {
+    assertWriteDurationAcrossTasks(FileFormat.AVRO);
+  }
+
+  @TestTemplate
+  public void writeDurationForDVDelete() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id BIGINT) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', 'write.delete.mode'='merge-on-read')",
+        tableName);
+    spark.range(100).coalesce(1).writeTo(tableName).append();
+
+    Dataset<Row> result = spark.sql(String.format("DELETE FROM %s WHERE id = 1", tableName));
+    result.collect();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    List<DeleteFile> deleteFiles =
+        Lists.newArrayList(SnapshotChanges.builderFor(table).build().addedDeleteFiles());
+    assertThat(deleteFiles).extracting(DeleteFile::format).containsExactly(FileFormat.PUFFIN);
+
+    assertWriteDurationsReported(result.queryExecution().executedPlan());
+  }
+
+  private void assertWriteDurationAcrossTasks(FileFormat format) {
+    sql(
+        "CREATE TABLE %s (id BIGINT) USING iceberg TBLPROPERTIES ('write.format.default'='%s')",
+        tableName, format.name());
+
+    long numRows = 2000;
+    Dataset<Row> result =
+        spark.sql(
+            String.format(
+                "INSERT INTO %s SELECT /*+ REPARTITION(4) */ id FROM range(%d)",
+                tableName, numRows));
+    result.collect();
+
+    Map<String, SQLMetric> metricsMap = writeMetrics(result.queryExecution().executedPlan());
+
+    assertThat(metricsMap)
+        .hasEntrySatisfying(AddedDataFiles.NAME, metric -> assertThat(metric.value()).isEqualTo(4));
+
+    long total = metricsMap.get(WriteDuration.NAME).value();
+    long min = metricsMap.get(MinTaskWriteDuration.NAME).value();
+    long median = metricsMap.get(MedianTaskWriteDuration.NAME).value();
+    long max = metricsMap.get(MaxTaskWriteDuration.NAME).value();
+    assertThat(min).isGreaterThan(0);
+    assertThat(median).isGreaterThanOrEqualTo(min);
+    assertThat(max).isGreaterThanOrEqualTo(median);
+    assertThat(total).isGreaterThanOrEqualTo(max);
+
+    List<Object[]> expected =
+        LongStream.range(0, numRows).mapToObj(id -> row(id)).collect(Collectors.toList());
+    assertEquals(format + " rows", expected, sql("SELECT id FROM %s ORDER BY id", selectTarget()));
   }
 
   private void assertWriteDurationsReported(SparkPlan plan) {
