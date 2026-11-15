@@ -20,13 +20,10 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.EnumSet;
 import java.util.Map;
-import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FilterFileSystem;
-import org.apache.hadoop.fs.Options.ChecksumOpt;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.StreamCapabilities;
 import org.apache.hadoop.fs.Syncable;
@@ -83,6 +80,7 @@ class TimedFileIO implements FileIO {
       this.timer = timer;
     }
 
+    // Iceberg's Parquet, ORC and Avro writers all reach this overload through FileSystem defaults
     @Override
     public FSDataOutputStream create(
         Path path,
@@ -93,56 +91,10 @@ class TimedFileIO implements FileIO {
         long blockSize,
         Progressable progress)
         throws IOException {
-      return timedCreate(
-          () ->
-              super.create(
-                  path, permission, overwrite, bufferSize, replication, blockSize, progress));
-    }
-
-    @Override
-    public FSDataOutputStream create(
-        Path path,
-        FsPermission permission,
-        EnumSet<CreateFlag> flags,
-        int bufferSize,
-        short replication,
-        long blockSize,
-        Progressable progress,
-        ChecksumOpt checksumOpt)
-        throws IOException {
-      return timedCreate(
-          () ->
-              super.create(
-                  path,
-                  permission,
-                  flags,
-                  bufferSize,
-                  replication,
-                  blockSize,
-                  progress,
-                  checksumOpt));
-    }
-
-    @Override
-    public FSDataOutputStream createNonRecursive(
-        Path path,
-        FsPermission permission,
-        EnumSet<CreateFlag> flags,
-        int bufferSize,
-        short replication,
-        long blockSize,
-        Progressable progress)
-        throws IOException {
-      return timedCreate(
-          () ->
-              super.createNonRecursive(
-                  path, permission, flags, bufferSize, replication, blockSize, progress));
-    }
-
-    private FSDataOutputStream timedCreate(CreateCall create) throws IOException {
       long start = System.nanoTime();
       try {
-        FSDataOutputStream stream = create.create();
+        FSDataOutputStream stream =
+            super.create(path, permission, overwrite, bufferSize, replication, blockSize, progress);
         // DataOutputStream's final writeInt and similar bypass FSDataOutputStream's write methods,
         // so time the stream it wraps
         return new FSDataOutputStream(
@@ -151,11 +103,6 @@ class TimedFileIO implements FileIO {
         timer.recordStorageWrite(System.nanoTime() - start, 0L);
       }
     }
-  }
-
-  @FunctionalInterface
-  private interface CreateCall {
-    FSDataOutputStream create() throws IOException;
   }
 
   private static class TimedHadoopStream extends OutputStream
