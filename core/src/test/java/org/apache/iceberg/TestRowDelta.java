@@ -121,8 +121,6 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void addRowsAndRemoveDeleteFilesProducesOverwriteOperation() {
-    assumeThat(formatVersion).isEqualTo(2);
-
     DataFile dataFile = newDataFile("data_bucket=0");
     DeleteFile deleteFile = newDeletes(dataFile);
     commit(table, table.newRowDelta().addRows(dataFile).addDeletes(deleteFile), branch);
@@ -131,6 +129,12 @@ public class TestRowDelta extends TestBase {
         commit(table, table.newRowDelta().addRows(FILE_B).removeDeletes(deleteFile), branch);
 
     assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+
+    List<DeleteFile> removedDeleteFiles =
+        Lists.newArrayList(
+            SnapshotChanges.builderFor(table).snapshot(snapshot).build().removedDeleteFiles());
+    assertThat(removedDeleteFiles).hasSize(1);
+    assertThat(removedDeleteFiles.get(0).location()).isEqualTo(deleteFile.location());
   }
 
   @TestTemplate

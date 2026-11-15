@@ -176,6 +176,7 @@ public class TestOverwrite extends TestBase {
   public void addFileAndRemoveDeleteFileProducesOverwriteOperation() {
     assumeThat(formatVersion).isEqualTo(2);
 
+    DataFile addedDataFile = FileGenerationUtil.generateDataFile(table, FILE_10_TO_14.partition());
     DeleteFile deleteFile =
         FileMetadata.deleteFileBuilder(PARTITION_BY_DATE)
             .ofPositionDeletes()
@@ -190,7 +191,7 @@ public class TestOverwrite extends TestBase {
         table,
         table
             .newOverwrite()
-            .addFile(FILE_10_TO_14)
+            .addFile(addedDataFile)
             .deleteFiles(DataFileSet.create(), DeleteFileSet.of(List.of(deleteFile))),
         branch);
 
