@@ -91,7 +91,7 @@ class TestIcebergLookup {
         lookupReader(table, ImmutableList.of(Expressions.equal("category", "B")), false);
 
     List<List<Object>> rows = Lists.newArrayList();
-    try (CloseableIterable<RowData> rowData = reader.read(IcebergLookupReader.CURRENT_SNAPSHOT)) {
+    try (CloseableIterable<RowData> rowData = reader.read(IcebergLookupReader.NO_SNAPSHOT_ID)) {
       for (RowData row : rowData) {
         rows.add(
             ImmutableList.of(
@@ -108,12 +108,12 @@ class TestIcebergLookup {
     List<Expression> filters = ImmutableList.of(Expressions.equal("CATEGORY", "B"));
 
     IcebergLookupReader caseSensitiveReader = lookupReader(table, filters, true);
-    assertThatThrownBy(() -> readIds(caseSensitiveReader, IcebergLookupReader.CURRENT_SNAPSHOT))
+    assertThatThrownBy(() -> readIds(caseSensitiveReader, IcebergLookupReader.NO_SNAPSHOT_ID))
         .as("Case sensitive lookup should reject a filter that doesn't match the column case")
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("CATEGORY");
 
-    assertThat(readIds(lookupReader(table, filters, false), IcebergLookupReader.CURRENT_SNAPSHOT))
+    assertThat(readIds(lookupReader(table, filters, false), IcebergLookupReader.NO_SNAPSHOT_ID))
         .containsExactly(2L);
   }
 
@@ -129,7 +129,7 @@ class TestIcebergLookup {
     assertThat(readIds(reader, pinnedSnapshot))
         .as("Pinned snapshot should not contain the appended row")
         .containsExactlyInAnyOrder(1L, 2L, 3L);
-    assertThat(readIds(reader, IcebergLookupReader.CURRENT_SNAPSHOT))
+    assertThat(readIds(reader, IcebergLookupReader.NO_SNAPSHOT_ID))
         .as("Current snapshot should contain the appended row")
         .containsExactlyInAnyOrder(1L, 2L, 3L, 6L);
   }

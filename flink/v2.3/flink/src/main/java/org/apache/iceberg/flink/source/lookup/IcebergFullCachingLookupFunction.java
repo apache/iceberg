@@ -120,7 +120,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
     this.missCounter = metricGroup.counter("missCount");
     this.loadCounter = metricGroup.counter("loadCount");
     this.loadFailuresCounter = metricGroup.counter("numLoadFailures");
-    this.currentSnapshotId = IcebergLookupReader.CURRENT_SNAPSHOT;
+    this.currentSnapshotId = IcebergLookupReader.NO_SNAPSHOT_ID;
     this.cachedRecords = 0L;
     this.latestLoadTimeMs = UNINITIALIZED;
     this.reloadFailure = null;
@@ -224,8 +224,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
 
     table.refresh();
     Snapshot snapshot = table.currentSnapshot();
-    long snapshotId =
-        snapshot == null ? IcebergLookupReader.CURRENT_SNAPSHOT : snapshot.snapshotId();
+    long snapshotId = snapshot == null ? IcebergLookupReader.NO_SNAPSHOT_ID : snapshot.snapshotId();
 
     if (cache != null && snapshotId == currentSnapshotId) {
       LOG.info(
