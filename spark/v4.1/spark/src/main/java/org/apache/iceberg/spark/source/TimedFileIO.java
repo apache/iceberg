@@ -153,9 +153,9 @@ class TimedFileIO implements FileIO {
       stream.close();
       timer.recordStorageWrite(System.nanoTime() - start, 0L);
       // mirrors HadoopStreams: S3ABlockOutputStream.close() swallows an interrupted upload
-      if (Thread.interrupted()
-          && "org.apache.hadoop.fs.s3a.S3ABlockOutputStream"
-              .equals(stream.getWrappedStream().getClass().getName())) {
+      if ("org.apache.hadoop.fs.s3a.S3ABlockOutputStream"
+              .equals(stream.getWrappedStream().getClass().getName())
+          && Thread.interrupted()) {
         throw new IOException(
             "S3ABlockOutputStream failed to upload object after stream was closed");
       }
