@@ -147,6 +147,7 @@ public class ManifestFiles {
         specsById,
         inheritableMetadata,
         manifest.firstRowId(),
+        manifest.manifestDeletionVector(),
         isCommitted,
         FileType.DATA_FILES);
   }
@@ -302,7 +303,14 @@ public class ManifestFiles {
     InputFile file = newInputFile(io, manifest);
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     return new ManifestReader<>(
-        file, manifest.partitionSpecId(), specsById, inheritableMetadata, FileType.DELETE_FILES);
+        file,
+        manifest.partitionSpecId(),
+        specsById,
+        inheritableMetadata,
+        null /* delete manifests have no first row ID */,
+        manifest.manifestDeletionVector(),
+        true /* committed */,
+        FileType.DELETE_FILES);
   }
 
   /**

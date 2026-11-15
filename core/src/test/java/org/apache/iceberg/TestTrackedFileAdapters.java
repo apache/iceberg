@@ -545,6 +545,34 @@ class TestTrackedFileAdapters {
     assertThat(copy.path()).isEqualTo(MANIFEST_LOCATION);
   }
 
+  @Test
+  void preV4ManifestReportsSpecId() {
+    ManifestInfo info = mock(ManifestInfo.class);
+    when(info.formatVersion()).thenReturn(ManifestInfo.PRE_V4_FORMAT_VERSION);
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA_MANIFEST);
+    when(file.manifestInfo()).thenReturn(info);
+    when(file.specId()).thenReturn(3);
+
+    assertThat(TrackedFileAdapters.asManifestFile(file).partitionSpecId()).isEqualTo(3);
+  }
+
+  @Test
+  void preV4ManifestWithoutSpecIdFails() {
+    ManifestInfo info = mock(ManifestInfo.class);
+    when(info.formatVersion()).thenReturn(ManifestInfo.PRE_V4_FORMAT_VERSION);
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA_MANIFEST);
+    when(file.location()).thenReturn(MANIFEST_LOCATION);
+    when(file.manifestInfo()).thenReturn(info);
+    when(file.specId()).thenReturn(null);
+
+    ManifestFile manifest = TrackedFileAdapters.asManifestFile(file);
+    assertThatThrownBy(manifest::partitionSpecId)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot read pre-v4 manifest without a spec ID: %s", MANIFEST_LOCATION);
+  }
+
   @ParameterizedTest
   @EnumSource(
       value = FileContent.class,

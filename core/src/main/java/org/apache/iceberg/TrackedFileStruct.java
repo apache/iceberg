@@ -228,7 +228,12 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   @Override
   public StructLike partition() {
     if (partition == null) {
-      ValidationException.check(specId == null, "Missing partition for spec %s", specId);
+      ValidationException.check(
+          specId == null
+              || contentType == FileContent.DATA_MANIFEST
+              || contentType == FileContent.DELETE_MANIFEST,
+          "Missing partition for spec %s",
+          specId);
       return null;
     }
 

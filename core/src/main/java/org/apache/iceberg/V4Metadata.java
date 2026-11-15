@@ -586,7 +586,8 @@ class V4Metadata {
           fileSpecId == null || spec != null,
           "Cannot find partition spec for spec ID: %s",
           fileSpecId);
-      this.specId = spec != null && !spec.isUnpartitioned() ? fileSpecId : null;
+      this.specId =
+          spec != null && (isPreV4Manifest(file) || !spec.isUnpartitioned()) ? fileSpecId : null;
     }
 
     @Override
@@ -662,7 +663,7 @@ class V4Metadata {
     }
 
     private StructLike unionPartition() {
-      if (specId == null) {
+      if (specId == null || wrapped.contentType() != FileContent.DATA) {
         return null;
       }
 
@@ -698,6 +699,11 @@ class V4Metadata {
       }
 
       return projections;
+    }
+
+    private static boolean isPreV4Manifest(TrackedFile file) {
+      ManifestInfo info = file.manifestInfo();
+      return info != null && info.formatVersion() == ManifestInfo.PRE_V4_FORMAT_VERSION;
     }
   }
 

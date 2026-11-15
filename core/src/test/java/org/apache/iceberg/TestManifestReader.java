@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.V4TestHelpers.withManifestDV;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.Mockito.doReturn;
 
 import java.io.IOException;
 import java.util.List;
@@ -159,6 +161,56 @@ public class TestManifestReader extends TestBase {
         assertThat(file.pos()).as("Position should match").isEqualTo(expectedPos);
         expectedPos += 1;
       }
+    }
+  }
+
+  @TestTemplate
+  void manifestDVSkipsMaskedDataFiles() throws IOException {
+    ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B, FILE_C);
+    // FILE_B is at position 1
+    ManifestFile masked = withManifestDV(manifest, 1);
+
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(masked, FILE_IO, table.specs())) {
+      assertThat(reader)
+          .extracting(DataFile::location)
+          .containsExactly(FILE_A.location(), FILE_C.location());
+      assertThat(reader.entries())
+          .as("masked entries are not live, but they are still entries in the manifest")
+          .extracting(entry -> entry.file().location())
+          .containsExactly(FILE_A.location(), FILE_B.location(), FILE_C.location());
+    }
+  }
+
+  @TestTemplate
+  void manifestDVSkipsMaskedDeleteFiles() throws IOException {
+    assumeThat(formatVersion)
+        .as("Delete files are only supported in V2 and later")
+        .isGreaterThanOrEqualTo(2);
+    ManifestFile manifest =
+        writeDeleteManifest(formatVersion, 1000L, fileADeletes(), fileBDeletes());
+    // the delete file for FILE_A is at position 0
+    ManifestFile masked = withManifestDV(manifest, 0);
+
+    try (ManifestReader<DeleteFile> reader =
+        ManifestFiles.readDeleteManifest(masked, FILE_IO, table.specs())) {
+      assertThat(reader)
+          .extracting(DeleteFile::location)
+          .containsExactly(fileBDeletes().location());
+    }
+  }
+
+  @TestTemplate
+  void manifestDVKeepsFirstRowIdsStable() throws IOException {
+    long firstRowId = 5_000L;
+    ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B);
+    // FILE_A is at position 0 and row IDs are assigned to files in manifest order
+    ManifestFile masked = withManifestDV(manifest, 0);
+    doReturn(firstRowId).when(masked).firstRowId();
+
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(masked, FILE_IO, table.specs())) {
+      assertThat(Iterables.getOnlyElement(reader).firstRowId())
+          .as("FILE_B keeps the first row ID assigned after the rows of FILE_A")
+          .isEqualTo(firstRowId + FILE_A.recordCount());
     }
   }
 
