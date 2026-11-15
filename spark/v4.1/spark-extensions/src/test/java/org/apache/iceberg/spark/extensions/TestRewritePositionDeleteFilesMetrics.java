@@ -130,14 +130,9 @@ public class TestRewritePositionDeleteFilesMetrics extends ExtensionsTestBase {
     return max;
   }
 
-  /**
-   * Durations are stored as "total (min, med, max)\n1.5 s (0.4 s, 0.5 s, 0.6 s)", so recover the
-   * total as a comparable magnitude.
-   */
+  /** Durations are stored formatted, such as "1.5 s", so recover a comparable magnitude. */
   private long parseNanos(String formatted) {
-    String total = formatted.substring(formatted.indexOf('\n') + 1);
-    total = total.substring(0, total.indexOf(" (")).trim();
-    String[] parts = total.split(" ");
+    String[] parts = formatted.trim().split(" ");
     double value = Double.parseDouble(parts[0].replace(",", ""));
     switch (parts[1]) {
       case "ns":

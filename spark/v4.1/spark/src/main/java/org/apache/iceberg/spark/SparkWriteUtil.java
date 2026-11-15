@@ -41,6 +41,9 @@ import org.apache.iceberg.spark.source.metrics.AddedFileSizeInBytes;
 import org.apache.iceberg.spark.source.metrics.AddedPositionalDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.AddedPositionalDeletes;
 import org.apache.iceberg.spark.source.metrics.AddedRecords;
+import org.apache.iceberg.spark.source.metrics.MaxTaskWriteDuration;
+import org.apache.iceberg.spark.source.metrics.MedianTaskWriteDuration;
+import org.apache.iceberg.spark.source.metrics.MinTaskWriteDuration;
 import org.apache.iceberg.spark.source.metrics.RemovedDataFiles;
 import org.apache.iceberg.spark.source.metrics.RemovedDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.RemovedEqualityDeleteFiles;
@@ -314,22 +317,33 @@ public class SparkWriteUtil {
       new TotalPositionalDeletes(),
       new TotalRecords(),
       new WriteDuration(),
+      new MinTaskWriteDuration(),
+      new MedianTaskWriteDuration(),
+      new MaxTaskWriteDuration(),
       new WriteCloseDuration()
     };
   }
 
   public static CustomTaskMetric[] customTaskMetrics(InMemoryMetricsReporter metricsReporter) {
-    return customTaskMetrics(metricsReporter, 0L, 0L);
+    return customTaskMetrics(metricsReporter, new long[0], 0L);
   }
 
   /**
-   * Builds the driver-side metrics for a write, combining the commit report with the write times
-   * tasks reported back in their commit messages.
+   * Builds the driver-side metrics for a write, combining the commit report with the storage write
+   * time of each task and the total time tasks spent closing writers.
    */
   public static CustomTaskMetric[] customTaskMetrics(
-      InMemoryMetricsReporter metricsReporter, long writeNanos, long closeNanos) {
+      InMemoryMetricsReporter metricsReporter, long[] taskWriteNanos, long closeNanos) {
     List<CustomTaskMetric> metrics = Lists.newArrayList();
-    addValue(new WriteDuration(), writeNanos, metrics);
+    long[] sortedWriteNanos = Arrays.copyOf(taskWriteNanos, taskWriteNanos.length);
+    Arrays.sort(sortedWriteNanos);
+    int numTasks = sortedWriteNanos.length;
+    addValue(new WriteDuration(), Arrays.stream(sortedWriteNanos).sum(), metrics);
+    addValue(new MinTaskWriteDuration(), numTasks > 0 ? sortedWriteNanos[0] : 0L, metrics);
+    addValue(
+        new MedianTaskWriteDuration(), numTasks > 0 ? sortedWriteNanos[numTasks / 2] : 0L, metrics);
+    addValue(
+        new MaxTaskWriteDuration(), numTasks > 0 ? sortedWriteNanos[numTasks - 1] : 0L, metrics);
     addValue(new WriteCloseDuration(), closeNanos, metrics);
     if (metricsReporter != null) {
       CommitReport commitReport = metricsReporter.commitReport();

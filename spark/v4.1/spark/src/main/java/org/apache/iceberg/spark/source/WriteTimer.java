@@ -18,25 +18,33 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
- * Accumulates the wall time a write task spends producing files.
+ * Accumulates the time a write task spends in storage calls and closing its writers.
  *
- * <p>Times are split into the row-level write calls and the final close, which flushes buffered
- * rows and finishes the files. Both are timed per call rather than per row: a nanoTime pair per row
- * would cost more than the work it measures.
+ * <p>Storage time is reported by the streams of a {@link TimedFileIO}, so it covers every file
+ * format without reading the clock per row.
  */
 class WriteTimer {
-  private long writeNanos = 0L;
+  private static final Logger LOG = LoggerFactory.getLogger(WriteTimer.class);
+
+  private final int partitionId;
+  private final long taskId;
+  private long storageWriteNanos = 0L;
+  private long storageWriteBytes = 0L;
   private long closeNanos = 0L;
 
-  /** Runs the row-level write, adding its duration to the write time. */
-  <E extends Exception> void timeWrite(ThrowingRunnable<E> writeOp) throws E {
-    long start = System.nanoTime();
-    try {
-      writeOp.run();
-    } finally {
-      this.writeNanos += System.nanoTime() - start;
-    }
+  WriteTimer(int partitionId, long taskId) {
+    this.partitionId = partitionId;
+    this.taskId = taskId;
+  }
+
+  void recordStorageWrite(long nanos, long bytes) {
+    this.storageWriteNanos += nanos;
+    this.storageWriteBytes += bytes;
   }
 
   /** Runs the close, adding its duration to the close time. */
@@ -49,12 +57,24 @@ class WriteTimer {
     }
   }
 
-  WriteDurations writeDurations() {
-    return WriteDurations.of(writeNanos, closeNanos);
+  /** Logs this task's totals and returns them for the commit message. */
+  WriteDurations finish() {
+    LOG.info(
+        "Task {} (partition {}) spent {} ms writing {} bytes to storage and {} ms closing writers",
+        taskId,
+        partitionId,
+        TimeUnit.NANOSECONDS.toMillis(storageWriteNanos),
+        storageWriteBytes,
+        TimeUnit.NANOSECONDS.toMillis(closeNanos));
+    return WriteDurations.of(storageWriteNanos, closeNanos);
   }
 
-  long writeNanos() {
-    return writeNanos;
+  long storageWriteNanos() {
+    return storageWriteNanos;
+  }
+
+  long storageWriteBytes() {
+    return storageWriteBytes;
   }
 
   long closeNanos() {

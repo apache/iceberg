@@ -27,60 +27,45 @@ import org.junit.jupiter.api.Test;
 class TestWriteTimer {
 
   @Test
-  void accumulatesWriteAndCloseSeparately() {
-    WriteTimer timer = new WriteTimer();
+  void accumulatesStorageWrites() {
+    WriteTimer timer = new WriteTimer(0, 0L);
 
-    timer.timeWrite(() -> busyWait());
-    long afterFirstWrite = timer.writeNanos();
-    assertThat(afterFirstWrite).isGreaterThan(0);
-    assertThat(timer.closeNanos()).isEqualTo(0);
+    timer.recordStorageWrite(10L, 100L);
+    timer.recordStorageWrite(5L, 0L);
+    timer.recordStorageWrite(7L, 30L);
 
-    timer.timeWrite(() -> busyWait());
-    assertThat(timer.writeNanos()).isGreaterThan(afterFirstWrite);
-    assertThat(timer.closeNanos()).isEqualTo(0);
-
-    timer.timeClose(() -> busyWait());
-    assertThat(timer.closeNanos()).isGreaterThan(0);
+    assertThat(timer.storageWriteNanos()).isEqualTo(22L);
+    assertThat(timer.storageWriteBytes()).isEqualTo(130L);
+    assertThat(timer.closeNanos()).isEqualTo(0L);
   }
 
   @Test
-  void recordsTimeWhenOperationThrows() {
-    WriteTimer timer = new WriteTimer();
+  void recordsCloseTimeWhenCloseThrows() {
+    WriteTimer timer = new WriteTimer(0, 0L);
 
     assertThatThrownBy(
             () ->
-                timer.timeWrite(
+                timer.timeClose(
                     () -> {
                       busyWait();
-                      throw new IOException("write failed");
+                      throw new IOException("close failed");
                     }))
         .isInstanceOf(IOException.class)
-        .hasMessage("write failed");
+        .hasMessage("close failed");
 
-    // a task that fails mid-write still reports what it wrote
-    assertThat(timer.writeNanos()).isGreaterThan(0);
+    assertThat(timer.closeNanos()).isGreaterThan(0L);
+    assertThat(timer.storageWriteNanos()).isEqualTo(0L);
   }
 
   @Test
-  void writeDurations() {
-    WriteTimer timer = new WriteTimer();
-    timer.timeWrite(() -> busyWait());
-    timer.timeClose(() -> busyWait());
+  void finishReturnsTaskTotals() {
+    WriteTimer timer = new WriteTimer(0, 0L);
+    timer.recordStorageWrite(3_000L, 64L);
 
-    WriteDurations durations = timer.writeDurations();
-    assertThat(durations.writeNanos()).isEqualTo(timer.writeNanos());
-    assertThat(durations.closeNanos()).isEqualTo(timer.closeNanos());
-  }
+    WriteDurations durations = timer.finish();
 
-  @Test
-  void combine() {
-    WriteDurations combined =
-        WriteDurations.of(10L, 20L)
-            .combine(WriteDurations.of(3L, 4L))
-            .combine(WriteDurations.EMPTY);
-
-    assertThat(combined.writeNanos()).isEqualTo(13L);
-    assertThat(combined.closeNanos()).isEqualTo(24L);
+    assertThat(durations.writeNanos()).isEqualTo(3_000L);
+    assertThat(durations.closeNanos()).isEqualTo(0L);
   }
 
   private static void busyWait() {

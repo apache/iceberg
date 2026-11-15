@@ -19,19 +19,19 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.Serializable;
+import java.util.List;
+import org.apache.iceberg.metrics.InMemoryMetricsReporter;
+import org.apache.iceberg.spark.SparkWriteUtil;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 
 /**
- * Write times summed across the tasks of a write.
+ * Write times of one task.
  *
- * <p>Tasks report their own times in their commit messages. Spark collects task metrics before it
- * calls {@code DataWriter.commit()}, so the close time, where buffered rows are flushed, is not yet
- * known at that point and cannot be reported as a task metric. Both times therefore travel back to
- * the driver with the commit messages and are aggregated here.
+ * <p>Spark collects task metrics before it calls {@code DataWriter.commit()}, where files are
+ * closed and most storage time is spent. So tasks send their times to the driver in their commit
+ * messages, and the driver reports them.
  */
 class WriteDurations implements Serializable {
-
-  static final WriteDurations EMPTY = new WriteDurations(0L, 0L);
-
   private final long writeNanos;
   private final long closeNanos;
 
@@ -44,15 +44,24 @@ class WriteDurations implements Serializable {
     return new WriteDurations(writeNanos, closeNanos);
   }
 
-  WriteDurations combine(WriteDurations other) {
-    return new WriteDurations(writeNanos + other.writeNanos, closeNanos + other.closeNanos);
-  }
-
   long writeNanos() {
     return writeNanos;
   }
 
   long closeNanos() {
     return closeNanos;
+  }
+
+  static CustomTaskMetric[] driverMetrics(
+      InMemoryMetricsReporter metricsReporter, List<WriteDurations> taskDurations) {
+    long[] taskWriteNanos = new long[taskDurations.size()];
+    long closeNanos = 0L;
+    for (int i = 0; i < taskWriteNanos.length; i += 1) {
+      WriteDurations durations = taskDurations.get(i);
+      taskWriteNanos[i] = durations.writeNanos;
+      closeNanos += durations.closeNanos;
+    }
+
+    return SparkWriteUtil.customTaskMetrics(metricsReporter, taskWriteNanos, closeNanos);
   }
 }

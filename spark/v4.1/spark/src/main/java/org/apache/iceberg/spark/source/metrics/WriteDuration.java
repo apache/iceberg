@@ -29,6 +29,6 @@ public class WriteDuration extends NanoDurationMetric {
 
   @Override
   public String description() {
-    return "total write duration";
+    return "total storage write duration";
   }
 }

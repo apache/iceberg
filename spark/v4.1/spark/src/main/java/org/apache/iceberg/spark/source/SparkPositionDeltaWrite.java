@@ -67,6 +67,7 @@ import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.PositionDeltaWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.metrics.InMemoryMetricsReporter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
@@ -124,7 +125,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
   private final Map<String, String> writeProperties;
 
   private boolean cleanupOnAbort = false;
-  private WriteDurations writeDurations = WriteDurations.EMPTY;
+  private List<WriteDurations> taskWriteDurations = ImmutableList.of();
   private InMemoryMetricsReporter metricsReporter;
 
   SparkPositionDeltaWrite(
@@ -196,8 +197,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
   @Override
   public CustomTaskMetric[] reportDriverMetrics() {
-    return SparkWriteUtil.customTaskMetrics(
-        metricsReporter, writeDurations.writeNanos(), writeDurations.closeNanos());
+    return WriteDurations.driverMetrics(metricsReporter, taskWriteDurations);
   }
 
   private class PositionDeltaBatchWrite implements DeltaBatchWrite {
@@ -248,11 +248,11 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
       int addedDataFilesCount = 0;
       int addedDeleteFilesCount = 0;
       int removedDeleteFilesCount = 0;
-      WriteDurations durations = WriteDurations.EMPTY;
+      List<WriteDurations> durations = Lists.newArrayListWithExpectedSize(messages.length);
 
       for (WriterCommitMessage message : messages) {
         DeltaTaskCommit taskCommit = (DeltaTaskCommit) message;
-        durations = durations.combine(taskCommit.writeDurations());
+        durations.add(taskCommit.writeDurations());
 
         for (DataFile dataFile : taskCommit.dataFiles()) {
           rowDelta.addRows(dataFile);
@@ -272,7 +272,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
         referencedDataFiles.addAll(Arrays.asList(taskCommit.referencedDataFiles()));
       }
 
-      SparkPositionDeltaWrite.this.writeDurations = durations;
+      SparkPositionDeltaWrite.this.taskWriteDurations = durations;
 
       // the scan may be null if the optimizer replaces it with an empty relation
       // no validation is needed in this case as the command is independent of the table state
@@ -452,17 +452,20 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
     @Override
     public DeltaWriter<InternalRow> createWriter(int partitionId, long taskId) {
       Table table = tableBroadcast.value();
+      WriteTimer timer = new WriteTimer(partitionId, taskId);
 
       OutputFileFactory dataFileFactory =
           OutputFileFactory.builderFor(table, partitionId, taskId)
               .format(context.dataFileFormat())
               .operationId(context.queryId())
+              .ioSupplier(() -> new TimedFileIO(table.io(), timer))
               .build();
       OutputFileFactory deleteFileFactory =
           OutputFileFactory.builderFor(table, partitionId, taskId)
               .format(context.deleteFileFormat())
               .operationId(context.queryId())
               .suffix("deletes")
+              .ioSupplier(() -> new TimedFileIO(table.io(), timer))
               .build();
 
       SparkFileWriterFactory writerFactory =
@@ -477,7 +480,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
       if (command == DELETE) {
         return new DeleteOnlyDeltaWriter(
-            table, rewritableDeletes(), writerFactory, deleteFileFactory, context);
+            table, rewritableDeletes(), writerFactory, deleteFileFactory, context, timer);
 
       } else if (table.spec().isUnpartitioned()) {
         return new UnpartitionedDeltaWriter(
@@ -487,7 +490,8 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
             dataFileFactory,
             deleteFileFactory,
             new ExtractRowLineage(context.dataSchema()),
-            context);
+            context,
+            timer);
 
       } else {
         return new PartitionedDeltaWriter(
@@ -497,7 +501,8 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
             dataFileFactory,
             deleteFileFactory,
             new ExtractRowLineage(context.dataSchema()),
-            context);
+            context,
+            timer);
       }
     }
 
@@ -507,7 +512,11 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
   }
 
   private abstract static class BaseDeltaWriter implements DeltaWriter<InternalRow> {
-    private final WriteTimer timer = new WriteTimer();
+    private final WriteTimer timer;
+
+    BaseDeltaWriter(WriteTimer timer) {
+      this.timer = timer;
+    }
 
     protected WriteTimer timer() {
       return timer;
@@ -627,8 +636,9 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
         Map<String, DeleteFileSet> rewritableDeletes,
         SparkFileWriterFactory writerFactory,
         OutputFileFactory deleteFileFactory,
-        Context context) {
-
+        Context context,
+        WriteTimer timer) {
+      super(timer);
       this.delegate =
           newDeleteWriter(table, rewritableDeletes, writerFactory, deleteFileFactory, context);
       this.positionDelete = PositionDelete.create();
@@ -657,7 +667,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
       String file = id.getString(fileOrdinal);
       long position = id.getLong(positionOrdinal);
       positionDelete.set(file, position);
-      timer().timeWrite(() -> delegate.write(positionDelete, spec, partitionProjection));
+      delegate.write(positionDelete, spec, partitionProjection);
     }
 
     @Override
@@ -677,7 +687,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
       close();
 
       DeleteWriteResult result = delegate.result();
-      return new DeltaTaskCommit(result, timer().writeDurations());
+      return new DeltaTaskCommit(result, timer().finish());
     }
 
     @Override
@@ -719,8 +729,9 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
         OutputFileFactory dataFileFactory,
         OutputFileFactory deleteFileFactory,
         Function<InternalRow, InternalRow> rowLineageExtractor,
-        Context context) {
-
+        Context context,
+        WriteTimer timer) {
+      super(timer);
       this.delegate =
           new BasePositionDeltaWriter<>(
               newDataWriter(table, writerFactory, dataFileFactory, context),
@@ -751,7 +762,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
       String file = id.getString(fileOrdinal);
       long position = id.getLong(positionOrdinal);
-      timer().timeWrite(() -> delegate.delete(file, position, spec, partitionProjection));
+      delegate.delete(file, position, spec, partitionProjection);
     }
 
     @Override
@@ -759,7 +770,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
       close();
 
       WriteResult result = delegate.result();
-      return new DeltaTaskCommit(result, timer().writeDurations());
+      return new DeltaTaskCommit(result, timer().finish());
     }
 
     @Override
@@ -801,7 +812,8 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
         OutputFileFactory dataFileFactory,
         OutputFileFactory deleteFileFactory,
         Function<InternalRow, InternalRow> rowLineageFromMetadata,
-        Context context) {
+        Context context,
+        WriteTimer timer) {
       super(
           table,
           rewritableDeletes,
@@ -809,7 +821,8 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
           dataFileFactory,
           deleteFileFactory,
           rowLineageFromMetadata,
-          context);
+          context,
+          timer);
       this.dataSpec = table.spec();
     }
 
@@ -825,7 +838,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
     @Override
     public void reinsert(InternalRow meta, InternalRow row) throws IOException {
-      timer().timeWrite(() -> delegate.insert(decorateWithRowLineage(meta, row), dataSpec, null));
+      delegate.insert(decorateWithRowLineage(meta, row), dataSpec, null);
     }
   }
 
@@ -841,7 +854,8 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
         OutputFileFactory dataFileFactory,
         OutputFileFactory deleteFileFactory,
         Function<InternalRow, InternalRow> rowLineageFromMetadata,
-        Context context) {
+        Context context,
+        WriteTimer timer) {
       super(
           table,
           rewritableDeletes,
@@ -849,7 +863,8 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
           dataFileFactory,
           deleteFileFactory,
           rowLineageFromMetadata,
-          context);
+          context,
+          timer);
 
       this.dataSpec = table.spec();
       this.dataPartitionKey = new PartitionKey(dataSpec, context.dataSchema());
@@ -869,12 +884,8 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
     @Override
     public void reinsert(InternalRow meta, InternalRow row) throws IOException {
-      timer()
-          .timeWrite(
-              () -> {
-                dataPartitionKey.partition(internalRowDataWrapper.wrap(row));
-                delegate.insert(decorateWithRowLineage(meta, row), dataSpec, dataPartitionKey);
-              });
+      dataPartitionKey.partition(internalRowDataWrapper.wrap(row));
+      delegate.insert(decorateWithRowLineage(meta, row), dataSpec, dataPartitionKey);
     }
   }
 

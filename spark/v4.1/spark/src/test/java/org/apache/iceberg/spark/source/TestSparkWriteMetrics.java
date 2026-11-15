@@ -31,6 +31,9 @@ import org.apache.iceberg.spark.source.metrics.AddedFileSizeInBytes;
 import org.apache.iceberg.spark.source.metrics.AddedPositionalDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.AddedPositionalDeletes;
 import org.apache.iceberg.spark.source.metrics.AddedRecords;
+import org.apache.iceberg.spark.source.metrics.MaxTaskWriteDuration;
+import org.apache.iceberg.spark.source.metrics.MedianTaskWriteDuration;
+import org.apache.iceberg.spark.source.metrics.MinTaskWriteDuration;
 import org.apache.iceberg.spark.source.metrics.RemovedDataFiles;
 import org.apache.iceberg.spark.source.metrics.RemovedDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.RemovedEqualityDeleteFiles;
@@ -293,15 +296,18 @@ public class TestSparkWriteMetrics extends TestBaseWithCatalog {
 
     Map<String, SQLMetric> metricsMap = writeMetrics(result.queryExecution().executedPlan());
 
-    // four tasks each wrote a file, so the reported durations are sums over all four
     assertThat(metricsMap)
         .hasEntrySatisfying(AddedDataFiles.NAME, metric -> assertThat(metric.value()).isEqualTo(4));
-    assertThat(metricsMap)
-        .hasEntrySatisfying(
-            WriteDuration.NAME, metric -> assertThat(metric.value()).isGreaterThan(0));
-    assertThat(metricsMap)
-        .hasEntrySatisfying(
-            WriteCloseDuration.NAME, metric -> assertThat(metric.value()).isGreaterThan(0));
+
+    long total = metricsMap.get(WriteDuration.NAME).value();
+    long min = metricsMap.get(MinTaskWriteDuration.NAME).value();
+    long median = metricsMap.get(MedianTaskWriteDuration.NAME).value();
+    long max = metricsMap.get(MaxTaskWriteDuration.NAME).value();
+    assertThat(min).isGreaterThan(0);
+    assertThat(median).isGreaterThanOrEqualTo(min);
+    assertThat(max).isGreaterThanOrEqualTo(median);
+    // four tasks wrote, so the total covers more than the slowest task alone
+    assertThat(total).isGreaterThan(max);
   }
 
   private void assertWriteDurationsReported(SparkPlan plan) {
