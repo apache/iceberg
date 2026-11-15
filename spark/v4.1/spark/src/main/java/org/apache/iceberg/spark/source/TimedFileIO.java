@@ -33,9 +33,8 @@ import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.PositionOutputStream;
 
-/** A {@link FileIO} that records the time output files spend in storage calls. */
+/** A {@link FileIO} that records the time Hadoop output files spend in storage calls. */
 class TimedFileIO implements FileIO {
   private final FileIO io;
   private final WriteTimer timer;
@@ -59,7 +58,8 @@ class TimedFileIO implements FileIO {
           hfile.getPath(), new TimedFileSystem(hfile.getFileSystem(), timer), hfile.getConf());
     }
 
-    return new TimedOutputFile(file, timer);
+    // other FileIOs are not timed
+    return file;
   }
 
   @Override
@@ -157,96 +157,6 @@ class TimedFileIO implements FileIO {
     @Override
     public boolean hasCapability(String capability) {
       return stream.hasCapability(capability);
-    }
-  }
-
-  private static class TimedOutputFile implements OutputFile {
-    private final OutputFile file;
-    private final WriteTimer timer;
-
-    private TimedOutputFile(OutputFile file, WriteTimer timer) {
-      this.file = file;
-      this.timer = timer;
-    }
-
-    @Override
-    public PositionOutputStream create() {
-      long start = System.nanoTime();
-      PositionOutputStream stream = file.create();
-      timer.recordStorageWrite(System.nanoTime() - start, 0L);
-      return new TimedPositionOutputStream(stream, timer);
-    }
-
-    @Override
-    public PositionOutputStream createOrOverwrite() {
-      long start = System.nanoTime();
-      PositionOutputStream stream = file.createOrOverwrite();
-      timer.recordStorageWrite(System.nanoTime() - start, 0L);
-      return new TimedPositionOutputStream(stream, timer);
-    }
-
-    @Override
-    public String location() {
-      return file.location();
-    }
-
-    @Override
-    public InputFile toInputFile() {
-      return file.toInputFile();
-    }
-
-    @Override
-    public String toString() {
-      return file.toString();
-    }
-  }
-
-  // must not implement DelegatingOutputStream, or Parquet would unwrap it and bypass the timer
-  private static class TimedPositionOutputStream extends PositionOutputStream {
-    private final PositionOutputStream stream;
-    private final WriteTimer timer;
-
-    private TimedPositionOutputStream(PositionOutputStream stream, WriteTimer timer) {
-      this.stream = stream;
-      this.timer = timer;
-    }
-
-    @Override
-    public long getPos() throws IOException {
-      return stream.getPos();
-    }
-
-    @Override
-    public long storedLength() throws IOException {
-      return stream.storedLength();
-    }
-
-    @Override
-    public void write(int b) throws IOException {
-      long start = System.nanoTime();
-      stream.write(b);
-      timer.recordStorageWrite(System.nanoTime() - start, 1L);
-    }
-
-    @Override
-    public void write(byte[] bytes, int off, int len) throws IOException {
-      long start = System.nanoTime();
-      stream.write(bytes, off, len);
-      timer.recordStorageWrite(System.nanoTime() - start, len);
-    }
-
-    @Override
-    public void flush() throws IOException {
-      long start = System.nanoTime();
-      stream.flush();
-      timer.recordStorageWrite(System.nanoTime() - start, 0L);
-    }
-
-    @Override
-    public void close() throws IOException {
-      long start = System.nanoTime();
-      stream.close();
-      timer.recordStorageWrite(System.nanoTime() - start, 0L);
     }
   }
 }

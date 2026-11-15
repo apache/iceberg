@@ -37,7 +37,6 @@ import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
-import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileIO;
@@ -65,15 +64,6 @@ class TestTimedFileIO {
   void timesWritesThroughHadoopFileIO(FileFormat format) throws IOException {
     FileIO io = new HadoopFileIO(new Configuration());
     assertTimesWrite(io, location(format.addExtension("data")), format);
-  }
-
-  @ParameterizedTest
-  @EnumSource(
-      value = FileFormat.class,
-      names = {"PARQUET", "ORC", "AVRO"})
-  void timesWritesThroughOtherFileIO(FileFormat format) throws IOException {
-    FileIO io = new InMemoryFileIO();
-    assertTimesWrite(io, "mem://bucket/" + format.addExtension("data"), format);
   }
 
   @Test
