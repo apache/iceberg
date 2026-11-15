@@ -18,9 +18,9 @@
  */
 package org.apache.iceberg.io;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class CanonicalUriFileIO implements DelegateFileIO {
 
@@ -130,7 +130,7 @@ public class CanonicalUriFileIO implements DelegateFileIO {
 
   @Override
   public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
-    List<String> physicalPaths = new ArrayList<>();
+    List<String> physicalPaths = Lists.newArrayList();
 
     for (String path : pathsToDelete) {
       physicalPaths.add(resolve(path));
@@ -151,7 +151,7 @@ public class CanonicalUriFileIO implements DelegateFileIO {
       throw new UnsupportedOperationException("Delegate does not support prefix listing");
     }
 
-    List<FileInfo> results = new ArrayList<>();
+    List<FileInfo> results = Lists.newArrayList();
 
     for (FileInfo file : ((SupportsPrefixOperations) delegate).listPrefix(resolve(prefix))) {
       results.add(new FileInfo(canonicalize(file.location()), file.size(), file.createdAtMillis()));

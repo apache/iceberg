@@ -83,16 +83,20 @@ public class TestCanonicalUriFileIO {
         new org.apache.iceberg.inmemory.InMemoryFileIO();
 
     assertThatThrownBy(() -> new CanonicalUriFileIO(delegate, "", "s3://warehouse/"))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Canonical URI prefix must not be null or empty");
 
     assertThatThrownBy(() -> new CanonicalUriFileIO(delegate, "storage://warehouse/", ""))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Physical URI prefix must not be null or empty");
 
     assertThatThrownBy(() -> new CanonicalUriFileIO(delegate, null, "s3://warehouse/"))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Canonical URI prefix must not be null or empty");
 
     assertThatThrownBy(() -> new CanonicalUriFileIO(delegate, "storage://warehouse/", null))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Physical URI prefix must not be null or empty");
   }
 
   @Test
