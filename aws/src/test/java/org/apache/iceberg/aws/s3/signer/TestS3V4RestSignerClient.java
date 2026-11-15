@@ -122,7 +122,7 @@ class TestS3V4RestSignerClient {
   @ValueSource(strings = {"Cache-Control", "cache-control"})
   void signedComponentIsCachedRegardlessOfCacheControlHeaderCase(String cacheControlHeader)
       throws Exception {
-    // the signing cache is static and keyed on method, region and URI
+    // the signing cache is static and keyed on method, region, URI and properties
     URI uri = URI.create("https://bucket.s3.us-west-2.amazonaws.com/" + UUID.randomUUID());
     AtomicInteger signRequests = new AtomicInteger();
 
@@ -353,8 +353,17 @@ class TestS3V4RestSignerClient {
           .containsExactly("AWS4-HMAC-SHA256 sig-client-2");
       assertThat(callCount.get()).isEqualTo(2);
 
-      // Verify structural isolation of the cache instances
-      assertThat(client1.signedComponentCache()).isNotSameAs(client2.signedComponentCache());
+      // Verify that another client instance with identical properties shares the cache (e.g.
+      // multiple FileIOs for the same principal)
+      try (S3V4RestSignerClient client3 =
+          ImmutableS3V4RestSignerClient.builder().properties(properties1).build()) {
+        SdkHttpFullRequest signed3 = client3.sign(request, executionAttributes);
+        assertThat(signed3.headers().get("Authorization"))
+            .containsExactly("AWS4-HMAC-SHA256 sig-client-1");
+        assertThat(callCount.get())
+            .as("Client 3 shares identical properties with Client 1 and must hit the cache")
+            .isEqualTo(2);
+      }
     }
   }
 }
