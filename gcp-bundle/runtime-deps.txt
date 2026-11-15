@@ -49,10 +49,10 @@ com.google.cloud:google-cloud-monitoring:3.101
 com.google.cloud:google-cloud-storage-control:2.76
 com.google.cloud:google-cloud-storage:2.76
 com.google.code.gson:gson:2.14
-com.google.errorprone:error_prone_annotations:2.50
+com.google.errorprone:error_prone_annotations:2.52
 com.google.flatbuffers:flatbuffers-java:24.3
 com.google.guava:failureaccess:1.0
-com.google.guava:guava:33.7
+com.google.guava:guava:33.8
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava
 com.google.http-client:google-http-client-apache-v2:2.2
 com.google.http-client:google-http-client-appengine:2.2
