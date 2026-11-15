@@ -270,6 +270,8 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
         referencedDataFiles.addAll(Arrays.asList(taskCommit.referencedDataFiles()));
       }
 
+      SparkPositionDeltaWrite.this.writeTimes = totals;
+
       // the scan may be null if the optimizer replaces it with an empty relation
       // no validation is needed in this case as the command is independent of the table state
       if (scan != null) {
