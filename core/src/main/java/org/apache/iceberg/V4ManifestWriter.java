@@ -113,9 +113,9 @@ abstract class V4ManifestWriter implements Closeable {
 
   protected abstract StructLike prepare(TrackedFile file, Tracking tracking);
 
-  // TODO: add row ID space to spec and ManifestInfo!
-  protected long assignedRowIds() {
-    return 0L;
+  // TODO: add row ID space to spec and ManifestInfo
+  public long assignedRowIds() {
+    return unassignedRows;
   }
 
   private FileAppender<StructLike> newAppender(
@@ -133,8 +133,6 @@ abstract class V4ManifestWriter implements Closeable {
           "Failed to create manifest writer for location: " + file.location(), e);
     }
   }
-
-  protected abstract Tracking tracking();
 
   private ManifestInfo summary() {
     return new ManifestInfoStruct(
@@ -254,7 +252,7 @@ abstract class V4ManifestWriter implements Closeable {
   public TrackedFile toTrackedManifest() {
     Preconditions.checkState(closed, "Cannot build TrackedFile, writer is not closed");
     return new TrackedFileStruct(
-        tracking(),
+        null,
         FileContent.DATA_MANIFEST,
         file.location(),
         FileFormat.PARQUET,
@@ -274,7 +272,6 @@ abstract class V4ManifestWriter implements Closeable {
 
   private static class LeafWriter extends V4ManifestWriter {
     private final V4Metadata.LeafTrackedFileWrapper wrapper;
-    private final Long snapshotId;
 
     private LeafWriter(
         EncryptedOutputFile file,
@@ -300,7 +297,6 @@ abstract class V4ManifestWriter implements Closeable {
       this.wrapper =
           new V4Metadata.LeafTrackedFileWrapper(
               snapshotId, specsById, partitionType, contentStatsType);
-      this.snapshotId = snapshotId;
     }
 
     @Override
@@ -308,17 +304,10 @@ abstract class V4ManifestWriter implements Closeable {
       // TODO: update aggregate metrics in addition to ManifestInfo stats
       return wrapper.wrap(file, tracking);
     }
-
-    @Override
-    protected Tracking tracking() {
-      return new TrackingStruct(EntryStatus.ADDED, snapshotId, null, null, null, null, null, null);
-    }
   }
 
   private static class RootWriter extends V4ManifestWriter {
     private final V4Metadata.RootTrackedFileWrapper wrapper;
-    private final long snapshotId;
-    private final long sequenceNumber;
     private final long firstRowId;
     private long nextRowId;
 
@@ -352,8 +341,6 @@ abstract class V4ManifestWriter implements Closeable {
       this.wrapper =
           new V4Metadata.RootTrackedFileWrapper(
               snapshotId, sequenceNumber, specsById, partitionType, contentStatsType);
-      this.snapshotId = snapshotId;
-      this.sequenceNumber = sequenceNumber;
       this.firstRowId = firstRowId;
       this.nextRowId = firstRowId;
     }
@@ -372,7 +359,7 @@ abstract class V4ManifestWriter implements Closeable {
     }
 
     @Override
-    protected long assignedRowIds() {
+    public long assignedRowIds() {
       return nextRowId - firstRowId;
     }
 
@@ -392,19 +379,6 @@ abstract class V4ManifestWriter implements Closeable {
         default ->
             throw new IllegalArgumentException("Unsupported content type: " + file.contentType());
       };
-    }
-
-    @Override
-    protected Tracking tracking() {
-      return new TrackingStruct(
-          EntryStatus.ADDED,
-          snapshotId,
-          sequenceNumber,
-          sequenceNumber,
-          null, // not modified
-          firstRowId,
-          null, // no change bitmaps
-          null);
     }
   }
 
