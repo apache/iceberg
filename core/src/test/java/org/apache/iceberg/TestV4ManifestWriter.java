@@ -463,7 +463,9 @@ public class TestV4ManifestWriter {
 
     List<TrackedFile> files = read(writer, output.toInputFile());
     assertThat(files)
-        .usingComparatorForType(V4TestComparators.trackedFileWithoutStatus(), TrackedFile.class)
+        .usingComparatorForType(
+            V4TestComparators.trackedFileWithoutStatus(TRUNCATE_SPEC.partitionType()),
+            TrackedFile.class)
         .containsExactly(FILE_A, FILE_B);
     assertThat(files.get(0).tracking())
         .usingComparator(V4TestComparators.TRACKING)
@@ -862,7 +864,9 @@ public class TestV4ManifestWriter {
 
     List<TrackedFile> files = read(writer, output.toInputFile());
     assertThat(files)
-        .usingComparatorForType(V4TestComparators.trackedFileWithoutStatus(), TrackedFile.class)
+        .usingComparatorForType(
+            V4TestComparators.trackedFileWithoutStatus(TRUNCATE_SPEC.partitionType()),
+            TrackedFile.class)
         .containsExactly(FILE_A, FILE_B);
     assertThat(files.get(0).tracking())
         .usingComparator(V4TestComparators.TRACKING)
