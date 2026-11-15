@@ -24,11 +24,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -206,6 +208,11 @@ public class PropertyUtil {
     return merged;
   }
 
+  /**
+   * @deprecated since 1.13.0, will be removed in 1.14.0; use {@link #applySchemaChanges(Map,
+   *     Schema, Schema)} instead.
+   */
+  @Deprecated
   public static Map<String, String> applySchemaChanges(
       Map<String, String> properties,
       List<String> deletedColumns,
@@ -241,5 +248,56 @@ public class PropertyUtil {
 
       return updatedProperties;
     }
+  }
+
+  /**
+   * Returns properties with each per-column property in {@link
+   * TableProperties#COLUMN_PROPERTY_PREFIXES} renamed or removed to match the new schema.
+   *
+   * <p>Property keys refer to columns of the old schema. A property is renamed when its column or a
+   * parent of it is renamed, and removed when its column or a parent of it is dropped. Returns the
+   * given properties if none changed.
+   *
+   * @param properties properties whose per-column keys refer to the old schema
+   * @param oldSchema schema that the property keys refer to
+   * @param newSchema schema to match
+   * @return the updated properties
+   */
+  public static Map<String, String> applySchemaChanges(
+      Map<String, String> properties, Schema oldSchema, Schema newSchema) {
+    Map<String, String> updated = Maps.newHashMap();
+    boolean changed = false;
+    for (Map.Entry<String, String> entry : properties.entrySet()) {
+      String key = entry.getKey();
+      String prefix = columnPropertyPrefix(key);
+      Types.NestedField field =
+          prefix != null ? oldSchema.findField(key.substring(prefix.length())) : null;
+      if (field == null) {
+        updated.put(key, entry.getValue());
+        continue;
+      }
+
+      String newName = newSchema.findColumnName(field.fieldId());
+      if (newName == null) {
+        changed = true;
+      } else if (newName.equals(oldSchema.findColumnName(field.fieldId()))) {
+        updated.put(key, entry.getValue());
+      } else {
+        changed = true;
+        updated.put(prefix + newName, entry.getValue());
+      }
+    }
+
+    return changed ? updated : properties;
+  }
+
+  private static String columnPropertyPrefix(String key) {
+    for (String prefix : TableProperties.COLUMN_PROPERTY_PREFIXES) {
+      if (key.startsWith(prefix)) {
+        return prefix;
+      }
+    }
+
+    return null;
   }
 }

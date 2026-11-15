@@ -316,6 +316,27 @@ public class TestSchemaAndMappingUpdate extends TestBase {
   }
 
   @TestTemplate
+  void renameAndDeleteListWithElementColumnProperties() {
+    table
+        .updateSchema()
+        .addColumn("points", Types.ListType.ofOptional(1000, LOCATION_TYPE))
+        .commit();
+    table
+        .updateProperties()
+        .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "points.element.lat", "true")
+        .commit();
+
+    table.updateSchema().renameColumn("points", "pts").commit();
+    assertThat(table.properties())
+        .containsEntry(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "pts.element.lat", "true")
+        .doesNotContainKey(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "points.element.lat");
+
+    table.updateSchema().deleteColumn("pts").commit();
+    assertThat(table.properties())
+        .doesNotContainKey(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "pts.element.lat");
+  }
+
+  @TestTemplate
   public void testDeleteAndAddColumnReassign() {
     NameMapping mapping = MappingUtil.create(table.schema());
     String mappingJson = NameMappingParser.toJson(mapping);
