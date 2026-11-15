@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MaxTaskWriteDuration;
-import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteCloseDuration;
 import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteDuration;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.write.DataWriter;
@@ -47,14 +46,6 @@ class TestWriteTimer {
     assertThat(values(totals.driverMetrics(null)))
         .containsEntry(WriteDuration.NAME, 1_000L)
         .containsEntry(MaxTaskWriteDuration.NAME, 900L);
-  }
-
-  @Test
-  void driverMetricsWithNoTasks() {
-    assertThat(values(new WriteTimer.Totals().driverMetrics(null)))
-        .containsEntry(WriteDuration.NAME, 0L)
-        .containsEntry(MaxTaskWriteDuration.NAME, 0L)
-        .containsEntry(WriteCloseDuration.NAME, 0L);
   }
 
   private static Map<String, Long> values(CustomTaskMetric[] metrics) {

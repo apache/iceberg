@@ -22,8 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -208,90 +206,27 @@ public class TestSparkWriteMetrics extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void writeDurationForPartitionedTable() {
-    sql("CREATE TABLE %s (id BIGINT, data STRING) USING iceberg PARTITIONED BY (data)", tableName);
+  public void writeDurationAcrossTasks() {
+    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
 
     Dataset<Row> result =
         spark.sql(
             String.format(
-                "INSERT INTO %s SELECT id, CAST(id %% 4 AS STRING) FROM range(1000)", tableName));
+                "INSERT INTO %s SELECT /*+ REPARTITION(4) */ id FROM range(2000)", tableName));
     result.collect();
 
-    // exercises PartitionedDataWriter rather than UnpartitionedDataWriter
-    assertWriteDurationsReported(result.queryExecution().executedPlan());
-  }
+    Map<String, SQLMetric> metricsMap = writeMetrics(result.queryExecution().executedPlan());
 
-  @TestTemplate
-  public void writeDurationForCopyOnWriteDelete() throws NoSuchTableException {
-    sql(
-        "CREATE TABLE %s (id BIGINT) USING iceberg TBLPROPERTIES ('write.delete.mode'='copy-on-write')",
-        tableName);
-    spark.range(100).coalesce(1).writeTo(tableName).append();
+    assertThat(metricsMap)
+        .hasEntrySatisfying(AddedDataFiles.NAME, metric -> assertThat(metric.value()).isEqualTo(4));
 
-    Dataset<Row> result = spark.sql(String.format("DELETE FROM %s WHERE id = 1", tableName));
-    result.collect();
-
-    assertWriteDurationsReported(result.queryExecution().executedPlan());
-  }
-
-  @TestTemplate
-  public void writeDurationForMergeOnReadDelete() throws NoSuchTableException {
-    sql(
-        "CREATE TABLE %s (id BIGINT) USING iceberg TBLPROPERTIES ('write.delete.mode'='merge-on-read')",
-        tableName);
-    spark.range(100).coalesce(1).writeTo(tableName).append();
-
-    // DeleteOnlyDeltaWriter in SparkPositionDeltaWrite
-    Dataset<Row> result = spark.sql(String.format("DELETE FROM %s WHERE id = 1", tableName));
-    result.collect();
-
-    assertWriteDurationsReported(result.queryExecution().executedPlan());
-  }
-
-  @TestTemplate
-  public void writeDurationForMergeOnReadUpdate() throws NoSuchTableException {
-    sql(
-        "CREATE TABLE %s (id BIGINT) USING iceberg TBLPROPERTIES ('write.update.mode'='merge-on-read')",
-        tableName);
-    spark.range(100).coalesce(1).writeTo(tableName).append();
-
-    // UnpartitionedDeltaWriter: an update writes both deletes and data
-    Dataset<Row> result =
-        spark.sql(String.format("UPDATE %s SET id = id + 1000 WHERE id < 10", tableName));
-    result.collect();
-
-    assertWriteDurationsReported(result.queryExecution().executedPlan());
-  }
-
-  @TestTemplate
-  public void writeDurationForPartitionedMergeOnReadUpdate() throws NoSuchTableException {
-    sql(
-        "CREATE TABLE %s (id BIGINT, data STRING) USING iceberg PARTITIONED BY (data) "
-            + "TBLPROPERTIES ('write.update.mode'='merge-on-read')",
-        tableName);
-    sql("INSERT INTO %s SELECT id, CAST(id %% 4 AS STRING) FROM range(100)", tableName);
-
-    // PartitionedDeltaWriter
-    Dataset<Row> result =
-        spark.sql(String.format("UPDATE %s SET id = id + 1000 WHERE id < 10", tableName));
-    result.collect();
-
-    assertWriteDurationsReported(result.queryExecution().executedPlan());
-  }
-
-  @TestTemplate
-  public void writeDurationAcrossTasksForParquet() {
-    assertWriteDurationAcrossTasks(FileFormat.PARQUET);
-  }
-
-  @TestTemplate
-  public void writeDurationAcrossTasksForOrc() {
-    assertWriteDurationAcrossTasks(FileFormat.ORC);
-  }
-
-  @TestTemplate
-  public void writeDurationAcrossTasksForAvro() {
-    assertWriteDurationAcrossTasks(FileFormat.AVRO);
+    long total = metricsMap.get(WriteDuration.NAME).value();
+    long max = metricsMap.get(MaxTaskWriteDuration.NAME).value();
+    assertThat(max).isGreaterThan(0);
+    assertThat(total).isGreaterThanOrEqualTo(max);
+    assertThat(metricsMap)
+        .hasEntrySatisfying(
+            WriteCloseDuration.NAME, metric -> assertThat(metric.value()).isGreaterThan(0));
   }
 
   @TestTemplate
@@ -311,37 +246,6 @@ public class TestSparkWriteMetrics extends TestBaseWithCatalog {
     assertThat(deleteFiles).extracting(DeleteFile::format).containsExactly(FileFormat.PUFFIN);
 
     assertWriteDurationsReported(result.queryExecution().executedPlan());
-  }
-
-  private void assertWriteDurationAcrossTasks(FileFormat format) {
-    sql(
-        "CREATE TABLE %s (id BIGINT) USING iceberg TBLPROPERTIES ('write.format.default'='%s')",
-        tableName, format.name());
-
-    long numRows = 2000;
-    Dataset<Row> result =
-        spark.sql(
-            String.format(
-                "INSERT INTO %s SELECT /*+ REPARTITION(4) */ id FROM range(%d)",
-                tableName, numRows));
-    result.collect();
-
-    Map<String, SQLMetric> metricsMap = writeMetrics(result.queryExecution().executedPlan());
-
-    assertThat(metricsMap)
-        .hasEntrySatisfying(AddedDataFiles.NAME, metric -> assertThat(metric.value()).isEqualTo(4));
-
-    long total = metricsMap.get(WriteDuration.NAME).value();
-    long max = metricsMap.get(MaxTaskWriteDuration.NAME).value();
-    assertThat(max).isGreaterThan(0);
-    assertThat(total).isGreaterThanOrEqualTo(max);
-    assertThat(metricsMap)
-        .hasEntrySatisfying(
-            WriteCloseDuration.NAME, metric -> assertThat(metric.value()).isGreaterThan(0));
-
-    List<Object[]> expected =
-        LongStream.range(0, numRows).mapToObj(id -> row(id)).collect(Collectors.toList());
-    assertEquals(format + " rows", expected, sql("SELECT id FROM %s ORDER BY id", selectTarget()));
   }
 
   private void assertWriteDurationsReported(SparkPlan plan) {

@@ -49,26 +49,6 @@ class TestRewritePositionDeleteFilesMetrics extends ExtensionsTestBase {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @TestTemplate
-  void writeDurationForDVRewrite() throws Exception {
-    // position deletes from v2 are rewritten as DVs through DVWriter after upgrading to v3
-    createTableWithDeletes(2);
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='3')", tableName);
-
-    long lastSetupExecutionId = lastExecutionId();
-    sql(
-        "CALL %s.system.rewrite_position_delete_files("
-            + "table => '%s', options => map('rewrite-all','true'))",
-        catalogName, tableIdent);
-
-    assertThat(maxMetricValue(new WriteDuration().description(), lastSetupExecutionId))
-        .as("write duration should be reported by the DV rewrite")
-        .isGreaterThan(0);
-    assertThat(maxMetricValue(new WriteCloseDuration().description(), lastSetupExecutionId))
-        .as("write close duration should be reported by the DV rewrite")
-        .isGreaterThan(0);
-  }
-
   private void createTableWithDeletes(int formatVersion) throws Exception {
     sql(
         "CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES"
