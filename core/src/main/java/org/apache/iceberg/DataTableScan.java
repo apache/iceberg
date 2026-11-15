@@ -22,6 +22,7 @@ import java.util.List;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.TypeUtil;
 
 public class DataTableScan extends BaseTableScan {
   protected DataTableScan(Table table, Schema schema, TableScanContext context) {
@@ -64,6 +65,10 @@ public class DataTableScan extends BaseTableScan {
   public CloseableIterable<FileScanTask> doPlanFiles() {
     Snapshot snapshot = snapshot();
 
+    if (snapshot.rootManifestLocation() != null) {
+      return newFilePlanner(snapshot).planFiles();
+    }
+
     FileIO io = table().io();
     List<ManifestFile> dataManifests = snapshot.dataManifests(io);
     List<ManifestFile> deleteManifests = snapshot.deleteManifests(io);
@@ -89,5 +94,26 @@ public class DataTableScan extends BaseTableScan {
     }
 
     return manifestGroup.planFiles();
+  }
+
+  private FilePlanner newFilePlanner(Snapshot snapshot) {
+    ManifestFile root = RootManifestFile.from(snapshot, table().location(), table().io());
+    FilePlanner planner =
+        new FilePlanner(table().io(), root, tableSchema(), specs())
+            .filterData(filter())
+            .caseSensitive(isCaseSensitive())
+            .scanMetrics(scanMetrics())
+            .tableLocation(table().location())
+            .ignoreResiduals(shouldIgnoreResiduals())
+            .planWith(shouldPlanWithExecutor() ? planExecutor() : null);
+
+    if (shouldReturnColumnStats()) {
+      planner.projectStats(
+          columnsToKeepStats() != null
+              ? columnsToKeepStats()
+              : TypeUtil.getProjectedIds(tableSchema()));
+    }
+
+    return planner;
   }
 }

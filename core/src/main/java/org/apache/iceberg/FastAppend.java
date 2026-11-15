@@ -181,7 +181,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   }
 
   @Override
-  protected void cleanUncommitted(Set<ManifestFile> committed) {
+  protected void cleanUncommitted(Set<String> committed) {
     if (newManifests != null) {
       deleteUncommitted(newManifests, committed, true /* clear manifests */);
     }

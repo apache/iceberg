@@ -104,12 +104,14 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     this.forwardStream =
         new OutputTag<>(
             DYNAMIC_FORWARD_STREAM,
-            new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize)) {};
+            new DynamicRecordInternalType(
+                catalogLoader, true, cacheMaximumSize, inputSchemasPerTableCacheMaximumSize)) {};
     if (!immediateUpdate) {
       updateStream =
           new OutputTag<>(
               DYNAMIC_TABLE_UPDATE_STREAM,
-              new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize)) {};
+              new DynamicRecordInternalType(
+                  catalogLoader, true, cacheMaximumSize, inputSchemasPerTableCacheMaximumSize)) {};
     }
 
     this.dynamicRecordWithConfig =
@@ -130,7 +132,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     DynamicRecordWithConfig data = dynamicRecordWithConfig.wrap(inputData);
 
     boolean isForward = isForwardEligible(data);
-    boolean exists = tableCache.exists(data.tableIdentifier()).f0;
+    boolean exists = tableCache.exists(data.tableIdentifier());
     String foundBranch = exists ? tableCache.branch(data.tableIdentifier(), data.branch()) : null;
 
     TableMetadataCache.ResolvedSchemaInfo foundSchema =

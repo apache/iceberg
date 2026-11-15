@@ -36,6 +36,8 @@ class StatsTestUtil {
         0,
         null,
         stats,
+        false, // tightStats
+        null,
         null,
         null,
         null,
@@ -126,11 +128,6 @@ class StatsTestUtil {
     @Override
     public Object upperBound() {
       return upperBound;
-    }
-
-    @Override
-    public boolean tightBounds() {
-      return false;
     }
 
     @Override
