@@ -120,6 +120,20 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
+  public void addRowsAndRemoveDeleteFilesProducesOverwriteOperation() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    DataFile dataFile = newDataFile("data_bucket=0");
+    DeleteFile deleteFile = newDeletes(dataFile);
+    commit(table, table.newRowDelta().addRows(dataFile).addDeletes(deleteFile), branch);
+
+    Snapshot snapshot =
+        commit(table, table.newRowDelta().addRows(FILE_B).removeDeletes(deleteFile), branch);
+
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+  }
+
+  @TestTemplate
   public void testAddRemoveRows() {
     SnapshotUpdate<?> rowDelta =
         table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()).addDeletes(fileBDeletes());
