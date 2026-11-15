@@ -50,11 +50,8 @@ class WriteTimer {
   /** Runs the close, adding its duration to the close time. */
   <E extends Exception> void timeClose(ThrowingRunnable<E> closeOp) throws E {
     long start = System.nanoTime();
-    try {
-      closeOp.run();
-    } finally {
-      this.closeNanos += System.nanoTime() - start;
-    }
+    closeOp.run();
+    this.closeNanos += System.nanoTime() - start;
   }
 
   /** Logs this task's totals and returns them for the commit message. */
@@ -75,10 +72,6 @@ class WriteTimer {
 
   long storageWriteBytes() {
     return storageWriteBytes;
-  }
-
-  long closeNanos() {
-    return closeNanos;
   }
 
   @FunctionalInterface

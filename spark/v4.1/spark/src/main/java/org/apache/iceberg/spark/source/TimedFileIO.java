@@ -92,16 +92,13 @@ class TimedFileIO implements FileIO {
         Progressable progress)
         throws IOException {
       long start = System.nanoTime();
-      try {
-        FSDataOutputStream stream =
-            super.create(path, permission, overwrite, bufferSize, replication, blockSize, progress);
-        // DataOutputStream's final writeInt and similar bypass FSDataOutputStream's write methods,
-        // so time the stream it wraps
-        return new FSDataOutputStream(
-            new TimedHadoopStream(stream, timer), null /* stats */, stream.getPos());
-      } finally {
-        timer.recordStorageWrite(System.nanoTime() - start, 0L);
-      }
+      FSDataOutputStream stream =
+          super.create(path, permission, overwrite, bufferSize, replication, blockSize, progress);
+      timer.recordStorageWrite(System.nanoTime() - start, 0L);
+      // DataOutputStream's final writeInt and similar bypass FSDataOutputStream's write methods,
+      // so time the stream it wraps
+      return new FSDataOutputStream(
+          new TimedHadoopStream(stream, timer), null /* stats */, stream.getPos());
     }
   }
 
@@ -118,61 +115,43 @@ class TimedFileIO implements FileIO {
     @Override
     public void write(int b) throws IOException {
       long start = System.nanoTime();
-      try {
-        stream.write(b);
-      } finally {
-        timer.recordStorageWrite(System.nanoTime() - start, 1L);
-      }
+      stream.write(b);
+      timer.recordStorageWrite(System.nanoTime() - start, 1L);
     }
 
     @Override
     public void write(byte[] bytes, int off, int len) throws IOException {
       long start = System.nanoTime();
-      try {
-        stream.write(bytes, off, len);
-      } finally {
-        timer.recordStorageWrite(System.nanoTime() - start, len);
-      }
+      stream.write(bytes, off, len);
+      timer.recordStorageWrite(System.nanoTime() - start, len);
     }
 
     @Override
     public void flush() throws IOException {
       long start = System.nanoTime();
-      try {
-        stream.flush();
-      } finally {
-        timer.recordStorageWrite(System.nanoTime() - start, 0L);
-      }
+      stream.flush();
+      timer.recordStorageWrite(System.nanoTime() - start, 0L);
     }
 
     @Override
     public void hflush() throws IOException {
       long start = System.nanoTime();
-      try {
-        stream.hflush();
-      } finally {
-        timer.recordStorageWrite(System.nanoTime() - start, 0L);
-      }
+      stream.hflush();
+      timer.recordStorageWrite(System.nanoTime() - start, 0L);
     }
 
     @Override
     public void hsync() throws IOException {
       long start = System.nanoTime();
-      try {
-        stream.hsync();
-      } finally {
-        timer.recordStorageWrite(System.nanoTime() - start, 0L);
-      }
+      stream.hsync();
+      timer.recordStorageWrite(System.nanoTime() - start, 0L);
     }
 
     @Override
     public void close() throws IOException {
       long start = System.nanoTime();
-      try {
-        stream.close();
-      } finally {
-        timer.recordStorageWrite(System.nanoTime() - start, 0L);
-      }
+      stream.close();
+      timer.recordStorageWrite(System.nanoTime() - start, 0L);
     }
 
     @Override
@@ -193,21 +172,17 @@ class TimedFileIO implements FileIO {
     @Override
     public PositionOutputStream create() {
       long start = System.nanoTime();
-      try {
-        return new TimedPositionOutputStream(file.create(), timer);
-      } finally {
-        timer.recordStorageWrite(System.nanoTime() - start, 0L);
-      }
+      PositionOutputStream stream = file.create();
+      timer.recordStorageWrite(System.nanoTime() - start, 0L);
+      return new TimedPositionOutputStream(stream, timer);
     }
 
     @Override
     public PositionOutputStream createOrOverwrite() {
       long start = System.nanoTime();
-      try {
-        return new TimedPositionOutputStream(file.createOrOverwrite(), timer);
-      } finally {
-        timer.recordStorageWrite(System.nanoTime() - start, 0L);
-      }
+      PositionOutputStream stream = file.createOrOverwrite();
+      timer.recordStorageWrite(System.nanoTime() - start, 0L);
+      return new TimedPositionOutputStream(stream, timer);
     }
 
     @Override
@@ -249,41 +224,29 @@ class TimedFileIO implements FileIO {
     @Override
     public void write(int b) throws IOException {
       long start = System.nanoTime();
-      try {
-        stream.write(b);
-      } finally {
-        timer.recordStorageWrite(System.nanoTime() - start, 1L);
-      }
+      stream.write(b);
+      timer.recordStorageWrite(System.nanoTime() - start, 1L);
     }
 
     @Override
     public void write(byte[] bytes, int off, int len) throws IOException {
       long start = System.nanoTime();
-      try {
-        stream.write(bytes, off, len);
-      } finally {
-        timer.recordStorageWrite(System.nanoTime() - start, len);
-      }
+      stream.write(bytes, off, len);
+      timer.recordStorageWrite(System.nanoTime() - start, len);
     }
 
     @Override
     public void flush() throws IOException {
       long start = System.nanoTime();
-      try {
-        stream.flush();
-      } finally {
-        timer.recordStorageWrite(System.nanoTime() - start, 0L);
-      }
+      stream.flush();
+      timer.recordStorageWrite(System.nanoTime() - start, 0L);
     }
 
     @Override
     public void close() throws IOException {
       long start = System.nanoTime();
-      try {
-        stream.close();
-      } finally {
-        timer.recordStorageWrite(System.nanoTime() - start, 0L);
-      }
+      stream.close();
+      timer.recordStorageWrite(System.nanoTime() - start, 0L);
     }
   }
 }
