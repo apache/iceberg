@@ -49,12 +49,12 @@ class TestRewritePositionDeleteFilesMetrics extends ExtensionsTestBase {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  private void createTableWithDeletes(int formatVersion) throws Exception {
+  private void createTableWithDeletes() throws Exception {
     sql(
         "CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES"
-            + "('format-version'='%d', 'write.delete.mode'='merge-on-read',"
+            + "('format-version'='2', 'write.delete.mode'='merge-on-read',"
             + " 'write.delete.granularity'='partition')",
-        tableName, formatVersion);
+        tableName);
 
     List<SimpleRecord> records =
         Lists.newArrayList(
@@ -74,7 +74,7 @@ class TestRewritePositionDeleteFilesMetrics extends ExtensionsTestBase {
 
   @TestTemplate
   void writeDurationForPositionDeletesRewrite() throws Exception {
-    createTableWithDeletes(2);
+    createTableWithDeletes();
 
     long lastSetupExecutionId = lastExecutionId();
     sql(
@@ -116,9 +116,7 @@ class TestRewritePositionDeleteFilesMetrics extends ExtensionsTestBase {
         continue;
       }
 
-      Map<Object, String> metricValues =
-          CollectionConverters.asJava(
-              statusStore.execution(execution.executionId()).get().metricValues());
+      Map<Object, String> metricValues = CollectionConverters.asJava(execution.metricValues());
 
       for (SQLPlanMetric metric : CollectionConverters.asJava(execution.metrics())) {
         if (metric.name().equals(metricDescription)) {
