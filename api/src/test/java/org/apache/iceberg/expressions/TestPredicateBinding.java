@@ -239,53 +239,37 @@ public class TestPredicateBinding {
   public void testDoubleToFloatConversion() {
     StructType struct = StructType.of(required(18, "f", Types.FloatType.get()));
 
-    UnboundPredicate<Double> lt =
-        new UnboundPredicate<>(LT, ref("f"), (double) Float.MAX_VALUE * 2);
-    assertThat(lt.bind(struct))
-        .as("Less than above max should be alwaysTrue")
-        .isEqualTo(Expressions.alwaysTrue());
+    for (Expression.Operation operation : Arrays.asList(LT, LT_EQ)) {
+      BoundPredicate<Float> above =
+          assertAndUnwrap(
+              new UnboundPredicate<>(operation, ref("f"), (double) Float.MAX_VALUE * 2)
+                  .bind(struct));
+      assertThat(above.op()).isEqualTo(LT_EQ);
+      assertThat(above.asLiteralPredicate().literal().value()).isEqualTo(Float.MAX_VALUE);
 
-    UnboundPredicate<Double> lteq =
-        new UnboundPredicate<>(LT_EQ, ref("f"), (double) Float.MAX_VALUE * 2);
-    assertThat(lteq.bind(struct))
-        .as("Less than or equal above max should be alwaysTrue")
-        .isEqualTo(Expressions.alwaysTrue());
+      BoundPredicate<Float> below =
+          assertAndUnwrap(
+              new UnboundPredicate<>(operation, ref("f"), (double) Float.MAX_VALUE * -2)
+                  .bind(struct));
+      assertThat(below.op()).isEqualTo(LT);
+      assertThat(below.asLiteralPredicate().literal().value()).isEqualTo(-Float.MAX_VALUE);
+    }
 
-    UnboundPredicate<Double> gt =
-        new UnboundPredicate<>(GT, ref("f"), (double) Float.MAX_VALUE * -2);
-    assertThat(gt.bind(struct))
-        .as("Greater than below min should be alwaysTrue")
-        .isEqualTo(Expressions.alwaysTrue());
+    for (Expression.Operation operation : Arrays.asList(GT, GT_EQ)) {
+      BoundPredicate<Float> above =
+          assertAndUnwrap(
+              new UnboundPredicate<>(operation, ref("f"), (double) Float.MAX_VALUE * 2)
+                  .bind(struct));
+      assertThat(above.op()).isEqualTo(GT);
+      assertThat(above.asLiteralPredicate().literal().value()).isEqualTo(Float.MAX_VALUE);
 
-    UnboundPredicate<Double> gteq =
-        new UnboundPredicate<>(GT_EQ, ref("f"), (double) Float.MAX_VALUE * -2);
-    assertThat(gteq.bind(struct))
-        .as("Greater than or equal below min should be alwaysTrue")
-        .isEqualTo(Expressions.alwaysTrue());
-
-    UnboundPredicate<Double> gtMax =
-        new UnboundPredicate<>(GT, ref("f"), (double) Float.MAX_VALUE * 2);
-    assertThat(gtMax.bind(struct))
-        .as("Greater than above max should be alwaysFalse")
-        .isEqualTo(Expressions.alwaysFalse());
-
-    UnboundPredicate<Double> gteqMax =
-        new UnboundPredicate<>(GT_EQ, ref("f"), (double) Float.MAX_VALUE * 2);
-    assertThat(gteqMax.bind(struct))
-        .as("Greater than or equal above max should be alwaysFalse")
-        .isEqualTo(Expressions.alwaysFalse());
-
-    UnboundPredicate<Double> ltMin =
-        new UnboundPredicate<>(LT, ref("f"), (double) Float.MAX_VALUE * -2);
-    assertThat(ltMin.bind(struct))
-        .as("Less than below min should be alwaysFalse")
-        .isEqualTo(Expressions.alwaysFalse());
-
-    UnboundPredicate<Double> lteqMin =
-        new UnboundPredicate<>(LT_EQ, ref("f"), (double) Float.MAX_VALUE * -2);
-    assertThat(lteqMin.bind(struct))
-        .as("Less than or equal below min should be alwaysFalse")
-        .isEqualTo(Expressions.alwaysFalse());
+      BoundPredicate<Float> below =
+          assertAndUnwrap(
+              new UnboundPredicate<>(operation, ref("f"), (double) Float.MAX_VALUE * -2)
+                  .bind(struct));
+      assertThat(below.op()).isEqualTo(GT_EQ);
+      assertThat(below.asLiteralPredicate().literal().value()).isEqualTo(-Float.MAX_VALUE);
+    }
 
     Expression ltExpr = new UnboundPredicate<>(LT, ref("f"), (double) Float.MAX_VALUE).bind(struct);
     BoundPredicate<Float> ltMax = assertAndUnwrap(ltExpr);
