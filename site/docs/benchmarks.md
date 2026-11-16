@@ -107,7 +107,7 @@ A benchmark that evaluates the performance of writing nested Parquet data using 
 `./gradlew -DsparkVersions=4.1 -DscalaVersion=2.13 :iceberg-spark:iceberg-spark-4.1_2.13:jmh -PjmhIncludeRegex=IcebergSourceNestedParquetDataReadBenchmark -PjmhOutputPath=benchmark/iceberg-source-nested-parquet-data-read-benchmark-result.txt`
 
 ### IcebergSourceDeepNestedParquetDataReadBenchmark
-A benchmark that evaluates column pruning when reading single leaves at different depths of a wide nested struct. It also reports bytes read per operation on Linux. To run this benchmark:
+A benchmark that evaluates column pruning when reading single leaves at different depths of a wide nested struct. `IcebergSourceNestedParquetDataReadBenchmark` also reads a single leaf, but at depth 1 with three sibling columns, so it cannot show a deep leaf reading its whole intermediate struct. Bytes read per op are reported as a `bytes` counter on Linux: each measured invocation reads one op, so `scorePercentiles` holds per-op bytes and the score is their sum. To run this benchmark:
 
 `./gradlew -DsparkVersions=4.1 -DscalaVersion=2.13 :iceberg-spark:iceberg-spark-4.1_2.13:jmh -PjmhIncludeRegex=IcebergSourceDeepNestedParquetDataReadBenchmark -PjmhOutputPath=benchmark/iceberg-source-deep-nested-parquet-data-read-benchmark-result.txt`
 

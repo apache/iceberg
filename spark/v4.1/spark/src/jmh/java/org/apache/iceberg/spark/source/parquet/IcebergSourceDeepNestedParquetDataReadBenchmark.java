@@ -39,19 +39,24 @@ import org.apache.iceberg.spark.source.IcebergSourceBenchmark;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.openjdk.jmh.annotations.AuxCounters;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Level;
+import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Reads single leaves at different depths of a wide nested struct. A pruned read of a deep leaf
- * should cost close to {@link #readId()}, and selecting a struct should read all of it.
+ * Reads single leaves at different depths of a wide nested struct, plus struct selections. Pruning
+ * shows up in the bytes read per op: a depth-3 long leaf costs about as much as the top-level long,
+ * and orders of magnitude less than the enclosing struct.
  */
-@Fork(value = 1, jvmArgsAppend = "--add-opens=java.base/java.nio=ALL-UNNAMED")
+@Fork(1)
 public class IcebergSourceDeepNestedParquetDataReadBenchmark extends IcebergSourceBenchmark {
 
   private static final Logger LOG =
@@ -59,8 +64,10 @@ public class IcebergSourceDeepNestedParquetDataReadBenchmark extends IcebergSour
   private static final int NUM_FILES = 10;
   private static final long NUM_ROWS = 100_000L;
   private static final int NUM_WIDE = 8;
+  // the smallest arm reads a compressed long column, which is well above this
+  private static final long MIN_BYTES_PER_OP = 64 * 1024;
 
-  private final Map<String, long[]> bytesReadByArm = Maps.newConcurrentMap();
+  private boolean countersUnavailable = false;
 
   @Override
   protected Configuration initHadoopConf() {
@@ -117,57 +124,69 @@ public class IcebergSourceDeepNestedParquetDataReadBenchmark extends IcebergSour
 
   @TearDown
   public void tearDownBenchmark() throws IOException {
-    bytesReadByArm.forEach(
-        (arm, stats) -> LOG.info("{}: {} bytes read per op", arm, stats[0] / stats[1]));
     tearDownSpark();
     cleanupFiles();
   }
 
   @Benchmark
   @Threads(1)
-  public void readId() {
-    read("readId", "id");
+  public void readId(BytesReadCounters counters) {
+    read("readId", counters, "id");
   }
 
   @Benchmark
   @Threads(1)
-  public void readDepth1Leaf() {
-    read("readDepth1Leaf", "person.name");
+  public void readDepth1Leaf(BytesReadCounters counters) {
+    read("readDepth1Leaf", counters, "person.name");
   }
 
   @Benchmark
   @Threads(1)
-  public void readDepth2Leaf() {
-    read("readDepth2Leaf", "person.home_address.city");
+  public void readDepth2Leaf(BytesReadCounters counters) {
+    read("readDepth2Leaf", counters, "person.home_address.city");
   }
 
   @Benchmark
   @Threads(1)
-  public void readDepth3Leaf() {
-    read("readDepth3Leaf", "person.l2.l3.leaf");
+  public void readDepth3Leaf(BytesReadCounters counters) {
+    read("readDepth3Leaf", counters, "person.l2.l3.leaf");
   }
 
   @Benchmark
   @Threads(1)
-  public void readStructAndChild() {
-    read("readStructAndChild", "person.l2", "person.l2.x");
+  public void readStructAndChild(BytesReadCounters counters) {
+    read("readStructAndChild", counters, "person.l2", "person.l2.x");
   }
 
   @Benchmark
   @Threads(1)
-  public void readWholeStruct() {
-    read("readWholeStruct", "person");
+  public void readWholeStruct(BytesReadCounters counters) {
+    read("readWholeStruct", counters, "person");
   }
 
-  private void read(String arm, String... columns) {
+  private void read(String arm, BytesReadCounters counters, String... columns) {
     long before = bytesRead();
     Dataset<Row> df = spark().read().format("iceberg").load(table().location()).selectExpr(columns);
     materialize(df);
     long after = bytesRead();
-    if (before >= 0 && after >= 0) {
-      long[] stats = bytesReadByArm.computeIfAbsent(arm, k -> new long[2]);
-      stats[0] += after - before;
-      stats[1] += 1;
+
+    if (before < 0 || after < 0) {
+      if (!countersUnavailable) {
+        countersUnavailable = true;
+        LOG.warn(
+            "bytes read per op unavailable: /proc/self/io is unreadable, timing is unaffected");
+      }
+      return;
+    }
+
+    counters.bytes = after - before;
+    if (counters.bytes < MIN_BYTES_PER_OP) {
+      throw new IllegalStateException(
+          String.format(
+              Locale.ROOT,
+              "%s read %d bytes, the counter did not observe the read",
+              arm,
+              counters.bytes));
     }
   }
 
@@ -220,8 +239,20 @@ public class IcebergSourceDeepNestedParquetDataReadBenchmark extends IcebergSour
         randomString(prefix + "z"));
   }
 
-  // 64 hex chars that differ per row and column, so dictionary encoding cannot shrink them
+  // 64 hex chars that differ per row, so compression cannot shrink the pages they sit in
   private static String randomString(String salt) {
     return String.format(Locale.ROOT, "sha2(concat('%s', CAST(id AS STRING)), 256)", salt);
+  }
+
+  @AuxCounters(AuxCounters.Type.EVENTS)
+  @State(Scope.Thread)
+  @SuppressWarnings("checkstyle:VisibilityModifier")
+  public static class BytesReadCounters {
+    public long bytes;
+
+    @Setup(Level.Invocation)
+    public void reset() {
+      bytes = 0;
+    }
   }
 }
