@@ -542,8 +542,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   }
 
   private void encryptionPropsFromMetadata(Map<String, String> tableProperties) {
-    // Encryption properties of an existing table come from HMS. Uncommitted metadata only
-    // configures encryption for a table that is being created.
+    // HMS holds the trusted encryption properties of an existing table, loaded in doRefresh.
+    // Uncommitted metadata only sets them for a table being created, so a rejected commit
+    // can't change them.
     if (currentMetadataLocation() != null) {
       return;
     }
