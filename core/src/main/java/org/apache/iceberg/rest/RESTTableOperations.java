@@ -21,11 +21,9 @@ package org.apache.iceberg.rest;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
@@ -48,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
@@ -404,27 +403,19 @@ class RESTTableOperations implements TableOperations {
               TableProperties.ENCRYPTION_DEK_LENGTH,
               TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
 
-      // Active transactions may still need keys that are not in committed metadata.
-      Iterable<EncryptedKey> retainedKeys =
+      // Open transactions may still need keys that are not in committed metadata. After an
+      // earlier refresh discarded the manager, those keys are only in encryptedKeys.
+      Iterable<EncryptedKey> knownKeys =
           encryptionManager != null
               ? EncryptionUtil.encryptionKeys(encryptionManager).values()
               : encryptedKeys;
-      encryptedKeys =
-          Optional.ofNullable(metadata.encryptionKeys())
-              .map(Lists::newLinkedList)
-              .orElseGet(Lists::newLinkedList);
-
-      Set<String> keyIdsFromMetadata =
-          encryptedKeys.stream().map(EncryptedKey::keyId).collect(Collectors.toSet());
-
-      for (EncryptedKey retainedKey : retainedKeys) {
-        if (!keyIdsFromMetadata.contains(retainedKey.keyId())) {
-          encryptedKeys.add(retainedKey);
-        }
-      }
+      Map<String, EncryptedKey> keysById = Maps.newLinkedHashMap();
+      metadata.encryptionKeys().forEach(key -> keysById.put(key.keyId(), key));
+      knownKeys.forEach(key -> keysById.putIfAbsent(key.keyId(), key));
+      encryptedKeys = List.copyOf(keysById.values());
     }
 
-    // Force re-creation of encryption manager
+    // Force re-creation of encryption manager with updated keys
     encryptingFileIO = null;
     encryptionManager = null;
   }
