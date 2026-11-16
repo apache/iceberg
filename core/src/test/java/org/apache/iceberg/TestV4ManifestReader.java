@@ -160,6 +160,11 @@ class TestV4ManifestReader {
 
   private static final InMemoryFileIO IO = new InMemoryFileIO();
 
+  static {
+    // avoid failing that file doesn't exist for tests that do not read
+    IO.addFile(UNREAD_MANIFEST_FILE.path(), new byte[0]);
+  }
+
   private static final ColumnFile COLUMN_FILE_1 =
       columnFile(
           "s3a://bucket/column_file_1.parquet",
@@ -1726,8 +1731,12 @@ class TestV4ManifestReader {
   @Test
   public void validationUnknownManifestFormatFailure() {
     ManifestFile fileWithoutFormat = Mockito.mock(ManifestFile.class);
+    Mockito.when(fileWithoutFormat.path()).thenReturn("manifest");
     Mockito.when(fileWithoutFormat.formatVersion()).thenReturn(4);
     Mockito.when(fileWithoutFormat.content()).thenReturn(ManifestContent.DATA);
+
+    // create the file
+    IO.addFile("manifest", new byte[0]);
 
     assertThatThrownBy(
             () ->
@@ -1739,6 +1748,7 @@ class TestV4ManifestReader {
   @Test
   public void validationUnknownFormatVersionFailure() {
     ManifestFile v3File = Mockito.mock(ManifestFile.class);
+    Mockito.when(v3File.path()).thenReturn(FileFormat.PARQUET.addExtension("manifest"));
     Mockito.when(v3File.formatVersion()).thenReturn(3);
     Mockito.when(v3File.content()).thenReturn(ManifestContent.DATA);
 
@@ -1751,6 +1761,7 @@ class TestV4ManifestReader {
   @Test
   public void validationDeleteManifestFailure() {
     ManifestFile v3File = Mockito.mock(ManifestFile.class);
+    Mockito.when(v3File.path()).thenReturn(FileFormat.PARQUET.addExtension("manifest"));
     Mockito.when(v3File.formatVersion()).thenReturn(4);
     Mockito.when(v3File.content()).thenReturn(ManifestContent.DELETES);
 

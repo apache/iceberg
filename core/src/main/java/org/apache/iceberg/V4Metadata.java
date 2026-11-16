@@ -555,38 +555,16 @@ class V4Metadata {
     private final Map<Integer, StructProjection> partitionProjections;
     private final ContentStatsWrapper statsWrapper;
     private final DeletionVectorWrapper dvWrapper = new DeletionVectorWrapper();
-    private final ManifestInfoWrapper manifestInfoWrapper;
     private final List<ColumnFileWrapper> columnFileWrappers = Lists.newArrayList();
-
-    private TrackedFile wrapped = null;
-    private TrackingWrapper trackingWrapper = null;
-    private Integer specId = null;
 
     private TrackedFileWrapper(
         Map<Integer, PartitionSpec> specsById,
         Types.StructType partitionType,
-        Types.StructType contentStatsType,
-        ManifestInfoWrapper manifestInfo) {
+        Types.StructType contentStatsType) {
       validatePartitionType(specsById.values(), partitionType);
       this.specsById = specsById;
       this.partitionProjections = partitionProjections(specsById.values(), partitionType);
       this.statsWrapper = new ContentStatsWrapper(contentStatsType);
-      this.manifestInfoWrapper = manifestInfo;
-    }
-
-    protected void wrapInternal(TrackedFile file, TrackingWrapper wrappedTracking) {
-      validateTypeSpecificMetadata(file);
-
-      this.wrapped = file;
-      this.trackingWrapper = wrappedTracking;
-
-      Integer fileSpecId = file.specId();
-      PartitionSpec spec = fileSpecId != null ? specsById.get(fileSpecId) : null;
-      Preconditions.checkArgument(
-          fileSpecId == null || spec != null,
-          "Cannot find partition spec for spec ID: %s",
-          fileSpecId);
-      this.specId = spec != null && !spec.isUnpartitioned() ? fileSpecId : null;
     }
 
     @Override
@@ -601,32 +579,12 @@ class V4Metadata {
 
     @Override
     public <T> T get(int pos, Class<T> javaClass) {
-      return javaClass.cast(get(pos));
+      return javaClass.cast(getInternal(pos));
     }
 
-    private Object get(int pos) {
-      return switch (pos) {
-        case 0 -> trackingWrapper;
-        case 1 -> wrapped.contentType().id();
-        case 2 -> wrapped.location();
-        case 3 -> wrapped.fileFormat().toString();
-        case 4 -> wrapped.recordCount();
-        case 5 -> wrapped.fileSizeInBytes();
-        case 6 -> specId;
-        case 7 -> unionPartition();
-        case 8 -> statsWrapper.wrap(wrapped.contentStats());
-        case 9 -> wrapped.tightStats();
-        case 10 -> wrapped.sortOrderId();
-        case 11 -> dvWrapper.wrap(wrapped.deletionVector());
-        case 12 -> manifestInfoWrapper.wrap(wrapped.manifestInfo());
-        case 13 -> wrapped.keyMetadata();
-        case 14 -> wrapped.splitOffsets();
-        case 15 -> wrapColumnFiles(wrapped.columnFiles());
-        default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-      };
-    }
+    protected abstract Object getInternal(int pos);
 
-    private List<ColumnFileWrapper> wrapColumnFiles(List<ColumnFile> columnFiles) {
+    protected List<ColumnFileWrapper> wrapColumnFiles(List<ColumnFile> columnFiles) {
       if (columnFiles == null) {
         return null;
       }
@@ -642,7 +600,45 @@ class V4Metadata {
       return columnFileWrappers.subList(0, columnFiles.size());
     }
 
-    protected void validateTypeSpecificMetadata(TrackedFile file) {
+    protected Integer specId(TrackedFile file) {
+      Integer fileSpecId = file.specId();
+      if (file.specId() != null) {
+        PartitionSpec spec = specsById.get(fileSpecId);
+        return spec.isUnpartitioned() ? null : fileSpecId;
+      }
+
+      return null;
+    }
+
+    protected StructLike unionPartition(TrackedFile file) {
+      Integer specId = specId(file);
+      if (specId != null) {
+        StructProjection projection = partitionProjections.get(specId);
+        // projection is null when the spec's partition type already matches the union type
+        return projection != null ? projection.wrap(file.partition()) : file.partition();
+      }
+
+      return null;
+    }
+
+    protected ContentStatsWrapper wrapStats(ContentStats stats) {
+      return statsWrapper.wrap(stats);
+    }
+
+    protected DeletionVectorWrapper wrapDV(DeletionVector dv) {
+      return dvWrapper.wrap(dv);
+    }
+
+    protected void validatePartitionSpecId(TrackedFile file) {
+      Integer fileSpecId = file.specId();
+      if (fileSpecId != null) {
+        PartitionSpec spec = specsById.get(fileSpecId);
+        Preconditions.checkArgument(
+            spec != null, "Cannot find partition spec for spec ID: %s", fileSpecId);
+      }
+    }
+
+    protected static void validateTypeSpecificMetadata(TrackedFile file) {
       FileContent content = file.contentType();
       if (content == FileContent.DATA) {
         Preconditions.checkArgument(
@@ -659,16 +655,6 @@ class V4Metadata {
             "Invalid manifest, deletion vector must be null: %s",
             file.location());
       }
-    }
-
-    private StructLike unionPartition() {
-      if (specId == null) {
-        return null;
-      }
-
-      StructProjection projection = partitionProjections.get(specId);
-      // projection is null when the spec's partition type already matches the union type
-      return projection != null ? projection.wrap(wrapped.partition()) : wrapped.partition();
     }
 
     private static void validatePartitionType(
@@ -701,20 +687,44 @@ class V4Metadata {
     }
   }
 
+  static Schema leafManifestSchema(Types.StructType partitionType, Types.StructType statsType) {
+    return new Schema(
+        Types.NestedField.from(TrackedFile.TRACKING).ofType(LEAF_TRACKING_TYPE).build(),
+        TrackedFile.CONTENT_TYPE,
+        TrackedFile.LOCATION,
+        TrackedFile.FILE_FORMAT,
+        TrackedFile.RECORD_COUNT,
+        TrackedFile.FILE_SIZE_IN_BYTES,
+        TrackedFile.SPEC_ID,
+        Types.NestedField.optional(
+            TrackedFile.PARTITION_ID,
+            TrackedFile.PARTITION_NAME,
+            partitionType.fields().isEmpty() ? Types.UnknownType.get() : partitionType,
+            TrackedFile.PARTITION_DOC),
+        Types.NestedField.optional(
+            TrackedFile.CONTENT_STATS_ID,
+            TrackedFile.CONTENT_STATS_NAME,
+            statsType.fields().isEmpty() ? Types.UnknownType.get() : statsType,
+            TrackedFile.CONTENT_STATS_DOC),
+        TrackedFile.TIGHT_STATS,
+        TrackedFile.SORT_ORDER_ID,
+        Types.NestedField.from(TrackedFile.DELETION_VECTOR).ofType(DELETION_VECTOR_TYPE).build(),
+        TrackedFile.KEY_METADATA,
+        TrackedFile.SPLIT_OFFSETS,
+        Types.NestedField.from(TrackedFile.COLUMN_FILES).ofType(COLUMN_FILES_LIST_TYPE).build());
+  }
+
   /** Wrapper used to write a data file to a v4 leaf manifest. */
   static class LeafTrackedFileWrapper extends TrackedFileWrapper {
     private final LeafTrackingWrapper trackingWrapper;
+    private TrackedFile wrapped;
 
     LeafTrackedFileWrapper(
         Long snapshotId,
         Map<Integer, PartitionSpec> specsById,
         Types.StructType partitionType,
         Types.StructType contentStatsType) {
-      super(
-          specsById,
-          partitionType,
-          contentStatsType,
-          new ManifestInfoWrapper(null /* sequence numbers are inherited */));
+      super(specsById, partitionType, contentStatsType);
       this.trackingWrapper = new LeafTrackingWrapper(snapshotId);
     }
 
@@ -727,8 +737,11 @@ class V4Metadata {
           file.contentType());
 
       validateFirstRowId(file, tracking);
+      validateTypeSpecificMetadata(file);
+      validatePartitionSpecId(file);
 
-      wrapInternal(file, trackingWrapper.wrap(tracking));
+      this.wrapped = file;
+      trackingWrapper.wrap(tracking);
 
       return this;
     }
@@ -747,11 +760,63 @@ class V4Metadata {
             file.location());
       }
     }
+
+    @Override
+    protected Object getInternal(int pos) {
+      return switch (pos) {
+        case 0 -> trackingWrapper;
+        case 1 -> wrapped.contentType().id();
+        case 2 -> wrapped.location();
+        case 3 -> wrapped.fileFormat().toString();
+        case 4 -> wrapped.recordCount();
+        case 5 -> wrapped.fileSizeInBytes();
+        case 6 -> specId(wrapped);
+        case 7 -> unionPartition(wrapped);
+        case 8 -> wrapStats(wrapped.contentStats());
+        case 9 -> wrapped.tightStats();
+        case 10 -> wrapped.sortOrderId();
+        case 11 -> wrapDV(wrapped.deletionVector());
+        case 12 -> wrapped.keyMetadata();
+        case 13 -> wrapped.splitOffsets();
+        case 14 -> wrapColumnFiles(wrapped.columnFiles());
+        default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      };
+    }
+  }
+
+  static Schema rootManifestSchema(Types.StructType partitionType, Types.StructType statsType) {
+    return new Schema(
+        Types.NestedField.from(TrackedFile.TRACKING).ofType(ROOT_TRACKING_TYPE).build(),
+        TrackedFile.CONTENT_TYPE,
+        TrackedFile.LOCATION,
+        TrackedFile.FILE_FORMAT,
+        TrackedFile.RECORD_COUNT,
+        TrackedFile.FILE_SIZE_IN_BYTES,
+        TrackedFile.SPEC_ID,
+        Types.NestedField.optional(
+            TrackedFile.PARTITION_ID,
+            TrackedFile.PARTITION_NAME,
+            partitionType.fields().isEmpty() ? Types.UnknownType.get() : partitionType,
+            TrackedFile.PARTITION_DOC),
+        Types.NestedField.optional(
+            TrackedFile.CONTENT_STATS_ID,
+            TrackedFile.CONTENT_STATS_NAME,
+            statsType.fields().isEmpty() ? Types.UnknownType.get() : statsType,
+            TrackedFile.CONTENT_STATS_DOC),
+        TrackedFile.TIGHT_STATS,
+        TrackedFile.SORT_ORDER_ID,
+        Types.NestedField.from(TrackedFile.DELETION_VECTOR).ofType(DELETION_VECTOR_TYPE).build(),
+        Types.NestedField.from(TrackedFile.MANIFEST_INFO).ofType(MANIFEST_INFO_TYPE).build(),
+        TrackedFile.KEY_METADATA,
+        TrackedFile.SPLIT_OFFSETS,
+        Types.NestedField.from(TrackedFile.COLUMN_FILES).ofType(COLUMN_FILES_LIST_TYPE).build());
   }
 
   /** Wrapper used to write a data file or leaf manifest to a v4 root manifest. */
   static class RootTrackedFileWrapper extends TrackedFileWrapper {
     private final RootTrackingWrapper trackingWrapper;
+    private final ManifestInfoWrapper manifestInfoWrapper;
+    private TrackedFile wrapped;
 
     RootTrackedFileWrapper(
         long commitSnapshotId,
@@ -759,12 +824,9 @@ class V4Metadata {
         Map<Integer, PartitionSpec> specsById,
         Types.StructType partitionType,
         Types.StructType contentStatsType) {
-      super(
-          specsById,
-          partitionType,
-          contentStatsType,
-          new ManifestInfoWrapper(commitSequenceNumber));
+      super(specsById, partitionType, contentStatsType);
       this.trackingWrapper = new RootTrackingWrapper(commitSnapshotId, commitSequenceNumber);
+      this.manifestInfoWrapper = new ManifestInfoWrapper(commitSequenceNumber);
     }
 
     RootTrackedFileWrapper wrap(TrackedFile file, Tracking tracking, Long assignedFirstRowId) {
@@ -778,10 +840,36 @@ class V4Metadata {
           file.contentType());
 
       validateFirstRowId(file, tracking, assignedFirstRowId);
+      validateTypeSpecificMetadata(file);
+      validatePartitionSpecId(file);
 
-      wrapInternal(file, trackingWrapper.wrap(tracking, assignedFirstRowId, file.location()));
+      this.wrapped = file;
+      trackingWrapper.wrap(tracking, assignedFirstRowId, file.location());
 
       return this;
+    }
+
+    @Override
+    protected Object getInternal(int pos) {
+      return switch (pos) {
+        case 0 -> trackingWrapper;
+        case 1 -> wrapped.contentType().id();
+        case 2 -> wrapped.location();
+        case 3 -> wrapped.fileFormat().toString();
+        case 4 -> wrapped.recordCount();
+        case 5 -> wrapped.fileSizeInBytes();
+        case 6 -> specId(wrapped);
+        case 7 -> unionPartition(wrapped);
+        case 8 -> wrapStats(wrapped.contentStats());
+        case 9 -> wrapped.tightStats();
+        case 10 -> wrapped.sortOrderId();
+        case 11 -> wrapDV(wrapped.deletionVector());
+        case 12 -> manifestInfoWrapper.wrap(wrapped.manifestInfo());
+        case 13 -> wrapped.keyMetadata();
+        case 14 -> wrapped.splitOffsets();
+        case 15 -> wrapColumnFiles(wrapped.columnFiles());
+        default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      };
     }
 
     private static void validateFirstRowId(
@@ -821,6 +909,26 @@ class V4Metadata {
       }
     }
   }
+
+  private static final Types.StructType ROOT_TRACKING_TYPE =
+      Types.StructType.of(
+          Tracking.STATUS,
+          Tracking.SNAPSHOT_ID,
+          Tracking.SEQUENCE_NUMBER,
+          Tracking.FILE_SEQUENCE_NUMBER,
+          Tracking.MODIFIED_SNAPSHOT_ID,
+          Tracking.FIRST_ROW_ID,
+          Tracking.DELETED_POSITIONS,
+          Tracking.REPLACED_POSITIONS);
+
+  private static final Types.StructType LEAF_TRACKING_TYPE =
+      Types.StructType.of(
+          Tracking.STATUS,
+          Tracking.SNAPSHOT_ID,
+          Tracking.SEQUENCE_NUMBER,
+          Tracking.FILE_SEQUENCE_NUMBER,
+          Tracking.MODIFIED_SNAPSHOT_ID,
+          Tracking.FIRST_ROW_ID);
 
   /** Wrapper used to write {@link Tracking} using the v4 tracking schema. */
   private static class TrackingWrapper implements StructLike {
@@ -935,6 +1043,22 @@ class V4Metadata {
     }
   }
 
+  private static final Types.StructType MANIFEST_INFO_TYPE =
+      Types.StructType.of(
+          ManifestInfo.ADDED_FILES_COUNT,
+          ManifestInfo.EXISTING_FILES_COUNT,
+          ManifestInfo.DELETED_FILES_COUNT,
+          ManifestInfo.REPLACED_FILES_COUNT,
+          ManifestInfo.MODIFIED_FILES_COUNT,
+          ManifestInfo.ADDED_ROWS_COUNT,
+          ManifestInfo.EXISTING_ROWS_COUNT,
+          ManifestInfo.DELETED_ROWS_COUNT,
+          ManifestInfo.REPLACED_ROWS_COUNT,
+          ManifestInfo.MODIFIED_ROWS_COUNT,
+          ManifestInfo.MIN_SEQUENCE_NUMBER,
+          ManifestInfo.DV,
+          ManifestInfo.FORMAT_VERSION);
+
   /** Wrapper used to write {@link ManifestInfo} using the v4 manifest info schema. */
   private static class ManifestInfoWrapper implements StructLike {
     private static final int SIZE = ManifestInfo.schema().fields().size();
@@ -1003,6 +1127,14 @@ class V4Metadata {
     }
   }
 
+  private static final Types.StructType DELETION_VECTOR_TYPE =
+      Types.StructType.of(
+          DeletionVector.LOCATION,
+          DeletionVector.OFFSET,
+          DeletionVector.SIZE_IN_BYTES,
+          DeletionVector.CARDINALITY,
+          DeletionVector.KEY_METADATA);
+
   /** Wrapper used to write {@link DeletionVector} using the v4 deletion vector schema. */
   private static class DeletionVectorWrapper implements StructLike {
     private static final int SIZE = DeletionVector.schema().fields().size();
@@ -1045,6 +1177,18 @@ class V4Metadata {
       };
     }
   }
+
+  private static final Types.StructType COLUMN_FILE_TYPE =
+      Types.StructType.of(
+          ColumnFile.LOCATION,
+          ColumnFile.FIELD_IDS,
+          ColumnFile.FILE_FORMAT,
+          ColumnFile.FILE_SIZE_IN_BYTES,
+          ColumnFile.KEY_METADATA);
+
+  private static final Types.ListType COLUMN_FILES_LIST_TYPE =
+      Types.ListType.ofRequired(
+          TrackedFile.COLUMN_FILES.type().asListType().elementId(), COLUMN_FILE_TYPE);
 
   /** Wrapper used to write {@link ColumnFile} using the v4 column file schema. */
   private static class ColumnFileWrapper implements StructLike {
