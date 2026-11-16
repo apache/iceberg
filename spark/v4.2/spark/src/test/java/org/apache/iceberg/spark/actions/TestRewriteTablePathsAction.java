@@ -115,7 +115,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
   @Parameters(name = "formatVersion = {0}")
   protected static List<Integer> formatVersions() {
-    return TestHelpers.V2_AND_ABOVE;
+    return TestHelpers.V2_AND_V3;
   }
 
   @Parameter private int formatVersion;
@@ -999,7 +999,6 @@ public class TestRewriteTablePathsAction extends TestBase {
 
   @TestTemplate
   public void testFullTableRewritePathWithDeletedVersionFiles() throws Exception {
-    assumeThat(formatVersion).isLessThan(4);
     String location = newTableLocation();
     Table sourceTable = createTableWithSnapshots(location, 2);
     // expire the first snapshot
@@ -1059,7 +1058,6 @@ public class TestRewriteTablePathsAction extends TestBase {
 
   @TestTemplate
   public void testExpireSnapshotBeforeRewrite() throws Exception {
-    assumeThat(formatVersion).isLessThan(4);
     // expire one snapshot
     actions().expireSnapshots(table).expireSnapshotId(table.currentSnapshot().parentId()).execute();
 
@@ -1075,7 +1073,6 @@ public class TestRewriteTablePathsAction extends TestBase {
 
   @TestTemplate
   public void testRewritePathWithNonLiveEntry() throws Exception {
-    assumeThat(formatVersion).isLessThan(4);
     String location = newTableLocation();
     // first overwrite generate 1 manifest and 1 data file
     // each subsequent overwrite on unpartitioned table generate 2 manifests and 1 data file
@@ -1145,7 +1142,6 @@ public class TestRewriteTablePathsAction extends TestBase {
 
   @TestTemplate
   public void testStartSnapshotWithoutValidSnapshot() throws Exception {
-    assumeThat(formatVersion).isLessThan(4);
     // expire one snapshot
     actions().expireSnapshots(table).expireSnapshotId(table.currentSnapshot().parentId()).execute();
 
@@ -1165,7 +1161,6 @@ public class TestRewriteTablePathsAction extends TestBase {
 
   @TestTemplate
   public void testMoveTheVersionExpireSnapshot() throws Exception {
-    assumeThat(formatVersion).isLessThan(4);
     // expire one snapshot
     actions().expireSnapshots(table).expireSnapshotId(table.currentSnapshot().parentId()).execute();
 
@@ -1184,7 +1179,6 @@ public class TestRewriteTablePathsAction extends TestBase {
 
   @TestTemplate
   public void testMoveVersionWithInvalidSnapshots() {
-    assumeThat(formatVersion).isLessThan(4);
     // expire one snapshot
     actions().expireSnapshots(table).expireSnapshotId(table.currentSnapshot().parentId()).execute();
 
