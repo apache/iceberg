@@ -318,7 +318,8 @@ public class TestTableEncryption extends CatalogTestBase {
                     "ALTER TABLE %s SET TBLPROPERTIES ('encryption.key-id'='%s')",
                     tableName, UnitestKMS.MASTER_KEY_NAME1))
         .isInstanceOf(SparkException.class)
-        .hasMessage("Unsupported table change: Cannot add key ID to an unencrypted table");
+        .hasMessage(
+            "Unsupported table change: Cannot add key ID to an existing table: set encryption.key-id when creating the table");
   }
 
   @TestTemplate

@@ -308,7 +308,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
         Preconditions.checkArgument(
             base.properties().containsKey(TableProperties.ENCRYPTION_TABLE_KEY)
                 || !metadata.properties().containsKey(TableProperties.ENCRYPTION_TABLE_KEY),
-            "Cannot add key ID to an unencrypted table");
+            "Cannot add key ID to an existing table: set %s when creating the table",
+            TableProperties.ENCRYPTION_TABLE_KEY);
 
         Preconditions.checkArgument(
             Objects.equals(
