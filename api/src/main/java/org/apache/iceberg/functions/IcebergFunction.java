@@ -41,6 +41,22 @@ public interface IcebergFunction<S, T> extends Serializable {
    */
   SerializableFunction<S, T> bind(Type type);
 
+  /**
+   * Returns a function that applies this projection to values of the given {@link Type} using the
+   * given salt.
+   *
+   * @throws IllegalArgumentException if the type is not supported or the salt is invalid.
+   * @throws UnsupportedOperationException if this function does not accept a salt.
+   */
+  default SerializableFunction<S, T> bind(Type type, byte[] salt) {
+    throw new UnsupportedOperationException(this + " does not accept a salt");
+  }
+
+  /** Returns true if this function must be bound with a salt using {@link #bind(Type, byte[])}. */
+  default boolean isSalted() {
+    return false;
+  }
+
   /** Returns true if this function can be bound to the given {@link Type}. */
   boolean canBind(Type type);
 }

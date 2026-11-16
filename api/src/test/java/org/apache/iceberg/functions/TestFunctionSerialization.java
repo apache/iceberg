@@ -82,9 +82,7 @@ class TestFunctionSerialization {
       for (IcebergFunction<?, ?> function : FUNCTIONS) {
         if (function.canBind(type)) {
           SerializableFunction<?, ?> func =
-              function instanceof SaltedFunction
-                  ? ((SaltedFunction<?, ?>) function).bind(type, salt)
-                  : function.bind(type);
+              function.isSalted() ? function.bind(type, salt) : function.bind(type);
           assertThat(func).isInstanceOf(TestHelpers.roundTripSerialize(func).getClass());
         }
       }

@@ -54,6 +54,13 @@ public class TestIcebergFunctions {
   }
 
   @Test
+  public void maskAlphanumSupplementaryCharacter() {
+    SerializableFunction<CharSequence, CharSequence> fn =
+        IcebergFunctions.maskAlphanum().bind(Types.StringType.get());
+    assertThat(fn.apply("a😀1")).isEqualTo("xxn");
+  }
+
+  @Test
   public void maskAlphanumNullInNullOut() {
     SerializableFunction<CharSequence, CharSequence> fn =
         IcebergFunctions.maskAlphanum().bind(Types.StringType.get());
@@ -100,6 +107,13 @@ public class TestIcebergFunctions {
   }
 
   @Test
+  public void showFirst4CountsSupplementaryCharactersOnce() {
+    SerializableFunction<CharSequence, CharSequence> fn =
+        IcebergFunctions.showFirst4().bind(Types.StringType.get());
+    assertThat(fn.apply("😀b😀d1")).isEqualTo("😀b😀dn");
+  }
+
+  @Test
   public void showFirst4FourOrFewerReturnsString() {
     SerializableFunction<CharSequence, CharSequence> fn =
         IcebergFunctions.showFirst4().bind(Types.StringType.get());
@@ -119,6 +133,13 @@ public class TestIcebergFunctions {
         IcebergFunctions.showLast4().bind(Types.StringType.get());
     assertThat(fn.apply("abcd")).isEqualTo("abcd");
     assertThat(fn.apply("ab")).isEqualTo("ab");
+  }
+
+  @Test
+  public void showLast4CountsSupplementaryCharactersOnce() {
+    SerializableFunction<CharSequence, CharSequence> fn =
+        IcebergFunctions.showLast4().bind(Types.StringType.get());
+    assertThat(fn.apply("1😀b😀d")).isEqualTo("n😀b😀d");
   }
 
   @Test
@@ -373,6 +394,14 @@ public class TestIcebergFunctions {
   }
 
   @Test
+  public void bindWithSaltOnUnsaltedFunctionIsUnsupported() {
+    assertThatThrownBy(
+            () -> IcebergFunctions.sha256Global().bind(Types.StringType.get(), new byte[16]))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("does not accept a salt");
+  }
+
+  @Test
   public void sha256QueryLocalDiffersWithDifferentSalt() {
     byte[] saltA = new byte[16];
     byte[] saltB = new byte[16];
@@ -475,10 +504,9 @@ public class TestIcebergFunctions {
   }
 
   @Test
-  public void fromStringReturnsSaltedFunctionForQueryLocalSha256() {
-    assertThat(IcebergFunctions.fromString("sha-256-query-local"))
-        .isInstanceOf(SaltedFunction.class);
-    assertThat(IcebergFunctions.fromString("sha-256-global")).isNotInstanceOf(SaltedFunction.class);
+  public void onlyQueryLocalSha256IsSalted() {
+    assertThat(IcebergFunctions.fromString("sha-256-query-local").isSalted()).isTrue();
+    assertThat(IcebergFunctions.fromString("sha-256-global").isSalted()).isFalse();
   }
 
   @Test

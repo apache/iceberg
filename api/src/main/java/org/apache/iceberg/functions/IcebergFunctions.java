@@ -93,8 +93,8 @@ public class IcebergFunctions {
     return Sha256Global.get();
   }
 
-  /** Returns a {@code sha-256-query-local} {@link SaltedFunction}, salted per query. */
-  public static <T> SaltedFunction<T, T> sha256QueryLocal() {
+  /** Returns a {@code sha-256-query-local} {@link IcebergFunction}, salted per query. */
+  public static <T> IcebergFunction<T, T> sha256QueryLocal() {
     return Sha256QueryLocal.get();
   }
 }
