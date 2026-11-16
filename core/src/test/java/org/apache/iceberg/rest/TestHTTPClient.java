@@ -45,6 +45,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
@@ -92,7 +93,7 @@ public class TestHTTPClient {
   private static final int PORT = 1080;
   private static final String BEARER_AUTH_TOKEN = "auth_token";
   private static final String USER_AGENT = "User-Agent";
-  private static final String TEST_USER_AGENT = "Test-User-Agent/1.0";
+  private static final String TEST_USER_AGENT = "Test-User-Agent";
   private static final String ICEBERG_JAVA_USER_AGENT =
       "iceberg-java/"
           + IcebergBuild.version()
@@ -142,8 +143,11 @@ public class TestHTTPClient {
   @Test
   public void testDefaultUserAgent() throws IOException {
     String path = "default-user-agent";
+    // MockServer matches header values as regular expressions
     HttpRequest mockRequest =
-        request("/" + path).withMethod("HEAD").withHeader(USER_AGENT, ICEBERG_JAVA_USER_AGENT);
+        request("/" + path)
+            .withMethod("HEAD")
+            .withHeader(USER_AGENT, Pattern.quote(ICEBERG_JAVA_USER_AGENT));
     mockServer.when(mockRequest, Times.exactly(1)).respond(response().withStatusCode(200));
 
     try (RESTClient client =
@@ -152,6 +156,54 @@ public class TestHTTPClient {
     }
 
     mockServer.verify(mockRequest, VerificationTimes.exactly(1));
+  }
+
+  @Test
+  public void testUserAgentPrefix() throws IOException {
+    String path = "user-agent-prefix";
+    HttpRequest mockRequest =
+        request("/" + path)
+            .withMethod("HEAD")
+            .withHeader(USER_AGENT, Pattern.quote("MyApp/1.0 " + ICEBERG_JAVA_USER_AGENT));
+    mockServer.when(mockRequest, Times.exactly(1)).respond(response().withStatusCode(200));
+
+    try (RESTClient client =
+        HTTPClient.builder(ImmutableMap.of(HTTPClient.REST_USER_AGENT_PREFIX, "MyApp/1.0"))
+            .uri(URI)
+            .withAuthSession(AuthSession.EMPTY)
+            .build()) {
+      client.head(path, ImmutableMap.of(), ErrorHandlers.defaultErrorHandler());
+    }
+
+    mockServer.verify(mockRequest, VerificationTimes.exactly(1));
+  }
+
+  @Test
+  public void testUserAgentOverrideTakesPrecedenceOverPrefix() {
+    assertThat(HTTPClient.userAgent("Custom/1.0", "MyApp/1.0")).isEqualTo("Custom/1.0");
+  }
+
+  @Test
+  public void testUserAgentPrefixIsStripped() {
+    assertThat(HTTPClient.userAgent(null, "  MyApp/1.0 "))
+        .isEqualTo("MyApp/1.0 " + ICEBERG_JAVA_USER_AGENT);
+    assertThat(HTTPClient.userAgent(null, "   ")).isEqualTo(ICEBERG_JAVA_USER_AGENT);
+  }
+
+  @Test
+  public void testUserAgentRejectsInvisibleCharacters() {
+    assertThatThrownBy(() -> HTTPClient.userAgent("Custom/1.0\u0001", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid rest.client.user-agent: only visible ASCII characters and spaces are allowed");
+    assertThatThrownBy(() -> HTTPClient.userAgent(null, "MyApp/1.0 café"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid rest.client.user-agent.prefix: only visible ASCII characters and spaces are allowed");
+    assertThatThrownBy(() -> HTTPClient.userAgent(null, "\t"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid rest.client.user-agent.prefix: only visible ASCII characters and spaces are allowed");
   }
 
   @Test
@@ -739,7 +791,7 @@ public class TestHTTPClient {
             .withHeader("Authorization", "Bearer " + BEARER_AUTH_TOKEN)
             .withHeader(HTTPClient.CLIENT_VERSION_HEADER, icebergBuildFullVersion)
             .withHeader(HTTPClient.CLIENT_GIT_COMMIT_SHORT_HEADER, icebergBuildGitCommitShort)
-            .withHeader(USER_AGENT, TEST_USER_AGENT + " " + ICEBERG_JAVA_USER_AGENT);
+            .withHeader(USER_AGENT, TEST_USER_AGENT);
 
     if (method.usesRequestBody()) {
       mockRequest = mockRequest.withBody(asJson);

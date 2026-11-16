@@ -93,6 +93,7 @@ public class HTTPClient extends BaseHTTPClient {
   static final String REST_PROXY_USERNAME = "rest.client.proxy.username";
   static final String REST_PROXY_PASSWORD = "rest.client.proxy.password";
   static final String REST_USER_AGENT = "rest.client.user-agent";
+  static final String REST_USER_AGENT_PREFIX = "rest.client.user-agent.prefix";
 
   @VisibleForTesting
   static final String REST_CONNECTION_TIMEOUT_MS = "rest.client.connection-timeout-ms";
@@ -133,7 +134,9 @@ public class HTTPClient extends BaseHTTPClient {
         new ExponentialHttpRequestRetryStrategy(maxRetries, keyLifetime));
 
     clientBuilder.setUserAgent(
-        userAgent(PropertyUtil.propertyAsString(properties, REST_USER_AGENT, null)));
+        userAgent(
+            PropertyUtil.propertyAsString(properties, REST_USER_AGENT, null),
+            PropertyUtil.propertyAsString(properties, REST_USER_AGENT_PREFIX, null)));
 
     if (proxy != null) {
       if (proxyCredsProvider != null) {
@@ -167,20 +170,32 @@ public class HTTPClient extends BaseHTTPClient {
     return new HTTPClient(this, session);
   }
 
-  /**
-   * Returns the User-Agent recommended by the REST spec: the caller's product tokens, if any,
-   * followed by the iceberg-java token and the JVM version as a comment.
-   */
   @VisibleForTesting
-  static String userAgent(String callerTokens) {
+  static String userAgent(String override, String prefix) {
+    if (override != null) {
+      checkVisibleAscii(REST_USER_AGENT, override);
+      return override;
+    }
+
+    // the format the REST spec recommends, with the library token after any caller tokens
     String userAgent =
         String.format(
             "iceberg-java/%s (jvm %s)", IcebergBuild.version(), System.getProperty("java.version"));
-    if (callerTokens == null || callerTokens.isBlank()) {
+    if (prefix == null) {
       return userAgent;
     }
 
-    return callerTokens.strip() + " " + userAgent;
+    checkVisibleAscii(REST_USER_AGENT_PREFIX, prefix);
+    String tokens = prefix.strip();
+    return tokens.isEmpty() ? userAgent : tokens + " " + userAgent;
+  }
+
+  // the HTTP client silently replaces other characters with '?'
+  private static void checkVisibleAscii(String property, String value) {
+    Preconditions.checkArgument(
+        value.chars().allMatch(c -> c >= 0x20 && c <= 0x7E),
+        "Invalid %s: only visible ASCII characters and spaces are allowed",
+        property);
   }
 
   @VisibleForTesting
