@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "unmatched": "fail",
+  "writeMode": "strict",
+  "rules": [
+    {
+      "id": "warehouse",
+      "canonical": "s3://warehouse/",
+      "physical": "ofs://om/s3v/warehouse/"
+    },
+    {
+      "id": "special",
+      "canonical": "s3://warehouse/special/",
+      "physical": "ofs://other/s3v/special/"
+    }
+  ],
+  "valid": [
+    {
+      "name": "root",
+      "input": "s3://warehouse/",
+      "expectedPhysical": "ofs://om/s3v/warehouse/",
+      "expectedCanonical": "s3://warehouse/"
+    },
+    {
+      "name": "nested-key",
+      "input": "s3://warehouse/db/t/data/a.parquet",
+      "expectedPhysical": "ofs://om/s3v/warehouse/db/t/data/a.parquet",
+      "expectedCanonical": "s3://warehouse/db/t/data/a.parquet"
+    },
+    {
+      "name": "longest-prefix",
+      "input": "s3://warehouse/special/a.parquet",
+      "expectedPhysical": "ofs://other/s3v/special/a.parquet",
+      "expectedCanonical": "s3://warehouse/special/a.parquet"
+    },
+    {
+      "name": "encoded-and-unicode",
+      "input": "s3://warehouse/a%20b/%2F/雪//c",
+      "expectedPhysical": "ofs://om/s3v/warehouse/a%20b/%2F/雪//c",
+      "expectedCanonical": "s3://warehouse/a%20b/%2F/雪//c"
+    }
+  ],
+  "invalid": [
+    "relative/path",
+    "s3:///missing-authority",
+    "s3://user@warehouse/a",
+    "s3://warehouse/a?token=secret",
+    "s3://warehouse/a#fragment",
+    "s3://warehouse/../secret",
+    "s3://warehouse/%2e%2e/secret",
+    "s3://warehouse/a%2F..%2Fsecret",
+    "s3://warehouse/%ZZ"
+  ]
+}
