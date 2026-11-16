@@ -22,12 +22,12 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
-import org.apache.hadoop.util.Preconditions;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 
 abstract class V4ManifestWriter implements Closeable {
@@ -77,7 +77,7 @@ abstract class V4ManifestWriter implements Closeable {
         snapshotId);
   }
 
-  private final OutputFile file;
+  private final OutputFile output;
   private final EncryptionKeyMetadata keyMetadata;
   private final Schema manifestSchema;
   private final Long snapshotId;
@@ -99,16 +99,16 @@ abstract class V4ManifestWriter implements Closeable {
   private long unassignedRows = 0L;
 
   private V4ManifestWriter(
-      EncryptedOutputFile file,
+      EncryptedOutputFile output,
       Schema manifestSchema,
       Map<String, String> fileMetadata,
       Map<String, String> writerProperties,
       Long snapshotId) {
-    this.file = outputFile(file);
+    this.output = outputFile(output);
     this.manifestSchema = manifestSchema;
-    this.keyMetadata = file.keyMetadata();
+    this.keyMetadata = output.keyMetadata();
     this.snapshotId = snapshotId;
-    this.writer = newAppender(this.file, fileMetadata, writerProperties);
+    this.writer = newAppender(this.output, fileMetadata, writerProperties);
   }
 
   protected abstract StructLike prepare(TrackedFile file, Tracking tracking);
@@ -254,7 +254,7 @@ abstract class V4ManifestWriter implements Closeable {
     return new TrackedFileStruct(
         null,
         FileContent.DATA_MANIFEST,
-        file.location(),
+        output.location(),
         FileFormat.PARQUET,
         recordCount,
         writer.length(),
@@ -274,7 +274,7 @@ abstract class V4ManifestWriter implements Closeable {
     private final V4Metadata.LeafTrackedFileWrapper wrapper;
 
     private LeafWriter(
-        EncryptedOutputFile file,
+        EncryptedOutputFile output,
         Map<Integer, PartitionSpec> specsById,
         Types.StructType partitionType,
         Types.StructType contentStatsType,
@@ -282,7 +282,7 @@ abstract class V4ManifestWriter implements Closeable {
         int tableSchemaId,
         Long snapshotId) {
       super(
-          file,
+          output,
           V4Metadata.leafManifestSchema(partitionType, contentStatsType),
           Map.of(
               "format-version",
@@ -312,7 +312,7 @@ abstract class V4ManifestWriter implements Closeable {
     private long nextRowId;
 
     private RootWriter(
-        EncryptedOutputFile file,
+        EncryptedOutputFile output,
         Map<Integer, PartitionSpec> specsById,
         Types.StructType partitionType,
         Types.StructType contentStatsType,
@@ -322,7 +322,7 @@ abstract class V4ManifestWriter implements Closeable {
         long sequenceNumber,
         long firstRowId) {
       super(
-          file,
+          output,
           V4Metadata.rootManifestSchema(partitionType, contentStatsType),
           Map.of(
               "format-version",
