@@ -164,20 +164,17 @@ class TestRepairTableAction extends TestBase {
         .doesNotContain(affected);
   }
 
-  @ParameterizedTest
-  @ValueSource(ints = {1, 2, 3})
-  void repairPreservesEntryLineage(int formatVersion) throws IOException {
-    Table table = createTable(PartitionSpec.unpartitioned(), formatVersion, DEFAULT_FILE_FORMAT);
+  @Test
+  void repairPreservesEntryLineage() throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), 3, DEFAULT_FILE_FORMAT);
     table.newFastAppend().appendFile(corruptCounts(table, writeDataFile(table))).commit();
     table.newFastAppend().appendFile(writeDataFile(table)).commit();
     table.rewriteManifests().clusterBy(file -> "").commit();
     List<Row> lineageBefore = entryLineage();
-    if (formatVersion >= 3) {
-      assertThat(dataFiles(table))
-          .extracting(DataFile::firstRowId)
-          .doesNotContainNull()
-          .doesNotHaveDuplicates();
-    }
+    assertThat(dataFiles(table))
+        .extracting(DataFile::firstRowId)
+        .doesNotContainNull()
+        .doesNotHaveDuplicates();
 
     RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
 

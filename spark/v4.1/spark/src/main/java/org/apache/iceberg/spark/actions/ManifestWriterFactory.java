@@ -35,7 +35,6 @@ import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.spark.broadcast.Broadcast;
 
-/** Creates the writers that Spark actions use on executors to write new manifests. */
 class ManifestWriterFactory implements Serializable {
   private final Broadcast<Table> tableBroadcast;
   private final int formatVersion;
@@ -59,7 +58,6 @@ class ManifestWriterFactory implements Serializable {
     this.maxManifestSizeBytes = maxManifestSizeBytes;
   }
 
-  /** Returns the location of the table's metadata files, where new manifests go by default. */
   static String defaultOutputLocation(Table table) {
     TableOperations ops = ((HasTableOperations) table).operations();
     Path metadataFilePath = new Path(ops.metadataFileLocation("file"));

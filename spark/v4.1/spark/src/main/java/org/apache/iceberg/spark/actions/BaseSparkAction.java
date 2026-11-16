@@ -90,7 +90,6 @@ abstract class BaseSparkAction<ThisT> {
   protected static final Splitter COMMA_SPLITTER = Splitter.on(",");
   protected static final Joiner COMMA_JOINER = Joiner.on(',');
 
-  // read by withReusableDS; the actions that support it expose these as USE_CACHING constants
   static final String USE_CACHING_OPTION = "use-caching";
   static final boolean USE_CACHING_BY_DEFAULT = false;
 

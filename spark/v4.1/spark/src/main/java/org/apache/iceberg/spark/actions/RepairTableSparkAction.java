@@ -86,8 +86,8 @@ import scala.Tuple2;
  * An action that repairs incorrect statistics in the manifests of a table, rewriting only the
  * manifests that contain an incorrect entry.
  *
- * <p>Deletion vectors are not repaired. NaN counts and floating-point and geometry bounds are kept
- * as stored, because file footers cannot reconstruct them reliably.
+ * <p>Deletion vectors are not repaired. NaN counts and the bounds of float, double, geometry and
+ * geography columns are kept as stored, because file footers cannot reconstruct them reliably.
  */
 public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<RepairTableSparkAction>
     implements RepairTable {
@@ -288,7 +288,6 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
             "left")
         .withColumn("repair", functions.col("repaired_path").isNotNull())
         .drop("repaired_path")
-        // WriteManifests reads these columns by position, see MANIFEST_INDEX
         .select("manifest", "snapshot_id", "data_file.file_path", "repair");
   }
 
@@ -315,7 +314,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
             ? new WriteDataManifests(writers, manifests, context)
             : new WriteDeleteManifests(writers, manifests, context);
 
-    // repartition by manifest so each manifest's entries stay together, keeping the table's layout
+    // keeps the table's layout
     return writeFunc
         .apply(entryDF.repartition(manifests.size(), entryDF.col("manifest")))
         .collectAsList();
@@ -372,7 +371,6 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
         (long) (1.2 * targetManifestSizeBytes));
   }
 
-  /** The outcome of repairing one group of manifests that share a partition spec. */
   private static class RepairedManifests {
     private final List<ManifestFile> repairedManifests;
     private final List<ManifestFile> newManifests;
@@ -663,7 +661,6 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
       }
     }
 
-    /** Rebuilds the file with its expected statistics. */
     private ContentFile<?> repairStats(ContentFile<?> file) {
       long fileSizeInBytes = context.io().newInputFile(file.location()).getLength();
       InputFile input = context.newInputFile(file, fileSizeInBytes);

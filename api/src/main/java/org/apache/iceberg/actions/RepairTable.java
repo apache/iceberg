@@ -34,7 +34,8 @@ public interface RepairTable extends SnapshotUpdate<RepairTable, RepairTable.Res
    * level statistics, by comparing them against the underlying data and delete files.
    *
    * <p>Deletion vectors (delete blobs stored in Puffin files) are not verified or repaired. Metrics
-   * that cannot be reconstructed from files, such as NaN counts and NaN-safe bounds, are preserved.
+   * that cannot be reconstructed from files are kept as stored: NaN counts and the bounds of float,
+   * double, geometry and geography columns.
    *
    * @return this for method chaining
    */
@@ -50,7 +51,7 @@ public interface RepairTable extends SnapshotUpdate<RepairTable, RepairTable.Res
 
   /** The action result that contains a summary of the execution. */
   interface Result {
-    /** Returns the repaired manifests. */
+    /** Returns the manifests that were replaced by repaired copies, or would be in a dry run. */
     Iterable<ManifestFile> repairedManifests();
 
     /** Returns the number of manifest entries that were repaired. */

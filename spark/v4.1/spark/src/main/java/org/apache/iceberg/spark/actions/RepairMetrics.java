@@ -60,7 +60,6 @@ class RepairMetrics {
 
   private RepairMetrics() {}
 
-  /** Returns the name mapping of the table, or null if the table does not define one. */
   static NameMapping nameMapping(Table table) {
     String mapping = table.properties().get(DEFAULT_NAME_MAPPING);
     return mapping != null ? NameMappingParser.fromJson(mapping) : null;
