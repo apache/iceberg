@@ -1470,8 +1470,8 @@ public class TestRewriteTablePathsAction extends TestBase {
         .hasManifests(iterations)
         .hasPartitionStatisticsFiles(iterations)
         .hasContentFiles(iterations)
-        .hasNoOtherFiles()
-        .hasPartitionStatisticsFilesCopiedAsIs(sourceTableLocation, targetTableLocation);
+        .hasPartitionStatisticsFilesCopiedAsIs(sourceTableLocation, targetTableLocation)
+        .hasNoOtherFiles();
   }
 
   @TestTemplate
@@ -1537,8 +1537,8 @@ public class TestRewriteTablePathsAction extends TestBase {
         .hasManifests(1)
         .hasStatisticsFiles(1)
         .hasContentFiles(1)
-        .hasNoOtherFiles()
-        .hasStatisticsFilesCopiedAsIs(sourceTableLocation, targetTableLocation);
+        .hasStatisticsFilesCopiedAsIs(sourceTableLocation, targetTableLocation)
+        .hasNoOtherFiles();
   }
 
   @TestTemplate

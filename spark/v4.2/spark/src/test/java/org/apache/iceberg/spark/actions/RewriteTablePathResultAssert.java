@@ -134,7 +134,7 @@ class RewriteTablePathResultAssert
     return hasFiles(FileKind.CONTENT_FILE, expected);
   }
 
-  RewriteTablePathResultAssert hasNoOtherFiles() {
+  void hasNoOtherFiles() {
     isNotNull();
     Map<FileKind, List<String>> unchecked = new EnumMap<>(FileKind.class);
     filesByKind()
@@ -149,8 +149,6 @@ class RewriteTablePathResultAssert
           "Expected no files other than %s in %s but found:%n%s",
           checkedKinds, actual.fileListLocation(), unchecked);
     }
-
-    return myself;
   }
 
   RewriteTablePathResultAssert hasStatisticsFilesCopiedAsIs(
