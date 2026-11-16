@@ -83,6 +83,7 @@ class TestV4ManifestReader {
   }
 
   private static final long MANIFEST_SEQ = 309L;
+  private static final long SNAPSHOT_TS = 1_700_000_000_123_456L;
   private static final DeletionVector DV = deletionVector("s3://bucket/dv.puffin");
 
   private static final ManifestInfo MANIFEST_INFO =
@@ -317,19 +318,24 @@ class TestV4ManifestReader {
     List<TrackedFile> files =
         List.of(
             dataFile(
-                new TrackingStruct(EntryStatus.ADDED, 42L, null, null, null, null, null, null),
+                new TrackingStruct(
+                    EntryStatus.ADDED, 42L, null, null, null, null, null, null, null),
                 "s3://bucket/added.parquet"),
             dataFile(
-                new TrackingStruct(EntryStatus.MODIFIED, 40L, 5L, 5L, 42L, 5_000L, null, null),
+                new TrackingStruct(
+                    EntryStatus.MODIFIED, 40L, 5L, 5L, 42L, 5_000L, null, null, SNAPSHOT_TS),
                 "s3://bucket/modified.parquet"),
             dataFile(
-                new TrackingStruct(EntryStatus.DELETED, 42L, 2L, 2L, null, 1_000L, null, null),
+                new TrackingStruct(
+                    EntryStatus.DELETED, 42L, 2L, 2L, null, 1_000L, null, null, SNAPSHOT_TS),
                 "s3://bucket/deleted.parquet"),
             dataFile(
-                new TrackingStruct(EntryStatus.EXISTING, 38L, 4L, 4L, null, 3_000L, null, null),
+                new TrackingStruct(
+                    EntryStatus.EXISTING, 38L, 4L, 4L, null, 3_000L, null, null, SNAPSHOT_TS),
                 "s3://bucket/existing.parquet"),
             dataFile(
-                new TrackingStruct(EntryStatus.REPLACED, 42L, 2L, 2L, 40L, 2_000L, null, null),
+                new TrackingStruct(
+                    EntryStatus.REPLACED, 42L, 2L, 2L, 40L, 2_000L, null, null, SNAPSHOT_TS),
                 "s3://bucket/replaced.parquet"));
 
     ManifestFile manifest = writeManifest(format, UNPARTITIONED_TYPE, files);
@@ -340,19 +346,31 @@ class TestV4ManifestReader {
             // inherits seq number and assigned first row ID
             dataFile(
                 new TrackingStruct(
-                    EntryStatus.ADDED, 42L, MANIFEST_SEQ, MANIFEST_SEQ, null, 10_000L, null, null),
+                    EntryStatus.ADDED,
+                    42L, // snapshotId
+                    MANIFEST_SEQ,
+                    MANIFEST_SEQ,
+                    null, // modifiedSnapshotId
+                    10_000L, // firstRowId
+                    null, // deletedPositions
+                    null, // replacedPositions
+                    null), // snapshotTimestampMicros
                 "s3://bucket/added.parquet"),
             dataFile(
-                new TrackingStruct(EntryStatus.MODIFIED, 40L, 5L, 5L, 42L, 5_000L, null, null),
+                new TrackingStruct(
+                    EntryStatus.MODIFIED, 40L, 5L, 5L, 42L, 5_000L, null, null, SNAPSHOT_TS),
                 "s3://bucket/modified.parquet"),
             dataFile(
-                new TrackingStruct(EntryStatus.DELETED, 42L, 2L, 2L, null, 1_000L, null, null),
+                new TrackingStruct(
+                    EntryStatus.DELETED, 42L, 2L, 2L, null, 1_000L, null, null, SNAPSHOT_TS),
                 "s3://bucket/deleted.parquet"),
             dataFile(
-                new TrackingStruct(EntryStatus.EXISTING, 38L, 4L, 4L, null, 3_000L, null, null),
+                new TrackingStruct(
+                    EntryStatus.EXISTING, 38L, 4L, 4L, null, 3_000L, null, null, SNAPSHOT_TS),
                 "s3://bucket/existing.parquet"),
             dataFile(
-                new TrackingStruct(EntryStatus.REPLACED, 42L, 2L, 2L, 40L, 2_000L, null, null),
+                new TrackingStruct(
+                    EntryStatus.REPLACED, 42L, 2L, 2L, 40L, 2_000L, null, null, SNAPSHOT_TS),
                 "s3://bucket/replaced.parquet"));
 
     V4ManifestReader.Builder builder =
@@ -371,19 +389,24 @@ class TestV4ManifestReader {
     List<TrackedFile> files =
         List.of(
             dataFile(
-                new TrackingStruct(EntryStatus.ADDED, 42L, null, null, null, null, null, null),
+                new TrackingStruct(
+                    EntryStatus.ADDED, 42L, null, null, null, null, null, null, null),
                 "s3://bucket/added.parquet"),
             dataFile(
-                new TrackingStruct(EntryStatus.MODIFIED, 40L, 5L, 5L, 42L, 5_000L, null, null),
+                new TrackingStruct(
+                    EntryStatus.MODIFIED, 40L, 5L, 5L, 42L, 5_000L, null, null, SNAPSHOT_TS),
                 "s3://bucket/modified.parquet"),
             dataFile(
-                new TrackingStruct(EntryStatus.DELETED, 42L, 2L, 2L, null, 1_000L, null, null),
+                new TrackingStruct(
+                    EntryStatus.DELETED, 42L, 2L, 2L, null, 1_000L, null, null, SNAPSHOT_TS),
                 "s3://bucket/deleted.parquet"),
             dataFile(
-                new TrackingStruct(EntryStatus.EXISTING, 38L, 4L, 4L, null, 3_000L, null, null),
+                new TrackingStruct(
+                    EntryStatus.EXISTING, 38L, 4L, 4L, null, 3_000L, null, null, SNAPSHOT_TS),
                 "s3://bucket/existing.parquet"),
             dataFile(
-                new TrackingStruct(EntryStatus.REPLACED, 42L, 2L, 2L, 40L, 2_000L, null, null),
+                new TrackingStruct(
+                    EntryStatus.REPLACED, 42L, 2L, 2L, 40L, 2_000L, null, null, SNAPSHOT_TS),
                 "s3://bucket/replaced.parquet"));
 
     ManifestFile manifest = writeManifest(format, UNPARTITIONED_TYPE, files);
@@ -398,21 +421,33 @@ class TestV4ManifestReader {
             // inherits seq number and assigned first row ID
             dataFile(
                 new TrackingStruct(
-                    EntryStatus.ADDED, 42L, MANIFEST_SEQ, MANIFEST_SEQ, null, 10_000L, null, null),
+                    EntryStatus.ADDED,
+                    42L, // snapshotId
+                    MANIFEST_SEQ,
+                    MANIFEST_SEQ,
+                    null, // modifiedSnapshotId
+                    10_000L, // firstRowId
+                    null, // deletedPositions
+                    null, // replacedPositions
+                    null), // snapshotTimestampMicros
                 "s3://bucket/added.parquet"),
             // status changed to DELETED, delete snapshot ID is unknown
             dataFile(
-                new TrackingStruct(EntryStatus.DELETED, null, 5L, 5L, 42L, 5_000L, null, null),
+                new TrackingStruct(
+                    EntryStatus.DELETED, null, 5L, 5L, 42L, 5_000L, null, null, null),
                 "s3://bucket/modified.parquet"),
             // status already DELETED, no modification
             dataFile(
-                new TrackingStruct(EntryStatus.DELETED, 42L, 2L, 2L, null, 1_000L, null, null),
+                new TrackingStruct(
+                    EntryStatus.DELETED, 42L, 2L, 2L, null, 1_000L, null, null, SNAPSHOT_TS),
                 "s3://bucket/deleted.parquet"),
             dataFile(
-                new TrackingStruct(EntryStatus.EXISTING, 38L, 4L, 4L, null, 3_000L, null, null),
+                new TrackingStruct(
+                    EntryStatus.EXISTING, 38L, 4L, 4L, null, 3_000L, null, null, SNAPSHOT_TS),
                 "s3://bucket/existing.parquet"),
             dataFile(
-                new TrackingStruct(EntryStatus.REPLACED, 42L, 2L, 2L, 40L, 2_000L, null, null),
+                new TrackingStruct(
+                    EntryStatus.REPLACED, 42L, 2L, 2L, 40L, 2_000L, null, null, SNAPSHOT_TS),
                 "s3://bucket/replaced.parquet"));
 
     V4ManifestReader.Builder builder =
@@ -430,11 +465,12 @@ class TestV4ManifestReader {
   public void inheritanceUncommittedOnlyInheritsSnapshotId(FileFormat format) throws IOException {
     TrackedFile withSnapshotId =
         dataFile(
-            new TrackingStruct(EntryStatus.ADDED, 1234567L, null, null, null, null, null, null),
+            new TrackingStruct(
+                EntryStatus.ADDED, 1234567L, null, null, null, null, null, null, null),
             "s3://bucket/table/file-b.parquet");
     TrackedFile withoutSnapshotId =
         dataFile(
-            new TrackingStruct(EntryStatus.ADDED, null, null, null, null, null, null, null),
+            new TrackingStruct(EntryStatus.ADDED, null, null, null, null, null, null, null, null),
             "s3://bucket/table/file-a.parquet");
 
     ManifestFile manifest =
@@ -458,11 +494,13 @@ class TestV4ManifestReader {
     List<TrackedFile> expected =
         List.of(
             dataFile(
-                new TrackingStruct(EntryStatus.ADDED, 1234567L, null, null, null, null, null, null),
+                new TrackingStruct(
+                    EntryStatus.ADDED, 1234567L, null, null, null, null, null, null, null),
                 "s3://bucket/table/file-b.parquet"),
             // inherits only snapshot ID
             dataFile(
-                new TrackingStruct(EntryStatus.ADDED, 34L, null, null, null, null, null, null),
+                new TrackingStruct(
+                    EntryStatus.ADDED, 34L, null, null, null, null, null, null, null),
                 "s3://bucket/table/file-a.parquet"));
 
     assertThat(actual)
@@ -475,11 +513,13 @@ class TestV4ManifestReader {
   public void inheritanceSnapshotId(FileFormat format) throws IOException {
     TrackedFile withSnapshotId =
         dataFile(
-            new TrackingStruct(EntryStatus.ADDED, 1234567L, 5L, 5L, null, 5_000L, null, null),
+            new TrackingStruct(
+                EntryStatus.ADDED, 1234567L, 5L, 5L, null, 5_000L, null, null, SNAPSHOT_TS),
             "s3://bucket/table/file-b.parquet");
     TrackedFile withoutSnapshotId =
         dataFile(
-            new TrackingStruct(EntryStatus.ADDED, null, 5L, 5L, null, 5_100L, null, null),
+            new TrackingStruct(
+                EntryStatus.ADDED, null, 5L, 5L, null, 5_100L, null, null, SNAPSHOT_TS),
             "s3://bucket/table/file-a.parquet");
 
     ManifestFile manifest =
@@ -497,11 +537,13 @@ class TestV4ManifestReader {
     List<TrackedFile> expected =
         List.of(
             dataFile(
-                new TrackingStruct(EntryStatus.ADDED, 1234567L, 5L, 5L, null, 5_000L, null, null),
+                new TrackingStruct(
+                    EntryStatus.ADDED, 1234567L, 5L, 5L, null, 5_000L, null, null, SNAPSHOT_TS),
                 "s3://bucket/table/file-b.parquet"),
             // inherits only snapshot ID
             dataFile(
-                new TrackingStruct(EntryStatus.ADDED, 34L, 5L, 5L, null, 5_100L, null, null),
+                new TrackingStruct(
+                    EntryStatus.ADDED, 34L, 5L, 5L, null, 5_100L, null, null, SNAPSHOT_TS),
                 "s3://bucket/table/file-a.parquet"));
 
     assertThat(actual)
@@ -515,11 +557,12 @@ class TestV4ManifestReader {
     TrackedFile withModifiedSnapshotId =
         dataFile(
             new TrackingStruct(
-                EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, 1234567L, 5_000L, null, null),
+                EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, 1234567L, 5_000L, null, null, SNAPSHOT_TS),
             "s3://bucket/table/file-b.parquet");
     TrackedFile withoutModifiedSnapshotId =
         dataFile(
-            new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 5_100L, null, null),
+            new TrackingStruct(
+                EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 5_100L, null, null, SNAPSHOT_TS),
             "s3://bucket/table/file-a.parquet");
 
     ManifestFile manifest =
@@ -540,12 +583,20 @@ class TestV4ManifestReader {
         List.of(
             dataFile(
                 new TrackingStruct(
-                    EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, 1234567L, 5_000L, null, null),
+                    EntryStatus.ADDED,
+                    SNAPSHOT_ID,
+                    5L,
+                    5L,
+                    1234567L,
+                    5_000L,
+                    null,
+                    null,
+                    SNAPSHOT_TS),
                 "s3://bucket/table/file-b.parquet"),
             // inherits only snapshot ID
             dataFile(
                 new TrackingStruct(
-                    EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 5_100L, null, null),
+                    EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 5_100L, null, null, SNAPSHOT_TS),
                 "s3://bucket/table/file-a.parquet"));
 
     assertThat(actual)
@@ -559,12 +610,12 @@ class TestV4ManifestReader {
     TrackedFile withoutSeq =
         dataFile(
             new TrackingStruct(
-                EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, 5_000L, null, null),
+                EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, 5_000L, null, null, null),
             "s3://bucket/table/file-a.parquet");
     TrackedFile withDataSeq =
         dataFile(
             new TrackingStruct(
-                EntryStatus.ADDED, SNAPSHOT_ID, 500L, 500L, null, 5_100L, null, null),
+                EntryStatus.ADDED, SNAPSHOT_ID, 500L, 500L, null, 5_100L, null, null, SNAPSHOT_TS),
             "s3://bucket/table/file-b.parquet");
 
     ManifestFile manifest =
@@ -584,12 +635,20 @@ class TestV4ManifestReader {
             // inherits sequence numbers
             dataFile(
                 new TrackingStruct(
-                    EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 5_000L, null, null),
+                    EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 5_000L, null, null, null),
                 "s3://bucket/table/file-a.parquet"),
             // does not inherit sequence numbers
             dataFile(
                 new TrackingStruct(
-                    EntryStatus.ADDED, SNAPSHOT_ID, 500L, 500L, null, 5_100L, null, null),
+                    EntryStatus.ADDED,
+                    SNAPSHOT_ID,
+                    500L,
+                    500L,
+                    null,
+                    5_100L,
+                    null,
+                    null,
+                    SNAPSHOT_TS),
                 "s3://bucket/table/file-b.parquet"));
 
     assertThat(actual)
@@ -603,7 +662,7 @@ class TestV4ManifestReader {
     TrackedFile withoutDataSeq =
         dataFileWithColumnFiles(
             new TrackingStruct(
-                EntryStatus.MODIFIED, SNAPSHOT_ID, null, 3L, 34L, 5_000L, null, null),
+                EntryStatus.MODIFIED, SNAPSHOT_ID, null, 3L, 34L, 5_000L, null, null, null),
             "s3://bucket/table/file-a.parquet",
             COLUMN_FILES);
 
@@ -624,7 +683,7 @@ class TestV4ManifestReader {
         List.of(
             dataFileWithColumnFiles(
                 new TrackingStruct(
-                    EntryStatus.MODIFIED, SNAPSHOT_ID, 5L, 3L, 34L, 5_000L, null, null),
+                    EntryStatus.MODIFIED, SNAPSHOT_ID, 5L, 3L, 34L, 5_000L, null, null, null),
                 "s3://bucket/table/file-a.parquet",
                 COLUMN_FILES));
 
@@ -638,11 +697,13 @@ class TestV4ManifestReader {
   public void inheritanceFirstRowId(FileFormat format) throws IOException {
     TrackedFile withoutFirstRowId =
         dataFile(
-            new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, null, null, null),
+            new TrackingStruct(
+                EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, null, null, null, SNAPSHOT_TS),
             "s3://bucket/table/file-a.parquet");
     TrackedFile withFirstRowId =
         dataFile(
-            new TrackingStruct(EntryStatus.EXISTING, SNAPSHOT_ID, 5L, 5L, null, 5_000L, null, null),
+            new TrackingStruct(
+                EntryStatus.EXISTING, SNAPSHOT_ID, 5L, 5L, null, 5_000L, null, null, SNAPSHOT_TS),
             "s3://bucket/table/file-c.parquet");
 
     ManifestFile manifest =
@@ -661,12 +722,20 @@ class TestV4ManifestReader {
             // assigns a new first row ID
             dataFile(
                 new TrackingStruct(
-                    EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 10_000L, null, null),
+                    EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 10_000L, null, null, SNAPSHOT_TS),
                 "s3://bucket/table/file-a.parquet"),
             // does not modify first row ID
             dataFile(
                 new TrackingStruct(
-                    EntryStatus.EXISTING, SNAPSHOT_ID, 5L, 5L, null, 5_000L, null, null),
+                    EntryStatus.EXISTING,
+                    SNAPSHOT_ID,
+                    5L,
+                    5L,
+                    null,
+                    5_000L,
+                    null,
+                    null,
+                    SNAPSHOT_TS),
                 "s3://bucket/table/file-c.parquet"));
 
     assertThat(actual)
@@ -678,9 +747,11 @@ class TestV4ManifestReader {
   @FieldSource("MANIFEST_FORMATS")
   public void inheritanceFirstRowIdIncrementsByRecordCount(FileFormat format) throws IOException {
     Tracking trackingWithoutFirstRowId =
-        new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null);
+        new TrackingStruct(
+            EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null, null);
     Tracking trackingWithFirstRowId =
-        new TrackingStruct(EntryStatus.EXISTING, SNAPSHOT_ID, 2L, 2L, null, 5_000L, null, null);
+        new TrackingStruct(
+            EntryStatus.EXISTING, SNAPSHOT_ID, 2L, 2L, null, 5_000L, null, null, SNAPSHOT_TS);
 
     TrackedFile fileA = dataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-a.parquet");
     TrackedFile fileB = dataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-b.parquet");
@@ -705,23 +776,31 @@ class TestV4ManifestReader {
         List.of(
             dataFile(
                 new TrackingStruct(
-                    EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 10_000L, null, null),
+                    EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 10_000L, null, null, null),
                 "s3://bucket/table/file-a.parquet"),
             dataFile(
                 new TrackingStruct(
-                    EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 10_100L, null, null),
+                    EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 10_100L, null, null, null),
                 "s3://bucket/table/file-b.parquet"),
             dataFile(
                 new TrackingStruct(
-                    EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 10_200L, null, null),
+                    EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 10_200L, null, null, null),
                 "s3://bucket/table/file-c.parquet"),
             dataFile(
                 new TrackingStruct(
-                    EntryStatus.EXISTING, SNAPSHOT_ID, 2L, 2L, null, 5_000L, null, null),
+                    EntryStatus.EXISTING,
+                    SNAPSHOT_ID,
+                    2L,
+                    2L,
+                    null,
+                    5_000L,
+                    null,
+                    null,
+                    SNAPSHOT_TS),
                 "s3://bucket/table/file-d.parquet"),
             dataFile(
                 new TrackingStruct(
-                    EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 10_300L, null, null),
+                    EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 10_300L, null, null, null),
                 "s3://bucket/table/file-e.parquet"));
 
     assertThat(actual)
@@ -759,11 +838,13 @@ class TestV4ManifestReader {
   @FieldSource("MANIFEST_FORMATS")
   public void inheritanceUncommittedSkipsFirstRowId(FileFormat format) throws IOException {
     Tracking trackingWithoutFirstRowId =
-        new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null);
+        new TrackingStruct(
+            EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null, null);
     TrackedFile withoutFirstRowId =
         dataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-a.parquet");
     Tracking trackingWithFirstRowId =
-        new TrackingStruct(EntryStatus.EXISTING, SNAPSHOT_ID, null, null, null, 5_000L, null, null);
+        new TrackingStruct(
+            EntryStatus.EXISTING, SNAPSHOT_ID, null, null, null, 5_000L, null, null, null);
     TrackedFile withFirstRowId =
         dataFile(trackingWithFirstRowId, "s3://bucket/table/file-c.parquet");
 
@@ -786,11 +867,13 @@ class TestV4ManifestReader {
   @FieldSource("MANIFEST_FORMATS")
   public void inheritanceFirstRowIdNullFromUpgradedTable(FileFormat format) throws IOException {
     Tracking trackingWithoutFirstRowId =
-        new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null);
+        new TrackingStruct(
+            EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null, null);
     TrackedFile withoutFirstRowId =
         dataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-a.parquet");
     Tracking trackingWithFirstRowId =
-        new TrackingStruct(EntryStatus.EXISTING, SNAPSHOT_ID, null, null, null, 5_000L, null, null);
+        new TrackingStruct(
+            EntryStatus.EXISTING, SNAPSHOT_ID, null, null, null, 5_000L, null, null, null);
     TrackedFile withFirstRowId =
         dataFile(trackingWithFirstRowId, "s3://bucket/table/file-c.parquet");
 
@@ -812,7 +895,8 @@ class TestV4ManifestReader {
   @FieldSource("MANIFEST_FORMATS")
   public void inheritanceFirstRowIdSkipsManifests(FileFormat format) throws IOException {
     Tracking trackingWithoutFirstRowId =
-        new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null);
+        new TrackingStruct(
+            EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null, null);
     TrackedFile dataFile = dataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-a.parquet");
     TrackedFile dataManifest =
         V4TestHelpers.manifestRefWithTracking(
@@ -2035,7 +2119,8 @@ class TestV4ManifestReader {
             null, // modified snapshot id
             null, // first row id
             null, // deleted positions
-            null); // replaced positions
+            null, // replaced positions
+            SNAPSHOT_TS); // snapshot timestamp micros
     return dataFile(tracking, location);
   }
 

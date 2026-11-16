@@ -39,6 +39,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
           Tracking.FIRST_ROW_ID,
           Tracking.DELETED_POSITIONS,
           Tracking.REPLACED_POSITIONS,
+          Tracking.SNAPSHOT_TIMESTAMP,
           MetadataColumns.FILE_PATH,
           MetadataColumns.ROW_POSITION);
 
@@ -62,6 +63,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
   private Long firstRowId = null;
   private byte[] deletedPositions = null;
   private byte[] replacedPositions = null;
+  private Long snapshotTimestampMicros = null;
 
   // set by manifest readers, not written to manifests
   private String manifestLocation = null;
@@ -92,6 +94,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
         toCopy.replacedPositions != null
             ? Arrays.copyOf(toCopy.replacedPositions, toCopy.replacedPositions.length)
             : null;
+    this.snapshotTimestampMicros = toCopy.snapshotTimestampMicros;
     this.manifestLocation = toCopy.manifestLocation;
     this.manifestPos = toCopy.manifestPos;
   }
@@ -104,7 +107,8 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
       Long modifiedSnapshotId,
       Long firstRowId,
       byte[] deletedPositions,
-      byte[] replacedPositions) {
+      byte[] replacedPositions,
+      Long snapshotTimestampMicros) {
     super(BASE_TYPE.fields().size());
     this.status = status;
     this.snapshotId = snapshotId;
@@ -114,6 +118,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     this.firstRowId = firstRowId;
     this.deletedPositions = deletedPositions;
     this.replacedPositions = replacedPositions;
+    this.snapshotTimestampMicros = snapshotTimestampMicros;
   }
 
   /**
@@ -221,6 +226,11 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
   }
 
   @Override
+  public Long snapshotTimestampMicros() {
+    return snapshotTimestampMicros;
+  }
+
+  @Override
   public String manifestLocation() {
     return manifestLocation;
   }
@@ -259,8 +269,10 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
       case 7:
         return replacedPositions();
       case 8:
-        return manifestLocation;
+        return snapshotTimestampMicros;
       case 9:
+        return manifestLocation;
+      case 10:
         return manifestPos;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -295,9 +307,12 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
         this.replacedPositions = ByteBuffers.toByteArray((ByteBuffer) value);
         break;
       case 8:
-        this.manifestLocation = (String) value;
+        this.snapshotTimestampMicros = (Long) value;
         break;
       case 9:
+        this.manifestLocation = (String) value;
+        break;
+      case 10:
         this.manifestPos = (long) value;
         break;
       default:
@@ -316,6 +331,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
         .add("first_row_id", firstRowId)
         .add("deleted_positions", deletedPositions == null ? "null" : "(binary)")
         .add("replaced_positions", replacedPositions == null ? "null" : "(binary)")
+        .add("snapshot_timestamp_micros", snapshotTimestampMicros)
         .toString();
   }
 }
