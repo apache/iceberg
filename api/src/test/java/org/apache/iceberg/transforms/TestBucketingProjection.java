@@ -35,8 +35,11 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.Projections;
@@ -210,6 +213,33 @@ public class TestBucketingProjection {
         spec, in("value", value - 1, value, value + 1), Expression.Operation.IN, "[6, 7, 8]");
     assertProjectionInclusiveValue(
         spec, notIn("value", value, value + 1), Expression.Operation.TRUE);
+  }
+
+  @Test
+  void decimalLiteralScaleDoesNotChangeBuckets() {
+    Types.DecimalType type = Types.DecimalType.of(9, 2);
+    Schema schema = new Schema(optional(1, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("value", 16).build();
+    BigDecimal stored = new BigDecimal("100.00");
+    PartitionKey partition = new PartitionKey(spec, schema);
+    partition.partition(TestHelpers.Row.of(stored));
+    for (String spelling : new String[] {"100", "100.0", "100.00", "100.000"}) {
+      for (Object literal : new Object[] {spelling, new BigDecimal(spelling)}) {
+        Expression projected = Projections.inclusive(spec).project(equal("value", literal));
+        assertThat(new Evaluator(spec.partitionType(), projected).eval(partition))
+            .as("bucket projection for %s (%s)", literal, literal.getClass().getSimpleName())
+            .isTrue();
+        Expression set =
+            Projections.inclusive(spec).project(in("value", literal, new BigDecimal("101.00")));
+        assertThat(new Evaluator(spec.partitionType(), set).eval(partition))
+            .as("IN bucket projection for %s", literal)
+            .isTrue();
+        Expression strict = Projections.strict(spec).project(notEqual("value", literal));
+        assertThat(new Evaluator(spec.partitionType(), strict).eval(partition))
+            .as("strict NOT EQ bucket projection for %s", literal)
+            .isFalse();
+      }
+    }
   }
 
   @Test

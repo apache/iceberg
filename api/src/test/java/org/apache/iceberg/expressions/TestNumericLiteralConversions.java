@@ -137,6 +137,20 @@ public class TestNumericLiteralConversions {
   }
 
   @Test
+  void decimalScaleConversionIsExact() {
+    Types.DecimalType type = Types.DecimalType.of(9, 2);
+    for (String spelling : new String[] {"34.5", "34.50", "34.500"}) {
+      Literal<BigDecimal> result = Literal.of(new BigDecimal(spelling)).to(type);
+      assertThat(result.value()).isEqualTo(new BigDecimal("34.50"));
+      assertThat(result.to(type)).isSameAs(result);
+    }
+    for (String spelling : new String[] {"34.501", "34.509"}) {
+      Literal<BigDecimal> result = Literal.of(new BigDecimal(spelling)).to(type);
+      assertThat(result.value()).isEqualTo(new BigDecimal(spelling));
+    }
+  }
+
+  @Test
   public void testDoubleToDecimalConversion() {
     Literal<Double> lit = Literal.of(34.56D);
 
@@ -154,12 +168,9 @@ public class TestNumericLiteralConversions {
     IntStream.range(0, 10)
         .forEach(
             scale -> {
-              assertThat(lit.to(Types.DecimalType.of(9, scale)))
-                  .as("Should return identical object")
-                  .isSameAs(lit);
-              assertThat(lit.to(Types.DecimalType.of(11, scale)))
-                  .as("Should return identical object")
-                  .isSameAs(lit);
+              BigDecimal expected = scale < 2 ? lit.value() : lit.value().setScale(scale);
+              assertThat(lit.to(Types.DecimalType.of(9, scale)).value()).isEqualTo(expected);
+              assertThat(lit.to(Types.DecimalType.of(11, scale)).value()).isEqualTo(expected);
             });
   }
 
