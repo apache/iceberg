@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.flink;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -183,17 +181,8 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
     Map<String, String> writeOptions = Maps.newHashMap();
     writeOptions.put(FlinkWriteOptions.OVERWRITE_MODE.key(), Boolean.toString(overwrite));
     writeOptions.putAll(writeProps);
-    if (!new FlinkWriteConf(writeOptions, readableConfig).overwriteMode()) {
-      return false;
-    }
-
-    try (TableLoader loader = tableLoader.clone()) {
-      loader.open();
-      return new FlinkWriteConf(loader.loadTable(), writeOptions, readableConfig).staticOverwrite();
-    } catch (IOException e) {
-      throw new UncheckedIOException(
-          "Failed to load iceberg table from table loader: " + tableLoader, e);
-    }
+    FlinkWriteConf writeConf = new FlinkWriteConf(writeOptions, readableConfig);
+    return writeConf.overwriteMode() && writeConf.staticOverwrite();
   }
 
   @Override

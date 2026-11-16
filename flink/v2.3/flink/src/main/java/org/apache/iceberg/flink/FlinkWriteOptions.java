@@ -66,8 +66,6 @@ public class FlinkWriteOptions {
   public static final ConfigOption<String> OVERWRITE_STRATEGY =
       ConfigOptions.key("overwrite-mode").stringType().noDefaultValue();
 
-  public static final String OVERWRITE_STRATEGY_TABLE_PROPERTY = "write.flink.overwrite-mode";
-
   // Overrides the table's write.distribution-mode
   public static final ConfigOption<String> DISTRIBUTION_MODE =
       ConfigOptions.key("distribution-mode").stringType().noDefaultValue();

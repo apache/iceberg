@@ -78,7 +78,6 @@ public class FlinkWriteConf {
             .stringConf()
             .option(FlinkWriteOptions.OVERWRITE_STRATEGY.key())
             .flinkConfig(FlinkWriteOptions.OVERWRITE_STRATEGY)
-            .tableProperty(FlinkWriteOptions.OVERWRITE_STRATEGY_TABLE_PROPERTY)
             .parseOptional();
     return modeName != null && OverwriteStrategy.fromName(modeName) == OverwriteStrategy.STATIC;
   }
