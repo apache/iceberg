@@ -1241,7 +1241,7 @@ A snapshot consists of the following fields:
     | _optional_ | _optional_ | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created |
     |            |            | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
     |            |            | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
-    |            |            | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the manifest list |
+    |            |            | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the manifest list key metadata |
 
 === "v4"
     | v4         | Field                        | Description |
@@ -1255,7 +1255,6 @@ A snapshot consists of the following fields:
     | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created |
     | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
     | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
-    | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the root manifest |
     | _optional_ | **`encrypted-key-metadata`** | Encrypted key and metadata used to encrypt the root manifest |
     | _optional_ | **`encrypted-by-id`**        | ID of the key used to encrypt or wrap `encrypted-key-metadata` |
     | _optional_ | **`constraint-statuses`**    | A struct that records the status of the table's constraints for the snapshot, see [Constraint Status](#constraint-status) |
@@ -1271,7 +1270,7 @@ The snapshot summary's `operation` field is used by some operations, like snapsh
 
 For other optional snapshot summary fields, see [Appendix F](#optional-snapshot-summary-fields).
 
-The `encrypted-key-metadata` and `encrypted-by-id` fields must be set together.
+`encrypted-by-id` may only be set when `encrypted-key-metadata` is set.
 
 Data and delete files for a snapshot can be stored in more than one manifest. This enables:
 
@@ -2269,7 +2268,7 @@ Snapshot timestamp changes:
 
 Snapshot encryption key changes:
 
-* Writers may store the root manifest's encryption key metadata directly in the snapshot's `encrypted-key-metadata` and `encrypted-by-id` fields
+* Writers must store the root manifest's encryption key metadata directly in a snapshot's `encrypted-key-metadata`. The key metadata may be encrypted by the key identified by `encrypted-by-id`
 
 Equality deletes are prohibited in v4.
 
