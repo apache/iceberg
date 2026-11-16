@@ -1,6 +1,6 @@
-com.fasterxml.jackson.core:jackson-annotations:2.22
-com.fasterxml.jackson.core:jackson-core:2.22
-com.fasterxml.jackson.core:jackson-databind:2.22
+com.fasterxml.jackson.core:jackson-annotations:2.23
+com.fasterxml.jackson.core:jackson-core:2.23
+com.fasterxml.jackson.core:jackson-databind:2.23
 com.fasterxml.woodstox:woodstox-core:5.4
 com.github.ben-manes.caffeine:caffeine:3.3
 commons-io:commons-io:2.20
