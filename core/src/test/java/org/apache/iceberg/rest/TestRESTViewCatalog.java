@@ -20,6 +20,7 @@ package org.apache.iceberg.rest;
 
 import static org.apache.iceberg.rest.RequestMatcher.matches;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -45,6 +46,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -237,6 +239,32 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
             any(),
             eq(ListTablesResponse.class),
             any());
+  }
+
+  @Test
+  public void listViewsFailsOnRepeatedPageToken() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+    Namespace namespace = Namespace.of("ns");
+    Mockito.doReturn(
+            viewsPage("a", TableIdentifier.of(namespace, "v1")),
+            viewsPage("b", TableIdentifier.of(namespace, "v2")),
+            viewsPage("a", TableIdentifier.of(namespace, "v3")))
+        .when(adapter)
+        .handleRequest(eq(Route.LIST_VIEWS), any(), any(), any(), any());
+
+    assertThatThrownBy(() -> catalog.listViews(namespace))
+        .isInstanceOf(RESTException.class)
+        .hasMessage("Invalid paginated response: next-page-token was already used: a");
+
+    Mockito.verify(adapter, times(3))
+        .handleRequest(eq(Route.LIST_VIEWS), any(), any(), any(), any());
+  }
+
+  private static ListTablesResponse viewsPage(String nextPageToken, TableIdentifier identifier) {
+    return ListTablesResponse.builder().add(identifier).nextPageToken(nextPageToken).build();
   }
 
   @Test
