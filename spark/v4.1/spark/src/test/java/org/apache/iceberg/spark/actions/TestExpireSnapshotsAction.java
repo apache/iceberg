@@ -1059,6 +1059,7 @@ public class TestExpireSnapshotsAction extends TestBase {
 
   @TestTemplate
   public void testExpireOlderThanWithDeleteFile() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
     table.updateProperties().set(TableProperties.MANIFEST_MERGE_ENABLED, "false").commit();
 

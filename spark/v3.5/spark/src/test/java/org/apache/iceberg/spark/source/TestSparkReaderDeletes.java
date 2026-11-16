@@ -241,6 +241,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @TestTemplate
   public void testEqualityDeleteWithFilter() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     String tableName = table.name().substring(table.name().lastIndexOf(".") + 1);
     Schema deleteRowSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
@@ -283,6 +284,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @TestTemplate
   public void testReadEqualityDeleteRows() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     Schema deleteSchema1 = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteSchema1);
     List<Record> dataDeletes =
@@ -415,6 +417,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @TestTemplate
   public void testEqualityDeleteWithDeletedColumn() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     String tableName = table.name().substring(table.name().lastIndexOf(".") + 1);
     Schema deleteRowSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
@@ -445,6 +448,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @TestTemplate
   public void testMixedPosAndEqDeletesWithDeletedColumn() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     Schema dataSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(dataSchema);
     List<Record> dataDeletes =
@@ -643,6 +647,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @TestTemplate
   public void testEqualityDeleteWithDifferentScanAndDeleteColumns() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     assumeThat(format).isEqualTo(FileFormat.PARQUET);
     initDateTable();
 

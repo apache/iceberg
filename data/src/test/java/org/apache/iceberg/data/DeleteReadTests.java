@@ -228,6 +228,7 @@ public abstract class DeleteReadTests {
 
   @TestTemplate
   public void testEqualityDeletes() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     Schema deleteRowSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
     List<Record> dataDeletes =
@@ -256,6 +257,7 @@ public abstract class DeleteReadTests {
 
   @TestTemplate
   public void testEqualityDateDeletes() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     initDateTable();
 
     Schema deleteRowSchema = dateTable.schema().select("*");
@@ -305,6 +307,7 @@ public abstract class DeleteReadTests {
 
   @TestTemplate
   public void testEqualityDeletesWithRequiredEqColumn() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     Schema deleteRowSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
     List<Record> dataDeletes =
@@ -342,6 +345,7 @@ public abstract class DeleteReadTests {
 
   @TestTemplate
   public void testEqualityDeletesSpanningMultipleDataFiles() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     // Add another DataFile with common values
     GenericRecord record = GenericRecord.create(table.schema());
     records.add(record.copy("id", 144, "data", "a"));
@@ -465,6 +469,7 @@ public abstract class DeleteReadTests {
 
   @TestTemplate
   public void testMixedPositionAndEqualityDeletes() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     Schema dataSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(dataSchema);
     List<Record> dataDeletes =
@@ -512,6 +517,7 @@ public abstract class DeleteReadTests {
 
   @TestTemplate
   public void testMultipleEqualityDeleteSchemas() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     Schema dataSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(dataSchema);
     List<Record> dataDeletes =
@@ -556,6 +562,7 @@ public abstract class DeleteReadTests {
 
   @TestTemplate
   public void testEqualityDeleteByNull() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     // data is required in the test table; make it optional for this test
     table.updateSchema().makeColumnOptional("data").commit();
 
@@ -597,6 +604,7 @@ public abstract class DeleteReadTests {
 
   @TestTemplate
   public void testEqualityDeleteBinaryColumn() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     writeOptionalTestDataFile();
 
     Record binaryDataDelete = GenericRecord.create(table.schema().select("binaryData"));
@@ -611,6 +619,7 @@ public abstract class DeleteReadTests {
 
   @TestTemplate
   public void testEqualityDeleteStructColumn() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     writeOptionalTestDataFile();
 
     Record structDataDelete = GenericRecord.create(table.schema().select("structData"));

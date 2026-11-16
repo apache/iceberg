@@ -943,6 +943,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
   @TestTemplate
   public void testEqualityDeletes() throws Exception {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     Table sourceTable = createTableWithSnapshots(newTableLocation(), 1);
 
     // Add more varied data
