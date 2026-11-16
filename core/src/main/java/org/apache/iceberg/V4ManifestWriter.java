@@ -32,7 +32,7 @@ import org.apache.iceberg.types.Types;
 
 abstract class V4ManifestWriter implements Closeable {
   private static final int FORMAT_VERSION = 4;
-  private static final long UNASSIGNED_SEQ = -1L;
+  static final long UNASSIGNED_SEQ = -1L;
 
   // TODO:
   // - Relativize paths
@@ -207,12 +207,12 @@ abstract class V4ManifestWriter implements Closeable {
   }
 
   private void updateManifestInfo(TrackedFile file, Tracking tracking) {
-    if (hasLiveSequenceNumber(tracking)) {
+    if (hasLiveSequenceNumber(file, tracking)) {
       updateMinSequenceNumber(tracking.dataSequenceNumber());
     }
 
     if (tracking.firstRowId() == null) {
-      this.unassignedRows += file.recordCount();
+      this.unassignedRows += rowsToAssign(file);
     }
 
     switch (tracking.status()) {
@@ -239,8 +239,10 @@ abstract class V4ManifestWriter implements Closeable {
     }
   }
 
-  private boolean hasLiveSequenceNumber(Tracking tracking) {
-    return tracking.isLive() && tracking.dataSequenceNumber() != null;
+  private boolean hasLiveSequenceNumber(TrackedFile file, Tracking tracking) {
+    return file.contentType() == FileContent.DATA
+        && tracking.isLive()
+        && tracking.dataSequenceNumber() != null;
   }
 
   private void updateMinSequenceNumber(long sequenceNumber) {
@@ -252,7 +254,7 @@ abstract class V4ManifestWriter implements Closeable {
   public TrackedFile toTrackedManifest() {
     Preconditions.checkState(closed, "Cannot build TrackedFile, writer is not closed");
     return new TrackedFileStruct(
-        null,
+        null, // no tracking metadata
         FileContent.DATA_MANIFEST,
         output.location(),
         FileFormat.PARQUET,
@@ -334,7 +336,7 @@ abstract class V4ManifestWriter implements Closeable {
               "sequence-number",
               String.valueOf(sequenceNumber),
               "first-row-id",
-              String.valueOf(sequenceNumber)),
+              String.valueOf(firstRowId)),
           writerProperties,
           snapshotId);
 
@@ -370,16 +372,17 @@ abstract class V4ManifestWriter implements Closeable {
     private boolean isDeletes(FileContent type) {
       return type != FileContent.DATA && type != FileContent.DATA_MANIFEST;
     }
+  }
 
-    private long rowsToAssign(TrackedFile file) {
-      return switch (file.contentType()) {
-        case DATA -> file.recordCount();
-        case DATA_MANIFEST ->
-            file.manifestInfo().existingRowsCount() + file.manifestInfo().addedRowsCount();
-        default ->
-            throw new IllegalArgumentException("Unsupported content type: " + file.contentType());
-      };
-    }
+  private static long rowsToAssign(TrackedFile file) {
+    return switch (file.contentType()) {
+      case DATA -> file.recordCount();
+      case DATA_MANIFEST ->
+          file.manifestInfo().existingRowsCount() + file.manifestInfo().addedRowsCount();
+      case DELETE_MANIFEST -> 0L;
+      default ->
+          throw new IllegalArgumentException("Unsupported content type: " + file.contentType());
+    };
   }
 
   private static OutputFile outputFile(EncryptedOutputFile encryptedFile) {

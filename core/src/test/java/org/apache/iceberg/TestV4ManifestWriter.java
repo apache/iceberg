@@ -37,7 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
-public class TestV4ManifestWriter {
+class TestV4ManifestWriter {
   private static final long COMMIT_SNAPSHOT_ID = 42L;
   private static final long COMMIT_SEQUENCE_NUMBER = 50L;
   private static final long COMMIT_FIRST_ROW_ID = 1_000L;
@@ -144,11 +144,11 @@ public class TestV4ManifestWriter {
 
   private static final TrackedFile FILE_B =
       new TrackedFileStruct(
-          null, // tracking
+          new TrackingStruct(EntryStatus.EXISTING, 41L, 36L, 36L, null, 600L, null, null),
           FileContent.DATA,
           "s3://bucket/db/table/data/file-b.parquet",
           FileFormat.PARQUET,
-          100,
+          150,
           1024,
           TRUNCATE_SPEC.specId(),
           V4TestHelpers.partition(TRUNCATE_SPEC, 100),
@@ -160,18 +160,6 @@ public class TestV4ManifestWriter {
           null, // key metadata,
           List.of(4L),
           List.of(COLUMN_FILE_A));
-
-  // Test plan:
-  // - Append, existing, delete, replace, modify?
-  // - Basic cases:
-  //   - Data file, v4 data manifest, v3 data manifest, v3 delete manifest
-  //   - Multiple data files, mixed partition specs
-  // - Paths are relativized (not done yet)
-  // - Invalid cases that are rejected
-  //   - Cannot write data or delete manifest to leaf
-  //   - data file with manifest info (tested by wrappers)
-  //   - delete file (tested by wrappers)
-  //   -
 
   @Test
   public void rootDataFileAppend() throws IOException {
@@ -487,6 +475,78 @@ public class TestV4ManifestWriter {
   }
 
   @Test
+  public void rootMissingPartitionSpec() throws IOException {
+    V4ManifestWriter root =
+        V4ManifestWriter.createRoot(
+            EncryptionUtil.plainAsEncryptedOutput(new InMemoryOutputFile("root.parquet")),
+            Map.of(),
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            COMMIT_FIRST_ROW_ID);
+
+    try (root) {
+      assertThatThrownBy(() -> root.append(FILE_B))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Cannot find partition spec for spec ID: " + TRUNCATE_SPEC.specId());
+    }
+  }
+
+  @Test
+  public void rootDataFileFirstRowIdAssignment() throws IOException {
+    OutputFile output = new InMemoryOutputFile("manifest.parquet");
+    V4ManifestWriter writer =
+        V4ManifestWriter.createRoot(
+            EncryptionUtil.plainAsEncryptedOutput(output),
+            SPECS,
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            COMMIT_FIRST_ROW_ID);
+    try (writer) {
+      writer.append(FILE_A);
+      writer.append(FILE_B);
+    }
+
+    InputFile in = output.toInputFile();
+    for (List<TrackedFile> files : List.of(read(writer, in), rawRead(output.toInputFile()))) {
+      assertThat(files)
+          .usingComparatorForType(
+              V4TestComparators.trackedFileWithoutStatus(TRUNCATE_SPEC.partitionType()),
+              TrackedFile.class)
+          .containsExactly(FILE_A, FILE_B);
+      assertThat(files.get(0).tracking())
+          .usingComparator(V4TestComparators.TRACKING)
+          .isEqualTo(
+              new TrackingStruct(
+                  EntryStatus.ADDED,
+                  COMMIT_SNAPSHOT_ID,
+                  COMMIT_SEQUENCE_NUMBER,
+                  COMMIT_SEQUENCE_NUMBER,
+                  null, // not modified
+                  COMMIT_FIRST_ROW_ID,
+                  null, // no change bitmaps
+                  null));
+      assertThat(files.get(1).tracking())
+          .usingComparator(V4TestComparators.TRACKING)
+          .isEqualTo(
+              new TrackingStruct(
+                  EntryStatus.ADDED,
+                  COMMIT_SNAPSHOT_ID,
+                  COMMIT_SEQUENCE_NUMBER,
+                  COMMIT_SEQUENCE_NUMBER,
+                  null, // not modified
+                  COMMIT_FIRST_ROW_ID + FILE_A.recordCount(),
+                  null, // no change bitmaps
+                  null));
+    }
+  }
+
+  @Test
   public void leafDataFileAppend() throws IOException {
     OutputFile output = new InMemoryOutputFile("manifest.parquet");
     V4ManifestWriter writer =
@@ -602,7 +662,7 @@ public class TestV4ManifestWriter {
             STATS_TYPE,
             Map.of(),
             SCHEMA.schemaId(),
-            null); // snapshot ID will be in herited
+            null); // snapshot ID will be inherited
     try (writer) {
       writer.append(FILE_A_WITH_DV);
     }
@@ -888,26 +948,6 @@ public class TestV4ManifestWriter {
   }
 
   @Test
-  public void rootMissingPartitionSpec() throws IOException {
-    V4ManifestWriter root =
-        V4ManifestWriter.createRoot(
-            EncryptionUtil.plainAsEncryptedOutput(new InMemoryOutputFile("root.parquet")),
-            Map.of(),
-            STATS_TYPE,
-            Map.of(),
-            SCHEMA.schemaId(),
-            COMMIT_SNAPSHOT_ID,
-            COMMIT_SEQUENCE_NUMBER,
-            COMMIT_FIRST_ROW_ID);
-
-    try (root) {
-      assertThatThrownBy(() -> root.append(FILE_B))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessage("Cannot find partition spec for spec ID: " + TRUNCATE_SPEC.specId());
-    }
-  }
-
-  @Test
   public void leafMissingPartitionSpec() throws IOException {
     V4ManifestWriter leaf =
         V4ManifestWriter.createLeaf(
@@ -923,6 +963,162 @@ public class TestV4ManifestWriter {
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessage("Cannot find partition spec for spec ID: " + TRUNCATE_SPEC.specId());
     }
+  }
+
+  @Test
+  public void leafManifestInfoAppend() throws IOException {
+    OutputFile output = new InMemoryOutputFile("manifest.parquet");
+    V4ManifestWriter writer =
+        V4ManifestWriter.createLeaf(
+            EncryptionUtil.plainAsEncryptedOutput(output),
+            SPECS,
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID);
+    try (writer) {
+      writer.appendAtSeq(FILE_A_WITH_DV, 33L);
+      writer.append(FILE_B);
+    }
+
+    ManifestInfo stats = writer.toTrackedManifest().manifestInfo();
+    assertThat(stats.addedFilesCount()).isEqualTo(2);
+    assertThat(stats.addedRowsCount()).isEqualTo(FILE_A.recordCount() + FILE_B.recordCount());
+    assertThat(stats.existingFilesCount()).isEqualTo(0);
+    assertThat(stats.existingRowsCount()).isEqualTo(0L);
+    assertThat(stats.modifiedFilesCount()).isEqualTo(0);
+    assertThat(stats.modifiedRowsCount()).isEqualTo(0L);
+    assertThat(stats.deletedFilesCount()).isEqualTo(0);
+    assertThat(stats.deletedRowsCount()).isEqualTo(0L);
+    assertThat(stats.replacedFilesCount()).isEqualTo(0);
+    assertThat(stats.replacedRowsCount()).isEqualTo(0L);
+    assertThat(stats.minSequenceNumber()).isEqualTo(33L);
+  }
+
+  @Test
+  public void leafManifestInfoExisting() throws IOException {
+    OutputFile output = new InMemoryOutputFile("manifest.parquet");
+    V4ManifestWriter writer =
+        V4ManifestWriter.createLeaf(
+            EncryptionUtil.plainAsEncryptedOutput(output),
+            SPECS,
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID);
+    try (writer) {
+      writer.existing(FILE_A);
+      writer.existing(FILE_B);
+    }
+
+    ManifestInfo stats = writer.toTrackedManifest().manifestInfo();
+    assertThat(stats.addedFilesCount()).isEqualTo(0);
+    assertThat(stats.addedRowsCount()).isEqualTo(0L);
+    assertThat(stats.existingFilesCount()).isEqualTo(2);
+    assertThat(stats.existingRowsCount()).isEqualTo(FILE_A.recordCount() + FILE_B.recordCount());
+    assertThat(stats.modifiedFilesCount()).isEqualTo(0);
+    assertThat(stats.modifiedRowsCount()).isEqualTo(0L);
+    assertThat(stats.deletedFilesCount()).isEqualTo(0);
+    assertThat(stats.deletedRowsCount()).isEqualTo(0L);
+    assertThat(stats.replacedFilesCount()).isEqualTo(0);
+    assertThat(stats.replacedRowsCount()).isEqualTo(0L);
+    assertThat(stats.minSequenceNumber())
+        .isEqualTo(
+            Math.min(
+                FILE_A.tracking().dataSequenceNumber(), FILE_B.tracking().dataSequenceNumber()));
+  }
+
+  @Test
+  public void leafManifestInfoModify() throws IOException {
+    OutputFile output = new InMemoryOutputFile("manifest.parquet");
+    V4ManifestWriter writer =
+        V4ManifestWriter.createLeaf(
+            EncryptionUtil.plainAsEncryptedOutput(output),
+            SPECS,
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID);
+    try (writer) {
+      writer.modify(FILE_A, DV_A);
+      writer.existing(FILE_B);
+    }
+
+    ManifestInfo stats = writer.toTrackedManifest().manifestInfo();
+    assertThat(stats.addedFilesCount()).isEqualTo(0);
+    assertThat(stats.addedRowsCount()).isEqualTo(0L);
+    assertThat(stats.existingFilesCount()).isEqualTo(1);
+    assertThat(stats.existingRowsCount()).isEqualTo(FILE_B.recordCount());
+    assertThat(stats.modifiedFilesCount()).isEqualTo(1);
+    assertThat(stats.modifiedRowsCount()).isEqualTo(FILE_A.recordCount());
+    assertThat(stats.deletedFilesCount()).isEqualTo(0);
+    assertThat(stats.deletedRowsCount()).isEqualTo(0L);
+    assertThat(stats.replacedFilesCount()).isEqualTo(0);
+    assertThat(stats.replacedRowsCount()).isEqualTo(0L);
+    assertThat(stats.minSequenceNumber())
+        .isEqualTo(
+            Math.min(
+                FILE_A.tracking().dataSequenceNumber(), FILE_B.tracking().dataSequenceNumber()));
+  }
+
+  @Test
+  public void leafManifestInfoDelete() throws IOException {
+    OutputFile output = new InMemoryOutputFile("manifest.parquet");
+    V4ManifestWriter writer =
+        V4ManifestWriter.createLeaf(
+            EncryptionUtil.plainAsEncryptedOutput(output),
+            SPECS,
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID);
+    try (writer) {
+      writer.delete(FILE_A);
+      writer.delete(FILE_B);
+    }
+
+    ManifestInfo stats = writer.toTrackedManifest().manifestInfo();
+    assertThat(stats.addedFilesCount()).isEqualTo(0);
+    assertThat(stats.addedRowsCount()).isEqualTo(0L);
+    assertThat(stats.existingFilesCount()).isEqualTo(0);
+    assertThat(stats.existingRowsCount()).isEqualTo(0L);
+    assertThat(stats.modifiedFilesCount()).isEqualTo(0);
+    assertThat(stats.modifiedRowsCount()).isEqualTo(0L);
+    assertThat(stats.deletedFilesCount()).isEqualTo(2);
+    assertThat(stats.deletedRowsCount()).isEqualTo(FILE_A.recordCount() + FILE_B.recordCount());
+    assertThat(stats.replacedFilesCount()).isEqualTo(0);
+    assertThat(stats.replacedRowsCount()).isEqualTo(0L);
+    assertThat(stats.minSequenceNumber()).isEqualTo(V4ManifestWriter.UNASSIGNED_SEQ);
+  }
+
+  @Test
+  public void leafManifestInfoReplace() throws IOException {
+    OutputFile output = new InMemoryOutputFile("manifest.parquet");
+    V4ManifestWriter writer =
+        V4ManifestWriter.createLeaf(
+            EncryptionUtil.plainAsEncryptedOutput(output),
+            SPECS,
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID);
+    try (writer) {
+      writer.replace(FILE_A);
+      writer.replace(FILE_B);
+    }
+
+    ManifestInfo stats = writer.toTrackedManifest().manifestInfo();
+    assertThat(stats.addedFilesCount()).isEqualTo(0);
+    assertThat(stats.addedRowsCount()).isEqualTo(0L);
+    assertThat(stats.existingFilesCount()).isEqualTo(0);
+    assertThat(stats.existingRowsCount()).isEqualTo(0L);
+    assertThat(stats.modifiedFilesCount()).isEqualTo(0);
+    assertThat(stats.modifiedRowsCount()).isEqualTo(0L);
+    assertThat(stats.deletedFilesCount()).isEqualTo(0);
+    assertThat(stats.deletedRowsCount()).isEqualTo(0L);
+    assertThat(stats.replacedFilesCount()).isEqualTo(2);
+    assertThat(stats.replacedRowsCount()).isEqualTo(FILE_A.recordCount() + FILE_B.recordCount());
+    assertThat(stats.minSequenceNumber()).isEqualTo(V4ManifestWriter.UNASSIGNED_SEQ);
   }
 
   private static TrackedFile readOne(V4ManifestWriter writer, InputFile file) throws IOException {
