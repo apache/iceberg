@@ -41,7 +41,15 @@ class TestTrackingStruct {
   void fieldAccess() {
     TrackingStruct tracking =
         new TrackingStruct(
-            EntryStatus.ADDED, 42L, 10L, 11L, 43L, 1000L, DELETED_POSITIONS, REPLACED_POSITIONS);
+            EntryStatus.ADDED,
+            42L, // snapshotId
+            10L, // dataSequenceNumber
+            11L, // fileSequenceNumber
+            43L, // modifiedSnapshotId
+            1000L, // firstRowId
+            DELETED_POSITIONS,
+            REPLACED_POSITIONS,
+            1_700_000_000_123_456L); // snapshotTimestampMicros
     tracking.set(MANIFEST_LOCATION_ORDINAL, "manifest-location");
     tracking.set(MANIFEST_POSITION_ORDINAL, 7L);
 
@@ -53,6 +61,7 @@ class TestTrackingStruct {
     assertThat(tracking.firstRowId()).isEqualTo(1000L);
     assertThat(tracking.deletedPositions()).isEqualTo(ByteBuffer.wrap(DELETED_POSITIONS));
     assertThat(tracking.replacedPositions()).isEqualTo(ByteBuffer.wrap(REPLACED_POSITIONS));
+    assertThat(tracking.snapshotTimestampMicros()).isEqualTo(1_700_000_000_123_456L);
     assertThat(tracking.manifestLocation()).isEqualTo("manifest-location");
     assertThat(tracking.manifestPos()).isEqualTo(7L);
   }
@@ -69,6 +78,7 @@ class TestTrackingStruct {
     tracking.set(pos("first_row_id"), 1000L);
     tracking.set(pos("deleted_positions"), ByteBuffer.wrap(DELETED_POSITIONS));
     tracking.set(pos("replaced_positions"), ByteBuffer.wrap(REPLACED_POSITIONS));
+    tracking.set(pos("snapshot_timestamp"), 1_700_000_000_123_456L);
     tracking.set(MANIFEST_LOCATION_ORDINAL, "manifest-location");
     tracking.set(MANIFEST_POSITION_ORDINAL, 7L);
 
@@ -80,6 +90,7 @@ class TestTrackingStruct {
     assertThat(tracking.firstRowId()).isEqualTo(1000L);
     assertThat(tracking.deletedPositions()).isEqualTo(ByteBuffer.wrap(DELETED_POSITIONS));
     assertThat(tracking.replacedPositions()).isEqualTo(ByteBuffer.wrap(REPLACED_POSITIONS));
+    assertThat(tracking.snapshotTimestampMicros()).isEqualTo(1_700_000_000_123_456L);
     assertThat(tracking.manifestLocation()).isEqualTo("manifest-location");
     assertThat(tracking.manifestPos()).isEqualTo(7L);
   }
@@ -88,7 +99,15 @@ class TestTrackingStruct {
   void getByPosition() {
     TrackingStruct tracking =
         new TrackingStruct(
-            EntryStatus.ADDED, 42L, 10L, 11L, 43L, 1000L, DELETED_POSITIONS, REPLACED_POSITIONS);
+            EntryStatus.ADDED,
+            42L, // snapshotId
+            10L, // dataSequenceNumber
+            11L, // fileSequenceNumber
+            43L, // modifiedSnapshotId
+            1000L, // firstRowId
+            DELETED_POSITIONS,
+            REPLACED_POSITIONS,
+            1_700_000_000_123_456L); // snapshotTimestampMicros
     tracking.set(MANIFEST_LOCATION_ORDINAL, "manifest-location");
     tracking.set(MANIFEST_POSITION_ORDINAL, 7L);
 
@@ -102,6 +121,8 @@ class TestTrackingStruct {
         .isEqualTo(ByteBuffer.wrap(DELETED_POSITIONS));
     assertThat(tracking.get(pos("replaced_positions"), ByteBuffer.class))
         .isEqualTo(ByteBuffer.wrap(REPLACED_POSITIONS));
+    assertThat(tracking.get(pos("snapshot_timestamp"), Long.class))
+        .isEqualTo(1_700_000_000_123_456L);
     assertThat(tracking.get(MANIFEST_LOCATION_ORDINAL, String.class))
         .isEqualTo("manifest-location");
     assertThat(tracking.get(MANIFEST_POSITION_ORDINAL, Long.class)).isEqualTo(7L);
@@ -111,7 +132,15 @@ class TestTrackingStruct {
   void copy() {
     TrackingStruct tracking =
         new TrackingStruct(
-            EntryStatus.MODIFIED, 42L, 10L, 11L, 43L, 1000L, DELETED_POSITIONS, REPLACED_POSITIONS);
+            EntryStatus.MODIFIED,
+            42L, // snapshotId
+            10L, // dataSequenceNumber
+            11L, // fileSequenceNumber
+            43L, // modifiedSnapshotId
+            1000L, // firstRowId
+            DELETED_POSITIONS,
+            REPLACED_POSITIONS,
+            1_700_000_000_123_456L); // snapshotTimestampMicros
     tracking.set(MANIFEST_LOCATION_ORDINAL, "manifest-location");
     tracking.set(MANIFEST_POSITION_ORDINAL, 7L);
 
@@ -125,6 +154,7 @@ class TestTrackingStruct {
     assertThat(copy.firstRowId()).isEqualTo(tracking.firstRowId());
     assertThat(copy.deletedPositions()).isEqualTo(tracking.deletedPositions());
     assertThat(copy.replacedPositions()).isEqualTo(tracking.replacedPositions());
+    assertThat(copy.snapshotTimestampMicros()).isEqualTo(tracking.snapshotTimestampMicros());
     assertThat(copy.manifestLocation()).isEqualTo(tracking.manifestLocation());
     assertThat(copy.manifestPos()).isEqualTo(tracking.manifestPos());
 
@@ -136,18 +166,21 @@ class TestTrackingStruct {
   @ParameterizedTest
   @EnumSource(EntryStatus.class)
   void inheritSnapshotIdOnly(EntryStatus status) {
-    TrackingStruct tracking = new TrackingStruct(status, null, null, null, null, null, null, null);
+    TrackingStruct tracking =
+        new TrackingStruct(status, null, null, null, null, null, null, null, null);
 
     tracking.inherit(100L);
 
     assertThat(tracking.snapshotId()).isEqualTo(100L);
     assertThat(tracking.dataSequenceNumber()).isNull();
+    assertThat(tracking.snapshotTimestampMicros()).isNull();
   }
 
   @ParameterizedTest
   @EnumSource(EntryStatus.class)
   void inheritSnapshotId(EntryStatus status) {
-    TrackingStruct tracking = new TrackingStruct(status, null, null, null, null, null, null, null);
+    TrackingStruct tracking =
+        new TrackingStruct(status, null, null, null, null, null, null, null, null);
 
     tracking.inherit(100L, 60L);
 
@@ -157,7 +190,8 @@ class TestTrackingStruct {
   @ParameterizedTest
   @EnumSource(EntryStatus.class)
   void inheritancePreservesExplicitValues(EntryStatus status) {
-    TrackingStruct tracking = new TrackingStruct(status, 200L, 75L, 76L, null, null, null, null);
+    TrackingStruct tracking =
+        new TrackingStruct(status, 200L, 75L, 76L, null, null, null, null, null);
 
     tracking.inherit(100L, 60L);
 
@@ -170,7 +204,8 @@ class TestTrackingStruct {
   @EnumSource(EntryStatus.class)
   void inheritanceAllStatusesInheritSeq0(EntryStatus status) {
     // Sequence number 0 is inherited for all statuses for reading pre-seq v1 tables
-    TrackingStruct tracking = new TrackingStruct(status, 42L, null, null, null, null, null, null);
+    TrackingStruct tracking =
+        new TrackingStruct(status, 42L, null, null, null, null, null, null, null);
 
     tracking.inherit(100L, 0L);
 
@@ -181,7 +216,7 @@ class TestTrackingStruct {
   @Test
   void inheritanceAddedEntriesInheritSequenceNumber() {
     TrackingStruct tracking =
-        new TrackingStruct(EntryStatus.ADDED, 42L, null, null, null, null, null, null);
+        new TrackingStruct(EntryStatus.ADDED, 42L, null, null, null, null, null, null, null);
 
     tracking.inherit(100L, 60L);
 
@@ -192,7 +227,7 @@ class TestTrackingStruct {
   @Test
   void inheritanceModifiedEntriesInheritDataSequenceNumber() {
     TrackingStruct tracking =
-        new TrackingStruct(EntryStatus.MODIFIED, 42L, null, null, null, null, null, null);
+        new TrackingStruct(EntryStatus.MODIFIED, 42L, null, null, null, null, null, null, null);
 
     tracking.inherit(100L, 60L);
 
@@ -206,7 +241,8 @@ class TestTrackingStruct {
   @ParameterizedTest
   @FieldSource("NON_INHERITING_STATUSES")
   void inheritanceWithNonInheritingStatus(EntryStatus status) {
-    TrackingStruct tracking = new TrackingStruct(status, 42L, null, null, null, null, null, null);
+    TrackingStruct tracking =
+        new TrackingStruct(status, 42L, null, null, null, null, null, null, null);
 
     tracking.inherit(100L, 60L);
 
@@ -222,7 +258,8 @@ class TestTrackingStruct {
   @ParameterizedTest
   @FieldSource("ASSIGNING_STATUSES")
   void assignmentFirstRowIdAssigned(EntryStatus status) {
-    TrackingStruct tracking = new TrackingStruct(status, 42L, null, null, null, null, null, null);
+    TrackingStruct tracking =
+        new TrackingStruct(status, 42L, null, null, null, null, null, null, null);
 
     assertThat(tracking.assignFirstRowId(10_000L)).as("Should return true when assigned").isTrue();
 
@@ -232,7 +269,8 @@ class TestTrackingStruct {
   @ParameterizedTest
   @FieldSource("NON_ASSIGNING_STATUSES")
   void assignmentFirstRowIdNotAssigned(EntryStatus status) {
-    TrackingStruct tracking = new TrackingStruct(status, 42L, null, null, null, null, null, null);
+    TrackingStruct tracking =
+        new TrackingStruct(status, 42L, null, null, null, null, null, null, null);
 
     assertThat(tracking.assignFirstRowId(10_000L))
         .as("Should return false when not assigned")
@@ -244,7 +282,8 @@ class TestTrackingStruct {
   @ParameterizedTest
   @EnumSource(EntryStatus.class)
   void assignmentFirstRowIdAlreadyAssigned(EntryStatus status) {
-    TrackingStruct tracking = new TrackingStruct(status, 42L, null, null, null, 5_000L, null, null);
+    TrackingStruct tracking =
+        new TrackingStruct(status, 42L, null, null, null, 5_000L, null, null, null);
 
     assertThat(tracking.assignFirstRowId(10_000L))
         .as("Should return false when not assigned")
@@ -259,7 +298,7 @@ class TestTrackingStruct {
   @EnumSource(EntryStatus.class)
   void assignmentNullFirstRowId(EntryStatus status) {
     TrackingStruct tracking =
-        new TrackingStruct(status, 42L, null, null, null, 10_000L, null, null);
+        new TrackingStruct(status, 42L, null, null, null, 10_000L, null, null, null);
 
     assertThat(tracking.assignFirstRowId(null))
         .as("Should return false when not assigned")
@@ -271,7 +310,8 @@ class TestTrackingStruct {
   @ParameterizedTest
   @EnumSource(EntryStatus.class)
   void isLiveDelegatesToStatus(EntryStatus status) {
-    TrackingStruct tracking = new TrackingStruct(status, null, null, null, null, null, null, null);
+    TrackingStruct tracking =
+        new TrackingStruct(status, null, null, null, null, null, null, null, null);
 
     assertThat(tracking.isLive()).isEqualTo(status.isLive());
   }
@@ -280,7 +320,15 @@ class TestTrackingStruct {
   void internalSetIgnoresUnknownOrdinal() {
     TrackingStruct tracking =
         new TrackingStruct(
-            EntryStatus.ADDED, 42L, 10L, 11L, 43L, 1000L, DELETED_POSITIONS, REPLACED_POSITIONS);
+            EntryStatus.ADDED,
+            42L, // snapshotId
+            10L, // dataSequenceNumber
+            11L, // fileSequenceNumber
+            43L, // modifiedSnapshotId
+            1000L, // firstRowId
+            DELETED_POSITIONS,
+            REPLACED_POSITIONS,
+            1_700_000_000_123_456L); // snapshotTimestampMicros
 
     // unknown ordinals from a newer format version are silently ignored
     tracking.internalSet(99, "value from a newer format");
@@ -294,6 +342,7 @@ class TestTrackingStruct {
     assertThat(tracking.firstRowId()).isEqualTo(1000L);
     assertThat(tracking.deletedPositions()).isEqualTo(ByteBuffer.wrap(DELETED_POSITIONS));
     assertThat(tracking.replacedPositions()).isEqualTo(ByteBuffer.wrap(REPLACED_POSITIONS));
+    assertThat(tracking.snapshotTimestampMicros()).isEqualTo(1_700_000_000_123_456L);
   }
 
   @Test
@@ -321,7 +370,15 @@ class TestTrackingStruct {
       throws IOException, ClassNotFoundException {
     TrackingStruct tracking =
         new TrackingStruct(
-            EntryStatus.MODIFIED, 42L, 10L, 11L, 43L, 1000L, DELETED_POSITIONS, REPLACED_POSITIONS);
+            EntryStatus.MODIFIED,
+            42L, // snapshotId
+            10L, // dataSequenceNumber
+            11L, // fileSequenceNumber
+            43L, // modifiedSnapshotId
+            1000L, // firstRowId
+            DELETED_POSITIONS,
+            REPLACED_POSITIONS,
+            1_700_000_000_123_456L); // snapshotTimestampMicros
     tracking.set(MANIFEST_LOCATION_ORDINAL, "manifest-location");
     tracking.set(MANIFEST_POSITION_ORDINAL, 7L);
 
@@ -335,6 +392,7 @@ class TestTrackingStruct {
     assertThat(deserialized.firstRowId()).isEqualTo(1000L);
     assertThat(deserialized.deletedPositions()).isEqualTo(ByteBuffer.wrap(DELETED_POSITIONS));
     assertThat(deserialized.replacedPositions()).isEqualTo(ByteBuffer.wrap(REPLACED_POSITIONS));
+    assertThat(deserialized.snapshotTimestampMicros()).isEqualTo(1_700_000_000_123_456L);
     assertThat(deserialized.manifestLocation()).isEqualTo("manifest-location");
     assertThat(deserialized.manifestPos()).isEqualTo(7L);
   }

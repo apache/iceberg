@@ -230,6 +230,11 @@ public interface ManifestFile {
     return null;
   }
 
+  /** Returns the microsecond timestamp of the snapshot that added the manifest file. */
+  default Long snapshotTimestampMicros() {
+    return null;
+  }
+
   /** Returns the manifest deletion vector, or null if absent. */
   default ManifestBitmap manifestDeletionVector() {
     return null;

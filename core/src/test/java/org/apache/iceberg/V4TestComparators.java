@@ -115,6 +115,7 @@ class V4TestComparators {
               .thenComparing(Tracking::dataSequenceNumber, natural())
               .thenComparing(Tracking::fileSequenceNumber, natural())
               .thenComparing(Tracking::modifiedSnapshotId, natural())
+              .thenComparing(Tracking::snapshotTimestampMicros, natural())
               .thenComparing(Tracking::firstRowId, natural())
               .thenComparing(Tracking::deletedPositions, BYTES)
               .thenComparing(Tracking::replacedPositions, BYTES));

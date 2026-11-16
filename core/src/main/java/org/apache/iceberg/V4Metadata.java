@@ -412,7 +412,8 @@ class V4Metadata {
           Tracking.MODIFIED_SNAPSHOT_ID,
           Tracking.FIRST_ROW_ID,
           Tracking.DELETED_POSITIONS,
-          Tracking.REPLACED_POSITIONS);
+          Tracking.REPLACED_POSITIONS,
+          Tracking.SNAPSHOT_TIMESTAMP);
 
   private static final Types.StructType LEAF_TRACKING_TYPE =
       Types.StructType.of(
@@ -421,10 +422,11 @@ class V4Metadata {
           Tracking.SEQUENCE_NUMBER,
           Tracking.FILE_SEQUENCE_NUMBER,
           Tracking.MODIFIED_SNAPSHOT_ID,
-          Tracking.FIRST_ROW_ID);
+          Tracking.FIRST_ROW_ID,
+          Tracking.SNAPSHOT_TIMESTAMP);
 
   /** Wrapper used to write {@link Tracking} using the v4 tracking schema. */
-  private static class TrackingWrapper implements StructLike {
+  private abstract static class TrackingWrapper implements StructLike {
     private static final int SIZE = Tracking.schema().fields().size();
 
     private final Long commitSnapshotId;
@@ -486,28 +488,20 @@ class V4Metadata {
 
     @Override
     public <T> T get(int pos, Class<T> javaClass) {
-      return javaClass.cast(get(pos));
+      return javaClass.cast(getInternal(pos));
     }
 
-    private Object get(int pos) {
-      return switch (pos) {
-        case 0 -> wrapped.status().id();
-        case 1 -> wrapped.snapshotId();
-        case 2 -> sequenceNumber(wrapped.dataSequenceNumber());
-        case 3 -> sequenceNumber(wrapped.fileSequenceNumber());
-        case 4 -> wrapped.modifiedSnapshotId();
-        case 5 -> firstRowId();
-        case 6 -> wrapped.deletedPositions();
-        case 7 -> wrapped.replacedPositions();
-        default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-      };
+    protected abstract Object getInternal(int pos);
+
+    protected Tracking wrapped() {
+      return wrapped;
     }
 
-    private Long sequenceNumber(Long sequenceNumber) {
+    protected Long sequenceNumber(Long sequenceNumber) {
       return sequenceNumber != null ? sequenceNumber : commitSequenceNumber;
     }
 
-    private Long firstRowId() {
+    protected Long firstRowId() {
       return assignedFirstRowId != null ? assignedFirstRowId : wrapped.firstRowId();
     }
   }
@@ -521,6 +515,20 @@ class V4Metadata {
       validateSequenceNumbers(tracking);
       return wrapInternal(tracking, null /* first row ID is inherited */);
     }
+
+    @Override
+    protected Object getInternal(int pos) {
+      return switch (pos) {
+        case 0 -> wrapped().status().id();
+        case 1 -> wrapped().snapshotId();
+        case 2 -> sequenceNumber(wrapped().dataSequenceNumber());
+        case 3 -> sequenceNumber(wrapped().fileSequenceNumber());
+        case 4 -> wrapped().modifiedSnapshotId();
+        case 5 -> firstRowId();
+        case 6 -> wrapped().snapshotTimestampMicros();
+        default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      };
+    }
   }
 
   private static class RootTrackingWrapper extends TrackingWrapper {
@@ -533,6 +541,22 @@ class V4Metadata {
           tracking.snapshotId() != null, "Missing snapshot ID for file: %s", location);
       validateSequenceNumbers(tracking);
       return wrapInternal(tracking, firstRowId);
+    }
+
+    @Override
+    protected Object getInternal(int pos) {
+      return switch (pos) {
+        case 0 -> wrapped().status().id();
+        case 1 -> wrapped().snapshotId();
+        case 2 -> sequenceNumber(wrapped().dataSequenceNumber());
+        case 3 -> sequenceNumber(wrapped().fileSequenceNumber());
+        case 4 -> wrapped().modifiedSnapshotId();
+        case 5 -> firstRowId();
+        case 6 -> wrapped().deletedPositions();
+        case 7 -> wrapped().replacedPositions();
+        case 8 -> wrapped().snapshotTimestampMicros();
+        default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      };
     }
   }
 

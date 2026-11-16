@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -42,6 +43,7 @@ class RootManifestFile implements ManifestFile {
         io.newInputFile(location).getLength(),
         snapshot.snapshotId(),
         snapshot.sequenceNumber(),
+        TimeUnit.MILLISECONDS.toMicros(snapshot.timestampMillis()),
         snapshot.firstRowId(),
         /* keyMetadata= */ null);
   }
@@ -50,6 +52,7 @@ class RootManifestFile implements ManifestFile {
   private final long length;
   private final long snapshotId;
   private final long sequenceNumber;
+  private final long snapshotTimestampMicros;
   private final Long firstRowId;
   private final byte[] keyMetadata;
 
@@ -58,6 +61,7 @@ class RootManifestFile implements ManifestFile {
       long length,
       long snapshotId,
       long sequenceNumber,
+      long snapshotTimestampMicros,
       Long firstRowId,
       ByteBuffer keyMetadata) {
     Preconditions.checkArgument(location != null, "Invalid location: null");
@@ -65,6 +69,7 @@ class RootManifestFile implements ManifestFile {
     this.length = length;
     this.snapshotId = snapshotId;
     this.sequenceNumber = sequenceNumber;
+    this.snapshotTimestampMicros = snapshotTimestampMicros;
     this.firstRowId = firstRowId;
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
   }
@@ -145,6 +150,11 @@ class RootManifestFile implements ManifestFile {
   }
 
   @Override
+  public Long snapshotTimestampMicros() {
+    return snapshotTimestampMicros;
+  }
+
+  @Override
   public Long firstRowId() {
     return firstRowId;
   }
@@ -161,7 +171,13 @@ class RootManifestFile implements ManifestFile {
             ? null
             : ByteBuffer.wrap(Arrays.copyOf(keyMetadata, keyMetadata.length));
     return new RootManifestFile(
-        location, length, snapshotId, sequenceNumber, firstRowId, keyMetadataCopy);
+        location,
+        length,
+        snapshotId,
+        sequenceNumber,
+        snapshotTimestampMicros,
+        firstRowId,
+        keyMetadataCopy);
   }
 
   @Override
@@ -171,6 +187,7 @@ class RootManifestFile implements ManifestFile {
         .add("length", length)
         .add("snapshot_id", snapshotId)
         .add("sequence_number", sequenceNumber)
+        .add("snapshot_timestamp_micros", snapshotTimestampMicros)
         .add("first_row_id", firstRowId)
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .toString();

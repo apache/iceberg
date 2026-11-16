@@ -52,6 +52,8 @@ public class TestStatsUtil {
     assertThat(StatsUtil.toBaseId(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()))
         .isEqualTo(9_000);
     assertThat(StatsUtil.toBaseId(MetadataColumns.ROW_ID.fieldId())).isEqualTo(9_200);
+    assertThat(StatsUtil.toBaseId(MetadataColumns.LAST_UPDATED_TIMESTAMP.fieldId()))
+        .isEqualTo(9_400);
   }
 
   @Test
@@ -74,6 +76,8 @@ public class TestStatsUtil {
     assertThat(StatsUtil.toFieldId(9_000))
         .isEqualTo(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId());
     assertThat(StatsUtil.toFieldId(9_200)).isEqualTo(MetadataColumns.ROW_ID.fieldId());
+    assertThat(StatsUtil.toFieldId(9_400))
+        .isEqualTo(MetadataColumns.LAST_UPDATED_TIMESTAMP.fieldId());
   }
 
   @Test
@@ -95,9 +99,9 @@ public class TestStatsUtil {
   @Test
   public void testToFieldIdReservedMetadataRange() {
     // 9,000 to 10,000 (exclusive) is reserved for metadata column stats
-    assertThatThrownBy(() -> StatsUtil.toFieldId(9_400))
+    assertThatThrownBy(() -> StatsUtil.toFieldId(9_600))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Unsupported metadata stats field ID: 9400");
+        .hasMessage("Unsupported metadata stats field ID: 9600");
   }
 
   @Test
