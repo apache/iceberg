@@ -212,8 +212,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               ? Integer.parseInt(dekLengthFromHMS)
               : TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT;
 
-      // Open transactions may still need keys that are not in committed metadata. Known keys are
-      // in the encryption manager, or in encryptedKeys if an earlier refresh discarded the manager.
+      // Open transactions may still need keys that are not in committed metadata. After an
+      // earlier refresh discarded the manager, those keys are only in encryptedKeys.
       Iterable<EncryptedKey> knownKeys =
           encryptionManager != null
               ? EncryptionUtil.encryptionKeys(encryptionManager).values()
