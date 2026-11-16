@@ -25,9 +25,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreTableOperations;
@@ -54,6 +56,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -69,7 +72,7 @@ class TestCanonicalUriFileIOV3 {
     Files.createDirectories(temp.resolve("test-table/metadata"));
     CanonicalUriFileIO io = newFileIO();
     InMemoryCatalogTableOperations ops = new InMemoryCatalogTableOperations(io);
-    Map<String, String> tableProperties = new HashMap<>();
+    Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(TableProperties.FORMAT_VERSION, "3");
     tableProperties.put(
         TableProperties.WRITE_LOCATION_PROVIDER_IMPL, CanonicalLocationProvider.class.getName());
@@ -139,7 +142,7 @@ class TestCanonicalUriFileIOV3 {
   }
 
   private CanonicalUriFileIO newFileIO() {
-    Map<String, String> properties = new HashMap<>();
+    Map<String, String> properties = Maps.newHashMap();
     properties.put(PathAliasProperties.DELEGATE_IMPL, HadoopFileIO.class.getName());
     properties.put(PathAliasProperties.UNMATCHED, "fail");
     properties.put("pathalias.rule.0.id", "test-table");
@@ -160,9 +163,9 @@ class TestCanonicalUriFileIOV3 {
     }
   }
 
-  private java.util.List<Path> physicalFiles() throws IOException {
+  private List<Path> physicalFiles() throws IOException {
     try (Stream<Path> paths = Files.walk(temp)) {
-      return paths.filter(Files::isRegularFile).collect(java.util.stream.Collectors.toList());
+      return paths.filter(Files::isRegularFile).collect(Collectors.toList());
     }
   }
 
@@ -171,7 +174,7 @@ class TestCanonicalUriFileIOV3 {
   }
 
   private static <T> T only(Iterable<T> values) {
-    java.util.Iterator<T> iterator = values.iterator();
+    Iterator<T> iterator = values.iterator();
     T value = iterator.next();
     assertThat(iterator.hasNext()).isFalse();
     return value;

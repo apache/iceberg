@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.io.canonicaluri;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -35,6 +34,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
@@ -94,7 +94,7 @@ public final class CanonicalUriFileIO implements DelegateFileIO, HadoopConfigura
   @Override
   public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
     metrics.bulkDelete();
-    List<String> physicalPaths = new ArrayList<>();
+    List<String> physicalPaths = Lists.newArrayList();
     for (String path : pathsToDelete) {
       physicalPaths.add(translate(path, true, "bulk-delete").location());
     }

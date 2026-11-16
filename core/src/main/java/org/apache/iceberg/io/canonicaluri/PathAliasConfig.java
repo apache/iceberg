@@ -19,13 +19,13 @@
 package org.apache.iceberg.io.canonicaluri;
 
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 final class PathAliasConfig implements Serializable {
   private static final Pattern RULE_PROPERTY =
@@ -150,7 +150,7 @@ final class PathAliasConfig implements Serializable {
       }
     }
 
-    List<MappingRule> rules = new ArrayList<>();
+    List<MappingRule> rules = Lists.newArrayList();
     for (Map.Entry<Integer, RuleProperties> entry : rulesByIndex.entrySet()) {
       int index = entry.getKey();
       RuleProperties values = entry.getValue();

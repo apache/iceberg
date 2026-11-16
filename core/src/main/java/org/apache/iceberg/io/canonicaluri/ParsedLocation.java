@@ -42,14 +42,28 @@ final class ParsedLocation implements Serializable {
       throw new IllegalArgumentException("Invalid " + description + ": location is empty");
     }
 
-    URI uri;
+    URI uri = toUri(location, description);
+    validateHierarchicalUri(uri, description);
+
+    String normalizedScheme = uri.getScheme().toLowerCase(Locale.ROOT);
+    String rawAuthority = uri.getRawAuthority();
+    String path = uri.getRawPath() == null ? "" : uri.getRawPath();
+    String decodedPath = uri.getPath() == null ? "" : uri.getPath();
+    validatePath(decodedPath, description);
+
+    return new ParsedLocation(location, normalizedScheme, rawAuthority, path);
+  }
+
+  private static URI toUri(String location, String description) {
     try {
-      uri = new URI(location);
+      return new URI(location);
     } catch (URISyntaxException e) {
       throw new IllegalArgumentException(
           "Invalid " + description + " URI: " + sanitize(location), e);
     }
+  }
 
+  private static void validateHierarchicalUri(URI uri, String description) {
     if (!uri.isAbsolute() || uri.isOpaque()) {
       throw new IllegalArgumentException(
           "Invalid " + description + " URI: must be an absolute hierarchical URI");
@@ -74,12 +88,6 @@ final class ParsedLocation implements Serializable {
       throw new IllegalArgumentException(
           "Invalid " + description + " URI: user info is not allowed");
     }
-
-    String path = uri.getRawPath() == null ? "" : uri.getRawPath();
-    String decodedPath = uri.getPath() == null ? "" : uri.getPath();
-    validatePath(decodedPath, description);
-
-    return new ParsedLocation(location, normalizedScheme, rawAuthority, path);
   }
 
   private static void validatePath(String path, String description) {

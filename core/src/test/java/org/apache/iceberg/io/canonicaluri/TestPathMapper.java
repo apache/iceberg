@@ -132,7 +132,8 @@ class TestPathMapper {
     PathMapper mapper = mapper(rule("root", "s3://warehouse/", "ofs://om/s3v/warehouse/"));
 
     assertThatThrownBy(() -> mapper.toPhysical(location, false))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid");
   }
 
   @Test

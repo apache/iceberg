@@ -19,11 +19,11 @@
 package org.apache.iceberg.io.canonicaluri;
 
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 final class PathMapper implements Serializable {
   enum UnmatchedPolicy {
@@ -40,9 +40,9 @@ final class PathMapper implements Serializable {
     this.enabled = enabled;
     this.unmatchedPolicy = unmatchedPolicy;
     validateRules(rules);
-    this.canonicalRules = new ArrayList<>(rules);
+    this.canonicalRules = Lists.newArrayList(rules);
     this.canonicalRules.sort(Comparator.comparingInt(MappingRule::canonicalSpecificity).reversed());
-    this.physicalRules = new ArrayList<>(rules);
+    this.physicalRules = Lists.newArrayList(rules);
     this.physicalRules.sort(Comparator.comparingInt(MappingRule::physicalSpecificity).reversed());
   }
 
@@ -102,8 +102,8 @@ final class PathMapper implements Serializable {
   }
 
   private static void validateRules(List<MappingRule> rules) {
-    Set<String> canonicalKeys = new HashSet<>();
-    Set<String> physicalKeys = new HashSet<>();
+    Set<String> canonicalKeys = Sets.newHashSet();
+    Set<String> physicalKeys = Sets.newHashSet();
     for (MappingRule rule : rules) {
       if (!canonicalKeys.add(rule.canonicalKey())) {
         throw new IllegalArgumentException(

@@ -21,16 +21,16 @@ package org.apache.iceberg.io.canonicaluri;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 
 class TestCanonicalLocationProvider {
   @Test
   void producesCanonicalDataLocation() {
     CanonicalLocationProvider provider =
-        new CanonicalLocationProvider("s3://warehouse/db/table", new HashMap<>());
+        new CanonicalLocationProvider("s3://warehouse/db/table", Maps.newHashMap());
 
     assertThat(provider.newDataLocation("a.parquet"))
         .isEqualTo("s3://warehouse/db/table/data/a.parquet");
@@ -38,7 +38,7 @@ class TestCanonicalLocationProvider {
 
   @Test
   void permitsCanonicalExternalDataRoot() {
-    Map<String, String> properties = new HashMap<>();
+    Map<String, String> properties = Maps.newHashMap();
     properties.put(PathAliasProperties.LOCATION_PROVIDER_CANONICAL_PREFIX, "s3://warehouse/");
     properties.put(TableProperties.WRITE_DATA_LOCATION, "s3://warehouse/shared/table-data");
 
@@ -51,14 +51,14 @@ class TestCanonicalLocationProvider {
 
   @Test
   void rejectsPhysicalOrEscapingDataRoot() {
-    Map<String, String> physical = new HashMap<>();
+    Map<String, String> physical = Maps.newHashMap();
     physical.put(TableProperties.WRITE_DATA_LOCATION, "ofs://om/s3v/warehouse/table/data");
     assertThatThrownBy(() -> new CanonicalLocationProvider("s3://warehouse/table", physical))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("outside the configured canonical namespace");
 
     CanonicalLocationProvider provider =
-        new CanonicalLocationProvider("s3://warehouse/table", new HashMap<>());
+        new CanonicalLocationProvider("s3://warehouse/table", Maps.newHashMap());
     assertThatThrownBy(() -> provider.newDataLocation("../secret"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("path traversal");
@@ -66,7 +66,7 @@ class TestCanonicalLocationProvider {
 
   @Test
   void rejectsPhysicalMetadataRoot() {
-    Map<String, String> properties = new HashMap<>();
+    Map<String, String> properties = Maps.newHashMap();
     properties.put(TableProperties.WRITE_METADATA_LOCATION, "ofs://om/s3v/warehouse/metadata");
 
     assertThatThrownBy(() -> new CanonicalLocationProvider("s3://warehouse/table", properties))

@@ -26,8 +26,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
 
 class TestPathAliasVectors {
@@ -38,7 +38,7 @@ class TestPathAliasVectors {
     assertThat(vectors.get("unmatched").asText()).isEqualTo("fail");
     assertThat(vectors.get("writeMode").asText()).isEqualTo("strict");
 
-    List<MappingRule> rules = new ArrayList<>();
+    List<MappingRule> rules = Lists.newArrayList();
     for (JsonNode rule : vectors.withArray("rules")) {
       rules.add(
           new MappingRule(
@@ -61,7 +61,8 @@ class TestPathAliasVectors {
     for (JsonNode invalid : vectors.withArray("invalid")) {
       assertThatThrownBy(() -> mapper.toPhysical(invalid.asText(), false))
           .as(invalid.asText())
-          .isInstanceOf(IllegalArgumentException.class);
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Invalid");
     }
   }
 

@@ -28,11 +28,9 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.iceberg.CatalogUtil;
@@ -49,6 +47,8 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -84,7 +84,7 @@ class TestCanonicalUriFileIO {
     assertThat(input.location()).isEqualTo(canonical);
     assertThat(input.getLength()).isEqualTo(15L);
     assertThat(RecordingFileIO.lastInputLocation).isEqualTo(physical);
-    assertThat(RecordingFileIO.lastKnownLength.get()).isEqualTo(15L);
+    assertThat(RecordingFileIO.LAST_KNOWN_LENGTH.get()).isEqualTo(15L);
     try (SeekableInputStream stream = input.newStream()) {
       assertThat(stream).isInstanceOf(RangeReadable.class);
       assertThat(stream).isNotInstanceOf(DelegatingInputStream.class);
@@ -102,21 +102,21 @@ class TestCanonicalUriFileIO {
     write(io, CANONICAL_PREFIX + "table/a", "a");
     write(io, CANONICAL_PREFIX + "table/b", "b");
 
-    List<FileInfo> listed = new ArrayList<>();
+    List<FileInfo> listed = Lists.newArrayList();
     io.listPrefix(CANONICAL_PREFIX + "table/").forEach(listed::add);
     assertThat(listed)
         .extracting(FileInfo::location)
         .containsExactlyInAnyOrder(CANONICAL_PREFIX + "table/a", CANONICAL_PREFIX + "table/b");
 
     io.deleteFiles(Arrays.asList(CANONICAL_PREFIX + "table/a", CANONICAL_PREFIX + "table/b"));
-    assertThat(RecordingFileIO.bulkDeleteCalls.get()).isEqualTo(1);
-    assertThat(RecordingFileIO.data).isEmpty();
+    assertThat(RecordingFileIO.BULK_DELETE_CALLS.get()).isEqualTo(1);
+    assertThat(RecordingFileIO.DATA).isEmpty();
 
     write(io, CANONICAL_PREFIX + "table/c", "c");
     write(io, CANONICAL_PREFIX + "table/d", "d");
     io.deletePrefix(CANONICAL_PREFIX + "table/");
-    assertThat(RecordingFileIO.deletePrefixCalls.get()).isEqualTo(1);
-    assertThat(RecordingFileIO.data).isEmpty();
+    assertThat(RecordingFileIO.DELETE_PREFIX_CALLS.get()).isEqualTo(1);
+    assertThat(RecordingFileIO.DATA).isEmpty();
   }
 
   @Test
@@ -135,11 +135,11 @@ class TestCanonicalUriFileIO {
   void survivesJavaSerializationWithoutSerializingDelegate() throws Exception {
     CanonicalUriFileIO io = newFileIO();
     write(io, CANONICAL_PREFIX + "table/a", "serialized");
-    int delegatesBefore = RecordingFileIO.instances.get();
+    int delegatesBefore = RecordingFileIO.INSTANCES.get();
 
     CanonicalUriFileIO restored = roundTrip(io);
     assertThat(read(restored, CANONICAL_PREFIX + "table/a")).isEqualTo("serialized");
-    assertThat(RecordingFileIO.instances.get()).isEqualTo(delegatesBefore + 1);
+    assertThat(RecordingFileIO.INSTANCES.get()).isEqualTo(delegatesBefore + 1);
     assertThat(restored.properties()).containsEntry(PathAliasProperties.ENABLED, "true");
   }
 
@@ -209,7 +209,7 @@ class TestCanonicalUriFileIO {
   }
 
   private static Map<String, String> properties() {
-    Map<String, String> properties = new ConcurrentHashMap<>();
+    Map<String, String> properties = Maps.newConcurrentMap();
     properties.put(PathAliasProperties.ENABLED, "true");
     properties.put(PathAliasProperties.DELEGATE_IMPL, RecordingFileIO.class.getName());
     properties.put(PathAliasProperties.UNMATCHED, "passthrough");
@@ -256,24 +256,27 @@ class TestCanonicalUriFileIO {
   }
 
   public static class RecordingFileIO implements DelegateFileIO {
-    private static final Map<String, byte[]> data = new ConcurrentHashMap<>();
-    private static final AtomicInteger instances = new AtomicInteger();
-    private static final AtomicInteger bulkDeleteCalls = new AtomicInteger();
-    private static final AtomicInteger deletePrefixCalls = new AtomicInteger();
-    private static final AtomicLong lastKnownLength = new AtomicLong(-1L);
+    private static final Map<String, byte[]> DATA = Maps.newConcurrentMap();
+    private static final AtomicInteger INSTANCES = new AtomicInteger();
+    private static final AtomicInteger BULK_DELETE_CALLS = new AtomicInteger();
+    private static final AtomicInteger DELETE_PREFIX_CALLS = new AtomicInteger();
+    private static final AtomicLong LAST_KNOWN_LENGTH = new AtomicLong(-1L);
     private static volatile String lastInputLocation;
     private static volatile String lastOutputLocation;
 
+    // CHECKSTYLE.OFF: RedundantModifier - CatalogUtil requires a public no-arg constructor
     public RecordingFileIO() {
-      instances.incrementAndGet();
+      INSTANCES.incrementAndGet();
     }
 
+    // CHECKSTYLE.ON: RedundantModifier
+
     static void reset() {
-      data.clear();
-      instances.set(0);
-      bulkDeleteCalls.set(0);
-      deletePrefixCalls.set(0);
-      lastKnownLength.set(-1L);
+      DATA.clear();
+      INSTANCES.set(0);
+      BULK_DELETE_CALLS.set(0);
+      DELETE_PREFIX_CALLS.set(0);
+      LAST_KNOWN_LENGTH.set(-1L);
       lastInputLocation = null;
       lastOutputLocation = null;
     }
@@ -286,7 +289,7 @@ class TestCanonicalUriFileIO {
 
     @Override
     public InputFile newInputFile(String path, long length) {
-      lastKnownLength.set(length);
+      LAST_KNOWN_LENGTH.set(length);
       return newInputFile(path);
     }
 
@@ -298,19 +301,19 @@ class TestCanonicalUriFileIO {
 
     @Override
     public void deleteFile(String path) {
-      data.remove(path);
+      DATA.remove(path);
     }
 
     @Override
     public void deleteFiles(Iterable<String> pathsToDelete) {
-      bulkDeleteCalls.incrementAndGet();
-      pathsToDelete.forEach(data::remove);
+      BULK_DELETE_CALLS.incrementAndGet();
+      pathsToDelete.forEach(DATA::remove);
     }
 
     @Override
     public Iterable<FileInfo> listPrefix(String prefix) {
-      List<FileInfo> files = new ArrayList<>();
-      data.forEach(
+      List<FileInfo> files = Lists.newArrayList();
+      DATA.forEach(
           (location, contents) -> {
             if (location.startsWith(prefix)) {
               files.add(new FileInfo(location, contents.length, 0L));
@@ -321,8 +324,8 @@ class TestCanonicalUriFileIO {
 
     @Override
     public void deletePrefix(String prefix) {
-      deletePrefixCalls.incrementAndGet();
-      data.keySet().removeIf(location -> location.startsWith(prefix));
+      DELETE_PREFIX_CALLS.incrementAndGet();
+      DATA.keySet().removeIf(location -> location.startsWith(prefix));
     }
   }
 
@@ -365,11 +368,11 @@ class TestCanonicalUriFileIO {
 
     @Override
     public boolean exists() {
-      return RecordingFileIO.data.containsKey(location);
+      return RecordingFileIO.DATA.containsKey(location);
     }
 
     private byte[] bytes() {
-      return RecordingFileIO.data.getOrDefault(location, new byte[0]);
+      return RecordingFileIO.DATA.getOrDefault(location, new byte[0]);
     }
   }
 
@@ -382,7 +385,7 @@ class TestCanonicalUriFileIO {
 
     @Override
     public PositionOutputStream create() {
-      if (RecordingFileIO.data.containsKey(location)) {
+      if (RecordingFileIO.DATA.containsKey(location)) {
         throw new IllegalStateException("File already exists: " + location);
       }
 
@@ -552,7 +555,7 @@ class TestCanonicalUriFileIO {
 
     @Override
     public void close() {
-      RecordingFileIO.data.put(location, bytes.toByteArray());
+      RecordingFileIO.DATA.put(location, bytes.toByteArray());
     }
 
     @Override
