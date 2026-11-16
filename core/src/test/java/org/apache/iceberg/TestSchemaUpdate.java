@@ -83,6 +83,16 @@ public class TestSchemaUpdate {
 
   private static final int SCHEMA_LAST_COLUMN_ID = 23;
 
+  private static final Schema FILE_SCHEMA =
+      new Schema(
+          required(1, "id", Types.LongType.get()),
+          optional(2, "photo", Types.FileType.of(2)),
+          optional(9, "data", Types.StringType.get()));
+
+  private static SchemaUpdate fileUpdate() {
+    return new SchemaUpdate(FILE_SCHEMA, FILE_SCHEMA.highestFieldId());
+  }
+
   @Test
   public void testNoChanges() {
     Schema identical = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).apply();
@@ -2591,16 +2601,6 @@ public class TestSchemaUpdate {
     assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
-  private static final Schema FILE_SCHEMA =
-      new Schema(
-          required(1, "id", Types.LongType.get()),
-          optional(2, "photo", Types.FileType.of(2)),
-          optional(9, "data", Types.StringType.get()));
-
-  private static SchemaUpdate fileUpdate() {
-    return new SchemaUpdate(FILE_SCHEMA, FILE_SCHEMA.highestFieldId());
-  }
-
   @Test
   void cannotAddColumnToFileColumn() {
     assertThatThrownBy(() -> fileUpdate().addColumn("photo", "extra", Types.StringType.get()))
@@ -2645,23 +2645,35 @@ public class TestSchemaUpdate {
   }
 
   @Test
-  void cannotUpdateFileNestedFieldRequirement() {
+  void cannotRequireFileNestedField() {
     assertThatThrownBy(() -> fileUpdate().requireColumn("photo.uri"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot change a nested field of a file column: photo.uri");
+  }
+
+  @Test
+  void cannotMakeFileNestedFieldOptional() {
     assertThatThrownBy(() -> fileUpdate().makeColumnOptional("photo.uri"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot change a nested field of a file column: photo.uri");
   }
 
   @Test
-  void cannotMoveFileNestedField() {
+  void cannotMoveFileNestedFieldFirst() {
     assertThatThrownBy(() -> fileUpdate().moveFirst("photo.checksum"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move fields in non-struct type: file");
+  }
+
+  @Test
+  void cannotMoveFileNestedFieldBefore() {
     assertThatThrownBy(() -> fileUpdate().moveBefore("photo.checksum", "photo.uri"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move fields in non-struct type: file");
+  }
+
+  @Test
+  void cannotMoveFileNestedFieldAfter() {
     assertThatThrownBy(() -> fileUpdate().moveAfter("photo.uri", "photo.inline"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move fields in non-struct type: file");
@@ -2669,17 +2681,21 @@ public class TestSchemaUpdate {
 
   @Test
   void renameFileColumn() {
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "image", Types.FileType.of(2)),
+            optional(9, "data", Types.StringType.get()));
+
     Schema renamed = fileUpdate().renameColumn("photo", "image").apply();
 
-    assertThat(renamed.findField("image").type()).isEqualTo(Types.FileType.of(2));
-    assertThat(renamed.findField("image.uri").fieldId()).isEqualTo(3);
+    assertThat(renamed.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
   void deleteFileColumn() {
     Schema deleted = fileUpdate().deleteColumn("photo").apply();
 
-    assertThat(deleted.findField("photo")).isNull();
     assertThat(deleted.asStruct())
         .isEqualTo(
             new Schema(
@@ -2700,6 +2716,74 @@ public class TestSchemaUpdate {
     Schema updated =
         new SchemaUpdate(schema, schema.highestFieldId())
             .addColumn("photo", Types.FileType.of(0))
+            .addColumn("data", Types.StringType.get())
+            .apply();
+
+    assertThat(updated.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  void addStructWithFileFieldReservesNestedIds() {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(
+                2,
+                "media",
+                Types.StructType.of(
+                    optional(3, "photo", Types.FileType.of(3)),
+                    optional(10, "caption", Types.StringType.get()))),
+            optional(11, "data", Types.StringType.get()));
+
+    Schema updated =
+        new SchemaUpdate(schema, schema.highestFieldId())
+            .addColumn(
+                "media",
+                Types.StructType.of(
+                    optional(0, "photo", Types.FileType.of(0)),
+                    optional(1, "caption", Types.StringType.get())))
+            .addColumn("data", Types.StringType.get())
+            .apply();
+
+    assertThat(updated.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  void addListOfFilesReservesNestedIds() {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "photos", Types.ListType.ofOptional(3, Types.FileType.of(3))),
+            optional(10, "data", Types.StringType.get()));
+
+    Schema updated =
+        new SchemaUpdate(schema, schema.highestFieldId())
+            .addColumn("photos", Types.ListType.ofOptional(0, Types.FileType.of(0)))
+            .addColumn("data", Types.StringType.get())
+            .apply();
+
+    assertThat(updated.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  void addMapOfFilesReservesNestedIds() {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(
+                2,
+                "byName",
+                Types.MapType.ofOptional(3, 4, Types.StringType.get(), Types.FileType.of(4))),
+            optional(11, "data", Types.StringType.get()));
+
+    Schema updated =
+        new SchemaUpdate(schema, schema.highestFieldId())
+            .addColumn(
+                "byName",
+                Types.MapType.ofOptional(0, 1, Types.StringType.get(), Types.FileType.of(1)))
             .addColumn("data", Types.StringType.get())
             .apply();
 

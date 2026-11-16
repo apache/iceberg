@@ -149,7 +149,7 @@ public class Schema implements Serializable {
     this.struct = StructType.of(finalColumns);
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
 
-    validateFileBaseIds();
+    validateFileBaseIds(struct, null);
 
     // validate IdentifierField
     if (identifierFieldIds != null) {
@@ -163,16 +163,23 @@ public class Schema implements Serializable {
     this.highestFieldId = lazyIdToName().keySet().stream().mapToInt(i -> i).max().orElse(0);
   }
 
-  private void validateFileBaseIds() {
-    for (NestedField field : lazyIdToField().values()) {
+  private void validateFileBaseIds(Type type, String parentName) {
+    if (!type.isNestedType()) {
+      return;
+    }
+
+    for (NestedField field : type.asNestedType().fields()) {
+      String name = parentName != null ? parentName + "." + field.name() : field.name();
       if (field.type().isFileType()) {
         int baseId = field.type().asFileType().baseId();
         Preconditions.checkArgument(
             baseId == field.fieldId(),
             "Invalid file column %s: file base ID %s does not match field ID %s",
-            lazyIdToName().get(field.fieldId()),
+            name,
             baseId,
             field.fieldId());
+      } else {
+        validateFileBaseIds(field.type(), name);
       }
     }
   }

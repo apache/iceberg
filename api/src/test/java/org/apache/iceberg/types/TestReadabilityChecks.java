@@ -61,6 +61,10 @@ public class TestReadabilityChecks {
         Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY),
       };
 
+  private static final Schema FILE_SCHEMA = new Schema(optional(1, "photo", Types.FileType.of(1)));
+  private static final Schema FILE_AS_STRUCT_SCHEMA =
+      new Schema(optional(1, "photo", Types.StructType.of(Types.FileType.of(1).fields())));
+
   @Test
   public void testPrimitiveTypes() {
     for (Type.PrimitiveType from : PRIMITIVES) {
@@ -287,24 +291,24 @@ public class TestReadabilityChecks {
   }
 
   @Test
-  void incompatibleFileAndStruct() {
-    Schema fileSchema = new Schema(optional(1, "photo", Types.FileType.of(1)));
-    Schema structSchema =
-        new Schema(optional(1, "photo", Types.StructType.of(Types.FileType.of(1).fields())));
+  void structCannotBeReadAsAFile() {
+    assertThat(CheckCompatibility.readCompatibilityErrors(FILE_SCHEMA, FILE_AS_STRUCT_SCHEMA))
+        .singleElement()
+        .asString()
+        .endsWith("cannot be read as a file");
+  }
 
-    List<String> asFile = CheckCompatibility.readCompatibilityErrors(fileSchema, structSchema);
-    assertThat(asFile).hasSize(1);
-    assertThat(asFile.get(0))
-        .as("Should complain that a struct cannot be read as a file")
-        .contains("cannot be read as a file");
+  @Test
+  void fileCannotBeReadAsAStruct() {
+    assertThat(CheckCompatibility.readCompatibilityErrors(FILE_AS_STRUCT_SCHEMA, FILE_SCHEMA))
+        .singleElement()
+        .asString()
+        .endsWith("file cannot be read as a struct");
+  }
 
-    List<String> asStruct = CheckCompatibility.readCompatibilityErrors(structSchema, fileSchema);
-    assertThat(asStruct).hasSize(1);
-    assertThat(asStruct.get(0))
-        .as("Should complain that a file cannot be read as a struct")
-        .contains("file cannot be read as a struct");
-
-    assertThat(CheckCompatibility.readCompatibilityErrors(fileSchema, fileSchema)).isEmpty();
+  @Test
+  void fileCanBeReadAsAFile() {
+    assertThat(CheckCompatibility.readCompatibilityErrors(FILE_SCHEMA, FILE_SCHEMA)).isEmpty();
   }
 
   @Test

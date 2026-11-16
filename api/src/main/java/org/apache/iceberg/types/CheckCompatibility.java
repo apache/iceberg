@@ -263,7 +263,6 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
   @Override
   public List<String> file(Types.FileType readFile, Iterable<List<String>> fieldErrorLists) {
     if (currentType.isFileType()) {
-      // the nested fields are derived from the base id, so matching ids means matching fields
       return NO_ERRORS;
     }
 

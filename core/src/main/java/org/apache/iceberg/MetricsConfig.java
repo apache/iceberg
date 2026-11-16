@@ -192,7 +192,13 @@ public final class MetricsConfig implements Serializable {
 
           @Override
           public Set<Integer> file(Types.FileType file, Iterable<Set<Integer>> fieldResults) {
-            return struct(file.asStruct(), fieldResults);
+            for (int offset : Types.FileType.defaultInferredMetricOffsets()) {
+              if (shouldContinue()) {
+                idSet.add(file.baseId() + offset);
+              }
+            }
+
+            return null;
           }
 
           @Override
@@ -280,6 +286,8 @@ public final class MetricsConfig implements Serializable {
 
     Map<String, MetricsMode> columnModes = Maps.newHashMap();
 
+    columnModes.putAll(fileColumnModes(schema, defaultMode));
+
     columnModes.putAll(defaultColumnConf);
 
     // Default sort columns to at least truncate (overridden by config)
@@ -312,6 +320,23 @@ public final class MetricsConfig implements Serializable {
     if (schema != null) {
       for (int id : limitFieldIds(schema, maxColumns)) {
         builder.put(schema.findColumnName(id), defaultMode);
+      }
+    }
+
+    return builder.build();
+  }
+
+  private static Map<String, MetricsMode> fileColumnModes(Schema schema, MetricsMode defaultMode) {
+    ImmutableMap.Builder<String, MetricsMode> builder = ImmutableMap.builder();
+    if (schema != null) {
+      MetricsMode fileMode =
+          defaultMode == MetricsModes.None.get() ? defaultMode : MetricsModes.Counts.get();
+      for (Types.NestedField field : TypeUtil.indexById(schema.asStruct()).values()) {
+        if (field.type().isFileType()) {
+          for (Types.NestedField nested : field.type().asFileType().fields()) {
+            builder.put(schema.findColumnName(nested.fieldId()), fileMode);
+          }
+        }
       }
     }
 
