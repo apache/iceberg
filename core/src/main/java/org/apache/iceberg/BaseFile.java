@@ -485,6 +485,11 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   }
 
   @Override
+  public String location() {
+    return filePath;
+  }
+
+  @Override
   public FileFormat format() {
     return format;
   }

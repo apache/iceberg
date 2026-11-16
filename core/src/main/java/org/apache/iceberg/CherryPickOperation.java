@@ -234,7 +234,8 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
                     snap ->
                         Iterables.transform(
                             manifestsCreatedBy(snap, io),
-                            manifest -> addedDataFiles(manifest, io, meta.specsById()))));
+                            manifest ->
+                                ManifestFiles.read(manifest, io, meta.specsById()).addedFiles())));
 
         try (CloseableIterable<DataFile> newFiles =
             new ParallelIterable<>(addedFileTasks, ThreadPools.getWorkerPool())) {
@@ -254,15 +255,6 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
   private static Iterable<ManifestFile> manifestsCreatedBy(Snapshot snapshot, FileIO io) {
     return Iterables.filter(
         snapshot.dataManifests(io), m -> Objects.equals(m.snapshotId(), snapshot.snapshotId()));
-  }
-
-  private static CloseableIterable<DataFile> addedDataFiles(
-      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
-    CloseableIterable<ManifestEntry<DataFile>> entries =
-        ManifestFiles.read(manifest, io, specsById).entries();
-    CloseableIterable<ManifestEntry<DataFile>> added =
-        CloseableIterable.filter(entries, e -> e.status() == ManifestEntry.Status.ADDED);
-    return CloseableIterable.transform(added, e -> e.file().copy());
   }
 
   private static Long lookupAncestorBySourceSnapshot(TableMetadata meta, long snapshotId) {
