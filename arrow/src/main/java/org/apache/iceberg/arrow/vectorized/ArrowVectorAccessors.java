@@ -21,14 +21,21 @@ package org.apache.iceberg.arrow.vectorized;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.function.Supplier;
+import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.complex.ListVector;
+import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory.ArrayFactory;
 import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory.DecimalFactory;
 import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory.StringFactory;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 final class ArrowVectorAccessors {
 
-  private static final GenericArrowVectorAccessorFactory<?, String, ?, ?> FACTORY;
+  private static final GenericArrowVectorAccessorFactory<
+          BigDecimal, String, List<Object>, ValueVector>
+      FACTORY;
 
   static {
     FACTORY =
@@ -36,7 +43,7 @@ final class ArrowVectorAccessors {
             JavaDecimalFactory::new,
             JavaStringFactory::new,
             throwingSupplier("Struct type is not supported"),
-            throwingSupplier("List type is not supported"));
+            JavaArrayFactory::new);
   }
 
   private static <T> Supplier<T> throwingSupplier(String message) {
@@ -82,6 +89,26 @@ final class ArrowVectorAccessors {
       byte[] bytes = new byte[byteBuffer.remaining()];
       byteBuffer.get(bytes);
       return new String(bytes, StandardCharsets.UTF_8);
+    }
+  }
+
+  private static final class JavaArrayFactory implements ArrayFactory<ValueVector, List<Object>> {
+    @Override
+    public ValueVector ofChild(ValueVector childVector) {
+      return childVector;
+    }
+
+    @Override
+    public List<Object> ofRow(ValueVector vector, ValueVector childData, int rowId) {
+      ListVector listVector = (ListVector) vector;
+      int start = listVector.getElementStartIndex(rowId);
+      int end = listVector.getElementEndIndex(rowId);
+      List<Object> values = Lists.newArrayListWithCapacity(end - start);
+      for (int i = start; i < end; i++) {
+        values.add(childData.getObject(i));
+      }
+
+      return values;
     }
   }
 

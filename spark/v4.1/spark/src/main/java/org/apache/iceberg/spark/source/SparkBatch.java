@@ -216,7 +216,24 @@ class SparkBatch implements Batch {
       }
     }
 
+    if (type.isListType()) {
+      return supportsVectorizedElement(type.asListType().elementType());
+    }
+
     return type.isPrimitiveType() || type.isVariantType();
+  }
+
+  private boolean supportsVectorizedElement(Type elementType) {
+    if (elementType.isListType()) {
+      return supportsVectorizedElement(elementType.asListType().elementType());
+    }
+
+    if (elementType.typeId() == Type.TypeID.GEOMETRY
+        || elementType.typeId() == Type.TypeID.GEOGRAPHY) {
+      return false;
+    }
+
+    return elementType.isPrimitiveType();
   }
 
   // conditions for using ORC batch reads:

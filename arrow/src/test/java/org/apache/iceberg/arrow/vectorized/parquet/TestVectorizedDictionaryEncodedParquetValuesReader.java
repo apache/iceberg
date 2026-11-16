@@ -24,7 +24,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.VarCharVector;
-import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
+import org.apache.iceberg.arrow.vectorized.SimpleNullabilityHolder;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.io.api.Binary;
@@ -71,7 +71,7 @@ public class TestVectorizedDictionaryEncodedParquetValuesReader {
 
       dictionaryReader
           .varWidthBinaryDictEncodedReader()
-          .nextBatch(vector, 0, 1, dictionary, new NullabilityHolder(1), 0);
+          .nextBatch(vector, 0, 1, dictionary, new SimpleNullabilityHolder(1), 0);
 
       vector.setValueCount(1);
 
