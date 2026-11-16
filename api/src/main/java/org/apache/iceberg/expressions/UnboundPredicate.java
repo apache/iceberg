@@ -300,6 +300,10 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
       Iterable<T> values = Iterables.transform(literals, Literal::value);
       Iterable<CharSequence> charSeqs = Iterables.transform(values, val -> (CharSequence) val);
       return (Set<T>) CharSequenceSet.of(charSeqs);
+    } else if (lit instanceof Literals.DecimalLiteral) {
+      Set<T> values = Sets.newTreeSet(lit.comparator());
+      Iterables.addAll(values, Iterables.transform(literals, Literal::value));
+      return values;
     } else {
       return Sets.newHashSet(Iterables.transform(literals, Literal::value));
     }
