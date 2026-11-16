@@ -31,10 +31,10 @@ import org.apache.spark.sql.catalyst.expressions.NamedExpression
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.expressions.UpCast
 import org.apache.spark.sql.catalyst.parser.ParseException
+import org.apache.spark.sql.catalyst.plans.logical.{View => ViewNode}
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
-import org.apache.spark.sql.catalyst.plans.logical.{View => ViewNode}
 import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
 import org.apache.spark.sql.catalyst.plans.logical.views.UnResolvedRelationFromView
@@ -139,9 +139,11 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
             case _: V1Table =>
               toUnresolvedRelation(relation)
             case table =>
-              val relationCatalog =
-                if (timeTravelSpec.isEmpty) LoadContextTableCatalog(contextual, context)
-                else contextual
+              val relationCatalog = if (timeTravelSpec.isEmpty) {
+                LoadContextTableCatalog(contextual, context)
+              } else {
+                contextual
+              }
               SubqueryAlias(
                 catalog.name +: ident.asMultipartIdentifier,
                 DataSourceV2Relation.create(
