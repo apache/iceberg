@@ -8,7 +8,7 @@ com.google.flatbuffers:flatbuffers-java:25.2
 com.nimbusds:content-type:2.3
 com.nimbusds:lang-tag:1.7
 com.nimbusds:nimbus-jose-jwt:10.10
-com.nimbusds:oauth2-oidc-sdk:11.38
+com.nimbusds:oauth2-oidc-sdk:11.39
 dev.failsafe:failsafe:3.3
 io.airlift:aircompressor:2.0
 io.netty:netty-buffer:4.2

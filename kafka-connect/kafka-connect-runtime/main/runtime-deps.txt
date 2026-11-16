@@ -82,7 +82,7 @@ com.microsoft.azure:msal4j:1.26
 com.nimbusds:content-type:2.3
 com.nimbusds:lang-tag:1.7
 com.nimbusds:nimbus-jose-jwt:10.10
-com.nimbusds:oauth2-oidc-sdk:11.38
+com.nimbusds:oauth2-oidc-sdk:11.39
 com.sun.xml.bind:jaxb-impl:2.2
 commons-cli:commons-cli:1.9
 commons-codec:commons-codec:1.19
