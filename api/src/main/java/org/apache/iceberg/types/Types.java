@@ -1158,16 +1158,12 @@ public class Types {
   public static final class FileType extends NestedType {
     public static final String NAME = "file";
     public static final int NUM_NESTED_FIELDS = 6;
-
-    private static final int URI_ID_OFFSET = 1;
-    private static final int OFFSET_ID_OFFSET = 2;
-    private static final int SIZE_ID_OFFSET = 3;
-    private static final int CONTENT_TYPE_ID_OFFSET = 4;
-    private static final int CHECKSUM_ID_OFFSET = 5;
-    private static final int INLINE_ID_OFFSET = 6;
-    private static final int[] DEFAULT_INFERRED_METRIC_OFFSETS = {
-      URI_ID_OFFSET, SIZE_ID_OFFSET, CONTENT_TYPE_ID_OFFSET
-    };
+    public static final int URI_ID_OFFSET = 1;
+    public static final int OFFSET_ID_OFFSET = 2;
+    public static final int SIZE_ID_OFFSET = 3;
+    public static final int CONTENT_TYPE_ID_OFFSET = 4;
+    public static final int CHECKSUM_ID_OFFSET = 5;
+    public static final int INLINE_ID_OFFSET = 6;
 
     private static final String URI = "uri";
     private static final String OFFSET = "offset";
@@ -1189,17 +1185,6 @@ public class Types {
      */
     public static FileType of(int baseId) {
       return new FileType(baseId);
-    }
-
-    /**
-     * Returns the offsets of nested fields that receive inferred metrics by default.
-     *
-     * <p>Offsets are relative to {@link #baseId()}.
-     *
-     * @return nested field offsets with inferred metrics
-     */
-    public static int[] defaultInferredMetricOffsets() {
-      return DEFAULT_INFERRED_METRIC_OFFSETS;
     }
 
     private final int baseId;
