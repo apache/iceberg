@@ -45,6 +45,7 @@ import org.apache.iceberg.types.CheckCompatibility;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 
 class SortKeySerializer extends TypeSerializer<SortKey> {
   private final Schema schema;
@@ -159,6 +160,7 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
         case LONG:
         case TIME:
         case TIMESTAMP:
+        case TIMESTAMP_NANO:
           target.writeLong(record.get(i, Long.class));
           break;
         case FLOAT:
@@ -177,7 +179,7 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
           break;
         case FIXED:
         case BINARY:
-          byte[] bytes = record.get(i, ByteBuffer.class).array();
+          byte[] bytes = ByteBuffers.toByteArray(record.get(i, ByteBuffer.class));
           target.writeInt(bytes.length);
           target.write(bytes);
           break;
@@ -237,6 +239,7 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
         case LONG:
         case TIME:
         case TIMESTAMP:
+        case TIMESTAMP_NANO:
           reuse.set(i, source.readLong());
           break;
         case FLOAT:

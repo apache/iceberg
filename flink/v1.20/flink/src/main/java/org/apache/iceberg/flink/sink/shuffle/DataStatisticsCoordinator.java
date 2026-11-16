@@ -457,7 +457,7 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
       int attemptNumber = gateway.getExecution().getAttemptNumber();
       Preconditions.checkState(
           !gateways[subtaskIndex].containsKey(attemptNumber),
-          "Coordinator of %s already has a subtask gateway for %d (#%d)",
+          "Coordinator of %s already has a subtask gateway for %s (#%s)",
           operatorName,
           subtaskIndex,
           attemptNumber);
@@ -481,7 +481,7 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
     private OperatorCoordinator.SubtaskGateway getSubtaskGateway(int subtaskIndex) {
       Preconditions.checkState(
           !gateways[subtaskIndex].isEmpty(),
-          "Coordinator of %s subtask %d is not ready yet to receive events",
+          "Coordinator of %s subtask %s is not ready yet to receive events",
           operatorName,
           subtaskIndex);
       return Iterables.getOnlyElement(gateways[subtaskIndex].values());

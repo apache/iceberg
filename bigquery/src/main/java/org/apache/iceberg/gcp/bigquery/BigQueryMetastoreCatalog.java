@@ -23,11 +23,8 @@ import com.google.api.services.bigquery.model.DatasetList.Datasets;
 import com.google.api.services.bigquery.model.DatasetReference;
 import com.google.api.services.bigquery.model.ExternalCatalogDatasetOptions;
 import com.google.api.services.bigquery.model.TableReference;
-import com.google.cloud.ServiceOptions;
 import com.google.cloud.bigquery.BigQueryOptions;
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.security.GeneralSecurityException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -43,6 +40,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Configurable;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -58,14 +56,7 @@ import org.slf4j.LoggerFactory;
 public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     implements SupportsNamespaces, Configurable<Object> {
 
-  // User provided properties.
-  public static final String PROJECT_ID = "gcp.bigquery.project-id";
-  public static final String GCP_LOCATION = "gcp.bigquery.location";
-  public static final String LIST_ALL_TABLES = "gcp.bigquery.list-all-tables";
-
   private static final Logger LOG = LoggerFactory.getLogger(BigQueryMetastoreCatalog.class);
-
-  private static final String DEFAULT_GCP_LOCATION = "us";
 
   private String catalogName;
   private Map<String, String> catalogProperties;
@@ -76,33 +67,22 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   private BigQueryMetastoreClient client;
   private boolean listAllTables;
   private String warehouseLocation;
+  private CloseableGroup closeableGroup;
 
   public BigQueryMetastoreCatalog() {}
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
-    Preconditions.checkArgument(
-        properties.containsKey(PROJECT_ID),
-        "Invalid GCP project: %s must be specified",
-        PROJECT_ID);
 
-    this.projectId = properties.get(PROJECT_ID);
-    this.projectLocation = properties.getOrDefault(GCP_LOCATION, DEFAULT_GCP_LOCATION);
+    BigQueryProperties bigQueryProperties = new BigQueryProperties(properties);
 
-    BigQueryOptions options =
-        BigQueryOptions.newBuilder()
-            .setProjectId(projectId)
-            .setLocation(projectLocation)
-            .setRetrySettings(ServiceOptions.getDefaultRetrySettings())
-            .build();
+    this.projectId = bigQueryProperties.projectId();
+    this.projectLocation = bigQueryProperties.location();
+    this.listAllTables = bigQueryProperties.listAllTables();
 
-    try {
-      client = new BigQueryMetastoreClientImpl(options);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Creating BigQuery client failed", e);
-    } catch (GeneralSecurityException e) {
-      throw new RuntimeException("Creating BigQuery client failed due to a security issue", e);
-    }
+    BigQueryOptions bigQueryOptions = bigQueryProperties.metastoreOptions();
+
+    client = new BigQueryMetastoreClientImpl(bigQueryOptions);
 
     initialize(name, properties, projectId, projectLocation, client);
   }
@@ -135,7 +115,10 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
             properties,
             conf);
 
-    this.listAllTables = Boolean.parseBoolean(properties.getOrDefault(LIST_ALL_TABLES, "true"));
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(metricsReporter());
+    closeableGroup.setSuppressCloseFailure(true);
   }
 
   @Override
@@ -293,6 +276,13 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   @Override
   public String name() {
     return catalogName;
+  }
+
+  @Override
+  public void close() throws IOException {
+    if (closeableGroup != null) {
+      closeableGroup.close();
+    }
   }
 
   @Override

@@ -38,6 +38,7 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -58,12 +59,10 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestMetadataTableReadableMetrics extends CatalogTestBase {
   private static final String TABLE_NAME = "test_table";
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}")
+  @Parameters(name = "catalogType={0}, baseNamespace={1}")
   protected static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
-    String catalogName = "testhive";
-    Namespace baseNamespace = Namespace.empty();
-    parameters.add(new Object[] {catalogName, baseNamespace});
+    parameters.add(new Object[] {CatalogType.HIVE, Namespace.empty()});
     return parameters;
   }
 
@@ -222,7 +221,8 @@ public class TestMetadataTableReadableMetrics extends CatalogTestBase {
     // size of the column to increase. For example, with Parquet 1.14.x the
     // uncompressed size has been added to allow for better allocation of memory upfront.
     // Therefore, we look the sizes up, rather than hardcoding them
-    DataFile dataFile = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    DataFile dataFile =
+        SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next();
     Map<Integer, Long> columnSizeStats = dataFile.columnSizes();
 
     Row binaryCol =

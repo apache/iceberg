@@ -23,13 +23,17 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.encryption.EncryptedFiles;
+import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.RandomData;
-import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.execution.datasources.parquet.ParquetWriteSupport;
@@ -95,15 +99,16 @@ public class SparkParquetWritersNestedDataBenchmark {
   @Benchmark
   @Threads(1)
   public void writeUsingIcebergWriter() throws IOException {
-    try (FileAppender<InternalRow> writer =
-        Parquet.write(Files.localOutput(dataFile))
-            .createWriterFunc(
-                msgType ->
-                    SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(SCHEMA), msgType))
+    try (DataWriter<InternalRow> writer =
+        FormatModelRegistry.dataWriteBuilder(
+                FileFormat.PARQUET,
+                InternalRow.class,
+                EncryptedFiles.plainAsEncryptedOutput(Files.localOutput(dataFile)))
             .schema(SCHEMA)
+            .spec(PartitionSpec.unpartitioned())
             .build()) {
 
-      writer.addAll(rows);
+      writer.write(rows);
     }
   }
 
@@ -121,6 +126,7 @@ public class SparkParquetWritersNestedDataBenchmark {
             .set("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MICROS")
             .set("spark.sql.caseSensitive", "false")
             .set("spark.sql.parquet.fieldId.write.enabled", "false")
+            .set("spark.sql.parquet.variant.annotateLogicalType.enabled", "false")
             .schema(SCHEMA)
             .build()) {
 

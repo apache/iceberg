@@ -61,9 +61,26 @@ public interface SnapshotUpdate<ThisT> extends PendingUpdate<Snapshot> {
   ThisT scanManifestsWith(ExecutorService executorService);
 
   /**
+   * Use a particular executor to write manifests during commit with the specified parallelism. The
+   * default worker pool will be used by default.
+   *
+   * <p>The parallelism parameter controls how many manifest writers are used, which informs the
+   * number of manifest files produced. The executor provides the threads for parallel execution.
+   *
+   * @param executorService the provided executor
+   * @param parallelism the number of parallel manifest writers to use
+   * @return this for method chaining
+   */
+  default ThisT writeManifestsWith(ExecutorService executorService, int parallelism) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not support writeManifestsWith");
+  }
+
+  /**
    * Perform operations on a particular branch
    *
    * @param branch which is name of SnapshotRef of type branch.
+   * @return this for method chaining
    */
   default ThisT toBranch(String branch) {
     throw new UnsupportedOperationException(

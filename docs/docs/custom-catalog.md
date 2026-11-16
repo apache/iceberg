@@ -151,7 +151,7 @@ public class CustomCatalog extends BaseMetastoreCatalog {
 
 Catalog implementations can be dynamically loaded in most compute engines.
 For Spark and Flink, you can specify the `catalog-impl` catalog property to load it.
-Read the [Configuration](configuration.md#catalog-properties) section for more details.
+Read the [Configuration](catalog-properties.md) section for more details.
 For MapReduce, implement `org.apache.iceberg.mr.CatalogLoader` and set Hadoop property `iceberg.mr.catalog.loader.class` to load it.
 If your catalog must read Hadoop configuration to access certain environment properties, make your catalog implement `org.apache.hadoop.conf.Configurable`.
 
@@ -199,7 +199,7 @@ public class CustomFileIO implements FileIO {
 
 If you are already implementing your own catalog, you can implement `TableOperations.io()` to use your custom `FileIO`.
 In addition, custom `FileIO` implementations can also be dynamically loaded in `HadoopCatalog` and `HiveCatalog` by specifying the `io-impl` catalog property.
-Read the [Configuration](configuration.md#catalog-properties) section for more details.
+Read the [Configuration](catalog-properties.md) section for more details.
 If your `FileIO` must read Hadoop configuration to access certain environment properties, make your `FileIO` implement `org.apache.hadoop.conf.Configurable`.
 
 ### Custom location provider implementation

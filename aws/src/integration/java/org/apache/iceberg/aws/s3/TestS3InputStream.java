@@ -29,7 +29,7 @@ import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.MinIOContainer;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -41,9 +41,12 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @Testcontainers
 public class TestS3InputStream {
-  @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
+  @Container
+  private static final GenericContainer<?> OBJECT_STORE = ObjectStoreUtil.createContainer();
 
-  private final S3Client s3 = MinioUtil.createS3Client(MINIO);
+  private static final int EOF = -1;
+
+  private final S3Client s3 = ObjectStoreUtil.createS3Client(OBJECT_STORE);
   private final Random random = new Random(1);
 
   @BeforeEach
@@ -92,6 +95,41 @@ public class TestS3InputStream {
     }
   }
 
+  @Test
+  public void testReadSingle() throws Exception {
+    S3URI uri = new S3URI("s3://bucket/path/to/read.dat");
+    int i0 = 1;
+    int i1 = 255;
+    byte[] data = {(byte) i0, (byte) i1};
+
+    writeS3Data(uri, data);
+
+    try (SeekableInputStream in = newInputStream(s3, uri)) {
+      assertThat(in.read()).isEqualTo(i0);
+      assertThat(in.read()).isEqualTo(i1);
+      assertThat(in.read()).isEqualTo(EOF);
+    }
+  }
+
+  @Test
+  public void testReadBufferedEOF() throws Exception {
+    S3URI uri = new S3URI("s3://bucket/path/to/read.dat");
+    int dataSize = 8;
+    byte[] expected = randomData(dataSize);
+    byte[] actual = new byte[dataSize + 1];
+
+    writeS3Data(uri, expected);
+
+    try (SeekableInputStream in = newInputStream(s3, uri)) {
+      int bytesRead = in.read(actual, 0, dataSize + 1);
+      assertThat(bytesRead).isEqualTo(dataSize);
+      assertThat(Arrays.copyOfRange(actual, 0, bytesRead)).isEqualTo(expected);
+
+      assertThat(in.read(actual, 0, 10)).isEqualTo(EOF);
+      assertThat(in.getPos()).isEqualTo(dataSize);
+    }
+  }
+
   private void readAndCheck(
       SeekableInputStream in, long rangeStart, int size, byte[] original, boolean buffered)
       throws IOException {
@@ -117,6 +155,35 @@ public class TestS3InputStream {
   @Test
   public void testRangeRead() throws Exception {
     testRangeRead(s3);
+  }
+
+  @Test
+  void zeroLengthReadTailSucceedsForNonEmptyObject() throws Exception {
+    S3URI uri = new S3URI("s3://bucket/path/to/zero-tail-nonempty.dat");
+    writeS3Data(uri, new byte[] {1});
+
+    try (RangeReadable in = newInputStream(s3, uri)) {
+      assertThat(in.readTail(new byte[0], 0, 0)).isZero();
+    }
+  }
+
+  @Test
+  void zeroLengthReadTailSucceedsForEmptyObject() throws Exception {
+    S3URI uri = new S3URI("s3://bucket/path/to/zero-tail-empty.dat");
+    writeS3Data(uri, new byte[0]);
+
+    try (RangeReadable in = newInputStream(s3, uri)) {
+      assertThat(in.readTail(new byte[0], 0, 0)).isZero();
+    }
+  }
+
+  @Test
+  void zeroLengthReadTailSucceedsForMissingObject() throws Exception {
+    S3URI uri = new S3URI("s3://bucket/path/to/missing-read-tail.dat");
+
+    try (RangeReadable in = newInputStream(s3, uri)) {
+      assertThat(in.readTail(new byte[0], 0, 0)).isZero();
+    }
   }
 
   protected void testRangeRead(S3Client s3Client) throws Exception {

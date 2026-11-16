@@ -47,6 +47,18 @@ public class TestInternalRowWrapper extends RecordWrapperTestBase {
     // Spark does not support time fields.
   }
 
+  @Disabled
+  @Override
+  public void testTimestampNanoWithoutZone() {
+    // Spark does not support nanosecond timestamp without zone.
+  }
+
+  @Disabled
+  @Override
+  public void testTimestampNanoWithZone() {
+    // Spark does not support nanosecond timestamp with zone.
+  }
+
   @Override
   protected void generateAndValidate(Schema schema, AssertMethod assertMethod) {
     int numRecords = 100;

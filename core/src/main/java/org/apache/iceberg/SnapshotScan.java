@@ -124,7 +124,8 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
     Snapshot snapshot = table().snapshot(name);
     Preconditions.checkArgument(snapshot != null, "Cannot find ref %s", name);
     TableScanContext newContext = context().useSnapshotId(snapshot.snapshotId());
-    return newRefinedScan(table(), SnapshotUtil.schemaFor(table(), name), newContext);
+    Schema newSchema = useSnapshotSchema() ? SnapshotUtil.schemaFor(table(), name) : tableSchema();
+    return newRefinedScan(table(), newSchema, newContext);
   }
 
   public ThisT asOfTime(long timestampMillis) {

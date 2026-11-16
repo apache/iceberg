@@ -48,7 +48,7 @@ public interface MetricsContext extends Serializable {
     public static Unit fromDisplayName(String displayName) {
       Preconditions.checkArgument(null != displayName, "Invalid unit: null");
       try {
-        return Unit.valueOf(displayName.toUpperCase(Locale.ENGLISH));
+        return Unit.valueOf(displayName.toUpperCase(Locale.ROOT));
       } catch (IllegalArgumentException e) {
         throw new IllegalArgumentException(String.format("Invalid unit: %s", displayName), e);
       }

@@ -143,12 +143,7 @@ public class PlanTableScanRequest implements RESTRequest {
     private List<String> statsFields;
     private Long minRowsRequested;
 
-    /**
-     * @deprecated since 1.11.0, visibility will be reduced in 1.12.0; use {@link
-     *     PlanTableScanRequest#builder()} instead.
-     */
-    @Deprecated
-    public Builder() {}
+    private Builder() {}
 
     public Builder withSnapshotId(Long withSnapshotId) {
       this.snapshotId = withSnapshotId;

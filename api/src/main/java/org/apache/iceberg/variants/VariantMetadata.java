@@ -19,10 +19,15 @@
 package org.apache.iceberg.variants;
 
 import java.nio.ByteBuffer;
+import java.util.Comparator;
 import java.util.NoSuchElementException;
+import org.apache.iceberg.types.Comparators;
 
 /** A variant metadata dictionary. */
 public interface VariantMetadata {
+  /** Unsigned UTF-8 byte order for field names, per VariantEncoding.md's sorted_strings rule. */
+  Comparator<CharSequence> FIELD_NAME_ORDER = Comparators.charSequences();
+
   /** Returns the ID for a {@code name} in the dictionary, or -1 if not present. */
   int id(String name);
 

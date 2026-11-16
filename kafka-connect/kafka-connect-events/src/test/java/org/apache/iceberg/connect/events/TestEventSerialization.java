@@ -21,8 +21,8 @@ package org.apache.iceberg.connect.events;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.UUID;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.junit.jupiter.api.Test;
 
 public class TestEventSerialization {
@@ -50,7 +50,7 @@ public class TestEventSerialization {
             new DataWritten(
                 EventTestUtil.SPEC.partitionType(),
                 commitId,
-                new TableReference("catalog", Collections.singletonList("db"), "tbl"),
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), UUID.randomUUID()),
                 Arrays.asList(EventTestUtil.createDataFile(), EventTestUtil.createDataFile()),
                 Arrays.asList(EventTestUtil.createDeleteFile(), EventTestUtil.createDeleteFile())));
 
@@ -97,7 +97,7 @@ public class TestEventSerialization {
             "cg-connector",
             new CommitToTable(
                 commitId,
-                new TableReference("catalog", Collections.singletonList("db"), "tbl"),
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), UUID.randomUUID()),
                 1L,
                 EventTestUtil.now()));
 

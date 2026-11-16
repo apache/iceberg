@@ -30,6 +30,7 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.flink.FlinkRowData;
@@ -69,6 +70,14 @@ class FlinkOrcWriters {
     return TimestampTzWriter.INSTANCE;
   }
 
+  static OrcValueWriter<TimestampData> timestampNanos() {
+    return TimestampNanoWriter.INSTANCE;
+  }
+
+  static OrcValueWriter<TimestampData> timestampNanoTzs() {
+    return TimestampNanoTzWriter.INSTANCE;
+  }
+
   static OrcValueWriter<DecimalData> decimals(int precision, int scale) {
     if (precision <= 18) {
       return new Decimal18Writer(precision, scale);
@@ -93,7 +102,19 @@ class FlinkOrcWriters {
   }
 
   static OrcValueWriter<RowData> struct(List<OrcValueWriter<?>> writers, List<LogicalType> types) {
-    return new RowDataWriter(writers, types);
+    int[] fieldIndexes = new int[writers.size()];
+    int fieldIndex = 0;
+    List<LogicalType> logicalTypes = Lists.newArrayList();
+    for (int i = 0; i < types.size(); i += 1) {
+      LogicalType logicalType = types.get(i);
+      if (!logicalType.is(LogicalTypeRoot.NULL)) {
+        fieldIndexes[fieldIndex] = i;
+        fieldIndex += 1;
+        logicalTypes.add(logicalType);
+      }
+    }
+
+    return new RowDataWriter(fieldIndexes, writers, logicalTypes);
   }
 
   private static class StringWriter implements OrcValueWriter<StringData> {
@@ -154,6 +175,35 @@ class FlinkOrcWriters {
       cv.time[rowId] = instant.toEpochMilli();
       // truncate nanos to only keep microsecond precision.
       cv.nanos[rowId] = (instant.getNano() / 1_000) * 1_000;
+    }
+  }
+
+  private static class TimestampNanoWriter implements OrcValueWriter<TimestampData> {
+    private static final TimestampNanoWriter INSTANCE = new TimestampNanoWriter();
+
+    @Override
+    public void nonNullWrite(int rowId, TimestampData data, ColumnVector output) {
+      TimestampColumnVector cv = (TimestampColumnVector) output;
+      cv.setIsUTC(true);
+      // millis
+      OffsetDateTime offsetDateTime = data.toInstant().atOffset(ZoneOffset.UTC);
+      cv.time[rowId] =
+          offsetDateTime.toEpochSecond() * 1_000 + offsetDateTime.getNano() / 1_000_000;
+      cv.nanos[rowId] = offsetDateTime.getNano();
+    }
+  }
+
+  private static class TimestampNanoTzWriter implements OrcValueWriter<TimestampData> {
+    private static final TimestampNanoTzWriter INSTANCE = new TimestampNanoTzWriter();
+
+    @SuppressWarnings("JavaInstantGetSecondsGetNano")
+    @Override
+    public void nonNullWrite(int rowId, TimestampData data, ColumnVector output) {
+      TimestampColumnVector cv = (TimestampColumnVector) output;
+      // millis
+      Instant instant = data.toInstant();
+      cv.time[rowId] = instant.toEpochMilli();
+      cv.nanos[rowId] = instant.getNano();
     }
   }
 
@@ -294,12 +344,12 @@ class FlinkOrcWriters {
   static class RowDataWriter extends GenericOrcWriters.StructWriter<RowData> {
     private final List<RowData.FieldGetter> fieldGetters;
 
-    RowDataWriter(List<OrcValueWriter<?>> writers, List<LogicalType> types) {
+    RowDataWriter(int[] fieldIndexes, List<OrcValueWriter<?>> writers, List<LogicalType> types) {
       super(writers);
 
       this.fieldGetters = Lists.newArrayListWithExpectedSize(types.size());
       for (int i = 0; i < types.size(); i++) {
-        fieldGetters.add(FlinkRowData.createFieldGetter(types.get(i), i));
+        fieldGetters.add(FlinkRowData.createFieldGetter(types.get(i), fieldIndexes[i]));
       }
     }
 

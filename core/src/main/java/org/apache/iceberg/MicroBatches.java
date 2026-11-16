@@ -206,7 +206,8 @@ public class MicroBatches {
     public MicroBatch generate(long startFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
       return generate(
           startFileIndex,
-          Iterables.size(snapshot.addedDataFiles(io)),
+          Iterables.size(
+              SnapshotChanges.builderFor(snapshot, io, specsById).build().addedDataFiles()),
           targetSizeInBytes,
           scanAllFiles);
     }

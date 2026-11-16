@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.spark.sql;
 
-import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
-import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_REST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
@@ -40,7 +38,6 @@ import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -273,7 +270,7 @@ public class TestCreateTable extends CatalogTestBase {
     assertThat(table.spec().fields()).as("Should not be partitioned").isEmpty();
     assertThat(table.properties())
         .doesNotContainKey(TableProperties.DEFAULT_FILE_FORMAT)
-        .containsEntry(TableCatalog.PROP_COMMENT, "Table doc");
+        .containsEntry(TableProperties.COMMENT, "Table doc");
   }
 
   @TestTemplate
@@ -342,10 +339,6 @@ public class TestCreateTable extends CatalogTestBase {
 
   @TestTemplate
   public void testCreateTableCommitProperties() {
-    assumeThat(catalogConfig.get(ICEBERG_CATALOG_TYPE))
-        .as(
-            "need to fix https://github.com/apache/iceberg/issues/11554 before enabling this for the REST catalog")
-        .isNotEqualTo(ICEBERG_CATALOG_TYPE_REST);
     assertThat(validationCatalog.tableExists(tableIdent))
         .as("Table should not already exist")
         .isFalse();

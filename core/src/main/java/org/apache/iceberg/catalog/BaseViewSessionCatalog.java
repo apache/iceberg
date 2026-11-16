@@ -59,6 +59,11 @@ public abstract class BaseViewSessionCatalog extends BaseSessionCatalog
     }
 
     @Override
+    public View loadView(TableIdentifier identifier, LoadContext loadContext) {
+      return BaseViewSessionCatalog.this.loadView(context, identifier, loadContext);
+    }
+
+    @Override
     public boolean viewExists(TableIdentifier identifier) {
       return BaseViewSessionCatalog.this.viewExists(context, identifier);
     }
@@ -81,6 +86,11 @@ public abstract class BaseViewSessionCatalog extends BaseSessionCatalog
     @Override
     public void invalidateView(TableIdentifier identifier) {
       BaseViewSessionCatalog.this.invalidateView(context, identifier);
+    }
+
+    @Override
+    public View registerView(TableIdentifier identifier, String metadataFileLocation) {
+      return BaseViewSessionCatalog.this.registerView(context, identifier, metadataFileLocation);
     }
 
     @Override

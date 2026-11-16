@@ -26,18 +26,15 @@ import java.io.IOException;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.List;
-import org.apache.iceberg.Files;
 import org.apache.iceberg.ParameterizedTestExtension;
-import org.apache.iceberg.PartitionStatisticsFile;
-import org.apache.iceberg.PartitionStats;
+import org.apache.iceberg.PartitionStatistics;
 import org.apache.iceberg.PartitionStatsHandler;
-import org.apache.iceberg.Partitioning;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -108,6 +105,22 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
     assertThat(table.currentSnapshot().allManifests(table.io()))
         .as("Must have 1 manifest")
         .hasSize(1);
+  }
+
+  @TestTemplate
+  void rewriteManifestsWithSessionSnapshotProperty() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
+        tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')", tableName);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest.target-size-bytes' '1')", tableName);
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "key", "session-value"),
+        () -> sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent));
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.currentSnapshot().summary()).containsEntry("key", "session-value");
   }
 
   @TestTemplate
@@ -322,7 +335,7 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
             () -> sql("CALL %s.system.rewrite_manifests(table => 't', tAbLe => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage(
-            "[UNRECOGNIZED_PARAMETER_NAME] Cannot invoke routine `rewrite_manifests` because the routine call included a named argument reference for the argument named `tAbLe`, but this routine does not include any signature containing an argument with this name. Did you mean one of the following? [`table` `spec_id` `use_caching`]. SQLSTATE: 4274K");
+            "[UNRECOGNIZED_PARAMETER_NAME] Cannot invoke routine `rewrite_manifests` because the routine call included a named argument reference for the argument named `tAbLe`, but this routine does not include any signature containing an argument with this name. Did you mean one of the following? [`table` `sort_by` `spec_id`]. SQLSTATE: 4274K");
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
@@ -399,6 +412,101 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testRewriteManifestsWithSortBy() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string, category string) USING iceberg PARTITIONED BY (data, category)",
+        tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a', 'x')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b', 'y')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (3, 'c', 'x')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (4, 'd', 'y')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 4 manifests")
+        .hasSize(4);
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_manifests(table => '%s', sort_by => array('category', 'data'))",
+            catalogName, tableIdent);
+    assertEquals("Procedure output must match", ImmutableList.of(row(4, 1)), output);
+
+    table.refresh();
+
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 1 manifest")
+        .hasSize(1);
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsWithSortBySingleColumn() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string, category string) USING iceberg PARTITIONED BY (data, category)",
+        tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a', 'x')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b', 'y')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (3, 'c', 'x')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (4, 'd', 'y')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 4 manifests")
+        .hasSize(4);
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_manifests(table => '%s', sort_by => array('category'))",
+            catalogName, tableIdent);
+    assertEquals("Procedure output must match", ImmutableList.of(row(4, 1)), output);
+
+    table.refresh();
+
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 1 manifest")
+        .hasSize(1);
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsWithInvalidSortBy() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
+        tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_manifests(table => '%s', sort_by => array('nonexistent'))",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not found in current partition spec");
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsWithEmptySortBy() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
+        tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_manifests(table => '%s', sort_by => array())",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("sort_by must not be empty when provided");
+  }
+
+  @TestTemplate
   public void testPartitionStatsIncrementalCompute() throws IOException {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
@@ -408,14 +516,15 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
     sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
-    PartitionStatisticsFile statisticsFile = PartitionStatsHandler.computeAndWriteStatsFile(table);
-    table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
 
-    Schema dataSchema = PartitionStatsHandler.schema(Partitioning.partitionType(table), 2);
-    List<PartitionStats> statsBeforeRewrite;
-    try (CloseableIterable<PartitionStats> recordIterator =
-        PartitionStatsHandler.readPartitionStatsFile(
-            dataSchema, Files.localInput(statisticsFile.path()))) {
+    table
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(table))
+        .commit();
+
+    List<PartitionStatistics> statsBeforeRewrite;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        table.newPartitionStatisticsScan().scan()) {
       statsBeforeRewrite = Lists.newArrayList(recordIterator);
     }
 
@@ -424,19 +533,21 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
         catalogName, tableIdent);
 
     table.refresh();
-    statisticsFile =
-        PartitionStatsHandler.computeAndWriteStatsFile(table, table.currentSnapshot().snapshotId());
-    table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
-    List<PartitionStats> statsAfterRewrite;
-    try (CloseableIterable<PartitionStats> recordIterator =
-        PartitionStatsHandler.readPartitionStatsFile(
-            dataSchema, Files.localInput(statisticsFile.path()))) {
+
+    table
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(table))
+        .commit();
+
+    List<PartitionStatistics> statsAfterRewrite;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        table.newPartitionStatisticsScan().scan()) {
       statsAfterRewrite = Lists.newArrayList(recordIterator);
     }
 
     for (int index = 0; index < statsBeforeRewrite.size(); index++) {
-      PartitionStats statsAfter = statsAfterRewrite.get(index);
-      PartitionStats statsBefore = statsBeforeRewrite.get(index);
+      PartitionStatistics statsAfter = statsAfterRewrite.get(index);
+      PartitionStatistics statsBefore = statsBeforeRewrite.get(index);
 
       assertThat(statsAfter.partition()).isEqualTo(statsBefore.partition());
       // data count should match

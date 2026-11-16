@@ -56,7 +56,7 @@ public class CommitMetadata {
       ExceptionUtil.castAndThrow(e, exClass);
       return null;
     } finally {
-      COMMIT_PROPERTIES.set(ImmutableMap.of());
+      COMMIT_PROPERTIES.remove();
     }
   }
 

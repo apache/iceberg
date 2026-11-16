@@ -25,10 +25,17 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.common.DynConstructors;
@@ -48,6 +55,7 @@ import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotat
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimeLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimeUnit;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
+import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
@@ -227,6 +235,85 @@ public class ParquetValueReaders {
     return reader;
   }
 
+  /**
+   * Builds a struct reader from the expected fields, in field order. A field present in the file
+   * uses its column reader; a field missing from the file uses a metadata or partition constant, or
+   * its initial default. When no expected field reads a file column, the struct reader is wrapped
+   * so a presence column supplies the definition level.
+   */
+  public static <T> ParquetValueReader<T> structReader(
+      MessageType fileSchema,
+      String[] structPath,
+      List<Types.NestedField> expectedFields,
+      Map<Integer, ParquetValueReader<?>> readersById,
+      Map<Integer, ?> idToConstant,
+      BiFunction<org.apache.iceberg.types.Type, Object, Object> convertConstant,
+      Function<List<ParquetValueReader<?>>, ParquetValueReader<T>> newStructReader) {
+    int constantDefinitionLevel = fileSchema.getMaxDefinitionLevel(structPath);
+
+    List<ParquetValueReader<?>> readers = Lists.newArrayListWithExpectedSize(expectedFields.size());
+    for (Types.NestedField field : expectedFields) {
+      int id = field.fieldId();
+      ParquetValueReader<?> reader =
+          replaceWithMetadataReader(id, readersById.get(id), idToConstant, constantDefinitionLevel);
+      readers.add(defaultReader(field, reader, constantDefinitionLevel, convertConstant));
+    }
+
+    ParquetValueReader<T> reader = newStructReader.apply(readers);
+    ColumnDescriptor presence =
+        presenceColumn(
+            fileSchema, structPath, constantDefinitionLevel, expectedFields, readersById);
+
+    return presence == null
+        ? reader
+        : new PresenceReader<>(reader, presence, fileSchema.getMaxRepetitionLevel(structPath));
+  }
+
+  private static ParquetValueReader<?> defaultReader(
+      Types.NestedField field,
+      ParquetValueReader<?> reader,
+      int constantDefinitionLevel,
+      BiFunction<org.apache.iceberg.types.Type, Object, Object> convertConstant) {
+    if (reader != null) {
+      return reader;
+    } else if (field.initialDefault() != null) {
+      Object value = convertConstant.apply(field.type(), field.initialDefault());
+      return constant(value, constantDefinitionLevel);
+    } else if (field.isOptional()) {
+      return nulls();
+    }
+
+    throw new IllegalArgumentException(String.format("Missing required field: %s", field.name()));
+  }
+
+  /**
+   * Returns the column whose definition level shows whether the struct is present on each row, or
+   * null if a field reader already reads one or the struct can never be null.
+   */
+  private static ColumnDescriptor presenceColumn(
+      MessageType fileSchema,
+      String[] structPath,
+      int structDefinitionLevel,
+      List<Types.NestedField> expectedFields,
+      Map<Integer, ParquetValueReader<?>> readersById) {
+    boolean hasRealFieldReader =
+        expectedFields.stream().anyMatch(field -> readersById.containsKey(field.fieldId()));
+    if (hasRealFieldReader || structDefinitionLevel <= 0) {
+      return null;
+    }
+
+    ColumnDescriptor presence = ParquetSchemaUtil.selectPresenceColumn(fileSchema, structPath);
+    Preconditions.checkState(
+        presence != null || !hasInitialDefault(expectedFields),
+        "Cannot apply initial default, no leaf column tracks whether struct at %s is present",
+        Arrays.toString(structPath));
+    return presence;
+  }
+
+  private static boolean hasInitialDefault(List<Types.NestedField> fields) {
+    return fields.stream().anyMatch(field -> field.initialDefault() != null);
+  }
+
   private static class NullReader<T> implements ParquetValueReader<T> {
     private static final NullReader<Void> INSTANCE = new NullReader<>();
     private static final ImmutableList<TripleIterator<?>> COLUMNS = ImmutableList.of();
@@ -277,6 +364,53 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore) {}
+  }
+
+  /**
+   * Wraps a struct reader whose fields all read constants, so the struct still has a real column to
+   * report its definition level from. Values come from the wrapped reader.
+   */
+  private static class PresenceReader<T> implements ParquetValueReader<T> {
+    private final ParquetValueReader<T> reader;
+    private final ColumnDescriptor desc;
+    private final ColumnIterator<?> presence;
+    private final int repetitionLevel;
+    private final List<TripleIterator<?>> children;
+
+    private PresenceReader(
+        ParquetValueReader<T> reader, ColumnDescriptor desc, int repetitionLevel) {
+      this.reader = reader;
+      this.desc = desc;
+      this.repetitionLevel = repetitionLevel;
+      this.presence = ColumnIterator.newIterator(desc, "");
+      this.children =
+          ImmutableList.<TripleIterator<?>>builder().add(presence).addAll(reader.columns()).build();
+    }
+
+    @Override
+    public T read(T reuse) {
+      // drain the row's repeated values; only the definition level is used
+      do {
+        presence.nextNull();
+      } while (presence.currentRepetitionLevel() > repetitionLevel);
+      return reader.read(reuse);
+    }
+
+    @Override
+    public TripleIterator<?> column() {
+      return presence;
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return children;
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      presence.setPageSource(pageStore.getPageReader(desc));
+      reader.setPageSource(pageStore);
+    }
   }
 
   private static class ConstantReader<C> implements ParquetValueReader<C> {
@@ -597,7 +731,7 @@ public class ParquetValueReaders {
 
     @Override
     public BigDecimal read(BigDecimal ignored) {
-      return new BigDecimal(BigInteger.valueOf(column.nextInteger()), scale);
+      return BigDecimal.valueOf(column.nextInteger(), scale);
     }
   }
 
@@ -611,7 +745,7 @@ public class ParquetValueReaders {
 
     @Override
     public BigDecimal read(BigDecimal ignored) {
-      return new BigDecimal(BigInteger.valueOf(column.nextLong()), scale);
+      return BigDecimal.valueOf(column.nextLong(), scale);
     }
   }
 
@@ -828,6 +962,16 @@ public class ParquetValueReaders {
     protected abstract T buildList(I list);
   }
 
+  // Only recycle known growable JDK collections as scratch buffers. Reuse may be an unmodifiable
+  // view, Guava immutable type, List.of / Map.of, etc.; those are not these concrete classes.
+  private static boolean canReuseListAsReadBuffer(List<?> list) {
+    return list instanceof ArrayList || list instanceof LinkedList;
+  }
+
+  private static boolean canReuseMapAsReadBuffer(Map<?, ?> map) {
+    return map instanceof LinkedHashMap || map instanceof HashMap;
+  }
+
   public static class ListReader<E> extends RepeatedReader<List<E>, List<E>, E> {
     private List<E> lastList = null;
     private Iterator<E> elements = null;
@@ -847,7 +991,7 @@ public class ParquetValueReaders {
       }
 
       if (reuse != null) {
-        this.lastList = reuse;
+        this.lastList = canReuseListAsReadBuffer(reuse) ? reuse : null;
         this.elements = reuse.iterator();
       } else {
         this.lastList = null;
@@ -973,7 +1117,7 @@ public class ParquetValueReaders {
       }
 
       if (reuse != null) {
-        this.lastMap = reuse;
+        this.lastMap = canReuseMapAsReadBuffer(reuse) ? reuse : null;
         this.pairs = reuse.entrySet().iterator();
       } else {
         this.lastMap = null;
@@ -1128,19 +1272,22 @@ public class ParquetValueReaders {
       set(struct, pos, value);
     }
 
-    /**
-     * Find a non-null column or return NULL_COLUMN if one is not available.
-     *
-     * @param columns a collection of triple iterator columns
-     * @return the first non-null column in columns
-     */
     private TripleIterator<?> firstNonNullColumn(List<TripleIterator<?>> columns) {
+      // prefer a real file column over a constant reader's fixed definition level
+      TripleIterator<?> constantColumn = NullReader.NULL_COLUMN;
       for (TripleIterator<?> col : columns) {
-        if (col != NullReader.NULL_COLUMN) {
+        if (col == NullReader.NULL_COLUMN) {
+          continue;
+        } else if (col instanceof ConstantReader.ConstantDLColumn) {
+          if (constantColumn == NullReader.NULL_COLUMN) {
+            constantColumn = col;
+          }
+        } else {
           return col;
         }
       }
-      return NullReader.NULL_COLUMN;
+
+      return constantColumn;
     }
   }
 

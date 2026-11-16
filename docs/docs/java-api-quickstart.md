@@ -28,11 +28,11 @@ Tables are created using either a [`Catalog`](../../javadoc/{{ icebergVersion }}
 
 The Hive catalog connects to a Hive metastore to keep track of Iceberg tables.
 You can initialize a Hive catalog with a name and some properties.
-(see: [Catalog properties](configuration.md#catalog-properties))
+(see: [Catalog properties](catalog-properties.md))
 
 ```java
-import java.util.HashMap
-import java.util.Map
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.iceberg.hive.HiveCatalog;
 
@@ -250,9 +250,9 @@ table.manageSnapshots()
      .commit()
 
 String tag = "audit-tag";
-// Replace "audit-tag" to point to snapshot 3 and update its retention
+// Replace "audit-tag" to point to snapshot 4 and update its retention
 table.manageSnapshots()
-     .replaceBranch(tag, 4)
+     .replaceTag(tag, 4)
      .setMaxRefAgeMs(1000)
      .commit()
 

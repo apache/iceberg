@@ -22,4 +22,8 @@ public class NotRunningException extends RuntimeException {
   public NotRunningException(String msg) {
     super(msg);
   }
+
+  public NotRunningException(String msg, Throwable cause) {
+    super(msg, cause);
+  }
 }

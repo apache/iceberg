@@ -44,6 +44,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.avro.Avro;
@@ -64,6 +65,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.AfterEach;
@@ -203,6 +205,78 @@ public class TestMetadataTables extends ExtensionsTestBase {
         TestHelpers.nonDerivedSchema(actualFilesDs), expectedFiles.get(0), actualFiles.get(0));
     TestHelpers.assertEqualsSafe(
         TestHelpers.nonDerivedSchema(actualFilesDs), expectedFiles.get(1), actualFiles.get(1));
+  }
+
+  @TestTemplate
+  public void testAllManifestsTableWithNegatedContentFilters() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES"
+            + "('format-version'='%s', 'write.delete.mode'='merge-on-read')",
+        tableName, formatVersion);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    // Create a delete manifest.
+    sql("DELETE FROM %s WHERE id = 1", tableName);
+
+    List<Object[]> expectedDeleteManifests =
+        sql(
+            "SELECT content, path, reference_snapshot_id "
+                + "FROM %s.all_manifests "
+                + "WHERE content = 1 "
+                + "ORDER BY path, reference_snapshot_id",
+            tableName);
+
+    assertThat(expectedDeleteManifests)
+        .as("Test setup should create at least one delete manifest")
+        .isNotEmpty();
+
+    List<Object[]> notEqualResults =
+        sql(
+            "SELECT content, path, reference_snapshot_id "
+                + "FROM %s.all_manifests "
+                + "WHERE content != 0 "
+                + "ORDER BY path, reference_snapshot_id",
+            tableName);
+
+    assertEquals(
+        "content != 0 should return all delete manifests",
+        expectedDeleteManifests,
+        notEqualResults);
+
+    List<Object[]> alternativeNotEqualResults =
+        sql(
+            "SELECT content, path, reference_snapshot_id "
+                + "FROM %s.all_manifests "
+                + "WHERE content <> 0 "
+                + "ORDER BY path, reference_snapshot_id",
+            tableName);
+
+    assertEquals(
+        "content <> 0 should return all delete manifests",
+        expectedDeleteManifests,
+        alternativeNotEqualResults);
+
+    List<Object[]> explicitNotResults =
+        sql(
+            "SELECT content, path, reference_snapshot_id "
+                + "FROM %s.all_manifests "
+                + "WHERE NOT(content = 0) "
+                + "ORDER BY path, reference_snapshot_id",
+            tableName);
+
+    assertEquals(
+        "NOT(content = 0) should return all delete manifests",
+        expectedDeleteManifests,
+        explicitNotResults);
   }
 
   @TestTemplate
@@ -578,7 +652,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
                 parentSnapshot.schemaId(),
                 parentSnapshot.sequenceNumber()),
             row(
-                DateTimeUtils.toJavaTimestamp(currentSnapshot.timestampMillis() * 1000),
+                DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
                 tableMetadata.metadataFileLocation(),
                 currentSnapshot.snapshotId(),
                 currentSnapshot.schemaId(),
@@ -597,8 +671,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
         "Result should match the latest snapshot entry",
         ImmutableList.of(
             row(
-                DateTimeUtils.toJavaTimestamp(
-                    tableMetadata.currentSnapshot().timestampMillis() * 1000),
+                DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
                 tableMetadata.metadataFileLocation(),
                 tableMetadata.currentSnapshot().snapshotId(),
                 tableMetadata.currentSnapshot().schemaId(),
@@ -749,7 +822,9 @@ public class TestMetadataTables extends ExtensionsTestBase {
             .collectAsList();
     assertThat(mainBranch)
         .hasSize(1)
-        .containsExactly(RowFactory.create("main", "BRANCH", currentSnapshotId, null, null, null));
+        .containsExactly(
+            RowFactory.create(
+                SnapshotRef.MAIN_BRANCH, "BRANCH", currentSnapshotId, null, null, null));
     assertThat(mainBranch.get(0).schema().fieldNames())
         .containsExactly(
             "name",
@@ -817,7 +892,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
             .collectAsList();
     assertThat(mainBranchProjection)
         .hasSize(1)
-        .containsExactly(RowFactory.create("main", "BRANCH"));
+        .containsExactly(RowFactory.create(SnapshotRef.MAIN_BRANCH, "BRANCH"));
     assertThat(mainBranchProjection.get(0).schema().fieldNames()).containsExactly("name", "type");
 
     List<Row> testBranchProjection =

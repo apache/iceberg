@@ -168,7 +168,7 @@ public class PropertyUtil {
 
     return properties.entrySet().stream()
         .filter(e -> e.getKey().startsWith(prefix))
-        .collect(Collectors.toMap(e -> e.getKey().replaceFirst(prefix, ""), Map.Entry::getValue));
+        .collect(Collectors.toMap(e -> e.getKey().substring(prefix.length()), Map.Entry::getValue));
   }
 
   /**
@@ -189,6 +189,21 @@ public class PropertyUtil {
     return properties.entrySet().stream()
         .filter(e -> keyPredicate.test(e.getKey()))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+  }
+
+  public static Map<String, String> mergeProperties(
+      Map<String, String> properties, Map<String, String> overrides) {
+    if (overrides == null || overrides.isEmpty()) {
+      return properties;
+    }
+
+    if (properties == null || properties.isEmpty()) {
+      return overrides;
+    }
+
+    Map<String, String> merged = Maps.newHashMap(properties);
+    merged.putAll(overrides);
+    return merged;
   }
 
   public static Map<String, String> applySchemaChanges(

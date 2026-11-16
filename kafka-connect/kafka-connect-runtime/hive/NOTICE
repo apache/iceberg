@@ -1,6 +1,6 @@
 
 Apache Iceberg
-Copyright 2017-2025 The Apache Software Foundation
+Copyright 2017-2026 The Apache Software Foundation
 
 This product includes software developed at
 The Apache Software Foundation (http://www.apache.org/).
@@ -8,7 +8,7 @@ The Apache Software Foundation (http://www.apache.org/).
 --------------------------------------------------------------------------------
 
 This project includes code from Kite, developed at Cloudera, Inc. with
-the following copyright notice:
+the following in its NOTICE file:
 
 | Copyright 2013 Cloudera Inc.
 |
@@ -26,13 +26,7 @@ the following copyright notice:
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains code from the following projects:
-
---------------------------------------------------------------------------------
-
-Group: io.grpc  Name: grpc-netty-shaded  Version: 1.71.0
-
-Notice: 
+This product includes Netty (via gRPC) with the following in its NOTICE file:
 |                             The Netty Project
 |                             =================
 | 
@@ -87,73 +81,7 @@ Notice:
 
 --------------------------------------------------------------------------------
 
-Group: jakarta.activation  Name: jakarta.activation-api  Version: 1.2.2
-
-Notice: # Notices for Jakarta Activation
-
-| This content is produced and maintained by Jakarta Activation project.
-| 
-| * Project home: https://projects.eclipse.org/projects/ee4j.jaf
-| 
-| ## Copyright
-| 
-| All content is the property of the respective authors or their employers. For
-| more information regarding authorship of content, please consult the listed
-| source code repository logs.
-| 
-| ## Declared Project Licenses
-| 
-| This program and the accompanying materials are made available under the terms
-| of the Eclipse Distribution License v. 1.0,
-| which is available at http://www.eclipse.org/org/documents/edl-v10.php.
-| 
-| SPDX-License-Identifier: BSD-3-Clause
-| 
-| ## Source Code
-| 
-| The project maintains the following source code repositories:
-| 
-| * https://github.com/eclipse-ee4j/jaf
-| 
-| ## Third-party Content
-| 
-| This project leverages the following third party content.
-| 
-| JUnit (4.12)
-| 
-| * License: Eclipse Public License
-
-
---------------------------------------------------------------------------------
-
-Group: com.fasterxml.jackson.module  Name: jackson-module-jaxb-annotations  Version: 2.19.2
-
-Notice: # Jackson JSON processor
-
-| Jackson is a high-performance, Free/Open Source JSON processing library.
-| It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
-| been in development since 2007.
-| It is currently developed by a community of developers, as well as supported
-| commercially by FasterXML.com.
-| 
-| ## Licensing
-| 
-| Jackson core and extension components may licensed under different licenses.
-| To find the details that apply to this artifact see the accompanying LICENSE file.
-| For more information, including possible other licensing options, contact
-| FasterXML.com (http://fasterxml.com).
-| 
-| ## Credits
-| 
-| A list of contributors may be found from CREDITS file, which is included
-| in some artifacts (usually source distributions); but is always available
-| from the source code management (SCM) system project uses.
-
---------------------------------------------------------------------------------
-
-Group: org.datanucleus  Name: datanucleus-core  Version: 4.1.17
-
-Notice: 
+This product bundles Datanucleus with the following in its NOTICE file:
 | =========================================================================
 | ==  NOTICE file corresponding to section 4(d) of the Apache License,   ==
 | ==  Version 2.0, in this case for the DataNucleus distribution.        ==
@@ -192,49 +120,9 @@ Notice:
 | (http://tjdo.sourceforge.net/).
 | ===================================================================
 
-
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: annotations  Version: 2.33.0
-Group: software.amazon.awssdk  Name: apache-client  Version: 2.33.0
-Group: software.amazon.awssdk  Name: arns  Version: 2.33.0
-Group: software.amazon.awssdk  Name: auth  Version: 2.33.0
-Group: software.amazon.awssdk  Name: aws-core  Version: 2.33.0
-Group: software.amazon.awssdk  Name: aws-json-protocol  Version: 2.33.0
-Group: software.amazon.awssdk  Name: aws-query-protocol  Version: 2.33.0
-Group: software.amazon.awssdk  Name: aws-xml-protocol  Version: 2.33.0
-Group: software.amazon.awssdk  Name: checksums  Version: 2.33.0
-Group: software.amazon.awssdk  Name: checksums-spi  Version: 2.33.0
-Group: software.amazon.awssdk  Name: crt-core  Version: 2.33.0
-Group: software.amazon.awssdk  Name: dynamodb  Version: 2.33.0
-Group: software.amazon.awssdk  Name: endpoints-spi  Version: 2.33.0
-Group: software.amazon.awssdk  Name: glue  Version: 2.33.0
-Group: software.amazon.awssdk  Name: http-auth  Version: 2.33.0
-Group: software.amazon.awssdk  Name: http-auth-aws  Version: 2.33.0
-Group: software.amazon.awssdk  Name: http-auth-aws-crt  Version: 2.33.0
-Group: software.amazon.awssdk  Name: http-auth-aws-eventstream  Version: 2.33.0
-Group: software.amazon.awssdk  Name: http-auth-spi  Version: 2.33.0
-Group: software.amazon.awssdk  Name: http-client-spi  Version: 2.33.0
-Group: software.amazon.awssdk  Name: iam  Version: 2.33.0
-Group: software.amazon.awssdk  Name: identity-spi  Version: 2.33.0
-Group: software.amazon.awssdk  Name: json-utils  Version: 2.33.0
-Group: software.amazon.awssdk  Name: kms  Version: 2.33.0
-Group: software.amazon.awssdk  Name: lakeformation  Version: 2.33.0
-Group: software.amazon.awssdk  Name: metrics-spi  Version: 2.33.0
-Group: software.amazon.awssdk  Name: netty-nio-client  Version: 2.33.0
-Group: software.amazon.awssdk  Name: profiles  Version: 2.33.0
-Group: software.amazon.awssdk  Name: protocol-core  Version: 2.33.0
-Group: software.amazon.awssdk  Name: regions  Version: 2.33.0
-Group: software.amazon.awssdk  Name: retries  Version: 2.33.0
-Group: software.amazon.awssdk  Name: retries-spi  Version: 2.33.0
-Group: software.amazon.awssdk  Name: s3  Version: 2.33.0
-Group: software.amazon.awssdk  Name: sdk-core  Version: 2.33.0
-Group: software.amazon.awssdk  Name: sso  Version: 2.33.0
-Group: software.amazon.awssdk  Name: sts  Version: 2.33.0
-Group: software.amazon.awssdk  Name: utils  Version: 2.33.0
-Group: software.amazon.s3.analyticsaccelerator  Name: analyticsaccelerator-s3  Version: 1.0.0
-
-Notice: 
+This product bundles AWS SDK for Java with the following in its NOTICE file:
 | AWS SDK for Java 2.0
 | Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 | 
@@ -263,60 +151,16 @@ Notice:
 
 --------------------------------------------------------------------------------
 
-Group: jakarta.activation  Name: jakarta.activation-api  Version: 1.2.2
-
-Notice: 
-| # Notices for Eclipse Project for JAF
-| 
-| This content is produced and maintained by the Eclipse Project for JAF project.
-| 
-| * Project home: https://projects.eclipse.org/projects/ee4j.jaf
-| 
-| ## Copyright
-| 
-| All content is the property of the respective authors or their employers. For
-| more information regarding authorship of content, please consult the listed
-| source code repository logs.
-| 
-| ## Declared Project Licenses
-| 
-| This program and the accompanying materials are made available under the terms
-| of the Eclipse Distribution License v. 1.0,
-| which is available at http://www.eclipse.org/org/documents/edl-v10.php.
-| 
-| SPDX-License-Identifier: BSD-3-Clause
-| 
-| ## Source Code
-| 
-| The project maintains the following source code repositories:
-| 
-| * https://github.com/eclipse-ee4j/jaf
-| 
-| ## Third-party Content
-| 
-| This project leverages the following third party content.
-| 
-| JUnit (4.12)
-| 
-| * License: Eclipse Public License
-
---------------------------------------------------------------------------------
-
-Group: com.google.inject  Name: guice  Version: 4.2.3
-
-Notice: 
+This product bundles Guice with the following in its NOTICE file:
 | Google Guice - Core Library
 | Copyright 2006-2015 Google, Inc.
 | 
 | This product includes software developed at
 | The Apache Software Foundation (http://www.apache.org/).
 
-
 --------------------------------------------------------------------------------
 
-Group: ch.qos.reload4j  Name: reload4j  Version: 1.2.22
-
-Notice: 
+This product bundles reload4j with the following in its NOTICE file:
 | Apache log4j
 | Copyright 2007 The Apache Software Foundation
 | 
@@ -325,9 +169,7 @@ Notice:
 
 --------------------------------------------------------------------------------
 
-Group: joda-time  Name: joda-time  Version: 2.8.1
-
-Notice: 
+This product bundles Joda Time with the following in its NOTICE file:
 | =============================================================================
 | = NOTICE file corresponding to section 4d of the Apache License Version 2.0 =
 | =============================================================================
@@ -336,10 +178,7 @@ Notice:
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.core  Name: jackson-core  Version: 2.19.2
-Group: software.amazon.awssdk  Name: third-party-jackson-core  Version: 2.33.0
-
-Notice: 
+This product bundles Jackson JSON Processor with the following in its NOTICE file:
 | # Jackson JSON processor
 | 
 | Jackson is a high-performance, Free/Open Source JSON processing library.
@@ -375,176 +214,7 @@ Notice:
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.datatype  Name: jackson-datatype-jsr310  Version: 2.19.2
-
-Notice: 
-| # Jackson JSON processor
-| 
-| Jackson is a high-performance, Free/Open Source JSON processing library.
-| It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
-| been in development since 2007.
-| It is currently developed by a community of developers.
-| 
-| ## Licensing
-| 
-| Jackson components are licensed under Apache (Software) License, version 2.0,
-| as per accompanying LICENSE file.
-| 
-| ## Credits
-| 
-| A list of contributors may be found from CREDITS file, which is included
-| in some artifacts (usually source distributions); but is always available
-| from the source code management (SCM) system project uses.
-
---------------------------------------------------------------------------------
-
-Group: org.datanucleus  Name: datanucleus-api-jdo  Version: 4.2.4
-
-Notice: 
-| =========================================================================
-| ==  NOTICE file corresponding to section 4(d) of the Apache License,   ==
-| ==  Version 2.0, in this case for the DataNucleus distribution.        ==
-| =========================================================================
-| 
-| ===================================================================
-| This product includes software developed by many individuals,
-| including the following:
-| ===================================================================
-| Erik Bengtson
-| Andy Jefferson
-| 
-| 
-| ===================================================================
-| This product has included contributions from some individuals,
-| including the following:
-| ===================================================================
-
---------------------------------------------------------------------------------
-
-Group: org.datanucleus  Name: datanucleus-rdbms  Version: 4.1.19
-
-Notice: 
-| =========================================================================
-| ==  NOTICE file corresponding to section 4(d) of the Apache License,   ==
-| ==  Version 2.0, in this case for the DataNucleus distribution.        ==
-| =========================================================================
-| 
-| ===================================================================
-| This product includes software developed by many individuals,
-| including the following:
-| ===================================================================
-| Andy Jefferson
-| Erik Bengtson
-| Joerg von Frantzius
-| Marco Schulze
-| 
-| 
-| ===================================================================
-| This product has included contributions from some individuals,
-| including the following:
-| ===================================================================
-| Barry Haddow
-| Ralph Ullrich
-| David Ezzio
-| Brendan de Beer
-| David Eaves
-| Martin Taal
-| Tony Lai
-| Roland Szabo
-| Anton Troshin (Timesten)
-| 
-| 
-| ===================================================================
-| This product also includes software developed by the TJDO project
-| (http://tjdo.sourceforge.net/).
-| ===================================================================
-| 
-| ===================================================================
-| This product also includes software developed by the Apache Commons project
-| (http://commons.apache.org/).
-| ===================================================================
-
---------------------------------------------------------------------------------
-
-Group: javax.jdo  Name: jdo-api  Version: 3.0.1
-
-Notice: 
-| Apache Java Data Objects (JDO)
-| Copyright 2005-2006 The Apache Software Foundation
-| 
-| This product includes software developed at
-| The Apache Software Foundation (http://www.apache.org/).
-
---------------------------------------------------------------------------------
-
-Group: com.fasterxml.jackson.core  Name: jackson-annotations  Version: 2.19.2
-Group: com.fasterxml.jackson.core  Name: jackson-databind  Version: 2.19.2
-
-Notice: 
-| # Jackson JSON processor
-| 
-| Jackson is a high-performance, Free/Open Source JSON processing library.
-| It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
-| been in development since 2007.
-| It is currently developed by a community of developers.
-| 
-| ## Copyright
-| 
-| Copyright 2007-, Tatu Saloranta (tatu.saloranta@iki.fi)
-| 
-| ## Licensing
-| 
-| Jackson 2.x core and extension components are licensed under Apache License 2.0
-| To find the details that apply to this artifact see the accompanying LICENSE file.
-| 
-| ## Credits
-| 
-| A list of contributors may be found from CREDITS(-2.x) file, which is included
-| in some artifacts (usually source distributions); but is always available
-| from the source code management (SCM) system project uses.
-
---------------------------------------------------------------------------------
-
-Group: com.fasterxml.jackson.jaxrs  Name: jackson-jaxrs-json-provider  Version: 2.19.2
-
-Notice: 
-| # Jackson JSON processor
-| 
-| Jackson is a high-performance, Free/Open Source JSON processing library.
-| It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
-| been in development since 2007.
-| It is currently developed by a community of developers, as well as supported
-| commercially by FasterXML.com.
-| 
-| ## Licensing
-| 
-| Jackson core and extension components may be licensed under different licenses.
-| To find the details that apply to this artifact see the accompanying LICENSE file.
-| For more information, including possible other licensing options, contact
-| FasterXML.com (http://fasterxml.com).
-| 
-| ## Credits
-| 
-| A list of contributors may be found from CREDITS file, which is included
-| in some artifacts (usually source distributions); but is always available
-| from the source code management (SCM) system project uses.
-
---------------------------------------------------------------------------------
-
-Group: org.eclipse.jetty  Name: jetty-client  Version: 9.4.53.v20231009
-Group: org.eclipse.jetty  Name: jetty-http  Version: 9.4.53.v20231009
-Group: org.eclipse.jetty  Name: jetty-io  Version: 9.4.53.v20231009
-Group: org.eclipse.jetty  Name: jetty-security  Version: 9.4.53.v20231009
-Group: org.eclipse.jetty  Name: jetty-servlet  Version: 9.4.53.v20231009
-Group: org.eclipse.jetty  Name: jetty-util  Version: 9.4.53.v20231009
-Group: org.eclipse.jetty  Name: jetty-util-ajax  Version: 9.4.53.v20231009
-Group: org.eclipse.jetty  Name: jetty-webapp  Version: 9.4.53.v20231009
-Group: org.eclipse.jetty  Name: jetty-xml  Version: 9.4.53.v20231009
-Group: org.eclipse.jetty.websocket  Name: websocket-api  Version: 9.4.53.v20231009
-Group: org.eclipse.jetty.websocket  Name: websocket-client  Version: 9.4.53.v20231009
-Group: org.eclipse.jetty.websocket  Name: websocket-common  Version: 9.4.53.v20231009
-
-Notice: 
+This product bundles Jetty with the following in its NOTICE file:
 | ==============================================================
 |  Jetty Web Container
 |  Copyright 1995-2018 Mort Bay Consulting Pty Ltd.
@@ -663,6 +333,3 @@ Notice:
 | Permission to use, copy, modify and distribute UnixCrypt
 | for non-commercial or commercial purposes and without fee is
 | granted provided that the copyright notice appears in all copies.
-
-
---------------------------------------------------------------------------------

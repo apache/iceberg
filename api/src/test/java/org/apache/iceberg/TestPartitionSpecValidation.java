@@ -243,6 +243,22 @@ public class TestPartitionSpecValidation {
   }
 
   @Test
+  public void testStalePartitionSourceIdWithReusedColumnName() {
+    int newFieldId = 2;
+    int droppedFieldId = 1;
+    Schema schema =
+        new Schema(NestedField.required(newFieldId, "category", Types.StringType.get()));
+    PartitionSpec spec =
+        PartitionSpec.builderFor(schema)
+            .withSpecId(0)
+            .add(droppedFieldId, 1000, "category", Transforms.alwaysNull())
+            .build();
+    assertThat(spec.fields()).hasSize(1);
+    assertThat(spec.fields().get(0).sourceId()).isEqualTo(droppedFieldId);
+    assertThat(spec.fields().get(0).name()).isEqualTo("category");
+  }
+
+  @Test
   public void testMissingSourceColumn() {
     assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("missing").build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -335,8 +351,12 @@ public class TestPartitionSpecValidation {
   private static Object[][] unsupportedFieldsProvider() {
     return new Object[][] {
       {7, "variant_partition1", "Cannot partition by non-primitive source field: variant"},
-      {8, "geom_partition1", "Invalid source type geometry for transform: bucket[5]"},
-      {9, "geog_partition1", "Invalid source type geography for transform: bucket[5]"},
+      {8, "geom_partition1", "Invalid source type geometry(OGC:CRS84) for transform: bucket[5]"},
+      {
+        9,
+        "geog_partition1",
+        "Invalid source type geography(OGC:CRS84, spherical) for transform: bucket[5]"
+      },
       {10, "unknown_partition1", "Invalid source type unknown for transform: bucket[5]"}
     };
   }

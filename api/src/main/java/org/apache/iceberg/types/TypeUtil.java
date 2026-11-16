@@ -19,6 +19,7 @@
 package org.apache.iceberg.types;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -102,6 +103,19 @@ public class TypeUtil {
     return new Schema(ImmutableList.of(), schema.getAliases());
   }
 
+  /**
+   * Selects fields from a schema by ID and returns them ordered by field ID.
+   *
+   * <p>Unlike {@link #select(Schema, Set)}, which preserves the field ordering of the input schema,
+   * this method always returns columns sorted by field ID.
+   */
+  public static Schema selectInIdOrder(Schema schema, Set<Integer> fieldIds) {
+    Schema selected = select(schema, fieldIds);
+    List<Types.NestedField> sorted = Lists.newArrayList(selected.columns());
+    sorted.sort(Comparator.comparingInt(Types.NestedField::fieldId));
+    return new Schema(sorted);
+  }
+
   public static Types.StructType select(Types.StructType struct, Set<Integer> fieldIds) {
     Preconditions.checkNotNull(struct, "Struct cannot be null");
     Preconditions.checkNotNull(fieldIds, "Field ids cannot be null");
@@ -143,6 +157,24 @@ public class TypeUtil {
     return project(schema, projectedIds);
   }
 
+  /**
+   * Returns a copy of the schema with the type of each field in {@code replacementsById} replaced
+   * by its mapped type. Fields not in the map are unchanged.
+   *
+   * @param schema a schema
+   * @param replacementsById a map from field ID to the type that should replace the field's type
+   * @return a schema with the replaced field types
+   */
+  public static Schema replaceFieldTypes(Schema schema, Map<Integer, Type> replacementsById) {
+    Types.StructType struct = visit(schema, new ReplaceTypeById(replacementsById)).asStructType();
+    if (struct.equals(schema.asStruct())) {
+      return schema;
+    }
+
+    return new Schema(
+        schema.schemaId(), struct.fields(), schema.getAliases(), schema.identifierFieldIds());
+  }
+
   public static Schema join(Schema left, Schema right) {
     List<Types.NestedField> joinedColumns = Lists.newArrayList(left.columns());
     for (Types.NestedField rightColumn : right.columns()) {
@@ -177,6 +209,19 @@ public class TypeUtil {
   public static Map<Integer, String> indexQuotedNameById(
       Types.StructType struct, Function<String, String> quotingFunc) {
     IndexByName indexer = new IndexByName(quotingFunc);
+    visit(struct, indexer);
+    return indexer.byId();
+  }
+
+  /**
+   * Indexes the fields of a struct from ID to a flattened name that can be used for stats struct
+   * field names.
+   *
+   * @param struct a struct type
+   * @return an index from field ID to short names, joined by _
+   */
+  public static Map<Integer, String> indexStatsNames(Types.StructType struct) {
+    IndexByName indexer = new IndexByName("_", Function.identity(), true /* use short names */);
     visit(struct, indexer);
     return indexer.byId();
   }
@@ -415,6 +460,34 @@ public class TypeUtil {
     return TypeUtil.visit(type, new AssignIds(getId));
   }
 
+  /**
+   * Returns the type to use for a field that was assigned {@code newId}.
+   *
+   * <p>A file's nested field IDs are derived from the ID of the field that holds it, so a file is
+   * rebuilt from the new ID rather than reassigned field by field.
+   *
+   * @param newId the ID assigned to the field
+   * @param assignedType the field's type with IDs assigned
+   * @return the type the field should have
+   */
+  static Type applyAssignedId(int newId, Type assignedType) {
+    if (assignedType.isFileType()) {
+      return Types.FileType.of(newId);
+    }
+
+    return assignedType;
+  }
+
+  /**
+   * Returns the number of IDs that must be reserved after the ID of a field with the given type.
+   *
+   * @param type a field type
+   * @return the number of consecutive IDs following the field's ID that the type derives
+   */
+  private static int numReservedIds(Type type) {
+    return type.isFileType() ? Types.FileType.NUM_NESTED_FIELDS : 0;
+  }
+
   public static Type find(Schema schema, Predicate<Type> predicate) {
     return visit(schema, new FindTypeVisitor(predicate));
   }
@@ -594,11 +667,95 @@ public class TypeUtil {
   /** Interface for passing a function that assigns column IDs. */
   public interface NextID {
     int get();
+
+    default int get(Type type) {
+      int numReserved = numReservedIds(type);
+      int id = get();
+      for (int offset = 1; offset <= numReserved; offset += 1) {
+        int reserved = get();
+        Preconditions.checkState(
+            reserved == id + offset,
+            "Failed to assign consecutive IDs %s-%s, requested %s and got %s",
+            id + 1,
+            id + numReserved,
+            id + offset,
+            reserved);
+      }
+
+      return id;
+    }
   }
 
   /** Interface for passing a function that assigns column IDs from the previous Id. */
   public interface GetID {
     int get(int oldId);
+
+    /**
+     * Assigns a new ID for a field of the given type.
+     *
+     * <p>Implementations must override this method to assign IDs to file fields.
+     *
+     * @param oldId an existing field ID
+     * @param type the type of the field
+     * @return a new field ID
+     * @throws UnsupportedOperationException if the type is a file and this method is not overridden
+     */
+    default int get(int oldId, Type type) {
+      if (type.isFileType()) {
+        throw new UnsupportedOperationException(
+            String.format(
+                "Cannot assign IDs to file field %s: this GetID does not implement get(int, Type)",
+                oldId));
+      }
+
+      return get(oldId);
+    }
+  }
+
+  /**
+   * Creates a function that reassigns specified field IDs.
+   *
+   * <p>This is useful for merging schemas where some field IDs in one schema might conflict with
+   * IDs already in use by another schema. The function will reassign the provided IDs to new unused
+   * IDs, while preserving other IDs.
+   *
+   * @param conflictingIds the set of conflicting field IDs that should be reassigned
+   * @param allUsedIds the set of field IDs that are already in use and cannot be reused
+   * @return a function that reassigns conflicting field IDs while preserving others
+   */
+  public static GetID reassignConflictingIds(Set<Integer> conflictingIds, Set<Integer> allUsedIds) {
+    return new ReassignConflictingIds(conflictingIds, allUsedIds);
+  }
+
+  private static class ReassignConflictingIds implements GetID {
+    private final Set<Integer> conflictingIds;
+    private final Set<Integer> allUsedIds;
+    private final AtomicInteger nextId;
+
+    private ReassignConflictingIds(Set<Integer> conflictingIds, Set<Integer> allUsedIds) {
+      this.conflictingIds = conflictingIds;
+      this.allUsedIds = allUsedIds;
+      this.nextId = new AtomicInteger();
+    }
+
+    @Override
+    public int get(int oldId) {
+      if (conflictingIds.contains(oldId)) {
+        return nextAvailableId();
+      } else {
+        return oldId;
+      }
+    }
+
+    private int nextAvailableId() {
+      int candidateId = nextId.incrementAndGet();
+
+      while (allUsedIds.contains(candidateId)) {
+        candidateId = nextId.incrementAndGet();
+      }
+
+      return candidateId;
+    }
   }
 
   public static class SchemaVisitor<T> {
@@ -662,6 +819,10 @@ public class TypeUtil {
       throw new UnsupportedOperationException("Unsupported type: variant");
     }
 
+    public T file(Types.FileType file, List<T> fieldResults) {
+      throw new UnsupportedOperationException("Unsupported type: file");
+    }
+
     public T primitive(Type.PrimitiveType primitive) {
       return null;
     }
@@ -675,18 +836,11 @@ public class TypeUtil {
     switch (type.typeId()) {
       case STRUCT:
         Types.StructType struct = type.asNestedType().asStructType();
-        List<T> results = Lists.newArrayListWithExpectedSize(struct.fields().size());
-        for (Types.NestedField field : struct.fields()) {
-          visitor.beforeField(field);
-          T result;
-          try {
-            result = visit(field.type(), visitor);
-          } finally {
-            visitor.afterField(field);
-          }
-          results.add(visitor.field(field, result));
-        }
-        return visitor.struct(struct, results);
+        return visitor.struct(struct, visitFields(struct.fields(), visitor));
+
+      case FILE:
+        Types.FileType file = type.asFileType();
+        return visitor.file(file, visitFields(file.fields(), visitor));
 
       case LIST:
         Types.ListType list = type.asNestedType().asListType();
@@ -733,6 +887,21 @@ public class TypeUtil {
     }
   }
 
+  private static <T> List<T> visitFields(List<Types.NestedField> fields, SchemaVisitor<T> visitor) {
+    List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
+    for (Types.NestedField field : fields) {
+      visitor.beforeField(field);
+      T result;
+      try {
+        result = visit(field.type(), visitor);
+      } finally {
+        visitor.afterField(field);
+      }
+      results.add(visitor.field(field, result));
+    }
+    return results;
+  }
+
   public static class CustomOrderSchemaVisitor<T> {
     public T schema(Schema schema, Supplier<T> structResult) {
       return null;
@@ -756,6 +925,10 @@ public class TypeUtil {
 
     public T variant(Types.VariantType variant) {
       throw new UnsupportedOperationException("Unsupported type: variant");
+    }
+
+    public T file(Types.FileType file, Iterable<T> fieldResults) {
+      throw new UnsupportedOperationException("Unsupported type: file");
     }
 
     public T primitive(Type.PrimitiveType primitive) {
@@ -815,13 +988,11 @@ public class TypeUtil {
     switch (type.typeId()) {
       case STRUCT:
         Types.StructType struct = type.asNestedType().asStructType();
-        List<VisitFieldFuture<T>> results =
-            Lists.newArrayListWithExpectedSize(struct.fields().size());
-        for (Types.NestedField field : struct.fields()) {
-          results.add(new VisitFieldFuture<>(field, visitor));
-        }
+        return visitor.struct(struct, fieldFutures(struct.fields(), visitor));
 
-        return visitor.struct(struct, Iterables.transform(results, VisitFieldFuture::get));
+      case FILE:
+        Types.FileType file = type.asFileType();
+        return visitor.file(file, fieldFutures(file.fields(), visitor));
 
       case LIST:
         Types.ListType list = type.asNestedType().asListType();
@@ -840,6 +1011,15 @@ public class TypeUtil {
       default:
         return visitor.primitive(type.asPrimitiveType());
     }
+  }
+
+  private static <T> Iterable<T> fieldFutures(
+      List<Types.NestedField> fields, CustomOrderSchemaVisitor<T> visitor) {
+    List<VisitFieldFuture<T>> results = Lists.newArrayListWithExpectedSize(fields.size());
+    for (Types.NestedField field : fields) {
+      results.add(new VisitFieldFuture<>(field, visitor));
+    }
+    return Iterables.transform(results, VisitFieldFuture::get);
   }
 
   static int decimalMaxPrecision(int numBytes) {

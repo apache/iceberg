@@ -29,7 +29,7 @@ Iceberg avoids unpleasant surprises. Schema evolution works and won't inadverten
 * [Schema evolution](evolution.md#schema-evolution) supports add, drop, update, or rename, and has [no side-effects](evolution.md#correctness)
 * [Hidden partitioning](partitioning.md) prevents user mistakes that cause silently incorrect results or extremely slow queries
 * [Partition layout evolution](evolution.md#partition-evolution) can update the layout of a table as data volume or query patterns change
-* [Time travel](spark-queries.md#time-travel) enables reproducible queries that use exactly the same table snapshot, or lets users easily examine changes
+* [Time travel](spark-queries.md#time-travel-queries-with-sql) enables reproducible queries that use exactly the same table snapshot, or lets users easily examine changes
 * Version rollback allows users to quickly correct problems by resetting tables to a good state
 
 ### Reliability and performance

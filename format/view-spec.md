@@ -188,7 +188,7 @@ The path is intentionally similar to the path for Iceberg tables and uses a `met
 ```
 s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
 ```
-```
+```json
 {
   "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
   "format-version" : 1,
@@ -257,7 +257,7 @@ Updating the view produces a new metadata file that completely replaces the old:
 ```
 s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
 ```
-```
+```json
 {
   "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
   "format-version" : 1,

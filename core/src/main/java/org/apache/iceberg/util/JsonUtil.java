@@ -272,9 +272,16 @@ public class JsonUtil {
     ArrayNode arrayNode = (ArrayNode) node;
     String[] arr = new String[arrayNode.size()];
     for (int i = 0; i < arr.length; i++) {
-      arr[i] = arrayNode.get(i).asText();
+      JsonNode element = arrayNode.get(i);
+      Preconditions.checkArgument(
+          element.isTextual(), "Cannot parse string from non-text value: %s", element);
+      arr[i] = element.asText();
     }
     return arr;
+  }
+
+  public static String[] getStringArray(String property, JsonNode node) {
+    return getStringList(property, node).toArray(new String[0]);
   }
 
   public static List<String> getStringList(String property, JsonNode node) {

@@ -55,6 +55,20 @@ public interface ViewCatalog {
   View loadView(TableIdentifier identifier);
 
   /**
+   * Load a view, passing the context it is being loaded with.
+   *
+   * <p>The default implementation ignores the context.
+   *
+   * @param identifier a view identifier
+   * @param context context for this load
+   * @return instance of {@link View} implementation referred by the identifier
+   * @throws NoSuchViewException if the view does not exist
+   */
+  default View loadView(TableIdentifier identifier, LoadContext context) {
+    return loadView(identifier);
+  }
+
+  /**
    * Check whether view exists.
    *
    * @param identifier a view identifier
@@ -105,6 +119,19 @@ public interface ViewCatalog {
    * @param identifier a view identifier
    */
   default void invalidateView(TableIdentifier identifier) {}
+
+  /**
+   * Register a view with the catalog if it does not exist.
+   *
+   * @param identifier a view identifier
+   * @param metadataFileLocation the location of a metadata file
+   * @return a View instance
+   * @throws AlreadyExistsException if a table/view with the same identifier already exists in the
+   *     catalog.
+   */
+  default View registerView(TableIdentifier identifier, String metadataFileLocation) {
+    throw new UnsupportedOperationException("Registering views is not supported");
+  }
 
   /**
    * Initialize a view catalog given a custom name and a map of catalog properties.

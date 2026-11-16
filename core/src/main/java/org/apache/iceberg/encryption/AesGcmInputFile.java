@@ -69,7 +69,7 @@ public class AesGcmInputFile implements InputFile {
     long ciphertextLength = encryptedLength();
     Preconditions.checkState(
         ciphertextLength >= Ciphers.MIN_STREAM_LENGTH,
-        "Invalid encrypted stream: %d is shorter than the minimum possible stream length",
+        "Invalid encrypted stream: %s is shorter than the minimum possible stream length",
         ciphertextLength);
     return new AesGcmInputStream(sourceFile.newStream(), ciphertextLength, dataKey, fileAADPrefix);
   }

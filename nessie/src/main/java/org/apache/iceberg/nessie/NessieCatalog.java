@@ -203,10 +203,9 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
       //        currentNamespace
       //    );
       LOG.warn(
-          "Catalog creation for inputName={} and options {} failed, because parameter "
+          "Catalog creation for inputName={} failed, because parameter "
               + "'warehouse' is not set, Nessie can't store data.",
-          name,
-          catalogOptions);
+          name);
       throw new IllegalStateException("Parameter 'warehouse' not set, Nessie can't store data.");
     }
 
@@ -422,7 +421,7 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
         fromReference.equalsIgnoreCase(toReference),
         "Cannot rename %s '%s' on reference '%s' to '%s' on reference '%s':"
             + " source and target references must be the same.",
-        NessieUtil.contentTypeString(type).toLowerCase(Locale.ENGLISH),
+        NessieUtil.contentTypeString(type).toLowerCase(Locale.ROOT),
         fromTableReference.getName(),
         fromReference,
         toTableReference.getName(),

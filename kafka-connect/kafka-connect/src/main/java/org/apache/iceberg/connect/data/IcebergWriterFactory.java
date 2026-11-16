@@ -20,6 +20,7 @@ package org.apache.iceberg.connect.data;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
@@ -28,6 +29,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
+import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -67,7 +69,15 @@ class IcebergWriterFactory {
       }
     }
 
-    return new IcebergWriter(table, tableName, config);
+    UUID tableUuid = table.uuid();
+    if (tableUuid == null) {
+      LOG.warn(
+          "Table {} does not have a UUID, this may cause issues with commit coordination on table replace",
+          identifier);
+    }
+    TableReference tableReference = TableReference.of(catalog.name(), identifier, tableUuid);
+
+    return new IcebergWriter(table, tableReference, config);
   }
 
   @VisibleForTesting

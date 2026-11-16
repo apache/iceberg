@@ -19,11 +19,16 @@
 package org.apache.iceberg.gcp;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.util.PropertyUtil;
@@ -39,6 +44,12 @@ public class GCPProperties implements Serializable {
   public static final String GCS_ENCRYPTION_KEY = "gcs.encryption-key";
   public static final String GCS_USER_PROJECT = "gcs.user-project";
 
+  /**
+   * Cloud KMS key resource name for CMEK server-side encryption. Mutually exclusive with {@link
+   * #GCS_ENCRYPTION_KEY} (CSEK).
+   */
+  public static final String GCS_KMS_KEY_NAME = "gcs.kms-key-name";
+
   public static final String GCS_CHANNEL_READ_CHUNK_SIZE = "gcs.channel.read.chunk-size-bytes";
   public static final String GCS_CHANNEL_WRITE_CHUNK_SIZE = "gcs.channel.write.chunk-size-bytes";
 
@@ -49,12 +60,24 @@ public class GCPProperties implements Serializable {
   public static final String GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT =
       "gcs.oauth2.refresh-credentials-endpoint";
 
+  // Impersonation properties
+  public static final String GCS_IMPERSONATE_SERVICE_ACCOUNT = "gcs.impersonate.service-account";
+  public static final String GCS_IMPERSONATE_LIFETIME_SECONDS = "gcs.impersonate.lifetime-seconds";
+  public static final String GCS_IMPERSONATE_DELEGATES = "gcs.impersonate.delegates";
+  public static final String GCS_IMPERSONATE_SCOPES = "gcs.impersonate.scopes";
+  public static final int GCS_IMPERSONATE_LIFETIME_SECONDS_DEFAULT = 3600;
+  private static final List<String> GCS_IMPERSONATE_SCOPES_DEFAULT =
+      ImmutableList.of("https://www.googleapis.com/auth/cloud-platform");
+
   /** Controls whether vended credentials should be refreshed or not. Defaults to true. */
   public static final String GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED =
       "gcs.oauth2.refresh-credentials-enabled";
 
   /** Configure the batch size used when deleting multiple files from a given GCS bucket */
   public static final String GCS_DELETE_BATCH_SIZE = "gcs.delete.batch-size";
+
+  /** Controls whether analytics core library is enabled or not. Defaults to false. */
+  public static final String GCS_ANALYTICS_CORE_ENABLED = "gcs.analytics-core.enabled";
 
   /**
    * Max possible batch size for deletion. Currently, a max of 100 keys is advised, so we default to
@@ -70,6 +93,7 @@ public class GCPProperties implements Serializable {
 
   private String gcsDecryptionKey;
   private String gcsEncryptionKey;
+  private String gcsKmsKeyName;
   private String gcsUserProject;
 
   private Integer gcsChannelReadChunkSize;
@@ -80,8 +104,46 @@ public class GCPProperties implements Serializable {
   private Date gcsOAuth2TokenExpiresAt;
   private String gcsOauth2RefreshCredentialsEndpoint;
   private boolean gcsOauth2RefreshCredentialsEnabled;
+  private boolean gcsAnalyticsCoreEnabled;
+
+  private String gcsImpersonateServiceAccount;
+  private int gcsImpersonateLifetimeSeconds;
+  private List<String> gcsImpersonateDelegates;
+  private List<String> gcsImpersonateScopes;
 
   private int gcsDeleteBatchSize = GCS_DELETE_BATCH_SIZE_DEFAULT;
+
+  @VisibleForTesting
+  List<String> parseCommaSeparatedList(String input, List<String> defaultValue) {
+    if (input == null || input.trim().isEmpty()) {
+      return defaultValue;
+    }
+    return Arrays.stream(input.split(","))
+        .map(String::trim)
+        .filter(str -> !str.isEmpty())
+        .distinct()
+        .collect(Collectors.toList());
+  }
+
+  @VisibleForTesting
+  List<String> expandScopes(List<String> inputScopes) {
+    if (inputScopes == null || inputScopes.isEmpty()) {
+      return inputScopes;
+    }
+    return inputScopes.stream()
+        .map(
+            inputScope -> {
+              if (inputScope.startsWith("https://")) {
+                return inputScope;
+              }
+              if (inputScope.startsWith("http://")) {
+                return inputScope.replace("http://", "https://");
+              }
+
+              return "https://www.googleapis.com/auth/" + inputScope;
+            })
+        .collect(Collectors.toList());
+  }
 
   public GCPProperties() {
     this.allProperties = ImmutableMap.of();
@@ -96,7 +158,14 @@ public class GCPProperties implements Serializable {
 
     gcsDecryptionKey = properties.get(GCS_DECRYPTION_KEY);
     gcsEncryptionKey = properties.get(GCS_ENCRYPTION_KEY);
+    gcsKmsKeyName = properties.get(GCS_KMS_KEY_NAME);
     gcsUserProject = properties.get(GCS_USER_PROJECT);
+
+    Preconditions.checkState(
+        !(gcsEncryptionKey != null && gcsKmsKeyName != null),
+        "Invalid encryption settings: must not configure both %s (CSEK) and %s (CMEK)",
+        GCS_ENCRYPTION_KEY,
+        GCS_KMS_KEY_NAME);
 
     if (properties.containsKey(GCS_CHANNEL_READ_CHUNK_SIZE)) {
       gcsChannelReadChunkSize = Integer.parseInt(properties.get(GCS_CHANNEL_READ_CHUNK_SIZE));
@@ -128,6 +197,20 @@ public class GCPProperties implements Serializable {
     gcsDeleteBatchSize =
         PropertyUtil.propertyAsInt(
             properties, GCS_DELETE_BATCH_SIZE, GCS_DELETE_BATCH_SIZE_DEFAULT);
+
+    gcsImpersonateServiceAccount = properties.get(GCS_IMPERSONATE_SERVICE_ACCOUNT);
+    gcsImpersonateLifetimeSeconds =
+        PropertyUtil.propertyAsInt(
+            properties, GCS_IMPERSONATE_LIFETIME_SECONDS, GCS_IMPERSONATE_LIFETIME_SECONDS_DEFAULT);
+    gcsImpersonateDelegates =
+        parseCommaSeparatedList(properties.get(GCS_IMPERSONATE_DELEGATES), null);
+    List<String> rawScopes =
+        parseCommaSeparatedList(
+            properties.get(GCS_IMPERSONATE_SCOPES), GCS_IMPERSONATE_SCOPES_DEFAULT);
+    gcsImpersonateScopes = expandScopes(rawScopes);
+
+    gcsAnalyticsCoreEnabled =
+        PropertyUtil.propertyAsBoolean(properties, GCS_ANALYTICS_CORE_ENABLED, false);
   }
 
   public Optional<Integer> channelReadChunkSize() {
@@ -148,6 +231,10 @@ public class GCPProperties implements Serializable {
 
   public Optional<String> encryptionKey() {
     return Optional.ofNullable(gcsEncryptionKey);
+  }
+
+  public Optional<String> kmsKeyName() {
+    return Optional.ofNullable(gcsKmsKeyName);
   }
 
   public Optional<String> projectId() {
@@ -174,6 +261,22 @@ public class GCPProperties implements Serializable {
     return Optional.ofNullable(gcsOAuth2TokenExpiresAt);
   }
 
+  public Optional<String> impersonateServiceAccount() {
+    return Optional.ofNullable(gcsImpersonateServiceAccount);
+  }
+
+  public int impersonateLifetimeSeconds() {
+    return gcsImpersonateLifetimeSeconds;
+  }
+
+  public List<String> impersonateDelegates() {
+    return gcsImpersonateDelegates;
+  }
+
+  public List<String> impersonateScopes() {
+    return gcsImpersonateScopes;
+  }
+
   public int deleteBatchSize() {
     return gcsDeleteBatchSize;
   }
@@ -188,5 +291,9 @@ public class GCPProperties implements Serializable {
 
   public Map<String, String> properties() {
     return allProperties;
+  }
+
+  public boolean isGcsAnalyticsCoreEnabled() {
+    return gcsAnalyticsCoreEnabled;
   }
 }

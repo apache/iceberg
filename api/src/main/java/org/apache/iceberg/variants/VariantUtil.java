@@ -21,8 +21,9 @@ package org.apache.iceberg.variants;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.util.function.Function;
+import java.util.function.IntFunction;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.ByteBuffers;
 
 class VariantUtil {
   private static final int BASIC_TYPE_MASK = 0b11;
@@ -31,78 +32,43 @@ class VariantUtil {
   private static final int BASIC_TYPE_OBJECT = 2;
   private static final int BASIC_TYPE_ARRAY = 3;
 
+  /**
+   * Maximum nesting depth in a Variant (permitted depths 0..MAX_VARIANT_DEPTH). Safety limit, not a
+   * spec bound. Matches parquet-java (apache/parquet-java#3562).
+   */
+  static final int MAX_VARIANT_DEPTH = 1000;
+
+  /**
+   * Maximum element count for Variant containers and metadata dictionaries. Safety limit against
+   * buffer-to-heap allocation amplification.
+   */
+  static final int MAX_ELEMENTS = 16_777_216;
+
   private VariantUtil() {}
 
-  /** A hacky absolute put for ByteBuffer */
-  static int writeBufferAbsolute(ByteBuffer buffer, int offset, ByteBuffer toCopy) {
-    int originalPosition = buffer.position();
-    buffer.position(offset);
-    ByteBuffer copy = toCopy.duplicate();
-    buffer.put(copy); // duplicate so toCopy is not modified
-    buffer.position(originalPosition);
-    Preconditions.checkArgument(copy.remaining() <= 0, "Not fully written");
-    return toCopy.remaining();
-  }
-
-  static void writeByte(ByteBuffer buffer, int value, int offset) {
-    buffer.put(buffer.position() + offset, (byte) (value & 0xFF));
-  }
-
-  static void writeLittleEndianUnsigned(ByteBuffer buffer, int value, int offset, int size) {
-    int base = buffer.position() + offset;
-    switch (size) {
-      case 4:
-        buffer.putInt(base, value);
-        return;
-      case 3:
-        buffer.putShort(base, (short) (value & 0xFFFF));
-        buffer.put(base + 2, (byte) ((value >> 16) & 0xFF));
-        return;
-      case 2:
-        buffer.putShort(base, (short) (value & 0xFFFF));
-        return;
-      case 1:
-        buffer.put(base, (byte) (value & 0xFF));
-        return;
+  /** Parses a variant value; validates input and enforces {@link #MAX_VARIANT_DEPTH}. */
+  static VariantValue fromBuffer(VariantMetadata metadata, ByteBuffer value, int depth) {
+    Preconditions.checkArgument(depth >= 0, "Invalid variant: negative depth %s", depth);
+    Preconditions.checkArgument(
+        depth <= MAX_VARIANT_DEPTH,
+        "Invalid variant: nesting depth %s exceeds maximum %s",
+        depth,
+        MAX_VARIANT_DEPTH);
+    Preconditions.checkArgument(value.remaining() >= 1, "Invalid variant: empty value buffer");
+    int header = ByteBuffers.readByte(value, 0);
+    BasicType basicType = basicType(header);
+    switch (basicType) {
+      case PRIMITIVE:
+        return SerializedPrimitive.from(value, header);
+      case SHORT_STRING:
+        return SerializedShortString.from(value, header);
+      case OBJECT:
+        return SerializedObject.from(metadata, value, header, depth);
+      case ARRAY:
+        return SerializedArray.from(metadata, value, header, depth);
     }
 
-    throw new IllegalArgumentException("Invalid size: " + size);
-  }
-
-  static byte readLittleEndianInt8(ByteBuffer buffer, int offset) {
-    return buffer.get(buffer.position() + offset);
-  }
-
-  static short readLittleEndianInt16(ByteBuffer buffer, int offset) {
-    return buffer.getShort(buffer.position() + offset);
-  }
-
-  static int readByte(ByteBuffer buffer, int offset) {
-    return buffer.get(buffer.position() + offset) & 0xFF;
-  }
-
-  static int readLittleEndianUnsigned(ByteBuffer buffer, int offset, int size) {
-    int base = buffer.position() + offset;
-    switch (size) {
-      case 4:
-        return buffer.getInt(base);
-      case 3:
-        return (((int) buffer.getShort(base)) & 0xFFFF) | ((buffer.get(base + 2) & 0xFF) << 16);
-      case 2:
-        return ((int) buffer.getShort(base)) & 0xFFFF;
-      case 1:
-        return buffer.get(base) & 0xFF;
-    }
-
-    throw new IllegalArgumentException("Invalid size: " + size);
-  }
-
-  static int readLittleEndianInt32(ByteBuffer buffer, int offset) {
-    return buffer.getInt(buffer.position() + offset);
-  }
-
-  static long readLittleEndianInt64(ByteBuffer buffer, int offset) {
-    return buffer.getLong(buffer.position() + offset);
+    throw new UnsupportedOperationException("Unsupported basic type: " + basicType);
   }
 
   static float readFloat(ByteBuffer buffer, int offset) {
@@ -133,19 +99,33 @@ class VariantUtil {
     }
   }
 
-  static <T extends Comparable<T>> int find(int size, T key, Function<Integer, T> resolve) {
-    int low = 0;
-    int high = size - 1;
-    while (low <= high) {
-      int mid = (low + high) >>> 1;
-      T value = resolve.apply(mid);
-      int cmp = key.compareTo(value);
-      if (cmp == 0) {
-        return mid;
-      } else if (cmp < 0) {
-        high = mid - 1;
-      } else {
-        low = mid + 1;
+  static int find(int size, String key, IntFunction<String> resolve) {
+    // retry supplementary-plane keys in UTF-16 order to find fields written in the legacy layout
+    int attempts = 1;
+    for (int i = 0; i < key.length(); i += 1) {
+      if (key.charAt(i) >= Character.MIN_SURROGATE) {
+        attempts = 2;
+        break;
+      }
+    }
+
+    for (int attempt = 0; attempt < attempts; attempt += 1) {
+      int low = 0;
+      int high = size - 1;
+      while (low <= high) {
+        int mid = (low + high) >>> 1;
+        String value = resolve.apply(mid);
+        int cmp =
+            attempt == 0
+                ? VariantMetadata.FIELD_NAME_ORDER.compare(key, value)
+                : key.compareTo(value);
+        if (cmp == 0) {
+          return mid;
+        } else if (cmp < 0) {
+          high = mid - 1;
+        } else {
+          low = mid + 1;
+        }
       }
     }
 

@@ -21,6 +21,7 @@ package org.apache.iceberg.connect.events;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
@@ -32,6 +33,7 @@ import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.types.Types.UUIDType;
 
 /** Element representing a table identifier, with namespace and name. */
 public class TableReference implements IndexedRecord {
@@ -39,23 +41,29 @@ public class TableReference implements IndexedRecord {
   private String catalog;
   private List<String> namespace;
   private String name;
+  private UUID uuid;
   private final Schema avroSchema;
 
   static final int CATALOG = 10_600;
   static final int NAMESPACE = 10_601;
   static final int NAME = 10_603;
+  static final int TABLE_UUID = 10_604;
 
   public static final StructType ICEBERG_SCHEMA =
       StructType.of(
           NestedField.required(CATALOG, "catalog", StringType.get()),
           NestedField.required(
               NAMESPACE, "namespace", ListType.ofRequired(NAMESPACE + 1, StringType.get())),
-          NestedField.required(NAME, "name", StringType.get()));
+          NestedField.required(NAME, "name", StringType.get()),
+          NestedField.optional(TABLE_UUID, "table_uuid", UUIDType.get()));
   private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA, TableReference.class);
 
-  public static TableReference of(String catalog, TableIdentifier tableIdentifier) {
+  public static TableReference of(String catalog, TableIdentifier tableIdentifier, UUID tableUuid) {
     return new TableReference(
-        catalog, Arrays.asList(tableIdentifier.namespace().levels()), tableIdentifier.name());
+        catalog,
+        Arrays.asList(tableIdentifier.namespace().levels()),
+        tableIdentifier.name(),
+        tableUuid);
   }
 
   // Used by Avro reflection to instantiate this class when reading events
@@ -63,18 +71,23 @@ public class TableReference implements IndexedRecord {
     this.avroSchema = avroSchema;
   }
 
-  public TableReference(String catalog, List<String> namespace, String name) {
+  private TableReference(String catalog, List<String> namespace, String name, UUID uuid) {
     Preconditions.checkNotNull(catalog, "Catalog cannot be null");
     Preconditions.checkNotNull(namespace, "Namespace cannot be null");
     Preconditions.checkNotNull(name, "Name cannot be null");
     this.catalog = catalog;
     this.namespace = namespace;
     this.name = name;
+    this.uuid = uuid;
     this.avroSchema = AVRO_SCHEMA;
   }
 
   public String catalog() {
     return catalog;
+  }
+
+  public UUID uuid() {
+    return uuid;
   }
 
   public TableIdentifier identifier() {
@@ -103,6 +116,9 @@ public class TableReference implements IndexedRecord {
       case NAME:
         this.name = v == null ? null : v.toString();
         return;
+      case TABLE_UUID:
+        this.uuid = (UUID) v;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -117,6 +133,8 @@ public class TableReference implements IndexedRecord {
         return namespace;
       case NAME:
         return name;
+      case TABLE_UUID:
+        return uuid;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);
     }
@@ -133,11 +151,12 @@ public class TableReference implements IndexedRecord {
     TableReference that = (TableReference) o;
     return Objects.equals(catalog, that.catalog)
         && Objects.equals(namespace, that.namespace)
-        && Objects.equals(name, that.name);
+        && Objects.equals(name, that.name)
+        && Objects.equals(uuid, that.uuid);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(catalog, namespace, name);
+    return Objects.hash(catalog, namespace, name, uuid);
   }
 }

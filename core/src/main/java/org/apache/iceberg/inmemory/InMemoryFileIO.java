@@ -24,12 +24,25 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.SerializableMap;
 
 public class InMemoryFileIO implements FileIO {
 
   private static final Map<String, byte[]> IN_MEMORY_FILES = Maps.newConcurrentMap();
   private boolean closed = false;
+  private SerializableMap<String, String> properties = SerializableMap.copyOf(ImmutableMap.of());
+
+  @Override
+  public void initialize(Map<String, String> props) {
+    this.properties = SerializableMap.copyOf(props);
+  }
+
+  @Override
+  public Map<String, String> properties() {
+    return properties.immutableMap();
+  }
 
   public void addFile(String location, byte[] contents) {
     Preconditions.checkState(!closed, "Cannot call addFile after calling close()");

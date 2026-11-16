@@ -138,34 +138,41 @@ public class TestFlinkParquetReader extends DataTestBase {
                 .id(110)
                 .as(LogicalTypeAnnotation.stringType())
                 .named("s"),
-            // 11: required(112, "fixed", Types.FixedType.ofLength(7))
+            // 11: required(111, "uuid", Types.UUIDType.get())
+            primitive(
+                    PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY, Type.Repetition.REQUIRED)
+                .id(111)
+                .length(16)
+                .as(LogicalTypeAnnotation.uuidType())
+                .named("uuid"),
+            // 12: required(112, "fixed", Types.FixedType.ofLength(7))
             primitive(
                     PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY, Type.Repetition.REQUIRED)
                 .id(112)
                 .length(7)
                 .named("f"),
-            // 12: optional(113, "bytes", Types.BinaryType.get())
+            // 13: optional(113, "bytes", Types.BinaryType.get())
             primitive(PrimitiveType.PrimitiveTypeName.BINARY, Type.Repetition.OPTIONAL)
                 .id(113)
                 .named("bytes"),
-            // 13: required(114, "dec_9_0", Types.DecimalType.of(9, 0))
+            // 14: required(114, "dec_9_0", Types.DecimalType.of(9, 0))
             primitive(PrimitiveType.PrimitiveTypeName.INT64, Type.Repetition.REQUIRED)
                 .id(114)
                 .as(LogicalTypeAnnotation.decimalType(0, 9))
                 .named("dec_9_0"),
-            // 14: required(115, "dec_11_2", Types.DecimalType.of(11, 2))
+            // 15: required(115, "dec_11_2", Types.DecimalType.of(11, 2))
             primitive(PrimitiveType.PrimitiveTypeName.INT64, Type.Repetition.REQUIRED)
                 .id(115)
                 .as(LogicalTypeAnnotation.decimalType(2, 11))
                 .named("dec_11_2"),
-            // 15: required(116, "dec_38_10", Types.DecimalType.of(38, 10)) // maximum precision
+            // 16: required(116, "dec_38_10", Types.DecimalType.of(38, 10)) // maximum precision
             primitive(
                     PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY, Type.Repetition.REQUIRED)
                 .id(116)
                 .length(16)
                 .as(LogicalTypeAnnotation.decimalType(10, 38))
                 .named("dec_38_10"),
-            // 16: required(117, "time", Types.TimeType.get())
+            // 17: required(117, "time", Types.TimeType.get())
             primitive(PrimitiveType.PrimitiveTypeName.INT64, Type.Repetition.OPTIONAL)
                 .id(117)
                 .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))

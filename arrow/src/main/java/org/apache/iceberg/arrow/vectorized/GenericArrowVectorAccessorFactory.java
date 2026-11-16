@@ -134,9 +134,10 @@ public class GenericArrowVectorAccessorFactory<
               (IntVector) vector, dictionary, stringFactorySupplier.get());
         case INT_64:
         case TIME_MICROS:
-        case TIMESTAMP_MILLIS:
         case TIMESTAMP_MICROS:
           return new DictionaryLongAccessor<>((IntVector) vector, dictionary);
+        case TIMESTAMP_MILLIS:
+          return new DictionaryTimestampMillisAccessor<>((IntVector) vector, dictionary);
         case DECIMAL:
           switch (primitive.getPrimitiveTypeName()) {
             case BINARY:
@@ -310,6 +311,24 @@ public class GenericArrowVectorAccessorFactory<
     @Override
     public final long getLong(int rowId) {
       return dictionary.decodeToLong(offsetVector.get(rowId));
+    }
+  }
+
+  private static class DictionaryTimestampMillisAccessor<
+          DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+    private final IntVector offsetVector;
+    private final Dictionary dictionary;
+
+    DictionaryTimestampMillisAccessor(IntVector vector, Dictionary dictionary) {
+      super(vector);
+      this.offsetVector = vector;
+      this.dictionary = dictionary;
+    }
+
+    @Override
+    public final long getLong(int rowId) {
+      return dictionary.decodeToLong(offsetVector.get(rowId)) * 1000;
     }
   }
 

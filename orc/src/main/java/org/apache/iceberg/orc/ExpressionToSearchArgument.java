@@ -21,7 +21,6 @@ package org.apache.iceberg.orc;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Map;
 import java.util.Set;
@@ -34,6 +33,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.TypeID;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.io.sarg.PredicateLeaf;
@@ -58,7 +58,13 @@ class ExpressionToSearchArgument
   // these Iceberg types
   private static final Set<TypeID> UNSUPPORTED_TYPES =
       ImmutableSet.of(
-          TypeID.BINARY, TypeID.FIXED, TypeID.UUID, TypeID.STRUCT, TypeID.MAP, TypeID.LIST);
+          TypeID.BINARY,
+          TypeID.FIXED,
+          TypeID.UUID,
+          TypeID.STRUCT,
+          TypeID.MAP,
+          TypeID.LIST,
+          TypeID.VARIANT);
 
   private final SearchArgument.Builder builder;
   private final Map<Integer, String> idToColumnName;
@@ -301,6 +307,7 @@ class ExpressionToSearchArgument
       case DATE:
         return PredicateLeaf.Type.DATE;
       case TIMESTAMP:
+      case TIMESTAMP_NANO:
         return PredicateLeaf.Type.TIMESTAMP;
       case STRING:
         return PredicateLeaf.Type.STRING;
@@ -328,11 +335,10 @@ class ExpressionToSearchArgument
       case DATE:
         return Date.valueOf(LocalDate.ofEpochDay((Integer) icebergLiteral));
       case TIMESTAMP:
-        long microsFromEpoch = (Long) icebergLiteral;
         return Timestamp.from(
-            Instant.ofEpochSecond(
-                Math.floorDiv(microsFromEpoch, 1_000_000),
-                Math.floorMod(microsFromEpoch, 1_000_000) * 1_000L));
+            DateTimeUtil.timestamptzFromMicros((Long) icebergLiteral).toInstant());
+      case TIMESTAMP_NANO:
+        return Timestamp.from(DateTimeUtil.timestamptzFromNanos((Long) icebergLiteral).toInstant());
       case DECIMAL:
         return new HiveDecimalWritable(HiveDecimal.create((BigDecimal) icebergLiteral, false));
       default:

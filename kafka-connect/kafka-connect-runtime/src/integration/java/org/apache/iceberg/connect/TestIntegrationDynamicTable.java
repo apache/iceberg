@@ -20,11 +20,14 @@ package org.apache.iceberg.connect;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.awaitility.Awaitility;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -57,6 +60,56 @@ public class TestIntegrationDynamicTable extends IntegrationTestBase {
     assertThat(files).hasSize(1);
     assertThat(files.get(0).recordCount()).isEqualTo(1);
     assertSnapshotProps(TABLE_IDENTIFIER2, branch);
+  }
+
+  /**
+   * Verifies dynamic routing works when topic-rewriting SMTs (e.g. RegexRouter) change
+   * record.topic(). Before the fix, SinkWriter tracked offsets under the rewritten topic, causing a
+   * mismatch with context.assignment() and preventing proper offset commits.
+   */
+  @Test
+  public void testDynamicRouteWithTopicRewritingSMT() {
+    String smtTable = "smttbl";
+    TableIdentifier smtTableId = TableIdentifier.of(TEST_DB, smtTable);
+    catalog().createTable(smtTableId, TestEvent.TEST_SCHEMA);
+
+    try {
+      // RegexRouter rewrites topic to "test.smttbl", then InsertField copies
+      // record.topic() (now "test.smttbl") into field "srcTopic", and dynamic
+      // routing uses "srcTopic" to pick the destination table.
+      KafkaConnectUtils.Config connectorConfig =
+          createCommonConfig(false)
+              .config("iceberg.tables.dynamic-enabled", true)
+              .config("iceberg.tables.route-field", "srcTopic")
+              .config("transforms", "rewriteTopic,insertTopic")
+              .config(
+                  "transforms.rewriteTopic.type", "org.apache.kafka.connect.transforms.RegexRouter")
+              .config("transforms.rewriteTopic.regex", ".*")
+              .config("transforms.rewriteTopic.replacement", TEST_DB + "." + smtTable)
+              .config(
+                  "transforms.insertTopic.type",
+                  "org.apache.kafka.connect.transforms.InsertField$Value")
+              .config("transforms.insertTopic.topic.field", "srcTopic");
+
+      context().connectorCatalogProperties().forEach(connectorConfig::config);
+      context().startConnector(connectorConfig);
+
+      send(testTopic(), new TestEvent(1, "type1", Instant.now(), "hello"), false);
+      send(testTopic(), new TestEvent(2, "type2", Instant.now(), "world"), false);
+      flush();
+
+      Awaitility.await()
+          .atMost(Duration.ofSeconds(30))
+          .pollInterval(Duration.ofSeconds(1))
+          .untilAsserted(() -> assertSnapshotAdded(List.of(smtTableId)));
+
+      List<DataFile> files = dataFiles(smtTableId, null);
+      assertThat(files).hasSizeBetween(1, 2);
+      assertThat(files.stream().mapToLong(DataFile::recordCount).sum()).isEqualTo(2);
+      assertSnapshotProps(smtTableId, null);
+    } finally {
+      catalog().dropTable(smtTableId);
+    }
   }
 
   @Override

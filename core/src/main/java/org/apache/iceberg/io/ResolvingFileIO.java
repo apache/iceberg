@@ -154,7 +154,7 @@ public class ResolvingFileIO
 
   @Override
   public void setConf(Configuration conf) {
-    this.hadoopConf = new SerializableConfiguration(conf)::get;
+    this.hadoopConf = new SerializableConfiguration(conf);
   }
 
   @Override
@@ -254,7 +254,7 @@ public class ResolvingFileIO
     return null;
   }
 
-  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize"})
+  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize", "deprecation"})
   @Override
   protected void finalize() throws Throwable {
     super.finalize();

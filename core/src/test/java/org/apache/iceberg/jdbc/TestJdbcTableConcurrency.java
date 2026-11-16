@@ -646,7 +646,8 @@ public class TestJdbcTableConcurrency {
       delegate.setAsciiStream(parameterIndex, x, length);
     }
 
-    @Deprecated(since = "1.2")
+    // This is deprecated in JDK, we have to remove it once removed there.
+    @SuppressWarnings("deprecation")
     @Override
     public void setUnicodeStream(int parameterIndex, InputStream inputStream, int length)
         throws SQLException {

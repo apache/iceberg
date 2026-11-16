@@ -63,18 +63,17 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestBase;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.TestTableLoader;
-import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.ThreadPools;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -95,11 +94,11 @@ public class TestIcebergFilesCommitter extends TestBase {
   @Parameters(name = "formatVersion = {0}, fileFormat = {1}, branch = {2}")
   protected static List<Object> parameters() {
     return Arrays.asList(
-        new Object[] {1, FileFormat.AVRO, "main"},
+        new Object[] {1, FileFormat.AVRO, SnapshotRef.MAIN_BRANCH},
         new Object[] {2, FileFormat.AVRO, "test-branch"},
-        new Object[] {1, FileFormat.PARQUET, "main"},
+        new Object[] {1, FileFormat.PARQUET, SnapshotRef.MAIN_BRANCH},
         new Object[] {2, FileFormat.PARQUET, "test-branch"},
-        new Object[] {1, FileFormat.ORC, "main"},
+        new Object[] {1, FileFormat.ORC, SnapshotRef.MAIN_BRANCH},
         new Object[] {2, FileFormat.ORC, "test-branch"});
   }
 
@@ -1091,14 +1090,6 @@ public class TestIcebergFilesCommitter extends TestBase {
       FileWriterFactory<RowData> writerFactory, String filename, List<RowData> deletes)
       throws IOException {
     return SimpleDataUtil.writeEqDeleteFile(table, table.spec(), filename, writerFactory, deletes);
-  }
-
-  private DeleteFile writePosDeleteFile(
-      FileAppenderFactory<RowData> appenderFactory,
-      String filename,
-      List<Pair<CharSequence, Long>> positions)
-      throws IOException {
-    return SimpleDataUtil.writePosDeleteFile(table, format, filename, appenderFactory, positions);
   }
 
   private FileWriterFactory<RowData> createWriterFactory() {

@@ -51,8 +51,8 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<FlinkWriteResult>
 
   @Override
   public void open() {
-    this.subTaskId = getRuntimeContext().getIndexOfThisSubtask();
-    this.attemptId = getRuntimeContext().getAttemptNumber();
+    this.subTaskId = getRuntimeContext().getTaskInfo().getIndexOfThisSubtask();
+    this.attemptId = getRuntimeContext().getTaskInfo().getAttemptNumber();
     this.writerMetrics = new IcebergStreamWriterMetrics(super.metrics, fullTableName);
 
     // Initialize the task writer factory.

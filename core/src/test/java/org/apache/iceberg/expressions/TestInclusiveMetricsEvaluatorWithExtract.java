@@ -41,8 +41,10 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers.Row;
@@ -52,21 +54,24 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
+import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.VariantTestUtil;
+import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.FieldSource;
 
-public class TestInclusiveMetricsEvaluatorWithExtract {
-  private static final Schema SCHEMA =
+public class TestInclusiveMetricsEvaluatorWithExtract<F> {
+  protected static final Schema SCHEMA =
       new Schema(
           required(1, "id", IntegerType.get()),
           required(2, "variant", Types.VariantType.get()),
           optional(3, "all_nulls", Types.VariantType.get()));
 
-  private static final int INT_MIN_VALUE = 30;
-  private static final int INT_MAX_VALUE = 79;
+  protected static final int INT_MIN_VALUE = 30;
+  protected static final int INT_MAX_VALUE = 79;
 
   private static final DataFile FILE =
       new TestDataFile(
@@ -103,19 +108,43 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
                       Variants.of("abe")))));
 
   private boolean shouldRead(Expression expr) {
-    return shouldRead(expr, FILE);
+    return shouldRead(expr, file());
   }
 
-  private boolean shouldRead(Expression expr, DataFile file) {
+  private boolean shouldRead(Expression expr, F file) {
     return shouldRead(expr, file, true);
   }
 
   private boolean shouldReadCaseInsensitive(Expression expr) {
-    return shouldRead(expr, FILE, false);
+    return shouldRead(expr, file(), false);
   }
 
-  private boolean shouldRead(Expression expr, DataFile file, boolean caseSensitive) {
-    return new InclusiveMetricsEvaluator(SCHEMA, expr, caseSensitive).eval(file);
+  protected boolean shouldRead(Expression expr, F file, boolean caseSensitive) {
+    return new InclusiveMetricsEvaluator(SCHEMA, expr, caseSensitive).eval((DataFile) file);
+  }
+
+  protected F file() {
+    return asFile(FILE);
+  }
+
+  protected F emptyFile() {
+    return asFile(new TestDataFile("file.parquet", Row.of(), 0));
+  }
+
+  /** Returns a file with variant bounds for the given path in the {@code variant} column. */
+  protected F fileWithVariantBounds(String path, VariantValue lower, VariantValue upper) {
+    Map<Integer, ByteBuffer> lowerBounds =
+        ImmutableMap.of(2, VariantTestUtil.variantBuffer(Map.of(path, lower)));
+    Map<Integer, ByteBuffer> upperBounds =
+        ImmutableMap.of(2, VariantTestUtil.variantBuffer(Map.of(path, upper)));
+
+    return asFile(
+        new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds));
+  }
+
+  @SuppressWarnings("unchecked")
+  private F asFile(DataFile dataFile) {
+    return (F) dataFile;
   }
 
   @Test
@@ -218,7 +247,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
   @ParameterizedTest
   @FieldSource("MISSING_STATS_EXPRESSIONS")
   public void testZeroRecordFile(Expression expr) {
-    DataFile empty = new TestDataFile("file.parquet", Row.of(), 0);
+    F empty = emptyFile();
     assertThat(shouldRead(expr, empty)).as("Should never read 0-record file: " + expr).isFalse();
   }
 
@@ -304,7 +333,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
         .isTrue();
 
     assertThat(shouldRead(lessThan(extract("variant", "$.event_id", "long"), INT_MAX_VALUE)))
-        .as("Should read: may possible ids")
+        .as("Should read: many possible ids")
         .isTrue();
   }
 
@@ -346,7 +375,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
         .isTrue();
 
     assertThat(shouldRead(greaterThan(extract("variant", "$.event_id", "long"), INT_MAX_VALUE - 4)))
-        .as("Should read: may possible ids")
+        .as("Should read: many possible ids")
         .isTrue();
   }
 
@@ -372,7 +401,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
     assertThat(
             shouldRead(
                 greaterThanOrEqual(extract("variant", "$.event_id", "long"), INT_MAX_VALUE - 4)))
-        .as("Should read: may possible ids")
+        .as("Should read: many possible ids")
         .isTrue();
   }
 
@@ -682,5 +711,317 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
                     INT_MAX_VALUE + 7)))
         .as("Should read: id above upper bound (85 > 79, 86 > 79)")
         .isTrue();
+  }
+
+  private static final List<Arguments> DATEANDTIMESTAMPTYPESEQPARAMETERS =
+      List.of(
+          Arguments.of(
+              Types.TimestampNanoType.withoutZone().toString(),
+              Arguments.of(
+                  "1970-01-11T00:00:01.123456789",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+                  false),
+              Arguments.of(
+                  "1970-01-31T00:00:01.123456",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+                  true),
+              Arguments.of(
+                  "1970-03-21T00:00:01.123456789",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+                  true),
+              Arguments.of(
+                  "1970-03-31T00:00:01.123456",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+                  true),
+              Arguments.of(
+                  "1970-04-01T00:00:01.123456789",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+                  false),
+              Arguments.of(
+                  "1970-01-11T00:00:01.123456789",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31"),
+                  false),
+              Arguments.of(
+                  "1970-01-31T00:00:01.123456789",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31"),
+                  true),
+              Arguments.of(
+                  "1970-03-21T00:00:01.123456789",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31"),
+                  true),
+              Arguments.of(
+                  "1970-03-31T00:00:00.000000000",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31"),
+                  true),
+              Arguments.of(
+                  "1970-04-01T00:00:01.123456789",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31"),
+                  false)),
+          Arguments.of(
+              Types.DateType.get().toString(),
+              Arguments.of(
+                  "1970-01-11",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+                  false),
+              Arguments.of(
+                  "1970-01-31",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+                  true),
+              Arguments.of(
+                  "1970-03-21",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+                  true),
+              Arguments.of(
+                  "1970-03-31",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+                  true),
+              Arguments.of(
+                  "1970-04-01",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+                  false),
+              Arguments.of(
+                  "1970-01-11",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+                  false),
+              Arguments.of(
+                  "1970-01-31",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+                  true),
+              Arguments.of(
+                  "1970-03-21",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+                  true),
+              Arguments.of(
+                  "1970-03-31",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+                  true),
+              Arguments.of(
+                  "1970-04-01",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+                  false)),
+          Arguments.of(
+              Types.TimestampType.withoutZone().toString(),
+              Arguments.of(
+                  "1970-01-11T00:00:01.123456",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+                  false),
+              Arguments.of(
+                  "1970-01-31T00:00:01.123456",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+                  true),
+              Arguments.of(
+                  "1970-03-21T00:00:01.123456",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+                  true),
+              Arguments.of(
+                  "1970-03-31T00:00:01.123456",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+                  true),
+              Arguments.of(
+                  "1970-04-01T00:00:01.123456",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+                  false),
+              Arguments.of(
+                  "1970-01-11T00:00:01.123456",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31"),
+                  false),
+              Arguments.of(
+                  "1970-01-31T00:00:01.123456",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31"),
+                  true),
+              Arguments.of(
+                  "1970-03-21T00:00:01.123456",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31"),
+                  true),
+              Arguments.of(
+                  "1970-03-31T00:00:00.000000",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31"),
+                  true),
+              Arguments.of(
+                  "1970-04-01T00:00:01.123456",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31"),
+                  false)));
+
+  @ParameterizedTest
+  @FieldSource("DATEANDTIMESTAMPTYPESEQPARAMETERS")
+  public void testDateAndTimestampTypesEq(String variantType, Arguments args) {
+    F file =
+        fileWithVariantBounds(
+            "$['event_timestamp']", (VariantValue) args.get()[1], (VariantValue) args.get()[2]);
+    Expression expr = equal(extract("variant", "$.event_timestamp", variantType), args.get()[0]);
+    assertThat(shouldRead(expr, file)).isEqualTo(args.get()[3]);
+  }
+
+  private static final List<Arguments> DATEANDTIMESTAMPTYPESNOTEQPARAMETERS =
+      List.of(
+          Arguments.of(
+              Types.TimestampNanoType.withoutZone().toString(),
+              Arguments.of(
+                  "1970-01-11T00:00:01.123456",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456")),
+              Arguments.of(
+                  "1970-01-31T00:00:01.123456",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456")),
+              Arguments.of(
+                  "1970-03-01T00:00:01.123456",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456")),
+              Arguments.of(
+                  "1970-03-31T00:00:01.123456",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456")),
+              Arguments.of(
+                  "1970-04-01T00:00:01.123456",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456")),
+              Arguments.of(
+                  "1970-01-11T00:00:01.123456789",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31")),
+              Arguments.of(
+                  "1970-01-31T00:00:01.123456789",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31")),
+              Arguments.of(
+                  "1970-03-01T00:00:01.123456789",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31")),
+              Arguments.of(
+                  "1970-03-31T00:00:01.123456789",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31")),
+              Arguments.of(
+                  "1970-04-01T00:00:01.123456789",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31"))),
+          Arguments.of(
+              Types.DateType.get().toString(),
+              Arguments.of(
+                  "1970-01-31",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456")),
+              Arguments.of(
+                  "1970-03-01",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456")),
+              Arguments.of(
+                  "1970-03-31",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456")),
+              Arguments.of(
+                  "1970-04-01",
+                  Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456")),
+              Arguments.of(
+                  "1970-01-11",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456")),
+              Arguments.of(
+                  "1970-03-01",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456")),
+              Arguments.of(
+                  "1970-01-31",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456")),
+              Arguments.of(
+                  "1970-03-31",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456")),
+              Arguments.of(
+                  "1970-04-01",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"))),
+          Arguments.of(
+              Types.TimestampType.withoutZone().toString(),
+              Arguments.of(
+                  "1970-01-11T00:00:01.123456",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31")),
+              Arguments.of(
+                  "1970-03-01T00:00:01.123456",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31")),
+              Arguments.of(
+                  "1970-01-31T00:00:01.123456",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31")),
+              Arguments.of(
+                  "1970-03-31T00:00:01.123456",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31")),
+              Arguments.of(
+                  "1970-04-01T00:00:01.123456",
+                  Variants.ofIsoDate("1970-01-31"),
+                  Variants.ofIsoDate("1970-03-31")),
+              Arguments.of(
+                  "1970-01-11T00:00:01.123456",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456")),
+              Arguments.of(
+                  "1970-01-31T00:00:01.123456",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456")),
+              Arguments.of(
+                  "1970-03-01T00:00:01.123456",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456")),
+              Arguments.of(
+                  "1970-03-31T00:00:01.123456",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456")),
+              Arguments.of(
+                  "1970-04-01T00:00:01.123456",
+                  Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+                  Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"))));
+
+  @ParameterizedTest
+  @FieldSource("DATEANDTIMESTAMPTYPESNOTEQPARAMETERS")
+  public void testDateAndTimestampTypesNotEq(String variantType, Arguments args) {
+    F file =
+        fileWithVariantBounds(
+            "$['event_timestamp']", (VariantValue) args.get()[1], (VariantValue) args.get()[2]);
+    Expression expr = notEqual(extract("variant", "$.event_timestamp", variantType), args.get()[0]);
+    assertThat(shouldRead(expr, file)).as("Should read: many possible timestamps" + expr).isTrue();
+  }
+
+  @Test
+  public void testUUIDEq() {
+    UUID uuid = UUID.randomUUID();
+    F file = fileWithVariantBounds("$['event_uuid']", Variants.ofUUID(uuid), Variants.ofUUID(uuid));
+    Expression expr = equal(extract("variant", "$.event_uuid", PhysicalType.UUID.name()), uuid);
+    assertThat(shouldRead(expr, file)).as("Should read: many possible UUIDs" + expr).isTrue();
   }
 }

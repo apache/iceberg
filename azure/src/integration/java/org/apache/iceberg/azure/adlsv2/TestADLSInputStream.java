@@ -35,9 +35,14 @@ import org.junit.jupiter.api.Test;
 public class TestADLSInputStream extends AzuriteTestBase {
 
   private static final String FILE_PATH = "path/to/file";
+  private static final int EOF = -1;
 
   private final Random random = new Random(1);
   private final AzureProperties azureProperties = new AzureProperties();
+
+  private String location() {
+    return AZURITE_CONTAINER.location(FILE_PATH);
+  }
 
   private DataLakeFileClient fileClient() {
     return AZURITE_CONTAINER.fileClient(FILE_PATH);
@@ -55,7 +60,8 @@ public class TestADLSInputStream extends AzuriteTestBase {
     setupData(data);
 
     try (SeekableInputStream in =
-        new ADLSInputStream(fileClient(), null, azureProperties, MetricsContext.nullMetrics())) {
+        new ADLSInputStream(
+            location(), fileClient(), null, azureProperties, MetricsContext.nullMetrics())) {
       int readSize = 1024;
 
       readAndCheck(in, in.getPos(), readSize, data, false);
@@ -90,9 +96,32 @@ public class TestADLSInputStream extends AzuriteTestBase {
     setupData(data);
 
     try (SeekableInputStream in =
-        new ADLSInputStream(fileClient(), null, azureProperties, MetricsContext.nullMetrics())) {
+        new ADLSInputStream(
+            location(), fileClient(), null, azureProperties, MetricsContext.nullMetrics())) {
       assertThat(in.read()).isEqualTo(i0);
       assertThat(in.read()).isEqualTo(i1);
+      assertThat(in.read()).isEqualTo(EOF);
+    }
+  }
+
+  @Test
+  public void testReadBufferedEOF() throws Exception {
+    int dataSize = 8;
+    byte[] expected = randomData(dataSize);
+    byte[] actual = new byte[dataSize + 1];
+
+    setupData(expected);
+
+    try (SeekableInputStream in =
+        new ADLSInputStream(
+            location(), fileClient(), null, azureProperties, MetricsContext.nullMetrics())) {
+      int bytesRead = in.read(actual, 0, dataSize + 1);
+      assertThat(bytesRead).isEqualTo(dataSize);
+      assertThat(Arrays.copyOfRange(actual, 0, bytesRead)).isEqualTo(expected);
+
+      // Pos is in the end of data, any read should EOF
+      assertThat(in.read(actual, 0, actual.length)).isEqualTo(EOF);
+      assertThat(in.getPos()).isEqualTo(dataSize);
     }
   }
 
@@ -131,7 +160,8 @@ public class TestADLSInputStream extends AzuriteTestBase {
     setupData(expected);
 
     try (RangeReadable in =
-        new ADLSInputStream(fileClient(), null, azureProperties, MetricsContext.nullMetrics())) {
+        new ADLSInputStream(
+            location(), fileClient(), null, azureProperties, MetricsContext.nullMetrics())) {
       // first 1k
       position = 0;
       offset = 0;
@@ -164,7 +194,8 @@ public class TestADLSInputStream extends AzuriteTestBase {
   public void testClose() throws Exception {
     setupData(randomData(2));
     SeekableInputStream closed =
-        new ADLSInputStream(fileClient(), null, azureProperties, MetricsContext.nullMetrics());
+        new ADLSInputStream(
+            location(), fileClient(), null, azureProperties, MetricsContext.nullMetrics());
     closed.close();
     assertThatThrownBy(() -> closed.seek(0))
         .isInstanceOf(IllegalStateException.class)
@@ -178,7 +209,8 @@ public class TestADLSInputStream extends AzuriteTestBase {
     setupData(data);
 
     try (SeekableInputStream in =
-        new ADLSInputStream(fileClient(), null, azureProperties, MetricsContext.nullMetrics())) {
+        new ADLSInputStream(
+            location(), fileClient(), null, azureProperties, MetricsContext.nullMetrics())) {
       in.seek(data.length / 2);
       byte[] actual = new byte[data.length / 2];
 
@@ -193,7 +225,8 @@ public class TestADLSInputStream extends AzuriteTestBase {
   public void testSeekNegative() throws Exception {
     setupData(randomData(2));
     SeekableInputStream in =
-        new ADLSInputStream(fileClient(), null, azureProperties, MetricsContext.nullMetrics());
+        new ADLSInputStream(
+            location(), fileClient(), null, azureProperties, MetricsContext.nullMetrics());
     assertThatThrownBy(() -> in.seek(-3))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot seek: position -3 is negative");

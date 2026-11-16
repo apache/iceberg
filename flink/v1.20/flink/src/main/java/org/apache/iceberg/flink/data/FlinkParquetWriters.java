@@ -37,7 +37,9 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.RowType.RowField;
 import org.apache.flink.table.types.logical.SmallIntType;
 import org.apache.flink.table.types.logical.TinyIntType;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.FlinkRowData;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
@@ -59,12 +61,19 @@ import org.apache.parquet.schema.LogicalTypeAnnotation.LogicalTypeAnnotationVisi
 import org.apache.parquet.schema.LogicalTypeAnnotation.StringLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimeLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class FlinkParquetWriters {
   private FlinkParquetWriters() {}
+
+  public static <T> ParquetValueWriter<T> buildWriter(
+      Schema icebergSchema, MessageType type, RowType engineSchema) {
+    return buildWriter(
+        engineSchema != null ? engineSchema : FlinkSchemaUtil.convert(icebergSchema), type);
+  }
 
   @SuppressWarnings("unchecked")
   public static <T> ParquetValueWriter<T> buildWriter(LogicalType schema, MessageType type) {
@@ -279,6 +288,11 @@ public class FlinkParquetWriters {
     public Optional<ParquetValueWriter<?>> visit(BsonLogicalTypeAnnotation ignored) {
       return Optional.of(byteArrays(desc));
     }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(UUIDLogicalTypeAnnotation uuid) {
+      return Optional.of(byteArrays(desc));
+    }
   }
 
   private static ParquetValueWriter<?> ints(LogicalType type, ColumnDescriptor desc) {
@@ -476,7 +490,7 @@ public class FlinkParquetWriters {
   }
 
   private static class ArrayDataWriter<E> extends ParquetValueWriters.RepeatedWriter<ArrayData, E> {
-    private final LogicalType elementType;
+    private final ElementIterator<E> elementIterator;
 
     private ArrayDataWriter(
         int definitionLevel,
@@ -484,25 +498,29 @@ public class FlinkParquetWriters {
         ParquetValueWriter<E> writer,
         LogicalType elementType) {
       super(definitionLevel, repetitionLevel, writer);
-      this.elementType = elementType;
+      this.elementIterator = new ElementIterator<>(ArrayData.createElementGetter(elementType));
     }
 
     @Override
     protected Iterator<E> elements(ArrayData list) {
-      return new ElementIterator<>(list);
+      elementIterator.reset(list);
+      return elementIterator;
     }
 
-    private class ElementIterator<E> implements Iterator<E> {
-      private final int size;
-      private final ArrayData list;
+    private static class ElementIterator<E> implements Iterator<E> {
       private final ArrayData.ElementGetter getter;
+      private ArrayData list;
+      private int size;
       private int index;
 
-      private ElementIterator(ArrayData list) {
-        this.list = list;
-        size = list.size();
-        getter = ArrayData.createElementGetter(elementType);
-        index = 0;
+      private ElementIterator(ArrayData.ElementGetter getter) {
+        this.getter = getter;
+      }
+
+      private void reset(ArrayData newList) {
+        this.list = newList;
+        this.size = newList.size();
+        this.index = 0;
       }
 
       @Override
@@ -527,8 +545,7 @@ public class FlinkParquetWriters {
 
   private static class MapDataWriter<K, V>
       extends ParquetValueWriters.RepeatedKeyValueWriter<MapData, K, V> {
-    private final LogicalType keyType;
-    private final LogicalType valueType;
+    private final EntryIterator<K, V> entryIterator;
 
     private MapDataWriter(
         int definitionLevel,
@@ -538,32 +555,38 @@ public class FlinkParquetWriters {
         LogicalType keyType,
         LogicalType valueType) {
       super(definitionLevel, repetitionLevel, keyWriter, valueWriter);
-      this.keyType = keyType;
-      this.valueType = valueType;
+      this.entryIterator =
+          new EntryIterator<>(
+              ArrayData.createElementGetter(keyType), ArrayData.createElementGetter(valueType));
     }
 
     @Override
     protected Iterator<Map.Entry<K, V>> pairs(MapData map) {
-      return new EntryIterator<>(map);
+      entryIterator.reset(map);
+      return entryIterator;
     }
 
-    private class EntryIterator<K, V> implements Iterator<Map.Entry<K, V>> {
-      private final int size;
-      private final ArrayData keys;
-      private final ArrayData values;
+    private static class EntryIterator<K, V> implements Iterator<Map.Entry<K, V>> {
       private final ParquetValueReaders.ReusableEntry<K, V> entry;
       private final ArrayData.ElementGetter keyGetter;
       private final ArrayData.ElementGetter valueGetter;
+      private ArrayData keys;
+      private ArrayData values;
+      private int size;
       private int index;
 
-      private EntryIterator(MapData map) {
-        size = map.size();
-        keys = map.keyArray();
-        values = map.valueArray();
-        entry = new ParquetValueReaders.ReusableEntry<>();
-        keyGetter = ArrayData.createElementGetter(keyType);
-        valueGetter = ArrayData.createElementGetter(valueType);
-        index = 0;
+      private EntryIterator(
+          ArrayData.ElementGetter keyGetter, ArrayData.ElementGetter valueGetter) {
+        this.entry = new ParquetValueReaders.ReusableEntry<>();
+        this.keyGetter = keyGetter;
+        this.valueGetter = valueGetter;
+      }
+
+      private void reset(MapData map) {
+        this.keys = map.keyArray();
+        this.values = map.valueArray();
+        this.size = map.size();
+        this.index = 0;
       }
 
       @Override

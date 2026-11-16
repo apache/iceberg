@@ -25,10 +25,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.math.BigDecimal;
 import java.util.List;
 import org.apache.iceberg.ParameterizedTestExtension;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkTableProperties;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -61,7 +61,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
   public void testMergeSchemaFailsWithoutWriterOption() throws Exception {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
-        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+        tableName, SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA);
 
     Dataset<Row> twoColDF =
         jsonToDF(
@@ -120,7 +120,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
   public void testMergeSchemaSparkProperty() throws Exception {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
-        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+        tableName, SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA);
 
     Dataset<Row> twoColDF =
         jsonToDF(
@@ -154,7 +154,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
   public void testMergeSchemaIcebergProperty() throws Exception {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
-        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+        tableName, SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA);
 
     Dataset<Row> twoColDF =
         jsonToDF(
@@ -196,7 +196,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
         .sql(
             String.format(
                 "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
-                tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA))
+                tableName, SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA))
         .collect();
 
     String schema = "ID bigint, DaTa string";
@@ -226,7 +226,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
   public void testMergeSchemaSparkConfiguration() throws Exception {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
-        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+        tableName, SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA);
     Dataset<Row> twoColDF =
         jsonToDF(
             "id bigint, data string",
@@ -261,7 +261,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
   public void testMergeSchemaIgnoreCastingLongToInt() throws Exception {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
-        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+        tableName, SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA);
 
     Dataset<Row> bigintDF =
         jsonToDF(
@@ -303,7 +303,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
     sql("CREATE TABLE %s (id double, data string) USING iceberg", tableName);
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
-        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+        tableName, SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA);
 
     Dataset<Row> doubleDF =
         jsonToDF(
@@ -345,7 +345,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
     sql("CREATE TABLE %s (id decimal(6,2), data string) USING iceberg", tableName);
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
-        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+        tableName, SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA);
 
     Dataset<Row> decimalPrecision6DF =
         jsonToDF(

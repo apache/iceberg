@@ -66,6 +66,7 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
         metrics.nanValueCounts(),
         metrics.lowerBounds(),
         metrics.upperBounds(),
+        metrics.totalBytes(),
         splitOffsets,
         equalityFieldIds,
         sortOrderId,
@@ -89,12 +90,20 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
     super(toCopy, copyStats, requestedColumnIds);
   }
 
+  private GenericDeleteFile(GenericDeleteFile toCopy, String referencedDataFile) {
+    super(toCopy, false /* drop stats */, null, referencedDataFile);
+  }
+
   /** Constructor for Java serialization. */
   GenericDeleteFile() {}
 
   @Override
   public DeleteFile copyWithoutStats() {
     return new GenericDeleteFile(this, false /* drop stats */, null);
+  }
+
+  DeleteFile copyAsFileScoped(String referencedDataFile) {
+    return new GenericDeleteFile(this, referencedDataFile);
   }
 
   @Override

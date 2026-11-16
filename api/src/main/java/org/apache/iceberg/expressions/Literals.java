@@ -30,6 +30,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -47,6 +48,7 @@ class Literals {
   private Literals() {}
 
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+  private static final BaseEncoding BASE16_ENCODING = BaseEncoding.base16();
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
   /**
@@ -587,6 +589,32 @@ class Literals {
           BigDecimal decimal = new BigDecimal(value().toString());
           return (Literal<T>) new DecimalLiteral(decimal);
 
+        case FIXED:
+          try {
+            ByteBuffer buffer =
+                ByteBuffer.wrap(
+                    BASE16_ENCODING.decode(value().toString().toUpperCase(Locale.ROOT)));
+            Types.FixedType fixed = (Types.FixedType) type;
+            if (buffer.remaining() == fixed.length()) {
+              return (Literal<T>) new FixedLiteral(buffer);
+            }
+            return null;
+          } catch (IllegalArgumentException e) {
+            // Invalid hex string
+            return null;
+          }
+
+        case BINARY:
+          try {
+            return (Literal<T>)
+                new BinaryLiteral(
+                    ByteBuffer.wrap(
+                        BASE16_ENCODING.decode(value().toString().toUpperCase(Locale.ROOT))));
+          } catch (IllegalArgumentException e) {
+            // Invalid hex string
+            return null;
+          }
+
         default:
           return null;
       }
@@ -670,7 +698,7 @@ class Literals {
     @Override
     public String toString() {
       byte[] bytes = ByteBuffers.toByteArray(value());
-      return "X'" + BaseEncoding.base16().encode(bytes) + "'";
+      return "X'" + BASE16_ENCODING.encode(bytes) + "'";
     }
   }
 
@@ -716,7 +744,7 @@ class Literals {
     @Override
     public String toString() {
       byte[] bytes = ByteBuffers.toByteArray(value());
-      return "X'" + BaseEncoding.base16().encode(bytes) + "'";
+      return "X'" + BASE16_ENCODING.encode(bytes) + "'";
     }
   }
 }

@@ -19,6 +19,8 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -204,6 +206,27 @@ public class TestSchemaAndMappingUpdate extends TestBase {
     table.updateSchema().deleteColumn("ID").commit();
     assertThat(table.properties())
         .doesNotContainKey(table.properties().get(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "ID"));
+  }
+
+  @TestTemplate
+  public void testModificationWithParquetColumnCompression() {
+    table
+        .updateProperties()
+        .set(PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "id", "zstd")
+        .set(PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "id", "9")
+        .commit();
+
+    table.updateSchema().renameColumn("id", "ID").commit();
+    assertThat(table.properties())
+        .containsEntry(PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "ID", "zstd")
+        .containsEntry(PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "ID", "9")
+        .doesNotContainKey(PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "id")
+        .doesNotContainKey(PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "id");
+
+    table.updateSchema().deleteColumn("ID").commit();
+    assertThat(table.properties())
+        .doesNotContainKey(PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "ID")
+        .doesNotContainKey(PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "ID");
   }
 
   @TestTemplate

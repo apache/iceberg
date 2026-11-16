@@ -22,10 +22,13 @@ import static org.apache.iceberg.actions.SizeBasedFileRewritePlanner.MIN_INPUT_F
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.SnapshotChanges;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.TableLoader;
@@ -38,6 +41,11 @@ class RewriteUtil {
 
   static List<DataFileRewritePlanner.PlannedGroup> planDataFileRewrite(TableLoader tableLoader)
       throws Exception {
+    return planDataFileRewrite(tableLoader, ImmutableMap.of(MIN_INPUT_FILES, "2"));
+  }
+
+  static List<DataFileRewritePlanner.PlannedGroup> planDataFileRewrite(
+      TableLoader tableLoader, Map<String, String> rewriterOptions) throws Exception {
     try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
         testHarness =
             ProcessFunctionTestHarnesses.forProcessFunction(
@@ -48,8 +56,9 @@ class RewriteUtil {
                     tableLoader,
                     11,
                     10_000_000L,
-                    ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                    Expressions.alwaysTrue()))) {
+                    rewriterOptions,
+                    Expressions::alwaysTrue,
+                    SnapshotRef.MAIN_BRANCH))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);
@@ -80,6 +89,6 @@ class RewriteUtil {
 
   static Set<DataFile> newDataFiles(Table table) {
     table.refresh();
-    return Sets.newHashSet(table.currentSnapshot().addedDataFiles(table.io()));
+    return Sets.newHashSet(SnapshotChanges.builderFor(table).build().addedDataFiles());
   }
 }

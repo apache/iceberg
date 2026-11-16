@@ -59,8 +59,8 @@ public class Types {
           .put(BinaryType.get().toString(), BinaryType.get())
           .put(UnknownType.get().toString(), UnknownType.get())
           .put(VariantType.get().toString(), VariantType.get())
-          .put(GeometryType.crs84().toString(), GeometryType.crs84())
-          .put(GeographyType.crs84().toString(), GeographyType.crs84())
+          .put(GeometryType.NAME, GeometryType.crs84())
+          .put(GeographyType.NAME, GeographyType.crs84())
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
@@ -570,8 +570,10 @@ public class Types {
     }
   }
 
+  /** A geometry type, optionally parameterized by a CRS. The default CRS is {@code OGC:CRS84}. */
   public static class GeometryType extends PrimitiveType {
     public static final String DEFAULT_CRS = "OGC:CRS84";
+    private static final String NAME = "geometry";
 
     public static GeometryType crs84() {
       return new GeometryType();
@@ -584,12 +586,14 @@ public class Types {
     private final String crs;
 
     private GeometryType() {
-      crs = null;
+      this(null);
     }
 
     private GeometryType(String crs) {
       Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
-      this.crs = DEFAULT_CRS.equalsIgnoreCase(crs) ? null : crs;
+      // an omitted CRS canonicalizes to the default; a provided value is kept as-is (case
+      // preserved)
+      this.crs = crs == null ? DEFAULT_CRS : crs;
     }
 
     @Override
@@ -598,9 +602,13 @@ public class Types {
     }
 
     public String crs() {
-      return crs != null ? crs : DEFAULT_CRS;
+      return crs;
     }
 
+    /**
+     * Two geometry types are equal when their CRS match case-insensitively, so {@code OGC:CRS84}
+     * and {@code ogc:crs84} are equal.
+     */
     @Override
     public boolean equals(Object o) {
       if (this == o) {
@@ -610,27 +618,29 @@ public class Types {
       }
 
       GeometryType that = (GeometryType) o;
-      return Objects.equals(crs, that.crs);
+      return crs.equalsIgnoreCase(that.crs);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(GeometryType.class, crs);
+      // hash the upper-cased CRS so it stays consistent with the case-insensitive equals
+      return Objects.hash(GeometryType.class, crs.toUpperCase(Locale.ROOT));
     }
 
     @Override
     public String toString() {
-      if (crs == null) {
-        return "geometry";
-      }
-
-      return String.format("geometry(%s)", crs);
+      return String.format("%s(%s)", NAME, crs());
     }
   }
 
+  /**
+   * A geography type, optionally parameterized by a CRS and an edge-interpolation algorithm. The
+   * default CRS is {@code OGC:CRS84} and the default algorithm is {@code spherical}.
+   */
   public static class GeographyType extends PrimitiveType {
     public static final String DEFAULT_CRS = "OGC:CRS84";
     public static final EdgeAlgorithm DEFAULT_ALGORITHM = EdgeAlgorithm.SPHERICAL;
+    private static final String NAME = "geography";
 
     public static GeographyType crs84() {
       return new GeographyType();
@@ -648,14 +658,15 @@ public class Types {
     private final EdgeAlgorithm algorithm;
 
     private GeographyType() {
-      this.crs = null;
-      this.algorithm = null;
+      this(null, null);
     }
 
     private GeographyType(String crs, EdgeAlgorithm algorithm) {
       Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
-      this.crs = DEFAULT_CRS.equalsIgnoreCase(crs) ? null : crs;
-      this.algorithm = algorithm;
+      // an omitted CRS/algorithm canonicalizes to the default; a provided CRS is kept as-is (case
+      // preserved)
+      this.crs = crs == null ? DEFAULT_CRS : crs;
+      this.algorithm = algorithm == null ? DEFAULT_ALGORITHM : algorithm;
     }
 
     @Override
@@ -664,13 +675,17 @@ public class Types {
     }
 
     public String crs() {
-      return crs != null ? crs : DEFAULT_CRS;
+      return crs;
     }
 
     public EdgeAlgorithm algorithm() {
-      return algorithm != null ? algorithm : DEFAULT_ALGORITHM;
+      return algorithm;
     }
 
+    /**
+     * Two geography types are equal when their edge algorithms are equal and their CRS match
+     * case-insensitively, so {@code OGC:CRS84} and {@code ogc:crs84} are equal.
+     */
     @Override
     public boolean equals(Object o) {
       if (this == o) {
@@ -680,23 +695,18 @@ public class Types {
       }
 
       GeographyType that = (GeographyType) o;
-      return Objects.equals(crs, that.crs) && Objects.equals(algorithm, that.algorithm);
+      return crs.equalsIgnoreCase(that.crs) && Objects.equals(algorithm, that.algorithm);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(GeographyType.class, crs, algorithm);
+      // hash the upper-cased CRS so it stays consistent with the case-insensitive equals
+      return Objects.hash(GeographyType.class, crs.toUpperCase(Locale.ROOT), algorithm);
     }
 
     @Override
     public String toString() {
-      if (algorithm != null) {
-        return String.format("geography(%s, %s)", crs != null ? crs : DEFAULT_CRS, algorithm);
-      } else if (crs != null) {
-        return String.format("geography(%s)", crs);
-      } else {
-        return "geography";
-      }
+      return String.format("%s(%s, %s)", NAME, crs(), algorithm());
     }
   }
 
@@ -1142,6 +1152,147 @@ public class Types {
         this.fieldsById = byIdBuilder.build();
       }
       return fieldsById;
+    }
+  }
+
+  public static final class FileType extends NestedType {
+    public static final String NAME = "file";
+    public static final int NUM_NESTED_FIELDS = 6;
+
+    private static final String URI = "uri";
+    private static final String OFFSET = "offset";
+    private static final String SIZE = "size";
+    private static final String CONTENT_TYPE = "content_type";
+    private static final String CHECKSUM = "checksum";
+    private static final String INLINE = "inline";
+
+    /**
+     * Returns a file type for the field with the given ID.
+     *
+     * <p>The nested fields of the file use the {@link #NUM_NESTED_FIELDS} IDs that follow {@code
+     * baseId}. {@code baseId} must be the ID of the field that holds this type. UpdateSchema
+     * assigns new IDs to each column that it adds. A file type for a new column can use any {@code
+     * baseId}.
+     *
+     * @param baseId the ID of the field that holds this type
+     * @return a file type with nested field IDs derived from baseId
+     */
+    public static FileType of(int baseId) {
+      return new FileType(baseId);
+    }
+
+    private final int baseId;
+
+    // Lazy and derived from baseId
+    private transient List<NestedField> fieldList = null;
+
+    private FileType(int baseId) {
+      this.baseId = baseId;
+    }
+
+    /** Returns the ID of the field that holds this type. */
+    public int baseId() {
+      return baseId;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.FILE;
+    }
+
+    @Override
+    public boolean isFileType() {
+      return true;
+    }
+
+    @Override
+    public FileType asFileType() {
+      return this;
+    }
+
+    @Override
+    public List<NestedField> fields() {
+      return lazyFieldList();
+    }
+
+    public NestedField field(String name) {
+      for (NestedField field : fields()) {
+        if (field.name().equals(name)) {
+          return field;
+        }
+      }
+
+      return null;
+    }
+
+    @Override
+    public NestedField field(int id) {
+      int index = id - baseId - 1;
+      if (index >= 0 && index < NUM_NESTED_FIELDS) {
+        return fields().get(index);
+      }
+
+      return null;
+    }
+
+    public NestedField caseInsensitiveField(String name) {
+      for (NestedField field : fields()) {
+        if (field.name().equalsIgnoreCase(name)) {
+          return field;
+        }
+      }
+
+      return null;
+    }
+
+    @Override
+    public Type fieldType(String name) {
+      NestedField field = field(name);
+      if (field != null) {
+        return field.type();
+      }
+      return null;
+    }
+
+    /** Returns the nested fields of this type as a struct. */
+    public StructType asStruct() {
+      return StructType.of(fields());
+    }
+
+    @Override
+    public String toString() {
+      return NAME;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      } else if (!(other instanceof FileType)) {
+        return false;
+      }
+
+      return baseId == ((FileType) other).baseId;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(FileType.class, baseId);
+    }
+
+    private List<NestedField> lazyFieldList() {
+      if (fieldList == null) {
+        this.fieldList =
+            ImmutableList.of(
+                NestedField.optional(baseId + 1, URI, StringType.get()),
+                NestedField.optional(baseId + 2, OFFSET, LongType.get()),
+                NestedField.optional(baseId + 3, SIZE, LongType.get()),
+                NestedField.optional(baseId + 4, CONTENT_TYPE, StringType.get()),
+                NestedField.optional(baseId + 5, CHECKSUM, StringType.get()),
+                NestedField.optional(baseId + 6, INLINE, BinaryType.get()));
+      }
+
+      return fieldList;
     }
   }
 

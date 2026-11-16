@@ -31,7 +31,6 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,10 +42,15 @@ class TableUpdater {
   private static final Logger LOG = LoggerFactory.getLogger(TableUpdater.class);
   private final TableMetadataCache cache;
   private final Catalog catalog;
+  private final boolean caseSensitive;
+  private final boolean dropUnusedColumns;
 
-  TableUpdater(TableMetadataCache cache, Catalog catalog) {
+  TableUpdater(
+      TableMetadataCache cache, Catalog catalog, boolean caseSensitive, boolean dropUnusedColumns) {
     this.cache = cache;
     this.catalog = catalog;
+    this.caseSensitive = caseSensitive;
+    this.dropUnusedColumns = dropUnusedColumns;
   }
 
   /**
@@ -71,13 +75,15 @@ class TableUpdater {
 
   private void findOrCreateTable(
       TableIdentifier identifier, Schema schema, PartitionSpec spec, TableCreator tableCreator) {
-    Tuple2<Boolean, Exception> exists = cache.exists(identifier);
-    if (Boolean.FALSE.equals(exists.f0)) {
-      if (exists.f1 instanceof NoSuchNamespaceException) {
-        SupportsNamespaces catalogWithNameSpace = (SupportsNamespaces) catalog;
+    if (!cache.exists(identifier)) {
+      // The catalog is asked rather than the lookup exception: catalogs differ in what they throw
+      // for a missing namespace (Glue throws NoSuchTableException) and cached lookups carry none.
+      if (catalog instanceof SupportsNamespaces catalogWithNamespaces
+          && !identifier.namespace().isEmpty()
+          && !catalogWithNamespaces.namespaceExists(identifier.namespace())) {
         LOG.info("Namespace {} not found during table search. Creating namespace", identifier);
         try {
-          catalogWithNameSpace.createNamespace(identifier.namespace());
+          catalogWithNamespaces.createNamespace(identifier.namespace());
         } catch (AlreadyExistsException e) {
           LOG.debug("Namespace {} created concurrently", identifier.namespace(), e);
         }
@@ -102,8 +108,11 @@ class TableUpdater {
       try {
         table.manageSnapshots().createBranch(branch).commit();
         LOG.info("Branch {} for {} created", branch, identifier);
-      } catch (CommitFailedException e) {
-        table.refresh();
+      } catch (CommitFailedException | IllegalArgumentException e) {
+        if (!table.refs().containsKey(branch)) {
+          table.refresh();
+        }
+
         if (table.refs().containsKey(branch)) {
           LOG.debug("Branch {} concurrently created for {}.", branch, identifier);
         } else {
@@ -124,7 +133,8 @@ class TableUpdater {
     } else {
       Table table = catalog.loadTable(identifier);
       Schema tableSchema = table.schema();
-      CompareSchemasVisitor.Result result = CompareSchemasVisitor.visit(schema, tableSchema, true);
+      CompareSchemasVisitor.Result result =
+          CompareSchemasVisitor.visit(schema, tableSchema, caseSensitive, dropUnusedColumns);
       switch (result) {
         case SAME:
           cache.update(identifier, table);
@@ -136,12 +146,15 @@ class TableUpdater {
               tableSchema,
               result,
               DataConverter.get(
-                  FlinkSchemaUtil.convert(schema), FlinkSchemaUtil.convert(tableSchema)));
+                  FlinkSchemaUtil.convert(schema),
+                  FlinkSchemaUtil.convert(tableSchema),
+                  caseSensitive));
         case SCHEMA_UPDATE_NEEDED:
           LOG.info(
               "Triggering schema update for table {} {} to {}", identifier, tableSchema, schema);
           UpdateSchema updateApi = table.updateSchema();
-          EvolveSchemaVisitor.visit(updateApi, tableSchema, schema);
+          EvolveSchemaVisitor.visit(
+              identifier, updateApi, tableSchema, schema, caseSensitive, dropUnusedColumns);
 
           try {
             updateApi.commit();

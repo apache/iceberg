@@ -18,22 +18,32 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import com.codahale.metrics.SlidingWindowReservoir;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper;
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Histogram;
 import org.apache.flink.metrics.MetricGroup;
+import org.apache.iceberg.common.DynClasses;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.util.ScanTaskUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Internal
 public class IcebergStreamWriterMetrics {
+
+  private static final Logger LOG = LoggerFactory.getLogger(IcebergStreamWriterMetrics.class);
+
   // 1,024 reservoir size should cost about 8KB, which is quite small.
   // It should also produce good accuracy for histogram distribution (like percentiles).
   private static final int HISTOGRAM_RESERVOIR_SIZE = 1024;
+
+  // Histogram metrics loaded through Flink's optional flink-metrics-dropwizard dependency.
+  // Will be null if not available.
+  private static final DropwizardCtors DROPWIZARD = loadDropwizardCtors();
 
   private final Counter flushedDataFiles;
   private final Counter flushedDeleteFiles;
@@ -51,18 +61,8 @@ public class IcebergStreamWriterMetrics {
     this.lastFlushDurationMs = new AtomicLong();
     writerMetrics.gauge("lastFlushDurationMs", lastFlushDurationMs::get);
 
-    com.codahale.metrics.Histogram dropwizardDataFilesSizeHistogram =
-        new com.codahale.metrics.Histogram(new SlidingWindowReservoir(HISTOGRAM_RESERVOIR_SIZE));
-    this.dataFilesSizeHistogram =
-        writerMetrics.histogram(
-            "dataFilesSizeHistogram",
-            new DropwizardHistogramWrapper(dropwizardDataFilesSizeHistogram));
-    com.codahale.metrics.Histogram dropwizardDeleteFilesSizeHistogram =
-        new com.codahale.metrics.Histogram(new SlidingWindowReservoir(HISTOGRAM_RESERVOIR_SIZE));
-    this.deleteFilesSizeHistogram =
-        writerMetrics.histogram(
-            "deleteFilesSizeHistogram",
-            new DropwizardHistogramWrapper(dropwizardDeleteFilesSizeHistogram));
+    this.dataFilesSizeHistogram = registerHistogram(writerMetrics, "dataFilesSizeHistogram");
+    this.deleteFilesSizeHistogram = registerHistogram(writerMetrics, "deleteFilesSizeHistogram");
   }
 
   public void updateFlushResult(WriteResult result) {
@@ -74,16 +74,21 @@ public class IcebergStreamWriterMetrics {
     // This should works equally well and we avoided the overhead of tracking the list of file sizes
     // in the {@link CommitSummary}, which currently stores simple stats for counters and gauges
     // metrics.
-    Arrays.stream(result.dataFiles())
-        .forEach(
-            dataFile -> {
-              dataFilesSizeHistogram.update(dataFile.fileSizeInBytes());
-            });
-    Arrays.stream(result.deleteFiles())
-        .forEach(
-            deleteFile -> {
-              deleteFilesSizeHistogram.update(ScanTaskUtil.contentSizeInBytes(deleteFile));
-            });
+    if (dataFilesSizeHistogram != null) {
+      Arrays.stream(result.dataFiles())
+          .forEach(
+              dataFile -> {
+                dataFilesSizeHistogram.update(dataFile.fileSizeInBytes());
+              });
+    }
+
+    if (deleteFilesSizeHistogram != null) {
+      Arrays.stream(result.deleteFiles())
+          .forEach(
+              deleteFile -> {
+                deleteFilesSizeHistogram.update(ScanTaskUtil.contentSizeInBytes(deleteFile));
+              });
+    }
   }
 
   public void flushDuration(long flushDurationMs) {
@@ -97,4 +102,60 @@ public class IcebergStreamWriterMetrics {
   public Counter getFlushedDeleteFiles() {
     return flushedDeleteFiles;
   }
+
+  @VisibleForTesting
+  Histogram dataFilesSizeHistogram() {
+    return dataFilesSizeHistogram;
+  }
+
+  @VisibleForTesting
+  Histogram deleteFilesSizeHistogram() {
+    return deleteFilesSizeHistogram;
+  }
+
+  private static Histogram registerHistogram(MetricGroup group, String name) {
+    Histogram histogram = newDropwizardHistogram();
+    return histogram != null ? group.histogram(name, histogram) : null;
+  }
+
+  private static Histogram newDropwizardHistogram() {
+    if (DROPWIZARD == null) {
+      return null;
+    }
+
+    Object reservoir = DROPWIZARD.reservoirCtor.newInstance(HISTOGRAM_RESERVOIR_SIZE);
+    Object codahaleHistogram = DROPWIZARD.histogramCtor.newInstance(reservoir);
+    return DROPWIZARD.wrapperCtor.newInstance(codahaleHistogram);
+  }
+
+  private static DropwizardCtors loadDropwizardCtors() {
+    try {
+      Class<?> reservoirInterface =
+          DynClasses.builder().impl("com.codahale.metrics.Reservoir").buildChecked();
+      Class<?> codahaleHistogramClass =
+          DynClasses.builder().impl("com.codahale.metrics.Histogram").buildChecked();
+      return new DropwizardCtors(
+          DynConstructors.builder()
+              .impl("com.codahale.metrics.SlidingWindowReservoir", int.class)
+              .buildChecked(),
+          DynConstructors.builder()
+              .impl("com.codahale.metrics.Histogram", reservoirInterface)
+              .buildChecked(),
+          DynConstructors.builder(Histogram.class)
+              .impl(
+                  "org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper",
+                  codahaleHistogramClass)
+              .buildChecked());
+    } catch (ClassNotFoundException | NoSuchMethodException e) {
+      LOG.warn(
+          "Cannot load Dropwizard metrics; is org.apache.flink:flink-metrics-dropwizard on the classpath?",
+          e);
+      return null;
+    }
+  }
+
+  private record DropwizardCtors(
+      DynConstructors.Ctor<?> reservoirCtor,
+      DynConstructors.Ctor<?> histogramCtor,
+      DynConstructors.Ctor<Histogram> wrapperCtor) {}
 }

@@ -61,6 +61,8 @@ To create your first Iceberg table in Spark, use the `spark-sql` shell or `spark
 ```sql
 -- local is the path-based catalog defined above
 CREATE TABLE local.db.table (id bigint, data string) USING iceberg;
+CREATE TABLE source (id bigint, data string) USING parquet;
+CREATE TABLE updates (id bigint, data string) USING parquet;
 ```
 
 Iceberg catalogs support the full range of SQL DDL commands, including:
@@ -76,14 +78,16 @@ Once your table is created, insert data using [`INSERT INTO`](spark-writes.md#in
 
 ```sql
 INSERT INTO local.db.table VALUES (1, 'a'), (2, 'b'), (3, 'c');
+INSERT INTO source VALUES (10, 'd'), (11, 'ee');
+INSERT INTO updates VALUES (1, 'x'), (2, 'x'), (4, 'z');
 INSERT INTO local.db.table SELECT id, data FROM source WHERE length(data) = 1;
 ```
 
 Iceberg also adds row-level SQL updates to Spark, [`MERGE INTO`](spark-writes.md#merge-into) and [`DELETE FROM`](spark-writes.md#delete-from):
 
 ```sql
-MERGE INTO local.db.target t USING (SELECT * FROM updates) u ON t.id = u.id
-WHEN MATCHED THEN UPDATE SET t.count = t.count + u.count
+MERGE INTO local.db.table t USING (SELECT * FROM updates) u ON t.id = u.id
+WHEN MATCHED THEN UPDATE SET t.data = u.data
 WHEN NOT MATCHED THEN INSERT *;
 ```
 

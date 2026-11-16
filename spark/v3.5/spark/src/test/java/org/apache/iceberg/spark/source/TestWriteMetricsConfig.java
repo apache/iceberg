@@ -41,6 +41,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
@@ -84,6 +85,7 @@ public class TestWriteMetricsConfig {
         SparkSession.builder()
             .master("local[2]")
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .config(TestBase.DISABLE_UI)
             .getOrCreate();
     TestWriteMetricsConfig.sc = JavaSparkContext.fromSparkContext(spark.sparkContext());
   }
@@ -244,7 +246,7 @@ public class TestWriteMetricsConfig {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.builderFor(COMPLEX_SCHEMA).identity("strCol").build();
+    PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> properties = Maps.newHashMap();
     properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none");
     properties.put("write.metadata.metrics.column.longCol", "counts");

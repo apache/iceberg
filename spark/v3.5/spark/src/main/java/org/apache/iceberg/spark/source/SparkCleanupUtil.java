@@ -21,9 +21,9 @@ package org.apache.iceberg.spark.source;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.exceptions.NotFoundException;
-import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -84,31 +84,10 @@ class SparkCleanupUtil {
    */
   public static void deleteFiles(String context, FileIO io, List<? extends ContentFile<?>> files) {
     List<String> paths = Lists.transform(files, ContentFile::location);
-    deletePaths(context, io, paths);
-  }
-
-  private static void deletePaths(String context, FileIO io, List<String> paths) {
     if (io instanceof SupportsBulkOperations) {
-      SupportsBulkOperations bulkIO = (SupportsBulkOperations) io;
-      bulkDelete(context, bulkIO, paths);
+      CatalogUtil.deleteFiles(io, paths, "");
     } else {
       delete(context, io, paths);
-    }
-  }
-
-  private static void bulkDelete(String context, SupportsBulkOperations io, List<String> paths) {
-    try {
-      io.deleteFiles(paths);
-      LOG.info("Deleted {} file(s) using bulk deletes ({})", paths.size(), context);
-
-    } catch (BulkDeletionFailureException e) {
-      int deletedFilesCount = paths.size() - e.numberFailedObjects();
-      LOG.warn(
-          "Deleted only {} of {} file(s) using bulk deletes ({})",
-          deletedFilesCount,
-          paths.size(),
-          context,
-          e);
     }
   }
 

@@ -22,21 +22,26 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.Stream;
+import java.util.StringJoiner;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.hash.Hasher;
-import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 public class PartitionData
     implements IndexedRecord, StructLike, SpecificData.SchemaConstructable, Serializable {
+
+  static final PartitionData EMPTY =
+      new PartitionData(Types.StructType.of()) {
+        @Override
+        public PartitionData copy() {
+          return this;
+        }
+      };
 
   static Schema partitionDataSchema(Types.StructType partitionType) {
     return AvroSchemaUtil.convert(partitionType, PartitionData.class.getName());
@@ -135,7 +140,8 @@ public class PartitionData
     }
 
     if (data[pos] instanceof byte[]) {
-      return ByteBuffer.wrap((byte[]) data[pos]);
+      byte[] copied = Arrays.copyOf((byte[]) data[pos], ((byte[]) data[pos]).length);
+      return ByteBuffer.wrap(copied);
     }
 
     return data[pos];
@@ -153,16 +159,13 @@ public class PartitionData
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder();
-    sb.append("PartitionData{");
-    for (int i = 0; i < data.length; i += 1) {
-      if (i > 0) {
-        sb.append(", ");
-      }
-      sb.append(partitionType.fields().get(i).name()).append("=").append(data[i]);
+    List<Types.NestedField> fields = partitionType.fields();
+    StringJoiner joiner = new StringJoiner(", ", "PartitionData{", "}");
+    for (int pos = 0; pos < fields.size(); pos += 1) {
+      joiner.add(fields.get(pos).name() + "=" + data[pos]);
     }
-    sb.append("}");
-    return sb.toString();
+
+    return joiner.toString();
   }
 
   public PartitionData copy() {
@@ -187,10 +190,8 @@ public class PartitionData
 
   @Override
   public int hashCode() {
-    Hasher hasher = Hashing.goodFastHash(32).newHasher();
-    Stream.of(data).map(Objects::hashCode).forEach(hasher::putInt);
-    partitionType.fields().stream().map(Objects::hashCode).forEach(hasher::putInt);
-    return hasher.hash().hashCode();
+    int result = partitionType.hashCode();
+    return 31 * result + Arrays.hashCode(data);
   }
 
   public static Object[] copyData(Types.StructType type, Object[] data) {

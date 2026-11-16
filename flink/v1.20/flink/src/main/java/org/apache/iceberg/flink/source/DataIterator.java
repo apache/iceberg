@@ -25,6 +25,7 @@ import java.util.Locale;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.io.CloseableIterator;
@@ -56,7 +57,8 @@ public class DataIterator<T> implements CloseableIterator<T> {
       EncryptionManager encryption) {
     this.fileScanTaskReader = fileScanTaskReader;
 
-    this.inputFilesDecryptor = new InputFilesDecryptor(task, io, encryption);
+    this.inputFilesDecryptor =
+        InputFilesDecryptor.fromTasks(task.files(), EncryptingFileIO.combine(io, encryption));
     this.combinedTask = task;
 
     this.tasks = task.files().iterator();
@@ -86,6 +88,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
         combinedTask);
     for (long i = 0L; i < startingFileOffset; ++i) {
       tasks.next();
+      fileOffset += 1;
     }
 
     updateCurrentIterator();
@@ -103,9 +106,6 @@ public class DataIterator<T> implements CloseableIterator<T> {
                 combinedTask));
       }
     }
-
-    fileOffset = startingFileOffset;
-    recordOffset = startingRecordOffset;
   }
 
   @Override

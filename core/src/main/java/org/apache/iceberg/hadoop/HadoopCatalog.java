@@ -121,6 +121,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
 
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(lockManager);
+    closeableGroup.addCloseable(fileIO);
     closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
 
@@ -379,7 +380,9 @@ public class HadoopCatalog extends BaseMetastoreCatalog
 
   @Override
   public void close() throws IOException {
-    closeableGroup.close();
+    if (closeableGroup != null) {
+      closeableGroup.close();
+    }
   }
 
   @Override

@@ -31,6 +31,7 @@ import java.net.InetAddress;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -54,13 +55,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
@@ -116,6 +117,7 @@ public class TestFilteredScan {
         SparkSession.builder()
             .master("local[2]")
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .config(TestBase.DISABLE_UI)
             .getOrCreate();
   }
 
@@ -472,7 +474,7 @@ public class TestFilteredScan {
 
       assertEqualsSafe(
           SCHEMA.asStruct(),
-          expected(8, 9, 7, 6, 5),
+          expected(5, 6, 7, 8, 9),
           read(
               table.location(), vectorized, "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
     }
@@ -493,7 +495,7 @@ public class TestFilteredScan {
 
       assertEqualsSafe(
           SCHEMA.asStruct(),
-          expected(2, 1),
+          expected(1, 2),
           read(
               table.location(),
               vectorized,
@@ -652,24 +654,12 @@ public class TestFilteredScan {
     return result;
   }
 
-  public static void assertEqualsUnsafe(
-      Types.StructType struct, List<Record> expected, List<UnsafeRow> actual) {
-    // TODO: match records by ID
-    int numRecords = Math.min(expected.size(), actual.size());
-    for (int i = 0; i < numRecords; i += 1) {
-      GenericsHelpers.assertEqualsUnsafe(struct, expected.get(i), actual.get(i));
-    }
-    assertThat(actual).as("Number of results should match expected").hasSameSizeAs(expected);
-  }
-
   public static void assertEqualsSafe(
       Types.StructType struct, List<Record> expected, List<Row> actual) {
-    // TODO: match records by ID
-    int numRecords = Math.min(expected.size(), actual.size());
-    for (int i = 0; i < numRecords; i += 1) {
+    assertThat(actual).as("Should have the expected number of rows").hasSameSizeAs(expected);
+    for (int i = 0; i < expected.size(); i += 1) {
       GenericsHelpers.assertEqualsSafe(struct, expected.get(i), actual.get(i));
     }
-    assertThat(actual).as("Number of results should match expected").hasSameSizeAs(expected);
   }
 
   private List<Record> expected(int... ordinals) {
@@ -743,7 +733,9 @@ public class TestFilteredScan {
             .load(table)
             .filter(expr)
             .select(select0, selectN);
-    return dataset.collectAsList();
+    List<Row> rows = dataset.collectAsList();
+    rows.sort(Comparator.comparingLong(row -> row.<Long>getAs("id")));
+    return rows;
   }
 
   private static OffsetDateTime parse(String timestamp) {

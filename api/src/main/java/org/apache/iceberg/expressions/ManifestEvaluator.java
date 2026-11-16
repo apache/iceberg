@@ -25,7 +25,6 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.Accessors;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
@@ -269,6 +268,14 @@ public class ManifestEvaluator {
     public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
       // because the bounds are not necessarily a min or max value, this cannot be answered using
       // them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
+      // However, when lower == upper and the manifest has no nulls or NaN values, we can safely
+      // prune if that value equals the literal.
+      T value = uniqueValue(ref);
+
+      if (value != null && lit.comparator().compare(value, lit.value()) == 0) {
+        return ROWS_CANNOT_MATCH;
+      }
+
       return ROWS_MIGHT_MATCH;
     }
 
@@ -288,31 +295,31 @@ public class ManifestEvaluator {
       }
 
       T lower = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
-      literals =
-          literals.stream()
-              .filter(v -> ref.comparator().compare(lower, v) <= 0)
-              .collect(Collectors.toList());
-      if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
-        return ROWS_CANNOT_MATCH;
-      }
-
       T upper = Conversions.fromByteBuffer(ref.type(), fieldStats.upperBound());
-      literals =
-          literals.stream()
-              .filter(v -> ref.comparator().compare(upper, v) >= 0)
-              .collect(Collectors.toList());
-      if (literals
-          .isEmpty()) { // if all remaining values are greater than upper bound, rows cannot match.
-        return ROWS_CANNOT_MATCH;
+
+      // rows might match if any literal falls within the manifest's [lower, upper] bounds
+      for (T literal : literals) {
+        if (ref.comparator().compare(lower, literal) <= 0
+            && ref.comparator().compare(upper, literal) >= 0) {
+          return ROWS_MIGHT_MATCH;
+        }
       }
 
-      return ROWS_MIGHT_MATCH;
+      return ROWS_CANNOT_MATCH;
     }
 
     @Override
     public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
       // because the bounds are not necessarily a min or max value, this cannot be answered using
       // them. notIn(col, {X, ...}) with (X, Y) doesn't guarantee that X is a value in col.
+      // However, when lower == upper and the manifest has no nulls or NaN values, we can safely
+      // prune if that value is in the exclusion set.
+      T value = uniqueValue(ref);
+
+      if (value != null && literalSet.contains(value)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
       return ROWS_MIGHT_MATCH;
     }
 
@@ -398,6 +405,43 @@ public class ManifestEvaluator {
       }
 
       return ROWS_MIGHT_MATCH;
+    }
+
+    /**
+     * Returns the partition field's single value if all partitions contain the same value. Defined
+     * as a partition field with no nulls, no NaNs (for floating-point types), and lower bound
+     * equals upper bound. Returns null otherwise.
+     */
+    private <T> T uniqueValue(BoundReference<T> ref) {
+      int pos = Accessors.toPosition(ref.accessor());
+      PartitionFieldSummary fieldStats = stats.get(pos);
+
+      if (fieldStats.containsNull()) {
+        return null;
+      }
+
+      Type.TypeID typeId = ref.type().typeId();
+      if (Type.TypeID.FLOAT.equals(typeId) || Type.TypeID.DOUBLE.equals(typeId)) {
+        if (fieldStats.containsNaN() == null || fieldStats.containsNaN()) {
+          return null;
+        }
+      }
+
+      ByteBuffer lowerBound = fieldStats.lowerBound();
+      ByteBuffer upperBound = fieldStats.upperBound();
+
+      if (lowerBound == null || upperBound == null) {
+        return null;
+      }
+
+      T lower = Conversions.fromByteBuffer(ref.type(), lowerBound);
+      T upper = Conversions.fromByteBuffer(ref.type(), upperBound);
+
+      if (ref.comparator().compare(lower, upper) != 0) {
+        return null;
+      }
+
+      return lower;
     }
 
     private boolean allValuesAreNull(PartitionFieldSummary summary, Type.TypeID typeId) {

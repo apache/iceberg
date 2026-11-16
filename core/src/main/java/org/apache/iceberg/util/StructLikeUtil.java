@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.util;
 
+import java.io.Serializable;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 import org.apache.iceberg.StructLike;
 
 public class StructLikeUtil {
@@ -28,7 +31,7 @@ public class StructLikeUtil {
     return StructCopy.copy(struct);
   }
 
-  private static class StructCopy implements StructLike {
+  private static class StructCopy implements StructLike, Serializable {
     private static StructLike copy(StructLike struct) {
       return struct != null ? new StructCopy(struct) : null;
     }
@@ -62,6 +65,11 @@ public class StructLikeUtil {
     @Override
     public <T> void set(int pos, T value) {
       throw new UnsupportedOperationException("Struct copy cannot be modified");
+    }
+
+    @Override
+    public String toString() {
+      return Arrays.stream(values).map(String::valueOf).collect(Collectors.joining(", ", "[", "]"));
     }
   }
 }

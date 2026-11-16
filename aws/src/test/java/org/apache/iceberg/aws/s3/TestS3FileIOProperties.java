@@ -32,6 +32,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -504,7 +505,9 @@ public class TestS3FileIOProperties {
             S3FileIOProperties.REMOTE_SIGNING_ENABLED,
             "true",
             CatalogProperties.URI,
-            "http://localhost:12345");
+            "http://localhost:12345",
+            RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+            "v1/namespaces/ns1/tables/t1/sign");
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
     S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
     s3FileIOProperties.applySignerConfiguration(mockS3ClientBuilder);
@@ -565,5 +568,26 @@ public class TestS3FileIOProperties {
 
     RetryPolicy retryPolicy = builder.overrideConfiguration().retryPolicy().get();
     assertThat(retryPolicy.numRetries()).as("retries was not set").isEqualTo(999);
+  }
+
+  @Test
+  public void testChunkedEncodingEnabledDefaultValue() {
+    Map<String, String> properties = Maps.newHashMap();
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+
+    assertThat(s3FileIOProperties.isChunkedEncodingEnabled())
+        .as("chunked encoding should be enabled by default")
+        .isTrue();
+  }
+
+  @Test
+  public void testChunkedEncodingDisabled() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.CHUNKED_ENCODING_ENABLED, "false");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+
+    assertThat(s3FileIOProperties.isChunkedEncodingEnabled())
+        .as("chunked encoding should be disabled when explicitly set to false")
+        .isFalse();
   }
 }

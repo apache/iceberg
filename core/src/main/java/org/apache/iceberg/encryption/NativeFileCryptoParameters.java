@@ -45,6 +45,7 @@ public class NativeFileCryptoParameters {
    *
    * @param fileKey per-file encryption key. For example, used as "footer key" DEK in Parquet
    *     encryption.
+   * @return a builder for creating {@link NativeFileCryptoParameters}
    */
   public static Builder create(ByteBuffer fileKey) {
     return new Builder(fileKey);

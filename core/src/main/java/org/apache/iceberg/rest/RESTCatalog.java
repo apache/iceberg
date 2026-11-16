@@ -30,6 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.LoadContext;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -96,6 +97,10 @@ public class RESTCatalog
     sessionCatalog.initialize(name, props);
   }
 
+  protected RESTSessionCatalog sessionCatalog() {
+    return sessionCatalog;
+  }
+
   @Override
   public String name() {
     return sessionCatalog.name();
@@ -118,6 +123,11 @@ public class RESTCatalog
   @Override
   public Table loadTable(TableIdentifier ident) {
     return delegate.loadTable(ident);
+  }
+
+  @Override
+  public Table loadTable(TableIdentifier identifier, LoadContext loadContext) {
+    return delegate.loadTable(identifier, loadContext);
   }
 
   @Override
@@ -237,6 +247,17 @@ public class RESTCatalog
   }
 
   @Override
+  public Table registerTable(
+      TableIdentifier ident, String metadataFileLocation, boolean overwrite) {
+    return delegate.registerTable(ident, metadataFileLocation, overwrite);
+  }
+
+  @Override
+  public Table unregisterTable(TableIdentifier ident) {
+    return delegate.unregisterTable(ident);
+  }
+
+  @Override
   public void createNamespace(Namespace ns, Map<String, String> props) {
     nsDelegate.createNamespace(ns, props);
   }
@@ -302,6 +323,11 @@ public class RESTCatalog
   }
 
   @Override
+  public View loadView(TableIdentifier identifier, LoadContext loadContext) {
+    return viewSessionCatalog.loadView(identifier, loadContext);
+  }
+
+  @Override
   public ViewBuilder buildView(TableIdentifier identifier) {
     return viewSessionCatalog.buildView(identifier);
   }
@@ -324,5 +350,10 @@ public class RESTCatalog
   @Override
   public void invalidateView(TableIdentifier identifier) {
     viewSessionCatalog.invalidateView(identifier);
+  }
+
+  @Override
+  public View registerView(TableIdentifier identifier, String metadataFileLocation) {
+    return viewSessionCatalog.registerView(identifier, metadataFileLocation);
   }
 }

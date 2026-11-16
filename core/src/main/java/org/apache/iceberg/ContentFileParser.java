@@ -22,10 +22,12 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -43,6 +45,8 @@ public class ContentFileParser {
   private static final String NAN_VALUE_COUNTS = "nan-value-counts";
   private static final String LOWER_BOUNDS = "lower-bounds";
   private static final String UPPER_BOUNDS = "upper-bounds";
+  private static final String CONTENT_STATS = "content-stats";
+  private static final String TOTAL_BYTES = "total-bytes";
   private static final String KEY_METADATA = "key-metadata";
   private static final String SPLIT_OFFSETS = "split-offsets";
   private static final String EQUALITY_IDS = "equality-ids";
@@ -90,11 +94,10 @@ public class ContentFileParser {
     generator.writeNumberField(SPEC_ID, contentFile.specId());
     // Since 1.11, we serialize content as lowercase kebab-case values like "equality-deletes"
     generator.writeStringField(
-        CONTENT, contentFile.content().name().toLowerCase(Locale.ENGLISH).replace('_', '-'));
+        CONTENT, contentFile.content().name().toLowerCase(Locale.ROOT).replace('_', '-'));
     generator.writeStringField(FILE_PATH, contentFile.location());
     // Since 1.11, we serialize format as lower-case strings like "parquet"
-    generator.writeStringField(
-        FILE_FORMAT, contentFile.format().name().toLowerCase(Locale.ENGLISH));
+    generator.writeStringField(FILE_FORMAT, contentFile.format().name().toLowerCase(Locale.ROOT));
 
     if (contentFile.partition() != null) {
       generator.writeFieldName(PARTITION);
@@ -241,6 +244,18 @@ public class ContentFileParser {
       generator.writeFieldName(UPPER_BOUNDS);
       SingleValueParser.toJson(DataFile.UPPER_BOUNDS.type(), contentFile.upperBounds(), generator);
     }
+
+    if (contentFile.totalBytes() != null) {
+      generator.writeFieldName(CONTENT_STATS);
+      generator.writeStartObject();
+      for (Map.Entry<Integer, Long> entry : contentFile.totalBytes().entrySet()) {
+        generator.writeObjectFieldStart(String.valueOf(entry.getKey()));
+        generator.writeNumberField(TOTAL_BYTES, entry.getValue());
+        generator.writeEndObject();
+      }
+
+      generator.writeEndObject();
+    }
   }
 
   private static Metrics metricsFromJson(JsonNode jsonNode) {
@@ -290,6 +305,11 @@ public class ContentFileParser {
               SingleValueParser.fromJson(DataFile.UPPER_BOUNDS.type(), jsonNode.get(UPPER_BOUNDS));
     }
 
+    Map<Integer, Long> totalBytes = null;
+    if (jsonNode.hasNonNull(CONTENT_STATS)) {
+      totalBytes = totalBytesFromJson(jsonNode.get(CONTENT_STATS));
+    }
+
     return new Metrics(
         recordCount,
         columnSizes,
@@ -297,7 +317,43 @@ public class ContentFileParser {
         nullValueCounts,
         nanValueCounts,
         lowerBounds,
-        upperBounds);
+        upperBounds,
+        totalBytes,
+        null /* originalTypes */);
+  }
+
+  private static Map<Integer, Long> totalBytesFromJson(JsonNode contentStats) {
+    Preconditions.checkArgument(
+        contentStats.isObject(),
+        "Invalid JSON node for content stats: non-object (%s)",
+        contentStats);
+
+    Map<Integer, Long> fieldIdToTotalBytes = Maps.newHashMap();
+    Iterator<String> fieldIds = contentStats.fieldNames();
+    while (fieldIds.hasNext()) {
+      String fieldId = fieldIds.next();
+      JsonNode fieldStats = contentStats.get(fieldId);
+      Preconditions.checkArgument(
+          fieldStats != null && fieldStats.isObject(),
+          "Cannot parse content stats for field %s from non-object: %s",
+          fieldId,
+          fieldStats);
+      Long totalBytes = JsonUtil.getLongOrNull(TOTAL_BYTES, fieldStats);
+      if (totalBytes != null) {
+        fieldIdToTotalBytes.put(parseFieldId(fieldId), totalBytes);
+      }
+    }
+
+    return fieldIdToTotalBytes.isEmpty() ? null : fieldIdToTotalBytes;
+  }
+
+  private static int parseFieldId(String fieldId) {
+    try {
+      return Integer.parseInt(fieldId);
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException(
+          String.format("Invalid field ID for content stats: %s", fieldId), e);
+    }
   }
 
   private static void partitionToJson(

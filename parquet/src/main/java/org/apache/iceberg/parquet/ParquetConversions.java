@@ -23,7 +23,6 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.util.UUID;
 import java.util.function.Function;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.UUIDUtil;
@@ -95,6 +94,8 @@ class ParquetConversions {
     if (type.getOriginalType() != null) {
       switch (type.getOriginalType()) {
         case UTF8:
+        case ENUM:
+        case JSON:
           // decode to CharSequence to avoid copying into a new String
           return binary -> StandardCharsets.UTF_8.decode(((Binary) binary).toByteBuffer());
         case DECIMAL:

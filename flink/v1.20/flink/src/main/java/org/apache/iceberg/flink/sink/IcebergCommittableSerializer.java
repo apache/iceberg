@@ -31,11 +31,12 @@ import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
  * <p>In both cases only the respective part is serialized.
  */
 public class IcebergCommittableSerializer implements SimpleVersionedSerializer<IcebergCommittable> {
-  private static final int VERSION = 1;
+  private static final int VERSION_1 = 1;
+  private static final int VERSION_2 = 2;
 
   @Override
   public int getVersion() {
-    return VERSION;
+    return VERSION_2;
   }
 
   @Override
@@ -43,6 +44,7 @@ public class IcebergCommittableSerializer implements SimpleVersionedSerializer<I
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     DataOutputViewStreamWrapper view = new DataOutputViewStreamWrapper(out);
     view.writeUTF(committable.jobId());
+    view.writeUTF(committable.sinkId());
     view.writeUTF(committable.operatorId());
     view.writeLong(committable.checkpointId());
     view.writeInt(committable.manifest().length);
@@ -52,17 +54,34 @@ public class IcebergCommittableSerializer implements SimpleVersionedSerializer<I
 
   @Override
   public IcebergCommittable deserialize(int version, byte[] serialized) throws IOException {
-    if (version == 1) {
-      DataInputDeserializer view = new DataInputDeserializer(serialized);
-      String jobId = view.readUTF();
-      String operatorId = view.readUTF();
-      long checkpointId = view.readLong();
-      int manifestLen = view.readInt();
-      byte[] manifestBuf;
-      manifestBuf = new byte[manifestLen];
-      view.read(manifestBuf);
-      return new IcebergCommittable(manifestBuf, jobId, operatorId, checkpointId);
+    if (version == VERSION_1) {
+      return deserializeV1(serialized);
+    } else if (version == VERSION_2) {
+      return deserializeV2(serialized);
     }
+
     throw new IOException("Unrecognized version or corrupt state: " + version);
+  }
+
+  private IcebergCommittable deserializeV1(byte[] serialized) throws IOException {
+    DataInputDeserializer view = new DataInputDeserializer(serialized);
+    String jobId = view.readUTF();
+    String operatorId = view.readUTF();
+    long checkpointId = view.readLong();
+    byte[] manifestBuf = new byte[view.readInt()];
+    view.read(manifestBuf);
+    // v1 has no sinkId: committables restored from older state are identified by the jobId
+    return new IcebergCommittable(manifestBuf, jobId, jobId, operatorId, checkpointId);
+  }
+
+  private IcebergCommittable deserializeV2(byte[] serialized) throws IOException {
+    DataInputDeserializer view = new DataInputDeserializer(serialized);
+    String jobId = view.readUTF();
+    String sinkId = view.readUTF();
+    String operatorId = view.readUTF();
+    long checkpointId = view.readLong();
+    byte[] manifestBuf = new byte[view.readInt()];
+    view.read(manifestBuf);
+    return new IcebergCommittable(manifestBuf, jobId, sinkId, operatorId, checkpointId);
   }
 }

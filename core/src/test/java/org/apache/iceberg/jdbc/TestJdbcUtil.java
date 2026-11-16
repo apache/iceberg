@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Files;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.iceberg.catalog.Namespace;
@@ -34,7 +36,7 @@ import org.sqlite.SQLiteDataSource;
 public class TestJdbcUtil {
 
   @Test
-  public void testFilterAndRemovePrefix() {
+  public void testDriverPropertiesRemovePrefix() {
     Map<String, String> input = Maps.newHashMap();
     input.put("warehouse", "/tmp/warehouse");
     input.put("user", "foo");
@@ -47,7 +49,24 @@ public class TestJdbcUtil {
     expected.put("pass", "secret");
     expected.put("jdbc.abcxyz", "abcxyz");
 
-    Properties actual = JdbcUtil.filterAndRemovePrefix(input, "jdbc.");
+    Properties actual = JdbcUtil.driverProperties(input);
+
+    assertThat(actual).isEqualTo(expected);
+  }
+
+  @Test
+  public void testDriverPropertiesExcludeCatalogProperties() {
+    Map<String, String> input = Maps.newHashMap();
+    input.put("jdbc.user", "bar");
+    input.put(JdbcUtil.STRICT_MODE_PROPERTY, "true");
+    input.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V1.name());
+    input.put(JdbcUtil.INIT_CATALOG_TABLES_PROPERTY, "false");
+    input.put(JdbcUtil.METADATA_REFRESH_MAX_RETRIES_PROPERTY, "5");
+
+    Properties expected = new Properties();
+    expected.put("user", "bar");
+
+    Properties actual = JdbcUtil.driverProperties(input);
 
     assertThat(actual).isEqualTo(expected);
   }
@@ -142,6 +161,28 @@ public class TestJdbcUtil {
               "testLocation");
       assertThat(updated).isEqualTo(1);
     }
+  }
+
+  @Test
+  public void testIsConstraintViolationWithSQLIntegrityConstraintViolationException() {
+    assertThat(JdbcUtil.isConstraintViolation(new SQLIntegrityConstraintViolationException()))
+        .isTrue();
+  }
+
+  @Test
+  public void testIsConstraintViolationWithPostgresSQLState() {
+    assertThat(JdbcUtil.isConstraintViolation(new SQLException("unique violation", "23505")))
+        .isTrue();
+  }
+
+  @Test
+  public void testIsConstraintViolationWithConstraintFailedMessage() {
+    assertThat(JdbcUtil.isConstraintViolation(new SQLException("constraint failed"))).isTrue();
+  }
+
+  @Test
+  public void testIsConstraintViolationWithPlainSQLException() {
+    assertThat(JdbcUtil.isConstraintViolation(new SQLException("some other error"))).isFalse();
   }
 
   @Test

@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
@@ -35,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -65,20 +67,21 @@ public class Schema implements Serializable {
           Type.TypeID.VARIANT, 3,
           Type.TypeID.UNKNOWN, 3,
           Type.TypeID.GEOMETRY, 3,
-          Type.TypeID.GEOGRAPHY, 3);
+          Type.TypeID.GEOGRAPHY, 3,
+          Type.TypeID.FILE, 4);
 
   private final StructType struct;
   private final int schemaId;
   private final int[] identifierFieldIds;
   private final int highestFieldId;
 
-  private transient BiMap<String, Integer> aliasToId = null;
-  private transient Map<Integer, NestedField> idToField = null;
-  private transient Map<String, Integer> nameToId = null;
-  private transient Map<String, Integer> lowerCaseNameToId = null;
-  private transient Map<Integer, Accessor<StructLike>> idToAccessor = null;
-  private transient Map<Integer, String> idToName = null;
-  private transient Set<Integer> identifierFieldIdSet = null;
+  private final transient BiMap<String, Integer> aliasToId;
+  private transient volatile Map<Integer, NestedField> idToField = null;
+  private transient volatile Map<String, Integer> nameToId = null;
+  private transient volatile Map<String, Integer> lowerCaseNameToId = null;
+  private transient volatile Map<Integer, Accessor<StructLike>> idToAccessor = null;
+  private transient volatile Map<Integer, String> idToName = null;
+  private transient volatile Set<Integer> identifierFieldIdSet = null;
   private final transient Map<Integer, Integer> idsToReassigned;
   private final transient Map<Integer, Integer> idsToOriginal;
 
@@ -101,6 +104,10 @@ public class Schema implements Serializable {
 
   public Schema(List<NestedField> columns, Set<Integer> identifierFieldIds, TypeUtil.GetID getId) {
     this(DEFAULT_SCHEMA_ID, columns, identifierFieldIds, getId);
+  }
+
+  public Schema(List<NestedField> columns, TypeUtil.GetID getId) {
+    this(DEFAULT_SCHEMA_ID, columns, ImmutableSet.of(), getId);
   }
 
   public Schema(int schemaId, List<NestedField> columns) {
@@ -208,42 +215,66 @@ public class Schema implements Serializable {
 
   private Map<Integer, NestedField> lazyIdToField() {
     if (idToField == null) {
-      this.idToField = TypeUtil.indexById(struct);
+      synchronized (this) {
+        if (idToField == null) {
+          this.idToField = TypeUtil.indexById(struct);
+        }
+      }
     }
     return idToField;
   }
 
   private Map<String, Integer> lazyNameToId() {
     if (nameToId == null) {
-      this.nameToId = ImmutableMap.copyOf(TypeUtil.indexByName(struct));
+      synchronized (this) {
+        if (nameToId == null) {
+          this.nameToId = ImmutableMap.copyOf(TypeUtil.indexByName(struct));
+        }
+      }
     }
     return nameToId;
   }
 
   private Map<Integer, String> lazyIdToName() {
     if (idToName == null) {
-      this.idToName = ImmutableMap.copyOf(TypeUtil.indexNameById(struct));
+      synchronized (this) {
+        if (idToName == null) {
+          this.idToName = ImmutableMap.copyOf(TypeUtil.indexNameById(struct));
+        }
+      }
     }
     return idToName;
   }
 
   private Map<String, Integer> lazyLowerCaseNameToId() {
     if (lowerCaseNameToId == null) {
-      this.lowerCaseNameToId = ImmutableMap.copyOf(TypeUtil.indexByLowerCaseName(struct));
+      synchronized (this) {
+        if (lowerCaseNameToId == null) {
+          this.lowerCaseNameToId = ImmutableMap.copyOf(TypeUtil.indexByLowerCaseName(struct));
+        }
+      }
     }
     return lowerCaseNameToId;
   }
 
   private Map<Integer, Accessor<StructLike>> lazyIdToAccessor() {
     if (idToAccessor == null) {
-      idToAccessor = Accessors.forSchema(this);
+      synchronized (this) {
+        if (idToAccessor == null) {
+          this.idToAccessor = Accessors.forSchema(this);
+        }
+      }
     }
     return idToAccessor;
   }
 
   private Set<Integer> lazyIdentifierFieldIdSet() {
     if (identifierFieldIdSet == null) {
-      identifierFieldIdSet = ImmutableSet.copyOf(Ints.asList(identifierFieldIds));
+      synchronized (this) {
+        if (identifierFieldIdSet == null) {
+          this.identifierFieldIdSet = ImmutableSet.copyOf(Ints.asList(identifierFieldIds));
+        }
+      }
     }
     return identifierFieldIdSet;
   }
@@ -628,5 +659,34 @@ public class Schema implements Serializable {
               "Invalid schema for v%s:\n- %s",
               formatVersion, Joiner.on("\n- ").join(problems.values())));
     }
+  }
+
+  /**
+   * Indexes all fields from schemas.
+   *
+   * <p>This method favors field definitions from higher schema IDs to handle type promotions.
+   *
+   * @param schemas the collection of schemas to index
+   * @return a map of field IDs to fields
+   */
+  public static Map<Integer, NestedField> indexFields(Collection<Schema> schemas) {
+    if (schemas.size() == 1) {
+      Schema schema = Iterables.getOnlyElement(schemas);
+      return schema.lazyIdToField();
+    }
+
+    Map<Integer, NestedField> fields = Maps.newHashMap();
+
+    for (Schema schema : sortAndDeduplicate(schemas)) {
+      fields.putAll(schema.lazyIdToField());
+    }
+
+    return fields;
+  }
+
+  private static Set<Schema> sortAndDeduplicate(Collection<Schema> schemas) {
+    Set<Schema> sortedSchemas = Sets.newTreeSet(Comparator.comparingInt(Schema::schemaId));
+    sortedSchemas.addAll(schemas);
+    return sortedSchemas;
   }
 }

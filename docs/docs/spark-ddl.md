@@ -44,7 +44,20 @@ Table create commands, including CTAS and RTAS, support the full range of Spark 
 
 Create commands may also set the default format with the `USING` clause. This is only supported for `SparkCatalog` because Spark handles the `USING` clause differently for the built-in catalog.
 
-`CREATE TABLE ... LIKE ...` syntax is not supported.
+Spark 4.2 and later can create an Iceberg table from an existing table:
+
+```sql
+CREATE TABLE prod.db.sample_copy LIKE prod.db.sample;
+```
+
+`CREATE TABLE ... LIKE ...` copies the source schema, partitioning, sort order, and
+table properties. The new table does not copy snapshots, data, metadata history,
+or the source table location. Unless `LOCATION` is specified for the new table,
+the target catalog assigns its default location.
+
+Copying column default values from a source that is not an Iceberg table is not
+supported yet, so `CREATE TABLE ... LIKE ...` fails if such a source has a column
+with a default value.
 
 ### `PARTITIONED BY`
 
@@ -83,6 +96,9 @@ Supported transformations are:
     * Integers and longs truncate to bins: `truncate(10, i)` produces partitions 0, 10, 20, 30, ...
 
 Note: Old syntax of `years(ts)`, `months(ts)`, `days(ts)` and `hours(ts)` are also supported for compatibility.
+
+The same transforms are also available as Spark SQL functions under the `system` namespace. See
+[Spark SQL functions](spark-queries.md#spark-sql-functions).
 
 ## `CREATE TABLE ... AS SELECT`
 
@@ -169,6 +185,27 @@ Iceberg has full `ALTER TABLE` support in Spark 3, including:
 * Making required columns optional
 
 In addition, [SQL extensions](spark-configuration.md#sql-extensions) can be used to add support for partition evolution and setting a table's write order
+
+!!! warning "Hive Catalog Limitation"
+    The Hive Metastore (HMS) validates schema changes by comparing column types **positionally**
+    (`hive.metastore.disallow.incompatible.col.type.changes`, default `true`). Any schema evolution
+    operation that shifts column positions will fail when using a Hive catalog. Affected operations
+    include:
+
+    - `ADD COLUMN` with `FIRST` or `AFTER` clauses
+    - `ALTER COLUMN` with `FIRST` or `AFTER` clauses (reordering)
+    - `DROP COLUMN` on a non-last column
+
+    To work around this, disable the HMS schema compatibility check by setting
+    `hive.metastore.disallow.incompatible.col.type.changes=false`:
+
+    - **Remote HMS:** Set this property in the HMS server's `hive-site.xml`.
+    - **Embedded HMS:** Pass `--conf spark.hadoop.hive.metastore.disallow.incompatible.col.type.changes=false` when starting Spark.
+
+    **Trade-off:** After disabling this check, the Hive engine may no longer be able to read the table
+    correctly due to the schema mismatch in the Hive Metastore. Iceberg-aware engines (Spark, Flink,
+    Trino, etc.) will continue to work correctly, as they read schema from Iceberg metadata rather
+    than HMS.
 
 ### `ALTER TABLE ... RENAME TO`
 
@@ -259,6 +296,11 @@ ALTER TABLE prod.db.sample
 ADD COLUMN nested.new_column bigint FIRST;
 ```
 
+!!! warning "Hive Catalog Limitation"
+    When using a Hive catalog, adding a column with `FIRST` or `AFTER` may fail due to HMS positional
+    schema validation. See the warning above for details
+    and workaround.
+
 ### `ALTER TABLE ... RENAME COLUMN`
 
 Iceberg allows any field to be renamed. To rename a field, use `RENAME COLUMN`:
@@ -302,6 +344,10 @@ ALTER TABLE prod.db.sample ALTER COLUMN col FIRST;
 ALTER TABLE prod.db.sample ALTER COLUMN nested.col AFTER other_col;
 ```
 
+!!! warning "Hive Catalog Limitation"
+    When using a Hive catalog, reordering columns may fail due to HMS positional schema validation.
+    See the Hive Catalog Limitation note above for details and workaround.
+
 Nullability for a non-nullable column can be changed using `DROP NOT NULL`:
 
 ```sql
@@ -322,6 +368,11 @@ To drop columns, use `ALTER TABLE ... DROP COLUMN`:
 ALTER TABLE prod.db.sample DROP COLUMN id;
 ALTER TABLE prod.db.sample DROP COLUMN point.z;
 ```
+
+!!! warning "Hive Catalog Limitation"
+    When using a Hive catalog, dropping a non-last column may fail due to HMS positional schema
+    validation. See the earlier Hive Catalog Limitation warning above for details and
+    workaround.
 
 ## `ALTER TABLE` SQL extensions
 

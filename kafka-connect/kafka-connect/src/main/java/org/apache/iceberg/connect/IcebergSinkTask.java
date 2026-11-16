@@ -21,10 +21,12 @@ package org.apache.iceberg.connect;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.utils.AppInfoParser;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
 import org.slf4j.Logger;
@@ -45,6 +47,8 @@ public class IcebergSinkTask extends SinkTask {
 
   @Override
   public void start(Map<String, String> props) {
+    EnvironmentContext.put(EnvironmentContext.ENGINE_NAME, "kafka-connect");
+    EnvironmentContext.put(EnvironmentContext.ENGINE_VERSION, AppInfoParser.getVersion());
     this.config = new IcebergSinkConfig(props);
     this.catalog = CatalogUtils.loadCatalog(config);
     this.committer = CommitterFactory.createCommitter(config);

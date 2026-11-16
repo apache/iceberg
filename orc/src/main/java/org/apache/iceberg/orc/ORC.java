@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -52,6 +53,7 @@ import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -79,7 +81,10 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.orc.CompressionKind;
@@ -180,8 +185,7 @@ public class ORC {
     }
 
     // supposed to always be a private method used strictly by data and delete write builders
-    private WriteBuilder createContextFunc(
-        Function<Map<String, String>, Context> newCreateContextFunc) {
+    WriteBuilder createContextFunc(Function<Map<String, String>, Context> newCreateContextFunc) {
       this.createContextFunc = newCreateContextFunc;
       return this;
     }
@@ -219,7 +223,7 @@ public class ORC {
           metricsConfig);
     }
 
-    private static class Context {
+    static class Context {
       private final long stripeSize;
       private final long blockSize;
       private final int vectorizedRowBatchSize;
@@ -372,7 +376,7 @@ public class ORC {
 
       private static CompressionKind toCompressionKind(String codecAsString) {
         try {
-          return CompressionKind.valueOf(codecAsString.toUpperCase(Locale.ENGLISH));
+          return CompressionKind.valueOf(codecAsString.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
           throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
         }
@@ -380,7 +384,7 @@ public class ORC {
 
       private static CompressionStrategy toCompressionStrategy(String strategyAsString) {
         try {
-          return CompressionStrategy.valueOf(strategyAsString.toUpperCase(Locale.ENGLISH));
+          return CompressionStrategy.valueOf(strategyAsString.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
           throw new IllegalArgumentException(
               "Unsupported compression strategy: " + strategyAsString);
@@ -512,7 +516,6 @@ public class ORC {
     private EncryptionKeyMetadata keyMetadata = null;
     private int[] equalityFieldIds = null;
     private SortOrder sortOrder;
-    private Function<CharSequence, ?> pathTransformFunc = Function.identity();
 
     private DeleteWriteBuilder(OutputFile file) {
       this.appenderBuilder = write(file);
@@ -592,11 +595,6 @@ public class ORC {
       return this;
     }
 
-    public DeleteWriteBuilder transformPaths(Function<CharSequence, ?> newPathTransformFunc) {
-      this.pathTransformFunc = newPathTransformFunc;
-      return this;
-    }
-
     public DeleteWriteBuilder withSortOrder(SortOrder newSortOrder) {
       this.sortOrder = newSortOrder;
       return this;
@@ -647,30 +645,19 @@ public class ORC {
       Preconditions.checkArgument(
           spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
-      Preconditions.checkArgument(
-          rowSchema == null || createWriterFunc != null,
-          "Create function should be provided if we write row data");
+      if (rowSchema != null) {
+        throw new UnsupportedOperationException("Position delete writer does not support row data");
+      }
 
       meta("delete-type", "position");
 
-      if (rowSchema != null && createWriterFunc != null) {
-        Schema deleteSchema = DeleteSchemaUtil.posDeleteSchema(rowSchema);
-        appenderBuilder.schema(deleteSchema);
+      appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
 
-        appenderBuilder.createWriterFunc(
-            (schema, typeDescription) ->
-                GenericOrcWriters.positionDelete(
-                    createWriterFunc.apply(deleteSchema, typeDescription), pathTransformFunc));
-      } else {
-        appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
-
-        // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not
-        // write row data itself
-        appenderBuilder.createWriterFunc(
-            (schema, typeDescription) ->
-                GenericOrcWriters.positionDelete(
-                    GenericOrcWriter.buildWriter(schema, typeDescription), Function.identity()));
-      }
+      // the createWriterFunc is ignored, since only the path and position are written
+      appenderBuilder.createWriterFunc(
+          (schema, typeDescription) ->
+              GenericOrcWriters.positionDelete(
+                  GenericOrcWriter.buildWriter(schema, typeDescription), Function.identity()));
 
       appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
 
@@ -699,6 +686,7 @@ public class ORC {
     private Function<TypeDescription, OrcRowReader<?>> readerFunc;
     private Function<TypeDescription, OrcBatchReader<?>> batchedReaderFunc;
     private int recordsPerBatch = VectorizedRowBatch.DEFAULT_SIZE;
+    private Set<Integer> constantFieldIds = ImmutableSet.of();
 
     private ReadBuilder(InputFile file) {
       Preconditions.checkNotNull(file, "Input file cannot be null");
@@ -775,12 +763,24 @@ public class ORC {
       return this;
     }
 
+    ReadBuilder constantFieldIds(Set<Integer> newConstantFieldIds) {
+      this.constantFieldIds = newConstantFieldIds;
+      return this;
+    }
+
     public <D> CloseableIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
+      Set<Integer> idsToExclude =
+          Sets.difference(
+              Sets.union(constantFieldIds, MetadataColumns.metadataFieldIds()),
+              ImmutableSet.of(
+                  MetadataColumns.ROW_ID.fieldId(),
+                  MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()));
+
       return new OrcIterable<>(
           file,
           conf,
-          schema,
+          TypeUtil.selectNot(schema, idsToExclude),
           nameMapping,
           start,
           length,

@@ -50,10 +50,10 @@ public class TestOSSURI {
   @Test
   public void invalidBucket() {
 
-    assertThatThrownBy(() -> new OSSURI("https://test_bucket/path/to/file"))
+    assertThatThrownBy(() -> new OSSURI("https://test#bucket/path/to/file"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            OSS_RESOURCE_MANAGER.getFormattedString("BucketNameInvalid", "test_bucket"));
+            OSS_RESOURCE_MANAGER.getFormattedString("BucketNameInvalid", "test#bucket"));
   }
 
   @Test

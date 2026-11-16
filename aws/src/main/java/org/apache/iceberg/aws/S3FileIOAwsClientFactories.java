@@ -32,7 +32,7 @@ public class S3FileIOAwsClientFactories {
   /**
    * Attempts to load an AWS client factory class for S3 file IO defined in the catalog property
    * {@link S3FileIOProperties#CLIENT_FACTORY}. If the property wasn't set, fallback to {@link
-   * AwsClientFactories#from(Map) to intialize an AWS client factory class}
+   * AwsClientFactories#from(Map) to initialize an AWS client factory class}
    *
    * @param properties catalog properties
    * @return an instance of a factory class

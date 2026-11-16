@@ -46,7 +46,7 @@ Hive supports the following features with Hive version 4.0.0 and above:
 * Copy-on-write support for delete, update and merge queries, CRUD support for Iceberg V1 tables.
 * Altering a table with expiring snapshots.
 * Create a table like an existing table (CTLT table).
-* Support adding parquet compression type via Table properties [Compression types](https://spark.apache.org/docs/2.4.3/sql-data-sources-parquet.html#configuration).
+* Support adding parquet compression type via Table properties [Compression types](https://spark.apache.org/docs/latest/sql-data-sources-parquet.html#configuration).
 * Altering a table metadata location.
 * Supporting table rollback.
 * Honors sort orders on existing tables when writing a table [Sort orders specification](../../spec.md#sort-orders).
@@ -71,9 +71,9 @@ Starting from 1.8.0 Iceberg doesn't release Hive runtime connector. For Hive que
 with Hive 2.x and 3.x) use Hive runtime connector coming with Iceberg 1.6.1, or use Hive 4.0.0 or later
 which is released with embedded Iceberg integration.
 
-### Hive 4.1.x
+### Hive 4.1.x, 4.2.x
 
-Hive 4.1.x comes with Iceberg 1.9.1 included.
+Hive 4.1.x and 4.2.x come with Iceberg 1.9.1 included.
 
 ### Hive 4.0.x
 

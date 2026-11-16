@@ -268,7 +268,7 @@ public final class ORCSchemaUtil {
   }
 
   /**
-   * Convert an ORC schema to an Iceberg schema. This method handles the convertion from the
+   * Convert an ORC schema to an Iceberg schema. This method handles the conversion from the
    * original Iceberg column mapping IDs if present in the ORC column attributes, otherwise, ORC
    * columns with no Iceberg IDs will be ignored and skipped in the conversion.
    *

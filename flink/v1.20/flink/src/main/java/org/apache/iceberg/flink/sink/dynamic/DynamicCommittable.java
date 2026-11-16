@@ -26,39 +26,52 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
  * The aggregated results of a single checkpoint which should be committed. Containing the
- * serialized {@link DeltaManifests} file - which contains the commit data, and the jobId,
- * operatorId, checkpointId triplet to identify the specific commit.
+ * serialized {@link DeltaManifests} files - which contains the commit data, and the jobId, sinkId,
+ * operatorId, checkpointId to identify the specific commit.
+ *
+ * <p>Committables restored from older state use the jobId as sinkId.
  *
  * <p>{@link DynamicCommittableSerializer} is used to serialize {@link DynamicCommittable} between
  * the {@link DynamicWriter} and the {@link DynamicWriteResultAggregator}.
  */
 class DynamicCommittable implements Serializable {
 
-  private final WriteTarget key;
-  private final byte[] manifest;
+  private final TableKey key;
+  private final byte[][] manifests;
   private final String jobId;
+  private final String sinkId;
   private final String operatorId;
   private final long checkpointId;
 
   DynamicCommittable(
-      WriteTarget key, byte[] manifest, String jobId, String operatorId, long checkpointId) {
+      TableKey key,
+      byte[][] manifests,
+      String jobId,
+      String sinkId,
+      String operatorId,
+      long checkpointId) {
     this.key = key;
-    this.manifest = manifest;
+    this.manifests = manifests;
     this.jobId = jobId;
+    this.sinkId = sinkId;
     this.operatorId = operatorId;
     this.checkpointId = checkpointId;
   }
 
-  WriteTarget key() {
+  TableKey key() {
     return key;
   }
 
-  byte[] manifest() {
-    return manifest;
+  byte[][] manifests() {
+    return manifests;
   }
 
   String jobId() {
     return jobId;
+  }
+
+  String sinkId() {
+    return sinkId;
   }
 
   String operatorId() {
@@ -78,14 +91,16 @@ class DynamicCommittable implements Serializable {
     DynamicCommittable that = (DynamicCommittable) o;
     return checkpointId == that.checkpointId
         && Objects.equals(key, that.key)
-        && Objects.deepEquals(manifest, that.manifest)
+        && Arrays.deepEquals(manifests, that.manifests)
         && Objects.equals(jobId, that.jobId)
+        && Objects.equals(sinkId, that.sinkId)
         && Objects.equals(operatorId, that.operatorId);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(key, Arrays.hashCode(manifest), jobId, operatorId, checkpointId);
+    return Objects.hash(
+        key, Arrays.deepHashCode(manifests), jobId, sinkId, operatorId, checkpointId);
   }
 
   @Override
@@ -93,12 +108,9 @@ class DynamicCommittable implements Serializable {
     return MoreObjects.toStringHelper(this)
         .add("key", key)
         .add("jobId", jobId)
+        .add("sinkId", sinkId)
         .add("checkpointId", checkpointId)
         .add("operatorId", operatorId)
         .toString();
-  }
-
-  public WriteTarget writeTarget() {
-    return key;
   }
 }

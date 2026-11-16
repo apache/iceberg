@@ -23,10 +23,10 @@ import java.util.NoSuchElementException;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.base.source.reader.SourceReaderOptions;
-import org.apache.flink.connector.file.src.util.Pool;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** This implementation stores record batch in array from recyclable pool */
@@ -35,12 +35,25 @@ class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
   private final int handoverQueueSize;
   private final RecordFactory<T> recordFactory;
 
-  private transient Pool<T[]> pool;
+  private transient PoolWithWakeup<T[]> pool;
 
   ArrayPoolDataIteratorBatcher(ReadableConfig config, RecordFactory<T> recordFactory) {
     this.batchSize = config.get(FlinkConfigOptions.SOURCE_READER_FETCH_BATCH_RECORD_COUNT);
     this.handoverQueueSize = config.get(SourceReaderOptions.ELEMENT_QUEUE_CAPACITY);
     this.recordFactory = recordFactory;
+  }
+
+  /**
+   * Sets the pool for testing purposes.
+   *
+   * <p>This allows tests to inject a pool in a controlled state (e.g. empty) to verify the blocking
+   * and wakeup behavior without requiring real file I/O.
+   *
+   * @param testPool the pool to use for testing
+   */
+  @VisibleForTesting
+  void setPoolForTesting(PoolWithWakeup<T[]> testPool) {
+    this.pool = testPool;
   }
 
   @Override
@@ -54,8 +67,8 @@ class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
     return new ArrayPoolBatchIterator(splitId, inputIterator, pool);
   }
 
-  private Pool<T[]> createPoolOfBatches(int numBatches) {
-    Pool<T[]> poolOfBatches = new Pool<>(numBatches);
+  private PoolWithWakeup<T[]> createPoolOfBatches(int numBatches) {
+    PoolWithWakeup<T[]> poolOfBatches = new PoolWithWakeup<>(numBatches);
     for (int batchId = 0; batchId < numBatches; batchId++) {
       T[] batch = recordFactory.createBatch(batchSize);
       poolOfBatches.add(batch);
@@ -65,13 +78,14 @@ class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
   }
 
   private class ArrayPoolBatchIterator
-      implements CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> {
+      implements WakeableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> {
 
     private final String splitId;
     private final DataIterator<T> inputIterator;
-    private final Pool<T[]> pool;
+    private final PoolWithWakeup<T[]> pool;
 
-    ArrayPoolBatchIterator(String splitId, DataIterator<T> inputIterator, Pool<T[]> pool) {
+    ArrayPoolBatchIterator(
+        String splitId, DataIterator<T> inputIterator, PoolWithWakeup<T[]> pool) {
       this.splitId = splitId;
       this.inputIterator = inputIterator;
       this.pool = pool;
@@ -89,6 +103,12 @@ class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
       }
 
       T[] batch = getCachedEntry();
+      if (batch == null) {
+        // We were woken up (e.g. during shutdown) while waiting for a pool entry. Return an empty
+        // batch so that fetch() returns control and stays reentrant.
+        return ArrayBatchRecords.emptyBatch();
+      }
+
       int recordCount = 0;
       while (inputIterator.hasNext() && recordCount < batchSize) {
         // The record produced by inputIterator can be reused like for the RowData case.
@@ -118,6 +138,17 @@ class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
       inputIterator.close();
     }
 
+    @Override
+    public void wakeUp() {
+      pool.wakeUp();
+    }
+
+    /**
+     * Gets a cached entry from the pool, blocking until an entry is recycled or the reader is woken
+     * up.
+     *
+     * @return a cached array from the pool, or {@code null} if woken up
+     */
     private T[] getCachedEntry() {
       try {
         return pool.pollEntry();

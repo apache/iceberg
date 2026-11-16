@@ -62,6 +62,37 @@ public class TestBinPacking {
   }
 
   @Test
+  public void testBasicBinPackingTargetSize() {
+    assertThat(pack(list(1, 2, 3, 4, 5), 3, Integer.MAX_VALUE, 2))
+        .as("Should pack the first 2 values")
+        .isEqualTo(list(list(1, 2), list(3), list(4), list(5)));
+
+    assertThat(pack(list(1, 2, 3, 4, 5), 5, Integer.MAX_VALUE, 2))
+        .as("Should pack the first 2 values")
+        .isEqualTo(list(list(1, 2), list(3), list(4), list(5)));
+
+    assertThat(pack(list(1, 2, 3, 4, 5), 6, Integer.MAX_VALUE, 2))
+        .as("Should pack the first 3 values")
+        .isEqualTo(list(list(1, 2), list(3), list(4), list(5)));
+
+    assertThat(pack(list(1, 2, 3, 4, 5), 8, Integer.MAX_VALUE, 3))
+        .as("Should pack the first 3 values")
+        .isEqualTo(list(list(1, 2, 3), list(4), list(5)));
+
+    assertThat(pack(list(1, 2, 3, 4, 5), 9, Integer.MAX_VALUE, 3))
+        .as("Should pack the first 3 values, last 2 values")
+        .isEqualTo(list(list(1, 2, 3), list(4, 5)));
+
+    assertThat(pack(list(1, 2, 3, 4, 5), 10, Integer.MAX_VALUE, 3))
+        .as("Should pack the first 3 values, last 2 values")
+        .isEqualTo(list(list(1, 2, 3), list(4, 5)));
+
+    assertThat(pack(list(1, 2, 3, 4, 5), 14, Integer.MAX_VALUE, 3))
+        .as("Should pack the first 3 values, last 2 values")
+        .isEqualTo(list(list(1, 2, 3), list(4, 5)));
+  }
+
+  @Test
   public void testReverseBinPackingSingleLookback() {
     assertThat(packEnd(list(1, 2, 3, 4, 5), 3, 1))
         .as("Should pack the first 2 values")
@@ -212,12 +243,27 @@ public class TestBinPacking {
   }
 
   private List<List<Integer>> pack(List<Integer> items, long targetWeight, int lookback) {
-    return pack(items, targetWeight, lookback, false);
+    return pack(items, targetWeight, lookback, Long.MAX_VALUE);
   }
 
   private List<List<Integer>> pack(
       List<Integer> items, long targetWeight, int lookback, boolean largestBinFirst) {
-    ListPacker<Integer> packer = new ListPacker<>(targetWeight, lookback, largestBinFirst);
+    return pack(items, targetWeight, lookback, largestBinFirst, Long.MAX_VALUE);
+  }
+
+  private List<List<Integer>> pack(
+      List<Integer> items, long targetWeight, int lookback, long targetSize) {
+    return pack(items, targetWeight, lookback, false, targetSize);
+  }
+
+  private List<List<Integer>> pack(
+      List<Integer> items,
+      long targetWeight,
+      int lookback,
+      boolean largestBinFirst,
+      long targetSize) {
+    ListPacker<Integer> packer =
+        new ListPacker<>(targetWeight, lookback, largestBinFirst, targetSize);
     return packer.pack(items, Integer::longValue);
   }
 

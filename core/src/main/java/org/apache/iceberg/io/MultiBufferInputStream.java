@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -68,6 +69,7 @@ class MultiBufferInputStream extends ByteBufferInputStream {
 
   @Override
   public void seek(long newPosition) throws IOException {
+    Preconditions.checkArgument(newPosition >= 0, "Position is negative: %s", newPosition);
     if (newPosition > length) {
       throw new EOFException(
           String.format("Cannot seek to position after end of file: %s", newPosition));
@@ -263,7 +265,7 @@ class MultiBufferInputStream extends ByteBufferInputStream {
   @Override
   public int read() throws IOException {
     if (current == null) {
-      throw new EOFException();
+      return -1;
     }
 
     while (true) {
@@ -272,7 +274,7 @@ class MultiBufferInputStream extends ByteBufferInputStream {
         return current.get() & 0xFF; // as unsigned
       } else if (!nextBuffer()) {
         // there are no more buffers
-        throw new EOFException();
+        return -1;
       }
     }
   }

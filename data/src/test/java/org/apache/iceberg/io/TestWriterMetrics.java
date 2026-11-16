@@ -152,9 +152,8 @@ public abstract class TestWriterMetrics<T> {
         writerFactory.newPositionDeleteWriter(outputFile, table.spec(), null);
 
     try {
-      T deletedRow = toRow(3, "3", true, 3L);
       PositionDelete<T> positionDelete = PositionDelete.create();
-      positionDelete.set("File A", 1, deletedRow);
+      positionDelete.set("File A", 1);
       deleteWriter.write(positionDelete);
     } finally {
       deleteWriter.close();
@@ -193,10 +192,10 @@ public abstract class TestWriterMetrics<T> {
     try {
       PositionDelete<T> positionDelete = PositionDelete.create();
 
-      positionDelete.set("File A", 1, toRow(3, "3", true, 3L));
+      positionDelete.set("File A", 1);
       deleteWriter.write(positionDelete);
 
-      positionDelete.set("File B", 1, toRow(3, "3", true, 3L));
+      positionDelete.set("File B", 1);
       deleteWriter.write(positionDelete);
 
     } finally {
@@ -206,8 +205,8 @@ public abstract class TestWriterMetrics<T> {
     DeleteFile deleteFile = deleteWriter.toDeleteFile();
 
     // should have NO bounds for path and position as the file covers multiple data paths
-    checkNotExistingRowStatistics(deleteFile.lowerBounds());
-    checkNotExistingRowStatistics(deleteFile.upperBounds());
+    assertThat(deleteFile.lowerBounds()).isNull();
+    assertThat(deleteFile.upperBounds()).isNull();
   }
 
   @TestTemplate
@@ -353,21 +352,11 @@ public abstract class TestWriterMetrics<T> {
   }
 
   protected void checkRowStatistics(Map<Integer, ByteBuffer> bounds) {
-    assertThat(bounds).hasSize(4);
-    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), bounds.get(1)))
-        .isEqualTo(3);
+    assertThat(bounds).hasSize(2);
+    assertThat(bounds).doesNotContainKey(1);
     assertThat(bounds).doesNotContainKey(2);
     assertThat(bounds).doesNotContainKey(3);
     assertThat(bounds).doesNotContainKey(4);
-    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), bounds.get(5)))
-        .isEqualTo(3L);
-  }
-
-  protected void checkNotExistingRowStatistics(Map<Integer, ByteBuffer> bounds) {
-    assertThat(bounds).hasSize(2);
-    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), bounds.get(1)))
-        .isEqualTo(3);
-    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), bounds.get(5)))
-        .isEqualTo(3L);
+    assertThat(bounds).doesNotContainKey(5);
   }
 }

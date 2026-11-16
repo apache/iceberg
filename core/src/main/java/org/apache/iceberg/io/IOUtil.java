@@ -49,6 +49,31 @@ public class IOUtil {
     }
   }
 
+  /**
+   * Reads exactly {@code length} bytes from the input file starting at {@code fileOffset} into the
+   * buffer. Uses range reads when supported.
+   *
+   * @param inputFile the file to read from
+   * @param fileOffset the position in the file to start reading from
+   * @param bytes a buffer to write into
+   * @param offset starting offset in the buffer for the data
+   * @param length number of bytes to read
+   * @throws IOException if there is an error while reading or if the end of the stream is reached
+   *     before reading length bytes
+   */
+  public static void readFully(
+      InputFile inputFile, long fileOffset, byte[] bytes, int offset, int length)
+      throws IOException {
+    try (SeekableInputStream stream = inputFile.newStream()) {
+      if (stream instanceof RangeReadable) {
+        ((RangeReadable) stream).readFully(fileOffset, bytes, offset, length);
+      } else {
+        stream.seek(fileOffset);
+        readFully(stream, bytes, offset, length);
+      }
+    }
+  }
+
   /** Writes a buffer into a stream, making multiple write calls if necessary. */
   public static void writeFully(OutputStream outputStream, ByteBuffer buffer) throws IOException {
     if (!buffer.hasRemaining()) {

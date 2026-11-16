@@ -107,6 +107,9 @@ class GCSOutputStream extends PositionOutputStream {
         .encryptionKey()
         .ifPresent(key -> writeOptions.add(BlobWriteOption.encryptionKey(key)));
     gcpProperties
+        .kmsKeyName()
+        .ifPresent(kmsKeyName -> writeOptions.add(BlobWriteOption.kmsKeyName(kmsKeyName)));
+    gcpProperties
         .userProject()
         .ifPresent(userProject -> writeOptions.add(BlobWriteOption.userProject(userProject)));
 
@@ -130,7 +133,7 @@ class GCSOutputStream extends PositionOutputStream {
     stream.close();
   }
 
-  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize"})
+  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize", "deprecation"})
   @Override
   protected void finalize() throws Throwable {
     super.finalize();

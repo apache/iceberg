@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source.parquet;
 import java.io.IOException;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.spark.source.IcebergSourceDeleteBenchmark;
 import org.openjdk.jmh.annotations.Param;
 
@@ -46,7 +47,7 @@ public class IcebergSourceParquetPosDeleteBenchmark extends IcebergSourceDeleteB
       if (percentDeleteRow > 0) {
         // add pos-deletes
         table().refresh();
-        for (DataFile file : table().currentSnapshot().addedDataFiles(table().io())) {
+        for (DataFile file : SnapshotChanges.builderFor(table()).build().addedDataFiles()) {
           writePosDeletes(file.location(), NUM_ROWS, percentDeleteRow);
         }
       }

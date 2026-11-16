@@ -55,7 +55,8 @@ public class TestRewriteManifests extends TestBase {
 
     ManifestFile newManifest =
         writeManifest(
-            "manifest-file-1.avro", manifestEntry(ManifestEntry.Status.ADDED, null, FILE_A));
+            manifestFormat().addExtension("manifest-file-1"),
+            manifestEntry(ManifestEntry.Status.ADDED, null, FILE_A));
 
     table.newFastAppend().appendManifest(newManifest).commit();
     long appendId = table.currentSnapshot().snapshotId();
@@ -79,7 +80,8 @@ public class TestRewriteManifests extends TestBase {
 
     ManifestFile newManifest =
         writeManifest(
-            "manifest-file-1.avro", manifestEntry(ManifestEntry.Status.ADDED, null, FILE_A));
+            manifestFormat().addExtension("manifest-file-1"),
+            manifestEntry(ManifestEntry.Status.ADDED, null, FILE_A));
 
     table.newFastAppend().appendManifest(newManifest).commit();
 
@@ -115,7 +117,8 @@ public class TestRewriteManifests extends TestBase {
 
     ManifestFile newManifest =
         writeManifest(
-            "manifest-file-1.avro", manifestEntry(ManifestEntry.Status.ADDED, null, FILE_A));
+            manifestFormat().addExtension("manifest-file-1"),
+            manifestEntry(ManifestEntry.Status.ADDED, null, FILE_A));
 
     table.newFastAppend().appendManifest(newManifest).commit();
     long manifestAppendId = table.currentSnapshot().snapshotId();
@@ -133,7 +136,8 @@ public class TestRewriteManifests extends TestBase {
     // get the correct file order
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io())) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifests.get(0), table.io(), table.specs())) {
       if (reader.iterator().next().location().equals(FILE_A.location())) {
         files = Arrays.asList(FILE_A, FILE_B);
         ids = Arrays.asList(manifestAppendId, fileAppendId);
@@ -193,7 +197,8 @@ public class TestRewriteManifests extends TestBase {
     // get the file order correct
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io())) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifests.get(0), table.io(), table.specs())) {
       if (reader.iterator().next().location().equals(FILE_A.location())) {
         files = Arrays.asList(FILE_A, FILE_B);
         ids = Arrays.asList(appendIdA, appendIdB);
@@ -232,7 +237,8 @@ public class TestRewriteManifests extends TestBase {
         .clusterBy(file -> "file")
         .rewriteIf(
             manifest -> {
-              try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
+              try (ManifestReader<DataFile> reader =
+                  ManifestFiles.read(manifest, table.io(), table.specs())) {
                 return !reader.iterator().next().location().equals(FILE_A.location());
               } catch (IOException x) {
                 throw new RuntimeIOException(x);
@@ -246,7 +252,8 @@ public class TestRewriteManifests extends TestBase {
     // get the file order correct
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io())) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifests.get(0), table.io(), table.specs())) {
       if (reader.iterator().next().location().equals(FILE_B.location())) {
         files = Arrays.asList(FILE_B, FILE_C);
         ids = Arrays.asList(appendIdB, appendIdC);
@@ -307,7 +314,8 @@ public class TestRewriteManifests extends TestBase {
         .clusterBy(file -> "file")
         .rewriteIf(
             manifest -> {
-              try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
+              try (ManifestReader<DataFile> reader =
+                  ManifestFiles.read(manifest, table.io(), table.specs())) {
                 return !reader.iterator().next().location().equals(FILE_A.location());
               } catch (IOException x) {
                 throw new RuntimeIOException(x);
@@ -327,7 +335,8 @@ public class TestRewriteManifests extends TestBase {
     // get the file order correct
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io())) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifests.get(0), table.io(), table.specs())) {
       if (reader.iterator().next().location().equals(FILE_A.location())) {
         files = Arrays.asList(FILE_A, FILE_B);
         ids = Arrays.asList(appendIdA, appendIdB);
@@ -422,11 +431,11 @@ public class TestRewriteManifests extends TestBase {
 
     ManifestFile firstNewManifest =
         writeManifest(
-            "manifest-file-1.avro",
+            manifestFormat().addExtension("manifest-file-1"),
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A));
     ManifestFile secondNewManifest =
         writeManifest(
-            "manifest-file-2.avro",
+            manifestFormat().addExtension("manifest-file-2"),
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_B));
 
     RewriteManifests rewriteManifests = table.rewriteManifests();
@@ -486,11 +495,11 @@ public class TestRewriteManifests extends TestBase {
 
     ManifestFile firstNewManifest =
         writeManifest(
-            "manifest-file-1.avro",
+            manifestFormat().addExtension("manifest-file-1"),
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A));
     ManifestFile secondNewManifest =
         writeManifest(
-            "manifest-file-2.avro",
+            manifestFormat().addExtension("manifest-file-2"),
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_B));
 
     RewriteManifests rewriteManifests = table.rewriteManifests();
@@ -673,11 +682,11 @@ public class TestRewriteManifests extends TestBase {
 
     ManifestFile firstNewManifest =
         writeManifest(
-            "manifest-file-1.avro",
+            manifestFormat().addExtension("manifest-file-1"),
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A));
     ManifestFile secondNewManifest =
         writeManifest(
-            "manifest-file-2.avro",
+            manifestFormat().addExtension("manifest-file-2"),
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_B));
 
     RewriteManifests rewriteManifests = table.rewriteManifests();
@@ -735,11 +744,11 @@ public class TestRewriteManifests extends TestBase {
 
     ManifestFile firstNewManifest =
         writeManifest(
-            "manifest-file-1.avro",
+            manifestFormat().addExtension("manifest-file-1"),
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A));
     ManifestFile secondNewManifest =
         writeManifest(
-            "manifest-file-2.avro",
+            manifestFormat().addExtension("manifest-file-2"),
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_B));
 
     RewriteManifests rewriteManifests = table.rewriteManifests();
@@ -790,11 +799,11 @@ public class TestRewriteManifests extends TestBase {
 
     ManifestFile firstNewManifest =
         writeManifest(
-            "manifest-file-1.avro",
+            manifestFormat().addExtension("manifest-file-1"),
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A));
     ManifestFile secondNewManifest =
         writeManifest(
-            "manifest-file-2.avro",
+            manifestFormat().addExtension("manifest-file-2"),
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_B));
 
     RewriteManifests rewriteManifests = table.rewriteManifests();
@@ -835,7 +844,7 @@ public class TestRewriteManifests extends TestBase {
 
     ManifestFile newManifest =
         writeManifest(
-            "manifest-file-1.avro",
+            manifestFormat().addExtension("manifest-file-1"),
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A));
 
     table
@@ -845,7 +854,8 @@ public class TestRewriteManifests extends TestBase {
         .clusterBy(dataFile -> "const-value")
         .rewriteIf(
             manifest -> {
-              try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
+              try (ManifestReader<DataFile> reader =
+                  ManifestFiles.read(manifest, table.io(), table.specs())) {
                 return !reader.iterator().next().location().equals(FILE_B.location());
               } catch (IOException x) {
                 throw new RuntimeIOException(x);
@@ -897,7 +907,8 @@ public class TestRewriteManifests extends TestBase {
         manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A);
     // update the entry's sequence number or else it will be rejected by the writer
     entry.setDataSequenceNumber(firstSnapshot.sequenceNumber());
-    ManifestFile newManifest = writeManifest("manifest-file-1.avro", entry);
+    ManifestFile newManifest =
+        writeManifest(manifestFormat().addExtension("manifest-file-1"), entry);
 
     RewriteManifests rewriteManifests =
         table
@@ -947,7 +958,8 @@ public class TestRewriteManifests extends TestBase {
     // update the entry's sequence number or else it will be rejected by the writer
     appendEntry.setDataSequenceNumber(snapshot.sequenceNumber());
 
-    ManifestFile invalidAddedFileManifest = writeManifest("manifest-file-2.avro", appendEntry);
+    ManifestFile invalidAddedFileManifest =
+        writeManifest(manifestFormat().addExtension("manifest-file-2"), appendEntry);
 
     assertThatThrownBy(
             () ->
@@ -964,7 +976,8 @@ public class TestRewriteManifests extends TestBase {
     // update the entry's sequence number or else it will be rejected by the writer
     deleteEntry.setDataSequenceNumber(snapshot.sequenceNumber());
 
-    ManifestFile invalidDeletedFileManifest = writeManifest("manifest-file-3.avro", deleteEntry);
+    ManifestFile invalidDeletedFileManifest =
+        writeManifest(manifestFormat().addExtension("manifest-file-3"), deleteEntry);
 
     assertThatThrownBy(
             () ->
@@ -1002,7 +1015,7 @@ public class TestRewriteManifests extends TestBase {
 
     ManifestFile newManifest =
         writeManifest(
-            "manifest-file.avro",
+            manifestFormat().addExtension("manifest-file"),
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A),
             manifestEntry(ManifestEntry.Status.EXISTING, secondSnapshot.snapshotId(), FILE_B));
 
@@ -1044,7 +1057,7 @@ public class TestRewriteManifests extends TestBase {
 
     ManifestFile newManifest =
         writeManifest(
-            "manifest-file.avro",
+            manifestFormat().addExtension("manifest-file"),
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A),
             manifestEntry(ManifestEntry.Status.EXISTING, secondSnapshot.snapshotId(), FILE_B));
 
@@ -1169,7 +1182,7 @@ public class TestRewriteManifests extends TestBase {
         Iterables.getOnlyElement(deleteSnapshot.deleteManifests(table.io()));
     ManifestFile newDeleteManifest1 =
         writeManifest(
-            "delete-manifest-file-1.avro",
+            manifestFormat().addExtension("delete-manifest-file-1"),
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
                 deleteSnapshotId,
@@ -1178,7 +1191,7 @@ public class TestRewriteManifests extends TestBase {
                 fileADeletes()));
     ManifestFile newDeleteManifest2 =
         writeManifest(
-            "delete-manifest-file-2.avro",
+            manifestFormat().addExtension("delete-manifest-file-2"),
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
                 deleteSnapshotId,
@@ -1255,7 +1268,7 @@ public class TestRewriteManifests extends TestBase {
         Iterables.getOnlyElement(deleteSnapshot.dataManifests(table.io()));
     ManifestFile newDataManifest1 =
         writeManifest(
-            "manifest-file-1.avro",
+            manifestFormat().addExtension("manifest-file-1"),
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
                 appendSnapshotId,
@@ -1264,7 +1277,7 @@ public class TestRewriteManifests extends TestBase {
                 FILE_A));
     ManifestFile newDataManifest2 =
         writeManifest(
-            "manifest-file-2.avro",
+            manifestFormat().addExtension("manifest-file-2"),
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
                 appendSnapshotId,
@@ -1277,7 +1290,7 @@ public class TestRewriteManifests extends TestBase {
         Iterables.getOnlyElement(deleteSnapshot.deleteManifests(table.io()));
     ManifestFile newDeleteManifest1 =
         writeManifest(
-            "delete-manifest-file-1.avro",
+            manifestFormat().addExtension("delete-manifest-file-1"),
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
                 deleteSnapshotId,
@@ -1286,7 +1299,7 @@ public class TestRewriteManifests extends TestBase {
                 fileADeletes()));
     ManifestFile newDeleteManifest2 =
         writeManifest(
-            "delete-manifest-file-2.avro",
+            manifestFormat().addExtension("delete-manifest-file-2"),
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
                 deleteSnapshotId,
@@ -1369,7 +1382,7 @@ public class TestRewriteManifests extends TestBase {
         Iterables.getOnlyElement(deleteSnapshot.deleteManifests(table.io()));
     ManifestFile newDeleteManifest1 =
         writeManifest(
-            "delete-manifest-file-1.avro",
+            manifestFormat().addExtension("delete-manifest-file-1"),
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
                 deleteSnapshotId,
@@ -1378,7 +1391,7 @@ public class TestRewriteManifests extends TestBase {
                 fileADeletes()));
     ManifestFile newDeleteManifest2 =
         writeManifest(
-            "delete-manifest-file-2.avro",
+            manifestFormat().addExtension("delete-manifest-file-2"),
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
                 deleteSnapshotId,
@@ -1479,7 +1492,7 @@ public class TestRewriteManifests extends TestBase {
     ManifestFile originalDeleteManifest = deleteSnapshot1.deleteManifests(table.io()).get(0);
     ManifestFile newDeleteManifest1 =
         writeManifest(
-            "delete-manifest-file-1.avro",
+            manifestFormat().addExtension("delete-manifest-file-1"),
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
                 deleteSnapshotId1,
@@ -1488,7 +1501,7 @@ public class TestRewriteManifests extends TestBase {
                 fileADeletes()));
     ManifestFile newDeleteManifest2 =
         writeManifest(
-            "delete-manifest-file-2.avro",
+            manifestFormat().addExtension("delete-manifest-file-2"),
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
                 deleteSnapshotId1,
@@ -1574,7 +1587,7 @@ public class TestRewriteManifests extends TestBase {
     ManifestFile originalDeleteManifest = deleteSnapshot.deleteManifests(table.io()).get(0);
     ManifestFile newDeleteManifest1 =
         writeManifest(
-            "delete-manifest-file-1.avro",
+            manifestFormat().addExtension("delete-manifest-file-1"),
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
                 deleteSnapshotId,
@@ -1583,7 +1596,7 @@ public class TestRewriteManifests extends TestBase {
                 fileADeletes()));
     ManifestFile newDeleteManifest2 =
         writeManifest(
-            "delete-manifest-file-2.avro",
+            manifestFormat().addExtension("delete-manifest-file-2"),
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
                 deleteSnapshotId,
@@ -1638,7 +1651,7 @@ public class TestRewriteManifests extends TestBase {
     // combine the original delete manifests into 1 new delete manifest
     ManifestFile newDeleteManifest =
         writeManifest(
-            "delete-manifest-file.avro",
+            manifestFormat().addExtension("delete-manifest-file"),
             manifestEntry(
                 ManifestEntry.Status.EXISTING,
                 deleteSnapshotId1,

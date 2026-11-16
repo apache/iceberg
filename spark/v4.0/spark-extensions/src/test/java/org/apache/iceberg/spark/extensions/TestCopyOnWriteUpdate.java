@@ -150,6 +150,25 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
   }
 
   @TestTemplate
+  public void testCopyOnWriteUpdateSetsSortOrderIdOnRewrittenDataFiles() {
+    createAndInitTable(
+        "id INT, dep STRING",
+        "PARTITIONED BY (dep)",
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"hr\" }");
+
+    sql("ALTER TABLE %s WRITE ORDERED BY id", tableName);
+
+    sql("UPDATE %s SET dep = 'changed' WHERE id = 1", commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
+    assertThat(snapshot.addedDataFiles(table.io()))
+        .extracting(DataFile::sortOrderId)
+        .as("Rewritten data files should carry the table sort order id")
+        .containsOnly(table.sortOrder().orderId());
+  }
+
+  @TestTemplate
   public void testRuntimeFilteringWithReportedPartitioning() {
     createAndInitTable("id INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);

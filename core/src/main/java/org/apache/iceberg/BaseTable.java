@@ -27,6 +27,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -38,24 +39,41 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * BaseTable using a {@link StaticTableOperations}. This way no Catalog related calls are needed
  * when reading the table data after deserialization.
  */
-public class BaseTable implements Table, HasTableOperations, Serializable {
+public class BaseTable
+    implements Table,
+        HasTableOperations,
+        Serializable,
+        SupportsDistributedScanPlanning,
+        SupportsLabels {
   private final TableOperations ops;
   private final String name;
-  private final MetricsReporter reporter;
+  private MetricsReporter reporter;
+  // Ephemeral catalog enrichment, not table state, so it is not preserved across serialization.
+  private final transient Labels labels;
 
   public BaseTable(TableOperations ops, String name) {
     this(ops, name, LoggingMetricsReporter.instance());
   }
 
   public BaseTable(TableOperations ops, String name, MetricsReporter reporter) {
+    this(ops, name, reporter, Labels.EMPTY);
+  }
+
+  public BaseTable(TableOperations ops, String name, MetricsReporter reporter, Labels labels) {
     Preconditions.checkNotNull(reporter, "reporter cannot be null");
+    Preconditions.checkNotNull(labels, "labels cannot be null");
     this.ops = ops;
     this.name = name;
     this.reporter = reporter;
+    this.labels = labels;
   }
 
   public MetricsReporter reporter() {
     return reporter;
+  }
+
+  public void combineMetricsReporter(MetricsReporter metricsReporter) {
+    this.reporter = MetricsReporters.combine(this.reporter, metricsReporter);
   }
 
   @Override
@@ -69,8 +87,20 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public Labels labels() {
+    // labels is null when this instance was deserialized without going through writeReplace(),
+    // e.g. with Kryo or normal Java deserialization from another package that bypasses it.
+    return labels != null ? labels : Labels.EMPTY;
+  }
+
+  @Override
   public void refresh() {
     ops.refresh();
+  }
+
+  @Override
+  public boolean allowDistributedPlanning() {
+    return ops.current().formatVersion() < 4;
   }
 
   @Override
@@ -88,6 +118,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   @Override
   public IncrementalChangelogScan newIncrementalChangelogScan() {
     return new BaseIncrementalChangelogScan(this);
+  }
+
+  @Override
+  public PartitionStatisticsScan newPartitionStatisticsScan() {
+    return new BasePartitionStatisticsScan(this);
   }
 
   @Override

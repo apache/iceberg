@@ -21,10 +21,12 @@ package org.apache.iceberg;
 import static org.apache.iceberg.Schema.DEFAULT_VALUES_MIN_FORMAT_VERSION;
 import static org.apache.iceberg.Schema.MIN_FORMAT_VERSIONS;
 import static org.apache.iceberg.TestHelpers.MAX_FORMAT_VERSION;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Literal;
@@ -178,6 +180,32 @@ public class TestSchema {
         .doesNotThrowAnyException();
   }
 
+  @Test
+  void fileSupport() {
+    // this needs a different schema because a file reserves the six ids that follow it
+    Schema schemaWithFile =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "top", Types.FileType.of(2)),
+            Types.NestedField.optional(
+                9, "arr", Types.ListType.ofOptional(10, Types.FileType.of(10))));
+    int minVersion = MIN_FORMAT_VERSIONS.get(Type.TypeID.FILE);
+
+    for (int version = 1; version < minVersion; version += 1) {
+      int unsupportedVersion = version;
+      assertThatThrownBy(() -> Schema.checkCompatibility(schemaWithFile, unsupportedVersion))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage(
+              "Invalid schema for v%s:\n"
+                  + "- Invalid type for top: file is not supported until v%s\n"
+                  + "- Invalid type for arr.element: file is not supported until v%s",
+              unsupportedVersion, minVersion, minVersion);
+    }
+
+    assertThatCode(() -> Schema.checkCompatibility(schemaWithFile, minVersion))
+        .doesNotThrowAnyException();
+  }
+
   @ParameterizedTest
   @MethodSource("supportedTypes")
   public void testTypeSupported(Type type, int supportedVersion) {
@@ -216,5 +244,98 @@ public class TestSchema {
     // only the initial default is a forward-incompatible change
     assertThatCode(() -> Schema.checkCompatibility(WRITE_DEFAULT_SCHEMA, formatVersion))
         .doesNotThrowAnyException();
+  }
+
+  @Test
+  public void testIndexFieldsSingleSchema() {
+    Schema schema =
+        new Schema(
+            1,
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    Map<Integer, Types.NestedField> fields = Schema.indexFields(ImmutableList.of(schema));
+
+    assertThat(fields).hasSize(2);
+    assertThat(fields.get(1).name()).isEqualTo("id");
+    assertThat(fields.get(2).name()).isEqualTo("data");
+  }
+
+  @Test
+  public void testIndexFieldsHigherSchemaIdTakesPrecedence() {
+    Schema schema1 =
+        new Schema(
+            1,
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    Schema schema2 =
+        new Schema(
+            2,
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.required(2, "data", Types.IntegerType.get()));
+
+    Map<Integer, Types.NestedField> fields = Schema.indexFields(ImmutableList.of(schema2, schema1));
+
+    assertThat(fields).hasSize(2);
+    assertThat(fields.get(2).type()).isEqualTo(Types.IntegerType.get());
+    assertThat(fields.get(2).isOptional()).isFalse();
+  }
+
+  @Test
+  public void testIndexFieldsDuplicateSchemaIds() {
+    Schema schema1 =
+        new Schema(
+            1,
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    Schema schema1Duplicate =
+        new Schema(
+            1,
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "different", Types.IntegerType.get()));
+
+    Map<Integer, Types.NestedField> fields =
+        Schema.indexFields(ImmutableList.of(schema1, schema1Duplicate));
+
+    assertThat(fields).hasSize(2);
+    assertThat(fields.get(2).name()).isEqualTo("data");
+  }
+
+  @Test
+  public void testIndexFieldsNestedSchema() {
+    Schema schema1 =
+        new Schema(
+            1,
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(
+                2,
+                "person",
+                Types.StructType.of(
+                    Types.NestedField.optional(3, "name", Types.StringType.get()),
+                    Types.NestedField.optional(4, "age", Types.IntegerType.get()))));
+
+    Schema schema2 =
+        new Schema(
+            2,
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(
+                2,
+                "person",
+                Types.StructType.of(
+                    Types.NestedField.optional(3, "name", Types.StringType.get()),
+                    Types.NestedField.optional(4, "age", Types.IntegerType.get()),
+                    Types.NestedField.optional(5, "email", Types.StringType.get()))));
+
+    Map<Integer, Types.NestedField> fields = Schema.indexFields(ImmutableList.of(schema1, schema2));
+
+    assertThat(fields).hasSize(5);
+    assertThat(fields.get(1).name()).isEqualTo("id");
+    assertThat(fields.get(2).name()).isEqualTo("person");
+    assertThat(fields.get(3).name()).isEqualTo("name");
+    assertThat(fields.get(4).name()).isEqualTo("age");
+    assertThat(fields.get(5).name()).isEqualTo("email");
+    assertThat(((Types.StructType) fields.get(2).type()).fields()).hasSize(3);
   }
 }

@@ -41,7 +41,7 @@ The output stream, produced by a metadata or data writer, is split into equal-si
 
 ## Encryption algorithm
 
-AES GCM Stream uses the standard AEG GCM cipher, and supports all AES key sizes: 128, 192 and 256 bits.
+AES GCM Stream uses the standard AES GCM cipher, and supports all AES key sizes: 128, 192 and 256 bits.
 
 AES GCM is an authenticated encryption. Besides data confidentiality (encryption), it supports two levels of integrity verification (authentication): of the data (default), and of the data combined with an optional AAD (“additional authenticated data”). An AAD is a free text to be authenticated, together with the data. The structure of AES GCM Stream AADs is described below.
 
@@ -80,7 +80,7 @@ AES GCM Stream encrypts all blocks by the GCM cipher, without padding. The AES G
 
 ### Additional Authenticated Data
 
-The AES GCM cipher protects against byte replacement inside a ciphertext block - but, without an AAD, it can't prevent replacement of one ciphertext block with another (encrypted with the same key). AES GCM Stream leverages AADs to protect against swapping ciphertext blocks inside a file or between files. AES GCM Stream can also protect against swapping full files - for example, replacement of a metadata file with an old version. AADs are built to reflects the identity of a file and of the blocks inside the file.
+The AES GCM cipher protects against byte replacement inside a ciphertext block - but, without an AAD, it can't prevent replacement of one ciphertext block with another (encrypted with the same key). AES GCM Stream leverages AADs to protect against swapping ciphertext blocks inside a file or between files. AES GCM Stream can also protect against swapping full files - for example, replacement of a metadata file with an old version. AADs are built to reflect the identity of a file and of the blocks inside the file.
 
 AES GCM Stream constructs a block AAD from two components: an AAD prefix - a string provided by Iceberg for the file (with the file ID), and an AAD suffix - the block sequence number in the file, as an int in a 4-byte little-endian form. The block AAD is a direct concatenation of the prefix and suffix parts.
 

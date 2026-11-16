@@ -57,11 +57,11 @@ public class TestIcebergSinkBranch extends TestFlinkIcebergSinkBase {
   public static Object[][] parameters() {
     return new Object[][] {
       // Remove after the deprecation of TableSchema - BEGIN
-      {"main", true},
+      {SnapshotRef.MAIN_BRANCH, true},
       {"testBranch", true},
       // Remove after the deprecation of TableSchema - END
 
-      {"main", false},
+      {SnapshotRef.MAIN_BRANCH, false},
       {"testBranch", false},
     };
   }

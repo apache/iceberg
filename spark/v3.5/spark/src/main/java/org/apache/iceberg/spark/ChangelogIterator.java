@@ -27,6 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
+import scala.collection.Seq;
 
 /** An iterator that transforms rows from changelog tables within a single Spark task. */
 public abstract class ChangelogIterator implements Iterator<Row> {
@@ -109,7 +110,52 @@ public abstract class ChangelogIterator implements Iterator<Row> {
   }
 
   protected boolean isDifferentValue(Row currentRow, Row nextRow, int idx) {
-    return !Objects.equals(nextRow.get(idx), currentRow.get(idx));
+    return !valuesEqual(currentRow.get(idx), nextRow.get(idx));
+  }
+
+  /**
+   * Compares values the way {@link Objects#deepEquals} does, which compares binary values by
+   * content, except that arrays and structs are also traversed so that binary values nested within
+   * them are compared by content too.
+   */
+  private static boolean valuesEqual(Object left, Object right) {
+    if (left instanceof Seq<?> leftSeq && right instanceof Seq<?> rightSeq) {
+      return seqsEqual(leftSeq, rightSeq);
+    } else if (left instanceof Row leftRow && right instanceof Row rightRow) {
+      return rowsEqual(leftRow, rightRow);
+    }
+
+    return Objects.deepEquals(left, right);
+  }
+
+  private static boolean seqsEqual(Seq<?> left, Seq<?> right) {
+    int length = left.length();
+    if (length != right.length()) {
+      return false;
+    }
+
+    for (int index = 0; index < length; index++) {
+      if (!valuesEqual(left.apply(index), right.apply(index))) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private static boolean rowsEqual(Row left, Row right) {
+    int size = left.size();
+    if (size != right.size()) {
+      return false;
+    }
+
+    for (int index = 0; index < size; index++) {
+      if (!valuesEqual(left.get(index), right.get(index))) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   protected static int[] generateIndicesToIdentifySameRow(

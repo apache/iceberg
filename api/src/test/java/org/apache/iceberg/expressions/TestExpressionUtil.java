@@ -19,6 +19,8 @@
 package org.apache.iceberg.expressions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
 import java.time.LocalDate;
@@ -33,6 +35,7 @@ import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -65,6 +68,24 @@ public class TestExpressionUtil {
 
   private static final Types.StructType FLOAT_TEST =
       Types.StructType.of(Types.NestedField.optional(1, "test", Types.FloatType.get()));
+
+  /** Schema with struct, list, and map columns for {@link #testExtractByIdInclusiveNestedTypes}. */
+  private static final Schema NESTED_EXTRACT_SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "top_id", Types.LongType.get()),
+          Types.NestedField.optional(
+              2,
+              "st",
+              Types.StructType.of(
+                  Types.NestedField.required(3, "inner_i", Types.IntegerType.get()))),
+          Types.NestedField.optional(
+              4, "arr", Types.ListType.ofRequired(5, Types.IntegerType.get())),
+          Types.NestedField.optional(
+              6,
+              "mp",
+              Types.MapType.ofRequired(7, 8, Types.StringType.get(), Types.IntegerType.get())));
+
+  private static final Types.StructType NESTED_EXTRACT_STRUCT = NESTED_EXTRACT_SCHEMA.asStruct();
 
   @Test
   public void testUnchangedUnaryPredicates() {
@@ -115,6 +136,16 @@ public class TestExpressionUtil {
         .as("Sanitized string should be abbreviated")
         .isEqualTo("test IN ((2-digit-int), (3-digit-int), ... (8 values hidden, 10 in total))");
 
+    Object[] tooLongStringsList =
+        IntStream.range(0, ExpressionUtil.LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD + 5)
+            .mapToObj(i -> "string_" + i)
+            .toArray();
+
+    assertThat(ExpressionUtil.toSanitizedString(Expressions.in("test", tooLongStringsList)))
+        .as("Sanitized string should be abbreviated")
+        .isEqualTo(
+            "test IN ((hash-14128790), (hash-1056a62b), (hash-22fd6340), (hash-3f9d20e4), (hash-136200f0), (hash-25fc9033), (hash-681d31e2), (hash-6c1796d4), (hash-382d143e), (hash-272f4e5b), ... (5 values hidden, 15 in total))");
+
     // The sanitization resulting in an expression tree does not abbreviate
     List<String> expectedValues = Lists.newArrayList();
     expectedValues.addAll(Collections.nCopies(5, "(2-digit-int)"));
@@ -155,6 +186,80 @@ public class TestExpressionUtil {
     assertThat(ExpressionUtil.toSanitizedString(STRUCT, Expressions.notIn("test", 34, 345), true))
         .as("Sanitized string should be identical except for descriptive literal")
         .isEqualTo("test NOT IN ((2-digit-int), (3-digit-int))");
+  }
+
+  @Test
+  public void testSanitizeBoundIn() {
+    Expression in = Binder.bind(STRUCT, Expressions.in("id", 1L, 2L), true);
+    assertEquals(
+        Expressions.in("id", "(1-digit-int)", "(1-digit-int)"), ExpressionUtil.sanitize(in));
+    assertThat(ExpressionUtil.toSanitizedString(in))
+        .isEqualTo("id IN ((1-digit-int), (1-digit-int))");
+
+    Expression notIn = Binder.bind(STRUCT, Expressions.notIn("id", 1L, 2L), true);
+    assertEquals(
+        Expressions.notIn("id", "(1-digit-int)", "(1-digit-int)"), ExpressionUtil.sanitize(notIn));
+    assertThat(ExpressionUtil.toSanitizedString(notIn))
+        .isEqualTo("id NOT IN ((1-digit-int), (1-digit-int))");
+  }
+
+  @Test
+  public void testSanitizeInWithStructUsesColumnType() {
+    // timestamp values passed as micros are only recognized as timestamps after binding
+    long ninetyMinutesAgo =
+        DateTimeUtil.microsFromTimestamptz(OffsetDateTime.now().minusMinutes(90));
+    long ninetyOneMinutesAgo =
+        DateTimeUtil.microsFromTimestamptz(OffsetDateTime.now().minusMinutes(91));
+    Expression in = Expressions.in("ts", ninetyMinutesAgo, ninetyOneMinutesAgo);
+
+    assertEquals(
+        Expressions.in("ts", "(timestamp-1-hours-ago)", "(timestamp-1-hours-ago)"),
+        ExpressionUtil.sanitize(STRUCT, in, true));
+    assertThat(ExpressionUtil.toSanitizedString(STRUCT, in, true))
+        .isEqualTo("ts IN ((timestamp-1-hours-ago), (timestamp-1-hours-ago))");
+
+    Expression filter =
+        Expressions.and(
+            Expressions.greaterThan("ts", ninetyMinutesAgo), Expressions.in("id", 1L, 2L));
+    assertThat(ExpressionUtil.toSanitizedString(STRUCT, filter, true))
+        .isEqualTo("(ts > (timestamp-1-hours-ago) AND id IN ((1-digit-int), (1-digit-int)))");
+  }
+
+  @Test
+  public void testSanitizeBoundTimestampNanoIn() {
+    String ninetyMinutesAgo =
+        OffsetDateTime.now()
+            .minusMinutes(90)
+            .atZoneSameInstant(ZoneOffset.UTC)
+            .toLocalDateTime()
+            .toString();
+    String ninetyOneMinutesAgo =
+        OffsetDateTime.now()
+            .minusMinutes(91)
+            .atZoneSameInstant(ZoneOffset.UTC)
+            .toLocalDateTime()
+            .toString();
+    Expression in =
+        Binder.bind(STRUCT, Expressions.in("tsns", ninetyMinutesAgo, ninetyOneMinutesAgo), true);
+
+    assertEquals(
+        Expressions.in("tsns", "(timestamp-1-hours-ago)", "(timestamp-1-hours-ago)"),
+        ExpressionUtil.sanitize(in));
+    assertThat(ExpressionUtil.toSanitizedString(in))
+        .isEqualTo("tsns IN ((timestamp-1-hours-ago), (timestamp-1-hours-ago))");
+  }
+
+  @Test
+  public void testSanitizeBoundDateIn() {
+    LocalDate currentDate = LocalDate.now(ZoneOffset.UTC);
+    String lastWeek = currentDate.minusWeeks(1).toString();
+    String twoWeeksAgo = currentDate.minusWeeks(2).toString();
+    Expression in = Binder.bind(STRUCT, Expressions.in("date", lastWeek, twoWeeksAgo), true);
+
+    assertThat(ExpressionUtil.toSanitizedString(in))
+        .isIn(
+            "date IN ((date-7-days-ago), (date-14-days-ago))",
+            "date IN ((date-14-days-ago), (date-7-days-ago))");
   }
 
   @Test
@@ -813,6 +918,146 @@ public class TestExpressionUtil {
   }
 
   @Test
+  public void testExtractByIdInclusive() {
+    Expression alwaysTrue = Expressions.alwaysTrue();
+    Expression idEq = Expressions.equal("id", 5L);
+    Expression valEq = Expressions.equal("val", 5);
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                alwaysTrue,
+                ExpressionUtil.extractByIdInclusive(
+                    Expressions.and(idEq, valEq), SCHEMA, true, new int[0]),
+                STRUCT,
+                true))
+        .isTrue();
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                alwaysTrue,
+                ExpressionUtil.extractByIdInclusive(
+                    Expressions.and(idEq, valEq), SCHEMA, true, (int[]) null),
+                STRUCT,
+                true))
+        .isTrue();
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                idEq, ExpressionUtil.extractByIdInclusive(idEq, SCHEMA, true, 1), STRUCT, true))
+        .isTrue();
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                alwaysTrue,
+                ExpressionUtil.extractByIdInclusive(valEq, SCHEMA, true, 1),
+                STRUCT,
+                true))
+        .isTrue();
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                idEq,
+                ExpressionUtil.extractByIdInclusive(Expressions.and(idEq, valEq), SCHEMA, true, 1),
+                STRUCT,
+                true))
+        .isTrue();
+
+    Expression orBothId = Expressions.or(Expressions.equal("id", 1L), Expressions.equal("id", 2L));
+    assertThat(
+            ExpressionUtil.equivalent(
+                orBothId,
+                ExpressionUtil.extractByIdInclusive(orBothId, SCHEMA, true, 1),
+                STRUCT,
+                true))
+        .isTrue();
+  }
+
+  @Test
+  public void testExtractByIdInclusiveNestedTypes() {
+    Expression alwaysTrue = Expressions.alwaysTrue();
+    Expression structPred = Expressions.equal("st.inner_i", 1);
+    Expression listPred = Expressions.equal("arr.element", 42);
+    Expression mapKeyPred = Expressions.equal("mp.key", "k");
+    Expression mapValuePred = Expressions.equal("mp.value", 7);
+    Expression topPred = Expressions.equal("top_id", 9L);
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                structPred,
+                ExpressionUtil.extractByIdInclusive(structPred, NESTED_EXTRACT_SCHEMA, true, 3),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+    assertThat(
+            ExpressionUtil.equivalent(
+                alwaysTrue,
+                ExpressionUtil.extractByIdInclusive(structPred, NESTED_EXTRACT_SCHEMA, true, 1),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                listPred,
+                ExpressionUtil.extractByIdInclusive(listPred, NESTED_EXTRACT_SCHEMA, true, 5),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+    assertThat(
+            ExpressionUtil.equivalent(
+                alwaysTrue,
+                ExpressionUtil.extractByIdInclusive(listPred, NESTED_EXTRACT_SCHEMA, true, 1),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                mapKeyPred,
+                ExpressionUtil.extractByIdInclusive(mapKeyPred, NESTED_EXTRACT_SCHEMA, true, 7),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+    assertThat(
+            ExpressionUtil.equivalent(
+                mapValuePred,
+                ExpressionUtil.extractByIdInclusive(mapValuePred, NESTED_EXTRACT_SCHEMA, true, 8),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+    assertThat(
+            ExpressionUtil.equivalent(
+                alwaysTrue,
+                ExpressionUtil.extractByIdInclusive(mapKeyPred, NESTED_EXTRACT_SCHEMA, true, 8),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+
+    Expression mixed = Expressions.and(structPred, Expressions.and(listPred, topPred));
+    assertThat(
+            ExpressionUtil.equivalent(
+                structPred,
+                ExpressionUtil.extractByIdInclusive(mixed, NESTED_EXTRACT_SCHEMA, true, 3),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+    assertThat(
+            ExpressionUtil.equivalent(
+                listPred,
+                ExpressionUtil.extractByIdInclusive(mixed, NESTED_EXTRACT_SCHEMA, true, 5),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+    assertThat(
+            ExpressionUtil.equivalent(
+                topPred,
+                ExpressionUtil.extractByIdInclusive(mixed, NESTED_EXTRACT_SCHEMA, true, 1),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+  }
+
+  @Test
   public void testIdenticalExpressionIsEquivalent() {
     Expression[] exprs =
         new Expression[] {
@@ -1059,6 +1304,22 @@ public class TestExpressionUtil {
                 PartitionSpec.builderFor(SCHEMA).day("ts").build(),
                 true))
         .as("Should not select partitions, on hour not day boundary")
+        .isFalse();
+  }
+
+  @Test
+  public void testSelectsPartitionsWithUnpartitionedTable() {
+    Table table = mock(Table.class);
+    Map<Integer, PartitionSpec> specs =
+        ImmutableMap.of(
+            0,
+            PartitionSpec.unpartitioned(),
+            1,
+            PartitionSpec.builderFor(SCHEMA).identity("val").build());
+    when(table.specs()).thenReturn(specs);
+
+    assertThat(ExpressionUtil.selectsPartitions(Expressions.lessThan("id", 1L), table, true))
+        .as("Should return false for unpartitioned table (no partition boundaries to select)")
         .isFalse();
   }
 

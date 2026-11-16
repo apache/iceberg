@@ -264,7 +264,7 @@ public class TestConflictValidation extends ExtensionsTestBase {
                     .overwritePartitions())
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith(
-            "Found conflicting files that can contain records matching partitions [id=1]");
+            "Found conflicting files that can contain records matching partitions [{id=1}]");
 
     // Validating from latest snapshot should succeed
     table.refresh();
@@ -299,7 +299,7 @@ public class TestConflictValidation extends ExtensionsTestBase {
                     .overwritePartitions())
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith(
-            "Found new conflicting delete files that can apply to records matching [id=1]");
+            "Found new conflicting delete files that can apply to records matching [{id=1}]");
 
     // Validating from latest snapshot should succeed
     table.refresh();
@@ -333,7 +333,7 @@ public class TestConflictValidation extends ExtensionsTestBase {
                     .overwritePartitions())
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith(
-            "Found conflicting deleted files that can apply to records matching [id=1]");
+            "Found conflicting deleted files that can apply to records matching [{id=1}]");
 
     // Validating from latest snapshot should succeed
     table.refresh();
@@ -380,7 +380,7 @@ public class TestConflictValidation extends ExtensionsTestBase {
                     .overwritePartitions())
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith(
-            "Found conflicting files that can contain records matching partitions [id=1]");
+            "Found conflicting files that can contain records matching partitions [{id=1}]");
 
     // Validating from latest snapshot should succeed
     table.refresh();

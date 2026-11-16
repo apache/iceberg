@@ -163,6 +163,25 @@ public class TestCopyOnWriteDelete extends TestDelete {
   }
 
   @TestTemplate
+  public void testCopyOnWriteDeleteSetsSortOrderIdOnRewrittenDataFiles() {
+    createAndInitTable(
+        "id INT, dep STRING",
+        "PARTITIONED BY (dep)",
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"hr\" }");
+
+    sql("ALTER TABLE %s WRITE ORDERED BY id", tableName);
+
+    sql("DELETE FROM %s WHERE id = 1", commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
+    assertThat(snapshot.addedDataFiles(table.io()))
+        .extracting(DataFile::sortOrderId)
+        .as("Rewritten data files should carry the table sort order id")
+        .containsOnly(table.sortOrder().orderId());
+  }
+
+  @TestTemplate
   public void testRuntimeFilteringWithPreservedDataGrouping() throws NoSuchTableException {
     createAndInitPartitionedTable();
 

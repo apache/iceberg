@@ -79,7 +79,6 @@ public class FetchScanTasksResponseParser {
         .withPlanTasks(planTasks)
         .withSpecsById(specsById)
         .withFileScanTasks(fileScanTasks)
-        .withDeleteFiles(deleteFiles)
         .build();
   }
 }

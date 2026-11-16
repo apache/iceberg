@@ -78,7 +78,8 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
   private int maxContinuousEmptyCommits;
   private ExecutorService workerPool;
   private int continuousEmptyCheckpoints = 0;
-  private boolean compactMode = false;
+  private final boolean tableMaintenanceEnabled;
+  private final int subtaskId;
 
   IcebergCommitter(
       TableLoader tableLoader,
@@ -88,31 +89,45 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       int workerPoolSize,
       String sinkId,
       IcebergFilesCommitterMetrics committerMetrics,
-      boolean compactMode) {
+      boolean tableMaintenanceEnabled,
+      int subtaskId) {
     this.branch = branch;
     this.snapshotProperties = snapshotProperties;
     this.replacePartitions = replacePartitions;
     this.committerMetrics = committerMetrics;
     this.tableLoader = tableLoader;
-    if (!tableLoader.isOpen()) {
-      tableLoader.open();
+    this.tableMaintenanceEnabled = tableMaintenanceEnabled;
+    this.subtaskId = subtaskId;
+
+    // IcebergSink#addPreCommitTopology routes all committables to subtask 0 via a .global()
+    // shuffle, so only subtask 0 needs to load the table and create the worker pool.
+    if (subtaskId == 0) {
+      if (!tableLoader.isOpen()) {
+        tableLoader.open();
+      }
+
+      this.table = tableLoader.loadTable();
+      this.maxContinuousEmptyCommits =
+          PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
+      Preconditions.checkArgument(
+          maxContinuousEmptyCommits > 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must be positive");
+      this.workerPool =
+          ThreadPools.newFixedThreadPool(
+              "iceberg-committer-pool-" + table.name() + "-" + sinkId, workerPoolSize);
     }
 
-    this.table = tableLoader.loadTable();
-    this.maxContinuousEmptyCommits =
-        PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
-    Preconditions.checkArgument(
-        maxContinuousEmptyCommits > 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must be positive");
-    this.workerPool =
-        ThreadPools.newFixedThreadPool(
-            "iceberg-committer-pool-" + table.name() + "-" + sinkId, workerPoolSize);
     this.continuousEmptyCheckpoints = 0;
-    this.compactMode = compactMode;
   }
 
   @Override
   public void commit(Collection<CommitRequest<IcebergCommittable>> commitRequests)
       throws IOException, InterruptedException {
+    Preconditions.checkState(
+        subtaskId == 0,
+        "IcebergCommitter received %s commit request(s) on subtask %s, but only subtask 0 is expected to commit.",
+        commitRequests.size(),
+        subtaskId);
+
     if (commitRequests.isEmpty()) {
       return;
     }
@@ -124,16 +139,26 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
 
     IcebergCommittable last = commitRequestMap.lastEntry().getValue().getCommittable();
     long maxCommittedCheckpointId =
-        SinkUtil.getMaxCommittedCheckpointId(table, last.jobId(), last.operatorId(), branch);
+        SinkUtil.getMaxCommittedCheckpointIdBySink(table, last.sinkId(), last.operatorId(), branch);
+
     // Mark the already committed FilesCommittable(s) as finished
-    commitRequestMap
-        .headMap(maxCommittedCheckpointId, true)
-        .values()
-        .forEach(CommitRequest::signalAlreadyCommitted);
+    NavigableMap<Long, CommitRequest<IcebergCommittable>> alreadyCommitted =
+        commitRequestMap.headMap(maxCommittedCheckpointId, true);
+    if (!alreadyCommitted.isEmpty()) {
+      LOG.warn(
+          "Skipping {} already committed checkpoint(s) up to {} for table {}, branch {}: {}",
+          alreadyCommitted.size(),
+          maxCommittedCheckpointId,
+          table.name(),
+          branch,
+          alreadyCommitted.keySet());
+    }
+
+    alreadyCommitted.values().forEach(CommitRequest::signalAlreadyCommitted);
     NavigableMap<Long, CommitRequest<IcebergCommittable>> uncommitted =
         commitRequestMap.tailMap(maxCommittedCheckpointId, false);
     if (!uncommitted.isEmpty()) {
-      commitPendingRequests(uncommitted, last.jobId(), last.operatorId());
+      commitPendingRequests(uncommitted, last.jobId(), last.sinkId(), last.operatorId());
     }
   }
 
@@ -146,12 +171,14 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
    *
    * @param commitRequestMap The checkpointId to {@link CommitRequest} map of the changes to commit
    * @param newFlinkJobId The jobId to store in the {@link org.apache.iceberg.SnapshotSummary}
+   * @param sinkId The sinkId to store in the {@link org.apache.iceberg.SnapshotSummary}
    * @param operatorId The operatorId to store in the {@link org.apache.iceberg.SnapshotSummary}
    * @throws IOException On commit failure
    */
   private void commitPendingRequests(
       NavigableMap<Long, CommitRequest<IcebergCommittable>> commitRequestMap,
       String newFlinkJobId,
+      String sinkId,
       String operatorId)
       throws IOException {
     long checkpointId = commitRequestMap.lastKey();
@@ -172,12 +199,12 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     }
 
     CommitSummary summary = new CommitSummary(pendingResults);
-    commitPendingResult(pendingResults, summary, newFlinkJobId, operatorId);
+    commitPendingResult(pendingResults, summary, newFlinkJobId, sinkId, operatorId);
     if (committerMetrics != null) {
       committerMetrics.updateCommitSummary(summary);
     }
 
-    if (!compactMode) {
+    if (!tableMaintenanceEnabled) {
       FlinkManifestUtil.deleteCommittedManifests(table, manifests, newFlinkJobId, checkpointId);
     }
   }
@@ -195,14 +222,15 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       NavigableMap<Long, WriteResult> pendingResults,
       CommitSummary summary,
       String newFlinkJobId,
+      String sinkId,
       String operatorId) {
     long totalFiles = summary.dataFilesCount() + summary.deleteFilesCount();
     continuousEmptyCheckpoints = totalFiles == 0 ? continuousEmptyCheckpoints + 1 : 0;
     if (totalFiles != 0 || continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0) {
       if (replacePartitions) {
-        replacePartitions(pendingResults, summary, newFlinkJobId, operatorId);
+        replacePartitions(pendingResults, summary, newFlinkJobId, sinkId, operatorId);
       } else {
-        commitDeltaTxn(pendingResults, summary, newFlinkJobId, operatorId);
+        commitDeltaTxn(pendingResults, summary, newFlinkJobId, sinkId, operatorId);
       }
       continuousEmptyCheckpoints = 0;
     } else {
@@ -215,6 +243,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       NavigableMap<Long, WriteResult> pendingResults,
       CommitSummary summary,
       String newFlinkJobId,
+      String sinkId,
       String operatorId) {
     long checkpointId = pendingResults.lastKey();
     Preconditions.checkState(
@@ -229,13 +258,14 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     String description = "dynamic partition overwrite";
 
     logCommitSummary(summary, description);
-    commitOperation(dynamicOverwrite, description, newFlinkJobId, operatorId, checkpointId);
+    commitOperation(dynamicOverwrite, description, newFlinkJobId, sinkId, operatorId, checkpointId);
   }
 
   private void commitDeltaTxn(
       NavigableMap<Long, WriteResult> pendingResults,
       CommitSummary summary,
       String newFlinkJobId,
+      String sinkId,
       String operatorId) {
     long checkpointId = pendingResults.lastKey();
     if (summary.deleteFilesCount() == 0) {
@@ -250,7 +280,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       String description = "append";
       logCommitSummary(summary, description);
       // fail all commits as really its only one
-      commitOperation(appendFiles, description, newFlinkJobId, operatorId, checkpointId);
+      commitOperation(appendFiles, description, newFlinkJobId, sinkId, operatorId, checkpointId);
     } else {
       // To be compatible with iceberg format V2.
       for (Map.Entry<Long, WriteResult> e : pendingResults.entrySet()) {
@@ -274,7 +304,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
 
         String description = "rowDelta";
         logCommitSummary(summary, description);
-        commitOperation(rowDelta, description, newFlinkJobId, operatorId, e.getKey());
+        commitOperation(rowDelta, description, newFlinkJobId, sinkId, operatorId, e.getKey());
       }
     }
   }
@@ -283,6 +313,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       SnapshotUpdate<?> operation,
       String description,
       String newFlinkJobId,
+      String sinkId,
       String operatorId,
       long checkpointId) {
 
@@ -291,6 +322,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     // used by the sink.
     operation.set(SinkUtil.MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
     operation.set(SinkUtil.FLINK_JOB_ID, newFlinkJobId);
+    operation.set(SinkUtil.SINK_ID, sinkId);
     operation.set(SinkUtil.OPERATOR_ID, operatorId);
     operation.toBranch(branch);
 
@@ -311,7 +343,12 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
 
   @Override
   public void close() throws IOException {
-    tableLoader.close();
-    workerPool.shutdown();
+    if (tableLoader.isOpen()) {
+      tableLoader.close();
+    }
+
+    if (workerPool != null) {
+      workerPool.shutdown();
+    }
   }
 }

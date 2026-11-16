@@ -38,7 +38,6 @@ import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import org.joda.time.DateTime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -201,7 +200,7 @@ public class TestTimestampWithoutZone extends CatalogTestBase {
   }
 
   private Timestamp toTimestamp(String value) {
-    return new Timestamp(DateTime.parse(value).getMillis());
+    return Timestamp.valueOf(LocalDateTime.parse(value));
   }
 
   private LocalDateTime toLocalDateTime(String value) {

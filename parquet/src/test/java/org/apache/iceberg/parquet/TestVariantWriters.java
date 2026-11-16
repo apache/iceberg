@@ -41,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantArray;
@@ -52,6 +53,7 @@ import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
@@ -213,6 +215,34 @@ public class TestVariantWriters {
     InternalTestHelpers.assertEquals(SCHEMA.asStruct(), record, actual);
   }
 
+  @Test
+  public void testShreddedDecimal16RoundTripUsesWriterCompatibleFixedLength() throws IOException {
+    // A DECIMAL16 value (20-digit integer) shreds to a FIXED_LEN_BYTE_ARRAY typed_value whose
+    // declared length must equal decimalRequiredBytes, or the write fails. toParquetSchema shreds
+    // DECIMAL16 as BINARY, so this fixed-length path is otherwise untested.
+    VariantValue value = Variants.of(new BigDecimal("12345678901234567890"));
+    Variant variant = Variant.of(EMPTY_METADATA, value);
+    Record record = RECORD.copy("id", 1, "var", variant);
+
+    VariantShreddingAnalyzer<VariantValue, Void> analyzer =
+        new VariantShreddingAnalyzer<>() {
+          @Override
+          protected List<VariantValue> extractVariantValues(List<VariantValue> rows, int idx) {
+            return rows;
+          }
+
+          @Override
+          protected int resolveColumnIndex(Void engineSchema, String columnName) {
+            throw new UnsupportedOperationException("Not used in this test");
+          }
+        };
+
+    Record actual =
+        writeAndRead((id, name) -> analyzer.analyzeAndCreateSchema(List.of(value), 0), record);
+
+    InternalTestHelpers.assertEquals(SCHEMA.asStruct(), record, actual);
+  }
+
   @ParameterizedTest
   @FieldSource("VARIANTS")
   public void testMixedShredding(Variant variant) throws IOException {
@@ -279,5 +309,54 @@ public class TestVariantWriters {
     }
 
     return arr;
+  }
+
+  @Test
+  public void testPartialShreddingWithShreddedObject() throws IOException {
+    // Test for issue #15086: partial shredding with ShreddedObject created using put()
+    // Create a ShreddedObject with multiple fields, then partially shred it
+    VariantMetadata metadata = Variants.metadata("id", "name", "city");
+
+    // Create objects using ShreddedObject.put() instead of serialized buffers
+    List<Record> records = Lists.newArrayList();
+    for (int i = 0; i < 3; i++) {
+      ShreddedObject obj = Variants.object(metadata);
+      obj.put("id", Variants.of(1000L + i));
+      obj.put("name", Variants.of("user_" + i));
+      obj.put("city", Variants.of("city_" + i));
+
+      Variant variant = Variant.of(metadata, obj);
+      Record record = RECORD.copy("id", i, "var", variant);
+      records.add(record);
+    }
+
+    // Shredding function that only shreds the "id" field
+    VariantShreddingFunction partialShredding =
+        (id, name) -> {
+          VariantMetadata shreddedMetadata = Variants.metadata("id");
+          ShreddedObject shreddedObject = Variants.object(shreddedMetadata);
+          shreddedObject.put("id", Variants.of(1234L));
+          return ParquetVariantUtil.toParquetSchema(shreddedObject);
+        };
+
+    // Write and read back
+    List<Record> actual = writeAndRead(partialShredding, records);
+
+    // Verify all records match
+    assertThat(actual).hasSameSizeAs(records);
+    for (int i = 0; i < records.size(); i++) {
+      Record expected = records.get(i);
+      Record read = actual.get(i);
+
+      InternalTestHelpers.assertEquals(SCHEMA.asStruct(), expected, read);
+
+      // Also verify the variant object has all fields intact
+      Variant readVariant = (Variant) read.getField("var");
+      VariantObject readObj = readVariant.value().asObject();
+      assertThat(readObj.numFields()).isEqualTo(3);
+      assertThat(readObj.get("id").asPrimitive().get()).isEqualTo(1000L + i);
+      assertThat(readObj.get("name").asPrimitive().get()).isEqualTo("user_" + i);
+      assertThat(readObj.get("city").asPrimitive().get()).isEqualTo("city_" + i);
+    }
   }
 }

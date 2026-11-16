@@ -270,7 +270,7 @@ public class S3FileIOProperties implements Serializable {
    * This expiration time is currently only used in {@link VendedCredentialsProvider} for refreshing
    * vended credentials.
    */
-  static final String SESSION_TOKEN_EXPIRES_AT_MS = "s3.session-token-expires-at-ms";
+  public static final String SESSION_TOKEN_EXPIRES_AT_MS = "s3.session-token-expires-at-ms";
 
   /**
    * Enable to make S3FileIO, to make cross-region call to the region specified in the ARN of an
@@ -294,6 +294,18 @@ public class S3FileIOProperties implements Serializable {
   public static final String REMOTE_SIGNING_ENABLED = "s3.remote-signing-enabled";
 
   public static final boolean REMOTE_SIGNING_ENABLED_DEFAULT = false;
+
+  /**
+   * Enables or disables chunked encoding for S3 requests.
+   *
+   * <p>This feature is enabled by default to match the AWS SDK default behavior.
+   *
+   * <p>For more details see:
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/services/s3/S3Configuration.html#chunkedEncodingEnabled()
+   */
+  public static final String CHUNKED_ENCODING_ENABLED = "s3.chunked-encoding-enabled";
+
+  public static final boolean CHUNKED_ENCODING_ENABLED_DEFAULT = true;
 
   /** Configure the batch size used when deleting multiple files from a given S3 bucket */
   public static final String DELETE_BATCH_SIZE = "s3.delete.batch-size";
@@ -509,6 +521,7 @@ public class S3FileIOProperties implements Serializable {
   private String stagingDirectory;
   private ObjectCannedACL acl;
   private boolean isChecksumEnabled;
+  private boolean isChunkedEncodingEnabled;
   private final Set<Tag> writeTags;
   private boolean isWriteTableTagEnabled;
   private boolean isWriteNamespaceTagEnabled;
@@ -551,6 +564,7 @@ public class S3FileIOProperties implements Serializable {
     this.deleteBatchSize = DELETE_BATCH_SIZE_DEFAULT;
     this.stagingDirectory = System.getProperty("java.io.tmpdir");
     this.isChecksumEnabled = CHECKSUM_ENABLED_DEFAULT;
+    this.isChunkedEncodingEnabled = CHUNKED_ENCODING_ENABLED_DEFAULT;
     this.writeTags = Sets.newHashSet();
     this.isWriteTableTagEnabled = WRITE_TABLE_TAG_ENABLED_DEFAULT;
     this.isWriteNamespaceTagEnabled = WRITE_NAMESPACE_TAG_ENABLED_DEFAULT;
@@ -641,6 +655,9 @@ public class S3FileIOProperties implements Serializable {
         "Cannot support S3 CannedACL " + aclType);
     this.isChecksumEnabled =
         PropertyUtil.propertyAsBoolean(properties, CHECKSUM_ENABLED, CHECKSUM_ENABLED_DEFAULT);
+    this.isChunkedEncodingEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, CHUNKED_ENCODING_ENABLED, CHUNKED_ENCODING_ENABLED_DEFAULT);
     this.deleteBatchSize =
         PropertyUtil.propertyAsInt(properties, DELETE_BATCH_SIZE, DELETE_BATCH_SIZE_DEFAULT);
     Preconditions.checkArgument(
@@ -806,6 +823,10 @@ public class S3FileIOProperties implements Serializable {
 
   public boolean isChecksumEnabled() {
     return this.isChecksumEnabled;
+  }
+
+  public boolean isChunkedEncodingEnabled() {
+    return this.isChunkedEncodingEnabled;
   }
 
   public boolean isRemoteSigningEnabled() {
@@ -994,6 +1015,7 @@ public class S3FileIOProperties implements Serializable {
                 .pathStyleAccessEnabled(isPathStyleAccess)
                 .useArnRegionEnabled(isUseArnRegionEnabled)
                 .accelerateModeEnabled(isAccelerationEnabled)
+                .chunkedEncodingEnabled(isChunkedEncodingEnabled)
                 .build());
   }
 
@@ -1006,6 +1028,7 @@ public class S3FileIOProperties implements Serializable {
    *     S3Client.builder().applyMutation(s3FileIOProperties::applyS3SignerConfiguration)
    * </pre>
    */
+  @SuppressWarnings("deprecation")
   public <T extends S3ClientBuilder> void applySignerConfiguration(T builder) {
     if (isRemoteSigningEnabled) {
       ClientOverrideConfiguration.Builder configBuilder =
@@ -1060,6 +1083,7 @@ public class S3FileIOProperties implements Serializable {
    *     S3Client.builder().applyMutation(s3FileIOProperties::applyRetryConfigurations)
    * </pre>
    */
+  @SuppressWarnings("deprecation")
   public <T extends S3ClientBuilder> void applyRetryConfigurations(T builder) {
     ClientOverrideConfiguration.Builder configBuilder =
         null != builder.overrideConfiguration()

@@ -188,7 +188,6 @@ codecs listed below. For maximal interoperability, other codecs are not supporte
 |------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | lz4        | Single [LZ4 compression frame](https://github.com/lz4/lz4/blob/77d1b93f72628af7bbde0243b4bba9205c3138d9/doc/lz4_Frame_format.md), with content size present                                     |
 | zstd       | Single [Zstandard compression frame](https://github.com/facebook/zstd/blob/8af64f41161f6c2e0ba842006fe238c664a6a437/doc/zstd_compression_format.md#zstandard-frames), with content size present |
-__
 
 ### Common properties
 

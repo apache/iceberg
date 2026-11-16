@@ -22,10 +22,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
+import org.apache.hc.core5.net.URIBuilder;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestRESTUtil {
 
@@ -68,18 +79,24 @@ public class TestRESTUtil {
     }
   }
 
-  @Test
-  public void testRoundTripUrlEncodeDecodeNamespace() {
+  @ParameterizedTest
+  @ValueSource(strings = {"%1F", "%2D", "%2E", "#", "_"})
+  public void testRoundTripUrlEncodeDecodeNamespace(String namespaceSeparator) {
     // Namespace levels and their expected url encoded form
     Object[][] testCases =
         new Object[][] {
           new Object[] {new String[] {"dogs"}, "dogs"},
           new Object[] {new String[] {"dogs.named.hank"}, "dogs.named.hank"},
           new Object[] {new String[] {"dogs/named/hank"}, "dogs%2Fnamed%2Fhank"},
-          new Object[] {new String[] {"dogs", "named", "hank"}, "dogs%1Fnamed%1Fhank"},
+          new Object[] {
+            new String[] {"dogs", "named", "hank"},
+            String.format("dogs%snamed%shank", namespaceSeparator, namespaceSeparator)
+          },
           new Object[] {
             new String[] {"dogs.and.cats", "named", "hank.or.james-westfall"},
-            "dogs.and.cats%1Fnamed%1Fhank.or.james-westfall"
+            String.format(
+                "dogs.and.cats%snamed%shank.or.james-westfall",
+                namespaceSeparator, namespaceSeparator),
           }
         };
 
@@ -90,22 +107,248 @@ public class TestRESTUtil {
       Namespace namespace = Namespace.of(levels);
 
       // To be placed into a URL path as query parameter or path parameter
-      assertThat(RESTUtil.encodeNamespace(namespace)).isEqualTo(encodedNs);
+      assertThat(RESTUtil.encodeNamespace(namespace, namespaceSeparator)).isEqualTo(encodedNs);
 
       // Decoded (after pulling as String) from URL
-      Namespace asNamespace = RESTUtil.decodeNamespace(encodedNs);
-      assertThat(asNamespace).isEqualTo(namespace);
+      assertThat(RESTUtil.decodeNamespace(encodedNs, namespaceSeparator)).isEqualTo(namespace);
     }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"%1F", "%2D", "%2E", "#", "_"})
+  public void testRoundTripEncodeDecodeNamespaceAsPathSegment(String namespaceSeparator) {
+    Object[][] testCases =
+        new Object[][] {
+          new Object[] {new String[] {"dogs"}, "dogs"},
+          new Object[] {new String[] {"dogs.named.hank"}, "dogs.named.hank"},
+          new Object[] {new String[] {"dogs/named/hank"}, "dogs%2Fnamed%2Fhank"},
+          new Object[] {new String[] {"dogs named hank"}, "dogs%20named%20hank"},
+          new Object[] {new String[] {"dogs+named+hank"}, "dogs%2Bnamed%2Bhank"},
+          new Object[] {
+            new String[] {"dogs", "named", "hank"},
+            String.format("dogs%snamed%shank", namespaceSeparator, namespaceSeparator)
+          },
+          new Object[] {
+            new String[] {"dogs.and.cats", "named", "hank.or.james-westfall"},
+            String.format(
+                "dogs.and.cats%snamed%shank.or.james-westfall",
+                namespaceSeparator, namespaceSeparator),
+          }
+        };
+
+    for (Object[] namespaceWithEncoding : testCases) {
+      String[] levels = (String[]) namespaceWithEncoding[0];
+      String encodedNs = (String) namespaceWithEncoding[1];
+
+      Namespace namespace = Namespace.of(levels);
+
+      assertThat(RESTUtil.encodeNamespaceAsPathSegment(namespace, namespaceSeparator))
+          .isEqualTo(encodedNs);
+
+      assertThat(RESTUtil.decodeNamespaceAsPathSegment(encodedNs, namespaceSeparator))
+          .isEqualTo(namespace);
+    }
+  }
+
+  @Test
+  public void testDecodeNamespacePathSegmentPreservesPlusSign() {
+    String separator = "%1F";
+    Namespace expected = Namespace.of("a+b", "c+d");
+    // Both encoded forms are valid
+    assertThat(RESTUtil.decodeNamespaceAsPathSegment("a+b%1Fc+d", separator)).isEqualTo(expected);
+    assertThat(RESTUtil.decodeNamespaceAsPathSegment("a%2Bb%1Fc%2Bd", separator))
+        .isEqualTo(expected);
+  }
+
+  @Test
+  public void encodePathAsOldAndNewClientDecodeAsOldServer() {
+    String input = " +%20";
+
+    // old Java client would call encodeString
+    String encodedOldJava = RESTUtil.encodeString(input);
+    assertThat(encodedOldJava).isEqualTo("+%2B%2520");
+
+    // new Java client would call encodePathSegment
+    String encodedNewJava = RESTUtil.encodePathSegment(input);
+    assertThat(encodedNewJava).isEqualTo("%20%2B%2520");
+
+    // another client (e.g. Iceberg Go) would encode using strict RFC 3986, "+" is not
+    // percent-encoded
+    String encodedOther = "%20+%2520";
+
+    // old server would decode with decodeString; should work for both old and new Java clients,
+    // but not for clients sending a literal "+"
+    assertThat(RESTUtil.decodeString(encodedOldJava)).isEqualTo(input);
+    assertThat(RESTUtil.decodeString(encodedNewJava)).isEqualTo(input);
+    assertThat(RESTUtil.decodeString(encodedOther)).isNotEqualTo(input).isEqualTo("  %20");
+  }
+
+  @Test
+  public void encodePathAsOldAndNewClientDecodeAsNewServer() {
+    String input = " +%20";
+
+    // old Java client would call encodeString
+    String encodedOldJava = RESTUtil.encodeString(input);
+    assertThat(encodedOldJava).isEqualTo("+%2B%2520");
+
+    // new Java client would call encodePathSegment
+    String encodedNewJava = RESTUtil.encodePathSegment(input);
+    assertThat(encodedNewJava).isEqualTo("%20%2B%2520");
+
+    // another client (e.g. Iceberg Go) would encode using strict RFC 3986, "+" is not
+    // percent-encoded
+    String encodedOther = "%20+%2520";
+
+    // new server would decode with decodePathSegment; should work for both new Java clients and
+    // clients sending a literal "+", but not for old Java clients
+    assertThat(RESTUtil.decodePathSegment(encodedOldJava)).isNotEqualTo(input).isEqualTo("++%20");
+    assertThat(RESTUtil.decodePathSegment(encodedNewJava)).isEqualTo(input);
+    assertThat(RESTUtil.decodePathSegment(encodedOther)).isEqualTo(input);
+  }
+
+  private static Stream<Arguments> referencedBySeparators() {
+    // configured separator, and how it has to appear in the query string
+    return Stream.of(
+        Arguments.of(RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8, "%1F"),
+        Arguments.of("\u001f", "%1F"),
+        Arguments.of("%2D", "-"),
+        Arguments.of("%2E", "."),
+        Arguments.of("#", "%23"),
+        Arguments.of("_", "_"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("referencedBySeparators")
+  public void encodeReferencedBy(String namespaceSeparator, String encodedSeparator) {
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(
+                    TableIdentifier.of(Namespace.of("outer_ns"), "outer_view"),
+                    TableIdentifier.of(Namespace.of("prod", "analytics"), "inner_view")),
+                namespaceSeparator))
+        .isEqualTo(
+            String.format(
+                "outer_ns%1$souter_view,prod%1$sanalytics%1$sinner_view", encodedSeparator));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"#", "\u001f"})
+  public void encodeReferencedByReachesQueryStringIntact(String namespaceSeparator) {
+    // a separator that is not URL-safe must not corrupt the query string
+    String encoded =
+        RESTUtil.encodeReferencedBy(
+            ImmutableList.of(TableIdentifier.of(Namespace.of("ns"), "outer_view")),
+            namespaceSeparator);
+
+    URI uri =
+        ImmutableHTTPRequest.builder()
+            .baseUri(URI.create("http://localhost:8080"))
+            .method(HTTPRequest.HTTPMethod.GET)
+            .path("v1/namespaces/ns/tables/tbl")
+            .putQueryParameter(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, encoded)
+            .build()
+            .requestUri();
+
+    assertThat(uri.getRawQuery())
+        .isEqualTo(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER + "=" + encoded);
+  }
+
+  @Test
+  public void encodeReferencedByWithoutChain() {
+    String separator = RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
+
+    assertThat(RESTUtil.encodeReferencedBy(null, separator)).isNull();
+    assertThat(RESTUtil.encodeReferencedBy(ImmutableList.of(), separator)).isNull();
+  }
+
+  @Test
+  public void encodeReferencedByEncodesReservedCharacters() {
+    String separator = RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
+
+    // a space is %20 rather than the + that URLEncoder alone would produce
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(TableIdentifier.of(Namespace.of("ns with spaces"), "view/name")),
+                separator))
+        .isEqualTo("ns%20with%20spaces%1Fview%2Fname");
+
+    // a comma inside a view name is encoded, so splitting the chain on bare commas still works
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(TableIdentifier.of(Namespace.of("ns"), "view,name")), separator))
+        .isEqualTo("ns%1Fview%2Cname");
+
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(TableIdentifier.of(Namespace.of("a+b"), "c*d")), separator))
+        .isEqualTo("a%2Bb%1Fc%2Ad");
+
+    // the example given in the referenced-by OpenAPI parameter description
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(
+                    TableIdentifier.of(Namespace.of("prod", "analytics"), "quarterly_view"),
+                    TableIdentifier.of(Namespace.of("prod", "analytics"), "monthly_view")),
+                separator))
+        .isEqualTo("prod%1Fanalytics%1Fquarterly_view,prod%1Fanalytics%1Fmonthly_view");
+  }
+
+  @Test
+  public void encodeReferencedByMatchesParentParamEncoding() {
+    // the spec ties this parameter's encoding to the parent query parameter's rules
+    Namespace namespace = Namespace.of("a b", "c*d", "e+f");
+    String parentValue;
+    try {
+      parentValue =
+          new URIBuilder("http://localhost/v1/namespaces")
+              .addParameter("parent", RESTUtil.namespaceToQueryParam(namespace))
+              .build()
+              .getRawQuery()
+              .substring("parent=".length());
+    } catch (URISyntaxException e) {
+      throw new RuntimeException(e);
+    }
+
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(TableIdentifier.of(namespace, "v")),
+                RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8))
+        .isEqualTo(parentValue + RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8 + "v");
+  }
+
+  @Test
+  public void encodeAsOldClientAndDecodeAsNewServer() {
+    Namespace namespace = Namespace.of("first", "second", "third");
+    // old client would call encodeNamespace with the legacy separator
+    String encodedNamespace =
+        RESTUtil.encodeNamespace(namespace, RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
+    assertThat(encodedNamespace).contains(RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
+
+    // old client would also call namespaceToQueryParam without specifying a separator
+    String namespaceAsUnicode = RESTUtil.namespaceToQueryParam(namespace);
+    assertThat(namespaceAsUnicode).contains("\u001f");
+
+    // newer server would try and decode the namespace with the separator it communicates to clients
+    String separator = "%2E";
+    Namespace decodedNamespace = RESTUtil.decodeNamespace(encodedNamespace, separator);
+    assertThat(decodedNamespace).isEqualTo(namespace);
+
+    // newer server would try and split the namespace with the separator it communicates to clients
+    // but should detect whether the namespace contains the legacy separator
+    assertThat(RESTUtil.namespaceFromQueryParam(namespaceAsUnicode, separator))
+        .isEqualTo(namespace);
   }
 
   @Test
   public void testNamespaceUrlEncodeDecodeDoesNotAllowNull() {
     assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> RESTUtil.encodeNamespace(null))
+        .isThrownBy(
+            () -> RESTUtil.encodeNamespace(null, RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8))
         .withMessage("Invalid namespace: null");
 
     assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> RESTUtil.decodeNamespace(null))
+        .isThrownBy(
+            () -> RESTUtil.decodeNamespace(null, RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8))
         .withMessage("Invalid namespace: null");
   }
 
@@ -113,10 +356,48 @@ public class TestRESTUtil {
   @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
   public void testOAuth2URLEncoding() {
     // from OAuth2, RFC 6749 Appendix B.
+    // encodeString uses form encoding: space -> +
     String utf8 = "\u0020\u0025\u0026\u002B\u00A3\u20AC";
     String expected = "+%25%26%2B%C2%A3%E2%82%AC";
 
     assertThat(RESTUtil.encodeString(utf8)).isEqualTo(expected);
+  }
+
+  @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
+  static Stream<Arguments> pathSegmentEncodingCases() {
+    return Stream.of(
+        Arguments.of("simple", "simple"),
+        Arguments.of("a b", "a%20b"),
+        Arguments.of("a+b", "a%2Bb"),
+        Arguments.of("a/b", "a%2Fb"),
+        Arguments.of("a+b c/d", "a%2Bb%20c%2Fd"),
+        Arguments.of("caf\u00e9", "caf%C3%A9"),
+        Arguments.of("\u0020\u0025\u0026\u002B\u00A3\u20AC", "%20%25%26%2B%C2%A3%E2%82%AC"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("pathSegmentEncodingCases")
+  public void testRoundTripEncodeDecodePathSegment(String input, String expectedEncoded) {
+    String actual = RESTUtil.encodePathSegment(input);
+    assertThat(actual).isEqualTo(expectedEncoded);
+    assertThat(RESTUtil.decodePathSegment(actual)).isEqualTo(input);
+  }
+
+  @Test
+  public void testDecodePathSegmentPreservesPlusSign() {
+    // Both encoded forms are valid
+    assertThat(RESTUtil.decodePathSegment("a%2Bb%2Bc%2Bd")).isEqualTo("a+b+c+d");
+    assertThat(RESTUtil.decodePathSegment("a+b+c+d")).isEqualTo("a+b+c+d");
+  }
+
+  @Test
+  public void testPathSegmentEncodeDecodeNull() {
+    assertThatThrownBy(() -> RESTUtil.encodePathSegment(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid string to encode: null");
+    assertThatThrownBy(() -> RESTUtil.decodePathSegment(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid string to decode: null");
   }
 
   @Test
@@ -211,5 +492,67 @@ public class TestRESTUtil {
         .isEqualTo(Namespace.of("one%1Ftwo%1Fns"));
     assertThat(RESTUtil.namespaceFromQueryParam("one%1Ftwo\u001fns"))
         .isEqualTo(Namespace.of("one%1Ftwo", "ns"));
+  }
+
+  @Test
+  public void nullOrEmptyNamespaceSeparator() {
+    String errorMsg = "Invalid separator: null or empty";
+    assertThatThrownBy(() -> RESTUtil.encodeNamespace(Namespace.empty(), null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.encodeNamespace(Namespace.empty(), ""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.decodeNamespace("namespace", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.decodeNamespace("namespace", ""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.encodeNamespaceAsPathSegment(Namespace.empty(), null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.encodeNamespaceAsPathSegment(Namespace.empty(), ""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.decodeNamespaceAsPathSegment("namespace", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.decodeNamespaceAsPathSegment("namespace", ""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.namespaceToQueryParam(Namespace.empty(), null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.namespaceToQueryParam(Namespace.empty(), ""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.namespaceFromQueryParam("namespace", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.namespaceFromQueryParam("namespace", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    List<TableIdentifier> chain =
+        ImmutableList.of(TableIdentifier.of(Namespace.of("ns"), "viewName"));
+    assertThatThrownBy(() -> RESTUtil.encodeReferencedBy(chain, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.encodeReferencedBy(chain, ""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
   }
 }

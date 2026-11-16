@@ -189,15 +189,17 @@ publish_changes creates a new snapshot from an existing snapshot without alterin
 
 Only append and dynamic overwrite snapshots can be successfully published.
 
+The `publish_changes` procedure will fail if there are multiple snapshots in the table with the provided `wap_id`.
+
 !!! info
     This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
+| Argument Name | Required? | Type   | Description |
+|---------------|-----------|--------|-------------|
 | `table`       | ✔️  | string | Name of the table to update |
-| `wap_id`      | ✔️  | long | The wap_id to be published from stage to prod |
+| `wap_id`      | ✔️  | string | The wap_id to be published from stage to prod |
 
 #### Output
 
@@ -387,7 +389,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Name of the table to update |
 | `strategy`    |    | string | Name of the strategy - binpack or sort. Defaults to binpack strategy |
-| `sort_order`  |    | string | For Zorder use a comma separated list of columns within zorder(). Example: zorder(c1,c2,c3). <br/>Else, Comma separated sort orders in the format (ColumnName SortDirection NullOrder). <br/>Where SortDirection can be ASC or DESC. NullOrder can be NULLS FIRST or NULLS LAST. <br/>Defaults to the table's sort order |
+| `sort_order`  |    | string | For Zorder use a comma separated list of columns within zorder(). Example: zorder(c1,c2,c3). <br/>For Hilbert use a comma separated list of columns within hilbert(). Example: hilbert(c1,c2,c3). <br/>Else, Comma separated sort orders in the format (ColumnName SortDirection NullOrder). <br/>Where SortDirection can be ASC or DESC. NullOrder can be NULLS FIRST or NULLS LAST. <br/>Defaults to the table's sort order |
 | `options`     | ️   | map<string, string> | Options to be used for actions|
 | `where`       | ️   | string | predicate as a string used for filtering the files. Note that all files that may contain data matching the filter will be selected for rewriting|
 
@@ -399,7 +401,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `max-concurrent-file-group-rewrites` | 5 | Maximum number of file groups to be simultaneously rewritten |
 | `partial-progress.enabled` | false | Enable committing groups of files prior to the entire rewrite completing |
 | `partial-progress.max-commits` | 10 | Maximum amount of commits that this rewrite is allowed to produce if partial progress is enabled |
-| `partial-progress.max-failed-commits` | value of `partital-progress.max-commits` | Maximum amount of failed commits allowed before job failure, if partial progress is enabled |
+| `partial-progress.max-failed-commits` | value of `partial-progress.max-commits` | Maximum amount of failed commits allowed before job failure, if partial progress is enabled |
 | `use-starting-sequence-number` | true | Use the sequence number of the snapshot at compaction start time instead of that of the newly produced snapshot |
 | `rewrite-job-order` | none | Force the rewrite job order based on the value. <ul><li>If rewrite-job-order=bytes-asc, then rewrite the smallest job groups first.</li><li>If rewrite-job-order=bytes-desc, then rewrite the largest job groups first.</li><li>If rewrite-job-order=files-asc, then rewrite the job groups with the least files first.</li><li>If rewrite-job-order=files-desc, then rewrite the job groups with the most files first.</li><li>If rewrite-job-order=none, then rewrite job groups in the order they were planned (no specific ordering).</li></ul> |
 | `target-file-size-bytes` | 536870912 (512 MB, default value of `write.target-file-size-bytes` from [table properties](configuration.md#write-properties)) | Target output file size |
@@ -408,11 +410,13 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `min-input-files` | 5 | Any file group with this number of files or more will be rewritten regardless of other criteria (the file group should have at least two files) |
 | `rewrite-all` | false | Force rewriting of all provided files overriding other options |
 | `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
+| `max-file-group-input-files` | 9223372036854775807 | Largest number of input files that should be rewritten in a single file group. When `rewrite-all` is false, if set below `min-input-files`, no group can reach `min-input-files`, so the file-count rewrite trigger never fires; groups are then rewritten only when they meet the size thresholds or contain files exceeding the delete-file/delete-ratio thresholds. |
 | `delete-file-threshold` | 2147483647 | Minimum number of deletes that needs to be associated with a data file for it to be considered for rewriting |
 | `delete-ratio-threshold` | 0.3 | Minimum deletion ratio that needs to be associated with a data file for it to be considered for rewriting |
 | `output-spec-id` | current partition spec id | Identifier of the output partition spec. Data will be reorganized during the rewrite to align with the output partitioning. |
 | `remove-dangling-deletes` | false | Remove dangling position and equality deletes after rewriting. A delete file is considered dangling if it does not apply to any live data files. Enabling this will generate an additional commit for the removal. |
 | `max-files-to-rewrite` | null | This option sets an upper limit on the number of eligible files that will be rewritten. If this option is not specified, all eligible files will be rewritten. |
+| `cache-delete-files` | false | Use the executor cache for delete files while rewriting. Enable this when the same delete file applies to many data files, which is common with equality deletes |
 
 !!! info
     Dangling delete files are removed based solely on data sequence numbers. This action does not apply to global
@@ -432,6 +436,16 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 |------|---------------|-------------|
 | `var-length-contribution` | 8 | Number of bytes considered from an input column of a type with variable length (String, Binary) |
 | `max-output-size` | 2147483647 | Amount of bytes interleaved in the ZOrder algorithm |
+
+##### Options for sort strategy with hilbert sort_order
+
+The Hilbert sort order accepts the [general options](#general-options) and the
+[sort strategy options](#options-for-sort-strategy), but has no options of its own. Unlike ZOrder,
+every column contributes its full primitive width (8 bytes) to the Hilbert index, so
+`var-length-contribution` and `max-output-size` do not apply.
+
+Note that `hilbert()` and `zorder()` cannot be combined with each other, nor with plain column sort
+orders, in a single `sort_order`.
 
 #### Output
 
@@ -463,6 +477,12 @@ Using the same defaults as bin-pack to determine which files to rewrite.
 CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', sort_order => 'zorder(c1,c2)');
 ```
 
+Rewrite the data files in table `db.sample` by clustering on a Hilbert curve over columns c1 and c2.
+Using the same defaults as bin-pack to determine which files to rewrite.
+```sql
+CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', sort_order => 'hilbert(c1,c2)');
+```
+
 Rewrite the data files in table `db.sample` using bin-pack strategy in any partition where at least two files need rewriting, and then remove any dangling delete files.
 ```sql
 CALL catalog_name.system.rewrite_data_files(table => 'db.sample', options => map('min-input-files', '2', 'remove-dangling-deletes', 'true'));
@@ -489,6 +509,7 @@ Data files in manifests are sorted by fields in the partition spec. This procedu
 | `table`       | ✔️  | string | Name of the table to update                                   |
 | `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to false). Enabling caching can increase memory footprint on executors. |
 | `spec_id`     | ️   | int | Spec id of the manifests to rewrite (defaults to current spec id) |
+| `sort_by`     | ️   | array<string> | List of partition transform names to cluster manifests by. Choosing frequently queried partition transforms can reduce planning time by skipping unnecessary manifests. If not set, manifests will be sorted by all partition transforms in spec order. |
 
 #### Output
 
@@ -509,12 +530,18 @@ Rewrite the manifests on the partition spec `1` in table `db.sample`.
 CALL catalog_name.system.rewrite_manifests(table => 'db.sample', spec_id => 1);
 ```
 
+Rewrite the manifests in table `db.sample` and cluster manifest entries by partition field `category`.
+This can improve scan planning performance when queries frequently filter on `category`.
+```sql
+CALL catalog_name.system.rewrite_manifests(table => 'db.sample', sort_by => array('category'));
+```
+
 ### `rewrite_position_delete_files`
 
 Iceberg can rewrite position delete files, which serves two purposes:
 
 * Minor Compaction: Compact small position delete files into larger ones.  This reduces the size of metadata stored in manifest files and overhead of opening small delete files.
-* Remove Dangling Deletes: Filter out position delete records that refer to data files that are no longer live.  After rewrite_data_files, position delete records pointing to the rewritten data files are not always marked for removal, and can remain tracked by the table's live snapshot metadata.  This is known as the 'dangling delete' problem.
+* Filter Dangling Records: When a position delete file is selected for rewriting, discard records that reference data files that are no longer live.
 
 #### Usage
 
@@ -524,7 +551,7 @@ Iceberg can rewrite position delete files, which serves two purposes:
 | `options`     | ️   | map<string, string> | Options to be used for procedure |
 | `where`       | ️   | string | predicate as a string used for filtering the files. |
 
-Dangling deletes are always filtered out during rewriting.
+Dangling records are filtered from position delete files selected for rewriting.
 
 #### Options
 
@@ -540,6 +567,7 @@ Dangling deletes are always filtered out during rewriting.
 | `min-input-files` | 5 | Any file group exceeding this number of files will be rewritten regardless of other criteria |
 | `rewrite-all` | false | Force rewriting of all provided files overriding other options |
 | `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
+| `max-file-group-input-files` | 9223372036854775807 | Largest number of input files that should be rewritten in a single file group. When `rewrite-all` is false, if set below `min-input-files`, no group can reach `min-input-files`, so the file-count rewrite trigger never fires and groups are rewritten only when they meet the size thresholds. |
 | `max-files-to-rewrite` | null | This option sets an upper limit on the number of eligible files that will be rewritten. If this option is not specified, all eligible files will be rewritten. |
 
 #### Output
@@ -600,6 +628,7 @@ See [`migrate`](#migrate) to replace an existing table with an Iceberg table.
 | `location`    |    | string | Table location for the new table (delegated to the catalog by default) |
 | `properties`  | ️   | map<string, string> | Properties to add to the newly created table |
 | `parallelism` |    | int | Number of threads to use for file reading (defaults to 1) |
+| `ignore_missing_files` |  | boolean | When true, skip source data files that cannot be found instead of failing (defaults to false) |
 
 #### Output
 
@@ -628,6 +657,7 @@ Replace a table with an Iceberg table, loaded with the source's data files.
 Table schema, partitioning, properties, and location will be copied from the source table.
 
 Migrate will fail if any table partition uses an unsupported format. Supported formats are Avro, Parquet, and ORC.
+Migrate will also fail if the table is bucketed, as the bucketing will not be preserved.
 Existing data files are added to the Iceberg table's metadata and can be read using a name-to-id mapping created from the original table schema.
 
 To leave the original table intact while testing, use [`snapshot`](#snapshot) to create new temporary table that shares source data files and schema.
@@ -643,6 +673,7 @@ By default, the original table is retained with the name `table_BACKUP_`.
 | `drop_backup` |   | boolean | When true, the original table will not be retained as backup (defaults to false) |
 | `backup_table_name` |  | string | Name of the table that will be retained as backup (defaults to `table_BACKUP_`) |
 | `parallelism` |   | int | Number of threads to use for file reading (defaults to 1) |
+| `ignore_missing_files` |  | boolean | When true, skip source data files that cannot be found instead of failing (defaults to false) |
 
 #### Output
 
@@ -940,7 +971,7 @@ as an `UPDATE_AFTER` image, resulting in the following pre/post update images:
 ### `compute_table_stats`
 
 This procedure calculates the [Number of Distinct Values (NDV) statistics](../../puffin-spec.md#apache-datasketches-theta-v1-blob-type) for a specific table.
-By default, statistics are computed for all columns using the table's current snapshot.
+By default, statistics are computed for all top-level primitive columns using the table's current snapshot.
 The procedure can be optionally configured to compute statistics for a specific snapshot and/or a subset of columns.
 
 | Argument Name | Required? | Type          | Description                         |
@@ -1014,7 +1045,7 @@ Stages a copy of the Iceberg table's metadata files where every absolute path so
 This can be the starting point to fully or incrementally copy an Iceberg table to a new location.
 
 !!! info
-    This procedure only stages rewritten metadata files and prepares a list of files to copy. The actual file copy is not included in this procedure.
+    This procedure writes metadata and position delete files with updated paths to a staging directory and prepares a list of files to copy. It does not copy files to the target location.
 
 | Argument Name      | Required? | default                                        | Type   | Description                                                            |
 |--------------------|-----------|------------------------------------------------|--------|------------------------------------------------------------------------|

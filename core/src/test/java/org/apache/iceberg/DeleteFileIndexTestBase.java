@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import org.apache.iceberg.DeleteFileIndex.EqualityDeletes;
 import org.apache.iceberg.DeleteFileIndex.PositionDeletes;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -39,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.junit.jupiter.api.TestTemplate;
@@ -90,7 +92,7 @@ public abstract class DeleteFileIndexTestBase<
         .build();
   }
 
-  private static DeleteFile posDeletesWithMetrics(PartitionSpec spec, String path) {
+  static DeleteFile posDeletesWithMetrics(PartitionSpec spec, String lowerPath, String upperPath) {
     return FileMetadata.deleteFileBuilder(spec)
         .ofPositionDeletes()
         .withPath(UUID.randomUUID() + "/path/to/data-partitioned-pos-deletes.parquet")
@@ -107,12 +109,12 @@ public abstract class DeleteFileIndexTestBase<
                     1,
                     ByteBuffer.wrap(new byte[10]),
                     MetadataColumns.DELETE_FILE_PATH.fieldId(),
-                    ByteBuffer.wrap(path.getBytes(StandardCharsets.UTF_8))),
+                    ByteBuffer.wrap(lowerPath.getBytes(StandardCharsets.UTF_8))),
                 ImmutableMap.of(
                     1,
                     ByteBuffer.wrap(new byte[10]),
                     MetadataColumns.DELETE_FILE_PATH.fieldId(),
-                    ByteBuffer.wrap(path.getBytes(StandardCharsets.UTF_8)))))
+                    ByteBuffer.wrap(upperPath.getBytes(StandardCharsets.UTF_8)))))
         .build();
   }
 
@@ -602,45 +604,6 @@ public abstract class DeleteFileIndexTestBase<
   }
 
   @TestTemplate
-  public void testPositionDeleteDiscardMetrics() {
-    assumeThat(formatVersion).isEqualTo(2);
-
-    Table table =
-        TestTables.create(tableDir, "partitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
-
-    table.newAppend().appendFile(FILE_A).commit();
-
-    // add a delete file
-    DeleteFile posDeletesWithMetrics = posDeletesWithMetrics(table.spec(), FILE_A.location());
-    table.newRowDelta().addDeletes(posDeletesWithMetrics).commit();
-
-    List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
-    assertThat(tasks).as("Should have one task").hasSize(1);
-
-    FileScanTask task = (FileScanTask) tasks.get(0);
-    assertThat(task.file().location())
-        .as("Should have the correct data file path")
-        .isEqualTo(FILE_A.location());
-    assertThat(task.deletes()).as("Should have one associated delete file").hasSize(1);
-
-    // verify scanned delete file only contains metrics for 'file_path' field
-    int fieldId = MetadataColumns.DELETE_FILE_PATH.fieldId();
-    DeleteFile deleteFile = task.deletes().get(0);
-    assertThat(deleteFile.columnSizes()).containsExactly(Map.entry(fieldId, 2L));
-    assertThat(deleteFile.valueCounts()).containsExactly(Map.entry(fieldId, 2L));
-    assertThat(deleteFile.nullValueCounts()).containsExactly(Map.entry(fieldId, 2L));
-    assertThat(deleteFile.nanValueCounts()).containsExactly(Map.entry(fieldId, 2L));
-    assertThat(deleteFile.lowerBounds())
-        .containsExactly(
-            Map.entry(
-                fieldId, ByteBuffer.wrap(FILE_A.location().getBytes(StandardCharsets.UTF_8))));
-    assertThat(deleteFile.upperBounds())
-        .containsExactly(
-            Map.entry(
-                fieldId, ByteBuffer.wrap(FILE_A.location().getBytes(StandardCharsets.UTF_8))));
-  }
-
-  @TestTemplate
   public void testEqualityDeleteDiscardMetrics() {
     Table table = TestTables.create(tableDir, "partitioned", SCHEMA, SPEC, formatVersion);
 
@@ -717,11 +680,12 @@ public abstract class DeleteFileIndexTestBase<
     DeleteFile file3 = withDataSequenceNumber(3, partitionedEqDeletes(SPEC, FILE_A.partition()));
     DeleteFile file4 = withDataSequenceNumber(4, partitionedEqDeletes(SPEC, FILE_A.partition()));
 
-    EqualityDeletes group = new EqualityDeletes();
-    group.add(SPEC, file4);
-    group.add(SPEC, file2);
-    group.add(SPEC, file1);
-    group.add(SPEC, file3);
+    Function<Integer, Types.NestedField> fieldLookup = SCHEMA::findField;
+    EqualityDeletes group = new EqualityDeletes(fieldLookup);
+    group.add(file4);
+    group.add(file2);
+    group.add(file1);
+    group.add(file3);
 
     // the group must not be empty
     assertThat(group.isEmpty()).isFalse();
@@ -741,7 +705,7 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(group.filter(4, FILE_A)).isEqualTo(new DeleteFile[] {});
 
     // it should not be possible to add more elements upon indexing
-    assertThatThrownBy(() -> group.add(SPEC, file1))
+    assertThatThrownBy(() -> group.add(file1))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Can't add files upon indexing");
   }

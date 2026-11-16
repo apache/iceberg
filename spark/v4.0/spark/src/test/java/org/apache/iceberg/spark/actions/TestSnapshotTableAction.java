@@ -18,7 +18,11 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_HADOOP;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -33,6 +37,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSnapshotTableAction extends CatalogTestBase {
   private static final String SOURCE_NAME = "spark_catalog.default.source";
+  private static final String SOURCE = "source";
 
   @AfterEach
   public void removeTables() {
@@ -64,5 +69,93 @@ public class TestSnapshotTableAction extends CatalogTestBase {
                 }))
         .execute();
     assertThat(snapshotThreadsIndex.get()).isEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testSnapshotWithOverlappingLocation() throws IOException {
+    //  Hadoop Catalogs do not Support Custom Table Locations
+    String catalogType = catalogConfig.get(ICEBERG_CATALOG_TYPE);
+    assumeThat(catalogType).isNotEqualTo(ICEBERG_CATALOG_TYPE_HADOOP);
+
+    String sourceLocation =
+        Files.createTempDirectory(temp, "junit").resolve(SOURCE).toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        SOURCE_NAME, sourceLocation);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", SOURCE_NAME);
+    String actualSourceLocation =
+        spark
+            .sql(String.format("DESCRIBE EXTENDED %s", SOURCE_NAME))
+            .filter("col_name = 'Location'")
+            .select("data_type")
+            .first()
+            .getString(0);
+
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .snapshotTable(SOURCE_NAME)
+                    .as(tableName)
+                    .tableLocation(actualSourceLocation)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            "The snapshot table location cannot be same as the source table location.");
+
+    String destAsSubdirectory = actualSourceLocation + "/nested";
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .snapshotTable(SOURCE_NAME)
+                    .as(tableName)
+                    .tableLocation(destAsSubdirectory)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot create a snapshot at location");
+
+    String parentLocation =
+        actualSourceLocation.substring(0, actualSourceLocation.length() - ("/" + SOURCE).length());
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .snapshotTable(SOURCE_NAME)
+                    .as(tableName)
+                    .tableLocation(parentLocation)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot create a snapshot at location");
+  }
+
+  @TestTemplate
+  public void testSnapshotWithNonOverlappingLocation() throws IOException {
+    //  Hadoop Catalogs do not Support Custom Table Locations
+    String catalogType = catalogConfig.get(ICEBERG_CATALOG_TYPE);
+    assumeThat(catalogType).isNotEqualTo(ICEBERG_CATALOG_TYPE_HADOOP);
+
+    String sourceLocation =
+        Files.createTempDirectory(temp, "junit").resolve(SOURCE).toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        SOURCE_NAME, sourceLocation);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", SOURCE_NAME);
+    String actualSourceLocation =
+        spark
+            .sql(String.format("DESCRIBE EXTENDED %s", SOURCE_NAME))
+            .filter("col_name = 'Location'")
+            .select("data_type")
+            .first()
+            .getString(0);
+
+    String validDestLocation =
+        actualSourceLocation.substring(0, actualSourceLocation.length() - SOURCE.length())
+            + "newDestination";
+    SparkActions.get()
+        .snapshotTable(SOURCE_NAME)
+        .as(tableName)
+        .tableLocation(validDestLocation)
+        .execute();
+    assertThat(sql("SELECT * FROM %s", tableName)).hasSize(2);
   }
 }

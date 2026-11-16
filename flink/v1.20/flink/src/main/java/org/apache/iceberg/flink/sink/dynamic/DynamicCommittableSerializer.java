@@ -31,11 +31,13 @@ import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
  */
 class DynamicCommittableSerializer implements SimpleVersionedSerializer<DynamicCommittable> {
 
-  private static final int VERSION = 1;
+  private static final int VERSION_1 = 1;
+  private static final int VERSION_2 = 2;
+  private static final int VERSION_3 = 3;
 
   @Override
   public int getVersion() {
-    return VERSION;
+    return VERSION_3;
   }
 
   @Override
@@ -44,28 +46,81 @@ class DynamicCommittableSerializer implements SimpleVersionedSerializer<DynamicC
     DataOutputViewStreamWrapper view = new DataOutputViewStreamWrapper(out);
     committable.key().serializeTo(view);
     view.writeUTF(committable.jobId());
+    view.writeUTF(committable.sinkId());
     view.writeUTF(committable.operatorId());
     view.writeLong(committable.checkpointId());
-    view.writeInt(committable.manifest().length);
-    view.write(committable.manifest());
+
+    int numManifests = committable.manifests().length;
+    view.writeInt(numManifests);
+    for (int i = 0; i < numManifests; i++) {
+      byte[] manifest = committable.manifests()[i];
+      view.writeInt(manifest.length);
+      view.write(manifest);
+    }
+
     return out.toByteArray();
   }
 
   @Override
   public DynamicCommittable deserialize(int version, byte[] serialized) throws IOException {
-    if (version == 1) {
-      DataInputDeserializer view = new DataInputDeserializer(serialized);
-      WriteTarget key = WriteTarget.deserializeFrom(view);
-      String jobId = view.readUTF();
-      String operatorId = view.readUTF();
-      long checkpointId = view.readLong();
-      int manifestLen = view.readInt();
-      byte[] manifestBuf;
-      manifestBuf = new byte[manifestLen];
-      view.read(manifestBuf);
-      return new DynamicCommittable(key, manifestBuf, jobId, operatorId, checkpointId);
+    if (version == VERSION_1) {
+      return deserializeV1(serialized);
+    } else if (version == VERSION_2) {
+      return deserializeV2(serialized);
+    } else if (version == VERSION_3) {
+      return deserializeV3(serialized);
     }
 
     throw new IOException("Unrecognized version or corrupt state: " + version);
+  }
+
+  private DynamicCommittable deserializeV1(byte[] serialized) throws IOException {
+    DataInputDeserializer view = new DataInputDeserializer(serialized);
+    WriteTarget key = WriteTarget.deserializeFrom(view);
+    String jobId = view.readUTF();
+    String operatorId = view.readUTF();
+    long checkpointId = view.readLong();
+    int manifestLen = view.readInt();
+    byte[] manifestBuf = new byte[manifestLen];
+    view.read(manifestBuf);
+    return new DynamicCommittable(
+        new TableKey(key.tableName(), key.branch()),
+        new byte[][] {manifestBuf},
+        jobId,
+        jobId,
+        operatorId,
+        checkpointId);
+  }
+
+  private DynamicCommittable deserializeV2(byte[] serialized) throws IOException {
+    DataInputDeserializer view = new DataInputDeserializer(serialized);
+    TableKey key = TableKey.deserializeFrom(view);
+    String jobId = view.readUTF();
+    String operatorId = view.readUTF();
+    long checkpointId = view.readLong();
+    byte[][] manifests = readManifests(view);
+    return new DynamicCommittable(key, manifests, jobId, jobId, operatorId, checkpointId);
+  }
+
+  private DynamicCommittable deserializeV3(byte[] serialized) throws IOException {
+    DataInputDeserializer view = new DataInputDeserializer(serialized);
+    TableKey key = TableKey.deserializeFrom(view);
+    String jobId = view.readUTF();
+    String sinkId = view.readUTF();
+    String operatorId = view.readUTF();
+    long checkpointId = view.readLong();
+    byte[][] manifests = readManifests(view);
+    return new DynamicCommittable(key, manifests, jobId, sinkId, operatorId, checkpointId);
+  }
+
+  private static byte[][] readManifests(DataInputDeserializer view) throws IOException {
+    byte[][] manifestsBuf = new byte[view.readInt()][];
+    for (int i = 0; i < manifestsBuf.length; i++) {
+      byte[] manifest = new byte[view.readInt()];
+      view.read(manifest);
+      manifestsBuf[i] = manifest;
+    }
+
+    return manifestsBuf;
   }
 }
