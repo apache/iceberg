@@ -22,6 +22,7 @@ import org.apache.iceberg.spark.SupportsReplaceView
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.NoSuchViewException
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException
+import org.apache.spark.sql.catalyst.analysis.ViewUtil
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.ViewCatalog
@@ -55,7 +56,8 @@ case class CreateV2ViewExec(
       comment.map(ViewCatalog.PROP_COMMENT -> _) ++
       Map(
         ViewCatalog.PROP_CREATE_ENGINE_VERSION -> engineVersion,
-        ViewCatalog.PROP_ENGINE_VERSION -> engineVersion)
+        ViewCatalog.PROP_ENGINE_VERSION -> engineVersion) ++
+      ViewUtil.capturedSqlConfigs(session.sessionState.conf)
 
     if (replace) {
       // CREATE OR REPLACE VIEW

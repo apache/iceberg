@@ -21,12 +21,20 @@ package org.apache.iceberg.spark;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
 import java.util.Collections;
+import java.util.List;
+import org.apache.iceberg.catalog.LoadContext;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
@@ -127,6 +135,83 @@ public class TestSparkSessionCatalog extends TestBase {
     catalog.setDelegateCatalog(sessionCatalog);
 
     assertThat(catalog.listViews("default")).containsExactly(viewIdent);
+  }
+
+  @Test
+  void loadTableWithReferencedByFailsWhenCatalogCannotPassContext() {
+    Identifier ident = Identifier.of(new String[] {"default"}, "table");
+    TableCatalog icebergCatalog = icebergCatalogWithViews();
+    SparkSessionCatalog<?> catalog = catalogWithViews(icebergCatalog, sessionCatalogWithViews());
+    LoadContext context =
+        LoadContext.builder().referencedBy(List.of(TableIdentifier.of("default", "view"))).build();
+
+    assertThatThrownBy(() -> catalog.loadTable(ident, context))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(
+            "Cannot load table default.table with referenced-by: %s does not support load context",
+            icebergCatalog.getClass().getName());
+  }
+
+  @Test
+  void loadTableWithoutReferencedByUsesCatalogWithoutContext() throws NoSuchTableException {
+    Identifier ident = Identifier.of(new String[] {"default"}, "table");
+    TableCatalog icebergCatalog = icebergCatalogWithViews();
+    SparkSessionCatalog<?> catalog = catalogWithViews(icebergCatalog, sessionCatalogWithViews());
+
+    catalog.loadTable(ident, LoadContext.empty());
+
+    verify(icebergCatalog).loadTable(ident);
+  }
+
+  @Test
+  void loadViewWithReferencedByDoesNotCheckExistenceWithoutContext() throws NoSuchViewException {
+    Identifier ident = Identifier.of(new String[] {"default"}, "view");
+    TableCatalog icebergCatalog =
+        mock(
+            TableCatalog.class,
+            withSettings().extraInterfaces(ViewCatalog.class, SparkSupportsLoadContext.class));
+    SparkSessionCatalog<?> catalog = catalogWithViews(icebergCatalog, sessionCatalogWithViews());
+    LoadContext context =
+        LoadContext.builder().referencedBy(List.of(TableIdentifier.of("default", "outer"))).build();
+
+    catalog.loadView(ident, context);
+
+    verify((SparkSupportsLoadContext) icebergCatalog).loadView(ident, context);
+    verify((ViewCatalog) icebergCatalog, never()).viewExists(any());
+  }
+
+  private static TableCatalog sessionCatalogWithViews() {
+    return mock(
+        TableCatalog.class,
+        withSettings()
+            .extraInterfaces(FunctionCatalog.class, SupportsNamespaces.class, ViewCatalog.class));
+  }
+
+  private static TableCatalog icebergCatalogWithViews() {
+    return mock(TableCatalog.class, withSettings().extraInterfaces(ViewCatalog.class));
+  }
+
+  private static SparkSessionCatalog<?> catalogWithViews(
+      TableCatalog icebergCatalog, TableCatalog sessionCatalog) {
+    SparkSessionCatalog<?> catalog = new CatalogWithIcebergViews<>(icebergCatalog);
+    catalog.initialize("spark_catalog", new CaseInsensitiveStringMap(Collections.emptyMap()));
+    catalog.setDelegateCatalog(sessionCatalog);
+    return catalog;
+  }
+
+  private static class CatalogWithIcebergViews<
+          T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
+      extends SparkSessionCatalog<T> {
+    private final TableCatalog icebergCatalog;
+
+    private CatalogWithIcebergViews(TableCatalog icebergCatalog) {
+      this.icebergCatalog = icebergCatalog;
+    }
+
+    @Override
+    protected TableCatalog buildSparkCatalog(String name, CaseInsensitiveStringMap options) {
+      return icebergCatalog;
+    }
   }
 
   private static class NoViewCatalog<
