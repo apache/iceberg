@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.source.lookup;
 
+import java.util.List;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.Configuration;
@@ -26,12 +28,19 @@ import org.apache.flink.table.connector.source.lookup.LookupOptions.LookupCacheT
 import org.apache.flink.table.connector.source.lookup.cache.trigger.CacheReloadTrigger;
 import org.apache.flink.table.connector.source.lookup.cache.trigger.PeriodicCacheReloadTrigger;
 import org.apache.flink.table.connector.source.lookup.cache.trigger.TimedCacheReloadTrigger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Internal
 public class FullCacheReloadTriggerFactory {
 
+  private static final Logger LOG = LoggerFactory.getLogger(FullCacheReloadTriggerFactory.class);
+
+  private static final String FULL_CACHE_PREFIX = "lookup.full-cache.";
+
   public static @Nullable CacheReloadTrigger create(Configuration lookupConf) {
     if (!lookupConf.contains(LookupOptions.FULL_CACHE_RELOAD_STRATEGY)) {
+      warnIgnoredOptions(lookupConf);
       return null;
     }
 
@@ -42,6 +51,20 @@ public class FullCacheReloadTriggerFactory {
       case PERIODIC -> PeriodicCacheReloadTrigger.fromConfig(triggerConf);
       case TIMED -> TimedCacheReloadTrigger.fromConfig(triggerConf);
     };
+  }
+
+  private static void warnIgnoredOptions(Configuration lookupConf) {
+    List<String> ignored =
+        lookupConf.keySet().stream()
+            .filter(key -> key.startsWith(FULL_CACHE_PREFIX))
+            .sorted()
+            .collect(Collectors.toList());
+    if (!ignored.isEmpty()) {
+      LOG.warn(
+          "Full cache will not be reloaded: {} is not set, so {} will be ignored",
+          LookupOptions.FULL_CACHE_RELOAD_STRATEGY.key(),
+          ignored);
+    }
   }
 
   private FullCacheReloadTriggerFactory() {}
