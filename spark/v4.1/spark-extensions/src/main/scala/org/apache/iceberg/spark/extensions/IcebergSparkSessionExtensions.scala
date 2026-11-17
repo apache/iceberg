@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions
 
 import org.apache.spark.sql.SparkSessionExtensions
+import org.apache.spark.sql.catalyst.analysis.ApplyReadRestrictions
 import org.apache.spark.sql.catalyst.analysis.CheckViews
 import org.apache.spark.sql.catalyst.analysis.ResolveBranch
 import org.apache.spark.sql.catalyst.analysis.ResolveViews
@@ -34,6 +35,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
 
     // analyzer extensions
     extensions.injectResolutionRule { spark => ResolveViews(spark) }
+    extensions.injectResolutionRule { spark => ApplyReadRestrictions(spark) }
     extensions.injectPostHocResolutionRule { spark => ResolveBranch(spark) }
     extensions.injectCheckRule(_ => CheckViews)
 
