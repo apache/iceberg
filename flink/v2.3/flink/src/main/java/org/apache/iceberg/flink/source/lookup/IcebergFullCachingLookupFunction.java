@@ -78,7 +78,8 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
   private transient Table table;
   private transient IcebergLookupReader reader;
   private transient RowDataSerializer rowSerializer;
-  private transient RowDataSerializer keySerializer;
+  private transient RowDataSerializer lookupKeySerializer;
+  private transient RowDataSerializer loadKeySerializer;
   private transient RowData.FieldGetter[] keyGetters;
   private transient volatile InMemoryLookupCache cache;
   private transient volatile Throwable reloadFailure;
@@ -164,7 +165,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
       currentCache = cache;
     }
 
-    List<RowData> hit = currentCache.get(keySerializer.toBinaryRow(keyRow));
+    List<RowData> hit = currentCache.get(lookupKeySerializer.toBinaryRow(keyRow));
     if (hit == null) {
       missCounter.inc();
       return Collections.emptyList();
@@ -279,7 +280,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
       key.setField(i, keyGetters[i].getFieldOrNull(row));
     }
 
-    return keySerializer.toBinaryRow(key).copy();
+    return loadKeySerializer.toBinaryRow(key).copy();
   }
 
   private void createAccessors() {
@@ -292,7 +293,8 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
     }
 
     this.rowSerializer = new RowDataSerializer(projectedRowType);
-    this.keySerializer = new RowDataSerializer(keyTypes);
+    this.lookupKeySerializer = new RowDataSerializer(keyTypes);
+    this.loadKeySerializer = new RowDataSerializer(keyTypes);
   }
 
   private void checkReloadFailure() throws IOException {
