@@ -52,6 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -475,10 +476,11 @@ class TestFilePlanner {
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.path())));
 
     FileIO io = Mockito.spy(fileIO);
+    Map<String, InputFile> inputFiles = trackInputFiles(io);
     new FilePlanner(io, root, TABLE_SCHEMA, UNPARTITIONED_SPECS).planFiles().close();
 
     Mockito.verify(io).newInputFile(root.path());
-    Mockito.verify(io, Mockito.never()).newInputFile(leaf.path());
+    assertNotOpened(inputFiles, leaf.path());
   }
 
   @ParameterizedTest
@@ -498,6 +500,7 @@ class TestFilePlanner {
             ImmutableList.of(dataManifest(leaf1.path()), dataManifest(leaf2.path())));
 
     FileIO io = Mockito.spy(fileIO);
+    Map<String, InputFile> inputFiles = trackInputFiles(io);
     FilePlanner planner =
         new FilePlanner(io, root, TABLE_SCHEMA, UNPARTITIONED_SPECS).planWith(null);
 
@@ -505,14 +508,14 @@ class TestFilePlanner {
       CloseableIterator<FileScanTask> tasks = plan.iterator();
 
       assertThat(tasks.next().file().location()).isEqualTo(FILE_A);
-      Mockito.verify(io).newInputFile(leaf1.path());
-      Mockito.verify(io, Mockito.never()).newInputFile(leaf2.path());
+      assertOpened(inputFiles, leaf1.path());
+      assertNotOpened(inputFiles, leaf2.path());
 
       assertThat(tasks.next().file().location()).isEqualTo(FILE_B);
-      Mockito.verify(io, Mockito.never()).newInputFile(leaf2.path());
+      assertNotOpened(inputFiles, leaf2.path());
 
       assertThat(tasks.next().file().location()).isEqualTo(FILE_C);
-      Mockito.verify(io).newInputFile(leaf2.path());
+      assertOpened(inputFiles, leaf2.path());
       assertThat(tasks).isExhausted();
     }
   }
@@ -556,6 +559,9 @@ class TestFilePlanner {
     assertThat(metrics.skippedDataManifests().value())
         .as("the pruned leaf is counted as a skipped data manifest")
         .isEqualTo(1L);
+    assertThat(metrics.totalDataManifests().value())
+        .as("every data manifest is counted: the root plus all four leaf refs")
+        .isEqualTo(5L);
   }
 
   @ParameterizedTest
@@ -577,6 +583,8 @@ class TestFilePlanner {
   @FieldSource("MANIFEST_FORMATS")
   void v3ManifestLeafUnsupported(FileFormat format) throws IOException {
     String leafLocation = "s3://bucket/db/table/v3-leaf." + format.name().toLowerCase(Locale.ROOT);
+    // the leaf's InputFile is created before the format version is validated, so it must exist
+    fileIO.addFile(leafLocation, new byte[0]);
     TrackedFile v3Leaf =
         manifestRef(FileContent.DATA_MANIFEST, leafLocation, manifestInfo(1, 0, 0, 0, 0));
     ManifestFile root = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(v3Leaf));
@@ -626,6 +634,9 @@ class TestFilePlanner {
     assertThat(metrics.skippedDataManifests().value())
         .as("the pruned leaf ref is skipped")
         .isEqualTo(1L);
+    assertThat(metrics.totalDataManifests().value())
+        .as("every data manifest is counted: the root plus both leaf refs")
+        .isEqualTo(3L);
     assertThat(metrics.skippedDataFiles().value())
         .as("the pruned root and leaf data files are skipped")
         .isEqualTo(2L);
@@ -652,6 +663,37 @@ class TestFilePlanner {
     FilePlanner planner = configure.apply(new FilePlanner(fileIO, root, TABLE_SCHEMA, specsById));
     try (CloseableIterable<FileScanTask> tasks = planner.planFiles()) {
       return Lists.newArrayList(tasks);
+    }
+  }
+
+  private static Map<String, InputFile> trackInputFiles(FileIO io) {
+    Map<String, InputFile> inputFiles = Maps.newHashMap();
+    Mockito.doAnswer(
+            invocation -> {
+              String location = invocation.getArgument(0);
+              InputFile existing = inputFiles.get(location);
+              if (existing != null) {
+                return existing;
+              }
+
+              InputFile file = Mockito.spy((InputFile) invocation.callRealMethod());
+              inputFiles.put(location, file);
+              return file;
+            })
+        .when(io)
+        .newInputFile(Mockito.anyString());
+    return inputFiles;
+  }
+
+  private static void assertOpened(Map<String, InputFile> inputFiles, String location) {
+    assertThat(inputFiles).as("InputFile should be created for %s", location).containsKey(location);
+    Mockito.verify(inputFiles.get(location), Mockito.atLeastOnce()).newStream();
+  }
+
+  private static void assertNotOpened(Map<String, InputFile> inputFiles, String location) {
+    InputFile file = inputFiles.get(location);
+    if (file != null) {
+      Mockito.verify(file, Mockito.never()).newStream();
     }
   }
 
@@ -710,7 +752,6 @@ class TestFilePlanner {
         STATS_TYPE.fieldType(fieldName).asStructType(),
         lower,
         upper,
-        true, // tightBounds
         RECORD_COUNT,
         0, // nullValueCount
         0, // nanValueCount

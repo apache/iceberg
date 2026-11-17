@@ -47,6 +47,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.StandardEncryptionManager.FileEncryptionKeys;
 import org.apache.iceberg.events.CreateSnapshotEvent;
@@ -67,8 +68,8 @@ import org.apache.iceberg.metrics.Timer.Timed;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.util.Exceptions;
 import org.apache.iceberg.util.PropertyUtil;
@@ -88,7 +89,7 @@ import org.slf4j.LoggerFactory;
 abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotProducer.class);
   static final int MIN_FILE_GROUP_SIZE = 10_000;
-  static final Set<ManifestFile> EMPTY_SET = Sets.newHashSet();
+  static final Set<String> EMPTY_SET = ImmutableSet.of();
 
   /** Default callback used to delete files. */
   private final Consumer<String> defaultDelete =
@@ -108,7 +109,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final String commitUUID = UUID.randomUUID().toString();
   private final AtomicInteger manifestCount = new AtomicInteger(0);
   private final AtomicInteger attempt = new AtomicInteger(0);
-  private final List<String> manifestLists = Lists.newArrayList();
+  private final Map<String, Set<String>> manifestsByManifestList = Maps.newHashMap();
   private final long targetManifestSizeBytes;
   private final FileFormat manifestFormat;
   private final Map<String, String> manifestWriterProps;
@@ -265,7 +266,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    *
    * @param committed a set of manifest paths that were actually committed
    */
-  protected abstract void cleanUncommitted(Set<ManifestFile> committed);
+  protected abstract void cleanUncommitted(Set<String> committed);
 
   /**
    * A string that describes the action that produced the new snapshot.
@@ -318,8 +319,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             base.nextRowId());
 
     try (writer) {
-      // keep track of the manifest lists created
-      manifestLists.add(manifestList.location());
+      // keep track of the manifest lists created and the manifests they reference
+      manifestsByManifestList.put(
+          manifestList.location(),
+          manifests.stream().map(ManifestFile::path).collect(Collectors.toSet()));
 
       ManifestFile[] manifestFiles = new ManifestFile[manifests.size()];
 
@@ -369,6 +372,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         summary(base),
         base.currentSchemaId(),
         manifestList.location(),
+        null, // rootManifest
         nextRowId,
         assignedRows,
         manifestListEncryptionKeys != null ? manifestListEncryptionKeys.fileKey().keyId() : null);
@@ -555,11 +559,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         Snapshot saved = ops.refresh().snapshot(newSnapshotId.get());
         if (saved != null) {
           if (cleanupAfterCommit()) {
-            cleanUncommitted(Sets.newHashSet(saved.allManifests(ops.io())));
+            cleanUncommitted(committedManifestPaths(saved));
           }
 
           // also clean up unused manifest lists created by multiple attempts
-          for (String manifestList : manifestLists) {
+          for (String manifestList : manifestsByManifestList.keySet()) {
             if (!saved.manifestListLocation().equals(manifestList)) {
               deleteFile(manifestList);
             }
@@ -610,11 +614,32 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected void cleanAll() {
-    for (String manifestList : manifestLists) {
+    for (String manifestList : manifestsByManifestList.keySet()) {
       deleteFile(manifestList);
     }
-    manifestLists.clear();
+    manifestsByManifestList.clear();
     cleanUncommitted(EMPTY_SET);
+  }
+
+  private Set<String> committedManifestPaths(Snapshot saved) {
+    Set<String> paths = writtenManifestPaths(saved.manifestListLocation());
+    if (paths != null) {
+      // this producer wrote the manifest list, so its manifest paths are already in memory
+      return paths;
+    }
+
+    // this producer did not write the manifest list (e.g. a fast-forward cherry-pick), so read it
+    return saved.allManifests(ops.io()).stream()
+        .map(ManifestFile::path)
+        .collect(Collectors.toSet());
+  }
+
+  /**
+   * Returns the paths of the manifests written to the given manifest list, or null if not written
+   * by this producer.
+   */
+  Set<String> writtenManifestPaths(String manifestListLocation) {
+    return manifestsByManifestList.get(manifestListLocation);
   }
 
   protected void deleteFile(String path) {
@@ -770,10 +795,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   // Deletes uncommitted manifests; clears list if clearManifests and any deleted.
   protected void deleteUncommitted(
-      Collection<ManifestFile> manifests, Set<ManifestFile> committed, boolean clearManifests) {
+      Collection<ManifestFile> manifests, Set<String> committed, boolean clearManifests) {
     boolean anyDeleted = false;
     for (ManifestFile manifest : manifests) {
-      if (!committed.contains(manifest)) {
+      if (!committed.contains(manifest.path())) {
         deleteFile(manifest.path());
         anyDeleted = true;
       }
