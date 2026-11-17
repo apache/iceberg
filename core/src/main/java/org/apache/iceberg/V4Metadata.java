@@ -652,7 +652,7 @@ class V4Metadata {
             file.location());
         Preconditions.checkArgument(
             file.deletionVector() == null,
-            "Invalid manifest, deletion vector must be null: %s",
+            "Invalid manifest, data deletion vector must be null: %s",
             file.location());
       }
     }

@@ -46,7 +46,7 @@ class TestManifestInfoStruct {
             200L,
             100L,
             5L,
-            MumblingTestUtil.onlyFirstBitSetBytes(),
+            MumblingTestUtil.onlyFirstBitSet(),
             4);
 
     assertThat(info.addedFilesCount()).isEqualTo(10);
@@ -81,7 +81,7 @@ class TestManifestInfoStruct {
             .replacedRowsCount(200L)
             .modifiedRowsCount(100L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
+            .dv(MumblingTestUtil.onlyFirstBitSet())
             .formatVersion(4)
             .build();
 
@@ -161,7 +161,7 @@ class TestManifestInfoStruct {
             .replacedRowsCount(200L)
             .modifiedRowsCount(100L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
+            .dv(MumblingTestUtil.onlyFirstBitSet())
             .formatVersion(4)
             .build();
     ManifestBitmap mdv = info.manifestDeletionVector();
@@ -200,7 +200,7 @@ class TestManifestInfoStruct {
             .replacedRowsCount(200L)
             .modifiedRowsCount(100L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
+            .dv(MumblingTestUtil.onlyFirstBitSet())
             .formatVersion(4)
             .build();
 
@@ -662,7 +662,7 @@ class TestManifestInfoStruct {
             .replacedRowsCount(200L)
             .modifiedRowsCount(100L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
+            .dv(MumblingTestUtil.onlyFirstBitSet())
             .formatVersion(4)
             .build();
 

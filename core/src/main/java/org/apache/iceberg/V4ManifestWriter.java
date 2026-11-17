@@ -27,6 +27,7 @@ import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 
@@ -113,8 +114,8 @@ abstract class V4ManifestWriter implements Closeable {
 
   protected abstract StructLike prepare(TrackedFile file, Tracking tracking);
 
-  // TODO: add row ID space to spec and ManifestInfo
-  public long assignedRowIds() {
+  @VisibleForTesting
+  long assignedRowIds() {
     return unassignedRows;
   }
 
@@ -152,6 +153,12 @@ abstract class V4ManifestWriter implements Closeable {
   }
 
   public void append(TrackedFile file) {
+    Preconditions.checkArgument(
+        file.contentType() == FileContent.DATA || file.contentType() == FileContent.DATA_MANIFEST,
+        "Cannot append %s file: %s",
+        file.contentType(),
+        file.location());
+
     TrackingBuilder added = TrackingBuilder.added(snapshotId);
     if (file.deletionVector() != null) {
       added.dvUpdated();
@@ -161,6 +168,13 @@ abstract class V4ManifestWriter implements Closeable {
   }
 
   public void appendAtSeq(TrackedFile file, long dataSequenceNumber) {
+    Preconditions.checkArgument(
+        file.contentType() == FileContent.DATA,
+        "Cannot append %s at data sequence number %s: %s",
+        file.contentType(),
+        dataSequenceNumber,
+        file.location());
+
     TrackingBuilder added = TrackingBuilder.added(snapshotId, dataSequenceNumber);
     if (file.deletionVector() != null) {
       added.dvUpdated();
@@ -170,30 +184,59 @@ abstract class V4ManifestWriter implements Closeable {
   }
 
   public void modify(TrackedFile file, DeletionVector dv) {
+    Preconditions.checkArgument(
+        file.contentType() == FileContent.DATA,
+        "Cannot modify %s file with a data DV: %s",
+        file.contentType(),
+        file.location());
+
     TrackingBuilder modified = TrackingBuilder.from(file.tracking(), snapshotId).dvUpdated();
-    TrackedFile withNewDV = Delegates.withDV(file, dv);
+    TrackedFile withNewDV = Delegates.withDataDV(file, dv);
     write(withNewDV, modified.build());
   }
 
   public void existing(TrackedFile file) {
+    Preconditions.checkArgument(
+        file.contentType() == FileContent.DATA
+            || file.contentType() == FileContent.DATA_MANIFEST
+            || file.contentType() == FileContent.DELETE_MANIFEST,
+        "Cannot add existing %s file: %s",
+        file.contentType(),
+        file.location());
+
     Tracking existing = TrackingBuilder.from(file.tracking(), snapshotId).build();
     write(file, existing);
   }
 
   public void replace(TrackedFile file) {
+    Preconditions.checkArgument(
+        file.contentType() == FileContent.DATA || file.contentType() == FileContent.DATA_MANIFEST,
+        "Cannot replace %s file: %s",
+        file.contentType(),
+        file.location());
+
     Tracking replaced = TrackingBuilder.replaced(file.tracking(), snapshotId);
     write(file, replaced);
   }
 
   public void delete(TrackedFile file) {
+    Preconditions.checkArgument(
+        file.contentType() == FileContent.DATA
+            || file.contentType() == FileContent.DATA_MANIFEST
+            || file.contentType() == FileContent.DELETE_MANIFEST,
+        "Cannot delete %s file: %s",
+        file.contentType(),
+        file.location());
+
     Tracking deleted = TrackingBuilder.deleted(file.tracking(), snapshotId);
     write(file, deleted);
   }
 
   private void write(TrackedFile file, Tracking tracking) {
+    writer.add(prepare(file, tracking));
+
     this.recordCount += 1;
     updateManifestInfo(file, tracking);
-    writer.add(prepare(file, tracking));
   }
 
   public long length() {
@@ -362,7 +405,14 @@ abstract class V4ManifestWriter implements Closeable {
 
     @Override
     public long assignedRowIds() {
-      return nextRowId - firstRowId;
+      long assignedRowIds = nextRowId - firstRowId;
+      // sanity check the assigned row IDs
+      Preconditions.checkState(
+          assignedRowIds == super.assignedRowIds(),
+          "Incorrect assigned row IDs: %s != %s",
+          assignedRowIds,
+          super.assignedRowIds());
+      return assignedRowIds;
     }
 
     private boolean hasFirstRowId(Tracking tracking) {
@@ -377,8 +427,10 @@ abstract class V4ManifestWriter implements Closeable {
   private static long rowsToAssign(TrackedFile file) {
     return switch (file.contentType()) {
       case DATA -> file.recordCount();
-      case DATA_MANIFEST ->
-          file.manifestInfo().existingRowsCount() + file.manifestInfo().addedRowsCount();
+      case DATA_MANIFEST -> {
+        ManifestInfo summary = file.manifestInfo();
+        yield summary.addedRowsCount() + summary.existingRowsCount() + summary.modifiedRowsCount();
+      }
       case DELETE_MANIFEST -> 0L;
       default ->
           throw new IllegalArgumentException("Unsupported content type: " + file.contentType());

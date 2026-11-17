@@ -31,6 +31,7 @@ import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.mumbling.MumblingBitmaps;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -161,6 +162,80 @@ class TestV4ManifestWriter {
           List.of(4L),
           List.of(COLUMN_FILE_A));
 
+  private static final ColumnFile REPLACE_DV_COLUMNS =
+      new ColumnFileStruct(
+          "s3://bucket/db/table/data/leaf-40-1-dv-update.parquet",
+          Set.of(TrackedFile.DELETION_VECTOR.fieldId(), TrackedFile.TIGHT_STATS.fieldId()),
+          FileFormat.PARQUET,
+          512,
+          null);
+
+  // a generic manifest info; row count = 100 * file count
+  private static final ManifestInfo MANIFEST_INFO =
+      new ManifestInfoStruct(2, 10, 2, 4, 4, 200, 1_000, 200, 400, 400, 34L, null /* MDV */, 4);
+
+  private static final ManifestBitmap MDV = MumblingBitmaps.newMutableBitmap(4, 8, 12);
+
+  private static final ManifestInfo MANIFEST_INFO_WITH_MDV =
+      new ManifestInfoStruct(2, 10, 2, 4, 4, 200, 1_000, 200, 400, 400, 34L, MDV, 4);
+
+  private static final TrackedFile LEAF_MANIFEST =
+      new TrackedFileStruct(
+          new TrackingStruct(EntryStatus.EXISTING, 40L, 35L, 35L, null, 500L, null, null),
+          FileContent.DATA_MANIFEST,
+          "s3://bucket/db/table/metadata/leaf-40-1.parquet",
+          FileFormat.PARQUET,
+          100,
+          1024,
+          null, // unpartitioned
+          null, // unpartitioned
+          CONTENT_STATS_A,
+          false,
+          null, // no sort order for manifests
+          null, // no external DV for manifests
+          MANIFEST_INFO,
+          null, // key metadata
+          List.of(4L),
+          List.of(REPLACE_DV_COLUMNS));
+
+  private static final TrackedFile LEAF_MANIFEST_WITH_MDV =
+      new TrackedFileStruct(
+          new TrackingStruct(EntryStatus.EXISTING, 40L, 35L, 35L, 41L, 500L, null, null),
+          FileContent.DATA_MANIFEST,
+          "s3://bucket/db/table/metadata/leaf-40-1.parquet",
+          FileFormat.PARQUET,
+          100,
+          1024,
+          null, // unpartitioned
+          null, // unpartitioned
+          CONTENT_STATS_A,
+          false,
+          null, // no sort order for manifests
+          null, // no external DV for manifests
+          MANIFEST_INFO_WITH_MDV,
+          null, // key metadata
+          List.of(4L),
+          List.of(REPLACE_DV_COLUMNS));
+
+  private static final TrackedFile DELETE_MANIFEST =
+      new TrackedFileStruct(
+          new TrackingStruct(EntryStatus.EXISTING, 40L, 35L, 35L, 41L, null, null, null),
+          FileContent.DELETE_MANIFEST,
+          "s3://bucket/db/table/metadata/leaf-40-1-deletes.parquet",
+          FileFormat.PARQUET,
+          100,
+          1024,
+          null, // unpartitioned
+          null, // unpartitioned
+          null, // no stats
+          false,
+          null, // no sort order for manifests
+          null, // no external DV for manifests
+          MANIFEST_INFO_WITH_MDV,
+          null, // key metadata
+          List.of(4L),
+          List.of(REPLACE_DV_COLUMNS));
+
   @Test
   public void rootDataFileAppend() throws IOException {
     OutputFile output = new InMemoryOutputFile("manifest.parquet");
@@ -177,6 +252,8 @@ class TestV4ManifestWriter {
     try (writer) {
       writer.append(FILE_A);
     }
+
+    assertThat(writer.assignedRowIds()).isEqualTo(FILE_A.recordCount());
 
     InputFile in = output.toInputFile();
     for (TrackedFile file : List.of(readOne(writer, in), rawReadOne(in))) {
@@ -216,6 +293,8 @@ class TestV4ManifestWriter {
       writer.appendAtSeq(FILE_A, 33L);
     }
 
+    assertThat(writer.assignedRowIds()).isEqualTo(FILE_A.recordCount());
+
     InputFile in = output.toInputFile();
     for (TrackedFile file : List.of(readOne(writer, in), rawReadOne(in))) {
       assertThat(file)
@@ -254,6 +333,8 @@ class TestV4ManifestWriter {
       writer.append(FILE_A_WITH_DV);
     }
 
+    assertThat(writer.assignedRowIds()).isEqualTo(FILE_A.recordCount());
+
     InputFile in = output.toInputFile();
     for (TrackedFile file : List.of(readOne(writer, in), rawReadOne(in))) {
       assertThat(file)
@@ -261,7 +342,7 @@ class TestV4ManifestWriter {
           .isEqualTo(FILE_A_WITH_DV);
       assertThat(file.tracking())
           .usingComparator(V4TestComparators.TRACKING)
-          .as("Tracking uses the commit metadata, sets modified snapshot ID")
+          .as("Tracking uses the commit metadata")
           .isEqualTo(
               new TrackingStruct(
                   EntryStatus.ADDED,
@@ -291,6 +372,8 @@ class TestV4ManifestWriter {
     try (writer) {
       writer.modify(FILE_A, DV_A);
     }
+
+    assertThat(writer.assignedRowIds()).isEqualTo(0);
 
     InputFile in = output.toInputFile();
     for (TrackedFile file : List.of(readOne(writer, in), rawReadOne(in))) {
@@ -331,6 +414,8 @@ class TestV4ManifestWriter {
       writer.existing(FILE_A);
     }
 
+    assertThat(writer.assignedRowIds()).isEqualTo(0);
+
     InputFile in = output.toInputFile();
     for (TrackedFile file : List.of(readOne(writer, in), rawReadOne(in))) {
       assertThat(file)
@@ -369,6 +454,8 @@ class TestV4ManifestWriter {
     try (writer) {
       writer.delete(FILE_A_WITH_DV);
     }
+
+    assertThat(writer.assignedRowIds()).isEqualTo(0);
 
     assertThat(read(writer, output.toInputFile())).isEmpty();
 
@@ -409,6 +496,8 @@ class TestV4ManifestWriter {
       writer.replace(FILE_A_WITH_DV);
     }
 
+    assertThat(writer.assignedRowIds()).isEqualTo(0);
+
     assertThat(read(writer, output.toInputFile())).isEmpty();
 
     TrackedFile file = rawReadOne(output.toInputFile());
@@ -448,6 +537,8 @@ class TestV4ManifestWriter {
       writer.existing(FILE_A);
       writer.append(FILE_B);
     }
+
+    assertThat(writer.assignedRowIds()).isEqualTo(FILE_B.recordCount());
 
     List<TrackedFile> files = read(writer, output.toInputFile());
     assertThat(files)
@@ -512,6 +603,8 @@ class TestV4ManifestWriter {
       writer.append(FILE_B);
     }
 
+    assertThat(writer.assignedRowIds()).isEqualTo(FILE_A.recordCount() + FILE_B.recordCount());
+
     InputFile in = output.toInputFile();
     for (List<TrackedFile> files : List.of(read(writer, in), rawRead(output.toInputFile()))) {
       assertThat(files)
@@ -547,6 +640,548 @@ class TestV4ManifestWriter {
   }
 
   @Test
+  public void rootManifestFileAppend() throws IOException {
+    OutputFile output = new InMemoryOutputFile("manifest.parquet");
+    V4ManifestWriter writer =
+        V4ManifestWriter.createRoot(
+            EncryptionUtil.plainAsEncryptedOutput(output),
+            Map.of(),
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            COMMIT_FIRST_ROW_ID);
+    try (writer) {
+      writer.append(LEAF_MANIFEST);
+    }
+
+    ManifestInfo summary = LEAF_MANIFEST.manifestInfo();
+    long leafRowsAssigned =
+        summary.addedRowsCount() + summary.existingRowsCount() + summary.modifiedRowsCount();
+    assertThat(writer.assignedRowIds()).isEqualTo(leafRowsAssigned);
+
+    InputFile in = output.toInputFile();
+    for (TrackedFile file : List.of(readOne(writer, in), rawReadOne(in))) {
+      assertThat(file)
+          .usingComparator(V4TestComparators.trackedFileWithoutStatus())
+          .isEqualTo(LEAF_MANIFEST);
+      assertThat(file.tracking())
+          .usingComparator(V4TestComparators.TRACKING)
+          .as("Tracking uses the commit metadata")
+          .isEqualTo(
+              new TrackingStruct(
+                  EntryStatus.ADDED,
+                  COMMIT_SNAPSHOT_ID,
+                  COMMIT_SEQUENCE_NUMBER,
+                  COMMIT_SEQUENCE_NUMBER,
+                  null, // not modified
+                  COMMIT_FIRST_ROW_ID,
+                  null, // no change bitmaps
+                  null));
+    }
+  }
+
+  @Test
+  public void rootManifestFileWithMDVAppend() throws IOException {
+    OutputFile output = new InMemoryOutputFile("manifest.parquet");
+    V4ManifestWriter writer =
+        V4ManifestWriter.createRoot(
+            EncryptionUtil.plainAsEncryptedOutput(output),
+            SPECS,
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            COMMIT_FIRST_ROW_ID);
+    try (writer) {
+      writer.append(LEAF_MANIFEST_WITH_MDV);
+    }
+
+    ManifestInfo summary = LEAF_MANIFEST_WITH_MDV.manifestInfo();
+    long leafRowsAssigned =
+        summary.addedRowsCount() + summary.existingRowsCount() + summary.modifiedRowsCount();
+    assertThat(writer.assignedRowIds()).isEqualTo(leafRowsAssigned);
+
+    InputFile in = output.toInputFile();
+    for (TrackedFile file : List.of(readOne(writer, in), rawReadOne(in))) {
+      assertThat(file)
+          .usingComparator(V4TestComparators.trackedFileWithoutStatus())
+          .isEqualTo(LEAF_MANIFEST_WITH_MDV);
+      assertThat(file.tracking())
+          .usingComparator(V4TestComparators.TRACKING)
+          .as("Tracking uses the commit metadata")
+          .isEqualTo(
+              new TrackingStruct(
+                  EntryStatus.ADDED,
+                  COMMIT_SNAPSHOT_ID,
+                  COMMIT_SEQUENCE_NUMBER,
+                  COMMIT_SEQUENCE_NUMBER,
+                  null, // not modified
+                  COMMIT_FIRST_ROW_ID,
+                  null, // no change bitmaps
+                  null));
+    }
+  }
+
+  @Test
+  public void rootManifestFileExisting() throws IOException {
+    OutputFile output = new InMemoryOutputFile("manifest.parquet");
+    V4ManifestWriter writer =
+        V4ManifestWriter.createRoot(
+            EncryptionUtil.plainAsEncryptedOutput(output),
+            SPECS,
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            COMMIT_FIRST_ROW_ID);
+    try (writer) {
+      writer.existing(LEAF_MANIFEST_WITH_MDV);
+    }
+
+    assertThat(writer.assignedRowIds()).isEqualTo(0L);
+
+    InputFile in = output.toInputFile();
+    for (TrackedFile file : List.of(readOne(writer, in), rawReadOne(in))) {
+      assertThat(file)
+          .usingComparator(V4TestComparators.trackedFileWithoutStatus())
+          .isEqualTo(LEAF_MANIFEST_WITH_MDV);
+      Tracking originalTracking = LEAF_MANIFEST_WITH_MDV.tracking();
+      assertThat(file.tracking())
+          .usingComparator(V4TestComparators.TRACKING)
+          .as("Tracking uses the original metadata")
+          .isEqualTo(
+              new TrackingStruct(
+                  EntryStatus.EXISTING,
+                  originalTracking.snapshotId(),
+                  originalTracking.dataSequenceNumber(),
+                  originalTracking.fileSequenceNumber(),
+                  originalTracking.modifiedSnapshotId(),
+                  originalTracking.firstRowId(),
+                  null, // no change bitmaps
+                  null));
+    }
+  }
+
+  @Test
+  public void rootManifestFileDelete() throws IOException {
+    OutputFile output = new InMemoryOutputFile("manifest.parquet");
+    V4ManifestWriter writer =
+        V4ManifestWriter.createRoot(
+            EncryptionUtil.plainAsEncryptedOutput(output),
+            Map.of(),
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            COMMIT_FIRST_ROW_ID);
+    try (writer) {
+      writer.delete(LEAF_MANIFEST);
+    }
+
+    assertThat(writer.assignedRowIds()).isEqualTo(0L);
+
+    assertThat(read(writer, output.toInputFile())).isEmpty();
+
+    TrackedFile file = rawReadOne(output.toInputFile());
+    assertThat(file)
+        .usingComparator(V4TestComparators.trackedFileWithoutStatus())
+        .isEqualTo(LEAF_MANIFEST);
+    Tracking originalTracking = LEAF_MANIFEST.tracking();
+    assertThat(file.tracking())
+        .usingComparator(V4TestComparators.TRACKING)
+        .as("Deleted entry preserves original metadata, sets snapshot ID")
+        .isEqualTo(
+            new TrackingStruct(
+                EntryStatus.DELETED,
+                COMMIT_SNAPSHOT_ID,
+                originalTracking.dataSequenceNumber(),
+                originalTracking.fileSequenceNumber(),
+                originalTracking.modifiedSnapshotId(),
+                originalTracking.firstRowId(),
+                null, // no change bitmaps
+                null));
+  }
+
+  @Test
+  public void rootManifestFileReplace() throws IOException {
+    OutputFile output = new InMemoryOutputFile("manifest.parquet");
+    V4ManifestWriter writer =
+        V4ManifestWriter.createRoot(
+            EncryptionUtil.plainAsEncryptedOutput(output),
+            Map.of(),
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            COMMIT_FIRST_ROW_ID);
+    try (writer) {
+      writer.replace(LEAF_MANIFEST_WITH_MDV);
+    }
+
+    assertThat(writer.assignedRowIds()).isEqualTo(0L);
+
+    assertThat(read(writer, output.toInputFile())).isEmpty();
+
+    TrackedFile file = rawReadOne(output.toInputFile());
+    assertThat(file)
+        .usingComparator(V4TestComparators.trackedFileWithoutStatus())
+        .isEqualTo(LEAF_MANIFEST_WITH_MDV);
+    Tracking originalTracking = LEAF_MANIFEST_WITH_MDV.tracking();
+    assertThat(file.tracking())
+        .usingComparator(V4TestComparators.TRACKING)
+        .as("Replaced entry preserves original metadata, sets snapshot ID")
+        .isEqualTo(
+            new TrackingStruct(
+                EntryStatus.REPLACED,
+                COMMIT_SNAPSHOT_ID,
+                originalTracking.dataSequenceNumber(),
+                originalTracking.fileSequenceNumber(),
+                originalTracking.modifiedSnapshotId(),
+                originalTracking.firstRowId(),
+                null, // no change bitmaps
+                null));
+  }
+
+  @Test
+  public void rootDeleteManifestExisting() throws IOException {
+    OutputFile output = new InMemoryOutputFile("manifest.parquet");
+    V4ManifestWriter writer =
+        V4ManifestWriter.createRoot(
+            EncryptionUtil.plainAsEncryptedOutput(output),
+            SPECS,
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            COMMIT_FIRST_ROW_ID);
+    try (writer) {
+      writer.existing(DELETE_MANIFEST);
+    }
+
+    assertThat(writer.assignedRowIds()).isEqualTo(0L);
+
+    InputFile in = output.toInputFile();
+    for (TrackedFile file : List.of(readOne(writer, in), rawReadOne(in))) {
+      assertThat(file)
+          .usingComparator(V4TestComparators.trackedFileWithoutStatus())
+          .isEqualTo(DELETE_MANIFEST);
+      Tracking originalTracking = DELETE_MANIFEST.tracking();
+      assertThat(file.tracking())
+          .usingComparator(V4TestComparators.TRACKING)
+          .as("Tracking uses the original metadata")
+          .isEqualTo(
+              new TrackingStruct(
+                  EntryStatus.EXISTING,
+                  originalTracking.snapshotId(),
+                  originalTracking.dataSequenceNumber(),
+                  originalTracking.fileSequenceNumber(),
+                  originalTracking.modifiedSnapshotId(),
+                  null,
+                  null, // no change bitmaps
+                  null));
+    }
+  }
+
+  @Test
+  public void rootDeleteManifestDelete() throws IOException {
+    OutputFile output = new InMemoryOutputFile("manifest.parquet");
+    V4ManifestWriter writer =
+        V4ManifestWriter.createRoot(
+            EncryptionUtil.plainAsEncryptedOutput(output),
+            SPECS,
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            COMMIT_FIRST_ROW_ID);
+    try (writer) {
+      writer.delete(DELETE_MANIFEST);
+    }
+
+    assertThat(writer.assignedRowIds()).isEqualTo(0L);
+
+    assertThat(read(writer, output.toInputFile())).isEmpty();
+
+    TrackedFile file = rawReadOne(output.toInputFile());
+    assertThat(file)
+        .usingComparator(V4TestComparators.trackedFileWithoutStatus())
+        .isEqualTo(DELETE_MANIFEST);
+    Tracking originalTracking = DELETE_MANIFEST.tracking();
+    assertThat(file.tracking())
+        .usingComparator(V4TestComparators.TRACKING)
+        .as("Tracking uses the original metadata")
+        .isEqualTo(
+            new TrackingStruct(
+                EntryStatus.DELETED,
+                COMMIT_SNAPSHOT_ID,
+                originalTracking.dataSequenceNumber(),
+                originalTracking.fileSequenceNumber(),
+                originalTracking.modifiedSnapshotId(),
+                null,
+                null, // no change bitmaps
+                null));
+  }
+
+  @Test
+  public void rootManifestFileAppendAtSeq() throws IOException {
+    V4ManifestWriter root =
+        V4ManifestWriter.createRoot(
+            EncryptionUtil.plainAsEncryptedOutput(new InMemoryOutputFile("root.parquet")),
+            Map.of(),
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            COMMIT_FIRST_ROW_ID);
+
+    try (root) {
+      assertThatThrownBy(() -> root.appendAtSeq(LEAF_MANIFEST, 33L))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Cannot append DATA_MANIFEST at data sequence number 33");
+    }
+  }
+
+  @Test
+  public void rootManifestFileWithDeletionVector() throws IOException {
+    V4ManifestWriter writer =
+        V4ManifestWriter.createRoot(
+            EncryptionUtil.plainAsEncryptedOutput(new InMemoryOutputFile("manifest.parquet")),
+            SPECS,
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            COMMIT_FIRST_ROW_ID);
+
+    try (writer) {
+      assertThatThrownBy(() -> writer.modify(LEAF_MANIFEST, DV_A))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Cannot modify DATA_MANIFEST file with a data DV");
+    }
+  }
+
+  @Test
+  public void rootDeleteManifestAppend() throws IOException {
+    V4ManifestWriter writer =
+        V4ManifestWriter.createRoot(
+            EncryptionUtil.plainAsEncryptedOutput(new InMemoryOutputFile("manifest.parquet")),
+            SPECS,
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            COMMIT_FIRST_ROW_ID);
+
+    try (writer) {
+      assertThatThrownBy(() -> writer.append(DELETE_MANIFEST))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Cannot append DELETE_MANIFEST file");
+    }
+  }
+
+  @Test
+  public void rootDeleteManifestAppendAtSeq() throws IOException {
+    V4ManifestWriter writer =
+        V4ManifestWriter.createRoot(
+            EncryptionUtil.plainAsEncryptedOutput(new InMemoryOutputFile("manifest.parquet")),
+            SPECS,
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            COMMIT_FIRST_ROW_ID);
+
+    try (writer) {
+      assertThatThrownBy(() -> writer.appendAtSeq(DELETE_MANIFEST, 33L))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Cannot append DELETE_MANIFEST at data sequence number 33");
+    }
+  }
+
+  @Test
+  public void rootDeleteManifestModify() throws IOException {
+    V4ManifestWriter writer =
+        V4ManifestWriter.createRoot(
+            EncryptionUtil.plainAsEncryptedOutput(new InMemoryOutputFile("manifest.parquet")),
+            SPECS,
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            COMMIT_FIRST_ROW_ID);
+
+    try (writer) {
+      assertThatThrownBy(() -> writer.modify(DELETE_MANIFEST, DV_A))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Cannot modify DELETE_MANIFEST file with a data DV");
+    }
+  }
+
+  @Test
+  public void rootDeleteManifestReplace() throws IOException {
+    V4ManifestWriter writer =
+        V4ManifestWriter.createRoot(
+            EncryptionUtil.plainAsEncryptedOutput(new InMemoryOutputFile("manifest.parquet")),
+            SPECS,
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            COMMIT_FIRST_ROW_ID);
+
+    try (writer) {
+      assertThatThrownBy(() -> writer.replace(DELETE_MANIFEST))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Cannot replace DELETE_MANIFEST file");
+    }
+  }
+
+  @Test
+  public void rootMixedDataAndManifestFiles() throws IOException {
+    OutputFile output = new InMemoryOutputFile("manifest.parquet");
+    V4ManifestWriter writer =
+        V4ManifestWriter.createRoot(
+            EncryptionUtil.plainAsEncryptedOutput(output),
+            SPECS,
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            COMMIT_FIRST_ROW_ID);
+    try (writer) {
+      writer.existing(FILE_A);
+      writer.existing(DELETE_MANIFEST);
+      writer.append(FILE_B);
+      writer.existing(LEAF_MANIFEST_WITH_MDV);
+    }
+
+    assertThat(writer.assignedRowIds()).isEqualTo(FILE_B.recordCount());
+
+    InputFile in = output.toInputFile();
+    for (List<TrackedFile> files : List.of(read(writer, in), rawRead(in))) {
+      assertThat(files)
+          .usingComparatorForType(
+              V4TestComparators.trackedFileWithoutStatus(TRUNCATE_SPEC.partitionType()),
+              TrackedFile.class)
+          .containsExactly(FILE_A, DELETE_MANIFEST, FILE_B, LEAF_MANIFEST_WITH_MDV);
+      assertThat(files.get(0).tracking())
+          .usingComparator(V4TestComparators.TRACKING)
+          .as("Tracking should preserve FILE_A metadata")
+          .isEqualTo(FILE_A.tracking());
+      assertThat(files.get(1).tracking())
+          .usingComparator(V4TestComparators.TRACKING)
+          .as("Tracking uses the commit metadata for FILE_B")
+          .isEqualTo(DELETE_MANIFEST.tracking());
+      assertThat(files.get(2).tracking())
+          .usingComparator(V4TestComparators.TRACKING)
+          .as("Tracking uses the commit metadata for FILE_B")
+          .isEqualTo(
+              new TrackingStruct(
+                  EntryStatus.ADDED,
+                  COMMIT_SNAPSHOT_ID,
+                  COMMIT_SEQUENCE_NUMBER,
+                  COMMIT_SEQUENCE_NUMBER,
+                  null, // not modified
+                  COMMIT_FIRST_ROW_ID,
+                  null, // no change bitmaps
+                  null));
+      assertThat(files.get(3).tracking())
+          .usingComparator(V4TestComparators.TRACKING)
+          .as("Tracking should preserve LEAF_MANIFEST_WITH_DV metadata")
+          .isEqualTo(LEAF_MANIFEST_WITH_MDV.tracking());
+    }
+  }
+
+  @Test
+  public void rootMixedDataAndManifestFilesFirstRowIdAssignment() throws IOException {
+    OutputFile output = new InMemoryOutputFile("manifest.parquet");
+    V4ManifestWriter writer =
+        V4ManifestWriter.createRoot(
+            EncryptionUtil.plainAsEncryptedOutput(output),
+            SPECS,
+            STATS_TYPE,
+            Map.of(),
+            SCHEMA.schemaId(),
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQUENCE_NUMBER,
+            COMMIT_FIRST_ROW_ID);
+    try (writer) {
+      writer.append(FILE_A);
+      writer.append(LEAF_MANIFEST);
+      writer.append(FILE_B);
+    }
+
+    ManifestInfo leafSummary = LEAF_MANIFEST.manifestInfo();
+    long leafRowsAssigned =
+        leafSummary.addedRowsCount()
+            + leafSummary.existingRowsCount()
+            + leafSummary.modifiedRowsCount();
+
+    assertThat(writer.assignedRowIds())
+        .isEqualTo(FILE_A.recordCount() + leafRowsAssigned + FILE_B.recordCount());
+
+    InputFile in = output.toInputFile();
+    for (List<TrackedFile> files : List.of(read(writer, in), rawRead(output.toInputFile()))) {
+      assertThat(files)
+          .usingComparatorForType(
+              V4TestComparators.trackedFileWithoutStatus(TRUNCATE_SPEC.partitionType()),
+              TrackedFile.class)
+          .containsExactly(FILE_A, LEAF_MANIFEST, FILE_B);
+      assertThat(files.get(0).tracking())
+          .usingComparator(V4TestComparators.TRACKING)
+          .isEqualTo(
+              new TrackingStruct(
+                  EntryStatus.ADDED,
+                  COMMIT_SNAPSHOT_ID,
+                  COMMIT_SEQUENCE_NUMBER,
+                  COMMIT_SEQUENCE_NUMBER,
+                  null, // not modified
+                  COMMIT_FIRST_ROW_ID,
+                  null, // no change bitmaps
+                  null));
+      assertThat(files.get(1).tracking())
+          .usingComparator(V4TestComparators.TRACKING)
+          .isEqualTo(
+              new TrackingStruct(
+                  EntryStatus.ADDED,
+                  COMMIT_SNAPSHOT_ID,
+                  COMMIT_SEQUENCE_NUMBER,
+                  COMMIT_SEQUENCE_NUMBER,
+                  null, // not modified
+                  COMMIT_FIRST_ROW_ID + FILE_A.recordCount(),
+                  null, // no change bitmaps
+                  null));
+      assertThat(files.get(2).tracking())
+          .usingComparator(V4TestComparators.TRACKING)
+          .isEqualTo(
+              new TrackingStruct(
+                  EntryStatus.ADDED,
+                  COMMIT_SNAPSHOT_ID,
+                  COMMIT_SEQUENCE_NUMBER,
+                  COMMIT_SEQUENCE_NUMBER,
+                  null, // not modified
+                  COMMIT_FIRST_ROW_ID + FILE_A.recordCount() + leafRowsAssigned,
+                  null, // no change bitmaps
+                  null));
+    }
+  }
+
+  @Test
   public void leafDataFileAppend() throws IOException {
     OutputFile output = new InMemoryOutputFile("manifest.parquet");
     V4ManifestWriter writer =
@@ -560,6 +1195,8 @@ class TestV4ManifestWriter {
     try (writer) {
       writer.append(FILE_A);
     }
+
+    assertThat(writer.assignedRowIds()).isEqualTo(FILE_A.recordCount());
 
     InputFile in = output.toInputFile();
     TrackedFile file = readOne(writer, in);
@@ -614,6 +1251,8 @@ class TestV4ManifestWriter {
       writer.appendAtSeq(FILE_A, 33L);
     }
 
+    assertThat(writer.assignedRowIds()).isEqualTo(FILE_A.recordCount());
+
     InputFile in = output.toInputFile();
     TrackedFile file = readOne(writer, in);
     assertThat(file)
@@ -666,6 +1305,8 @@ class TestV4ManifestWriter {
     try (writer) {
       writer.append(FILE_A_WITH_DV);
     }
+
+    assertThat(writer.assignedRowIds()).isEqualTo(FILE_A_WITH_DV.recordCount());
 
     InputFile in = output.toInputFile();
     TrackedFile file = readOne(writer, in);
@@ -720,6 +1361,8 @@ class TestV4ManifestWriter {
       writer.append(FILE_A_WITH_DV);
     }
 
+    assertThat(writer.assignedRowIds()).isEqualTo(FILE_A_WITH_DV.recordCount());
+
     InputFile in = output.toInputFile();
     TrackedFile file = readOne(writer, in);
     assertThat(file)
@@ -773,6 +1416,8 @@ class TestV4ManifestWriter {
       writer.modify(FILE_A, DV_A);
     }
 
+    assertThat(writer.assignedRowIds()).isEqualTo(0L);
+
     InputFile in = output.toInputFile();
     for (TrackedFile file : List.of(readOne(writer, in), rawReadOne(in))) {
       assertThat(file)
@@ -809,6 +1454,8 @@ class TestV4ManifestWriter {
     try (writer) {
       writer.existing(FILE_A);
     }
+
+    assertThat(writer.assignedRowIds()).isEqualTo(0L);
 
     InputFile in = output.toInputFile();
     for (TrackedFile file : List.of(readOne(writer, in), rawReadOne(in))) {
@@ -847,6 +1494,8 @@ class TestV4ManifestWriter {
       writer.delete(FILE_A_WITH_DV);
     }
 
+    assertThat(writer.assignedRowIds()).isEqualTo(0L);
+
     assertThat(read(writer, output.toInputFile())).isEmpty();
 
     TrackedFile file = rawReadOne(output.toInputFile());
@@ -883,6 +1532,8 @@ class TestV4ManifestWriter {
     try (writer) {
       writer.replace(FILE_A_WITH_DV);
     }
+
+    assertThat(writer.assignedRowIds()).isEqualTo(0L);
 
     assertThat(read(writer, output.toInputFile())).isEmpty();
 
@@ -921,6 +1572,8 @@ class TestV4ManifestWriter {
       writer.existing(FILE_A);
       writer.append(FILE_B);
     }
+
+    assertThat(writer.assignedRowIds()).isEqualTo(FILE_B.recordCount());
 
     List<TrackedFile> files = read(writer, output.toInputFile());
     assertThat(files)
@@ -981,6 +1634,8 @@ class TestV4ManifestWriter {
       writer.append(FILE_B);
     }
 
+    assertThat(writer.assignedRowIds()).isEqualTo(FILE_A.recordCount() + FILE_B.recordCount());
+
     ManifestInfo stats = writer.toTrackedManifest().manifestInfo();
     assertThat(stats.addedFilesCount()).isEqualTo(2);
     assertThat(stats.addedRowsCount()).isEqualTo(FILE_A.recordCount() + FILE_B.recordCount());
@@ -1010,6 +1665,8 @@ class TestV4ManifestWriter {
       writer.existing(FILE_A);
       writer.existing(FILE_B);
     }
+
+    assertThat(writer.assignedRowIds()).isEqualTo(0L);
 
     ManifestInfo stats = writer.toTrackedManifest().manifestInfo();
     assertThat(stats.addedFilesCount()).isEqualTo(0);
@@ -1044,6 +1701,8 @@ class TestV4ManifestWriter {
       writer.existing(FILE_B);
     }
 
+    assertThat(writer.assignedRowIds()).isEqualTo(0L);
+
     ManifestInfo stats = writer.toTrackedManifest().manifestInfo();
     assertThat(stats.addedFilesCount()).isEqualTo(0);
     assertThat(stats.addedRowsCount()).isEqualTo(0L);
@@ -1077,6 +1736,8 @@ class TestV4ManifestWriter {
       writer.delete(FILE_B);
     }
 
+    assertThat(writer.assignedRowIds()).isEqualTo(0L);
+
     ManifestInfo stats = writer.toTrackedManifest().manifestInfo();
     assertThat(stats.addedFilesCount()).isEqualTo(0);
     assertThat(stats.addedRowsCount()).isEqualTo(0L);
@@ -1106,6 +1767,8 @@ class TestV4ManifestWriter {
       writer.replace(FILE_A);
       writer.replace(FILE_B);
     }
+
+    assertThat(writer.assignedRowIds()).isEqualTo(0L);
 
     ManifestInfo stats = writer.toTrackedManifest().manifestInfo();
     assertThat(stats.addedFilesCount()).isEqualTo(0);
