@@ -1092,7 +1092,7 @@ paths:
 
 
         Servers MUST NOT return format version 4 tables from this endpoint.
-        A request to load a format version 4 table fails with a 400 `UnsupportedTableFormatVersionException`; clients should load it through the `/v2` endpoint instead.
+        A request to load a format version 4 table fails with a 406 `UnsupportedTableFormatVersionException`; clients should load it through the `/v2` endpoint instead.
 
 
         The response contains both configuration and table metadata. The configuration, if non-empty is used
@@ -1130,15 +1130,7 @@ paths:
             Not Modified - Based on the content of the 'If-None-Match' header the table metadata has
             not changed since.
         400:
-          description:
-            Bad Request - The request is malformed, or the table is at a format version that this endpoint does not serve.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/IcebergErrorResponse'
-              examples:
-                UnsupportedTableFormatVersion:
-                  $ref: '#/components/examples/UnsupportedTableFormatVersionError'
+          $ref: '#/components/responses/BadRequestErrorResponse'
         401:
           $ref: '#/components/responses/UnauthorizedResponse'
         403:
@@ -1153,6 +1145,16 @@ paths:
               examples:
                 TableToLoadDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
+        406:
+          description:
+            Not Acceptable - The table is at a format version that this endpoint does not serve.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                UnsupportedTableFormatVersion:
+                  $ref: '#/components/examples/UnsupportedTableFormatVersionError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -3089,7 +3091,7 @@ components:
         A snapshot of the table's contents at a point in time.
 
 
-        Format versions 1-3 use `manifest-list` and format version 4 uses `root-manifest`.
+        Format versions 1-3 use `manifest-list` and format versions 4 and higher use `root-manifest`.
       type: object
       required:
         - snapshot-id
@@ -3117,12 +3119,12 @@ components:
           type: string
           description:
             Location of the snapshot's manifest list file.
-            Used for format versions 1-3 and must be absent for format version 4, which uses `root-manifest` instead.
+            Used for format versions 1-3 and must be absent for format versions 4 and higher, which use `root-manifest` instead.
         root-manifest:
           type: string
           description:
             Location of the snapshot's root manifest.
-            Required for format version 4 and must be absent for format versions 1-3.
+            Required for format versions 4 and higher and must be absent for format versions 1-3.
         first-row-id:
           type: integer
           format: int64
@@ -5495,7 +5497,7 @@ components:
           type: string
           description:
             Location of the committed table metadata file.
-            Absent when the table has no client-visible metadata location, as for a catalog-managed table where the catalog is the source of truth for table state.
+            Absent when the table has no client-visible metadata location.
         table-location:
           $ref: '#/components/schemas/TableLocation'
         metadata:
@@ -6485,7 +6487,7 @@ components:
         "error": {
           "message": "The given table's format version is not supported by this endpoint",
           "type": "UnsupportedTableFormatVersionException",
-          "code": 400
+          "code": 406
         }
       }
 
