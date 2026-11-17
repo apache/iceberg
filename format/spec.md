@@ -326,7 +326,19 @@ E must be one of the following vector element types:
 
 Vector element types are valid only inside a `vector`; `float16` is not a primitive type and cannot be used as the type of a field. Element values follow the rules of the value type, including equality and JSON single-value serialization. Floating-point elements must be finite: `NaN`, `+Infinity`, and `-Infinity` are invalid.
 
-A `vector` must not be promoted to another type. No type other than `unknown` may be promoted to `vector`. The element type and dimension must not change. A `list` is not a `vector(E, D)`, even if every list instance contains exactly D elements that satisfy the vector element requirements.
+The element type of a `vector(E, D)` may be promoted according to the following table. The dimension D and the vector field ID must not change.
+
+| Element type | Permitted promotion targets |
+|--------------|-----------------------------|
+| `int`        | `long`                      |
+| `float16`    | `float`, `double`            |
+| `float`      | `double`                    |
+
+All other element type changes are prohibited. A `vector` must not be promoted to a non-vector type. A non-vector type other than `unknown` must not be promoted to `vector`. A `list` is not a `vector(E, D)`, even if every list instance contains exactly D elements that satisfy the vector element requirements.
+
+Readers must accept vectors written with the requested element type or an element type that can be promoted to it, preserving each element's value exactly. The stored and requested dimensions must match.
+
+After a vector element type promotion, readers must ignore type-dependent vector-derived artifacts computed for an earlier element type, such as statistics or index blobs, unless the artifact format explicitly defines compatibility with the promoted type.
 
 Equality of vector values is element-wise, using the equality rules of the value type.
 
@@ -436,6 +448,7 @@ Valid primitive type promotions are:
 | `date`           |                              | `timestamp`, `timestamp_ns`  | Promotion to `timestamptz` or `timestamptz_ns` is **not** allowed; values outside the promoted type's range must result in a runtime failure |
 | `float`          | `double`                     | `double`                     | |
 | `decimal(P, S)`  | `decimal(P', S)` if `P' > P` | `decimal(P', S)` if `P' > P` | Widen precision only |
+| `vector(E, D)`   |                              | `vector(E', D)`              | v4 only; E to E' must be a permitted [vector element type promotion](#vector); D must not change |
 
 Iceberg's Avro manifest format does not store the type of lower and upper bounds, and type promotion does not rewrite existing bounds. For example, when a `float` is promoted to `double`, existing data file bounds are encoded as 4 little-endian bytes rather than 8 little-endian bytes for `double`. To correctly decode the value, the original type at the time the file was written must be inferred according to the following table:
 
@@ -1903,7 +1916,7 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`binary`**|`bytes`||
 |**`struct`**|`record`||
 |**`list`**|`array`||
-|**`vector(E, D)`**|`array`|Array elements must use the Avro mapping for E's value type and must not be null. The array must not have an `element-id` property. Readers and writers must enforce the vector dimension and element requirements.|
+|**`vector(E, D)`**|`array`|When writing, array elements must use the Avro mapping for E's value type and must not be null. The array must not have an `element-id` property. Readers and writers must enforce the vector dimension and element requirements.|
 |**`map`**|`array` of key-value records, or `map` when keys are strings (optional).|Array storage must use logical type name `map` and must store elements that are 2-field records. The first field is a non-null key and the second field is the value.|
 |**`variant`**|`record` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names. |Shredding is not supported in Avro.|
 |**`geometry`**|`bytes`|WKB format, see [Appendix G](#appendix-g-geospatial-notes)|
@@ -1962,14 +1975,14 @@ Vectors must use the [`FINITE_VECTOR` representation](https://github.com/apache/
 | **`binary`**       | `binary`                                                                                                                                     |                                             |                                                                |
 | **`struct`**       | `group`                                                                                                                                      |                                             |                                                                |
 | **`list`**         | `3-level list`                                                                                                                               | `LIST`                                      | See Parquet docs for 3-level representation.                   |
-| **`vector(E, D)`** | `3-level list`                                                                                                                               | `FINITE_VECTOR(D)`                          | The outer group carries the field ID of the vector. The `element` field must use the Parquet type for E listed in the vector element table below. Writing and reading an element must preserve its value exactly. The ConvertedType must be `LIST`. The `list` and `element` fields must not be assigned field IDs. |
+| **`vector(E, D)`** | `3-level list`                                                                                                                               | `FINITE_VECTOR(D)`                          | The outer group carries the field ID of the vector. When writing, the `element` field must use the Parquet type for E listed in the vector element table below. Writing and reading an element must preserve its value exactly. The ConvertedType must be `LIST`. The `list` and `element` fields must not be assigned field IDs. |
 | **`map`**          | `3-level map`                                                                                                                                | `MAP`                                       | See Parquet docs for 3-level representation.                   |
 | **`variant`**      | `group` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names. | `VARIANT`                                   | See Parquet docs for [Variant encoding](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md) and [Variant shredding encoding](https://github.com/apache/parquet-format/blob/master/VariantShredding.md). |
 | **`geometry`**     | `binary`                                                                                                                                     | `GEOMETRY`                                  | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                             |
 | **`geography`**    | `binary`                                                                                                                                     | `GEOGRAPHY`                                 | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                             |
 | **`file`**         | `group` with the `file` sub-fields. Sub-fields must be assigned field IDs.                                                                   | `FILE`                                      | See Parquet docs for the [`FILE` type](https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#file) and [File Type](#file-type). |
 
-Vector elements are stored in Parquet using the following types:
+Vector elements must be written to Parquet using the following types:
 
 | Element type  | Parquet physical type     | Logical type |
 |---------------|---------------------------|--------------|
@@ -1978,6 +1991,8 @@ Vector elements are stored in Parquet using the following types:
 | **`float16`** | `fixed_len_byte_array[2]`  | `FLOAT16`    |
 | **`float`**   | `float`                   |              |
 | **`double`**  | `double`                  |              |
+
+When reading `vector(E, D)`, the `element` field may use the Parquet mapping for E or for an element type that can be promoted to E. Readers must convert elements to E without changing their values. The `FINITE_VECTOR` `num_elements` parameter must equal D.
 
 When reading an `unknown` column, any corresponding column must be ignored and replaced with `null` values.
 
