@@ -54,10 +54,18 @@ class TestRemoveSnapshotsV4 {
   void rejectsFileCleanupWithRootManifestSnapshot(ExpireSnapshots.CleanupLevel cleanupLevel) {
     Table table = tableWithRootManifestSnapshot();
 
-    assertThatThrownBy(() -> table.expireSnapshots().cleanupLevel(cleanupLevel).commit())
+    assertThatThrownBy(
+            () ->
+                table
+                    .expireSnapshots()
+                    .expireOlderThan(FAR_FUTURE_MS)
+                    .retainLast(1)
+                    .cleanupLevel(cleanupLevel)
+                    .commit())
         .isInstanceOf(ValidationException.class)
         .hasMessage(CLEANUP_UNSUPPORTED_MESSAGE);
 
+    table.refresh();
     assertThat(table.snapshots()).as("no snapshot should be expired").hasSize(2);
   }
 
