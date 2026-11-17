@@ -41,7 +41,7 @@ public class MumblingBitmaps {
    * @return a new mutable bitmap with no bits set
    */
   public static MutableBitmap newMutableBitmap() {
-    return MumblingBitmaps.newMutableBitmap();
+    return MumblingBitmap.newMutableBitmap();
   }
 
   /**
