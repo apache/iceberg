@@ -49,7 +49,7 @@ public class GenericDeleteFilter extends DeleteFilter<Record> {
   }
 
   private GenericDeleteFilter(
-      Function<String, InputFile> inputFilesProvider,
+      Function<String, InputFile> inputFileProvider,
       FileScanTask task,
       Schema tableSchema,
       Schema requestedSchema) {
