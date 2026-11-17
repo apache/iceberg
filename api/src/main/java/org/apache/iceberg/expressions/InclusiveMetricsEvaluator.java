@@ -47,6 +47,7 @@ import org.apache.iceberg.variants.VariantObject;
  */
 public class InclusiveMetricsEvaluator {
   private final Expression expr;
+  private final SortedInLiterals sortedInLiterals;
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -55,6 +56,7 @@ public class InclusiveMetricsEvaluator {
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
     StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
+    this.sortedInLiterals = new SortedInLiterals();
   }
 
   /**
@@ -74,6 +76,10 @@ public class InclusiveMetricsEvaluator {
     private Map<Integer, Long> nanCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
+
+    private MetricsEvalVisitor() {
+      super(sortedInLiterals);
+    }
 
     private boolean eval(ContentFile<?> file) {
       if (file.recordCount() == 0) {

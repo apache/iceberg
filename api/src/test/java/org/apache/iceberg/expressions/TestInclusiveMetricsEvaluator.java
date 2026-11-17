@@ -898,13 +898,28 @@ public class TestInclusiveMetricsEvaluator<F> {
     shouldRead = shouldRead(SCHEMA, in("no_nulls", "abc", "def"), file());
     assertThat(shouldRead).as("Should read: in on no nulls column").isTrue();
 
-    // should read as the number of elements in the in expression is too big
     List<Integer> ids = Lists.newArrayListWithExpectedSize(400);
     for (int id = -400; id <= 0; id++) {
       ids.add(id);
     }
     shouldRead = shouldRead(SCHEMA, in("id", ids), file());
-    assertThat(shouldRead).as("Should read: large in expression").isTrue();
+    assertThat(shouldRead).as("Should not read: large in expression below lower bound").isFalse();
+
+    ids.add(INT_MIN_VALUE);
+    shouldRead = shouldRead(SCHEMA, in("id", ids), file());
+    assertThat(shouldRead).as("Should read: large in expression contains lower bound").isTrue();
+
+    ids.remove(Integer.valueOf(INT_MIN_VALUE));
+    ids.add(INT_MAX_VALUE);
+    shouldRead = shouldRead(SCHEMA, in("id", ids), file());
+    assertThat(shouldRead).as("Should read: large in expression contains upper bound").isTrue();
+
+    ids.remove(Integer.valueOf(INT_MAX_VALUE));
+    ids.add(INT_MAX_VALUE + 1);
+    shouldRead = shouldRead(SCHEMA, in("id", ids), file());
+    assertThat(shouldRead)
+        .as("Should not read: large in expression outside bounds on both sides")
+        .isFalse();
   }
 
   @Test

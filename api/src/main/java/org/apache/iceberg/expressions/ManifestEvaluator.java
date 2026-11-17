@@ -21,7 +21,6 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -47,9 +46,8 @@ import org.apache.iceberg.util.BinaryUtil;
  * if the return value of {@code eval} is false.
  */
 public class ManifestEvaluator {
-  private static final int IN_PREDICATE_LIMIT = 200;
-
   private final Expression expr;
+  private final SortedInLiterals sortedInLiterals;
 
   public static ManifestEvaluator forRowFilter(
       Expression rowFilter, PartitionSpec spec, boolean caseSensitive) {
@@ -64,6 +62,7 @@ public class ManifestEvaluator {
 
   private ManifestEvaluator(PartitionSpec spec, Expression partitionFilter, boolean caseSensitive) {
     this.expr = Binder.bind(spec.partitionType(), rewriteNot(partitionFilter), caseSensitive);
+    this.sortedInLiterals = new SortedInLiterals();
   }
 
   /**
@@ -287,25 +286,13 @@ public class ManifestEvaluator {
         return ROWS_CANNOT_MATCH; // values are all null and literalSet cannot contain null.
       }
 
-      Collection<T> literals = literalSet;
-
-      if (literals.size() > IN_PREDICATE_LIMIT) {
-        // skip evaluating the predicate if the number of values is too big
-        return ROWS_MIGHT_MATCH;
-      }
-
       T lower = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
       T upper = Conversions.fromByteBuffer(ref.type(), fieldStats.upperBound());
 
       // rows might match if any literal falls within the manifest's [lower, upper] bounds
-      for (T literal : literals) {
-        if (ref.comparator().compare(lower, literal) <= 0
-            && ref.comparator().compare(upper, literal) >= 0) {
-          return ROWS_MIGHT_MATCH;
-        }
-      }
-
-      return ROWS_CANNOT_MATCH;
+      Comparator<T> comparator = ref.comparator();
+      return SortedInLiterals.anyInRange(
+          sortedInLiterals.sorted(literalSet, comparator), comparator, lower, upper);
     }
 
     @Override

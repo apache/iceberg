@@ -643,14 +643,13 @@ public class TestInclusiveMetricsEvaluatorWithExtract<F> {
         .as("Should not read: id above upper bound (85 > 79, 86 > 79)")
         .isFalse();
 
-    // should read as the number of elements in the in expression is too big
     List<Integer> ids = Lists.newArrayListWithExpectedSize(400);
     for (int id = -400; id <= 0; id++) {
       ids.add(id);
     }
     assertThat(shouldRead(in(extract("variant", "$.event_id", "long"), ids)))
-        .as("Should read: large in expression")
-        .isTrue();
+        .as("Should not read: large in expression below lower bound")
+        .isFalse();
   }
 
   @Test
