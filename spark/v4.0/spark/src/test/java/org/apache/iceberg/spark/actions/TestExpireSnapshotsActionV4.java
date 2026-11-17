@@ -29,7 +29,11 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotParser;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -55,14 +59,17 @@ class TestExpireSnapshotsActionV4 extends TestBase {
           .withFileSizeInBytes(10)
           .withRecordCount(1)
           .build();
+  private static final String UNSUPPORTED_MESSAGE =
+      "Cannot expire snapshots: this action does not support tables with root manifests";
 
   @TempDir private File tableDir;
 
   @Test
-  void rejectsExpirationOnV4() {
-    Table table = createTableWithTwoSnapshots(4);
-    TableOperations ops = ((HasTableOperations) table).operations();
+  void rejectsExpirationWithRootManifestSnapshot() {
+    Table table = createTableWithTwoSnapshots();
     long expirableSnapshotId = table.currentSnapshot().parentId();
+    commitRootManifestSnapshot(table);
+    TableOperations ops = ((HasTableOperations) table).operations();
     String metadataBefore = ops.current().metadataFileLocation();
 
     assertThatThrownBy(
@@ -72,7 +79,7 @@ class TestExpireSnapshotsActionV4 extends TestBase {
                     .expireSnapshotId(expirableSnapshotId)
                     .execute())
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Cannot expire snapshots: this action does not support v4 tables");
+        .hasMessage(UNSUPPORTED_MESSAGE);
 
     assertThat(ops.refresh().metadataFileLocation())
         .as("no new metadata file should be committed")
@@ -80,18 +87,13 @@ class TestExpireSnapshotsActionV4 extends TestBase {
   }
 
   @Test
-  void rejectsOnStaleV3HandleAfterUpgradeToV4() {
-    Table staleHandle = createTableWithTwoSnapshots(3);
-    TableOperations staleOps = ((HasTableOperations) staleHandle).operations();
+  void rejectsOnStaleHandleAfterRootManifestSnapshot() {
+    Table staleHandle = createTableWithTwoSnapshots();
     long expirableSnapshotId = staleHandle.currentSnapshot().parentId();
-    assertThat(staleOps.current().formatVersion()).isEqualTo(3);
 
-    // upgrade to v4 through a second handle; the first handle keeps its cached v3 metadata
-    TABLES
-        .load(tableLocation())
-        .updateProperties()
-        .set(TableProperties.FORMAT_VERSION, "4")
-        .commit();
+    // commit through a second handle; the first handle keeps its cached metadata
+    commitRootManifestSnapshot(TABLES.load(tableLocation()));
+    assertThat(staleHandle.snapshots()).as("stale handle should not see the commit").hasSize(2);
 
     assertThatThrownBy(
             () ->
@@ -100,23 +102,48 @@ class TestExpireSnapshotsActionV4 extends TestBase {
                     .expireSnapshotId(expirableSnapshotId)
                     .execute())
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Cannot expire snapshots: this action does not support v4 tables");
+        .hasMessage(UNSUPPORTED_MESSAGE);
 
     assertThat(TABLES.load(tableLocation()).snapshots())
         .as("no snapshot should be expired")
-        .hasSize(2);
+        .hasSize(3);
   }
 
-  private Table createTableWithTwoSnapshots(int formatVersion) {
+  private Table createTableWithTwoSnapshots() {
     Table table =
         TABLES.create(
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, "4"),
             tableLocation());
     table.newAppend().appendFile(FILE_A).commit();
     table.newAppend().appendFile(FILE_B).commit();
     return table;
+  }
+
+  // there is no writer that produces root manifests yet, so commit a hand-built snapshot
+  private static void commitRootManifestSnapshot(Table table) {
+    TableOperations ops = ((HasTableOperations) table).operations();
+    TableMetadata base = ops.current();
+    Snapshot parent = base.currentSnapshot();
+    Snapshot rootManifestSnapshot =
+        SnapshotParser.fromJson(
+            String.format(
+                "{\"sequence-number\": %d, \"snapshot-id\": %d, \"parent-snapshot-id\": %d, "
+                    + "\"timestamp-ms\": %d, \"summary\": {\"operation\": \"append\"}, "
+                    + "\"schema-id\": %d, \"first-row-id\": %d, \"added-rows\": 0, "
+                    + "\"root-manifest\": \"file:/nonexistent/root-manifest.parquet\"}",
+                base.lastSequenceNumber() + 1,
+                parent.snapshotId() + 1,
+                parent.snapshotId(),
+                parent.timestampMillis() + 1,
+                base.currentSchemaId(),
+                base.nextRowId()));
+    ops.commit(
+        base,
+        TableMetadata.buildFrom(base)
+            .setBranchSnapshot(rootManifestSnapshot, SnapshotRef.MAIN_BRANCH)
+            .build());
   }
 
   private String tableLocation() {
