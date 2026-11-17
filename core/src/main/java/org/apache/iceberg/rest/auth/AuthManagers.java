@@ -37,6 +37,12 @@ public class AuthManagers {
   private AuthManagers() {}
 
   public static AuthManager loadAuthManager(String name, Map<String, String> properties) {
+    Preconditions.checkArgument(
+        !PropertyUtil.propertyAsBoolean(properties, AuthProperties.FILE_IO_SESSION_REQUIRED, false),
+        "Cannot load auth manager %s: properties set %s, so requests must use the FileIO auth session",
+        name,
+        AuthProperties.FILE_IO_SESSION_REQUIRED);
+
     if (properties.containsKey(SIGV4_ENABLED_LEGACY)) {
       LOG.warn(
           "The property {} is deprecated and will be removed in a future release. "

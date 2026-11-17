@@ -124,4 +124,20 @@ class TestAuthManagers {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot initialize AuthManager implementation unknown");
   }
+
+  @Test
+  void loadAuthManagerRejectsFileIOSessionMarker() {
+    Map<String, String> properties =
+        Map.of(
+            OAuth2Properties.TOKEN,
+            "catalog-token",
+            AuthProperties.FILE_IO_SESSION_REQUIRED,
+            "true");
+
+    assertThatThrownBy(() -> AuthManagers.loadAuthManager("refresh", properties))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot load auth manager refresh: properties set %s, so requests must use the FileIO auth session",
+            AuthProperties.FILE_IO_SESSION_REQUIRED);
+  }
 }

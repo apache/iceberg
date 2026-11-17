@@ -34,6 +34,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
+import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -412,16 +413,19 @@ public class OAuth2Util {
   }
 
   /** Class to handle authorization headers and token refresh. */
-  public static class AuthSession implements org.apache.iceberg.rest.auth.AuthSession {
+  public static class AuthSession implements org.apache.iceberg.rest.auth.AuthSession, TokenSource {
     private static int tokenRefreshNumRetries = 5;
     private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
     private static final long MIN_REFRESH_WAIT_MILLIS = 10;
     private volatile Map<String, String> headers;
     private volatile AuthConfig config;
+    private volatile IssuedToken issuedToken;
 
     public AuthSession(Map<String, String> headers, AuthConfig config) {
       this.headers = ImmutableMap.copyOf(headers);
       this.config = config;
+      this.issuedToken =
+          config.token() != null ? IssuedToken.of(config.token(), config.expiresAtMillis()) : null;
     }
 
     @Override
@@ -477,6 +481,27 @@ public class OAuth2Util {
       return config;
     }
 
+    @Override
+    public IssuedToken currentToken() {
+      IssuedToken currentToken = issuedToken;
+      if (currentToken == null) {
+        throw new NotAuthorizedException("Cannot provide a token: none issued");
+      }
+
+      Long expiresAtMillis = currentToken.expiresAtMillis();
+      if (expiresAtMillis != null && expiresAtMillis <= System.currentTimeMillis()) {
+        throw new NotAuthorizedException("Cannot provide a token: expired");
+      }
+
+      return currentToken;
+    }
+
+    private static Long expiresAt(OAuthTokenResponse response, long startTimeMillis) {
+      return response.expiresInSeconds() != null
+          ? startTimeMillis + TimeUnit.SECONDS.toMillis(response.expiresInSeconds())
+          : null;
+    }
+
     @VisibleForTesting
     static void setTokenRefreshNumRetries(int retries) {
       tokenRefreshNumRetries = retries;
@@ -499,6 +524,7 @@ public class OAuth2Util {
      */
     public Pair<Integer, TimeUnit> refresh(RESTClient client) {
       if (token() != null && config.keepRefreshed()) {
+        long startTimeMillis = System.currentTimeMillis();
         AtomicReference<OAuthTokenResponse> ref = new AtomicReference<>(null);
         boolean isSuccessful =
             Tasks.foreach(ref)
@@ -533,6 +559,11 @@ public class OAuth2Util {
                 .build();
         Map<String, String> currentHeaders = this.headers;
         this.headers = RESTUtil.merge(currentHeaders, authHeaders(config.token()));
+        Long expiresAtMillis = expiresAt(response, startTimeMillis);
+        this.issuedToken =
+            IssuedToken.of(
+                config.token(),
+                expiresAtMillis != null ? expiresAtMillis : config.expiresAtMillis());
 
         if (response.expiresInSeconds() != null) {
           return Pair.of(response.expiresInSeconds(), TimeUnit.SECONDS);
@@ -621,6 +652,12 @@ public class OAuth2Util {
                   .tokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
                   .expiresAtMillis(OAuth2Util.expiresAtMillis(token))
                   .build());
+      session.issuedToken =
+          IssuedToken.of(
+              token,
+              session.expiresAtMillis() != null
+                  ? session.expiresAtMillis()
+                  : defaultExpiresAtMillis);
 
       long startTimeMillis = System.currentTimeMillis();
       Long expiresAtMillis = session.expiresAtMillis();
@@ -708,6 +745,8 @@ public class OAuth2Util {
       if (null == expiresAtMillis && response.expiresInSeconds() != null) {
         expiresAtMillis = startTimeMillis + TimeUnit.SECONDS.toMillis(response.expiresInSeconds());
       }
+
+      session.issuedToken = IssuedToken.of(response.token(), expiresAtMillis);
 
       if (null != executor && null != expiresAtMillis) {
         scheduleTokenRefresh(client, executor, session, expiresAtMillis);
