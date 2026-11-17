@@ -126,6 +126,20 @@ class V4TestHelpers {
         columnFiles);
   }
 
+  static TrackedFile manifestRefWithTracking(
+      Tracking tracking, FileContent content, String location) {
+    return trackedFile(
+        tracking,
+        content,
+        location,
+        null, // specId
+        null, // partition
+        null, // stats
+        null, // dv
+        new ManifestInfoStruct(1, 0, 0, 0, 0, 100L, 0L, 0L, 0L, 0L, 1, null, 4),
+        null); // column files
+  }
+
   private static TrackedFile trackedFile(
       Tracking tracking,
       FileContent content,

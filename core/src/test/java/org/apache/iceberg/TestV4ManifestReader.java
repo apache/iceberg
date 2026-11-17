@@ -811,6 +811,38 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  public void inheritanceFirstRowIdSkipsManifests(FileFormat format) throws IOException {
+    Tracking trackingWithoutFirstRowId =
+        new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null);
+    TrackedFile dataFile = dataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-a.parquet");
+    TrackedFile dataManifest =
+        V4TestHelpers.manifestRefWithTracking(
+            trackingWithoutFirstRowId,
+            FileContent.DATA_MANIFEST,
+            "s3://bucket/table/manifest.parquet");
+    TrackedFile deleteManifest =
+        V4TestHelpers.manifestRefWithTracking(
+            trackingWithoutFirstRowId,
+            FileContent.DELETE_MANIFEST,
+            "s3://bucket/table/delete-manifest.parquet");
+
+    ManifestFile manifest =
+        writeManifest(
+            format, UNPARTITIONED_TYPE, ImmutableList.of(dataFile, dataManifest, deleteManifest));
+    when(manifest.firstRowId()).thenReturn(1_000L);
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
+            .metricsConfig(METRICS_CONFIG);
+    List<TrackedFile> actual = read(builder);
+
+    assertThat(actual)
+        .extracting(file -> file.tracking().firstRowId())
+        .containsExactly(1_000L, null, null);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   public void inheritanceManifestLocationAndPosition(FileFormat format) throws IOException {
     List<TrackedFile> files =
         ImmutableList.of(FILE_A, FILE_B, DATA_MANIFEST_REF, DELETE_MANIFEST_REF);

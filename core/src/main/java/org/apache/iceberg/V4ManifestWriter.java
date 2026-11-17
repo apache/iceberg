@@ -170,8 +170,10 @@ abstract class V4ManifestWriter implements Closeable {
   public void appendAtSeq(TrackedFile file, long dataSequenceNumber) {
     Preconditions.checkArgument(
         file.contentType() == FileContent.DATA,
-        "Cannot append %s at a data sequence number",
-        file.contentType());
+        "Cannot append %s at data sequence number %s: %s",
+        file.contentType(),
+        dataSequenceNumber,
+        file.location());
 
     TrackingBuilder added = TrackingBuilder.added(snapshotId, dataSequenceNumber);
     if (file.deletionVector() != null) {
@@ -183,8 +185,8 @@ abstract class V4ManifestWriter implements Closeable {
 
   public void modify(TrackedFile file, DeletionVector dv) {
     Preconditions.checkArgument(
-        file.contentType() == FileContent.DATA || file.contentType() == FileContent.DATA_MANIFEST,
-        "Cannot modify %s file: %s",
+        file.contentType() == FileContent.DATA,
+        "Cannot modify %s file with a data DV: %s",
         file.contentType(),
         file.location());
 
@@ -198,7 +200,7 @@ abstract class V4ManifestWriter implements Closeable {
         file.contentType() == FileContent.DATA
             || file.contentType() == FileContent.DATA_MANIFEST
             || file.contentType() == FileContent.DELETE_MANIFEST,
-        "Cannot modify %s file: %s",
+        "Cannot add existing %s file: %s",
         file.contentType(),
         file.location());
 
@@ -409,7 +411,7 @@ abstract class V4ManifestWriter implements Closeable {
           assignedRowIds == super.assignedRowIds(),
           "Incorrect assigned row IDs: %s != %s",
           assignedRowIds,
-          nextRowId);
+          super.assignedRowIds());
       return assignedRowIds;
     }
 
