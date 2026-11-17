@@ -115,7 +115,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
   @Parameters(name = "formatVersion = {0}")
   protected static List<Integer> formatVersions() {
-    return TestHelpers.V2_AND_V3;
+    return TestHelpers.V2_AND_ABOVE;
   }
 
   @Parameter private int formatVersion;
