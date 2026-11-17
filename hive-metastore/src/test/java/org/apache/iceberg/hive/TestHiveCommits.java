@@ -377,6 +377,42 @@ public class TestHiveCommits extends HiveTableTestBase {
   }
 
   @Test
+  void alreadyExistsConcurrentViewCreate() throws TException, InterruptedException {
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, "created_tbl");
+    HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(identifier);
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            catalog.defaultWarehouseLocation(identifier),
+            ImmutableMap.of(HIVE_LOCK_ENABLED, "false"));
+    HiveTableOperations spyOps = spy(ops);
+    doAnswer(
+            i -> {
+              catalog
+                  .buildView(identifier)
+                  .withSchema(SCHEMA)
+                  .withDefaultNamespace(identifier.namespace())
+                  .withQuery("hive", "select * from tbl")
+                  .create();
+              return i.callRealMethod();
+            })
+        .when(spyOps)
+        .persistTable(any(), anyBoolean(), any());
+
+    try {
+      assertThatThrownBy(() -> spyOps.commit(null, metadata))
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessage("Table already exists: %s.%s", DB_NAME, "created_tbl");
+      assertThat(metadataVersionFiles("created_tbl"))
+          .as("Only the metadata file of the concurrently created view should exist")
+          .hasSize(1);
+    } finally {
+      catalog.dropView(identifier);
+    }
+  }
+
+  @Test
   void alreadyExistsUnknownOnCreate() throws TException, InterruptedException {
     TableIdentifier identifier = TableIdentifier.of(DB_NAME, "created_tbl");
     HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(identifier);

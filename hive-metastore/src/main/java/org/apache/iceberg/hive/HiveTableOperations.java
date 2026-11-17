@@ -430,8 +430,13 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   }
 
   private boolean checkCurrentTableUuid(String uuid) {
-    TableMetadata refreshed = refresh();
-    return refreshed != null && uuid.equals(refreshed.uuid());
+    try {
+      TableMetadata refreshed = refresh();
+      return refreshed != null && uuid.equals(refreshed.uuid());
+    } catch (NoSuchTableException e) {
+      // A view or a table that is not an Iceberg table holds the name
+      return false;
+    }
   }
 
   @Override
