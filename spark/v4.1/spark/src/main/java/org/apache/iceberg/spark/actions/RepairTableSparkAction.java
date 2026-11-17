@@ -87,7 +87,7 @@ import scala.Tuple2;
  * manifests that contain an incorrect entry.
  *
  * <p>Deletion vectors are not repaired. NaN counts and the bounds of float, double, geometry and
- * geography columns are kept as stored, because file footers cannot reconstruct them reliably.
+ * geography columns are preserved.
  */
 public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<RepairTableSparkAction>
     implements RepairTable {
