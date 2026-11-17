@@ -69,8 +69,6 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   public static final String STREAM_RESULTS = "stream-results";
   public static final boolean STREAM_RESULTS_DEFAULT = false;
 
-  private static final int LAST_SUPPORTED_FORMAT_VERSION = 3;
-
   private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotsSparkAction.class);
 
   private final Table table;
@@ -151,11 +149,10 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   public Dataset<FileInfo> expireFiles() {
     if (expiredFileDS == null) {
       TableMetadata originalMetadata = ops.refresh();
-      int formatVersion = originalMetadata.formatVersion();
       ValidationException.check(
-          formatVersion <= LAST_SUPPORTED_FORMAT_VERSION,
-          "Cannot expire snapshots: this action does not support v%s tables",
-          formatVersion);
+          originalMetadata.snapshots().stream()
+              .noneMatch(snapshot -> snapshot.rootManifestLocation() != null),
+          "Cannot expire snapshots: this action does not support tables with root manifests");
 
       // perform expiration
       org.apache.iceberg.ExpireSnapshots expireSnapshots = table.expireSnapshots();
