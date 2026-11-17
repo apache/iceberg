@@ -415,14 +415,6 @@ class TestIcebergLookupJoinSql extends TestSqlBase {
 
   private static void createOrdersTable(
       TableEnvironment tableEnvironment, String tableName, int numberOfRows) {
-    createOrdersTable(tableEnvironment, tableName, numberOfRows, "");
-  }
-
-  private static void createOrdersTable(
-      TableEnvironment tableEnvironment,
-      String tableName,
-      int numberOfRows,
-      String additionalOptions) {
     SqlHelpers.sql(
         tableEnvironment,
         "CREATE TEMPORARY TABLE %s (\n"
@@ -437,13 +429,12 @@ class TestIcebergLookupJoinSql extends TestSqlBase {
             + "  'fields.order_id.end' = '%d',\n"
             + "  'fields.user_id.kind' = 'sequence',\n"
             + "  'fields.user_id.start' = '1',\n"
-            + "  'fields.user_id.end' = '%d'%s\n"
+            + "  'fields.user_id.end' = '%d'\n"
             + ")",
         tableName,
         numberOfRows,
         numberOfRows,
-        numberOfRows,
-        additionalOptions);
+        numberOfRows);
   }
 
   private static Record dimRecord(long userId, String name, String city) {

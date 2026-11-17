@@ -256,7 +256,8 @@ class TestIcebergLookup {
 
   @Test
   void lookupFunctionReloadsCacheFromTrigger() throws Exception {
-    Table table = createTableWithRecords();
+    Table table = CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
+    DataFile initialFile = appendRecords(table, ImmutableList.of(record(1L, "alice", "A")));
     ManualCacheReloadTrigger reloadTrigger = new ManualCacheReloadTrigger();
 
     lookupFunction = newLookupFunction(ID_KEY_INDEXES, true, reloadTrigger);
@@ -269,6 +270,7 @@ class TestIcebergLookup {
     assertThat(lookupFunction.lookup(keyRow(6L))).isEmpty();
 
     appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
+    replaceFile(table, initialFile, ImmutableList.of(record(1L, "alicia", "C")));
 
     reloadTrigger.triggerReload().join();
 
@@ -276,8 +278,9 @@ class TestIcebergLookup {
         .singleElement()
         .satisfies(row -> assertRow(row, 6L, "frank", "D"));
     assertThat(lookupFunction.lookup(keyRow(1L)))
+        .as("A reload must replace the rows cached for an overwritten key")
         .singleElement()
-        .satisfies(row -> assertRow(row, 1L, "alice", "A"));
+        .satisfies(row -> assertRow(row, 1L, "alicia", "C"));
   }
 
   @Test
@@ -397,6 +400,12 @@ class TestIcebergLookup {
     DataFile dataFile = helper.writeFile(records);
     helper.appendToTable(dataFile);
     return dataFile;
+  }
+
+  private void replaceFile(Table table, DataFile oldFile, List<Record> records) throws Exception {
+    GenericAppenderHelper helper =
+        new GenericAppenderHelper(table, FileFormat.PARQUET, temporaryFolder);
+    table.newOverwrite().deleteFile(oldFile).addFile(helper.writeFile(records)).commit();
   }
 
   private static GenericRecord record(Long id, String data, String category) {
