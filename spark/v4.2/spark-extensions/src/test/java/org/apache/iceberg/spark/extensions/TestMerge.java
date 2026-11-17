@@ -50,6 +50,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
@@ -166,6 +168,66 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .delete()
         .merge();
     verifyMergeWithAllClauses();
+  }
+
+  @TestTemplate
+  public void testMergeWithWideStructCallsFunctionsThroughNestedClasses() {
+    // Writing a wide struct generates enough code to place the functions of MergeRows and of the
+    // full outer join into nested classes (SPARK-60403). Whole-stage codegen skips plans with more
+    // fields than spark.sql.codegen.maxFields, so the test raises that limit. The generated code
+    // doesn't depend on the file format, so testing one format is enough.
+    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
+
+    int numFields = 1000;
+    String schema =
+        IntStream.range(0, numFields)
+            .mapToObj(i -> "f" + i + ": INT")
+            .collect(Collectors.joining(", ", "id INT, s STRUCT<", ">"));
+    createAndInitTable(schema, wideStructRows(numFields, 0, 1, 2, 3, 4));
+    createOrReplaceView("source", schema, wideStructRows(numFields, 100, 3, 4, 5, 6));
+
+    withSQLConf(
+        ImmutableMap.of(
+            SQLConf.WHOLESTAGE_MAX_NUM_FIELDS().key(),
+            String.valueOf(Integer.MAX_VALUE),
+            SQLConf.CODEGEN_FALLBACK().key(),
+            "false"),
+        () -> {
+          SparkPlan plan =
+              executeAndKeepPlan(
+                  "MERGE INTO %s AS t USING source AS s "
+                      + "ON t.id == s.id "
+                      + "WHEN MATCHED THEN "
+                      + "  UPDATE SET * "
+                      + "WHEN NOT MATCHED THEN "
+                      + "  INSERT * "
+                      + "WHEN NOT MATCHED BY SOURCE THEN "
+                      + "  DELETE",
+                  commitTarget());
+          assertCallsThroughNestedClasses(
+              plan, "mergeProcessRow", "findNextJoinRows", "consumeFullOuterJoinRow");
+        });
+
+    int lastField = numFields - 1;
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(
+            row(3, 300, 300 + lastField), // updated (matched)
+            row(4, 400, 400 + lastField), // updated (matched)
+            row(5, 500, 500 + lastField), // new
+            row(6, 600, 600 + lastField)), // new
+        sql("SELECT id, s.f0, s.f%d FROM %s ORDER BY id", lastField, selectTarget()));
+  }
+
+  // JSON rows with the given ids, whose struct field f<i> is id * multiplier + i
+  private static String wideStructRows(int numFields, int multiplier, int... ids) {
+    return Arrays.stream(ids)
+        .mapToObj(
+            id ->
+                IntStream.range(0, numFields)
+                    .mapToObj(i -> String.format("\"f%d\": %d", i, id * multiplier + i))
+                    .collect(Collectors.joining(", ", "{ \"id\": " + id + ", \"s\": { ", " } }")))
+        .collect(Collectors.joining("\n"));
   }
 
   @TestTemplate

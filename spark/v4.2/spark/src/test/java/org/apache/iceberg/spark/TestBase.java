@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.TimeZone;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ContentFile;
@@ -50,13 +51,18 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.expressions.codegen.ByteCodeStats;
+import org.apache.spark.sql.execution.CommandResultExec;
 import org.apache.spark.sql.execution.QueryExecution;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec;
+import org.apache.spark.sql.execution.debug.package$;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.util.QueryExecutionListener;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import scala.Tuple3;
+import scala.collection.JavaConverters;
 
 public abstract class TestBase extends SparkTestHelperBase {
 
@@ -288,6 +294,37 @@ public abstract class TestBase extends SparkTestHelperBase {
       return ((AdaptiveSparkPlanExec) executedPlan).executedPlan();
     } else {
       return executedPlan;
+    }
+  }
+
+  /**
+   * Asserts that the whole-stage generated code of the plan compiles and calls each of the given
+   * functions through a nested class instance.
+   *
+   * <p>{@code CodegenContext.addNewFunction} places a function into a nested class once the
+   * generated class grows past {@code CodeGenerator.GENERATED_CLASS_SIZE_THRESHOLD}, and the call
+   * to such a function has to go through the nested class instance. Spark falls back from
+   * whole-stage codegen when the code doesn't compile, so run the plan with {@code
+   * spark.sql.codegen.fallback} disabled to fail on such code instead.
+   */
+  protected void assertCallsThroughNestedClasses(SparkPlan plan, String... functions) {
+    SparkPlan physicalPlan =
+        plan instanceof CommandResultExec ? ((CommandResultExec) plan).commandPhysicalPlan() : plan;
+    List<Tuple3<String, String, ByteCodeStats>> stages =
+        JavaConverters.seqAsJavaList(package$.MODULE$.codegenStringSeq(physicalPlan));
+    assertThat(stages).as("Plan must have whole-stage codegen").isNotEmpty();
+
+    for (Tuple3<String, String, ByteCodeStats> stage : stages) {
+      assertThat(stage._3())
+          .as("Generated code must compile for:\n%s", stage._1())
+          .isNotEqualTo(ByteCodeStats.UNAVAILABLE());
+    }
+
+    for (String function : functions) {
+      Pattern call = Pattern.compile("\\w*nestedClassInstance_\\d+\\.\\w*" + function + "_\\d+\\(");
+      assertThat(stages)
+          .as("Generated code must call %s through a nested class instance", function)
+          .anyMatch(stage -> call.matcher(stage._2()).find());
     }
   }
 
