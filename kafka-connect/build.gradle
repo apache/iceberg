@@ -76,12 +76,13 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
       // force upgrades for dependencies with known vulnerabilities...
       resolutionStrategy {
         force 'org.codehaus.jettison:jettison:1.5.7'
-        force 'org.xerial.snappy:snappy-java:1.1.10.8'
+        force 'org.xerial.snappy:snappy-java:1.1.10.12'
         force 'org.apache.commons:commons-compress:1.28.0'
-        force 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.5.0'
+        force 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.6.0'
         force 'com.fasterxml.woodstox:woodstox-core:6.7.0'
         force 'commons-beanutils:commons-beanutils:1.11.0'
         force 'io.grpc:grpc-netty-shaded:1.84.0'
+        force 'com.fasterxml.jackson.core:jackson-databind:2.22.4'
       }
     }
   }
@@ -136,6 +137,8 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     implementation project(':iceberg-gcp')
     implementation project(':iceberg-bigquery')
     implementation platform(libs.google.libraries.bom)
+    // Align Guava to the project version; the Google libraries BOM otherwise pulls in an older Guava with known CVEs.
+    implementation libs.guava.guava
     implementation 'com.google.cloud:google-cloud-storage'
     implementation 'com.google.cloud:google-cloud-bigquery'
     implementation 'com.google.cloud:google-cloud-core'
