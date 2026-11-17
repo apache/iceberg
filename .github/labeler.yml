@@ -157,3 +157,8 @@ KAFKACONNECT:
   - changed-files:
     - any-glob-to-any-file:
       - 'kafka-connect/**/*'
+
+blog:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'site/docs/blog/**/*'

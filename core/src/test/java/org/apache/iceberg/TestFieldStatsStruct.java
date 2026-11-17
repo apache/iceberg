@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.apache.iceberg.TestHelpers.RoundTripSerializer;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -61,12 +62,11 @@ public class TestFieldStatsStruct {
 
   @Test
   public void fieldAccess() {
-    FieldStats<String> stats = new FieldStatsStruct<>(STRING_STATS, "a", "z", true, 28, 2, 0, 1L);
+    FieldStats<String> stats = new FieldStatsStruct<>(STRING_STATS, "a", "z", 28, 2, 0, 1L);
 
     assertThat(stats.fieldId()).isEqualTo(100);
     assertThat(stats.lowerBound()).isEqualTo("a");
     assertThat(stats.upperBound()).isEqualTo("z");
-    assertThat(stats.tightBounds()).isTrue();
     assertThat(stats.valueCount()).isEqualTo(28L);
     assertThat(stats.nullValueCount()).isEqualTo(2L);
     assertThat(stats.nanValueCount()).isEqualTo(0L);
@@ -75,12 +75,10 @@ public class TestFieldStatsStruct {
 
   @Test
   public void stringGetByPosition() {
-    FieldStatsStruct<String> stats =
-        new FieldStatsStruct<>(STRING_STATS, "a", "z", true, 28, 2, 0, 1L);
+    FieldStatsStruct<String> stats = new FieldStatsStruct<>(STRING_STATS, "a", "z", 28, 2, 0, 1L);
 
     assertThat(stats.get(pos(STRING_STATS, "lower_bound"), String.class)).isEqualTo("a");
     assertThat(stats.get(pos(STRING_STATS, "upper_bound"), String.class)).isEqualTo("z");
-    assertThat(stats.get(pos(STRING_STATS, "tight_bounds"), Boolean.class)).isTrue();
     assertThat(stats.get(pos(STRING_STATS, "value_count"), Long.class)).isEqualTo(28L);
     assertThat(stats.get(pos(STRING_STATS, "null_value_count"), Long.class)).isEqualTo(2L);
     assertThat(stats.get(pos(STRING_STATS, "total_bytes"), Long.class)).isEqualTo(1L);
@@ -92,14 +90,12 @@ public class TestFieldStatsStruct {
 
     stats.set(pos(STRING_STATS, "lower_bound"), "a");
     stats.set(pos(STRING_STATS, "upper_bound"), "z");
-    stats.set(pos(STRING_STATS, "tight_bounds"), false);
     stats.set(pos(STRING_STATS, "value_count"), 28L);
     stats.set(pos(STRING_STATS, "null_value_count"), 2L);
     stats.set(pos(STRING_STATS, "total_bytes"), 1L);
 
     assertThat(stats.lowerBound()).isEqualTo("a");
     assertThat(stats.upperBound()).isEqualTo("z");
-    assertThat(stats.tightBounds()).isFalse();
     assertThat(stats.valueCount()).isEqualTo(28L);
     assertThat(stats.nullValueCount()).isEqualTo(2L);
     assertThat(stats.totalBytes()).isEqualTo(1L);
@@ -108,11 +104,10 @@ public class TestFieldStatsStruct {
   @Test
   public void doubleGetByPosition() {
     FieldStatsStruct<Double> stats =
-        new FieldStatsStruct<>(DOUBLE_STATS, 0.0d, 25.0d, true, 34, 2, 6, 0L);
+        new FieldStatsStruct<>(DOUBLE_STATS, 0.0d, 25.0d, 34, 2, 6, 0L);
 
     assertThat(stats.get(pos(DOUBLE_STATS, "lower_bound"), Double.class)).isEqualTo(0.0d);
     assertThat(stats.get(pos(DOUBLE_STATS, "upper_bound"), Double.class)).isEqualTo(25.0d);
-    assertThat(stats.get(pos(DOUBLE_STATS, "tight_bounds"), Boolean.class)).isTrue();
     assertThat(stats.get(pos(DOUBLE_STATS, "value_count"), Long.class)).isEqualTo(34L);
     assertThat(stats.get(pos(DOUBLE_STATS, "null_value_count"), Long.class)).isEqualTo(2L);
     assertThat(stats.get(pos(DOUBLE_STATS, "nan_value_count"), Long.class)).isEqualTo(6L);
@@ -124,14 +119,12 @@ public class TestFieldStatsStruct {
 
     stats.set(pos(DOUBLE_STATS, "lower_bound"), 0.0d);
     stats.set(pos(DOUBLE_STATS, "upper_bound"), 25.0d);
-    stats.set(pos(DOUBLE_STATS, "tight_bounds"), false);
     stats.set(pos(DOUBLE_STATS, "value_count"), 34L);
     stats.set(pos(DOUBLE_STATS, "null_value_count"), 2L);
     stats.set(pos(DOUBLE_STATS, "nan_value_count"), 6L);
 
     assertThat(stats.lowerBound()).isEqualTo(0.0d);
     assertThat(stats.upperBound()).isEqualTo(25.0d);
-    assertThat(stats.tightBounds()).isFalse();
     assertThat(stats.valueCount()).isEqualTo(34L);
     assertThat(stats.nullValueCount()).isEqualTo(2L);
     assertThat(stats.nanValueCount()).isEqualTo(6L);
@@ -154,7 +147,6 @@ public class TestFieldStatsStruct {
 
     assertThat(stats.lowerBound()).isEqualTo("a");
     assertThat(stats.upperBound()).isEqualTo("z");
-    assertThat(stats.tightBounds()).isFalse();
     assertThat(stats.valueCount()).isEqualTo(28L);
     assertThat(stats.nullValueCount()).isEqualTo(2L);
     assertThat(stats.totalBytes()).isEqualTo(4L);
@@ -168,7 +160,6 @@ public class TestFieldStatsStruct {
 
     assertThat(stats.lowerBound()).isEqualTo(0.0d);
     assertThat(stats.upperBound()).isEqualTo(25.0d);
-    assertThat(stats.tightBounds()).isFalse();
     assertThat(stats.valueCount()).isEqualTo(34L);
     assertThat(stats.nullValueCount()).isEqualTo(2L);
     assertThat(stats.nanValueCount()).isEqualTo(6L);
@@ -273,7 +264,6 @@ public class TestFieldStatsStruct {
             statsStruct,
             lowerBound,
             upperBound,
-            true,
             28L,
             2L,
             isFloatingPoint ? 6L : 0L,
@@ -289,7 +279,19 @@ public class TestFieldStatsStruct {
 
   private static Stream<Arguments> geoCases() {
     return ImmutableList.of(Types.GeometryType.crs84(), Types.GeographyType.crs84()).stream()
-        .flatMap(type -> SERIALIZERS.stream().map(serializer -> Arguments.of(type, serializer)));
+        .flatMap(
+            type ->
+                SERIALIZERS.stream()
+                    .map(serializer -> Arguments.of(type, geoSerializer(serializer, type))));
+  }
+
+  private static Named<RoundTripSerializer<FieldStatsStruct<?>>> geoSerializer(
+      Named<RoundTripSerializer<FieldStatsStruct<?>>> serializer, Type type) {
+    if ("InternalData".equals(serializer.getName())) {
+      return Named.of("InternalData", stats -> roundTripInternalData(stats, type));
+    }
+
+    return serializer;
   }
 
   @ParameterizedTest
@@ -300,21 +302,11 @@ public class TestFieldStatsStruct {
         StatsUtil.fieldStatsStruct(geoType, BASE_ID, MetricsModes.Full.get());
 
     // geometry and geography use bounding-box structs (x, y, z, m) for their bounds
-    PartitionData lowerBound =
-        new PartitionData(statsStruct.field("lower_bound").type().asStructType());
-    lowerBound.set(0, 1.0d);
-    lowerBound.set(1, 2.0d);
-    lowerBound.set(2, 3.0d);
-    lowerBound.set(3, 4.0d);
-    PartitionData upperBound =
-        new PartitionData(statsStruct.field("upper_bound").type().asStructType());
-    upperBound.set(0, 5.0d);
-    upperBound.set(1, 6.0d);
-    upperBound.set(2, 7.0d);
-    upperBound.set(3, 8.0d);
+    GeospatialBound lowerBound = GeospatialBound.createXYZM(1.0d, 2.0d, 3.0d, 4.0d);
+    GeospatialBound upperBound = GeospatialBound.createXYZM(5.0d, 6.0d, 7.0d, 8.0d);
 
     FieldStatsStruct<Object> stats =
-        new FieldStatsStruct<>(statsStruct, lowerBound, upperBound, false, 28L, 2L, 0L, 23L);
+        new FieldStatsStruct<>(statsStruct, lowerBound, upperBound, 28L, 2L, 0L, 23L);
 
     Comparator<StructLike> comparator = Comparators.forType(statsStruct);
 
@@ -357,7 +349,7 @@ public class TestFieldStatsStruct {
     long size = metadata.dictionarySize() + lowerObject.sizeInBytes();
 
     FieldStatsStruct<Object> stats =
-        new FieldStatsStruct<>(statsStruct, lowerBound, upperBound, false, 28L, 2L, 0L, size);
+        new FieldStatsStruct<>(statsStruct, lowerBound, upperBound, 28L, 2L, 0L, size);
 
     FieldStatsStruct<?> copy = serializer.apply(stats);
     assertThat(copy.fieldId()).isEqualTo(stats.fieldId());
@@ -376,6 +368,11 @@ public class TestFieldStatsStruct {
 
   private static <T> FieldStatsStruct<T> roundTripInternalData(FieldStats<T> stats)
       throws IOException {
+    return roundTripInternalData(stats, null);
+  }
+
+  private static <T> FieldStatsStruct<T> roundTripInternalData(FieldStats<T> stats, Type columnType)
+      throws IOException {
     Schema schema = stats.type().asSchema();
     InMemoryOutputFile file = new InMemoryOutputFile("internal.avro");
 
@@ -384,12 +381,26 @@ public class TestFieldStatsStruct {
       writer.add(stats);
     }
 
-    try (CloseableIterable<FieldStatsStruct<T>> reader =
+    InternalData.ReadBuilder readBuilder =
         InternalData.read(FileFormat.AVRO, file.toInputFile())
             .project(schema)
-            .setRootType(FieldStatsStruct.class)
-            .build()) {
+            .setRootType(FieldStatsStruct.class);
+    if (columnType != null
+        && (columnType.typeId() == Type.TypeID.GEOMETRY
+            || columnType.typeId() == Type.TypeID.GEOGRAPHY)) {
+      setGeospatialBoundCustomType(readBuilder, stats.type().field(StatsUtil.LOWER_BOUND_NAME));
+      setGeospatialBoundCustomType(readBuilder, stats.type().field(StatsUtil.UPPER_BOUND_NAME));
+    }
+
+    try (CloseableIterable<FieldStatsStruct<T>> reader = readBuilder.build()) {
       return Iterables.getOnlyElement(reader);
+    }
+  }
+
+  private static void setGeospatialBoundCustomType(
+      InternalData.ReadBuilder readBuilder, Types.NestedField boundField) {
+    if (boundField != null) {
+      readBuilder.setCustomType(boundField.fieldId(), GeospatialBound.class);
     }
   }
 

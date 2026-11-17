@@ -23,17 +23,21 @@ import static org.apache.iceberg.V4TestHelpers.FILE_SIZE_IN_BYTES;
 import static org.apache.iceberg.V4TestHelpers.FORMAT_VERSION_V4;
 import static org.apache.iceberg.V4TestHelpers.RECORD_COUNT;
 import static org.apache.iceberg.V4TestHelpers.SNAPSHOT_ID;
+import static org.apache.iceberg.V4TestHelpers.columnFile;
 import static org.apache.iceberg.V4TestHelpers.dataFile;
+import static org.apache.iceberg.V4TestHelpers.dataFileWithColumnFiles;
 import static org.apache.iceberg.V4TestHelpers.dataFileWithDV;
 import static org.apache.iceberg.V4TestHelpers.dataFileWithStats;
 import static org.apache.iceberg.V4TestHelpers.deletionVector;
 import static org.apache.iceberg.V4TestHelpers.manifestRef;
+import static org.apache.iceberg.V4TestHelpers.manifestRefWithColumnFiles;
 import static org.apache.iceberg.V4TestHelpers.manifestRefWithStats;
 import static org.apache.iceberg.V4TestHelpers.partition;
 import static org.apache.iceberg.V4TestHelpers.writeTrackedFiles;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -48,7 +52,9 @@ import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.ScanMetrics;
@@ -109,10 +115,10 @@ class TestV4ManifestReader {
 
   private static final FieldStatsStruct<Integer> ID_STATS =
       new FieldStatsStruct<>(
-          STATS_TYPE.fieldType("id").asStructType(), 0, 99, true, RECORD_COUNT, 0, 0, 0L);
+          STATS_TYPE.fieldType("id").asStructType(), 0, 99, RECORD_COUNT, 0, 0, 0L);
   private static final FieldStatsStruct<String> DATA_STATS =
       new FieldStatsStruct<>(
-          STATS_TYPE.fieldType("data").asStructType(), "a", "z", false, RECORD_COUNT, 20, 0, 2L);
+          STATS_TYPE.fieldType("data").asStructType(), "a", "z", RECORD_COUNT, 20, 0, 2L);
   private static final ContentStatsStruct CONTENT_STATS = new ContentStatsStruct(STATS_TYPE);
 
   static {
@@ -154,6 +160,24 @@ class TestV4ManifestReader {
 
   private static final InMemoryFileIO IO = new InMemoryFileIO();
 
+  static {
+    // avoid failing that file doesn't exist for tests that do not read
+    IO.addFile(UNREAD_MANIFEST_FILE.path(), new byte[0]);
+  }
+
+  private static final ColumnFile COLUMN_FILE_1 =
+      columnFile(
+          "s3a://bucket/column_file_1.parquet",
+          Set.of(1, 3),
+          ByteBuffer.wrap(new byte[] {1, 2, 3}));
+  private static final ColumnFile COLUMN_FILE_2 =
+      columnFile(
+          "s3a://bucket/column_file_2.parquet",
+          Set.of(2),
+          ByteBuffer.wrap(new byte[] {1, 2, 3, 4}));
+  private static final List<ColumnFile> COLUMN_FILES =
+      ImmutableList.of(COLUMN_FILE_1, COLUMN_FILE_2);
+
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   public void readDataFile(FileFormat format) throws IOException {
@@ -168,11 +192,13 @@ class TestV4ManifestReader {
             ID_PARTITIONED.specId(),
             idPartition(7),
             CONTENT_STATS,
+            true, // tight stats
             SortOrder.unsorted().orderId(),
             DV,
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            ImmutableList.of(50L, 100L));
+            ImmutableList.of(50L, 100L),
+            COLUMN_FILES);
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -198,11 +224,13 @@ class TestV4ManifestReader {
             ID_PARTITIONED.specId(),
             idPartition(7),
             CONTENT_STATS,
+            true, // tight stats
             SortOrder.unsorted().orderId(),
             DV,
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            ImmutableList.of(50L, 100L));
+            ImmutableList.of(50L, 100L),
+            COLUMN_FILES);
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -230,11 +258,13 @@ class TestV4ManifestReader {
             ID_PARTITIONED.specId(),
             idPartition(7),
             CONTENT_STATS,
+            false, // tight stats
             SortOrder.unsorted().orderId(),
             DV,
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            ImmutableList.of(50L, 100L));
+            ImmutableList.of(50L, 100L),
+            COLUMN_FILES);
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -264,11 +294,13 @@ class TestV4ManifestReader {
             null, // spec id
             null, // partition
             CONTENT_STATS,
+            false, // tight stats
             null, // sort order id
             null, // dv
             MANIFEST_INFO,
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            null); // split offsets
+            null, // split offsets
+            COLUMN_FILES);
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, manifestRef);
 
@@ -568,6 +600,42 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  public void inheritanceModifiedDataSequenceNumber(FileFormat format) throws IOException {
+    TrackedFile withoutDataSeq =
+        dataFileWithColumnFiles(
+            new TrackingStruct(
+                EntryStatus.MODIFIED, SNAPSHOT_ID, null, 3L, 34L, 5_000L, null, null),
+            "s3://bucket/table/file-a.parquet",
+            COLUMN_FILES);
+
+    ManifestFile manifest =
+        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(withoutDataSeq));
+
+    when(manifest.firstRowId()).thenReturn(10_000L);
+    when(manifest.snapshotId()).thenReturn(34L);
+    when(manifest.sequenceNumber()).thenReturn(5L);
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
+            .metricsConfig(METRICS_CONFIG);
+    List<TrackedFile> actual = read(builder);
+
+    // inherits data sequence number
+    List<TrackedFile> expected =
+        List.of(
+            dataFileWithColumnFiles(
+                new TrackingStruct(
+                    EntryStatus.MODIFIED, SNAPSHOT_ID, 5L, 3L, 34L, 5_000L, null, null),
+                "s3://bucket/table/file-a.parquet",
+                COLUMN_FILES));
+
+    assertThat(actual)
+        .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
+        .isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   public void inheritanceFirstRowId(FileFormat format) throws IOException {
     TrackedFile withoutFirstRowId =
         dataFile(
@@ -660,6 +728,32 @@ class TestV4ManifestReader {
     assertThat(actual)
         .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
         .isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void inheritanceFirstRowIdIsIndependentBetweenIterators(FileFormat format) throws IOException {
+    TrackedFile fileA = dataFile(ADDED_TRACKING, "s3://bucket/table/file-a.parquet");
+    TrackedFile fileB = dataFile(ADDED_TRACKING, "s3://bucket/table/file-b.parquet");
+
+    ManifestFile manifest =
+        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(fileA, fileB));
+    when(manifest.firstRowId()).thenReturn(10_000L);
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
+            .metricsConfig(METRICS_CONFIG);
+
+    try (V4ManifestReader reader = builder.build();
+        CloseableIterator<TrackedFile> first = reader.iterator();
+        CloseableIterator<TrackedFile> second = reader.iterator()) {
+      assertThat(first.next().tracking().firstRowId()).isEqualTo(10_000L);
+      assertThat(second.next().tracking().firstRowId())
+          .as("a second iterator assigns from the manifest's first row ID, not the first's counter")
+          .isEqualTo(10_000L);
+      assertThat(first.next().tracking().firstRowId()).isEqualTo(10_000L + RECORD_COUNT);
+      assertThat(second.next().tracking().firstRowId()).isEqualTo(10_000L + RECORD_COUNT);
+    }
   }
 
   @ParameterizedTest
@@ -899,6 +993,10 @@ class TestV4ManifestReader {
     assertThat(readSchema.field(TrackedFile.CONTENT_STATS_ID))
         .as("Content stats are not automatically projected")
         .isNull();
+
+    assertThat(readSchema.field(TrackedFile.TIGHT_STATS.fieldId()))
+        .as("Tight stats are not projected without content stats")
+        .isNull();
   }
 
   @ParameterizedTest
@@ -932,6 +1030,10 @@ class TestV4ManifestReader {
     assertThat(readSchema.field(TrackedFile.CONTENT_STATS_ID).type())
         .as("Content stats are projected for filtering")
         .isEqualTo(ID_ONLY_STATS_TYPE);
+
+    assertThat(readSchema.field(TrackedFile.TIGHT_STATS.fieldId()))
+        .as("Tight stats are projected with content stats")
+        .isEqualTo(TrackedFile.TIGHT_STATS);
   }
 
   @Test
@@ -1123,11 +1225,13 @@ class TestV4ManifestReader {
             null,
             null,
             null,
+            false,
             SortOrder.unsorted().orderId(),
             null,
             null,
             null,
-            List.of(4L));
+            List.of(4L),
+            null); // column files
 
     ManifestFile manifest =
         writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(emptyTrackedFile, FILE_D));
@@ -1158,11 +1262,13 @@ class TestV4ManifestReader {
             null,
             null,
             null,
+            false,
             SortOrder.unsorted().orderId(),
             null,
             null,
             null,
-            List.of(4L));
+            List.of(4L),
+            null); // column files
 
     ManifestFile manifest =
         writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(invalidRecordCountFile, FILE_D));
@@ -1262,6 +1368,33 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  public void statsFilterWithColumnFilesProjection(FileFormat format) throws IOException {
+    // FILE_C has stats {id in [0, 99], data in [a, z]}, the file with column files has no stats
+    TrackedFile fileWithColumnFiles =
+        dataFileWithColumnFiles("s3://bucket/table/file-e.parquet", COLUMN_FILES);
+    ManifestFile manifest =
+        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(FILE_C, fileWithColumnFiles));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .filter(Expressions.equal("id", 105)) // eliminates FILE_C
+            .metricsConfig(METRICS_CONFIG)
+            .select("location", "column_files.field_ids");
+
+    TrackedFile actual = readOne(builder);
+
+    assertThat(actual.location()).isEqualTo(fileWithColumnFiles.location());
+    assertThat(actual.columnFiles())
+        .extracting(ColumnFile::fieldIds)
+        .containsExactly(COLUMN_FILE_1.fieldIds(), COLUMN_FILE_2.fieldIds());
+    assertThat(actual.columnFiles())
+        .as("Unselected column file fields should not be projected")
+        .extracting(ColumnFile::location, ColumnFile::fileFormat, ColumnFile::keyMetadata)
+        .containsOnly(tuple(null, null, null));
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   public void statsFilterCaseSensitivity(FileFormat format) throws IOException {
     // FILE_C has stats {id in [0, 99], data in [a, z]}, FILE_D has no stats
     ManifestFile manifest =
@@ -1341,11 +1474,13 @@ class TestV4ManifestReader {
             bucketSpec.specId(),
             partition(bucketSpec, fileBucketNum),
             CONTENT_STATS,
+            false, // tight stats
             SortOrder.unsorted().orderId(),
             null, // dv
             null, // manifest info
             null, // key metadata
-            List.of(4L));
+            List.of(4L),
+            null); // column files
 
     ManifestFile manifest =
         writeManifest(
@@ -1596,8 +1731,12 @@ class TestV4ManifestReader {
   @Test
   public void validationUnknownManifestFormatFailure() {
     ManifestFile fileWithoutFormat = Mockito.mock(ManifestFile.class);
+    Mockito.when(fileWithoutFormat.path()).thenReturn("manifest");
     Mockito.when(fileWithoutFormat.formatVersion()).thenReturn(4);
     Mockito.when(fileWithoutFormat.content()).thenReturn(ManifestContent.DATA);
+
+    // create the file
+    IO.addFile("manifest", new byte[0]);
 
     assertThatThrownBy(
             () ->
@@ -1609,6 +1748,7 @@ class TestV4ManifestReader {
   @Test
   public void validationUnknownFormatVersionFailure() {
     ManifestFile v3File = Mockito.mock(ManifestFile.class);
+    Mockito.when(v3File.path()).thenReturn(FileFormat.PARQUET.addExtension("manifest"));
     Mockito.when(v3File.formatVersion()).thenReturn(3);
     Mockito.when(v3File.content()).thenReturn(ManifestContent.DATA);
 
@@ -1621,6 +1761,7 @@ class TestV4ManifestReader {
   @Test
   public void validationDeleteManifestFailure() {
     ManifestFile v3File = Mockito.mock(ManifestFile.class);
+    Mockito.when(v3File.path()).thenReturn(FileFormat.PARQUET.addExtension("manifest"));
     Mockito.when(v3File.formatVersion()).thenReturn(4);
     Mockito.when(v3File.content()).thenReturn(ManifestContent.DELETES);
 
@@ -1744,6 +1885,44 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  public void resolutionRelativeColumnFileLocation(FileFormat format) throws IOException {
+    ManifestFile manifest =
+        writeManifest(
+            format,
+            UNPARTITIONED_TYPE,
+            ImmutableList.of(
+                dataFileWithColumnFiles(
+                    "s3://other/abs.parquet",
+                    List.of(columnFile("data/column.parquet", Set.of(1)), COLUMN_FILE_2)),
+                manifestRefWithColumnFiles(
+                    FileContent.DATA_MANIFEST,
+                    "s3://other/leaf.avro",
+                    MANIFEST_INFO,
+                    List.of(columnFile("metadata/leaf-column.parquet", Set.of(1))))));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .tableLocation("s3://bucket/db/table")
+            .metricsConfig(METRICS_CONFIG);
+
+    assertThat(read(builder))
+        .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
+        .containsExactly(
+            dataFileWithColumnFiles(
+                "s3://other/abs.parquet",
+                List.of(
+                    columnFile("s3://bucket/db/table/data/column.parquet", Set.of(1)),
+                    COLUMN_FILE_2)),
+            manifestRefWithColumnFiles(
+                FileContent.DATA_MANIFEST,
+                "s3://other/leaf.avro",
+                MANIFEST_INFO,
+                List.of(
+                    columnFile("s3://bucket/db/table/metadata/leaf-column.parquet", Set.of(1)))));
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   public void resolutionResolvesOnlyRelativePaths(FileFormat format) throws IOException {
     ManifestFile manifest =
         writeManifest(
@@ -1767,6 +1946,123 @@ class TestV4ManifestReader {
                 "s3://bucket/db/table/data/rel.parquet", "s3://other/abs-dv.puffin"));
   }
 
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void readGeospatialBounds(FileFormat format) throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "geom", Types.GeometryType.crs84()),
+            optional(2, "geog", Types.GeographyType.crs84()));
+    MetricsConfig metricsConfig = MetricsTestUtil.from(ImmutableMap.of(), schema);
+    Types.StructType statsType = StatsUtil.statsWriteSchema(schema, metricsConfig);
+
+    GeospatialBound geomLower = GeospatialBound.createXYZM(1.0, 2.0, 3.0, 4.0);
+    GeospatialBound geomUpper = GeospatialBound.createXYZM(5.0, 6.0, 7.0, 8.0);
+    GeospatialBound geogLower = GeospatialBound.createXY(-10.0, -20.0);
+    GeospatialBound geogUpper = GeospatialBound.createXY(30.0, 40.0);
+    GeospatialBound nextGeomLower = GeospatialBound.createXY(11.0, 12.0);
+    GeospatialBound nextGeomUpper = GeospatialBound.createXYZ(15.0, 16.0, 17.0);
+    GeospatialBound nextGeogLower = GeospatialBound.createXYM(-1.0, -2.0, 9.0);
+    GeospatialBound nextGeogUpper = GeospatialBound.createXYZM(3.0, 4.0, 5.0, 6.0);
+
+    TrackedFile first =
+        dataFileWithStats(
+            "s3://bucket/table/geo-a.parquet",
+            contentStats(statsType, geomLower, geomUpper, geogLower, geogUpper));
+    TrackedFile second =
+        dataFileWithStats(
+            "s3://bucket/table/geo-b.parquet",
+            contentStats(statsType, nextGeomLower, nextGeomUpper, nextGeogLower, nextGeogUpper));
+
+    ManifestFile manifest =
+        writeManifest(format, UNPARTITIONED_TYPE, statsType, ImmutableList.of(first, second));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, schema, UNPARTITIONED_SPECS)
+            .metricsConfig(metricsConfig);
+
+    List<TrackedFile> files = read(builder);
+    assertThat(files).hasSize(2);
+    assertGeospatialBounds(files.get(0), geomLower, geomUpper, geogLower, geogUpper);
+    assertGeospatialBounds(
+        files.get(1), nextGeomLower, nextGeomUpper, nextGeogLower, nextGeogUpper);
+    assertThat(files.get(0).contentStats().statsFor(1).lowerBound())
+        .isNotSameAs(files.get(1).contentStats().statsFor(1).lowerBound());
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void readPartialGeospatialBound(FileFormat format) throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "geom", Types.GeometryType.crs84()),
+            optional(2, "geog", Types.GeographyType.crs84()));
+    MetricsConfig metricsConfig = MetricsTestUtil.from(ImmutableMap.of(), schema);
+    Types.StructType statsType = StatsUtil.statsWriteSchema(schema, metricsConfig);
+
+    GeospatialBound geomLower = GeospatialBound.createXYZM(1.0, 2.0, 3.0, 4.0);
+    GeospatialBound geomUpper = GeospatialBound.createXYZM(5.0, 6.0, 7.0, 8.0);
+    GeospatialBound geogLower = GeospatialBound.createXY(-10.0, -20.0);
+    GeospatialBound geogUpper = GeospatialBound.createXY(30.0, 40.0);
+    TrackedFile file =
+        dataFileWithStats(
+            "s3://bucket/table/geo-partial.parquet",
+            contentStats(statsType, geomLower, geomUpper, geogLower, geogUpper));
+
+    ManifestFile manifest =
+        writeManifest(format, UNPARTITIONED_TYPE, statsType, ImmutableList.of(file));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, schema, UNPARTITIONED_SPECS)
+            .metricsConfig(metricsConfig)
+            // selecting m still reads the full geometry and geography bound structs
+            .select(
+                "content_stats.geom.lower_bound.m",
+                "content_stats.geom.upper_bound.m",
+                "content_stats.geog.lower_bound.m",
+                "content_stats.geog.upper_bound.m");
+
+    assertGeospatialBounds(readOne(builder), geomLower, geomUpper, geogLower, geogUpper);
+  }
+
+  private static ContentStats contentStats(
+      Types.StructType statsType,
+      GeospatialBound geomLower,
+      GeospatialBound geomUpper,
+      GeospatialBound geogLower,
+      GeospatialBound geogUpper) {
+    ContentStatsStruct stats = new ContentStatsStruct(statsType);
+    stats.setStats(1, geoFieldStats(statsType, "geom", geomLower, geomUpper));
+    stats.setStats(2, geoFieldStats(statsType, "geog", geogLower, geogUpper));
+    return stats;
+  }
+
+  private static FieldStatsStruct<GeospatialBound> geoFieldStats(
+      Types.StructType statsType, String name, GeospatialBound lower, GeospatialBound upper) {
+    return new FieldStatsStruct<>(
+        statsType.fieldType(name).asStructType(), lower, upper, RECORD_COUNT, 0, 0, 0L);
+  }
+
+  private static void assertGeospatialBounds(
+      TrackedFile file,
+      GeospatialBound geomLower,
+      GeospatialBound geomUpper,
+      GeospatialBound geogLower,
+      GeospatialBound geogUpper) {
+    assertBound(file, 1, geomLower, geomUpper);
+    assertBound(file, 2, geogLower, geogUpper);
+  }
+
+  private static void assertBound(
+      TrackedFile file, int fieldId, GeospatialBound lower, GeospatialBound upper) {
+    assertThat(file.contentStats().statsFor(fieldId).lowerBound())
+        .isInstanceOf(GeospatialBound.class)
+        .isEqualTo(lower);
+    assertThat(file.contentStats().statsFor(fieldId).upperBound())
+        .isInstanceOf(GeospatialBound.class)
+        .isEqualTo(upper);
+  }
+
   private static TrackedFile unpartitionedFileWithoutStats(String location) {
     Tracking tracking =
         new TrackingStruct(
@@ -1774,7 +2070,7 @@ class TestV4ManifestReader {
             SNAPSHOT_ID,
             3L, // data sequence number
             3L, // file sequence number
-            null, // dv snapshot id
+            null, // modified snapshot id
             null, // first row id
             null, // deleted positions
             null); // replaced positions
@@ -1806,7 +2102,16 @@ class TestV4ManifestReader {
   private ManifestFile writeManifest(
       FileFormat format, Types.StructType partitionType, List<TrackedFile> files)
       throws IOException {
-    OutputFile out = writeTrackedFiles(IO, format, partitionType, STATS_TYPE, files);
+    return writeManifest(format, partitionType, STATS_TYPE, files);
+  }
+
+  private ManifestFile writeManifest(
+      FileFormat format,
+      Types.StructType partitionType,
+      Types.StructType statsType,
+      List<TrackedFile> files)
+      throws IOException {
+    OutputFile out = writeTrackedFiles(IO, format, partitionType, statsType, files);
     return v4Manifest(out.location());
   }
 

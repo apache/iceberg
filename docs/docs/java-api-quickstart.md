@@ -250,9 +250,9 @@ table.manageSnapshots()
      .commit()
 
 String tag = "audit-tag";
-// Replace "audit-tag" to point to snapshot 3 and update its retention
+// Replace "audit-tag" to point to snapshot 4 and update its retention
 table.manageSnapshots()
-     .replaceTag(tag, 3)
+     .replaceTag(tag, 4)
      .setMaxRefAgeMs(tag, 1000)
      .commit()
 

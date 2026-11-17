@@ -50,7 +50,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Operator which aggregates the individual {@link WriteResult} objects to a single {@link
- * DynamicCommittable} per checkpoint (storing the serialized {@link DeltaManifests}, jobId,
+ * DynamicCommittable} per checkpoint (storing the serialized {@link DeltaManifests}, jobId, sinkId,
  * operatorId, checkpointId)
  */
 class DynamicWriteResultAggregator
@@ -61,6 +61,8 @@ class DynamicWriteResultAggregator
 
   private final CatalogLoader catalogLoader;
   private final int cacheMaximumSize;
+  private final String sinkId;
+
   private transient Map<TableKey, Map<Integer, Collection<WriteResult>>> resultsByTableKeyAndSpec;
   private transient Map<String, Map<Integer, PartitionSpec>> specs;
   private transient Map<String, Tuple2<ManifestOutputFileFactory, Integer>>
@@ -71,9 +73,10 @@ class DynamicWriteResultAggregator
   private transient int attemptId;
   private transient Catalog catalog;
 
-  DynamicWriteResultAggregator(CatalogLoader catalogLoader, int cacheMaximumSize) {
+  DynamicWriteResultAggregator(CatalogLoader catalogLoader, int cacheMaximumSize, String sinkId) {
     this.catalogLoader = catalogLoader;
     this.cacheMaximumSize = cacheMaximumSize;
+    this.sinkId = sinkId;
   }
 
   @Override
@@ -106,6 +109,7 @@ class DynamicWriteResultAggregator
                   entries.getKey(),
                   writeToManifests(entries.getKey().tableName(), entries.getValue(), checkpointId),
                   getContainingTask().getEnvironment().getJobID().toString(),
+                  sinkId,
                   getRuntimeContext().getOperatorUniqueID(),
                   checkpointId),
               checkpointId,

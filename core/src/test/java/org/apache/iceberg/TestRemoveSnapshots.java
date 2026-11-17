@@ -1671,7 +1671,9 @@ public class TestRemoveSnapshots extends TestBase {
 
     long lastSnapshotId = tableWithBulkIO.currentSnapshot().snapshotId();
 
-    removeSnapshots(tableWithBulkIO).expireOlderThan(System.currentTimeMillis()).commit();
+    removeSnapshots(tableWithBulkIO)
+        .expireOlderThan(tableWithBulkIO.currentSnapshot().timestampMillis() + 1)
+        .commit();
 
     assertThat(tableWithBulkIO.currentSnapshot().snapshotId()).isEqualTo(lastSnapshotId);
     assertThat(tableWithBulkIO.snapshots()).containsOnly(tableWithBulkIO.currentSnapshot());
@@ -1720,7 +1722,7 @@ public class TestRemoveSnapshots extends TestBase {
     Set<String> deletedFiles = Sets.newHashSet();
     // Expiring snapshots should remove the data_bucket partition
     removeSnapshots(table)
-        .expireOlderThan(System.currentTimeMillis())
+        .expireOlderThan(table.currentSnapshot().timestampMillis() + 1)
         .cleanExpiredMetadata(true)
         .deleteWith(deletedFiles::add)
         .commit();
@@ -1755,7 +1757,7 @@ public class TestRemoveSnapshots extends TestBase {
     Set<String> deletedFiles = Sets.newHashSet();
     // Expiring snapshots should remove only the unpartitioned spec
     removeSnapshots(table)
-        .expireOlderThan(System.currentTimeMillis())
+        .expireOlderThan(table.currentSnapshot().timestampMillis() + 1)
         .cleanExpiredMetadata(true)
         .deleteWith(deletedFiles::add)
         .commit();
@@ -1787,7 +1789,7 @@ public class TestRemoveSnapshots extends TestBase {
     Set<String> deletedFiles = Sets.newHashSet();
     // Expire all snapshots and schemas except the current ones.
     removeSnapshots(table)
-        .expireOlderThan(System.currentTimeMillis())
+        .expireOlderThan(table.currentSnapshot().timestampMillis() + 1)
         .cleanExpiredMetadata(true)
         .deleteWith(deletedFiles::add)
         .commit();
@@ -1821,7 +1823,7 @@ public class TestRemoveSnapshots extends TestBase {
     Set<String> deletedFiles = Sets.newHashSet();
     // Expire all snapshots except the current one. No unused schemas or specs to be removed.
     removeSnapshots(table)
-        .expireOlderThan(System.currentTimeMillis())
+        .expireOlderThan(table.currentSnapshot().timestampMillis() + 1)
         .cleanExpiredMetadata(true)
         .deleteWith(deletedFiles::add)
         .commit();

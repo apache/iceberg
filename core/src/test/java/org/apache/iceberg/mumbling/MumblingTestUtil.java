@@ -132,5 +132,9 @@ public class MumblingTestUtil {
         throw new IllegalArgumentException("Invalid container: longer than 32 bytes");
       }
     }
+
+    public ByteBuffer buffer() {
+      return ByteBuffer.wrap(bytes);
+    }
   }
 }

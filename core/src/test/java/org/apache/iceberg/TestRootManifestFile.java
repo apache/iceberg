@@ -1,0 +1,170 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.nio.ByteBuffer;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
+class TestRootManifestFile {
+  private static final long SNAPSHOT_ID = 42L;
+  private static final long SEQUENCE_NUMBER = 7L;
+  private static final long FIRST_ROW_ID = 1000L;
+  private static final long LENGTH = 1024L;
+  private static final String LOCATION = "s3://bucket/db/table/metadata/root.parquet";
+
+  @Test
+  void fieldAccess() {
+    ByteBuffer keyMetadata = ByteBuffer.wrap(new byte[] {9, 8, 7});
+    RootManifestFile root =
+        new RootManifestFile(
+            LOCATION, LENGTH, SNAPSHOT_ID, SEQUENCE_NUMBER, FIRST_ROW_ID, keyMetadata);
+
+    assertThat(root.path()).isEqualTo(LOCATION);
+    assertThat(root.length()).isEqualTo(LENGTH);
+    assertThat(root.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(root.sequenceNumber()).isEqualTo(SEQUENCE_NUMBER);
+    assertThat(root.firstRowId()).isEqualTo(FIRST_ROW_ID);
+    assertThat(root.keyMetadata()).isEqualTo(keyMetadata);
+  }
+
+  @Test
+  void defaultedFields() {
+    RootManifestFile root =
+        new RootManifestFile(LOCATION, LENGTH, SNAPSHOT_ID, SEQUENCE_NUMBER, FIRST_ROW_ID, null);
+
+    assertThat(root.content()).isEqualTo(ManifestContent.DATA);
+    assertThat(root.formatVersion()).isEqualTo(4);
+  }
+
+  @Test
+  void copy() {
+    ByteBuffer keyMetadata = ByteBuffer.wrap(new byte[] {9, 8, 7});
+    RootManifestFile original =
+        new RootManifestFile(
+            LOCATION, LENGTH, SNAPSHOT_ID, SEQUENCE_NUMBER, FIRST_ROW_ID, keyMetadata);
+    ManifestFile copy = original.copy();
+
+    assertThat(copy.path()).isEqualTo(LOCATION);
+    assertThat(copy.length()).isEqualTo(LENGTH);
+    assertThat(copy.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(copy.sequenceNumber()).isEqualTo(SEQUENCE_NUMBER);
+    assertThat(copy.firstRowId()).isEqualTo(FIRST_ROW_ID);
+    assertThat(copy.keyMetadata()).isEqualTo(keyMetadata);
+    assertThat(copy.keyMetadata().array())
+        .as("copy should not share the key metadata backing array")
+        .isNotSameAs(original.keyMetadata().array());
+  }
+
+  @Test
+  void toStringRedactsKeyMetadata() {
+    RootManifestFile root =
+        new RootManifestFile(
+            LOCATION,
+            LENGTH,
+            SNAPSHOT_ID,
+            SEQUENCE_NUMBER,
+            FIRST_ROW_ID,
+            ByteBuffer.wrap(new byte[] {9, 8, 7}));
+
+    assertThat(root.toString())
+        .contains("location=" + LOCATION)
+        .contains("length=" + LENGTH)
+        .contains("snapshot_id=" + SNAPSHOT_ID)
+        .contains("sequence_number=" + SEQUENCE_NUMBER)
+        .contains("first_row_id=" + FIRST_ROW_ID)
+        .contains("key_metadata=(redacted)");
+  }
+
+  @Test
+  void unsupportedAccessorsThrow() {
+    RootManifestFile root =
+        new RootManifestFile(LOCATION, LENGTH, SNAPSHOT_ID, SEQUENCE_NUMBER, FIRST_ROW_ID, null);
+
+    assertThatThrownBy(root::partitionSpecId)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Root manifest has no partition spec");
+    assertThatThrownBy(root::minSequenceNumber)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Root manifest has no minimum sequence number");
+    assertThatThrownBy(root::addedFilesCount)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Root manifest has no added files count");
+    assertThatThrownBy(root::addedRowsCount)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Root manifest has no added rows count");
+    assertThatThrownBy(root::existingFilesCount)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Root manifest has no existing files count");
+    assertThatThrownBy(root::existingRowsCount)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Root manifest has no existing rows count");
+    assertThatThrownBy(root::deletedFilesCount)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Root manifest has no deleted files count");
+    assertThatThrownBy(root::deletedRowsCount)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Root manifest has no deleted rows count");
+    assertThatThrownBy(root::partitions)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Root manifest has no partition summaries");
+  }
+
+  @Test
+  void fromResolvesRelativeRootLocation() {
+    Snapshot snapshot = Mockito.mock(Snapshot.class);
+    Mockito.when(snapshot.rootManifestLocation()).thenReturn("metadata/root.parquet");
+    Mockito.when(snapshot.snapshotId()).thenReturn(SNAPSHOT_ID);
+    Mockito.when(snapshot.sequenceNumber()).thenReturn(SEQUENCE_NUMBER);
+    Mockito.when(snapshot.firstRowId()).thenReturn(FIRST_ROW_ID);
+
+    String resolved = "s3://bucket/db/table/metadata/root.parquet";
+    FileIO io = Mockito.mock(FileIO.class);
+    InputFile input = Mockito.mock(InputFile.class);
+    Mockito.when(io.newInputFile(resolved)).thenReturn(input);
+    Mockito.when(input.getLength()).thenReturn(LENGTH);
+
+    RootManifestFile root = RootManifestFile.from(snapshot, "s3://bucket/db/table", io);
+
+    assertThat(root.path())
+        .as("relative root location should resolve against the table location")
+        .isEqualTo(resolved);
+    assertThat(root.length()).isEqualTo(LENGTH);
+    assertThat(root.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(root.sequenceNumber()).isEqualTo(SEQUENCE_NUMBER);
+    assertThat(root.firstRowId()).isEqualTo(FIRST_ROW_ID);
+  }
+
+  @Test
+  void fromRejectsEncryptedRoot() {
+    Snapshot snapshot = Mockito.mock(Snapshot.class);
+    Mockito.when(snapshot.keyId()).thenReturn("key-123");
+
+    assertThatThrownBy(
+            () ->
+                RootManifestFile.from(snapshot, "s3://bucket/db/table", Mockito.mock(FileIO.class)))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Encrypted v4 root manifests are not supported");
+  }
+}

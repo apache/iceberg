@@ -49,6 +49,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   private final JdbcClientPool connections;
   private final Map<String, String> catalogProperties;
   private final JdbcUtil.SchemaVersion schemaVersion;
+  private final int metadataRefreshMaxRetries;
 
   protected JdbcTableOperations(
       JdbcClientPool dbConnPool,
@@ -56,13 +57,15 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       String catalogName,
       TableIdentifier tableIdentifier,
       Map<String, String> catalogProperties,
-      JdbcUtil.SchemaVersion schemaVersion) {
+      JdbcUtil.SchemaVersion schemaVersion,
+      int metadataRefreshMaxRetries) {
     this.catalogName = catalogName;
     this.tableIdentifier = tableIdentifier;
     this.fileIO = fileIO;
     this.connections = dbConnPool;
     this.catalogProperties = catalogProperties;
     this.schemaVersion = schemaVersion;
+    this.metadataRefreshMaxRetries = metadataRefreshMaxRetries;
   }
 
   @Override
@@ -96,7 +99,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
         newMetadataLocation != null,
         "Invalid table %s: metadata location is null",
         tableIdentifier);
-    refreshFromMetadataLocation(newMetadataLocation);
+    refreshFromMetadataLocation(newMetadataLocation, metadataRefreshMaxRetries);
   }
 
   @Override

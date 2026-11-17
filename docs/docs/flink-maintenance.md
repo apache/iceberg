@@ -113,18 +113,27 @@ Notes:
 
 **State and restart**
 
-- The PK-index worker keeps a keyed row-position index of the target branch in Flink state and **maintains it incrementally across checkpoints**: each trigger cycle only applies the commits added on the target branch since the last indexed snapshot, and the resulting index is persisted with the next Flink checkpoint. On failover, the worker resumes from the most recent checkpointed index rather than rebuilding from scratch. Its size scales with the number of live rows in the table for the configured equality columns; size Flink state backend, checkpoint storage, and TaskManager memory accordingly. **RocksDB is the preferred state backend** because the PK index can grow beyond the available heap and RocksDB spills to local disk instead of failing with an `OutOfMemoryError`.
-- Full (re)indexing from the target branch head is only triggered in a few cases: cold start with no checkpoint, external commits that advance the target past the currently-indexed snapshot (see below), when the planner detects that the target branch has diverged from the indexed snapshot (rollback / replace-main / expired marker), or when a staging snapshot is planned again because the cycle that planned it did not commit.
+- The PK-index worker keeps a keyed row-position index of the target branch in Flink state, persisted with each Flink checkpoint. Its size scales with the number of live rows in the table for the configured equality columns; size Flink state backend, checkpoint storage, and TaskManager memory accordingly. **RocksDB is the preferred state backend** because the PK index can grow beyond the available heap and RocksDB spills to local disk instead of failing with an `OutOfMemoryError`.
+- The index is **reused across triggers and restored on failover** while it matches the head of the target branch, or while it can be reached from the latest head of the target branch. The planner refreshes the index with the delta between the index snapshot and the latest snapshot, so it corresponds to the latest table state.
+- External commits on the target branch (e.g. compaction or direct writes) are applied to the index as a delta: the planner reads the data files they added and removed, and the worker indexes or evicts their rows. A file that is added and removed within the delta is not indexed.
+- In the following cases the next trigger **rebuilds the index** from the target branch head instead, reading the equality columns of every live data file:
+    - on cold start without a checkpoint, and on the first trigger after restoring state written by an older Iceberg version
+    - when the indexed snapshot is no longer in the history of the target head, e.g. after rollback, replace-main, or snapshot expiration
+    - after restoring a checkpoint that predates the latest conversion commit
+    - when the last planned conversion did not commit
+    - when an earlier index update (rebuild or delta) failed
+    - when a data file that was removed since the last trigger is added again
+    - when the delta would read more rows than a rebuild
 - The `equalityFieldColumns` set is persisted in operator state. Reconfiguring it across a restart from savepoint is **not supported** and the job will fail fast on restore. Restart from a clean state (no savepoint) if the equality columns change.
-- The committer is intentionally stateless. On restart, the planner rediscovers its position by walking the target branch for the marker property `equality-convert-staging-snapshot` written by the committer. If that marker is no longer reachable on the target branch (target was rolled back, replace-main'ed, or the marker snapshot was expired) the planner fails and requires manual intervention.
+- On restart, the planner rediscovers its position by walking the target branch for the marker property `equality-convert-staging-snapshot` written by the committer. If that marker is no longer reachable on the target branch (target was rolled back, replaced, or the marker snapshot was expired) the planner fails and requires manual intervention.
 
 **Concurrent commits on the target branch**
 
-- External commits to the target branch (e.g. compaction, direct writes) are detected by `RowDelta.validateFromSnapshot`. A conflicting cycle fails at commit; the next trigger reindexes the worker's PK index from the new target head and retries.
+- External commits to the target branch (e.g. compaction, direct writes) are detected by `RowDelta.validateFromSnapshot`. A conflicting cycle fails at commit; the next trigger rebuilds the worker's PK index from the new target head and retries.
 - **Recommendation: avoid continuous concurrent writers on the target branch.** The conflict check runs at commit time, so a cycle that loses the race has already paid the cost of reading data files, resolving the PK index, and writing DV files — all of which is thrown away on failure. If another writer commits to the target faster than the converter can complete a cycle, cycles can fail repeatedly and never catch up (a livelock), and the abandoned DV files linger until `DeleteOrphanFiles` cleans them up.
 - **Acceptable patterns** (the design assumes one of these):
     - The Flink `IcebergSink` is the *only* writer to `stagingBranch`, and nothing except this converter writes to `targetBranch`. Other maintenance tasks (compaction, expire snapshots, orphan cleanup) share the same `TriggerLockFactory` so they are serialized with the converter and will not race it.
-    - Occasional external commits to the target branch (e.g. manual fixes, ad-hoc backfill) are fine — the next trigger will reindex and succeed.
+    - Occasional external commits to the target branch (e.g. manual fixes, ad-hoc backfill) are fine — the next trigger brings the index up to date and succeeds.
 
 ### Lock Management
 
@@ -505,6 +514,7 @@ These keys are used in SQL (SET or table WITH options) or via `IcebergSink.Build
 | `flink-maintenance.rewrite.schedule.data-file-count` | Trigger after N data files | `1000` |
 | `flink-maintenance.rewrite.schedule.data-file-size` | Trigger after total data file size (bytes) | `107374182400` (100GB) |
 | `flink-maintenance.rewrite.schedule.interval-second` | Trigger after time interval (seconds) | `600` |
+| `flink-maintenance.rewrite.branch` | Branch to compact. Defaults to the sink's write branch, or to the convert equality deletes target branch when convert equality deletes is also enabled | Not set |
 | `flink-maintenance.rewrite.max-bytes` | Maximum bytes to rewrite per execution | `Long.MAX_VALUE` |
 | `flink-maintenance.rewrite.partial-progress.enabled` | Enable partial progress commits | `false` |
 | `flink-maintenance.rewrite.partial-progress.max-commits` | Maximum commits for partial progress | `10` |

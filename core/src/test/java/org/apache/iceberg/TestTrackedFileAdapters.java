@@ -29,6 +29,7 @@ import java.util.Map;
 import org.apache.iceberg.mumbling.MumblingTestUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -50,6 +51,17 @@ class TestTrackedFileAdapters {
   private static final long DATA_SEQUENCE_NUMBER = 10L;
   private static final long FILE_SEQUENCE_NUMBER = 11L;
   private static final long FIRST_ROW_ID = 1000L;
+  private static final int SORT_ORDER_ID = 3;
+
+  private static final long MANIFEST_SEQUENCE_NUMBER = 5L;
+  private static final long MANIFEST_MIN_SEQUENCE_NUMBER = 4L;
+  private static final int ADDED_FILES_COUNT = 2;
+  private static final long ADDED_ROWS_COUNT = 200L;
+  private static final int EXISTING_FILES_COUNT = 3;
+  private static final long EXISTING_ROWS_COUNT = 300L;
+  private static final int DELETED_FILES_COUNT = 1;
+  private static final long DELETED_ROWS_COUNT = 100L;
+  private static final int NON_ZERO_FILE_COUNT = 1;
 
   private static final int UNPARTITIONED_SPEC_ID = PartitionSpec.unpartitioned().specId();
   private static final Map<Integer, PartitionSpec> UNPARTITIONED =
@@ -70,6 +82,9 @@ class TestTrackedFileAdapters {
   // these are populated by readers using the setter with the position of the field.
   private static final int MANIFEST_LOCATION_ORDINAL = Tracking.schema().fields().size();
   private static final int MANIFEST_POSITION_ORDINAL = Tracking.schema().fields().size() + 1;
+  // row_position follows the data file schema and stores the manifest position.
+  private static final int DATA_FILE_POS_ORDINAL =
+      DataFile.getType(Types.StructType.of()).fields().size();
 
   private static final Schema TABLE_SCHEMA =
       new Schema(
@@ -96,6 +111,8 @@ class TestTrackedFileAdapters {
     CONTENT_STATS.setStats(3, GEOM_STATS);
   }
 
+  private static final PartitionSpec UNPARTITIONED_SPEC = PartitionSpec.unpartitioned();
+
   private static final Tracking MANIFEST_TRACKING =
       new TrackingStruct(
           EntryStatus.ADDED,
@@ -114,17 +131,57 @@ class TestTrackedFileAdapters {
           .addedFilesCount(3)
           .existingFilesCount(5)
           .deletedFilesCount(2)
-          .replacedFilesCount(0)
-          .modifiedFilesCount(0)
+          .replacedFilesCount(4)
+          .modifiedFilesCount(1)
           .addedRowsCount(300L)
           .existingRowsCount(500L)
           .deletedRowsCount(200L)
-          .replacedRowsCount(0L)
-          .modifiedRowsCount(0L)
+          .replacedRowsCount(40L)
+          .modifiedRowsCount(10L)
           .minSequenceNumber(7L)
           .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
           .formatVersion(FORMAT_VERSION_V4)
           .build();
+
+  private static final Metrics METRICS_WITH_BOUNDS =
+      new Metrics(
+          100L,
+          ImmutableMap.of(1, 16L, 2, 64L),
+          ImmutableMap.of(1, 100L, 2, 100L),
+          ImmutableMap.of(1, 0L, 2, 5L),
+          ImmutableMap.of(),
+          ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),
+          ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1000)));
+
+  private static final DataFile DATA_FILE =
+      new GenericDataFile(
+          UNPARTITIONED_SPEC.specId(),
+          DATA_FILE_LOCATION,
+          FileFormat.PARQUET,
+          PartitionData.EMPTY,
+          1024L,
+          new Metrics(100L),
+          KEY_METADATA,
+          ImmutableList.of(0L),
+          SORT_ORDER_ID,
+          FIRST_ROW_ID);
+  private static final DataFile DATA_FILE_WITH_METRICS =
+      new GenericDataFile(
+          UNPARTITIONED_SPEC.specId(),
+          DATA_FILE_LOCATION,
+          FileFormat.PARQUET,
+          PartitionData.EMPTY,
+          1024L,
+          METRICS_WITH_BOUNDS,
+          KEY_METADATA,
+          ImmutableList.of(0L),
+          SORT_ORDER_ID,
+          FIRST_ROW_ID);
+
+  static {
+    assignManifestPosition(DATA_FILE, MANIFEST_LOCATION, MANIFEST_POS);
+    assignManifestPosition(DATA_FILE_WITH_METRICS, MANIFEST_LOCATION, MANIFEST_POS);
+  }
 
   @Test
   void dataFileAdapterDelegation() {
@@ -153,11 +210,13 @@ class TestTrackedFileAdapters {
             PARTITIONED_SPEC_ID,
             PARTITION,
             CONTENT_STATS,
+            true,
             3,
             dv,
             null,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
-            ImmutableList.of(50L, 100L));
+            ImmutableList.of(50L, 100L),
+            null);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(PARTITIONED_SPEC));
 
@@ -177,6 +236,7 @@ class TestTrackedFileAdapters {
     assertThat(dataFile.splitOffsets()).containsExactly(50L, 100L);
     assertThat(dataFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
     assertThat(dataFile.deletionVector()).isSameAs(dv);
+    assertThat(dataFile.tightStats()).isTrue();
     assertThat(dataFile.equalityFieldIds()).isNull();
     assertThat(dataFile.columnSizes()).isNull();
     assertThat(dataFile.valueCounts())
@@ -198,11 +258,25 @@ class TestTrackedFileAdapters {
   @ParameterizedTest
   @EnumSource(value = FileContent.class, mode = EnumSource.Mode.EXCLUDE, names = "DATA")
   void dataFileAdapterRejectsNonDataContent(FileContent contentType) {
-    TrackedFileStruct file = dummyTrackedFile(contentType);
+    TrackedFileStruct file = trackedFile(contentType);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, UNPARTITIONED))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid content type for DataFile: %s", contentType);
+  }
+
+  @Test
+  void dataFileRejectsColumnFiles() {
+    TrackedFile trackedDataFile = mock(TrackedFile.class);
+    when(trackedDataFile.contentType()).thenReturn(FileContent.DATA);
+    when(trackedDataFile.columnFiles())
+        .thenReturn(ImmutableList.of(Mockito.mock(ColumnFile.class)));
+    when(trackedDataFile.location()).thenReturn("s3://bucket/path/file.parquet");
+
+    assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(trackedDataFile, UNPARTITIONED))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(
+            "Cannot convert data file with column updates: %s", "s3://bucket/path/file.parquet");
   }
 
   @Test
@@ -240,8 +314,10 @@ class TestTrackedFileAdapters {
             PARTITIONED_SPEC_ID,
             PARTITION,
             null,
+            true,
             null,
             dv,
+            null,
             null,
             null,
             null);
@@ -280,6 +356,7 @@ class TestTrackedFileAdapters {
     assertThat(dvFile.nanValueCounts()).isNull();
     assertThat(dvFile.lowerBounds()).isNull();
     assertThat(dvFile.upperBounds()).isNull();
+    assertThat(dvFile.tightStats()).isFalse();
   }
 
   @Test
@@ -370,17 +447,19 @@ class TestTrackedFileAdapters {
         PARTITIONED_SPEC_ID,
         PARTITION,
         null, // contentStats
+        false, // tightStats
         3, // sortOrderId
         dv, // deletionVector
         null, // manifestInfo
         KEY_METADATA,
-        ImmutableList.of(50L, 100L)); // splitOffsets
+        ImmutableList.of(50L, 100L), // splitOffsets
+        null); // columnFiles
   }
 
   @ParameterizedTest
   @EnumSource(value = FileContent.class, mode = EnumSource.Mode.EXCLUDE, names = "DATA")
   void dvDeleteFileAdapterRejectsNonDataContent(FileContent contentType) {
-    TrackedFileStruct file = dummyTrackedFile(contentType);
+    TrackedFileStruct file = trackedFile(contentType);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED))
         .isInstanceOf(IllegalArgumentException.class)
@@ -389,7 +468,7 @@ class TestTrackedFileAdapters {
 
   @Test
   void dvDeleteFileAdapterRejectsNullDeletionVector() {
-    TrackedFileStruct file = dummyTrackedFile(FileContent.DATA);
+    TrackedFileStruct file = trackedFile(FileContent.DATA);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED))
         .isInstanceOf(IllegalArgumentException.class)
@@ -412,11 +491,13 @@ class TestTrackedFileAdapters {
             null, // specId
             null, // partition
             null, // contentStats
+            false, // tightStats
             null, // sortOrderId
             null, // deletionVector
             MANIFEST_INFO,
             MANIFEST_KEY_METADATA,
-            null); // splitOffsets
+            null, // splitOffsets
+            null); // columnFiles
 
     ManifestFile manifest = TrackedFileAdapters.asManifestFile(file);
 
@@ -434,6 +515,10 @@ class TestTrackedFileAdapters {
     assertThat(manifest.existingRowsCount()).isEqualTo(MANIFEST_INFO.existingRowsCount());
     assertThat(manifest.deletedFilesCount()).isEqualTo(MANIFEST_INFO.deletedFilesCount());
     assertThat(manifest.deletedRowsCount()).isEqualTo(MANIFEST_INFO.deletedRowsCount());
+    assertThat(manifest.replacedFilesCount()).isEqualTo(MANIFEST_INFO.replacedFilesCount());
+    assertThat(manifest.replacedRowsCount()).isEqualTo(MANIFEST_INFO.replacedRowsCount());
+    assertThat(manifest.modifiedFilesCount()).isEqualTo(MANIFEST_INFO.modifiedFilesCount());
+    assertThat(manifest.modifiedRowsCount()).isEqualTo(MANIFEST_INFO.modifiedRowsCount());
     assertThat(manifest.firstRowId()).isEqualTo(FIRST_ROW_ID);
     assertThat(manifest.keyMetadata()).isEqualTo(MANIFEST_KEY_METADATA);
     assertThat(manifest.manifestDeletionVector().buffer())
@@ -466,7 +551,7 @@ class TestTrackedFileAdapters {
       mode = EnumSource.Mode.EXCLUDE,
       names = {"DATA_MANIFEST", "DELETE_MANIFEST"})
   void manifestFileAdapterRejectsNonManifestContent(FileContent contentType) {
-    TrackedFileStruct file = dummyTrackedFile(contentType);
+    TrackedFileStruct file = trackedFile(contentType);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asManifestFile(file))
         .isInstanceOf(IllegalArgumentException.class)
@@ -485,7 +570,7 @@ class TestTrackedFileAdapters {
 
   @Test
   void nullContentStatsReturnsNullStats() {
-    TrackedFileStruct file = dummyTrackedFile(FileContent.DATA);
+    TrackedFileStruct file = trackedFile(FileContent.DATA);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED);
 
@@ -501,7 +586,7 @@ class TestTrackedFileAdapters {
     // Files read before manifest inheritance have no tracking; tracking-derived fields must be
     // null rather than throwing.
     assertNullTrackingFields(
-        TrackedFileAdapters.asDataFile(dummyTrackedFile(FileContent.DATA), UNPARTITIONED));
+        TrackedFileAdapters.asDataFile(trackedFile(FileContent.DATA), UNPARTITIONED));
 
     TrackedFileStruct fileWithDV =
         new TrackedFileStruct(
@@ -514,8 +599,10 @@ class TestTrackedFileAdapters {
             null,
             null,
             null,
+            false,
             null,
             deletionVector(),
+            null,
             null,
             null,
             null);
@@ -524,7 +611,7 @@ class TestTrackedFileAdapters {
 
   @Test
   void unpartitionedFilePartitionIsEmpty() {
-    TrackedFileStruct file = dummyTrackedFile(FileContent.DATA);
+    TrackedFileStruct file = trackedFile(FileContent.DATA);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED);
 
@@ -535,7 +622,7 @@ class TestTrackedFileAdapters {
   @Test
   void nullSpecIdResolvesToUnpartitionedSpec() {
     PartitionSpec unpartitioned = PartitionSpec.builderFor(new Schema()).withSpecId(5).build();
-    TrackedFileStruct file = dummyTrackedFile(FileContent.DATA);
+    TrackedFileStruct file = trackedFile(FileContent.DATA);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(unpartitioned));
 
@@ -546,7 +633,7 @@ class TestTrackedFileAdapters {
   void nullSpecIdThrowsWhenNoUnpartitionedSpec() {
     Schema schema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
     PartitionSpec partitioned = PartitionSpec.builderFor(schema).identity("id").build();
-    TrackedFileStruct file = dummyTrackedFile(FileContent.DATA);
+    TrackedFileStruct file = trackedFile(FileContent.DATA);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, specsById(partitioned)))
         .isInstanceOf(IllegalArgumentException.class)
@@ -566,6 +653,8 @@ class TestTrackedFileAdapters {
             99,
             null,
             null,
+            false,
+            null,
             null,
             null,
             null,
@@ -575,6 +664,268 @@ class TestTrackedFileAdapters {
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, ImmutableMap.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot find partition spec for spec ID");
+  }
+
+  @Test
+  void dataTrackedFileAdapterFromDataFile() {
+    TrackedFile result = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(DATA_FILE);
+
+    assertThat(result.tracking()).isNull();
+    assertWrappedDataFileMatchesFileFields(result, DATA_FILE);
+  }
+
+  @Test
+  void dataTrackedFileAdapterFromExistingManifestEntry() {
+    TrackedFile result =
+        TrackedFileAdapters.forDataFile(TABLE_SCHEMA)
+            .wrap(
+                new GenericManifestEntry<DataFile>(
+                        ManifestEntry.getSchema(UNPARTITIONED_SPEC.partitionType()).asStruct())
+                    .wrapExisting(
+                        SNAPSHOT_ID, DATA_SEQUENCE_NUMBER, FILE_SEQUENCE_NUMBER, DATA_FILE));
+
+    assertThat(result.tracking().status()).isEqualTo(EntryStatus.EXISTING);
+    assertThat(result.tracking().snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(result.tracking().dataSequenceNumber()).isEqualTo(DATA_SEQUENCE_NUMBER);
+    assertThat(result.tracking().fileSequenceNumber()).isEqualTo(FILE_SEQUENCE_NUMBER);
+    assertThat(result.tracking().firstRowId()).isEqualTo(FIRST_ROW_ID);
+    assertManifestPosition(result.tracking(), DATA_FILE);
+    assertWrappedDataFileMatchesFileFields(result, DATA_FILE);
+  }
+
+  @Test
+  void dataTrackedFileAdapterReuse() {
+    TrackedFileAdapters.DataTrackedFile adapter = TrackedFileAdapters.forDataFile(TABLE_SCHEMA);
+
+    adapter.wrap(DATA_FILE);
+    assertWrappedDataFileMatchesFileFields(adapter, DATA_FILE);
+    assertThat(adapter.tracking()).isNull();
+
+    DataFile file2 =
+        new GenericDataFile(
+            UNPARTITIONED_SPEC.specId(),
+            "s3://bucket/data/file2.parquet",
+            FileFormat.PARQUET,
+            PartitionData.EMPTY,
+            2048L,
+            new Metrics(200L),
+            null,
+            ImmutableList.of(0L),
+            null,
+            null);
+    assignManifestPosition(file2, "s3://bucket/table/manifest-2.parquet", 8L);
+    adapter.wrap(
+        new GenericManifestEntry<DataFile>(
+                ManifestEntry.getSchema(UNPARTITIONED_SPEC.partitionType()).asStruct())
+            .wrapExisting(SNAPSHOT_ID, DATA_SEQUENCE_NUMBER, FILE_SEQUENCE_NUMBER, file2));
+    assertWrappedDataFileMatchesFileFields(adapter, file2);
+    assertThat(adapter.tracking().status()).isEqualTo(EntryStatus.EXISTING);
+    assertManifestPosition(adapter.tracking(), file2);
+  }
+
+  @Test
+  void dataTrackedFileAdapterRejectsNullFile() {
+    TrackedFileAdapters.DataTrackedFile adapter = TrackedFileAdapters.forDataFile(TABLE_SCHEMA);
+    assertThatThrownBy(() -> adapter.wrap((DataFile) null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid file: null");
+  }
+
+  @Test
+  void dataTrackedFileAdapterUnwrapsToOriginalTrackedFile() {
+    TrackedFile original = trackedFile(FileContent.DATA);
+    DataFile adapted = TrackedFileAdapters.asDataFile(original, UNPARTITIONED);
+    TrackedFile roundTripped = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(adapted);
+    assertThat(roundTripped).isSameAs(original);
+  }
+
+  @Test
+  void dataTrackedFileAdapterContentStats() {
+    TrackedFile result = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(DATA_FILE_WITH_METRICS);
+
+    ContentStats stats = result.contentStats();
+    assertThat(stats).isNotNull();
+    assertThat(stats.fieldStats()).extracting(FieldStats::fieldId).containsExactlyInAnyOrder(1, 2);
+
+    FieldStats<?> idStats = stats.statsFor(1);
+    assertThat(idStats.valueCount()).isEqualTo(100L);
+    assertThat(idStats.lowerBound()).isEqualTo(1);
+    assertThat(idStats.upperBound()).isEqualTo(1000);
+  }
+
+  @Test
+  void dataTrackedFileAdapterWithoutMetricsHasNoContentStats() {
+    TrackedFile result = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(DATA_FILE);
+
+    assertThat(result.contentStats()).isNull();
+  }
+
+  @Test
+  void dataTrackedFileAdapterKeepsPartitionTuple() {
+    DataFile partitioned =
+        new GenericDataFile(
+            PARTITIONED_SPEC.specId(),
+            DATA_FILE_LOCATION,
+            FileFormat.PARQUET,
+            PARTITION,
+            1024L,
+            new Metrics(100L),
+            null,
+            ImmutableList.of(0L),
+            null,
+            null);
+    TrackedFile result = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(partitioned);
+
+    assertThat(result.partition())
+        .usingComparator(Comparators.forType(PARTITIONED_SPEC.partitionType()))
+        .isEqualTo(PARTITION);
+  }
+
+  @Test
+  void manifestTrackedFileAdapterUnwrapsToOriginalTrackedFile() {
+    TrackedFile original = trackedFile(FileContent.DATA_MANIFEST);
+    ManifestFile adapted = TrackedFileAdapters.asManifestFile(original);
+    TrackedFile roundTripped = TrackedFileAdapters.forManifestFile().wrap(adapted);
+    assertThat(roundTripped).isSameAs(original);
+  }
+
+  @ParameterizedTest
+  @EnumSource(ManifestContent.class)
+  void manifestTrackedFileAdapter(ManifestContent content) {
+    FileContent expectedContent =
+        content == ManifestContent.DATA ? FileContent.DATA_MANIFEST : FileContent.DELETE_MANIFEST;
+    ManifestFile manifest =
+        new GenericManifestFile(
+            MANIFEST_LOCATION,
+            MANIFEST_FILE_SIZE,
+            UNPARTITIONED_SPEC.specId(),
+            content,
+            MANIFEST_SEQUENCE_NUMBER,
+            MANIFEST_MIN_SEQUENCE_NUMBER,
+            SNAPSHOT_ID,
+            ImmutableList.of(), // partitions
+            null, // key metadata
+            ADDED_FILES_COUNT,
+            ADDED_ROWS_COUNT,
+            EXISTING_FILES_COUNT,
+            EXISTING_ROWS_COUNT,
+            DELETED_FILES_COUNT,
+            DELETED_ROWS_COUNT,
+            content == ManifestContent.DATA ? FIRST_ROW_ID : null); // first row id
+    TrackedFile result = TrackedFileAdapters.forManifestFile().wrap(manifest);
+
+    assertThat(result.contentType()).isEqualTo(expectedContent);
+    assertThat(result.manifestInfo().formatVersion()).isZero();
+    assertThat(result.location()).isEqualTo(MANIFEST_LOCATION);
+    assertThat(result.fileFormat()).isEqualTo(FileFormat.AVRO);
+    assertThat(result.tracking().status()).isEqualTo(EntryStatus.EXISTING);
+    assertThat(result.tracking().snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(result.tracking().firstRowId())
+        .isEqualTo(content == ManifestContent.DATA ? FIRST_ROW_ID : null);
+    assertThat(result.recordCount())
+        .isEqualTo(ADDED_FILES_COUNT + EXISTING_FILES_COUNT + DELETED_FILES_COUNT);
+    assertThat(result.manifestInfo()).isNotNull();
+    assertThat(result.manifestInfo().addedFilesCount()).isEqualTo(ADDED_FILES_COUNT);
+    assertThat(result.manifestInfo().existingFilesCount()).isEqualTo(EXISTING_FILES_COUNT);
+    assertThat(result.manifestInfo().deletedFilesCount()).isEqualTo(DELETED_FILES_COUNT);
+    assertThat(result.manifestInfo().addedRowsCount()).isEqualTo(ADDED_ROWS_COUNT);
+    assertThat(result.manifestInfo().existingRowsCount()).isEqualTo(EXISTING_ROWS_COUNT);
+    assertThat(result.manifestInfo().deletedRowsCount()).isEqualTo(DELETED_ROWS_COUNT);
+    assertThat(result.manifestInfo().replacedFilesCount()).isEqualTo(0);
+    assertThat(result.manifestInfo().replacedRowsCount()).isEqualTo(0L);
+    assertThat(result.manifestInfo().modifiedFilesCount()).isEqualTo(0);
+    assertThat(result.manifestInfo().modifiedRowsCount()).isEqualTo(0L);
+  }
+
+  @ParameterizedTest
+  @EnumSource(InvalidCount.class)
+  void manifestTrackedFileAdapterRejectsInvalidFilesCount(InvalidCount count) {
+    ManifestFile manifest = newManifestFileWithInvalidCount(count);
+    assertThatThrownBy(() -> TrackedFileAdapters.forManifestFile().wrap(manifest))
+        .isInstanceOf(count.exceptionType())
+        .hasMessage("Cannot convert manifest %s: %s", MANIFEST_LOCATION, count.message());
+  }
+
+  private static void assertWrappedDataFileMatchesFileFields(TrackedFile result, DataFile file) {
+    assertThat(result.contentType()).isEqualTo(FileContent.DATA);
+    assertThat(result.location()).isEqualTo(file.location());
+    assertThat(result.fileFormat()).isEqualTo(file.format());
+    assertThat(result.recordCount()).isEqualTo(file.recordCount());
+    assertThat(result.fileSizeInBytes()).isEqualTo(file.fileSizeInBytes());
+    assertThat(result.specId()).isEqualTo(file.specId());
+    assertThat(result.tightStats()).isEqualTo(file.tightStats());
+    assertThat(result.sortOrderId()).isEqualTo(file.sortOrderId());
+    assertThat(result.keyMetadata()).isEqualTo(file.keyMetadata());
+    assertThat(result.splitOffsets()).isEqualTo(file.splitOffsets());
+    assertThat(result.manifestInfo()).isNull();
+    assertThat(result.deletionVector()).isNull();
+  }
+
+  private static ManifestFile newManifestFileWithInvalidCount(InvalidCount count) {
+    ManifestFile manifest = mock(ManifestFile.class);
+    when(manifest.path()).thenReturn(MANIFEST_LOCATION);
+    when(manifest.content()).thenReturn(ManifestContent.DATA);
+    when(manifest.addedFilesCount()).thenReturn(ADDED_FILES_COUNT);
+    when(manifest.existingFilesCount()).thenReturn(EXISTING_FILES_COUNT);
+    when(manifest.deletedFilesCount()).thenReturn(DELETED_FILES_COUNT);
+    when(manifest.addedRowsCount()).thenReturn(ADDED_ROWS_COUNT);
+    when(manifest.existingRowsCount()).thenReturn(EXISTING_ROWS_COUNT);
+    when(manifest.deletedRowsCount()).thenReturn(DELETED_ROWS_COUNT);
+    when(manifest.replacedFilesCount()).thenReturn(0);
+    when(manifest.modifiedFilesCount()).thenReturn(0);
+    when(manifest.replacedRowsCount()).thenReturn(0L);
+    when(manifest.modifiedRowsCount()).thenReturn(0L);
+    switch (count) {
+      case ADDED_FILES -> when(manifest.addedFilesCount()).thenReturn(null);
+      case EXISTING_FILES -> when(manifest.existingFilesCount()).thenReturn(null);
+      case DELETED_FILES -> when(manifest.deletedFilesCount()).thenReturn(null);
+      case REPLACED_FILES_NULL -> when(manifest.replacedFilesCount()).thenReturn(null);
+      case MODIFIED_FILES_NULL -> when(manifest.modifiedFilesCount()).thenReturn(null);
+      case REPLACED_FILES_NON_ZERO ->
+          when(manifest.replacedFilesCount()).thenReturn(NON_ZERO_FILE_COUNT);
+      case MODIFIED_FILES_NON_ZERO ->
+          when(manifest.modifiedFilesCount()).thenReturn(NON_ZERO_FILE_COUNT);
+    }
+    return manifest;
+  }
+
+  private enum InvalidCount {
+    ADDED_FILES(NullPointerException.class, "missing added files count"),
+    EXISTING_FILES(NullPointerException.class, "missing existing files count"),
+    DELETED_FILES(NullPointerException.class, "missing deleted files count"),
+    REPLACED_FILES_NULL(IllegalArgumentException.class, "Invalid replaced file count: null"),
+    REPLACED_FILES_NON_ZERO(
+        IllegalArgumentException.class, "Invalid replaced file count: " + NON_ZERO_FILE_COUNT),
+    MODIFIED_FILES_NULL(IllegalArgumentException.class, "Invalid modified file count: null"),
+    MODIFIED_FILES_NON_ZERO(
+        IllegalArgumentException.class, "Invalid modified file count: " + NON_ZERO_FILE_COUNT);
+
+    private final Class<? extends RuntimeException> exceptionType;
+    private final String message;
+
+    InvalidCount(Class<? extends RuntimeException> exceptionType, String message) {
+      this.exceptionType = exceptionType;
+      this.message = message;
+    }
+
+    private Class<? extends RuntimeException> exceptionType() {
+      return exceptionType;
+    }
+
+    private String message() {
+      return message;
+    }
+  }
+
+  private static void assignManifestPosition(DataFile file, String location, long manifestPos) {
+    GenericDataFile dataFile = (GenericDataFile) file;
+    dataFile.setManifestLocation(location);
+    dataFile.set(DATA_FILE_POS_ORDINAL, manifestPos);
+  }
+
+  private static void assertManifestPosition(Tracking tracking, DataFile file) {
+    assertThat(tracking.manifestLocation()).isEqualTo(file.manifestLocation());
+    assertThat(tracking.manifestPos()).isEqualTo(file.pos());
   }
 
   private static void assertNullTrackingFields(ContentFile<?> file) {
@@ -596,8 +947,8 @@ class TestTrackedFileAdapters {
     return partition;
   }
 
-  /** Minimal file with no tracking, used by the rejection and null-tracking tests. */
-  private static TrackedFileStruct dummyTrackedFile(FileContent contentType) {
+  /** Minimal file for the rejection and null-tracking tests. */
+  private static TrackedFileStruct trackedFile(FileContent contentType) {
     return new TrackedFileStruct(
         null,
         contentType,
@@ -607,6 +958,8 @@ class TestTrackedFileAdapters {
         1L,
         null,
         null,
+        null,
+        false,
         null,
         null,
         null,

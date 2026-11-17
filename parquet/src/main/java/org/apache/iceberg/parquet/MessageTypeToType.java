@@ -149,6 +149,10 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
   @Override
   public Type primitive(PrimitiveType primitive) {
+    return convertPrimitive(primitive);
+  }
+
+  static Type convertPrimitive(PrimitiveType primitive) {
     // first, use the logical type annotation, if present
     LogicalTypeAnnotation logicalType = primitive.getLogicalTypeAnnotation();
     if (logicalType != null) {
