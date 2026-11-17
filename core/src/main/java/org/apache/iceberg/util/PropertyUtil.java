@@ -251,17 +251,8 @@ public class PropertyUtil {
   }
 
   /**
-   * Returns properties with each per-column property in {@link
-   * TableProperties#COLUMN_PROPERTY_PREFIXES} renamed or removed to match the new schema.
-   *
-   * <p>Property keys refer to columns of the old schema. A property is renamed when its column or a
-   * parent of it is renamed, and removed when its column or a parent of it is dropped. Returns the
-   * given properties if none changed.
-   *
-   * @param properties properties whose per-column keys refer to the old schema
-   * @param oldSchema schema that the property keys refer to
-   * @param newSchema schema to match
-   * @return the updated properties
+   * Returns the properties with per-column keys renamed or removed to follow their columns from
+   * {@code oldSchema} to {@code newSchema}.
    */
   public static Map<String, String> applySchemaChanges(
       Map<String, String> properties, Schema oldSchema, Schema newSchema) {
