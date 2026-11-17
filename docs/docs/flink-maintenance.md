@@ -140,6 +140,7 @@ Notes:
 The `TriggerLockFactory` is essential for coordinating maintenance tasks. It prevents concurrent maintenance operations on the same table, which could lead to conflicts or data corruption. This locking mechanism is necessary even for a single job, as multiple instances of the same task could otherwise conflict.
 
 #### Why Locks Are Needed
+
 - **Concurrent Access**: Multiple Flink jobs may attempt maintenance simultaneously
 - **Data Consistency**: Ensures only one maintenance operation runs per table at a time
 - **Resource Management**: Prevents resource conflicts and scheduling issues
@@ -589,16 +590,19 @@ These keys are used in SQL (SET or table WITH options) and are applicable when w
 ### Best Practices
 
 #### Resource Management
+
 - Use dedicated slot sharing groups for maintenance tasks
 - Set appropriate parallelism based on cluster resources
 - Enable checkpointing for fault tolerance
 
 #### Scheduling Strategy
+
 - Avoid too frequent executions with `rateLimit`
 - Use `scheduleOnCommitCount` for write-heavy tables
 - Use `scheduleOnDataFileCount` for fine-grained control
 
 #### Performance Tuning
+
 - Adjust `deleteBatchSize` based on storage performance
 - Enable `partialProgressEnabled` for large rewrite operations
 - Set reasonable `maxRewriteBytes` limits
