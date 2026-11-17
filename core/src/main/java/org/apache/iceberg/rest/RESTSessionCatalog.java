@@ -103,6 +103,7 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UnregisterTableResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
+import org.apache.iceberg.rest.restrictions.ReadRestrictions;
 import org.apache.iceberg.util.EnvironmentUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.ThreadPools;
@@ -588,6 +589,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     List<Credential> credentials = response.credentials();
     RemoteSigningConfig remoteSigningConfig = response.remoteSigningConfig();
     Labels labels = response.labels();
+    ReadRestrictions readRestrictions = response.readRestrictions();
     RESTClient tableClient = client.withAuthSession(tableSession);
     Supplier<BaseTable> tableSupplier =
         createTableSupplier(
@@ -599,10 +601,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             loadContext,
             credentials,
             remoteSigningConfig,
-            labels);
+            labels,
+            readRestrictions);
 
     String eTag = responseHeaders.getOrDefault(HttpHeaders.ETAG, null);
     if (eTag != null) {
+      // Cached regardless of read restrictions: the server decides when a response has changed.
+      // The ETag contract requires distinct tags for responses whose content differs, including
+      // per-principal restrictions, even at the same table metadata version.
       tableCache.put(context.sessionId(), finalIdentifier, tableSupplier, eTag);
     }
 
@@ -622,7 +628,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       LoadContext loadContext,
       List<Credential> credentials,
       RemoteSigningConfig remoteSigningConfig,
-      Labels labels) {
+      Labels labels,
+      ReadRestrictions readRestrictions) {
     Map<String, String> readQueryParams =
         referencedByParam(loadContext, RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER);
 
@@ -641,25 +648,29 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       trackFileIO(ops);
 
-      RESTTable table = restTableForScanPlanning(ops, identifier, tableClient, tableConf, labels);
+      RESTScanPlanningTable table =
+          restTableForScanPlanning(
+              ops, identifier, tableClient, tableConf, labels, readRestrictions);
       if (table != null) {
         return table;
       }
 
-      return new BaseTable(
+      return new RESTTable(
           ops,
           fullTableName(identifier),
           metricsReporter(paths.metrics(identifier), tableClient),
-          labels);
+          labels,
+          readRestrictions);
     };
   }
 
-  private RESTTable restTableForScanPlanning(
+  private RESTScanPlanningTable restTableForScanPlanning(
       TableOperations ops,
       TableIdentifier finalIdentifier,
       RESTClient restClient,
       Map<String, String> tableConf,
-      Labels labels) {
+      Labels labels,
+      ReadRestrictions readRestrictions) {
     String planningModeServerConfig = tableConf.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
     ScanPlanningMode serverScanPlanningMode =
         planningModeServerConfig == null
@@ -694,7 +705,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           finalIdentifier,
           Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN);
 
-      return new RESTTable(
+      return new RESTScanPlanningTable(
           ops,
           fullTableName(finalIdentifier),
           metricsReporter(paths.metrics(finalIdentifier), restClient),
@@ -705,7 +716,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           endpoints,
           properties(),
           conf,
-          labels);
+          labels,
+          readRestrictions);
     }
 
     // Default to client-side planning
@@ -799,17 +811,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     trackFileIO(ops);
 
-    RESTTable restTable =
-        restTableForScanPlanning(ops, ident, tableClient, tableConf, response.labels());
+    RESTScanPlanningTable restTable =
+        restTableForScanPlanning(
+            ops, ident, tableClient, tableConf, response.labels(), response.readRestrictions());
     if (restTable != null) {
       return restTable;
     }
 
-    return new BaseTable(
+    return new RESTTable(
         ops,
         fullTableName(ident),
         metricsReporter(paths.metrics(ident), tableClient),
-        response.labels());
+        response.labels(),
+        response.readRestrictions());
   }
 
   /**
@@ -1113,17 +1127,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       trackFileIO(ops);
 
-      RESTTable restTable =
-          restTableForScanPlanning(ops, ident, tableClient, tableConf, response.labels());
+      RESTScanPlanningTable restTable =
+          restTableForScanPlanning(
+              ops, ident, tableClient, tableConf, response.labels(), response.readRestrictions());
       if (restTable != null) {
         return restTable;
       }
 
-      return new BaseTable(
+      return new RESTTable(
           ops,
           fullTableName(ident),
           metricsReporter(paths.metrics(ident), tableClient),
-          response.labels());
+          response.labels(),
+          response.readRestrictions());
     }
 
     @Override

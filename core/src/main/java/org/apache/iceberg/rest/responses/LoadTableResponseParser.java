@@ -28,6 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RemoteSigningConfigParser;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.CredentialParser;
+import org.apache.iceberg.rest.restrictions.ReadRestrictionsParser;
 import org.apache.iceberg.util.JsonUtil;
 
 public class LoadTableResponseParser {
@@ -38,6 +39,7 @@ public class LoadTableResponseParser {
   private static final String STORAGE_CREDENTIALS = "storage-credentials";
   private static final String REMOTE_SIGNING_CONFIG = "remote-signing-config";
   private static final String LABELS = "labels";
+  private static final String READ_RESTRICTIONS = "read-restrictions";
 
   private LoadTableResponseParser() {}
 
@@ -84,6 +86,11 @@ public class LoadTableResponseParser {
       LabelsParser.toJson(response.labels(), gen);
     }
 
+    if (!response.readRestrictions().isEmpty()) {
+      gen.writeFieldName(READ_RESTRICTIONS);
+      ReadRestrictionsParser.toJson(response.readRestrictions(), gen);
+    }
+
     gen.writeEndObject();
   }
 
@@ -122,6 +129,11 @@ public class LoadTableResponseParser {
 
     if (json.hasNonNull(LABELS)) {
       builder.withLabels(LabelsParser.fromJson(JsonUtil.get(LABELS, json)));
+    }
+
+    if (json.hasNonNull(READ_RESTRICTIONS)) {
+      builder.withReadRestrictions(
+          ReadRestrictionsParser.fromJson(json.get(READ_RESTRICTIONS), metadata.schema()));
     }
 
     return builder.build();

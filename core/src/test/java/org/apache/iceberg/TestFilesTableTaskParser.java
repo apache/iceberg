@@ -102,7 +102,7 @@ public class TestFilesTableTaskParser {
         + "\"properties\":{\"k1\":\"v1\",\"k2\":\"v2\"}},"
         + "\"partition-specs\":[{\"spec-id\":0,\"fields\":[{"
         + "\"name\":\"data_bucket\",\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]}],"
-        + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1},"
+        + "\"residual-filter\":{\"type\":\"eq\",\"left\":{\"type\":\"reference\",\"name\":\"id\"},\"right\":1},"
         + "\"manifest-file\":{\"path\":\"/path/input.m0.avro\","
         + "\"length\":5878,\"partition-spec-id\":0,\"content\":0,\"sequence-number\":1,\"min-sequence-number\":2,"
         + "\"added-snapshot-id\":12345678901234567,"
