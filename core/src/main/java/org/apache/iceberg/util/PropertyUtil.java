@@ -265,30 +265,32 @@ public class PropertyUtil {
    */
   public static Map<String, String> applySchemaChanges(
       Map<String, String> properties, Schema oldSchema, Schema newSchema) {
-    Map<String, String> updated = Maps.newHashMap();
-    boolean changed = false;
+    Map<String, String> updated = Maps.newHashMap(properties);
+    Map<String, String> renamed = Maps.newHashMap();
     for (Map.Entry<String, String> entry : properties.entrySet()) {
-      String key = entry.getKey();
-      String prefix = columnPropertyPrefix(key);
-      Types.NestedField field =
-          prefix != null ? oldSchema.findField(key.substring(prefix.length())) : null;
-      if (field == null) {
-        updated.put(key, entry.getValue());
+      String prefix = columnPropertyPrefix(entry.getKey());
+      if (prefix == null) {
         continue;
       }
 
+      Types.NestedField field = oldSchema.findField(entry.getKey().substring(prefix.length()));
+      if (field == null) {
+        continue;
+      }
+
+      String oldName = oldSchema.findColumnName(field.fieldId());
       String newName = newSchema.findColumnName(field.fieldId());
-      if (newName == null) {
-        changed = true;
-      } else if (newName.equals(oldSchema.findColumnName(field.fieldId()))) {
-        updated.put(key, entry.getValue());
-      } else {
-        changed = true;
-        updated.put(prefix + newName, entry.getValue());
+      if (!oldName.equals(newName)) {
+        updated.remove(entry.getKey());
+        if (newName != null) {
+          renamed.put(prefix + newName, entry.getValue());
+        }
       }
     }
 
-    return changed ? updated : properties;
+    // a renamed property takes precedence over an unresolved property with the same key
+    updated.putAll(renamed);
+    return updated.equals(properties) ? properties : updated;
   }
 
   private static String columnPropertyPrefix(String key) {
