@@ -49,12 +49,12 @@ public class GenericDeleteFilter extends DeleteFilter<Record> {
   }
 
   private GenericDeleteFilter(
-      Function<String, InputFile> inputFiles,
+      Function<String, InputFile> inputFilesProvider,
       FileScanTask task,
       Schema tableSchema,
       Schema requestedSchema) {
     super(task.file().location(), task.deletes(), tableSchema, requestedSchema);
-    this.inputFileProvider = inputFiles;
+    this.inputFileProvider = inputFileProvider;
     this.asStructLike = new InternalRecordWrapper(requiredSchema().asStruct());
   }
 
