@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
@@ -171,7 +172,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     List<ManifestFile> currentManifests = base.currentSnapshot().allManifests(ops().io());
     Set<ManifestFile> currentManifestSet = ImmutableSet.copyOf(currentManifests);
 
-    validateDeletedManifests(currentManifestSet, base.currentSnapshot().snapshotId());
+    validateDeletedManifests(currentManifests, base.currentSnapshot().snapshotId());
 
     if (requiresRewrite(currentManifestSet)) {
       performRewrite(currentManifests);
@@ -284,17 +285,39 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   }
 
   private void validateDeletedManifests(
-      Set<ManifestFile> currentManifests, long currentSnapshotID) {
-    // directly deleted manifests must be still present in the current snapshot
-    deletedManifests.stream()
-        .filter(manifest -> !currentManifests.contains(manifest))
-        .findAny()
-        .ifPresent(
-            manifest -> {
-              throw new ValidationException(
-                  "Deleted manifest %s could not be found in the latest snapshot %d",
-                  manifest.path(), currentSnapshotID);
-            });
+      List<ManifestFile> currentManifests, long currentSnapshotID) {
+    Map<String, ManifestFile> currentManifestsByPath = Maps.newHashMap();
+    for (ManifestFile manifest : currentManifests) {
+      currentManifestsByPath.put(manifest.path(), manifest);
+    }
+
+    for (ManifestFile manifest : deletedManifests) {
+      // directly deleted manifests must be still present in the current snapshot
+      ManifestFile current = currentManifestsByPath.get(manifest.path());
+      ValidationException.check(
+          current != null,
+          "Deleted manifest %s could not be found in the latest snapshot %d",
+          manifest.path(),
+          currentSnapshotID);
+
+      // a manifest staged earlier in a transaction keeps its path when the transaction retries but
+      // can inherit a new sequence number and first row ID, which a replacement written from its
+      // entries would not have
+      ValidationException.check(
+          manifest.sequenceNumber() == current.sequenceNumber()
+              && manifest.minSequenceNumber() == current.minSequenceNumber()
+              && Objects.equals(manifest.firstRowId(), current.firstRowId()),
+          "Deleted manifest %s changed in the latest snapshot %d: "
+              + "sequence number %s -> %s, min sequence number %s -> %s, first row ID %s -> %s",
+          manifest.path(),
+          currentSnapshotID,
+          manifest.sequenceNumber(),
+          current.sequenceNumber(),
+          manifest.minSequenceNumber(),
+          current.minSequenceNumber(),
+          manifest.firstRowId(),
+          current.firstRowId());
+    }
   }
 
   private void validateFilesCounts() {
