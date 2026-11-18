@@ -2623,8 +2623,8 @@ public class TestSchemaUpdate {
   }
 
   @Test
-  void cannotPromoteFileNestedField() {
-    assertThatThrownBy(() -> fileUpdate().updateColumn("photo.size", Types.LongType.get()))
+  void cannotUpdateFileNestedFieldType() {
+    assertThatThrownBy(() -> fileUpdate().updateColumn("photo.size", Types.StringType.get()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot change a nested field of a file column: photo.size");
   }

@@ -627,24 +627,24 @@ public class Schema implements Serializable {
       return columns;
     }
 
-    TypeUtil.GetID tracked =
-        new TypeUtil.GetID() {
-          @Override
-          public int get(int oldId) {
-            return track(oldId, getID.get(oldId));
-          }
+    Type res =
+        TypeUtil.assignIds(
+            StructType.of(columns),
+            new TypeUtil.GetID() {
+              @Override
+              public int get(int oldId) {
+                return recordIfReassigned(oldId, getID.get(oldId));
+              }
 
-          @Override
-          public int get(int oldId, Type type) {
-            return track(oldId, getID.get(oldId, type));
-          }
-        };
-
-    Type res = TypeUtil.assignIds(StructType.of(columns), tracked);
+              @Override
+              public int get(int oldId, Type type) {
+                return recordIfReassigned(oldId, getID.get(oldId, type));
+              }
+            });
     return res.asStructType().fields();
   }
 
-  private int track(int oldId, int newId) {
+  private int recordIfReassigned(int oldId, int newId) {
     if (newId != oldId) {
       idsToReassigned.put(oldId, newId);
       idsToOriginal.put(newId, oldId);
