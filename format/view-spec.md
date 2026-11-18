@@ -212,7 +212,7 @@ The refresh state has the following fields:
 | _required_  | `view-version-id`            | The `version-id` of the materialized view when the refresh operation was performed |
 | _required_  | `source-states`              | A list of [source state](#source-state) records capturing the dependencies the writer chose to record; may be empty |
 
-When writing the refresh state, writers may leave source-states empty (e.g., when sources are non-Iceberg tables or a mechanism outside this spec determines whether the storage table reflects the result of the view query).
+`source-states` may be empty or cover only some of the view query's dependencies (e.g., when sources are non-Iceberg tables or a mechanism outside this spec determines whether the storage table reflects the result of the view query). A dependency that is not recorded carries no information about its state.
 
 ##### Source state
 
