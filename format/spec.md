@@ -1984,7 +1984,7 @@ Vector elements must be written to Parquet using the following types:
 |---------------|---------------------------|--------------|
 | **`int`**     | `int32`                   |              |
 | **`long`**    | `int64`                   |              |
-| **`float16`** | `fixed_len_byte_array[2]`  | `FLOAT16`    |
+| **`float16`** | `fixed_len_byte_array[2]` | `FLOAT16`    |
 | **`float`**   | `float`                   |              |
 | **`double`**  | `double`                  |              |
 
