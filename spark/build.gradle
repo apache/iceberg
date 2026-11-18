@@ -19,7 +19,7 @@
 
 // Spark versions that take every source file they share byte-for-byte from spark/common. A file
 // that differs between them is a full copy under each version's own directory instead.
-ext.sparkCommonVersions = ['4.1', '4.2']
+ext.sparkCommonVersions = ['4.1', '4.2', '4.3']
 List<String> sparkModules = ['spark', 'spark-extensions', 'spark-runtime']
 
 // Adds spark/common sources to every source set of a Spark version project. Common Java compiles
@@ -104,4 +104,8 @@ if (sparkVersions.contains("4.1")) {
 
 if (sparkVersions.contains("4.2")) {
     apply from: file("$projectDir/v4.2/build.gradle")
+}
+
+if (sparkVersions.contains("4.3")) {
+    apply from: file("$projectDir/v4.3/build.gradle")
 }
