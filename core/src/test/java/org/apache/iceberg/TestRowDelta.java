@@ -129,12 +129,33 @@ public class TestRowDelta extends TestBase {
         commit(table, table.newRowDelta().addRows(FILE_B).removeDeletes(deleteFile), branch);
 
     assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+    assertThat(changes.addedDataFiles())
+        .extracting(DataFile::location)
+        .containsExactly(FILE_B.location());
+    assertThat(changes.removedDataFiles()).isEmpty();
+    assertThat(changes.addedDeleteFiles()).isEmpty();
+    assertThat(changes.removedDeleteFiles())
+        .extracting(DeleteFile::location)
+        .containsExactly(deleteFile.location());
+  }
 
-    List<DeleteFile> removedDeleteFiles =
-        Lists.newArrayList(
-            SnapshotChanges.builderFor(table).snapshot(snapshot).build().removedDeleteFiles());
-    assertThat(removedDeleteFiles).hasSize(1);
-    assertThat(removedDeleteFiles.get(0).location()).isEqualTo(deleteFile.location());
+  @TestTemplate
+  public void removeOnlyDeleteFilesProducesOverwriteOperation() {
+    DataFile dataFile = newDataFile("data_bucket=0");
+    DeleteFile deleteFile = newDeletes(dataFile);
+    commit(table, table.newRowDelta().addRows(dataFile).addDeletes(deleteFile), branch);
+
+    Snapshot snapshot = commit(table, table.newRowDelta().removeDeletes(deleteFile), branch);
+
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+    assertThat(changes.addedDataFiles()).isEmpty();
+    assertThat(changes.removedDataFiles()).isEmpty();
+    assertThat(changes.addedDeleteFiles()).isEmpty();
+    assertThat(changes.removedDeleteFiles())
+        .extracting(DeleteFile::location)
+        .containsExactly(deleteFile.location());
   }
 
   @TestTemplate

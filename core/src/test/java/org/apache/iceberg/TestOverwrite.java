@@ -174,28 +174,60 @@ public class TestOverwrite extends TestBase {
 
   @TestTemplate
   public void addFileAndRemoveDeleteFileProducesOverwriteOperation() {
-    assumeThat(formatVersion).isEqualTo(2);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
     DataFile addedDataFile = FileGenerationUtil.generateDataFile(table, FILE_10_TO_14.partition());
-    DeleteFile deleteFile =
-        FileMetadata.deleteFileBuilder(PARTITION_BY_DATE)
-            .ofPositionDeletes()
-            .withPath("/path/to/delete-file.parquet")
-            .withFileSizeInBytes(10)
-            .withPartitionPath("date=2018-06-08")
-            .withRecordCount(1)
-            .build();
+    DeleteFile deleteFile = newDeleteFileForOperationTest();
     commit(table, table.newRowDelta().addDeletes(deleteFile), branch);
 
-    commit(
-        table,
-        table
-            .newOverwrite()
-            .addFile(addedDataFile)
-            .deleteFiles(DataFileSet.create(), DeleteFileSet.of(List.of(deleteFile))),
-        branch);
+    Snapshot snapshot =
+        commit(
+            table,
+            table
+                .newOverwrite()
+                .addFile(addedDataFile)
+                .deleteFiles(DataFileSet.create(), DeleteFileSet.of(List.of(deleteFile))),
+            branch);
 
-    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.OVERWRITE);
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+    assertThat(changes.addedDataFiles())
+        .extracting(DataFile::location)
+        .containsExactly(addedDataFile.location());
+    assertThat(changes.removedDataFiles()).isEmpty();
+    assertThat(changes.removedDeleteFiles())
+        .extracting(DeleteFile::location)
+        .containsExactly(deleteFile.location());
+  }
+
+  @TestTemplate
+  public void removeOnlyDeleteFileProducesOverwriteOperation() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    DeleteFile deleteFile = newDeleteFileForOperationTest();
+    commit(table, table.newRowDelta().addDeletes(deleteFile), branch);
+
+    Snapshot snapshot =
+        commit(
+            table,
+            table
+                .newOverwrite()
+                .deleteFiles(DataFileSet.create(), DeleteFileSet.of(List.of(deleteFile))),
+            branch);
+
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+    assertThat(changes.addedDataFiles()).isEmpty();
+    assertThat(changes.removedDataFiles()).isEmpty();
+    assertThat(changes.removedDeleteFiles())
+        .extracting(DeleteFile::location)
+        .containsExactly(deleteFile.location());
+  }
+
+  private DeleteFile newDeleteFileForOperationTest() {
+    return formatVersion >= 3
+        ? FileGenerationUtil.generateDV(table, FILE_0_TO_4)
+        : FileGenerationUtil.generatePositionDeleteFile(table, FILE_0_TO_4);
   }
 
   @TestTemplate
