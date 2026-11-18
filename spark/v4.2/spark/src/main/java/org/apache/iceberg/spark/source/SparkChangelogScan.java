@@ -20,10 +20,10 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.ScanTaskGroup;
@@ -110,7 +110,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         EMPTY_GROUPING_KEY_TYPE,
         taskGroups(),
         projection,
-        hashCode());
+        equalityKey());
   }
 
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups() {
@@ -147,18 +147,22 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
     }
 
     SparkChangelogScan that = (SparkChangelogScan) o;
-    return table.name().equals(that.table.name())
-        && Objects.equals(table.uuid(), that.table.uuid())
-        && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field IDs
-        && filtersDesc().equals(that.filtersDesc())
-        && Objects.equals(startSnapshotId, that.startSnapshotId)
-        && Objects.equals(endSnapshotId, that.endSnapshotId);
+    return equalityKey().equals(that.equalityKey());
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(
-        table.name(), table.uuid(), readSchema(), filtersDesc(), startSnapshotId, endSnapshotId);
+    return equalityKey().hashCode();
+  }
+
+  private List<Object> equalityKey() {
+    return Arrays.asList(
+        table.name(),
+        table.uuid(),
+        readSchema(), // compare Spark schemas to ignore field IDs
+        filtersDesc(),
+        startSnapshotId,
+        endSnapshotId);
   }
 
   private String filtersDesc() {

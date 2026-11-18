@@ -18,9 +18,9 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -135,34 +135,13 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   }
 
   @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-
-    if (o == null || getClass() != o.getClass()) {
-      return false;
-    }
-
-    SparkCopyOnWriteScan that = (SparkCopyOnWriteScan) o;
-    return table().name().equals(that.table().name())
-        && Objects.equals(table().uuid(), that.table().uuid())
-        && Objects.equals(snapshot, that.snapshot)
-        && Objects.equals(branch, that.branch)
-        && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
-        && filtersDesc().equals(that.filtersDesc())
-        && partitionPredicates().equals(that.partitionPredicates())
-        && Objects.equals(filteredLocations, that.filteredLocations);
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(
+  protected List<Object> equalityKey() {
+    return Arrays.asList(
         table().name(),
         table().uuid(),
         snapshot,
         branch,
-        readSchema(),
+        readSchema(), // compare Spark schemas to ignore field ids
         filtersDesc(),
         partitionPredicates(),
         filteredLocations);
