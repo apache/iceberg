@@ -90,8 +90,10 @@ class TestRemoveSnapshotsV4 {
   private Table tableWithRootManifestSnapshot() {
     Table table =
         TestTables.create(
-            tableDir, "test", TestBase.SCHEMA, TestBase.SPEC, SortOrder.unsorted(), 4);
+            tableDir, "test", TestBase.SCHEMA, TestBase.SPEC, SortOrder.unsorted(), 3);
     table.newAppend().appendFile(TestBase.FILE_A).commit();
+
+    table.updateProperties().set("format-version", "4").commit();
 
     TableOperations ops = ((HasTableOperations) table).operations();
     TableMetadata base = ops.current();

@@ -36,7 +36,7 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestRowLineageMetadata {
   @Parameters(name = "formatVersion = {0}")
   private static List<Integer> formatVersion() {
-    return TestHelpers.V3_AND_ABOVE;
+    return List.of(3);
   }
 
   @Parameter private int formatVersion;
