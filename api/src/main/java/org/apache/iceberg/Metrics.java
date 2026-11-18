@@ -150,8 +150,8 @@ public class Metrics implements Serializable {
    * @param avgValueSizes ignored
    * @param originalTypes a map of field id to the original type of the lower/upper bound, or null
    *     if unknown
-   * @deprecated since 1.13.0, will be removed in 2.0.0; use the constructor without {@code
-   *     avgValueSizes} instead.
+   * @deprecated will be removed in 2.0.0; use the constructor without {@code avgValueSizes}
+   *     instead.
    */
   @Deprecated
   public Metrics(
@@ -244,14 +244,14 @@ public class Metrics implements Serializable {
   }
 
   /**
-   * Returns {@code null}.
+   * Not supported because average value sizes are no longer collected.
    *
-   * @return null
-   * @deprecated since 1.13.0, will be removed in 2.0.0
+   * @throws UnsupportedOperationException always
+   * @deprecated will be removed in 2.0.0
    */
   @Deprecated
   public Map<Integer, Integer> avgValueSizes() {
-    return null;
+    throw new UnsupportedOperationException("Average value sizes are no longer collected");
   }
 
   /**

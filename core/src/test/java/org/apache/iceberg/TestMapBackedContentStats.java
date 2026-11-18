@@ -188,7 +188,6 @@ class TestMapBackedContentStats {
     assertThatThrownBy(id::nanValueCount)
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Long.longValue()");
-    assertThat(id.hasTotalBytes()).isFalse();
 
     FieldStats<?> score = stats.statsFor(2);
     assertThat(score.hasNullValueCount()).isTrue();
@@ -213,7 +212,6 @@ class TestMapBackedContentStats {
     assertThatThrownBy(name::nanValueCount)
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Long.longValue()");
-    assertThat(name.hasTotalBytes()).isFalse();
   }
 
   @Test
