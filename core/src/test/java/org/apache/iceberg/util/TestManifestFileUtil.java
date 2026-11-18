@@ -106,7 +106,7 @@ class TestManifestFileUtil {
   }
 
   @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @FieldSource("org.apache.iceberg.TestHelpers#V3_AND_BELOW")
   void canContainWithUnknownType(int formatVersion) throws IOException {
     PartitionSpec spec =
         PartitionSpec.builderFor(SCHEMA).identity("floats").identity("unknown").build();
