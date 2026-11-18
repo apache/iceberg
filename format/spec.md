@@ -324,7 +324,7 @@ E must be one of the following vector element types:
 | **`float`**   | 32-bit IEEE 754 floating point                                      | `float`    |
 | **`double`**  | 64-bit IEEE 754 floating point                                      | `double`   |
 
-Vector element types are valid only inside a `vector`; `float16` is not a primitive type and cannot be used as the type of a field. Element values follow the rules of the value type, including equality and JSON single-value serialization. Floating-point elements must be finite: `NaN`, `+Infinity`, and `-Infinity` are invalid.
+Vector element types are valid only inside a `vector`; `float16` is not a primitive type and cannot be used as the type of a field. Element values follow the rules of the value type, including JSON single-value serialization. Vector equality is element-wise, using the equality rules of the value type. Floating-point elements must be finite: `NaN`, `+Infinity`, and `-Infinity` are invalid.
 
 The element type of a `vector(E, D)` may be promoted according to the following table. The dimension D and the vector field ID must not change.
 
@@ -336,11 +336,7 @@ The element type of a `vector(E, D)` may be promoted according to the following 
 
 All other element type changes are prohibited. A `vector` must not be promoted to a non-vector type. A non-vector type other than `unknown` must not be promoted to `vector`. A `list` is not a `vector(E, D)`, even if every list instance contains exactly D elements that satisfy the vector element requirements.
 
-Readers must accept vectors written with the requested element type or an element type that can be promoted to it, preserving each element's value exactly. The stored and requested dimensions must match.
-
-After a vector element type promotion, readers must ignore type-dependent vector-derived artifacts computed for an earlier element type, such as statistics or index blobs, unless the artifact format explicitly defines compatibility with the promoted type.
-
-Equality of vector values is element-wise, using the equality rules of the value type.
+After an element type promotion, readers must still read older files by converting vector elements to the new type without changing their values. The stored dimension must match the schema.
 
 ##### CRS
 
