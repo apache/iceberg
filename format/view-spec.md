@@ -227,7 +227,7 @@ A source materialized view may be recorded as a `view` entry referencing its vie
 
 ##### Source table state
 
-A source table record captures the state of a source table (including a source materialized view's storage table) at the time of the last refresh operation.
+A source table record captures the state of a source table (including a source materialized view's storage table) at the time of the refresh operation that wrote this refresh state.
 
 | Requirement | Field name    | Description |
 |-------------|---------------|-------------|
