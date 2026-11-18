@@ -320,9 +320,9 @@ E must be one of the following vector element types:
 |---------------|--------------------------------------------------------------------|------------|
 | **`int`**     | 32-bit signed integers                                             | `int`      |
 | **`long`**    | 64-bit signed integers                                             | `long`     |
-| **`float16`** | `float` values that are exactly representable as IEEE 754 binary16  | `float`    |
-| **`float`**   | 32-bit IEEE 754 floating point                                      | `float`    |
-| **`double`**  | 64-bit IEEE 754 floating point                                      | `double`   |
+| **`float16`** | `float` values that are exactly representable as IEEE 754 binary16 | `float`    |
+| **`float`**   | 32-bit IEEE 754 floating point                                     | `float`    |
+| **`double`**  | 64-bit IEEE 754 floating point                                     | `double`   |
 
 Vector element types are valid only inside a `vector`; `float16` is not a primitive type and cannot be used as the type of a field. Element values follow the rules of the value type, including JSON single-value serialization. Vector equality is element-wise, using the equality rules of the value type. Floating-point elements must be finite: `NaN`, `+Infinity`, and `-Infinity` are invalid.
 
@@ -331,7 +331,7 @@ The element type of a `vector(E, D)` may be promoted according to the following 
 | Element type | Permitted promotion targets |
 |--------------|-----------------------------|
 | `int`        | `long`                      |
-| `float16`    | `float`, `double`            |
+| `float16`    | `float`, `double`           |
 | `float`      | `double`                    |
 
 All other element type changes are prohibited. A `vector` must not be promoted to a non-vector type. A non-vector type other than `unknown` must not be promoted to `vector`. A `list` is not a `vector(E, D)`, even if every list instance contains exactly D elements that satisfy the vector element requirements.
