@@ -68,7 +68,7 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
 
   @Parameters(name = "formatVersion = {0}")
   protected static List<Integer> parameters() {
-    return TestHelpers.V2_AND_ABOVE;
+    return TestHelpers.V2_AND_V3;
   }
 
   private OutputFileFactory fileFactory = null;
