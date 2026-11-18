@@ -60,7 +60,7 @@ public class TestFlinkUpsert extends CatalogTestBase {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
         new FileFormat[] {FileFormat.PARQUET, FileFormat.AVRO, FileFormat.ORC}) {
-      for (int version : org.apache.iceberg.TestHelpers.V2_AND_ABOVE) {
+      for (int version : org.apache.iceberg.TestHelpers.V2_AND_V3) {
         for (Boolean isStreaming : new Boolean[] {true, false}) {
           // Only test with one catalog as this is a file operation concern.
           parameters.add(
