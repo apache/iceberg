@@ -173,7 +173,11 @@ public class HTTPClient extends BaseHTTPClient {
   @VisibleForTesting
   static String userAgent(String override, String prefix) {
     if (override != null) {
-      checkVisibleAscii(REST_USER_AGENT, override);
+      // the HTTP client silently replaces characters outside visible ASCII with '?'
+      Preconditions.checkArgument(
+          override.chars().allMatch(c -> c >= 0x20 && c <= 0x7E),
+          "Invalid %s: only visible ASCII characters and spaces are allowed",
+          REST_USER_AGENT);
       return override;
     }
 
@@ -185,17 +189,12 @@ public class HTTPClient extends BaseHTTPClient {
       return userAgent;
     }
 
-    checkVisibleAscii(REST_USER_AGENT_PREFIX, prefix);
+    Preconditions.checkArgument(
+        prefix.chars().allMatch(c -> c >= 0x20 && c <= 0x7E),
+        "Invalid %s: only visible ASCII characters and spaces are allowed",
+        REST_USER_AGENT_PREFIX);
     String tokens = prefix.strip();
     return tokens.isEmpty() ? userAgent : tokens + " " + userAgent;
-  }
-
-  // the HTTP client silently replaces other characters with '?'
-  private static void checkVisibleAscii(String property, String value) {
-    Preconditions.checkArgument(
-        value.chars().allMatch(c -> c >= 0x20 && c <= 0x7E),
-        "Invalid %s: only visible ASCII characters and spaces are allowed",
-        property);
   }
 
   @VisibleForTesting
