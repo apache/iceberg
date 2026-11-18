@@ -68,7 +68,6 @@ import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.SparkView;
 import org.apache.iceberg.spark.source.StagedSparkTable;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.UpdateViewProperties;
@@ -142,14 +141,6 @@ public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContex
           ViewProperties.METADATA_COMPRESSION,
           ViewProperties.WRITE_METADATA_LOCATION,
           ViewProperties.REPLACE_DROP_DIALECT_ALLOWED);
-  private static final Set<String> COLUMN_PROPERTY_PREFIXES =
-      ImmutableSet.of(
-          TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX,
-          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX,
-          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX,
-          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX,
-          TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX,
-          TableProperties.PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX);
 
   private enum ViewCommit {
     CREATE,
@@ -262,8 +253,10 @@ public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContex
       org.apache.iceberg.Table sourceIcebergTable = sparkTable.table();
       icebergSchema = sparkTable.icebergSchema();
       spec = copyPartitionSpec(icebergSchema, sourceIcebergTable.spec());
+      // column properties name columns of the current schema, which can differ from the schema of
+      // a pinned snapshot
       properties.putAll(
-          copyColumnProperties(
+          PropertyUtil.applySchemaChanges(
               sourceIcebergTable.properties(), sourceIcebergTable.schema(), icebergSchema));
       properties.remove(TableProperties.WRITE_METADATA_LOCATION);
       properties.remove(TableProperties.WRITE_DATA_LOCATION);
@@ -311,30 +304,6 @@ public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContex
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
     }
-  }
-
-  /**
-   * Returns the source properties with column-specific properties renamed or dropped to match the
-   * given schema, since those properties name columns of the current schema, which can differ from
-   * the schema of a pinned snapshot.
-   */
-  private static Map<String, String> copyColumnProperties(
-      Map<String, String> properties, Schema currentSchema, Schema schema) {
-    List<String> deletedColumns = Lists.newArrayList();
-    Map<String, String> renamedColumns = Maps.newHashMap();
-    TypeUtil.indexByName(currentSchema.asStruct())
-        .forEach(
-            (name, id) -> {
-              String nameInSchema = schema.findColumnName(id);
-              if (nameInSchema == null) {
-                deletedColumns.add(name);
-              } else if (!nameInSchema.equals(name)) {
-                renamedColumns.put(name, nameInSchema);
-              }
-            });
-
-    return PropertyUtil.applySchemaChanges(
-        properties, deletedColumns, renamedColumns, COLUMN_PROPERTY_PREFIXES);
   }
 
   private static PartitionSpec copyPartitionSpec(Schema schema, PartitionSpec sourceSpec) {
