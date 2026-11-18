@@ -50,10 +50,11 @@ import org.slf4j.LoggerFactory;
 public final class MetricsConfig implements Serializable {
 
   private static final Logger LOG = LoggerFactory.getLogger(MetricsConfig.class);
+  private static final int FILE_URI_ID_OFFSET = 1;
+  private static final int FILE_SIZE_ID_OFFSET = 3;
+  private static final int FILE_CONTENT_TYPE_ID_OFFSET = 4;
   private static final int[] FILE_INFERRED_METRIC_ID_OFFSETS = {
-    Types.FileType.URI_ID_OFFSET,
-    Types.FileType.SIZE_ID_OFFSET,
-    Types.FileType.CONTENT_TYPE_ID_OFFSET
+    FILE_URI_ID_OFFSET, FILE_SIZE_ID_OFFSET, FILE_CONTENT_TYPE_ID_OFFSET
   };
 
   // Disable metrics by default for wide tables to prevent excessive metadata

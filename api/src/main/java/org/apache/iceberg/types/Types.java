@@ -1158,12 +1158,12 @@ public class Types {
   public static final class FileType extends NestedType {
     public static final String NAME = "file";
     public static final int NUM_NESTED_FIELDS = 6;
-    public static final int URI_ID_OFFSET = 1;
-    public static final int OFFSET_ID_OFFSET = 2;
-    public static final int SIZE_ID_OFFSET = 3;
-    public static final int CONTENT_TYPE_ID_OFFSET = 4;
-    public static final int CHECKSUM_ID_OFFSET = 5;
-    public static final int INLINE_ID_OFFSET = 6;
+    private static final int URI_ID_OFFSET = 1;
+    private static final int OFFSET_ID_OFFSET = 2;
+    private static final int SIZE_ID_OFFSET = 3;
+    private static final int CONTENT_TYPE_ID_OFFSET = 4;
+    private static final int CHECKSUM_ID_OFFSET = 5;
+    private static final int INLINE_ID_OFFSET = 6;
 
     private static final String URI = "uri";
     private static final String OFFSET = "offset";
