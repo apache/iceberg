@@ -19,6 +19,7 @@
 package org.apache.iceberg.gcp;
 
 import static org.apache.iceberg.gcp.GCPProperties.GCS_ENCRYPTION_KEY;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_KMS_ENDPOINT;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_KMS_KEY_NAME;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_NO_AUTH;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED;
@@ -105,5 +106,12 @@ public class TestGCPProperties {
         .isPresent()
         .get()
         .isEqualTo("/v1/credentials");
+  }
+
+  @Test
+  void kmsEndpoint() {
+    GCPProperties gcpProperties =
+        new GCPProperties(ImmutableMap.of(GCS_NO_AUTH, "true", GCS_KMS_ENDPOINT, "example.com"));
+    assertThat(gcpProperties.kmsEndpoint()).hasValue("example.com");
   }
 }
