@@ -71,6 +71,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TestCatalogUtil;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
@@ -134,6 +135,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.AdditionalAnswers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
@@ -2460,6 +2462,98 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(schema2.findField("data")).isNull();
     assertThat(schema2.findField("new-column")).isNull();
     assertThat(schema2.columns()).hasSize(1);
+  }
+
+  @Test
+  void singleTableTransactionKeepsConcurrentChange() {
+    Namespace namespace = Namespace.of("concurrentNamespace");
+    TableIdentifier identifier = TableIdentifier.of(namespace, "concurrentTable");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(namespace);
+    }
+
+    Transaction transaction = catalog().buildTable(identifier, SCHEMA).create().newTransaction();
+    transaction.updateProperties().set("transaction", "true").commit();
+
+    RESTCatalog racingCatalog =
+        catalogWithConcurrentCommit(
+            identifier, table -> table.updateProperties().set("concurrent", "true").commit());
+
+    racingCatalog.commitTransaction(
+        TableCommit.create(
+            identifier,
+            ((BaseTransaction) transaction).startMetadata(),
+            ((BaseTransaction) transaction).currentMetadata()));
+
+    assertThat(catalog().loadTable(identifier).properties())
+        .containsEntry("transaction", "true")
+        .containsEntry("concurrent", "true");
+  }
+
+  @Test
+  void singleTableTransactionRevalidatesRequirementsAfterConcurrentChange() {
+    Namespace namespace = Namespace.of("concurrentNamespace");
+    TableIdentifier identifier = TableIdentifier.of(namespace, "concurrentTable");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(namespace);
+    }
+
+    Transaction transaction = catalog().buildTable(identifier, SCHEMA).create().newTransaction();
+    transaction.updateSchema().addColumn("transaction_col", Types.LongType.get()).commit();
+
+    RESTCatalog racingCatalog =
+        catalogWithConcurrentCommit(
+            identifier,
+            table ->
+                table.updateSchema().addColumn("concurrent_col", Types.LongType.get()).commit());
+
+    assertThatThrownBy(
+            () ->
+                racingCatalog.commitTransaction(
+                    TableCommit.create(
+                        identifier,
+                        ((BaseTransaction) transaction).startMetadata(),
+                        ((BaseTransaction) transaction).currentMetadata())))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Requirement failed");
+
+    Schema schema = catalog().loadTable(identifier).schema();
+    assertThat(schema.findField("concurrent_col")).isNotNull();
+    assertThat(schema.findField("transaction_col")).isNull();
+  }
+
+  /**
+   * Returns a catalog whose server sees {@code concurrentCommit} applied to the table just before
+   * its own first commit to that table, as if another writer committed first.
+   */
+  private RESTCatalog catalogWithConcurrentCommit(
+      TableIdentifier identifier, Consumer<Table> concurrentCommit) {
+    InMemoryCatalog racingBackend = Mockito.spy(backendCatalog);
+    AtomicBoolean committed = new AtomicBoolean(false);
+    Mockito.doAnswer(
+            invocation -> {
+              BaseTable loaded = (BaseTable) invocation.callRealMethod();
+              TableOperations ops = loaded.operations();
+              TableOperations racingOps =
+                  Mockito.mock(TableOperations.class, AdditionalAnswers.delegatesTo(ops));
+              Mockito.doAnswer(
+                      commit -> {
+                        if (committed.compareAndSet(false, true)) {
+                          concurrentCommit.accept(backendCatalog.loadTable(identifier));
+                        }
+
+                        ops.commit(commit.getArgument(0), commit.getArgument(1));
+                        return null;
+                      })
+                  .when(racingOps)
+                  .commit(any(), any());
+              return new BaseTable(racingOps, loaded.name());
+            })
+        .when(racingBackend)
+        .loadTable(identifier);
+    return catalog(new RESTCatalogAdapter(racingBackend));
   }
 
   @Test
