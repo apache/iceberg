@@ -197,8 +197,8 @@ class RemoveSnapshots implements ExpireSnapshots {
     this.base = ops.refresh();
     ValidationException.check(
         CleanupLevel.NONE == cleanupLevel || !hasRootManifestSnapshot(base),
-        "Cannot expire snapshots with file cleanup: table has a snapshot with a root manifest "
-            + "(use CleanupLevel.NONE to only remove snapshot metadata)");
+        "File cleanup for V4 tables is not supported. "
+            + "Use CleanupLevel.NONE to cleanup snapshot metadata.");
 
     // attempt to clean expired metadata even if there are no snapshots to expire
     // table metadata builder takes care of the case when this should actually be a no-op

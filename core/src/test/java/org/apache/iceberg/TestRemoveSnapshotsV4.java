@@ -34,8 +34,8 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 class TestRemoveSnapshotsV4 {
   private static final String CLEANUP_UNSUPPORTED_MESSAGE =
-      "Cannot expire snapshots with file cleanup: table has a snapshot with a root manifest "
-          + "(use CleanupLevel.NONE to only remove snapshot metadata)";
+      "File cleanup for V4 tables is not supported. "
+          + "Use CleanupLevel.NONE to cleanup snapshot metadata.";
   private static final long ROOT_MANIFEST_SNAPSHOT_ID = 42L;
   private static final long FAR_FUTURE_MS = System.currentTimeMillis() + 100_000;
 
