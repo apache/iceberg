@@ -199,7 +199,7 @@ class FilePlanner {
 
     DeleteFile[] deletes = NO_DELETES;
     if (dataFile.deletionVector() != null) {
-      TrackedFile tracked = TrackedFileAdapters.asTrackedFile(dataFile);
+      TrackedFile tracked = TrackedFileAdapters.asTrackedFileUnchecked(dataFile);
       DeleteFile dv = TrackedFileAdapters.asDVDeleteFile(tracked, specsById);
       scanMetrics.dvs().increment();
       deletes = new DeleteFile[] {dv};

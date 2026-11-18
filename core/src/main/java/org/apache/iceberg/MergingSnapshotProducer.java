@@ -303,9 +303,15 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             ContentFileUtil.dvDesc(file));
         break;
       case 3:
-      case 4:
         Preconditions.checkArgument(
             file.content() == FileContent.EQUALITY_DELETES || ContentFileUtil.isDV(file),
+            "Must use DVs for position deletes in V%s: %s",
+            formatVersion,
+            file.location());
+        break;
+      case 4:
+        Preconditions.checkArgument(
+            ContentFileUtil.isDV(file),
             "Must use DVs for position deletes in V%s: %s",
             formatVersion,
             file.location());
@@ -362,6 +368,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateAddedDataFiles(
       TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet, Snapshot parent) {
+    Long parentId = parent != null ? parent.snapshotId() : null;
+    Preconditions.checkArgument(
+        base.formatVersion() < 4 || Objects.equals(parentId, startingSnapshotId),
+        "Cannot validate concurrent commit (%s) in v4 table",
+        parentId);
+
     CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
         addedDataFiles(base, startingSnapshotId, null, partitionSet, parent);
 
@@ -393,6 +405,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Long startingSnapshotId,
       Expression conflictDetectionFilter,
       Snapshot parent) {
+    Long parentId = parent != null ? parent.snapshotId() : null;
+    Preconditions.checkArgument(
+        base.formatVersion() < 4 || Objects.equals(parentId, startingSnapshotId),
+        "Cannot validate concurrent commit (%s) in v4 table",
+        parentId);
+
     CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
         addedDataFiles(base, startingSnapshotId, conflictDetectionFilter, null, parent);
 
@@ -474,6 +492,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateNoNewDeletesForDataFiles(
       TableMetadata base, Long startingSnapshotId, Iterable<DataFile> dataFiles, Snapshot parent) {
+    Long parentId = parent != null ? parent.snapshotId() : null;
+    Preconditions.checkArgument(
+        base.formatVersion() < 4 || Objects.equals(parentId, startingSnapshotId),
+        "Cannot validate concurrent commit (%s) in v4 table",
+        parentId);
+
     validateNoNewDeletesForDataFiles(
         base, startingSnapshotId, null, dataFiles, newDataFilesDataSequenceNumber != null, parent);
   }
@@ -494,6 +518,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Expression dataFilter,
       Iterable<DataFile> dataFiles,
       Snapshot parent) {
+    Long parentId = parent != null ? parent.snapshotId() : null;
+    Preconditions.checkArgument(
+        base.formatVersion() < 4 || Objects.equals(parentId, startingSnapshotId),
+        "Cannot validate concurrent commit (%s) in v4 table",
+        parentId);
+
     validateNoNewDeletesForDataFiles(
         base, startingSnapshotId, dataFilter, dataFiles, false, parent);
   }
@@ -527,6 +557,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     if (parent == null || base.formatVersion() < 2) {
       return;
     }
+
+    Long parentId = parent != null ? parent.snapshotId() : null;
+    Preconditions.checkArgument(
+        base.formatVersion() < 4 || Objects.equals(parentId, startingSnapshotId),
+        "Cannot validate concurrent commit (%s) in v4 table",
+        parentId);
 
     List<DeleteFileIndex> deleteIndexes =
         addedDeleteFilesIndexedPerSnapshot(base, startingSnapshotId, dataFilter, null, parent);
@@ -573,6 +609,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateNoNewDeleteFiles(
       TableMetadata base, Long startingSnapshotId, Expression dataFilter, Snapshot parent) {
+    Long parentId = parent != null ? parent.snapshotId() : null;
+    Preconditions.checkArgument(
+        base.formatVersion() < 4 || Objects.equals(parentId, startingSnapshotId),
+        "Cannot validate concurrent commit (%s) in v4 table",
+        parentId);
+
     Set<String> locations =
         referencedDeleteFileLocations(
             addedDeleteFilesIndexedPerSnapshot(base, startingSnapshotId, dataFilter, null, parent));
@@ -594,6 +636,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateNoNewDeleteFiles(
       TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet, Snapshot parent) {
+    Long parentId = parent != null ? parent.snapshotId() : null;
+    Preconditions.checkArgument(
+        base.formatVersion() < 4 || Objects.equals(parentId, startingSnapshotId),
+        "Cannot validate concurrent commit (%s) in v4 table",
+        parentId);
+
     Set<String> locations =
         referencedDeleteFileLocations(
             addedDeleteFilesIndexedPerSnapshot(
@@ -679,6 +727,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateDeletedDataFiles(
       TableMetadata base, Long startingSnapshotId, Expression dataFilter, Snapshot parent) {
+    Long parentId = parent != null ? parent.snapshotId() : null;
+    Preconditions.checkArgument(
+        base.formatVersion() < 4 || Objects.equals(parentId, startingSnapshotId),
+        "Cannot validate concurrent commit (%s) in v4 table",
+        parentId);
+
     CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
         deletedDataFiles(base, startingSnapshotId, dataFilter, null, parent);
 
@@ -708,6 +762,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateDeletedDataFiles(
       TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet, Snapshot parent) {
+    Long parentId = parent != null ? parent.snapshotId() : null;
+    Preconditions.checkArgument(
+        base.formatVersion() < 4 || Objects.equals(parentId, startingSnapshotId),
+        "Cannot validate concurrent commit (%s) in v4 table",
+        parentId);
+
     CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
         deletedDataFiles(base, startingSnapshotId, null, partitionSet, parent);
 
@@ -826,6 +886,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       return;
     }
 
+    Long parentId = parent != null ? parent.snapshotId() : null;
+    Preconditions.checkArgument(
+        base.formatVersion() < 4 || Objects.equals(parentId, startingSnapshotId),
+        "Cannot validate concurrent commit (%s) in v4 table",
+        parentId);
+
     Set<String> matchingOperations =
         skipDeletes
             ? VALIDATE_DATA_FILES_EXIST_SKIP_DELETE_OPERATIONS
@@ -875,6 +941,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     if (parent == null || dvsByReferencedFile.isEmpty()) {
       return;
     }
+
+    Long parentId = parent != null ? parent.snapshotId() : null;
+    Preconditions.checkArgument(
+        base.formatVersion() < 4 || Objects.equals(parentId, startingSnapshotId),
+        "Cannot validate concurrent commit (%s) in v4 table",
+        parentId);
 
     // DVs for data files added in this operation can't conflict with concurrent commits
     Set<String> unmatchedReferencedDataFiles = Sets.newHashSet(dvsByReferencedFile.keySet());
@@ -1023,6 +1095,37 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     for (DeleteFile file : v2Deletes) {
       validateDeleteFileForVersion(file, currentFormatVersion);
     }
+  }
+
+  @Override
+  protected NewSnapshotMetadata writeRootManifest(
+      TableMetadata base, Snapshot parent, long sequenceNumber) {
+    validateDeleteFilesForVersion(base.formatVersion());
+
+    if (addsDeleteFiles()) {
+      throw new UnsupportedOperationException("Cannot commit new delete files to v4 table");
+    } else if (filterManager.containsDeletes()) {
+      throw new UnsupportedOperationException("Cannot commit deleted data files to v4");
+    } else if (deleteFilterManager.containsDeletes()) {
+      throw new UnsupportedOperationException("Cannot commit deleted delete files to v4");
+    }
+
+    RootManifestProducer manager = new RootManifestProducer(ops(), snapshotId());
+    for (DataFile file : Iterables.concat(newDataFilesBySpec.values())) {
+      manager.appendFile(file);
+    }
+
+    TrackedFile result = manager.apply(base, parent, sequenceNumber);
+
+    summaryBuilder.clear();
+    summaryBuilder.merge(addedDataFilesSummary);
+
+    return new NewSnapshotMetadata(
+        null,
+        result.location(),
+        result.fileSizeInBytes(),
+        manager.assignedRowIds(),
+        manager.manifestLocations());
   }
 
   @Override

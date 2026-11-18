@@ -48,8 +48,16 @@ class TrackedFileAdapters {
     return new TrackedDataFile(file, resolveSpecId(file, specsById));
   }
 
-  static TrackedFile asTrackedFile(DataFile file) {
+  static TrackedFile asTrackedFileUnchecked(DataFile file) {
     return ((TrackedDataFile) file).file();
+  }
+
+  static TrackedFile asTrackedFile(DataFile file, Schema tableSchema) {
+    if (file instanceof TrackedDataFile wrapped) {
+      return wrapped.file();
+    }
+
+    return forDataFile(tableSchema).wrap(file);
   }
 
   static DeleteFile asDVDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
@@ -67,6 +75,14 @@ class TrackedFileAdapters {
         "Invalid content type for ManifestFile: %s",
         file.contentType());
     return new TrackedManifestFile(file);
+  }
+
+  static TrackedFile asTrackedFile(ManifestFile file) {
+    if (file instanceof TrackedManifestFile wrapper) {
+      return wrapper.file();
+    }
+
+    return forManifestFile().wrap(file);
   }
 
   /** Returns a reusable adapter from {@link DataFile} to {@link TrackedFile}. */
