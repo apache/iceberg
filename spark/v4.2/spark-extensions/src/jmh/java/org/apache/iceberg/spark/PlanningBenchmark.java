@@ -73,8 +73,8 @@ import org.openjdk.jmh.infra.Blackhole;
 /**
  * A benchmark that evaluates the job planning performance.
  *
- * <p>To run this benchmark for spark-4.2: <code>
- *   ./gradlew -DsparkVersions=4.2 :iceberg-spark:iceberg-spark-extensions-4.2_2.13:jmh
+ * <p>To run this benchmark for Spark X.Y: <code>
+ *   ./gradlew -DsparkVersions=X.Y :iceberg-spark:iceberg-spark-extensions-X.Y_2.13:jmh
  *       -PjmhIncludeRegex=PlanningBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-planning-benchmark.txt
  * </code>

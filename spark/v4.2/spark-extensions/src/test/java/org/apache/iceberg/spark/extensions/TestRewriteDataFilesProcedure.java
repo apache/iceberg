@@ -1045,8 +1045,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .containsKey(CatalogProperties.APP_ID)
         .containsKey(CatalogProperties.APP_NAME)
         .containsEntry(EnvironmentContext.ENGINE_NAME, "spark")
-        .hasEntrySatisfying(
-            EnvironmentContext.ENGINE_VERSION, v -> assertThat(v).startsWith("4.2"));
+        .containsEntry(EnvironmentContext.ENGINE_VERSION, spark.version());
   }
 
   @TestTemplate
