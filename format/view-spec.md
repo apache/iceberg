@@ -50,7 +50,7 @@ When queried, engines may return the precomputed data for the materialized views
 Iceberg materialized views are implemented as a combination of an Iceberg view and an underlying Iceberg table, the "storage-table", which stores the precomputed data.
 Materialized View metadata is a superset of View metadata with an additional pointer to the storage table. The storage table is an Iceberg table with additional materialized view refresh state metadata.
 This addition is backward compatible: a reader that is unaware of materialized views sees the unknown `storage-table` field, ignores it, and evaluates the view query directly.
-Refresh metadata contains information about the "source tables", "source views", and/or "source materialized views", which are the tables/views/materialized views used in the computation of the query results of the materialized view.
+Refresh metadata contains information about the "source tables", "source views", and "source materialized views", which are the tables/views/materialized views used in the computation of the query results of the materialized view.
 
 ## Specification
 
@@ -199,16 +199,17 @@ The `refresh-state` property is set on the [snapshot summary](https://iceberg.ap
 | _optional_  | `refresh-state` | A [refresh state](#refresh-state) record stored as a JSON-encoded string |
 
 Snapshots written by a refresh operation must set `refresh-state`.
+The refresh state of a storage table branch is the `refresh-state` of the most recent snapshot that has one and is reachable from the branch's head. If a later snapshot reachable from the branch's head has an operation other than `replace`, the branch no longer reflects that refresh state.
 
 #### Refresh state
 
-Query engines maintain the precomputed data in the storage table by executing the materialized view’s query. During a refresh, the engine records the state of the view’s dependencies in the refresh state. Which dependencies are available depends on how source materialized views are treated, and the writer chooses which of them to record: all, a subset, or none. See [Appendix B](#appendix-b-example-freshness-criteria-and-recorded-dependencies) for examples. Each recorded dependency appears in `source-states` as a table entry or a view entry. A source materialized view may be recorded as a view entry for its definition and, optionally, a table entry for its storage table.
+Query engines maintain the precomputed data in the storage table by executing the materialized view’s query. During a refresh, the engine records the state of the view’s dependencies in the refresh state. The writer chooses which dependencies to record: all, a subset, or none. See [Appendix B](#appendix-b-example-freshness-criteria-and-recorded-dependencies) for examples. Each recorded dependency appears in `source-states` as a table entry or a view entry. A source materialized view may be recorded as a view entry for its definition and, optionally, a table entry for its storage table.
 
 The refresh state has the following fields:
 
 | Requirement | Field name                   | Description |
 |-------------|------------------------------|-------------|
-| _required_  | `refresh-start-timestamp-ms` | A timestamp of when the refresh operation was started |
+| _required_  | `refresh-start-timestamp-ms` | Timestamp when the refresh operation was started (ms from epoch) |
 | _required_  | `view-version-id`            | The `version-id` of the materialized view when the refresh operation was performed |
 | _required_  | `source-states`              | A list of [source state](#source-state) records capturing the dependencies the writer chose to record; may be empty |
 
@@ -222,8 +223,6 @@ Source state records capture the state of objects referenced by a materialized v
 |---------|-------------|
 | `table` | An Iceberg table — either a source table in the dependency graph, or the storage table of a source materialized view |
 | `view`  | An Iceberg view in the dependency graph |
-
-A source materialized view may be recorded as a `view` entry referencing its view metadata and one or more `table` entries referencing its storage table or other source tables. These source table entries might be determined by recursively expanding its own dependencies.
 
 ##### Source table state
 
@@ -243,7 +242,7 @@ When `ref` is set, the source table is tracked against that branch or tag. When 
 
 ##### Source view state
 
-A source view record captures the state of a source view at the time of the last refresh operation.
+A source view record captures the state of a source view at the time of the refresh operation that wrote this refresh state.
 
 | Requirement | Field name   | Description |
 |-------------|--------------|-------------|
@@ -258,7 +257,7 @@ A source view record captures the state of a source view at the time of the last
 
 When processing a `CREATE MATERIALIZED VIEW` statement, query engines should:
 
-1. Create the storage table as a regular Iceberg table with any specified configurations (partitioning, sort order, compression, etc.).
+1. Create the storage table as a regular Iceberg table with specified configurations (partitioning, sort order, compression, etc.).
 2. Create the materialized view metadata with a `storage-table` reference pointing to the created storage table.
 
 The storage table must exist and be accessible before or at the time the materialized view metadata is committed.
