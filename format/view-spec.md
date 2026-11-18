@@ -239,7 +239,7 @@ A source table record captures the state of a source table (including a source m
 | _optional_  | `snapshot-id` | The snapshot-id of the source table that was read during the refresh operation. Omitted when the source table had no snapshots at refresh time (e.g. a newly created, empty table) |
 | _optional_  | `ref`         | Branch or tag name of the source table being referenced in the view query |
 
-When `ref` is set, the source table is tracked against that branch or tag. When `ref` is not set, the source table is pinned to the recorded `snapshot-id` (e.g. `FOR VERSION AS OF <snapshot-id>`). Writers that read a branch or tag should record its name in `ref`.
+When `ref` is set, the source table is tracked against that branch or tag. When `ref` is not set, the source table is pinned to the recorded `snapshot-id` (e.g. `FOR VERSION AS OF <snapshot-id>`). Writers must record the branch or tag name in `ref` when the source table is read by branch or tag, including the implicit `main` branch when the query does not specify one.
 
 ##### Source view state
 
