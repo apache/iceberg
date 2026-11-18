@@ -4386,7 +4386,7 @@ components:
         It is absent when the metadata is staged but not committed, as in a create transaction, and when the table has no client-visible metadata location, as for a catalog-managed table where the catalog is the source of truth for table state and no metadata pointer need exist.
 
 
-        Clients must not require this field to be present, and must not use it to bypass the catalog for reads or commits.
+        When present, clients can check whether metadata has changed by comparing metadata locations.
         To obtain a metadata location for a catalog-managed table, use the `unregisterTable` endpoint, which returns the table's last metadata location at the point the table leaves catalog control and further commits are rejected.
 
 
