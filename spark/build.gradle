@@ -17,6 +17,76 @@
  * under the License.
  */
 
+// Spark versions that take every source file they share byte-for-byte from spark/common. A file
+// that differs between them is a full copy under each version's own directory instead.
+ext.sparkCommonVersions = ['4.1', '4.2', '4.3']
+List<String> sparkModules = ['spark', 'spark-extensions', 'spark-runtime']
+
+// Adds spark/common sources to every source set of a Spark version project. Common Java compiles
+// the same way as the version's own Java, which in the core module is through scalac.
+ext.addSparkCommonSources = { Project target, String module ->
+  String commonSrc = "$rootDir/spark/common/$module/src"
+  target.sourceSets.configureEach { sourceSet ->
+    String dir = "$commonSrc/${sourceSet.name}"
+    def scala = sourceSet.extensions.findByName('scala')
+    if (scala != null && scala.srcDirs.contains(target.file("src/${sourceSet.name}/java"))) {
+      scala.srcDir "$dir/java"
+    } else {
+      sourceSet.java.srcDir "$dir/java"
+    }
+
+    if (scala != null) {
+      scala.srcDir "$dir/scala"
+    }
+
+    sourceSet.resources.srcDir "$dir/resources"
+  }
+
+  target.tasks.named('check').configure { dependsOn ':iceberg-spark:sparkCommonCheck' }
+}
+
+tasks.register('sparkCommonCheck') {
+  description = 'Verifies that each Spark source file is either in spark/common or copied per version.'
+  group = 'verification'
+  doLast {
+    def filesUnder = { File dir ->
+      dir.directory ? fileTree(dir).files.collectEntries { [(dir.toPath().relativize(it.toPath()).toString()): it] } : [:]
+    }
+
+    List<String> errors = []
+    sparkModules.each { module ->
+      Map<String, File> common = filesUnder(file("common/$module/src"))
+      Map<String, Map<String, File>> copies = sparkCommonVersions.collectEntries { version ->
+        [(version): filesUnder(file("v$version/$module/src"))]
+      }
+
+      copies.each { version, files ->
+        files.keySet().intersect(common.keySet()).each { path ->
+          errors << "$module/src/$path is in both spark/common and spark/v$version"
+        }
+      }
+
+      // The ANTLR plugin reads grammars only from inside the project directory.
+      Set<String> paths = copies.values().collectMany { it.keySet() }.findAll { !it.startsWith('main/antlr/') } as Set
+      paths.each { path ->
+        List<String> holders = copies.findAll { version, files -> files.containsKey(path) }.keySet() as List
+        Map<String, List<String>> byContent = holders.groupBy { copies[it][path].bytes.encodeBase64().toString() }
+        if (holders.size() == sparkCommonVersions.size() && byContent.size() == 1) {
+          errors << "$module/src/$path is identical in every version; move it to spark/common"
+        } else {
+          byContent.values().findAll { it.size() > 1 }.each { same ->
+            logger.lifecycle("Identical in ${same.join(', ')} only: $module/src/$path")
+          }
+        }
+      }
+    }
+
+    if (!errors.isEmpty()) {
+      throw new GradleException("Spark common sources are inconsistent:\n  " + errors.join('\n  '))
+    }
+  }
+}
+
 // add enabled Spark version modules to the build
 def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
 
@@ -34,4 +104,8 @@ if (sparkVersions.contains("4.1")) {
 
 if (sparkVersions.contains("4.2")) {
     apply from: file("$projectDir/v4.2/build.gradle")
+}
+
+if (sparkVersions.contains("4.3")) {
+    apply from: file("$projectDir/v4.3/build.gradle")
 }

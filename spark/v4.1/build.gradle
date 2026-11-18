@@ -19,6 +19,7 @@
 
 String sparkMajorVersion = '4.1'
 String scalaVersion = '2.13'
+def addCommonSources = addSparkCommonSources
 
 def sparkProjects = [
     project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}"),
@@ -48,6 +49,8 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
       java.srcDirs = []
     }
   }
+
+  addCommonSources(project, 'spark')
 
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
@@ -127,6 +130,8 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
   apply plugin: 'com.github.alisiikh.scalastyle'
   apply plugin: 'antlr'
 
+  addCommonSources(project, 'spark-extensions')
+
   configurations {
     /*
      The Gradle Antlr plugin erroneously adds both antlr-build and runtime dependencies to the runtime path. This
@@ -201,6 +206,8 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
       resources.srcDir "$projectDir/src/integration/resources"
     }
   }
+
+  addCommonSources(project, 'spark-runtime')
 
   configurations {
     implementation {
