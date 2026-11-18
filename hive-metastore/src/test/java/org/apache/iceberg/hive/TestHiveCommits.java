@@ -32,6 +32,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
@@ -52,6 +53,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.platform.commons.support.ReflectionSupport;
 
 public class TestHiveCommits extends HiveTableTestBase {
+  private static final TableIdentifier NEW_TABLE_IDENTIFIER =
+      TableIdentifier.of(DB_NAME, "created_tbl");
 
   @Test
   public void testSuppressUnlockExceptions() {
@@ -323,14 +326,8 @@ public class TestHiveCommits extends HiveTableTestBase {
 
   @Test
   void alreadyExistsSuccessOnCreate() throws TException, InterruptedException {
-    TableIdentifier identifier = TableIdentifier.of(DB_NAME, "created_tbl");
-    HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(identifier);
-    TableMetadata metadata =
-        TableMetadata.newTableMetadata(
-            SCHEMA,
-            PartitionSpec.unpartitioned(),
-            catalog.defaultWarehouseLocation(identifier),
-            ImmutableMap.of());
+    HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(NEW_TABLE_IDENTIFIER);
+    TableMetadata metadata = newTableMetadata(ImmutableMap.of());
     HiveTableOperations spyOps = spy(ops);
     createAndThrowAlreadyExists(ops, spyOps);
 
@@ -341,24 +338,18 @@ public class TestHiveCommits extends HiveTableTestBase {
           .as("Current metadata file should still exist")
           .isTrue();
     } finally {
-      catalog.dropTable(identifier, true);
+      catalog.dropTable(NEW_TABLE_IDENTIFIER, true);
     }
   }
 
   @Test
   void alreadyExistsConcurrentCreate() throws TException, InterruptedException {
-    TableIdentifier identifier = TableIdentifier.of(DB_NAME, "created_tbl");
-    HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(identifier);
-    TableMetadata metadata =
-        TableMetadata.newTableMetadata(
-            SCHEMA,
-            PartitionSpec.unpartitioned(),
-            catalog.defaultWarehouseLocation(identifier),
-            ImmutableMap.of(HIVE_LOCK_ENABLED, "false"));
+    HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(NEW_TABLE_IDENTIFIER);
+    TableMetadata metadata = newTableMetadata(ImmutableMap.of(HIVE_LOCK_ENABLED, "false"));
     HiveTableOperations spyOps = spy(ops);
     doAnswer(
             i -> {
-              catalog.createTable(identifier, SCHEMA);
+              catalog.createTable(NEW_TABLE_IDENTIFIER, SCHEMA);
               return i.callRealMethod();
             })
         .when(spyOps)
@@ -367,32 +358,26 @@ public class TestHiveCommits extends HiveTableTestBase {
     try {
       assertThatThrownBy(() -> spyOps.commit(null, metadata))
           .isInstanceOf(AlreadyExistsException.class)
-          .hasMessage("Table already exists: %s.%s", DB_NAME, "created_tbl");
+          .hasMessage("Table already exists: %s", NEW_TABLE_IDENTIFIER);
       assertThat(metadataFileCount(ops.refresh()))
           .as("Only the metadata file of the concurrently created table should exist")
           .isEqualTo(1);
     } finally {
-      catalog.dropTable(identifier, true);
+      catalog.dropTable(NEW_TABLE_IDENTIFIER, true);
     }
   }
 
   @Test
   void alreadyExistsConcurrentViewCreate() throws TException, InterruptedException {
-    TableIdentifier identifier = TableIdentifier.of(DB_NAME, "created_tbl");
-    HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(identifier);
-    TableMetadata metadata =
-        TableMetadata.newTableMetadata(
-            SCHEMA,
-            PartitionSpec.unpartitioned(),
-            catalog.defaultWarehouseLocation(identifier),
-            ImmutableMap.of(HIVE_LOCK_ENABLED, "false"));
+    HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(NEW_TABLE_IDENTIFIER);
+    TableMetadata metadata = newTableMetadata(ImmutableMap.of(HIVE_LOCK_ENABLED, "false"));
     HiveTableOperations spyOps = spy(ops);
     doAnswer(
             i -> {
               catalog
-                  .buildView(identifier)
+                  .buildView(NEW_TABLE_IDENTIFIER)
                   .withSchema(SCHEMA)
-                  .withDefaultNamespace(identifier.namespace())
+                  .withDefaultNamespace(NEW_TABLE_IDENTIFIER.namespace())
                   .withQuery("hive", "select * from tbl")
                   .create();
               return i.callRealMethod();
@@ -403,25 +388,19 @@ public class TestHiveCommits extends HiveTableTestBase {
     try {
       assertThatThrownBy(() -> spyOps.commit(null, metadata))
           .isInstanceOf(AlreadyExistsException.class)
-          .hasMessage("Table already exists: %s.%s", DB_NAME, "created_tbl");
-      assertThat(metadataVersionFiles("created_tbl"))
+          .hasMessage("Table already exists: %s", NEW_TABLE_IDENTIFIER);
+      assertThat(metadataVersionFiles(NEW_TABLE_IDENTIFIER.name()))
           .as("Only the metadata file of the concurrently created view should exist")
           .hasSize(1);
     } finally {
-      catalog.dropView(identifier);
+      catalog.dropView(NEW_TABLE_IDENTIFIER);
     }
   }
 
   @Test
   void alreadyExistsUnknownOnCreate() throws TException, InterruptedException {
-    TableIdentifier identifier = TableIdentifier.of(DB_NAME, "created_tbl");
-    HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(identifier);
-    TableMetadata metadata =
-        TableMetadata.newTableMetadata(
-            SCHEMA,
-            PartitionSpec.unpartitioned(),
-            catalog.defaultWarehouseLocation(identifier),
-            ImmutableMap.of());
+    HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(NEW_TABLE_IDENTIFIER);
+    TableMetadata metadata = newTableMetadata(ImmutableMap.of());
     HiveTableOperations spyOps = spy(ops);
     createAndThrowAlreadyExists(ops, spyOps);
     breakFallbackCatalogCommitCheck(spyOps);
@@ -434,20 +413,14 @@ public class TestHiveCommits extends HiveTableTestBase {
           .as("Current metadata file should still exist")
           .isTrue();
     } finally {
-      catalog.dropTable(identifier, true);
+      catalog.dropTable(NEW_TABLE_IDENTIFIER, true);
     }
   }
 
   @Test
   void alreadyExistsCheckOOMOnCreate() throws TException, InterruptedException {
-    TableIdentifier identifier = TableIdentifier.of(DB_NAME, "created_tbl");
-    HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(identifier);
-    TableMetadata metadata =
-        TableMetadata.newTableMetadata(
-            SCHEMA,
-            PartitionSpec.unpartitioned(),
-            catalog.defaultWarehouseLocation(identifier),
-            ImmutableMap.of());
+    HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(NEW_TABLE_IDENTIFIER);
+    TableMetadata metadata = newTableMetadata(ImmutableMap.of());
     HiveTableOperations spyOps = spy(ops);
     createAndThrowAlreadyExists(ops, spyOps);
     when(spyOps.refresh()).thenThrow(new OutOfMemoryError());
@@ -460,7 +433,7 @@ public class TestHiveCommits extends HiveTableTestBase {
           .as("Current metadata file should still exist")
           .isTrue();
     } finally {
-      catalog.dropTable(identifier, true);
+      catalog.dropTable(NEW_TABLE_IDENTIFIER, true);
     }
   }
 
@@ -714,6 +687,14 @@ public class TestHiveCommits extends HiveTableTestBase {
             })
         .when(spyOperations)
         .persistTable(any(), anyBoolean(), any());
+  }
+
+  private TableMetadata newTableMetadata(Map<String, String> properties) {
+    return TableMetadata.newTableMetadata(
+        SCHEMA,
+        PartitionSpec.unpartitioned(),
+        catalog.defaultWarehouseLocation(NEW_TABLE_IDENTIFIER),
+        properties);
   }
 
   private void createAndThrowAlreadyExists(

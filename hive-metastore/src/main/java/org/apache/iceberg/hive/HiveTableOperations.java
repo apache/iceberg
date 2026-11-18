@@ -343,7 +343,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
                 + "iceberg.hive.lock-heartbeat-interval-ms.",
             le);
       } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
-        // A create_table resent after a lost response fails on the table its first attempt created
+        // The HMS client can incorrectly retry a successful create_table and trigger this
+        // exception, so double-check whether the existing table is the one this commit created
         commitStatus = BaseMetastoreOperations.CommitStatus.UNKNOWN;
         commitStatus =
             checkCommitStatusStrict(
