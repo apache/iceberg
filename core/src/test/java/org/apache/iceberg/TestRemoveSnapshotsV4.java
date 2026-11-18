@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.File;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -36,7 +35,6 @@ class TestRemoveSnapshotsV4 {
   private static final String CLEANUP_UNSUPPORTED_MESSAGE =
       "File cleanup for V4 tables is not supported. "
           + "Use CleanupLevel.NONE to skip file cleanup.";
-  private static final long ROOT_MANIFEST_SNAPSHOT_ID = 42L;
 
   @TempDir private File tableDir;
 
@@ -89,34 +87,9 @@ class TestRemoveSnapshotsV4 {
   private Table tableWithRootManifestSnapshot() {
     Table table =
         TestTables.create(
-            tableDir, "test", TestBase.SCHEMA, TestBase.SPEC, SortOrder.unsorted(), 3);
+            tableDir, "test", TestBase.SCHEMA, TestBase.SPEC, SortOrder.unsorted(), 4);
     table.newAppend().appendFile(TestBase.FILE_A).commit();
-
-    table.updateProperties().set("format-version", "4").commit();
-
-    TableOperations ops = ((HasTableOperations) table).operations();
-    TableMetadata base = ops.current();
-    Snapshot parent = base.currentSnapshot();
-    Snapshot rootManifestSnapshot =
-        new BaseSnapshot(
-            base.lastSequenceNumber() + 1,
-            ROOT_MANIFEST_SNAPSHOT_ID,
-            parent.snapshotId(),
-            parent.timestampMillis() + 1,
-            DataOperations.APPEND,
-            ImmutableMap.of(),
-            base.currentSchemaId(),
-            null,
-            "file:/nonexistent/root-manifest.parquet",
-            base.nextRowId(),
-            0L,
-            null);
-    ops.commit(
-        base,
-        TableMetadata.buildFrom(base)
-            .setBranchSnapshot(rootManifestSnapshot, SnapshotRef.MAIN_BRANCH)
-            .build());
-    table.refresh();
+    table.newAppend().appendFile(TestBase.FILE_B).commit();
     return table;
   }
 }
