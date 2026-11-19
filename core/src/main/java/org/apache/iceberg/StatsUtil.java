@@ -208,7 +208,7 @@ class StatsUtil {
     return statId >= baseId && statId < (baseId + NUM_RESERVED_FIELD_STATS_IDS);
   }
 
-  private static boolean isFloatingPoint(Type type) {
+  static boolean isFloatingPoint(Type type) {
     return type.typeId() == Type.TypeID.FLOAT || type.typeId() == Type.TypeID.DOUBLE;
   }
 
