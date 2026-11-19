@@ -1543,6 +1543,99 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @TestTemplate
+  void incrementalRewriteSkipsStatisticsFilesOfStartVersion() throws IOException {
+    String sourceTableLocation = newTableLocation();
+    Map<String, String> properties =
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    String tableName = String.format("v%stblwithstartstats", formatVersion);
+    Table sourceTable =
+        createMetastoreTable(sourceTableLocation, properties, "default", tableName, 1, "c1");
+    actions().computeTableStats(sourceTable).execute();
+    actions().computePartitionStats(sourceTable).execute();
+    sourceTable.refresh();
+    String startVersion = fileName(currentMetadata(sourceTable).metadataFileLocation());
+
+    sql("insert into hive.default.%s values (1, 'AAAAAAAAAA', 'AAAA')", tableName);
+    sourceTable.refresh();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
+            .startVersion(startVersion)
+            .execute();
+
+    assertThat(result)
+        .hasVersionFiles(1)
+        .hasManifestLists(1)
+        .hasManifests(1)
+        .hasContentFiles(1)
+        .hasNoOtherFiles();
+  }
+
+  @TestTemplate
+  void incrementalRewriteIncludesNewStatisticsFilesOfExistingSnapshot() throws IOException {
+    String sourceTableLocation = newTableLocation();
+    Map<String, String> properties =
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    String tableName = String.format("v%stblwithnewstats", formatVersion);
+    Table sourceTable =
+        createMetastoreTable(sourceTableLocation, properties, "default", tableName, 1, "c1");
+    String startVersion = fileName(currentMetadata(sourceTable).metadataFileLocation());
+
+    actions().computeTableStats(sourceTable).execute();
+    actions().computePartitionStats(sourceTable).execute();
+    sourceTable.refresh();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
+            .startVersion(startVersion)
+            .execute();
+
+    assertThat(result)
+        .hasVersionFiles(2)
+        .hasStatisticsFiles(1)
+        .hasPartitionStatisticsFiles(1)
+        .hasNoOtherFiles();
+  }
+
+  @TestTemplate
+  void rewriteSkipsStatisticsFilesOfExpiredSnapshots() throws IOException {
+    String sourceTableLocation = newTableLocation();
+    Map<String, String> properties =
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    String tableName = String.format("v%stblwithexpiredstats", formatVersion);
+    Table sourceTable =
+        createMetastoreTable(sourceTableLocation, properties, "default", tableName, 1, "c1");
+    actions().computeTableStats(sourceTable).execute();
+    actions().computePartitionStats(sourceTable).execute();
+
+    sql("insert into hive.default.%s values (1, 'AAAAAAAAAA', 'AAAA')", tableName);
+    sourceTable.refresh();
+    actions()
+        .expireSnapshots(sourceTable)
+        .retainLast(1)
+        .expireOlderThan(sourceTable.currentSnapshot().timestampMillis())
+        .execute();
+    sourceTable.refresh();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
+            .execute();
+
+    assertThat(result)
+        .hasVersionFiles(6)
+        .hasManifestLists(1)
+        .hasManifests(2)
+        .hasContentFiles(2)
+        .hasNoOtherFiles();
+  }
+
+  @TestTemplate
   public void testMetadataCompressionWithMetastoreTable() throws Exception {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(TableProperties.METADATA_COMPRESSION, "gzip");
