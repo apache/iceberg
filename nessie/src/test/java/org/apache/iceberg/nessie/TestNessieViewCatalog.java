@@ -108,8 +108,15 @@ public class TestNessieViewCatalog extends ViewCatalogTests<NessieCatalog> {
   @Disabled("Pending https://github.com/apache/iceberg/pull/18912")
   @ParameterizedTest(name = "purge = {0}")
   @ValueSource(booleans = {false, true})
-  public void dropTableDoesNotDropIcebergView(boolean purge) {
-    super.dropTableDoesNotDropIcebergView(purge);
+  public void dropTableThatAlreadyExistsAsView(boolean purge) {
+    super.dropTableThatAlreadyExistsAsView(purge);
+  }
+
+  @Override
+  @Disabled("Pending https://github.com/apache/iceberg/pull/18912")
+  @Test
+  public void dropViewThatAlreadyExistsAsTable() {
+    super.dropViewThatAlreadyExistsAsTable();
   }
 
   private void resetData() throws NessieConflictException, NessieNotFoundException {
