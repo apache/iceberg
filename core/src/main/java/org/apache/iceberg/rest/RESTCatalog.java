@@ -253,6 +253,11 @@ public class RESTCatalog
   }
 
   @Override
+  public Table unregisterTable(TableIdentifier ident) {
+    return delegate.unregisterTable(ident);
+  }
+
+  @Override
   public void createNamespace(Namespace ns, Map<String, String> props) {
     nsDelegate.createNamespace(ns, props);
   }

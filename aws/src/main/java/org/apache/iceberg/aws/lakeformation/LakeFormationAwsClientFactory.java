@@ -97,6 +97,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
     if (isTableRegisteredWithLakeFormation()) {
       return KmsClient.builder()
           .applyMutation(httpClientProperties()::applyHttpClientConfigurations)
+          .applyMutation(awsProperties()::applyKmsEndpointConfigurations)
           .applyMutation(awsClientProperties()::applyRetryConfigurations)
           .credentialsProvider(
               new LakeFormationCredentialsProvider(lakeFormation(), buildTableArn()))

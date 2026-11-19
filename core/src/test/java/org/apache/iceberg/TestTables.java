@@ -359,7 +359,7 @@ public class TestTables {
 
     @Override
     public String metadataFileLocation(String fileName) {
-      return new File(metadata, fileName).getAbsolutePath();
+      return new File(metadata, fileName).toURI().toString();
     }
 
     @Override

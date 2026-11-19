@@ -65,7 +65,7 @@ abstract class DynamicRecordInternalSerializerTestBase
   @Override
   protected TypeSerializer<DynamicRecordInternal> createSerializer() {
     return new DynamicRecordInternalSerializer(
-        new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1),
+        new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1, 10),
         writeFullSchemaAndSpec,
         writeLongUTF);
   }

@@ -77,6 +77,11 @@ public class IndexParents extends TypeUtil.SchemaVisitor<Map<Integer, Integer>> 
   }
 
   @Override
+  public Map<Integer, Integer> file(Types.FileType file, List<Map<Integer, Integer>> fieldResults) {
+    return struct(file.asStruct(), fieldResults);
+  }
+
+  @Override
   public Map<Integer, Integer> variant(Types.VariantType variant) {
     return idToParent;
   }

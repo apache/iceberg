@@ -29,6 +29,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.LoadContext;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -169,6 +170,15 @@ public class CachingCatalog implements Catalog {
   }
 
   @Override
+  public Table loadTable(TableIdentifier ident, LoadContext context) {
+    if (context == null || context.referencedBy().isEmpty()) {
+      return loadTable(ident);
+    }
+
+    return catalog.loadTable(canonicalizeIdentifier(ident), context);
+  }
+
+  @Override
   public boolean dropTable(TableIdentifier ident, boolean purge) {
     boolean dropped = catalog.dropTable(ident, purge);
     invalidateTable(ident);
@@ -200,6 +210,13 @@ public class CachingCatalog implements Catalog {
   public Table registerTable(
       TableIdentifier identifier, String metadataFileLocation, boolean overwrite) {
     Table table = catalog.registerTable(identifier, metadataFileLocation, overwrite);
+    invalidateTable(identifier);
+    return table;
+  }
+
+  @Override
+  public Table unregisterTable(TableIdentifier identifier) {
+    Table table = catalog.unregisterTable(identifier);
     invalidateTable(identifier);
     return table;
   }

@@ -197,8 +197,14 @@ public class CommitterImpl implements Committer {
 
   private void processControlEvents() {
     if (coordinatorThread != null && coordinatorThread.isTerminated()) {
-      throw new NotRunningException(
-          String.format("Coordinator unexpectedly terminated on committer %s", taskId));
+      if (coordinatorThread.isFenced()) {
+        LOG.warn("Coordinator on committer {} was fenced by a newer coordinator; clearing", taskId);
+        coordinatorThread = null;
+      } else {
+        throw new NotRunningException(
+            String.format("Coordinator unexpectedly terminated on committer %s", taskId),
+            coordinatorThread.error());
+      }
     }
     if (worker != null) {
       worker.process();

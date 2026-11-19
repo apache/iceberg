@@ -19,9 +19,11 @@
 package org.apache.iceberg.spark.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static scala.collection.JavaConverters.seqAsJavaListConverter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -34,9 +36,12 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.execution.SparkPlan;
+import org.apache.spark.sql.execution.metric.SQLMetric;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import scala.collection.JavaConverters;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkStagedScan extends CatalogTestBase {
@@ -112,6 +117,18 @@ public class TestSparkStagedScan extends CatalogTestBase {
           .as("Num partitions should match")
           .isEqualTo(2);
 
+      // the staged scan reports the split size it used to plan its task groups
+      scanDF.collect();
+      List<SparkPlan> sparkPlans =
+          seqAsJavaListConverter(scanDF.queryExecution().executedPlan().collectLeaves()).asJava();
+      Map<String, SQLMetric> metrics =
+          JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
+      assertThat(metrics)
+          .hasEntrySatisfying(
+              "effectiveSplitTargetSize",
+              metric ->
+                  assertThat(metric.value()).isEqualTo(tasks.get(0).file().fileSizeInBytes()));
+
       // load the staged file set and make sure we combine both files into a single split
       scanDF =
           spark
@@ -123,6 +140,16 @@ public class TestSparkStagedScan extends CatalogTestBase {
       assertThat(scanDF.javaRDD().getNumPartitions())
           .as("Num partitions should match")
           .isEqualTo(1);
+
+      // the staged scan reports the larger split size used for this read
+      scanDF.collect();
+      sparkPlans =
+          seqAsJavaListConverter(scanDF.queryExecution().executedPlan().collectLeaves()).asJava();
+      metrics = JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
+      assertThat(metrics)
+          .hasEntrySatisfying(
+              "effectiveSplitTargetSize",
+              metric -> assertThat(metric.value()).isEqualTo(Long.MAX_VALUE));
     }
   }
 }

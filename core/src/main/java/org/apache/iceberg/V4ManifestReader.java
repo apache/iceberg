@@ -19,14 +19,17 @@
 package org.apache.iceberg;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveStatsEvaluator;
 import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -44,7 +47,6 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.LocationUtil;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructProjection;
 
 /** Reader that reads a v4+ manifest file as {@link TrackedFile}s. */
@@ -52,44 +54,64 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private static final int SUPPORTED_FORMAT_VERSION = 4;
   private static final Set<Integer> REQUIRED_COLUMN_IDS =
       ImmutableSet.of(
-          Tracking.STATUS.fieldId(), // needed to filter live files
+          Tracking.STATUS.fieldId(), // needed to filter live files and for inheritance
           MetadataColumns.ROW_POSITION.fieldId(), // needed to apply metadata DVs
           TrackedFile.CONTENT_TYPE.fieldId(), // needed for content filtering
           TrackedFile.RECORD_COUNT.fieldId()); // needed for first_row_id assignment and filtering
 
   static Builder builder(
       ManifestFile manifest, FileIO io, Schema tableSchema, Map<Integer, PartitionSpec> specsById) {
-    return new Builder(manifest, io, tableSchema, specsById);
+    return new Builder(
+        manifest, io.newInputFile(manifest), tableSchema, specsById, false /* committed */);
+  }
+
+  static Builder builder(
+      ManifestFile manifest,
+      InputFile file,
+      Schema tableSchema,
+      Map<Integer, PartitionSpec> specsById) {
+    return new Builder(manifest, file, tableSchema, specsById, false /* committed */);
+  }
+
+  static Builder uncommitted(
+      ManifestFile manifest, FileIO io, Schema tableSchema, Map<Integer, PartitionSpec> specsById) {
+    return new Builder(
+        manifest, io.newInputFile(manifest), tableSchema, specsById, true /* uncommitted */);
   }
 
   private final ManifestFile manifest;
-  private final FileIO io;
+  private final ManifestBitmap dv;
+  private final InputFile input;
   private final Schema readSchema;
   private final String tableLocation;
   private final InclusiveStatsEvaluator statsFilter;
-  private final Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters; // by spec ID
-  private final boolean includeAll;
+  private final Map<Integer, Evaluator> partitionFilters; // by spec ID
+  private final Map<Integer, StructProjection> partitionProjections; // by spec ID
   private final Set<Integer> requestedStatsFieldIds;
+  private final boolean isUncommitted;
   private final ScanMetrics scanMetrics;
 
   private V4ManifestReader(
       ManifestFile manifest,
-      FileIO io,
+      InputFile input,
       Schema readSchema,
       String tableLocation,
       InclusiveStatsEvaluator statsFilter,
-      Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters,
-      boolean includeAll,
+      Map<Integer, Evaluator> partitionFilters,
+      Map<Integer, StructProjection> partitionProjections,
       Set<Integer> requestedStatsFieldIds,
+      boolean isUncommitted,
       ScanMetrics scanMetrics) {
     this.manifest = manifest;
-    this.io = io;
+    this.dv = manifest.manifestDeletionVector();
+    this.input = input;
     this.readSchema = readSchema;
     this.tableLocation = tableLocation;
     this.statsFilter = statsFilter;
     this.partitionFilters = partitionFilters;
-    this.includeAll = includeAll;
+    this.partitionProjections = partitionProjections;
     this.requestedStatsFieldIds = requestedStatsFieldIds;
+    this.isUncommitted = isUncommitted;
     this.scanMetrics = scanMetrics;
   }
 
@@ -98,12 +120,19 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return readSchema;
   }
 
-  /** Returns copies of the tracked files that match this reader's configured filters. */
   @Override
   public CloseableIterator<TrackedFile> iterator() {
-    CloseableIterable<TrackedFile> files = CloseableIterable.transform(open(), this::prepare);
+    // first row ID assignment must happen first to maintain consistent assignment when files are
+    // removed or filtered
+    CloseableIterable<TrackedFile> files = CloseableIterable.transform(open(), applyInheritance());
 
-    if (!includeAll) {
+    files = CloseableIterable.transform(files, this::projectPartition);
+
+    if (dv != null) {
+      files =
+          CloseableIterable.filter(
+              files, file -> file.tracking().isLive() && !isDeletedByMDV(file));
+    } else {
       files = CloseableIterable.filter(files, file -> file.tracking().isLive());
     }
 
@@ -127,6 +156,59 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return CloseableIterable.transform(files, this::copyResolved).iterator();
   }
 
+  private Function<TrackedFile, TrackedFile> applyInheritance() {
+    if (isUncommitted) {
+      // uncommitted files cannot have a sequence number or assign first row ID
+      return file -> {
+        // the reader uses TrackingStruct to read tracking so this cast is safe
+        ((TrackingStruct) file.tracking()).inherit(manifest.snapshotId());
+        return file;
+      };
+    }
+
+    Long firstRowId = manifest.firstRowId();
+    if (firstRowId != null) {
+      return new Function<>() {
+        private long nextRowId = firstRowId;
+
+        @Override
+        public TrackedFile apply(TrackedFile file) {
+          TrackingStruct tracking = (TrackingStruct) file.tracking();
+          tracking.inherit(manifest.snapshotId(), manifest.sequenceNumber());
+          if (file.contentType() == FileContent.DATA && tracking.assignFirstRowId(nextRowId)) {
+            nextRowId += file.recordCount();
+          }
+
+          return file;
+        }
+      };
+    }
+
+    // committed manifest with null manifest-level first row ID (pre-v3 upgrade path)
+    return file -> {
+      TrackingStruct tracking = (TrackingStruct) file.tracking();
+      tracking.inherit(manifest.snapshotId(), manifest.sequenceNumber());
+      tracking.assignFirstRowId(null);
+      return file;
+    };
+  }
+
+  private TrackedFile projectPartition(TrackedFile file) {
+    Integer specId = file.specId();
+    TrackedFileStruct struct = (TrackedFileStruct) file;
+    if (specId != null && !partitionProjections.containsKey(specId)) {
+      struct.clearPartition();
+    } else {
+      struct.setPartitionProjection(partitionProjections.get(specId));
+    }
+
+    return file;
+  }
+
+  private boolean isDeletedByMDV(TrackedFile file) {
+    return dv.isSet(Math.toIntExact(file.tracking().manifestPos()));
+  }
+
   private boolean matchesPartition(TrackedFile trackedFile) {
     Integer specId = trackedFile.specId();
     if (specId == null) {
@@ -134,15 +216,13 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return true;
     }
 
-    Pair<Evaluator, StructProjection> partitionFilter = partitionFilters.get(specId);
-    if (partitionFilter == null) {
+    Evaluator evaluator = partitionFilters.get(specId);
+    if (evaluator == null) {
       // the row filter does not project to a partition filter for this spec
       return true;
     }
 
-    Evaluator evaluator = partitionFilter.first();
-    StructProjection projection = partitionFilter.second();
-    boolean matches = evaluator.eval(projection.wrap(trackedFile.partition()));
+    boolean matches = evaluator.eval(trackedFile.partition());
     if (!matches) {
       incrementSkipCount(trackedFile);
     }
@@ -153,8 +233,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private void incrementSkipCount(TrackedFile file) {
     switch (file.contentType()) {
       case DATA -> scanMetrics.skippedDataFiles().increment();
-      case EQUALITY_DELETES -> scanMetrics.skippedDeleteFiles().increment();
-      case DATA_MANIFEST -> scanMetrics.skippedDataManifests().increment();
+      case DATA_MANIFEST -> {
+        scanMetrics.skippedDataManifests().increment();
+        scanMetrics.totalDataManifests().increment();
+      }
       case DELETE_MANIFEST -> scanMetrics.skippedDeleteManifests().increment();
       default ->
           throw new UnsupportedOperationException(
@@ -163,18 +245,20 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   }
 
   private CloseableIterable<TrackedFile> open() {
-    InputFile file = io.newInputFile(manifest);
-    FileFormat format = FileFormat.fromFileName(file.location());
+    FileFormat format = FileFormat.fromFileName(input.location());
 
     scanMetrics.scannedDataManifests().increment();
+    scanMetrics.totalDataManifests().increment();
 
     InternalData.ReadBuilder readBuilder =
-        InternalData.read(format, file)
+        InternalData.read(format, input)
             .project(readSchema)
             .setRootType(TrackedFileStruct.class)
             .setCustomType(TrackedFile.TRACKING.fieldId(), TrackingStruct.class)
             .setCustomType(TrackedFile.DELETION_VECTOR.fieldId(), DeletionVectorStruct.class)
             .setCustomType(TrackedFile.MANIFEST_INFO.fieldId(), ManifestInfoStruct.class)
+            .setCustomType(
+                TrackedFile.COLUMN_FILES.type().asListType().elementId(), ColumnFileStruct.class)
             .reuseContainers();
 
     Types.NestedField partitionField = readSchema.findField(TrackedFile.PARTITION_ID);
@@ -188,6 +272,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       readBuilder.setCustomType(TrackedFile.CONTENT_STATS_ID, ContentStatsStruct.class);
       for (Types.NestedField fieldStats : statsField.type().asStructType().fields()) {
         readBuilder.setCustomType(fieldStats.fieldId(), FieldStatsStruct.class);
+        registerCustomBoundTypes(readBuilder, fieldStats);
       }
     }
 
@@ -196,14 +281,20 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return reader;
   }
 
-  private TrackedFile prepare(TrackedFile trackedFile) {
-    Tracking tracking = trackedFile.tracking();
-    // manifestLocation is not stored in the manifest; the reader fills it in
-    if (tracking instanceof TrackingStruct) {
-      ((TrackingStruct) tracking).setManifestLocation(manifest.path());
-    }
+  private static void registerCustomBoundTypes(
+      InternalData.ReadBuilder readBuilder, Types.NestedField fieldStats) {
+    Types.StructType struct = fieldStats.type().asStructType();
+    registerGeoBoundType(readBuilder, struct.field(StatsUtil.LOWER_BOUND_NAME));
+    registerGeoBoundType(readBuilder, struct.field(StatsUtil.UPPER_BOUND_NAME));
+  }
 
-    return trackedFile;
+  private static void registerGeoBoundType(
+      InternalData.ReadBuilder readBuilder, Types.NestedField boundField) {
+    // Geometry and geography are the only bound types represented as structs, so a struct bound
+    // is read as GeospatialBound.
+    if (boundField != null && boundField.type().isStructType()) {
+      readBuilder.setCustomType(boundField.fieldId(), GeospatialBound.class);
+    }
   }
 
   // resolves stored locations against the table location
@@ -218,10 +309,20 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       copy.setLocation(LocationUtil.resolveLocation(tableLocation, copy.location()));
     }
 
-    DeletionVector dv = copy.deletionVector();
-    if (dv != null && dv.location() != null) {
-      ((DeletionVectorStruct) dv)
-          .setLocation(LocationUtil.resolveLocation(tableLocation, dv.location()));
+    DeletionVector deletionVector = copy.deletionVector();
+    if (deletionVector != null && deletionVector.location() != null) {
+      ((DeletionVectorStruct) deletionVector)
+          .setLocation(LocationUtil.resolveLocation(tableLocation, deletionVector.location()));
+    }
+
+    List<ColumnFile> columnFiles = copy.columnFiles();
+    if (columnFiles != null) {
+      for (ColumnFile columnFile : columnFiles) {
+        if (columnFile.location() != null) {
+          ((ColumnFileStruct) columnFile)
+              .setLocation(LocationUtil.resolveLocation(tableLocation, columnFile.location()));
+        }
+      }
     }
 
     return copy;
@@ -234,14 +335,14 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
   static class Builder {
     private final ManifestFile manifest;
-    private final FileIO io;
+    private final InputFile file;
     private final Schema tableSchema;
     private final Types.StructType unionPartitionType;
     private final Map<Integer, PartitionSpec> specsById;
+    private final boolean isUncommitted;
     private String tableLocation = null;
     private Expression rowFilter = Expressions.alwaysTrue();
     private boolean caseSensitive = true;
-    private boolean includeAll = false;
     private boolean scanPlanning = false;
     private Set<String> requestedColumns = null;
     private Schema requestedProjection = null;
@@ -251,9 +352,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
     private Builder(
         ManifestFile manifest,
-        FileIO io,
+        InputFile file,
         Schema tableSchema,
-        Map<Integer, PartitionSpec> specsById) {
+        Map<Integer, PartitionSpec> specsById,
+        boolean isUncommitted) {
       Preconditions.checkArgument(tableSchema != null, "Invalid table schema: null");
       int formatVersion = manifest.formatVersion();
       Preconditions.checkArgument(
@@ -270,16 +372,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       Preconditions.checkArgument(
           format != null, "Cannot determine format of manifest: %s", manifest.path());
 
-      if (manifest.manifestDeletionVector() != null) {
-        throw new UnsupportedOperationException(
-            "Cannot read manifest with a deletion vector: " + manifest.path());
-      }
-
       this.manifest = manifest;
-      this.io = io;
+      this.file = file;
       this.tableSchema = tableSchema;
-      this.specsById = specsById;
       this.unionPartitionType = Partitioning.unionPartitionTypes(specsById.values());
+      this.specsById = specsById;
+      this.isUncommitted = isUncommitted;
     }
 
     /**
@@ -306,14 +404,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return this;
     }
 
-    /** Returns all entries without filtering by {@link Tracking#isLive() liveness}. */
-    Builder includeAll() {
-      this.includeAll = true;
-      return this;
-    }
-
     /** Configures the reader to select the minimal fields needed for scan planning. */
     Builder forScanPlanning() {
+      Preconditions.checkState(
+          !isUncommitted, "Cannot plan scan using uncommitted manifest: %s", manifest.path());
       Preconditions.checkState(
           requestedColumns == null && requestedProjection == null,
           "Cannot use forScanPlanning() with select(Iterable<String>) or project(Schema)");
@@ -387,17 +481,18 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         requestedStatsFieldIds = ImmutableSet.of();
       }
 
-      Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters = projectFilters();
+      Map<Integer, Evaluator> partitionFilters = projectFilters();
 
       return new V4ManifestReader(
           manifest,
-          io,
+          file,
           readSchema(!partitionFilters.isEmpty()),
           tableLocation,
           statsFilter(),
           partitionFilters,
-          includeAll,
+          partitionProjections(),
           requestedStatsFieldIds,
+          isUncommitted,
           scanMetrics);
     }
 
@@ -409,21 +504,33 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       }
     }
 
-    private Map<Integer, Pair<Evaluator, StructProjection>> projectFilters() {
-      Map<Integer, Pair<Evaluator, StructProjection>> evaluatorAndProjections = Maps.newHashMap();
+    private Map<Integer, Evaluator> projectFilters() {
+      Map<Integer, Evaluator> evaluators = Maps.newHashMap();
       if (rowFilter != Expressions.alwaysTrue() && !unionPartitionType.fields().isEmpty()) {
         for (PartitionSpec spec : specsById.values()) {
           Expression partFilter = Projections.inclusive(spec, caseSensitive).project(rowFilter);
           if (partFilter != Expressions.alwaysTrue()) {
-            Evaluator evaluator = new Evaluator(spec.partitionType(), partFilter, caseSensitive);
-            StructProjection projection =
-                StructProjection.create(unionPartitionType, spec.partitionType());
-            evaluatorAndProjections.put(spec.specId(), Pair.of(evaluator, projection));
+            evaluators.put(
+                spec.specId(), new Evaluator(spec.partitionType(), partFilter, caseSensitive));
           }
         }
       }
 
-      return evaluatorAndProjections;
+      return evaluators;
+    }
+
+    private Map<Integer, StructProjection> partitionProjections() {
+      Map<Integer, StructProjection> projections = Maps.newHashMap();
+      for (PartitionSpec spec : specsById.values()) {
+        Types.StructType partitionType = spec.partitionType();
+        StructProjection projection =
+            partitionType.equals(unionPartitionType)
+                ? null
+                : StructProjection.create(unionPartitionType, partitionType);
+        projections.put(spec.specId(), projection);
+      }
+
+      return projections;
     }
 
     private Schema readSchema(boolean includePartition) {
@@ -444,7 +551,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
       if (requestedProjection != null) {
         return RestoreColumns.restore(
-            tableManifestSchema, requestedProjection, idsToRestore(includePartition));
+            tableManifestSchema,
+            requestedProjection,
+            idsToRestore(
+                projectsPartition(includePartition, requestedProjection), requestedProjection));
       }
 
       if (requestedColumns != null) {
@@ -454,25 +564,63 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
                 : tableManifestSchema.caseInsensitiveSelect(requestedColumns);
 
         return RestoreColumns.restore(
-            tableManifestSchema, projection, idsToRestore(includePartition));
+            tableManifestSchema,
+            projection,
+            idsToRestore(projectsPartition(includePartition, projection), projection));
       }
 
       return tableManifestSchema;
     }
 
+    private boolean projectsPartition(boolean includePartition, Schema projection) {
+      return includePartition || projection.findField(TrackedFile.PARTITION_ID) != null;
+    }
+
     /** Return a set of manifest field IDs that should be projected. */
-    private Set<Integer> idsToRestore(boolean includePartition) {
+    private Set<Integer> idsToRestore(boolean includePartition, Schema projection) {
       Set<Integer> ids = Sets.newHashSet(REQUIRED_COLUMN_IDS);
 
       // project the full stats struct that corresponds to each field for which stats are needed
-      statsFieldIds().stream().map(StatsUtil::toBaseId).forEach(ids::add);
+      Set<Integer> statsIds = statsFieldIds();
+      statsIds.stream().map(StatsUtil::toBaseId).forEach(ids::add);
+
+      if (!statsIds.isEmpty()) {
+        ids.add(TrackedFile.TIGHT_STATS.fieldId());
+      }
 
       if (includePartition) {
         ids.add(TrackedFile.SPEC_ID.fieldId());
         ids.add(TrackedFile.PARTITION_ID);
       }
 
+      // A partial geo bound must be read whole: GeospatialBound positions are fixed and NaN means
+      // absent in the file.
+      addProjectedGeoBounds(projection, ids);
+
       return ids;
+    }
+
+    private static void addProjectedGeoBounds(Schema projection, Set<Integer> ids) {
+      Types.NestedField contentStatsField = projection.findField(TrackedFile.CONTENT_STATS_ID);
+      if (contentStatsField == null || !contentStatsField.type().isStructType()) {
+        return;
+      }
+
+      for (Types.NestedField fieldStats : contentStatsField.type().asStructType().fields()) {
+        if (!fieldStats.type().isStructType()) {
+          continue;
+        }
+
+        Types.StructType struct = fieldStats.type().asStructType();
+        addGeoBoundId(struct.field(StatsUtil.LOWER_BOUND_NAME), ids);
+        addGeoBoundId(struct.field(StatsUtil.UPPER_BOUND_NAME), ids);
+      }
+    }
+
+    private static void addGeoBoundId(Types.NestedField bound, Set<Integer> ids) {
+      if (bound != null && bound.type().isStructType()) {
+        ids.add(bound.fieldId());
+      }
     }
 
     /** Return a set of table field IDs for which stats are needed. */

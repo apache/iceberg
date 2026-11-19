@@ -21,9 +21,12 @@ package org.apache.iceberg.util;
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -191,22 +194,28 @@ public class PartitionSet extends AbstractSet<Pair<Integer, StructLike>> {
 
   @Override
   public String toString() {
-    StringJoiner result = new StringJoiner(", ", "[", "]");
-    for (Map.Entry<Integer, Set<StructLike>> e : partitionSetById.entrySet()) {
-      StringJoiner partitionDataJoiner = new StringJoiner(", ");
-      Types.StructType structType = partitionTypeById.get(e.getKey());
-      for (StructLike s : e.getValue()) {
-        for (int i = 0; i < structType.fields().size(); i++) {
-          StringBuilder partitionStringBuilder = new StringBuilder();
-          partitionStringBuilder.append(structType.fields().get(i).name());
-          partitionStringBuilder.append("=");
-          partitionStringBuilder.append(s.get(i, Object.class));
-          partitionDataJoiner.add(partitionStringBuilder.toString());
-        }
-      }
-      result.add(partitionDataJoiner.toString());
+    return partitionSetById.entrySet().stream()
+        .flatMap(this::toStrings)
+        .collect(Collectors.joining(", ", "[", "]"));
+  }
+
+  private Stream<String> toStrings(Map.Entry<Integer, Set<StructLike>> entry) {
+    Types.StructType partitionType = partitionTypeById.get(entry.getKey());
+    return entry.getValue().stream().map(struct -> toString(partitionType, struct));
+  }
+
+  private static String toString(Types.StructType partitionType, StructLike struct) {
+    if (struct == null) {
+      return "null";
     }
-    return result.toString();
+
+    List<Types.NestedField> fields = partitionType.fields();
+    StringJoiner joiner = new StringJoiner(", ", "{", "}");
+    for (int pos = 0; pos < fields.size(); pos += 1) {
+      joiner.add(fields.get(pos).name() + "=" + struct.get(pos, Object.class));
+    }
+
+    return joiner.toString();
   }
 
   @Override

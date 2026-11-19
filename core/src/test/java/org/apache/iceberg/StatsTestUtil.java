@@ -29,7 +29,6 @@ class StatsTestUtil {
     return new TrackedFileStruct(
         null,
         FileContent.DATA,
-        4,
         location,
         FileFormat.fromFileName(location),
         recordCount,
@@ -37,6 +36,7 @@ class StatsTestUtil {
         0,
         null,
         stats,
+        false, // tightStats
         null,
         null,
         null,
@@ -55,22 +55,36 @@ class StatsTestUtil {
   }
 
   /** Returns the stats for a field, where a null metric is one that the column does not track. */
-  static FieldStats<Object> fieldStats(
+  static <T> FieldStats<T> fieldStats(
       Types.StructType statsType,
       int fieldId,
-      Object lower,
-      Object upper,
+      T lower,
+      T upper,
       Long valueCount,
       Long nullCount,
       Long nanCount) {
+    return fieldStats(statsType, fieldId, lower, upper, valueCount, nullCount, nanCount, null);
+  }
+
+  static <T> FieldStats<T> fieldStats(
+      Types.StructType statsType,
+      int fieldId,
+      T lower,
+      T upper,
+      Long valueCount,
+      Long nullCount,
+      Long nanCount,
+      Long totalSize) {
     Types.StructType type = statsType.field(StatsUtil.toBaseId(fieldId)).type().asStructType();
     validateTrackedMetric(type, StatsUtil.LOWER_BOUND_NAME, lower);
     validateTrackedMetric(type, StatsUtil.UPPER_BOUND_NAME, upper);
     validateTrackedMetric(type, "value_count", valueCount);
     validateTrackedMetric(type, "null_value_count", nullCount);
     validateTrackedMetric(type, "nan_value_count", nanCount);
+    validateTrackedMetric(type, "total_bytes", totalSize);
 
-    return new TestFieldStats(fieldId, type, lower, upper, valueCount, nullCount, nanCount);
+    return new TestFieldStats<>(
+        fieldId, type, lower, upper, valueCount, nullCount, nanCount, totalSize);
   }
 
   private static void validateTrackedMetric(Types.StructType type, String metric, Object value) {
@@ -81,23 +95,25 @@ class StatsTestUtil {
         type);
   }
 
-  private static class TestFieldStats implements FieldStats<Object> {
+  private static class TestFieldStats<T> implements FieldStats<T> {
     private final int fieldId;
     private final Types.StructType type;
-    private final Object lowerBound;
-    private final Object upperBound;
+    private final T lowerBound;
+    private final T upperBound;
     private final Long valueCount;
     private final Long nullValueCount;
     private final Long nanValueCount;
+    private final Long totalBytes;
 
     private TestFieldStats(
         int fieldId,
         Types.StructType type,
-        Object lowerBound,
-        Object upperBound,
+        T lowerBound,
+        T upperBound,
         Long valueCount,
         Long nullValueCount,
-        Long nanValueCount) {
+        Long nanValueCount,
+        Long totalBytes) {
       this.fieldId = fieldId;
       this.type = type;
       this.lowerBound = lowerBound;
@@ -105,6 +121,7 @@ class StatsTestUtil {
       this.valueCount = valueCount;
       this.nullValueCount = nullValueCount;
       this.nanValueCount = nanValueCount;
+      this.totalBytes = totalBytes;
     }
 
     @Override
@@ -118,18 +135,13 @@ class StatsTestUtil {
     }
 
     @Override
-    public Object lowerBound() {
+    public T lowerBound() {
       return lowerBound;
     }
 
     @Override
-    public Object upperBound() {
+    public T upperBound() {
       return upperBound;
-    }
-
-    @Override
-    public boolean tightBounds() {
-      return false;
     }
 
     @Override
@@ -163,12 +175,17 @@ class StatsTestUtil {
     }
 
     @Override
-    public Integer avgValueSizeInBytes() {
-      return null;
+    public boolean hasTotalBytes() {
+      return totalBytes != null;
     }
 
     @Override
-    public FieldStats<Object> copy() {
+    public long totalBytes() {
+      return totalBytes;
+    }
+
+    @Override
+    public FieldStats<T> copy() {
       return this;
     }
   }
@@ -199,7 +216,7 @@ class StatsTestUtil {
       Long valueCount,
       Long nullCount,
       Long nanCount,
-      Integer avgValueSize) {
+      Long totalBytes) {
     FieldStats<Object> stats = Mockito.mock(FieldStats.class);
     Mockito.when(stats.fieldId()).thenReturn(id);
     Mockito.when(stats.type()).thenReturn(type);
@@ -220,11 +237,10 @@ class StatsTestUtil {
       Mockito.when(stats.nanValueCount()).thenReturn(nanCount);
     }
 
-    // stub unconditionally: unlike the counts, avgValueSizeInBytes has no has*() gate, so
-    // ContentStatsBackedMap treats avgValueSizeInBytes() != null as the presence check. A Mockito
-    // mock defaults this method to 0, not null, so an absent stat must be stubbed to null here or
-    // it reads back as present with 0.
-    Mockito.when(stats.avgValueSizeInBytes()).thenReturn(avgValueSize);
+    Mockito.when(stats.hasTotalBytes()).thenReturn(totalBytes != null);
+    if (totalBytes != null) {
+      Mockito.when(stats.totalBytes()).thenReturn(totalBytes);
+    }
 
     return stats;
   }

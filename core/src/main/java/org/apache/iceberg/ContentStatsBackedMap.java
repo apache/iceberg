@@ -38,7 +38,7 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
     NAN_VALUE_COUNT,
     LOWER_BOUND,
     UPPER_BOUND,
-    AVG_VALUE_SIZE
+    TOTAL_BYTES
   }
 
   /** Per-column value counts, or null if no column tracks the value count. */
@@ -66,9 +66,9 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
     return viewOrNull(stats, Kind.UPPER_BOUND);
   }
 
-  /** Per-column average non-null value sizes, or null if no column tracks the average size. */
-  static <V> Map<Integer, V> avgValueSizes(ContentStats stats) {
-    return viewOrNull(stats, Kind.AVG_VALUE_SIZE);
+  /** Per-column total uncompressed size of non-null values, or null if no column tracks it. */
+  static <V> Map<Integer, V> totalBytes(ContentStats stats) {
+    return viewOrNull(stats, Kind.TOTAL_BYTES);
   }
 
   private final ContentStats stats;
@@ -151,7 +151,7 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
       case NAN_VALUE_COUNT -> fieldStats.hasNanValueCount();
       case LOWER_BOUND -> fieldStats.lowerBound() != null;
       case UPPER_BOUND -> fieldStats.upperBound() != null;
-      case AVG_VALUE_SIZE -> fieldStats.avgValueSizeInBytes() != null;
+      case TOTAL_BYTES -> fieldStats.hasTotalBytes();
     };
   }
 
@@ -168,7 +168,8 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
           (V) bound(fieldStats, fieldStats.lowerBound(), StatsUtil.LOWER_BOUND_NAME);
       case UPPER_BOUND ->
           (V) bound(fieldStats, fieldStats.upperBound(), StatsUtil.UPPER_BOUND_NAME);
-      case AVG_VALUE_SIZE -> (V) fieldStats.avgValueSizeInBytes();
+      case TOTAL_BYTES ->
+          fieldStats.hasTotalBytes() ? (V) Long.valueOf(fieldStats.totalBytes()) : null;
     };
   }
 

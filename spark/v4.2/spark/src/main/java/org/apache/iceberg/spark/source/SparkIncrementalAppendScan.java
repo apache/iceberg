@@ -28,6 +28,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.expressions.filter.PartitionPredicate;
 
 class SparkIncrementalAppendScan extends SparkRuntimeFilterableScan {
 
@@ -43,8 +44,18 @@ class SparkIncrementalAppendScan extends SparkRuntimeFilterableScan {
       SparkReadConf readConf,
       Schema projection,
       List<Expression> filters,
+      List<PartitionPredicate> partitionPredicates,
       Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, table.schema(), scan, readConf, projection, filters, scanReportSupplier);
+    super(
+        spark,
+        table,
+        table.schema(),
+        scan,
+        readConf,
+        projection,
+        filters,
+        partitionPredicates,
+        scanReportSupplier);
     this.startSnapshotId = startSnapshotId;
     this.endSnapshotId = endSnapshotId;
   }
@@ -66,6 +77,7 @@ class SparkIncrementalAppendScan extends SparkRuntimeFilterableScan {
         && Objects.equals(endSnapshotId, that.endSnapshotId)
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
         && filtersDesc().equals(that.filtersDesc())
+        && partitionPredicates().equals(that.partitionPredicates())
         && runtimeFiltersDesc().equals(that.runtimeFiltersDesc());
   }
 
@@ -78,6 +90,7 @@ class SparkIncrementalAppendScan extends SparkRuntimeFilterableScan {
         endSnapshotId,
         readSchema(),
         filtersDesc(),
+        partitionPredicates(),
         runtimeFiltersDesc());
   }
 

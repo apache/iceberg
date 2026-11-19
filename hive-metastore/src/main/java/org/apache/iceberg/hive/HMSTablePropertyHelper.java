@@ -110,6 +110,7 @@ public class HMSTablePropertyHelper {
         maxHiveTablePropertySize);
     setStorageHandler(parameters, hiveEngineEnabled);
     setMetadataHash(metadata, parameters);
+    parameters.put(TableProperties.FORMAT_VERSION, String.valueOf(metadata.formatVersion()));
 
     // Set the basic statistics
     if (summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP) != null) {

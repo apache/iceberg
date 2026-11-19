@@ -46,7 +46,7 @@ Hive supports the following features with Hive version 4.0.0 and above:
 * Copy-on-write support for delete, update and merge queries, CRUD support for Iceberg V1 tables.
 * Altering a table with expiring snapshots.
 * Create a table like an existing table (CTLT table).
-* Support adding parquet compression type via Table properties [Compression types](https://spark.apache.org/docs/2.4.3/sql-data-sources-parquet.html#configuration).
+* Support adding parquet compression type via Table properties [Compression types](https://spark.apache.org/docs/latest/sql-data-sources-parquet.html#configuration).
 * Altering a table metadata location.
 * Supporting table rollback.
 * Honors sort orders on existing tables when writing a table [Sort orders specification](../../spec.md#sort-orders).
@@ -357,30 +357,41 @@ The Hive table schema is kept in sync with the Iceberg table. If an outside sour
 changes the schema, the Hive table immediately reflects the changes. You alter the table schema using Hive commands:
 
 * Rename a table
-```sql
-ALTER TABLE orders RENAME TO renamed_orders;
-```
+
+    ```sql
+    ALTER TABLE orders RENAME TO renamed_orders;
+    ```
 
 * Add a column
-```sql
-ALTER TABLE orders ADD COLUMNS (nickname string);
-```
+
+    ```sql
+    ALTER TABLE orders ADD COLUMNS (nickname string);
+    ```
+
 * Rename a column
-```sql
-ALTER TABLE orders CHANGE COLUMN item fruit string;
-```
+
+    ```sql
+    ALTER TABLE orders CHANGE COLUMN item fruit string;
+    ```
+
 * Reorder columns
-```sql
-ALTER TABLE orders CHANGE COLUMN quantity quantity int AFTER price;
-```
+
+    ```sql
+    ALTER TABLE orders CHANGE COLUMN quantity quantity int AFTER price;
+    ```
+
 * Change a column type - only if the Iceberg defined the column type change as safe
-```sql
-ALTER TABLE orders CHANGE COLUMN price price long;
-```
+
+    ```sql
+    ALTER TABLE orders CHANGE COLUMN price price long;
+    ```
+
 * Drop column by using REPLACE COLUMN to remove the old column
-```sql
-ALTER TABLE orders REPLACE COLUMNS (remaining string);
-```
+
+    ```sql
+    ALTER TABLE orders REPLACE COLUMNS (remaining string);
+    ```
+
 !!! info
     Note, that dropping columns is only thing REPLACE COLUMNS can be used for
     i.e. if columns are specified out-of-order an error will be thrown signalling this limitation.
@@ -389,13 +400,16 @@ ALTER TABLE orders REPLACE COLUMNS (remaining string);
 You change the partitioning schema using the following commands:
 
 * Change the partitioning schema to new identity partitions:
-```sql
-ALTER TABLE default.customers SET PARTITION SPEC (last_name);
-```
+
+    ```sql
+    ALTER TABLE default.customers SET PARTITION SPEC (last_name);
+    ```
+
 * Alternatively, provide a partition specification:
-```sql
-ALTER TABLE order SET PARTITION SPEC (month(ts));
-```
+
+    ```sql
+    ALTER TABLE order SET PARTITION SPEC (month(ts));
+    ```
 
 #### Table migration
 You can migrate Avro / Parquet / ORC external tables to Iceberg tables using the following command:

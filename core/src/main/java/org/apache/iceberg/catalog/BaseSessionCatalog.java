@@ -96,6 +96,11 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
     }
 
     @Override
+    public Table unregisterTable(TableIdentifier ident) {
+      return BaseSessionCatalog.this.unregisterTable(context, ident);
+    }
+
+    @Override
     public boolean tableExists(TableIdentifier ident) {
       return BaseSessionCatalog.this.tableExists(context, ident);
     }

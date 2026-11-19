@@ -34,7 +34,15 @@ import org.apache.spark.sql.catalyst.InternalRow;
 public class TestSparkFormatModel extends BaseFormatModelTests<InternalRow> {
 
   private static final Set<Type.TypeID> UNSUPPORTED_TYPE_IDS =
-      Set.of(Type.TypeID.TIME, Type.TypeID.TIMESTAMP_NANO);
+      Set.of(
+          Type.TypeID.TIME,
+          Type.TypeID.TIMESTAMP_NANO,
+          // TODO: Spark 4.1+ supports geometry/geography, but only on Parquet - the Spark Avro
+          // reader/writer don't handle geo. The TCK gates geospatial by file format rather than
+          // engine, so enabling these here would also run the unsupported Avro cases. Enable once
+          // the harness geo-gating is engine-aware and InternalRowConverter/TestHelpers handle geo.
+          Type.TypeID.GEOMETRY,
+          Type.TypeID.GEOGRAPHY);
 
   @Override
   protected Collection<Type.TypeID> unsupportedTypeIds() {

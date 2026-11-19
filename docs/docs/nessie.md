@@ -52,7 +52,7 @@ Please refer to the [Nessie SQL extension document](https://projectnessie.org/to
 ## Nessie Catalog
 
 One major feature introduced in release `0.11.0` is the ability to easily interact with a [Custom Catalog](custom-catalog.md) from Spark and Flink. See [Spark Configuration](spark-configuration.md#catalog-configuration)
-  and [Flink Configuration](flink.md#custom-catalog) for instructions for adding a custom catalog to Iceberg.
+  and [Flink Configuration](flink-ddl.md#custom-catalog) for instructions for adding a custom catalog to Iceberg.
 
 To use the Nessie Catalog the following properties are required:
 
@@ -80,7 +80,7 @@ conf.set("spark.sql.catalog.nessie.type", "nessie")
 conf.set("spark.sql.catalog.nessie", "org.apache.iceberg.spark.SparkCatalog")
 conf.set("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,org.projectnessie.spark.extensions.NessieSparkSessionExtensions")
 ```
-This is how it looks in Flink via the Python API (additional details can be found [here](flink.md#preparation-when-using-flinks-python-api)):
+This is how it looks in Flink via the Python API (additional details can be found [here](flink.md#flinks-python-api)):
 ```python
 import os
 from pyflink.datastream import StreamExecutionEnvironment

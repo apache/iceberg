@@ -142,6 +142,7 @@ make serve-dev
 ```
 
 This development mode:
+
 - **Only builds `nightly` and `latest` versions** - Skips all historical versions
 - **Significantly reduces build time** - Typically 5-10x faster than building all versions
 - **Perfect for iterative development** - Great for working on documentation content

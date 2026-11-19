@@ -24,13 +24,20 @@ import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_SIZE_B
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.isNull;
+import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.write;
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterables.getOnlyElement;
@@ -48,7 +55,10 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
@@ -56,11 +66,13 @@ import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.MetricsTestUtil;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.data.parquet.InternalReader;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
@@ -72,14 +84,18 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.RandomUtil;
 import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantTestUtil;
+import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.statistics.Statistics;
+import org.apache.parquet.hadoop.BadConfigurationException;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
@@ -95,6 +111,8 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 public class TestParquet {
 
@@ -659,6 +677,31 @@ public class TestParquet {
   }
 
   @Test
+  void writesVariantWithDefaultAvroWriter() throws IOException {
+    Schema schema = new Schema(required(1, "v", Types.VariantType.get()));
+    GenericData.Record record =
+        new GenericData.Record(AvroSchemaUtil.convert(schema.asStruct(), "table"));
+    Variant expected = Variant.of(Variants.emptyMetadata(), Variants.of(34));
+    record.put("v", expected);
+
+    File file = createTempFile(temp);
+    try (FileAppender<GenericData.Record> writer =
+        Parquet.write(Files.localOutput(file)).schema(schema).build()) {
+      writer.add(record);
+    }
+
+    try (CloseableIterable<Record> rows =
+        Parquet.read(Files.localInput(file))
+            .project(schema)
+            .createReaderFunc(fileSchema -> InternalReader.create(schema, fileSchema))
+            .build()) {
+      Variant actual = (Variant) getOnlyElement(rows).get(0);
+      VariantTestUtil.assertEqual(expected.metadata(), actual.metadata());
+      VariantTestUtil.assertEqual(expected.value(), actual.value());
+    }
+  }
+
+  @Test
   public void adaptiveBloomFilterSizingShrinksFile() throws IOException {
     // when PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED is not set (the default), the writer
     // allocates the full PARQUET_BLOOM_FILTER_MAX_BYTES buffer (4 MiB here) regardless
@@ -746,6 +789,164 @@ public class TestParquet {
   }
 
   @Test
+  void perColumnCompressionCodec() throws Exception {
+    File file =
+        writeIntAndStringFields(
+            ImmutableMap.of(
+                PARQUET_COMPRESSION,
+                "zstd",
+                PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "int_field",
+                "snappy"),
+            5);
+
+    assertThat(readColumnCodecs(file))
+        .containsEntry("int_field", CompressionCodecName.SNAPPY)
+        .containsEntry("string_field", CompressionCodecName.ZSTD);
+  }
+
+  @Test
+  void perColumnCompressionCodecForNonExistentColumnIsIgnored() throws Exception {
+    File file =
+        writeIntAndStringFields(
+            ImmutableMap.of(
+                PARQUET_COMPRESSION,
+                "snappy",
+                PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "non_existent_field",
+                "zstd"),
+            5);
+
+    assertThat(readColumnCodecs(file))
+        .containsEntry("int_field", CompressionCodecName.SNAPPY)
+        .containsEntry("string_field", CompressionCodecName.SNAPPY);
+  }
+
+  @Test
+  void perColumnCompressionLevelIsApplied() throws Exception {
+    File lowLevelFile = writeWithStringFieldZstdLevel(1);
+    File highLevelFile = writeWithStringFieldZstdLevel(19);
+
+    assertThat(readColumnCodecs(highLevelFile))
+        .containsEntry("string_field", CompressionCodecName.ZSTD);
+    assertThat(readColumnSizes(highLevelFile).get("string_field"))
+        .isLessThan(readColumnSizes(lowLevelFile).get("string_field"));
+  }
+
+  private File writeWithStringFieldZstdLevel(int level) throws IOException {
+    Random random = new Random(0);
+    return writeIntAndStringFields(
+        ImmutableMap.of(
+            PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "string_field",
+            "zstd",
+            PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "string_field",
+            String.valueOf(level)),
+        20_000,
+        i -> "value-" + random.nextInt(5_000) + "-" + random.nextInt(5_000));
+  }
+
+  @Test
+  void invalidCompressionLevelThrows() {
+    assertThatThrownBy(
+            () ->
+                writeIntAndStringFields(
+                    ImmutableMap.of(
+                        PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "int_field",
+                        "zstd",
+                        PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "int_field",
+                        "not-a-number"),
+                    1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid compression level for column int_field: not-a-number");
+  }
+
+  @ParameterizedTest
+  @CsvSource({"zstd, 100", "gzip, 99", "brotli, 50"})
+  void outOfRangeCompressionLevelThrows(String codec, String level) {
+    assertThatThrownBy(
+            () ->
+                writeIntAndStringFields(
+                    ImmutableMap.of(
+                        PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "int_field",
+                        codec,
+                        PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "int_field",
+                        level),
+                    1))
+        .isInstanceOf(BadConfigurationException.class)
+        .hasMessageContaining("compression level: " + level);
+  }
+
+  @Test
+  void invalidCompressionCodecThrows() {
+    assertThatThrownBy(
+            () ->
+                writeIntAndStringFields(
+                    ImmutableMap.of(
+                        PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "int_field", "not-a-codec"),
+                    1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unsupported compression codec: not-a-codec");
+  }
+
+  private File writeIntAndStringFields(Map<String, String> properties, int recordCount)
+      throws IOException {
+    return writeIntAndStringFields(properties, recordCount, i -> "test");
+  }
+
+  private File writeIntAndStringFields(
+      Map<String, String> properties, int recordCount, IntFunction<String> stringValue)
+      throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "int_field", IntegerType.get()),
+            optional(2, "string_field", Types.StringType.get()));
+
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(recordCount);
+    for (int i = 1; i <= recordCount; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      record.put("int_field", i);
+      record.put("string_field", stringValue.apply(i));
+      records.add(record);
+    }
+
+    File file = createTempFile(temp);
+    write(
+        file,
+        schema,
+        properties,
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
+    return file;
+  }
+
+  private Map<String, Long> readColumnSizes(File file) throws IOException {
+    Map<String, Long> sizes = Maps.newHashMap();
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(Files.localInput(file)))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          sizes.merge(column.getPath().toDotString(), column.getTotalSize(), Long::sum);
+        }
+      }
+    }
+
+    return sizes;
+  }
+
+  private Map<String, CompressionCodecName> readColumnCodecs(File file) throws IOException {
+    Map<String, CompressionCodecName> codecs = Maps.newHashMap();
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(Files.localInput(file)))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          codecs.put(column.getPath().toDotString(), column.getCodec());
+        }
+      }
+    }
+
+    return codecs;
+  }
+
+  @Test
   public void timestampNanoFilterRespectsNanoseconds() throws IOException {
     // Predicate pushdown on timestamp_ns must filter at full nanosecond resolution. The five rows
     // differ only by sub-microsecond nanoseconds, so a micros-truncating push down could not
@@ -774,7 +975,7 @@ public class TestParquet {
                 ImmutableMap.of(
                     "id", 5L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000003000"))));
 
-    File file = writeNanoRecords(schema, records);
+    File file = writeRecords(schema, records);
 
     // Boundary at 500 ns: only ids 3 (750 ns), 4 (1500 ns), 5 (3000 ns) qualify.
     List<Long> ids =
@@ -812,7 +1013,7 @@ public class TestParquet {
                 ImmutableMap.of(
                     "id", 5L, "ts", OffsetDateTime.parse("2024-01-01T00:00:00.000003000+00:00"))));
 
-    File file = writeNanoRecords(schema, records);
+    File file = writeRecords(schema, records);
 
     // Boundary == 2024-01-01T00:00:00.000000500Z, expressed in +04:00. id2 is that same instant
     // (written in +05:00); a strict greaterThan excludes it, leaving ids 3/4/5.
@@ -821,7 +1022,57 @@ public class TestParquet {
     assertThat(ids).containsExactlyInAnyOrder(3L, 4L, 5L);
   }
 
-  private File writeNanoRecords(Schema schema, List<Record> records) throws IOException {
+  @Test
+  public void booleanEqualFilter() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "flag", Types.BooleanType.get()));
+    File file = writeBooleanRecords(schema, true, false, true);
+
+    assertThat(filterIds(schema, file, equal("flag", true))).containsExactlyInAnyOrder(1L, 3L);
+  }
+
+  @Test
+  public void booleanNotEqualFilter() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "flag", Types.BooleanType.get()));
+    File file = writeBooleanRecords(schema, true, false, true);
+
+    assertThat(filterIds(schema, file, notEqual("flag", true))).containsExactly(2L);
+  }
+
+  @Test
+  public void booleanIsNullFilter() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "flag", Types.BooleanType.get()));
+    File file = writeBooleanRecords(schema, true, null, false);
+
+    assertThat(filterIds(schema, file, isNull("flag"))).containsExactly(2L);
+  }
+
+  @Test
+  public void booleanNotNullFilter() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "flag", Types.BooleanType.get()));
+    File file = writeBooleanRecords(schema, true, null, false);
+
+    assertThat(filterIds(schema, file, notNull("flag"))).containsExactlyInAnyOrder(1L, 3L);
+  }
+
+  private File writeBooleanRecords(Schema schema, Boolean... flags) throws IOException {
+    Record template = org.apache.iceberg.data.GenericRecord.create(schema);
+    List<Record> records = Lists.newArrayList();
+    for (int i = 0; i < flags.length; i += 1) {
+      records.add(template.copy("id", (long) (i + 1), "flag", flags[i]));
+    }
+
+    return writeRecords(schema, records);
+  }
+
+  private File writeRecords(Schema schema, List<Record> records) throws IOException {
     File file = createTempFile(temp);
     try (FileAppender<Record> appender =
         Parquet.write(Files.localOutput(file))
@@ -898,10 +1149,15 @@ public class TestParquet {
 
   @Test
   public void missingNullCountWithCountsMode() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
     Metrics metrics =
         missingNullCountMetrics(
-            MetricsConfig.fromProperties(
-                Collections.singletonMap("write.metadata.metrics.default", "counts")),
+            MetricsTestUtil.from(
+                Collections.singletonMap("write.metadata.metrics.default", "counts"), schema),
             block(statsWithoutNullCount(1, 10), 10),
             block(statsWithNullCount(20, 30, 1), 10));
 

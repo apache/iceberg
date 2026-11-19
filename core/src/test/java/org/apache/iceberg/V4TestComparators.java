@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
@@ -38,6 +39,14 @@ import org.apache.iceberg.types.Types;
  */
 class V4TestComparators {
   private V4TestComparators() {}
+
+  public static Comparator<TrackedFile> trackedFileWithoutStatus() {
+    return trackedFile((a, b) -> 0, Types.StructType.of());
+  }
+
+  public static Comparator<TrackedFile> trackedFileWithoutStatus(Types.StructType partitionType) {
+    return trackedFile((a, b) -> 0, Types.StructType.of());
+  }
 
   public static Comparator<TrackedFile> trackedFileStatusOnly(Types.StructType partitionType) {
     return trackedFile(STATUS_ONLY_TRACKING, partitionType);
@@ -55,7 +64,6 @@ class V4TestComparators {
     return Comparator.nullsFirst(
         Comparator.comparing(TrackedFile::tracking, trackingComparator)
             .thenComparing(TrackedFile::contentType, natural())
-            .thenComparingInt(TrackedFile::formatVersion)
             .thenComparing(TrackedFile::location, natural())
             .thenComparing(TrackedFile::fileFormat, natural())
             .thenComparingLong(TrackedFile::recordCount)
@@ -63,12 +71,13 @@ class V4TestComparators {
             .thenComparing(TrackedFile::specId, natural())
             .thenComparing(TrackedFile::partition, partitionComparator)
             .thenComparing(TrackedFile::contentStats, CONTENT_STATS)
+            .thenComparing(TrackedFile::tightStats, natural())
             .thenComparing(TrackedFile::sortOrderId, natural())
             .thenComparing(TrackedFile::deletionVector, DELETION_VECTOR)
             .thenComparing(TrackedFile::manifestInfo, MANIFEST_INFO)
             .thenComparing(TrackedFile::keyMetadata, BYTES)
             .thenComparing(TrackedFile::splitOffsets, SPLIT_OFFSETS)
-            .thenComparing(TrackedFile::equalityIds, EQ_IDS));
+            .thenComparing(TrackedFile::columnFiles, COLUMN_FILES));
   }
 
   // convenience method for a null-safe natural order comparator
@@ -82,8 +91,22 @@ class V4TestComparators {
       Comparator.nullsFirst(Comparator.comparing(ManifestBitmap::buffer, BYTES));
   private static final Comparator<List<Long>> SPLIT_OFFSETS =
       Comparator.nullsFirst(Comparators.forType(TrackedFile.SPLIT_OFFSETS.type().asListType()));
-  private static final Comparator<List<Integer>> EQ_IDS =
-      Comparator.nullsFirst(Comparators.forType(TrackedFile.EQUALITY_IDS.type().asListType()));
+
+  // field IDs are a set, so compare them in sorted order to ignore iteration order
+  private static final Comparator<Set<Integer>> FIELD_IDS =
+      Comparator.nullsFirst(
+          Comparator.comparing(
+              ids -> Lists.newArrayList(Sets.newTreeSet(ids)),
+              Comparators.forType(ColumnFile.FIELD_IDS.type().asListType())));
+  private static final Comparator<ColumnFile> COLUMN_FILE =
+      Comparator.nullsFirst(
+          Comparator.comparing(ColumnFile::location, natural())
+              .thenComparing(ColumnFile::fieldIds, FIELD_IDS)
+              .thenComparing(ColumnFile::fileFormat, natural())
+              .thenComparingLong(ColumnFile::fileSizeInBytes)
+              .thenComparing(ColumnFile::keyMetadata, BYTES));
+  private static final Comparator<List<ColumnFile>> COLUMN_FILES =
+      Comparator.nullsFirst(columnFilesComparator());
 
   static final Comparator<Tracking> TRACKING =
       Comparator.nullsFirst(
@@ -91,12 +114,10 @@ class V4TestComparators {
               .thenComparing(Tracking::snapshotId, natural())
               .thenComparing(Tracking::dataSequenceNumber, natural())
               .thenComparing(Tracking::fileSequenceNumber, natural())
-              .thenComparing(Tracking::dvSnapshotId, natural())
+              .thenComparing(Tracking::modifiedSnapshotId, natural())
               .thenComparing(Tracking::firstRowId, natural())
               .thenComparing(Tracking::deletedPositions, BYTES)
-              .thenComparing(Tracking::replacedPositions, BYTES)
-              .thenComparing(Tracking::manifestLocation, natural())
-              .thenComparingLong(Tracking::manifestPos));
+              .thenComparing(Tracking::replacedPositions, BYTES));
 
   // compare only status, ignoring inherited fields and fields set during a write
   static final Comparator<Tracking> STATUS_ONLY_TRACKING =
@@ -116,12 +137,15 @@ class V4TestComparators {
               .thenComparingInt(ManifestInfo::existingFilesCount)
               .thenComparingInt(ManifestInfo::deletedFilesCount)
               .thenComparingInt(ManifestInfo::replacedFilesCount)
+              .thenComparingInt(ManifestInfo::modifiedFilesCount)
               .thenComparingLong(ManifestInfo::addedRowsCount)
               .thenComparingLong(ManifestInfo::existingRowsCount)
               .thenComparingLong(ManifestInfo::deletedRowsCount)
               .thenComparingLong(ManifestInfo::replacedRowsCount)
+              .thenComparingLong(ManifestInfo::modifiedRowsCount)
               .thenComparingLong(ManifestInfo::minSequenceNumber)
-              .thenComparing(ManifestInfo::manifestDeletionVector, BITMAPS));
+              .thenComparing(ManifestInfo::manifestDeletionVector, BITMAPS)
+              .thenComparingInt(ManifestInfo::formatVersion));
 
   private static final Comparator<ContentStats> CONTENT_STATS =
       Comparator.nullsFirst(new ContentStatsComparator());
@@ -148,6 +172,24 @@ class V4TestComparators {
     }
   }
 
+  private static Comparator<List<ColumnFile>> columnFilesComparator() {
+    return (left, right) -> {
+      int sizeCmp = Integer.compare(left.size(), right.size());
+      if (sizeCmp != 0) {
+        return sizeCmp;
+      }
+
+      for (int i = 0; i < left.size(); i += 1) {
+        int cmp = COLUMN_FILE.compare(left.get(i), right.get(i));
+        if (cmp != 0) {
+          return cmp;
+        }
+      }
+
+      return 0;
+    };
+  }
+
   private static Map<Integer, FieldStats<?>> statsById(ContentStats stats) {
     Map<Integer, FieldStats<?>> statsById = Maps.newHashMap();
     for (FieldStats<?> fieldStats : stats.fieldStats()) {
@@ -168,15 +210,15 @@ class V4TestComparators {
       comparator =
           comparator
               .thenComparing(FieldStats::lowerBound, comparator(type))
-              .thenComparing(FieldStats::upperBound, comparator(type))
-              .thenComparing(FieldStats::tightBounds);
+              .thenComparing(FieldStats::upperBound, comparator(type));
 
       if (type.typeId() == Type.TypeID.FLOAT || type.typeId() == Type.TypeID.DOUBLE) {
         comparator =
             comparator.thenComparing(
                 fs -> fs.hasNanValueCount() ? fs.nanValueCount() : null, natural());
       } else if (type.typeId() == Type.TypeID.STRING || type.typeId() == Type.TypeID.BINARY) {
-        comparator = comparator.thenComparing(FieldStats::avgValueSizeInBytes, natural());
+        comparator =
+            comparator.thenComparing(fs -> fs.hasTotalBytes() ? fs.totalBytes() : null, natural());
       }
     }
 

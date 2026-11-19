@@ -18,18 +18,21 @@
  */
 package org.apache.iceberg.spark;
 
+import java.util.Set;
 import org.apache.iceberg.spark.procedures.SparkProcedures;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
+import org.apache.spark.sql.catalyst.analysis.ViewUtil;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.ProcedureCatalog;
 import org.apache.spark.sql.connector.catalog.Relation;
 import org.apache.spark.sql.connector.catalog.RelationCatalog;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
+import org.apache.spark.sql.connector.catalog.TableCatalogCapability;
 import org.apache.spark.sql.connector.catalog.procedures.UnboundProcedure;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
@@ -106,6 +109,12 @@ abstract class BaseCatalog
     try {
       return loadTable(ident);
     } catch (NoSuchTableException e) {
+      if (ViewUtil.referencedByEnabled()) {
+        // Don't return views: Spark's own view expansion can't pass the referenced-by chain to the
+        // catalog. ResolveReferencedByViews expands Iceberg views that are left unresolved instead.
+        throw e;
+      }
+
       try {
         return loadView(ident);
       } catch (NoSuchViewException viewException) {
@@ -117,5 +126,10 @@ abstract class BaseCatalog
 
   private static boolean isSystemNamespace(String[] namespace) {
     return namespace.length == 1 && namespace[0].equalsIgnoreCase("system");
+  }
+
+  @Override
+  public Set<TableCatalogCapability> capabilities() {
+    return Set.of(TableCatalogCapability.SUPPORT_COLUMN_DEFAULT_VALUE);
   }
 }
