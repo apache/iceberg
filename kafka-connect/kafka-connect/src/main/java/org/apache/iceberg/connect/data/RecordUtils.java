@@ -122,10 +122,18 @@ class RecordUtils {
           idCols.stream()
               .map(
                   colName -> {
-                    NestedField field = table.schema().findField(colName);
-                    if (field == null) {
-                      throw new IllegalArgumentException("ID column not found: " + colName);
-                    }
+                    NestedField field =
+                        config.schemaCaseInsensitive()
+                            ? table.schema().caseInsensitiveFindField(colName)
+                            : table.schema().findField(colName);
+                    Preconditions.checkArgument(
+                        field != null,
+                        "ID column not found: %s (table: %s, columns: %s)",
+                        colName,
+                        tableReference.identifier(),
+                        table.schema().columns().stream()
+                            .map(NestedField::name)
+                            .collect(Collectors.joining(", ")));
                     return field.fieldId();
                   })
               .collect(Collectors.toSet());
