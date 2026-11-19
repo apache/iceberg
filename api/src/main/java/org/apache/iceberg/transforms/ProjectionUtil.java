@@ -42,88 +42,140 @@ class ProjectionUtil {
   static <T> UnboundPredicate<T> truncateInteger(
       String name, BoundLiteralPredicate<Integer> pred, Function<Integer, T> transform) {
     int boundary = pred.literal().value();
-    switch (pred.op()) {
-      case LT:
-        // adjust closed and then transform ltEq
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1));
-      case LT_EQ:
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
-      case GT:
-        // adjust closed and then transform gtEq
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1));
-      case GT_EQ:
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
-      case EQ:
-        return predicate(pred.op(), name, transform.apply(boundary));
-      default:
-        return null;
+    try {
+      switch (pred.op()) {
+        case LT:
+          // adjust closed and then transform ltEq
+          if (boundary == Integer.MIN_VALUE) {
+            // boundary - 1 overflows and no value is less than MIN_VALUE
+            return null;
+          }
+          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1));
+        case LT_EQ:
+          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
+        case GT:
+          // adjust closed and then transform gtEq
+          if (boundary == Integer.MAX_VALUE) {
+            // boundary + 1 overflows and no value is greater than MAX_VALUE
+            return null;
+          }
+          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1));
+        case GT_EQ:
+          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
+        case EQ:
+          return predicate(pred.op(), name, transform.apply(boundary));
+        default:
+          return null;
+      }
+    } catch (IllegalArgumentException e) {
+      // the truncated boundary does not fit in the partition type; do not prune
+      return null;
     }
   }
 
   static <T> UnboundPredicate<T> truncateIntegerStrict(
       String name, BoundLiteralPredicate<Integer> pred, Function<Integer, T> transform) {
     int boundary = pred.literal().value();
-    switch (pred.op()) {
-      case LT:
-        return predicate(Expression.Operation.LT, name, transform.apply(boundary));
-      case LT_EQ:
-        return predicate(Expression.Operation.LT, name, transform.apply(boundary + 1));
-      case GT:
-        return predicate(Expression.Operation.GT, name, transform.apply(boundary));
-      case GT_EQ:
-        return predicate(Expression.Operation.GT, name, transform.apply(boundary - 1));
-      case NOT_EQ:
-        return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
-      case EQ:
-        // there is no predicate that guarantees equality because adjacent ints transform to the
-        // same value
-        return null;
-      default:
-        return null;
+    try {
+      switch (pred.op()) {
+        case LT:
+          return predicate(Expression.Operation.LT, name, transform.apply(boundary));
+        case LT_EQ:
+          if (boundary == Integer.MAX_VALUE) {
+            // boundary + 1 overflows and no value is greater than MAX_VALUE
+            return null;
+          }
+          return predicate(Expression.Operation.LT, name, transform.apply(boundary + 1));
+        case GT:
+          return predicate(Expression.Operation.GT, name, transform.apply(boundary));
+        case GT_EQ:
+          if (boundary == Integer.MIN_VALUE) {
+            // boundary - 1 overflows and no value is less than MIN_VALUE
+            return null;
+          }
+          return predicate(Expression.Operation.GT, name, transform.apply(boundary - 1));
+        case NOT_EQ:
+          return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
+        case EQ:
+          // there is no predicate that guarantees equality because adjacent ints transform to the
+          // same value
+          return null;
+        default:
+          return null;
+      }
+    } catch (IllegalArgumentException e) {
+      // the truncated boundary does not fit in the partition type; do not prune
+      return null;
     }
   }
 
   static <T> UnboundPredicate<T> truncateLongStrict(
       String name, BoundLiteralPredicate<Long> pred, Function<Long, T> transform) {
     long boundary = pred.literal().value();
-    switch (pred.op()) {
-      case LT:
-        return predicate(Expression.Operation.LT, name, transform.apply(boundary));
-      case LT_EQ:
-        return predicate(Expression.Operation.LT, name, transform.apply(boundary + 1L));
-      case GT:
-        return predicate(Expression.Operation.GT, name, transform.apply(boundary));
-      case GT_EQ:
-        return predicate(Expression.Operation.GT, name, transform.apply(boundary - 1L));
-      case NOT_EQ:
-        return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
-      case EQ:
-        // there is no predicate that guarantees equality because adjacent longs transform to the
-        // same value
-        return null;
-      default:
-        return null;
+    try {
+      switch (pred.op()) {
+        case LT:
+          return predicate(Expression.Operation.LT, name, transform.apply(boundary));
+        case LT_EQ:
+          if (boundary == Long.MAX_VALUE) {
+            // boundary + 1 overflows and no value is greater than MAX_VALUE
+            return null;
+          }
+          return predicate(Expression.Operation.LT, name, transform.apply(boundary + 1L));
+        case GT:
+          return predicate(Expression.Operation.GT, name, transform.apply(boundary));
+        case GT_EQ:
+          if (boundary == Long.MIN_VALUE) {
+            // boundary - 1 overflows and no value is less than MIN_VALUE
+            return null;
+          }
+          return predicate(Expression.Operation.GT, name, transform.apply(boundary - 1L));
+        case NOT_EQ:
+          return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
+        case EQ:
+          // there is no predicate that guarantees equality because adjacent longs transform to the
+          // same value
+          return null;
+        default:
+          return null;
+      }
+    } catch (IllegalArgumentException e) {
+      // the truncated boundary does not fit in the partition type; do not prune
+      return null;
     }
   }
 
   static <T> UnboundPredicate<T> truncateLong(
       String name, BoundLiteralPredicate<Long> pred, Function<Long, T> transform) {
     long boundary = pred.literal().value();
-    switch (pred.op()) {
-      case LT:
-        // adjust closed and then transform ltEq
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1L));
-      case LT_EQ:
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
-      case GT:
-        // adjust closed and then transform gtEq
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1L));
-      case GT_EQ:
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
-      case EQ:
-        return predicate(pred.op(), name, transform.apply(boundary));
-      default:
-        return null;
+    try {
+      switch (pred.op()) {
+        case LT:
+          // adjust closed and then transform ltEq
+          if (boundary == Long.MIN_VALUE) {
+            // boundary - 1 overflows and no value is less than MIN_VALUE
+            return null;
+          }
+          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1L));
+        case LT_EQ:
+          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
+        case GT:
+          // adjust closed and then transform gtEq
+          if (boundary == Long.MAX_VALUE) {
+            // boundary + 1 overflows and no value is greater than MAX_VALUE
+            return null;
+          }
+          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1L));
+        case GT_EQ:
+          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
+        case EQ:
+          return predicate(pred.op(), name, transform.apply(boundary));
+        default:
+          return null;
+      }
+    } catch (IllegalArgumentException e) {
+      // the truncated boundary does not fit in the partition type; do not prune
+      return null;
     }
   }
 
@@ -255,10 +307,15 @@ class ProjectionUtil {
 
   static <S, T> UnboundPredicate<T> transformSet(
       String fieldName, BoundSetPredicate<S> predicate, Function<S, T> transform) {
-    return predicate(
-        predicate.op(),
-        fieldName,
-        Iterables.transform(predicate.asSetPredicate().literalSet(), transform::apply));
+    try {
+      return predicate(
+          predicate.op(),
+          fieldName,
+          Iterables.transform(predicate.asSetPredicate().literalSet(), transform::apply));
+    } catch (IllegalArgumentException e) {
+      // a transformed set value does not fit in the partition type; do not prune
+      return null;
+    }
   }
 
   /**

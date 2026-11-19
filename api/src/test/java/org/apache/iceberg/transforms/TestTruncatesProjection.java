@@ -19,6 +19,7 @@
 package org.apache.iceberg.transforms;
 
 import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
+import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -472,6 +473,90 @@ public class TestTruncatesProjection {
         Expression.Operation.NOT_IN,
         String.format("[%s, %s]", expectedValue, expectedValue));
     assertProjectionStrictValue(spec, in("value", value, anotherValue), Expression.Operation.FALSE);
+  }
+
+  @Test
+  public void testIntegerInclusiveNearMinValue() {
+    Schema schema = new Schema(optional(1, "value", Types.IntegerType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
+
+    // the truncated boundary is below Integer.MIN_VALUE, so no files can be pruned
+    assertProjectionInclusiveValue(
+        spec, greaterThan("value", Integer.MIN_VALUE), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, greaterThanOrEqual("value", -2147483645), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, equal("value", Integer.MIN_VALUE), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, lessThan("value", Integer.MIN_VALUE), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, in("value", Integer.MIN_VALUE, 5), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, notIn("value", Integer.MIN_VALUE, 5), Expression.Operation.TRUE);
+
+    // the MIN_VALUE side of the range contributes no bound; the upper bound still applies
+    assertProjectionInclusive(
+        spec,
+        and(
+            greaterThanOrEqual("value", Integer.MIN_VALUE),
+            lessThanOrEqual("value", -2147483640)),
+        Expression.Operation.LT_EQ,
+        "-2147483640");
+
+    // a boundary whose truncated value fits still projects normally
+    assertProjectionInclusive(spec, lessThan("value", 0), Expression.Operation.LT_EQ, "-10");
+  }
+
+  @Test
+  public void testIntegerStrictNearMinValue() {
+    Schema schema = new Schema(optional(1, "value", Types.IntegerType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
+
+    // no partition can be guaranteed to match when the truncated boundary is out of range
+    assertProjectionStrictValue(
+        spec, greaterThan("value", Integer.MIN_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, greaterThanOrEqual("value", Integer.MIN_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, lessThanOrEqual("value", Integer.MIN_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, notIn("value", Integer.MIN_VALUE, 5), Expression.Operation.FALSE);
+  }
+
+  @Test
+  public void testLongInclusiveNearMinValue() {
+    Schema schema = new Schema(optional(1, "value", Types.LongType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
+
+    // the truncated boundary is below Long.MIN_VALUE, so no files can be pruned
+    assertProjectionInclusiveValue(
+        spec, greaterThan("value", Long.MIN_VALUE), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, greaterThanOrEqual("value", -9223372036854775805L), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(spec, equal("value", Long.MIN_VALUE), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, lessThan("value", Long.MIN_VALUE), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, in("value", Long.MIN_VALUE, 5L), Expression.Operation.TRUE);
+
+    // a boundary whose truncated value fits still projects normally
+    assertProjectionInclusive(spec, lessThan("value", 0L), Expression.Operation.LT_EQ, "-10");
+  }
+
+  @Test
+  public void testLongStrictNearMinValue() {
+    Schema schema = new Schema(optional(1, "value", Types.LongType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
+
+    // no partition can be guaranteed to match when the truncated boundary is out of range
+    assertProjectionStrictValue(
+        spec, greaterThan("value", Long.MIN_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, greaterThanOrEqual("value", Long.MIN_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, lessThanOrEqual("value", Long.MIN_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, notIn("value", Long.MIN_VALUE, 5L), Expression.Operation.FALSE);
   }
 
   @Test
