@@ -326,17 +326,7 @@ E must be one of the following vector element types:
 
 Vector element types are valid only inside a `vector`; `float16` is not a primitive type and cannot be used as the type of a field. Element values follow the rules of the value type, including JSON single-value serialization. Vector equality is element-wise, using the equality rules of the value type. Floating-point elements must be finite: `NaN`, `+Infinity`, and `-Infinity` are invalid.
 
-The element type of a `vector(E, D)` may be promoted according to the following table. The dimension D and the vector field ID must not change.
-
-| Element type | Permitted promotion targets |
-|--------------|-----------------------------|
-| `int`        | `long`                      |
-| `float16`    | `float`, `double`           |
-| `float`      | `double`                    |
-
-All other element type changes are prohibited. A `vector` must not be promoted to a non-vector type. A non-vector type other than `unknown` must not be promoted to `vector`. A `list` is not a `vector(E, D)`, even if every list instance contains exactly D elements that satisfy the vector element requirements.
-
-After an element type promotion, readers must still read older files by converting vector elements to the new type without changing their values. The stored dimension must match the schema.
+Type promotion is not allowed for `vector(E, D)`. The element type E, dimension D, and vector field ID must not change. A `vector` must not be promoted to a non-vector type. A non-vector type other than `unknown` must not be promoted to `vector`. A `list` is not a `vector(E, D)`, even if every list instance contains exactly D elements that satisfy the vector element requirements.
 
 ##### CRS
 
@@ -444,7 +434,6 @@ Valid primitive type promotions are:
 | `date`           |                              | `timestamp`, `timestamp_ns`  | Promotion to `timestamptz` or `timestamptz_ns` is **not** allowed; values outside the promoted type's range must result in a runtime failure |
 | `float`          | `double`                     | `double`                     | |
 | `decimal(P, S)`  | `decimal(P', S)` if `P' > P` | `decimal(P', S)` if `P' > P` | Widen precision only |
-| `vector(E, D)`   |                              | `vector(E', D)`              | v4 only; E to E' must be a permitted [vector element type promotion](#vector); D must not change |
 
 Iceberg's Avro manifest format does not store the type of lower and upper bounds, and type promotion does not rewrite existing bounds. For example, when a `float` is promoted to `double`, existing data file bounds are encoded as 4 little-endian bytes rather than 8 little-endian bytes for `double`. To correctly decode the value, the original type at the time the file was written must be inferred according to the following table:
 
@@ -1988,7 +1977,7 @@ Vector elements must be written to Parquet using the following types:
 | **`float`**   | `float`                   |              |
 | **`double`**  | `double`                  |              |
 
-When reading `vector(E, D)`, the `element` field may use the Parquet mapping for E or for an element type that can be promoted to E. Readers must convert elements to E without changing their values. The `FINITE_VECTOR` `num_elements` parameter must equal D.
+When reading `vector(E, D)`, the `element` field must use the Parquet mapping for E. The `FINITE_VECTOR` `num_elements` parameter must equal D.
 
 When reading an `unknown` column, any corresponding column must be ignored and replaced with `null` values.
 
