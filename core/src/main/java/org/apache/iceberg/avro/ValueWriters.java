@@ -115,8 +115,7 @@ public class ValueWriters {
   }
 
   public static ValueWriter<Variant> variants() {
-    // not a shared instance: the writer reuses a buffer for serialization
-    return new VariantWriter();
+    return VariantWriter.INSTANCE;
   }
 
   public static <T> ValueWriter<T> option(int nullIndex, ValueWriter<T> writer) {
@@ -385,7 +384,8 @@ public class ValueWriters {
   }
 
   private abstract static class VariantBinaryWriter<T> implements ValueWriter<T> {
-    private ByteBuffer reusedBuffer = ByteBuffer.allocate(2048).order(ByteOrder.LITTLE_ENDIAN);
+    private final ThreadLocal<ByteBuffer> reusedBuffer =
+        ThreadLocal.withInitial(() -> ByteBuffer.allocate(2048).order(ByteOrder.LITTLE_ENDIAN));
 
     protected abstract int sizeInBytes(T value);
 
@@ -400,21 +400,25 @@ public class ValueWriters {
       }
     }
 
-    private void ensureCapacity(int requiredSize) {
-      if (reusedBuffer.capacity() < requiredSize) {
+    private ByteBuffer ensureCapacity(int requiredSize) {
+      ByteBuffer buffer = reusedBuffer.get();
+      if (buffer.capacity() < requiredSize) {
         int newCapacity = IOUtil.capacityFor(requiredSize);
-        this.reusedBuffer = ByteBuffer.allocate(newCapacity).order(ByteOrder.LITTLE_ENDIAN);
+        buffer = ByteBuffer.allocate(newCapacity).order(ByteOrder.LITTLE_ENDIAN);
+        reusedBuffer.set(buffer);
       } else {
-        reusedBuffer.limit(requiredSize);
+        buffer.limit(requiredSize);
       }
+
+      return buffer;
     }
 
     private ByteBuffer serialize(T value) {
-      ensureCapacity(sizeInBytes(value));
-      int size = writeTo(reusedBuffer, 0, value);
-      reusedBuffer.position(0);
-      reusedBuffer.limit(size);
-      return reusedBuffer;
+      ByteBuffer buffer = ensureCapacity(sizeInBytes(value));
+      int size = writeTo(buffer, 0, value);
+      buffer.position(0);
+      buffer.limit(size);
+      return buffer;
     }
   }
 
@@ -443,6 +447,8 @@ public class ValueWriters {
   }
 
   private static class VariantWriter implements ValueWriter<Variant> {
+    private static final VariantWriter INSTANCE = new VariantWriter();
+
     private final VariantMetadataWriter metadataWriter;
     private final VariantValueWriter valueWriter;
 
