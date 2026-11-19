@@ -108,6 +108,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                         Set<Integer> equalityFieldIds =
                             getEqualityFields(table, element.equalityFields());
                         if (element.upsertMode()) {
+                          SinkUtil.checkUpsertSupported(table);
                           Preconditions.checkState(
                               !equalityFieldIds.isEmpty(),
                               "Equality field columns shouldn't be empty when configuring to use UPSERT data.");

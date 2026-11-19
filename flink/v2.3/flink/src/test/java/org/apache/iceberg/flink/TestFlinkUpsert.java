@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
+
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -117,6 +120,7 @@ public class TestFlinkUpsert extends CatalogTestBase {
 
   @TestTemplate
   public void testUpsertAndQuery() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     String tableName = "test_upsert_query";
     LocalDate dt20220301 = LocalDate.of(2022, 3, 1);
     LocalDate dt20220302 = LocalDate.of(2022, 3, 2);
@@ -160,7 +164,25 @@ public class TestFlinkUpsert extends CatalogTestBase {
   }
 
   @TestTemplate
+  void upsertFailsOnV4Table() {
+    assumeThat(formatVersion).isEqualTo(4);
+    String tableName = "test_upsert_v4";
+    sql(
+        "CREATE TABLE %s(id INT NOT NULL, name STRING NOT NULL, PRIMARY KEY(id) NOT ENFORCED) WITH %s",
+        tableName, toWithClause(tableUpsertProps));
+
+    try {
+      assertThatThrownBy(() -> sql("INSERT INTO %s VALUES (1, 'Bill')", tableName))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("in UPSERT mode: format version 4 does not allow equality deletes");
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+    }
+  }
+
+  @TestTemplate
   public void testUpsertOptions() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     String tableName = "test_upsert_options";
     LocalDate dt20220301 = LocalDate.of(2022, 3, 1);
     LocalDate dt20220302 = LocalDate.of(2022, 3, 2);
@@ -207,6 +229,7 @@ public class TestFlinkUpsert extends CatalogTestBase {
 
   @TestTemplate
   public void testPrimaryKeyEqualToPartitionKey() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     // This is an SQL based reproduction of TestFlinkIcebergSinkV2#testUpsertOnDataKey
     String tableName = "upsert_on_id_key";
     try {
@@ -240,6 +263,7 @@ public class TestFlinkUpsert extends CatalogTestBase {
 
   @TestTemplate
   public void testPrimaryKeyFieldsAtBeginningOfSchema() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     String tableName = "upsert_on_pk_at_schema_start";
     LocalDate dt = LocalDate.of(2022, 3, 1);
     try {
@@ -289,6 +313,7 @@ public class TestFlinkUpsert extends CatalogTestBase {
 
   @TestTemplate
   public void testPrimaryKeyFieldsAtEndOfTableSchema() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     // This is the same test case as testPrimaryKeyFieldsAtBeginningOfSchema, but the primary key
     // fields
     // are located at the end of the flink schema.

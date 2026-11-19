@@ -35,6 +35,7 @@ import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -56,6 +57,22 @@ public class SinkUtil {
   private SinkUtil() {}
 
   private static final Logger LOG = LoggerFactory.getLogger(SinkUtil.class);
+
+  private static final int MAX_FORMAT_VERSION_EQUALITY_DELETES = 3;
+
+  /**
+   * Checks that the table allows writing in upsert mode, which always produces equality deletes.
+   *
+   * @throws IllegalStateException if the table format version forbids equality deletes
+   */
+  public static void checkUpsertSupported(Table table) {
+    int formatVersion = TableUtil.formatVersion(table);
+    Preconditions.checkState(
+        formatVersion <= MAX_FORMAT_VERSION_EQUALITY_DELETES,
+        "Cannot write to table %s in UPSERT mode: format version %s does not allow equality deletes",
+        table.name(),
+        formatVersion);
+  }
 
   static Set<Integer> checkAndGetEqualityFieldIds(Table table, List<String> equalityFieldColumns) {
     Set<Integer> equalityFieldIds = Sets.newHashSet(table.schema().identifierFieldIds());

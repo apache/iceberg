@@ -30,7 +30,9 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynFields;
@@ -292,6 +294,28 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
             "Equality field columns shouldn't be empty when configuring to use UPSERT data.");
+  }
+
+  @Test
+  void testDynamicWriterUpsertFailsOnV4Table() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    DynamicWriter dyamicWriter = createDynamicWriter(catalog);
+    Table table1 =
+        catalog.createTable(
+            TABLE1,
+            SimpleDataUtil.SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, "4"));
+
+    DynamicRecordInternal record = getDynamicRecordInternal(table1);
+    record.setUpsertMode(true);
+    record.setEqualityFieldIds(Sets.newHashSet(1));
+
+    assertThatThrownBy(() -> dyamicWriter.write(record, null))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot write to table %s in UPSERT mode: format version 4 does not allow equality deletes",
+            table1.name());
   }
 
   @Test
