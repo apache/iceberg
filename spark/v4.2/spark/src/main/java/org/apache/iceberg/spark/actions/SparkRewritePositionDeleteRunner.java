@@ -124,11 +124,12 @@ class SparkRewritePositionDeleteRunner
         .save(groupId);
   }
 
-  /** Returns entries of {@link DataFilesTable} of specified partition */
+  /** Returns entries of {@link DataFilesTable}, including all entries of the specified partition */
   private Dataset<Row> dataFiles(Types.StructType partitionType, StructLike partition) {
     List<Types.NestedField> fields = partitionType.fields();
     Optional<Column> condition =
         IntStream.range(0, fields.size())
+            .filter(i -> hasReliableSummaryBounds(fields.get(i).type()))
             .mapToObj(
                 i -> {
                   Type type = fields.get(i).type();
@@ -144,5 +145,9 @@ class SparkRewritePositionDeleteRunner
     } else {
       return SparkTableUtil.loadMetadataTable(spark(), table(), MetadataTableType.DATA_FILES);
     }
+  }
+
+  private static boolean hasReliableSummaryBounds(Type type) {
+    return type.typeId() != Type.TypeID.BINARY;
   }
 }
