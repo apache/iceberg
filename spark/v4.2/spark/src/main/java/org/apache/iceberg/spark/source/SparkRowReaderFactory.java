@@ -45,7 +45,9 @@ class SparkRowReaderFactory implements PartitionReaderFactory {
       return new RowDataReader(partition);
 
     } else if (partition.allTasksOfType(ChangelogScanTask.class)) {
-      return new ChangelogRowReader(partition);
+      return partition.projection().findField(SparkChangelog.COMMIT_VERSION_ID) != null
+          ? new SparkChangelogRowReader(partition)
+          : new ChangelogRowReader(partition);
 
     } else if (partition.allTasksOfType(PositionDeletesScanTask.class)) {
       return new PositionDeletesRowReader(partition);
