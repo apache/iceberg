@@ -199,7 +199,7 @@ The `refresh-state` property is set on the [snapshot summary](https://iceberg.ap
 | _optional_  | `refresh-state` | A [refresh state](#refresh-state) record stored as a JSON-encoded string |
 
 Snapshots written by a refresh operation must set `refresh-state`.
-The refresh state of a storage table branch is the `refresh-state` of the most recent snapshot that has one and is reachable from the branch's head. If a later snapshot reachable from the branch's head has an operation other than `replace`, the branch no longer reflects that refresh state.
+The refresh state of a storage table is the `refresh-state` of the closest ancestor of the current snapshot of its `main` branch, including the current snapshot itself, that has one. If any snapshot between that ancestor and the current snapshot has an operation other than `replace`, the storage table no longer reflects that refresh state.
 
 #### Refresh state
 
