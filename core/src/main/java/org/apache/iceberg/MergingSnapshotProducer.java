@@ -104,6 +104,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final SnapshotSummary.Builder appendedManifestsSummary = SnapshotSummary.builder();
   private Expression deleteExpression = Expressions.alwaysFalse();
 
+  // reused v4 producer
+  private RootManifestProducer rootManifestProducer;
+
   // cache new data manifests after writing
   private final List<ManifestFile> cachedNewDataManifests = Lists.newLinkedList();
   private boolean hasNewDataFiles = false;
@@ -1110,12 +1113,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       throw new UnsupportedOperationException("Cannot commit deleted delete files to v4");
     }
 
-    RootManifestProducer manager = new RootManifestProducer(ops(), snapshotId());
-    for (DataFile file : Iterables.concat(newDataFilesBySpec.values())) {
-      manager.appendFile(file);
+    if (rootManifestProducer == null || hasNewDataFiles) {
+      this.rootManifestProducer = new RootManifestProducer(ops(), snapshotId());
+      for (DataFile file : Iterables.concat(newDataFilesBySpec.values())) {
+        rootManifestProducer.appendFile(file);
+      }
     }
 
-    TrackedFile result = manager.apply(base, parent, sequenceNumber);
+    TrackedFile result = rootManifestProducer.apply(base, parent, sequenceNumber);
 
     summaryBuilder.clear();
     summaryBuilder.merge(addedDataFilesSummary);
@@ -1124,8 +1129,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         null,
         result.location(),
         result.fileSizeInBytes(),
-        manager.assignedRowIds(),
-        manager.manifestLocations());
+        rootManifestProducer.assignedRowIds(),
+        rootManifestProducer.manifestLocations());
   }
 
   @Override

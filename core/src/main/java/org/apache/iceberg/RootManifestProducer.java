@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -115,16 +116,8 @@ class RootManifestProducer {
 
   private EncryptedOutputFile newRootOutputFile() {
     String filename =
-        String.format("root-%d-%d-%s", snapshotId, attempt.incrementAndGet(), commitUUID);
-    String rootManifestLocation =
-        ops.metadataFileLocation(FileFormat.PARQUET.addExtension(filename));
-    OutputFile rawOutputFile = ops.io().newOutputFile(rootManifestLocation);
-    return ops.encryption().encrypt(rawOutputFile);
-  }
-
-  private EncryptedOutputFile newLeafOutputFile() {
-    String filename =
-        String.format("leaf-%d-%d-%s", snapshotId, manifestCount.incrementAndGet(), commitUUID);
+        String.format(
+            Locale.ROOT, "root-%d-%d-%s", snapshotId, attempt.incrementAndGet(), commitUUID);
     String rootManifestLocation =
         ops.metadataFileLocation(FileFormat.PARQUET.addExtension(filename));
     OutputFile rawOutputFile = ops.io().newOutputFile(rootManifestLocation);
@@ -146,24 +139,10 @@ class RootManifestProducer {
         firstRowId);
   }
 
-  private V4ManifestWriter newLeafWriter(TableMetadata base) {
-    return V4ManifestWriter.createLeaf(
-        newLeafOutputFile(),
-        base.specsById(),
-        contentStatsType,
-        writerProperties,
-        startingSchemaId,
-        snapshotId);
-  }
-
   private record RootMetadata(
       List<TrackedFile> dataFiles,
       List<TrackedFile> dataManifests,
       List<TrackedFile> deleteManifests) {
-    private int fileCount() {
-      return dataFiles.size() + dataManifests.size() + deleteManifests.size();
-    }
-
     private static RootMetadata fromRootManifest(TableMetadata meta, Snapshot snapshot, FileIO io) {
       ManifestFile root = RootManifestFile.from(snapshot, meta.location(), io);
 
