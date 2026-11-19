@@ -29,6 +29,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class FileMetadata {
@@ -77,6 +78,8 @@ public class FileMetadata {
       if (isPartitioned) {
         partitionData.clear();
       }
+      this.content = null;
+      this.equalityFieldIds = null;
       this.filePath = null;
       this.format = null;
       this.recordCount = -1L;
@@ -88,7 +91,13 @@ public class FileMetadata {
       this.lowerBounds = null;
       this.upperBounds = null;
       this.totalBytes = null;
+      this.originalTypes = null;
+      this.keyMetadata = null;
       this.sortOrderId = null;
+      this.splitOffsets = null;
+      this.referencedDataFile = null;
+      this.contentOffset = null;
+      this.contentSizeInBytes = null;
     }
 
     public Builder copy(DeleteFile toCopy) {
@@ -98,6 +107,10 @@ public class FileMetadata {
         this.partitionData = DataFiles.copyPartitionData(spec, toCopy.partition(), partitionData);
       }
       this.content = toCopy.content();
+      this.equalityFieldIds =
+          toCopy.equalityFieldIds() == null
+              ? null
+              : ArrayUtil.toIntArray(toCopy.equalityFieldIds());
       this.filePath = toCopy.location();
       this.format = toCopy.format();
       this.recordCount = toCopy.recordCount();
