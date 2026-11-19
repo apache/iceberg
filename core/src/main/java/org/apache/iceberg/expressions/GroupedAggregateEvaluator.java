@@ -29,6 +29,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeMap;
 
@@ -37,7 +38,11 @@ import org.apache.iceberg.util.StructLikeMap;
  *
  * <p>Each group-by field must be the source of an identity partition field in the spec of every
  * file passed to {@link #update(DataFile)}. Otherwise, the grouped result cannot be computed from
- * metadata and {@link #allAggregatorsValid()} returns false.
+ * metadata and {@link #allAggregatorsValid()} returns false. Float and double group-by fields are
+ * not supported.
+ *
+ * <p>Results are computed from data file metadata only, so callers must not use this evaluator when
+ * any file has row-level deletes.
  */
 public class GroupedAggregateEvaluator {
 
@@ -70,6 +75,12 @@ public class GroupedAggregateEvaluator {
       int fieldId = groupByFieldIds.get(pos);
       Types.NestedField field = schema.findField(fieldId);
       Preconditions.checkArgument(field != null, "Cannot find group by field with ID %s", fieldId);
+      // -0.0 and 0.0 are different keys in StructLikeMap, but engines group them together
+      Type.TypeID typeId = field.type().typeId();
+      if (typeId == Type.TypeID.FLOAT || typeId == Type.TypeID.DOUBLE) {
+        this.canGroup = false;
+      }
+
       groupFields.add(
           Types.NestedField.optional(pos, schema.findColumnName(fieldId), field.type()));
     }
@@ -88,6 +99,11 @@ public class GroupedAggregateEvaluator {
     this.evaluatorsByGroup = StructLikeMap.create(groupType);
   }
 
+  /**
+   * Adds a data file's metadata to the aggregates of its group.
+   *
+   * @param file a data file in one of the specs passed to {@link #create}
+   */
   public void update(DataFile file) {
     if (!canGroup) {
       return;
@@ -106,7 +122,7 @@ public class GroupedAggregateEvaluator {
     }
 
     evaluatorsByGroup
-        .computeIfAbsent(group, ignored -> AggregateEvaluator.create(aggregates))
+        .computeIfAbsent(group, () -> AggregateEvaluator.create(aggregates))
         .update(file);
   }
 
@@ -115,13 +131,27 @@ public class GroupedAggregateEvaluator {
     return resultType;
   }
 
+  /**
+   * Returns whether the grouped results can be computed from the metadata of all files passed to
+   * {@link #update(DataFile)}.
+   */
   public boolean allAggregatorsValid() {
     return canGroup
         && evaluatorsByGroup.values().stream().allMatch(AggregateEvaluator::allAggregatorsValid);
   }
 
-  /** Returns one row for each group, using the {@link #resultType()}. */
+  /**
+   * Returns one row for each group, using the {@link #resultType()}.
+   *
+   * <p>The rows are only correct if {@link #allAggregatorsValid()} returns true.
+   *
+   * @throws IllegalStateException if a file could not be grouped
+   */
   public List<StructLike> results() {
+    Preconditions.checkState(
+        canGroup,
+        "Cannot return grouped results: a group-by field is float or double, "
+            + "or is not an identity partition field in the spec of every file");
     int groupSize = groupType.fields().size();
     List<StructLike> results = Lists.newArrayListWithExpectedSize(evaluatorsByGroup.size());
     for (Map.Entry<StructLike, AggregateEvaluator> entry : evaluatorsByGroup.entrySet()) {

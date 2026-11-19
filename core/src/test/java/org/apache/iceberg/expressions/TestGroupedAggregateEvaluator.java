@@ -23,6 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -38,14 +39,22 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TestGroupedAggregateEvaluator {
   private static final Schema SCHEMA =
       new Schema(
           required(1, "id", Types.IntegerType.get()),
           optional(2, "category", Types.StringType.get()),
-          optional(3, "region", Types.StringType.get()));
+          optional(3, "region", Types.StringType.get()),
+          optional(4, "level", Types.IntegerType.get()),
+          optional(5, "account", Types.LongType.get()),
+          optional(6, "day", Types.DateType.get()),
+          optional(7, "ratio", Types.FloatType.get()),
+          optional(8, "score", Types.DoubleType.get()));
 
   private static final PartitionSpec CATEGORY_SPEC =
       PartitionSpec.builderFor(SCHEMA).withSpecId(0).identity("category").build();
@@ -61,6 +70,15 @@ class TestGroupedAggregateEvaluator {
       PartitionSpec.builderFor(SCHEMA).withSpecId(3).bucket("category", 4).build();
   private static final PartitionSpec UNPARTITIONED_SPEC =
       PartitionSpec.builderFor(SCHEMA).withSpecId(4).build();
+  private static final PartitionSpec LEVEL_ACCOUNT_DAY_SPEC =
+      PartitionSpec.builderFor(SCHEMA)
+          .withSpecId(5)
+          .identity("level")
+          .identity("account")
+          .identity("day")
+          .build();
+  private static final PartitionSpec RATIO_SCORE_SPEC =
+      PartitionSpec.builderFor(SCHEMA).withSpecId(6).identity("ratio").identity("score").build();
 
   private static final Map<Integer, PartitionSpec> SPECS =
       ImmutableMap.of(
@@ -68,7 +86,9 @@ class TestGroupedAggregateEvaluator {
           BUCKET_AND_CATEGORY_SPEC.specId(), BUCKET_AND_CATEGORY_SPEC,
           CATEGORY_AND_REGION_SPEC.specId(), CATEGORY_AND_REGION_SPEC,
           BUCKET_CATEGORY_SPEC.specId(), BUCKET_CATEGORY_SPEC,
-          UNPARTITIONED_SPEC.specId(), UNPARTITIONED_SPEC);
+          UNPARTITIONED_SPEC.specId(), UNPARTITIONED_SPEC,
+          LEVEL_ACCOUNT_DAY_SPEC.specId(), LEVEL_ACCOUNT_DAY_SPEC,
+          RATIO_SCORE_SPEC.specId(), RATIO_SCORE_SPEC);
 
   private static final List<BoundAggregate<?, ?>> AGGREGATES =
       ImmutableList.of(
@@ -100,6 +120,20 @@ class TestGroupedAggregateEvaluator {
   }
 
   @Test
+  void groupByIntLongAndDateFields() {
+    int day = DateTimeUtil.daysFromDate(LocalDate.of(2026, 1, 1));
+    GroupedAggregateEvaluator evaluator = create(4, 5, 6);
+    evaluator.update(file(LEVEL_ACCOUNT_DAY_SPEC, Row.of(1, 100L, day), 10, 1, 20));
+    evaluator.update(file(LEVEL_ACCOUNT_DAY_SPEC, Row.of(1, 100L, day), 5, 15, 30));
+    evaluator.update(file(LEVEL_ACCOUNT_DAY_SPEC, Row.of(1, 100L, day + 1), 7, 40, 50));
+
+    assertThat(evaluator.allAggregatorsValid()).isTrue();
+    assertThat(rows(evaluator))
+        .containsExactlyInAnyOrder(
+            Arrays.asList(1, 100L, day, 15L, 1, 30), Arrays.asList(1, 100L, day + 1, 7L, 40, 50));
+  }
+
+  @Test
   void groupAcrossSpecs() {
     GroupedAggregateEvaluator evaluator = create(2);
     evaluator.update(file(CATEGORY_SPEC, Row.of("a"), 10, 1, 20));
@@ -113,10 +147,20 @@ class TestGroupedAggregateEvaluator {
   void groupByNullPartitionValue() {
     GroupedAggregateEvaluator evaluator = create(2);
     evaluator.update(file(CATEGORY_SPEC, Row.of((Object) null), 10, 1, 20));
+    evaluator.update(file(CATEGORY_SPEC, Row.of("a"), 7, 40, 50));
     evaluator.update(file(CATEGORY_SPEC, Row.of((Object) null), 5, 15, 30));
 
     assertThat(evaluator.allAggregatorsValid()).isTrue();
-    assertThat(rows(evaluator)).containsExactly(Arrays.asList(null, 15L, 1, 30));
+    assertThat(rows(evaluator))
+        .containsExactlyInAnyOrder(Arrays.asList(null, 15L, 1, 30), Arrays.asList("a", 7L, 40, 50));
+  }
+
+  @Test
+  void noFiles() {
+    GroupedAggregateEvaluator evaluator = create(2);
+
+    assertThat(evaluator.allAggregatorsValid()).isTrue();
+    assertThat(evaluator.results()).isEmpty();
   }
 
   @Test
@@ -126,6 +170,9 @@ class TestGroupedAggregateEvaluator {
     evaluator.update(file(UNPARTITIONED_SPEC, null, 5, 15, 30));
 
     assertThat(evaluator.allAggregatorsValid()).isFalse();
+    assertThatThrownBy(evaluator::results)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageStartingWith("Cannot return grouped results");
   }
 
   @Test
@@ -134,6 +181,17 @@ class TestGroupedAggregateEvaluator {
     evaluator.update(file(BUCKET_CATEGORY_SPEC, Row.of(1), 10, 1, 20));
 
     assertThat(evaluator.allAggregatorsValid()).isFalse();
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {7, 8})
+  void floatingPointGroupByFieldNotSupported(int fieldId) {
+    GroupedAggregateEvaluator evaluator = create(fieldId);
+    evaluator.update(file(RATIO_SCORE_SPEC, Row.of(-0.0f, -0.0d), 10, 1, 20));
+    evaluator.update(file(RATIO_SCORE_SPEC, Row.of(0.0f, 0.0d), 5, 15, 30));
+
+    assertThat(evaluator.allAggregatorsValid()).isFalse();
+    assertThatThrownBy(evaluator::results).isInstanceOf(IllegalStateException.class);
   }
 
   @Test
