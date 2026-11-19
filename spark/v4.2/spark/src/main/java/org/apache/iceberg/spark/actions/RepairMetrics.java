@@ -112,9 +112,8 @@ class RepairMetrics {
               : MetricsUtil.copyWithoutFieldCountsAndBounds(metrics, POSITION_DELETE_FIELD_IDS);
     }
 
-    // Footers don't reliably carry writer-tracked stats: NaN counts, NaN-safe bounds of float
-    // columns and bounding boxes of geometry and geography columns. Keep the stored bounds of those
-    // columns so a correct file is not rewritten with weaker stats. Stored NaN-count IDs also cover
+    // Preserve NaN counts and floating-point and geospatial bounds because the current footer
+    // metrics readers do not fully recover these statistics. Stored NaN-count IDs also cover
     // columns that were dropped.
     Set<Integer> preservedBoundIds = Sets.newHashSet(normalize(file.nanValueCounts()).keySet());
     TypeUtil.indexById(schema.asStruct())

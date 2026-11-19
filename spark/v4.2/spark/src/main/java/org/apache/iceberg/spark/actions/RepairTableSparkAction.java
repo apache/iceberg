@@ -118,7 +118,9 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
   private static final int MANIFEST_INDEX = 0;
   private static final int SNAPSHOT_ID_INDEX = 1;
   private static final int FILE_PATH_INDEX = 2;
-  private static final int REPAIR_INDEX = 3;
+  private static final int CONTENT_OFFSET_INDEX = 3;
+  private static final int CONTENT_SIZE_INDEX = 4;
+  private static final int REPAIR_INDEX = 5;
 
   private final Table table;
   private final int formatVersion;
@@ -288,7 +290,13 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
             "left")
         .withColumn("repair", functions.col("repaired_path").isNotNull())
         .drop("repaired_path")
-        .select("manifest", "snapshot_id", "data_file.file_path", "repair");
+        .select(
+            "manifest",
+            "snapshot_id",
+            "data_file.file_path",
+            "data_file.content_offset",
+            "data_file.content_size_in_bytes",
+            "repair");
   }
 
   private Dataset<Row> buildManifestEntryDF(List<ManifestFile> manifests) {
@@ -609,17 +617,17 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     @Override
     @SuppressWarnings("unchecked")
     public Iterator<ManifestFile> call(Iterator<Row> rows) throws Exception {
-      Map<String, Map<String, Row>> entriesByManifest = Maps.newHashMap();
+      Map<String, Map<EntryKey, Row>> entriesByManifest = Maps.newHashMap();
       rows.forEachRemaining(
           row ->
               entriesByManifest
                   .computeIfAbsent(row.getString(MANIFEST_INDEX), path -> Maps.newHashMap())
-                  .put(row.getString(FILE_PATH_INDEX), row));
+                  .put(EntryKey.of(row), row));
       RollingManifestWriter<F> writer = newManifestWriter();
 
       try (writer) {
         for (ManifestFile manifest : manifests) {
-          Map<String, Row> entries = entriesByManifest.get(manifest.path());
+          Map<EntryKey, Row> entries = entriesByManifest.get(manifest.path());
           if (entries == null) {
             continue;
           }
@@ -628,7 +636,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
           // whose source column was dropped
           try (ManifestReader<F> reader = readManifest(manifest, context.table())) {
             for (F file : reader) {
-              Row row = entries.get(file.location());
+              Row row = entries.get(EntryKey.of(file));
               Preconditions.checkState(
                   row != null, "Cannot find entry for %s in %s", file.location(), manifest.path());
               F repaired = row.getBoolean(REPAIR_INDEX) ? (F) repairStats(file) : file;
@@ -681,6 +689,25 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
 
     protected ManifestWriterFactory writers() {
       return writers;
+    }
+  }
+
+  // a Puffin file can hold several deletion vectors, so the location alone does not identify an
+  // entry; this matches DeleteFileWrapper
+  private record EntryKey(String location, Long contentOffset, Long contentSizeInBytes) {
+    static EntryKey of(Row row) {
+      return new EntryKey(
+          row.getString(FILE_PATH_INDEX),
+          row.getAs(CONTENT_OFFSET_INDEX),
+          row.getAs(CONTENT_SIZE_INDEX));
+    }
+
+    static EntryKey of(ContentFile<?> file) {
+      if (file instanceof DeleteFile delete) {
+        return new EntryKey(delete.location(), delete.contentOffset(), delete.contentSizeInBytes());
+      }
+
+      return new EntryKey(file.location(), null, null);
     }
   }
 }

@@ -369,6 +369,36 @@ class TestRepairTableAction extends TestBase {
   }
 
   @Test
+  void repairKeepsSnapshotIdsOfDeletionVectorsInOnePuffinFile() throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), 3, DEFAULT_FILE_FORMAT);
+    DataFile dataFile = writeDataFile(table);
+    DataFile otherDataFile = writeDataFile(table);
+    table.newFastAppend().appendFile(dataFile).appendFile(otherDataFile).commit();
+    DeleteFile dv = FileGenerationUtil.generateDV(table, dataFile);
+    DeleteFile otherDV =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .copy(dv)
+            .withReferencedDataFile(otherDataFile.location())
+            .withContentOffset(dv.contentOffset() + dv.contentSizeInBytes())
+            .build();
+    table.newRowDelta().addDeletes(dv).commit();
+    DeleteFile eqDelete = writeEqDeletes(table, DEFAULT_FILE_FORMAT, "c1", 1);
+    table
+        .newRowDelta()
+        .addDeletes(otherDV)
+        .addDeletes(corruptDeleteCounts(table, eqDelete))
+        .commit();
+    SparkActions.get().rewriteManifests(table).execute();
+    assertThat(table.currentSnapshot().deleteManifests(table.io())).hasSize(1);
+    List<Row> lineageBefore = entryLineage();
+
+    RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
+
+    assertThat(result.repairedEntryCount()).isEqualTo(1);
+    assertThat(entryLineage()).containsExactlyInAnyOrderElementsOf(lineageBefore);
+  }
+
+  @Test
   void repairCleansUpManifestsOnCommitFailure() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
     table.newFastAppend().appendFile(corruptCounts(table, writeDataFile(table))).commit();
