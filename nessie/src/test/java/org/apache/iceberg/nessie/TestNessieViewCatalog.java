@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -119,6 +120,17 @@ public class TestNessieViewCatalog extends ViewCatalogTests<NessieCatalog> {
     assertThat(catalog().dropTable(identifier, purge)).isFalse();
     assertThat(catalog().viewExists(identifier)).isTrue();
     assertThat(catalog().loadView(identifier).uuid()).isEqualTo(view.uuid());
+  }
+
+  @Test
+  public void dropViewPreservesTable() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "table");
+    catalog().createNamespace(identifier.namespace());
+    Table table = catalog().buildTable(identifier, SCHEMA).create();
+
+    assertThat(catalog().dropView(identifier)).isFalse();
+    assertThat(catalog().tableExists(identifier)).isTrue();
+    assertThat(catalog().loadTable(identifier).uuid()).isEqualTo(table.uuid());
   }
 
   private void resetData() throws NessieConflictException, NessieNotFoundException {
