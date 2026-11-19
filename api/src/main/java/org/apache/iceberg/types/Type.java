@@ -110,6 +110,15 @@ public interface Type extends Serializable {
     return false;
   }
 
+  // Nested-only: primitive vectors would use isPrimitiveType/asPrimitiveType instead.
+  default boolean isVectorType() {
+    return false;
+  }
+
+  default Types.VectorType asVectorType() {
+    throw new IllegalArgumentException("Not a vector type: " + this);
+  }
+
   default NestedType asNestedType() {
     throw new IllegalArgumentException("Not a nested type: " + this);
   }

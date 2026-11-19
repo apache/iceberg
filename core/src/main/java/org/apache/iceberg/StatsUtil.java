@@ -266,7 +266,11 @@ class StatsUtil {
 
   @VisibleForTesting
   static Types.StructType fieldStatsStruct(Type type, int baseId, MetricsModes.MetricsMode mode) {
-    if (null == mode || mode == MetricsModes.None.get() || type.isNestedType() || baseId < 0) {
+    // Nested-only: primitive vectors already reach the value/null count fields below.
+    if (null == mode
+        || mode == MetricsModes.None.get()
+        || (type.isNestedType() && !type.isVectorType())
+        || baseId < 0) {
       return null;
     }
 

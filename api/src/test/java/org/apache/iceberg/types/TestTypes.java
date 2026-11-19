@@ -93,10 +93,9 @@ public class TestTypes {
 
     assertThat(Types.fromPrimitiveString("Decimal(2,3)")).isEqualTo(Types.DecimalType.of(2, 3));
 
-    assertThat(Types.fromPrimitiveString("vector(int, 768)"))
-        .isEqualTo(Types.VectorType.of(Types.VectorType.ElementType.INT, 768));
-    assertThat(Types.fromPrimitiveString("Vector( Float , 3 )"))
-        .isEqualTo(Types.VectorType.of(Types.VectorType.ElementType.FLOAT, 3));
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.fromPrimitiveString("vector(int, 768)"))
+        .withMessage("Cannot parse type string: vector(int, 768) is not a primitive type");
 
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("variant"))
@@ -233,7 +232,8 @@ public class TestTypes {
     Types.VectorType vector = Types.VectorType.of(Types.VectorType.ElementType.FLOAT, 768);
 
     assertThat(vector.typeId()).isEqualTo(Type.TypeID.VECTOR);
-    assertThat(vector.isPrimitiveType()).isTrue();
+    assertThat(vector.isPrimitiveType()).isFalse();
+    assertThat(vector.isNestedType()).isTrue();
     assertThat(vector.elementType()).isEqualTo(Types.VectorType.ElementType.FLOAT);
     assertThat(vector.dimension()).isEqualTo(768);
     assertThat(vector.toString()).isEqualTo("vector(float, 768)");

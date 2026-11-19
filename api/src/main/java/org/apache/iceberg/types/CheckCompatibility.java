@@ -260,6 +260,16 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
     return ImmutableList.of(String.format(": %s cannot be read as a %s", currentType, readVariant));
   }
 
+  // Nested-only: primitive vectors use the equality check in primitive(...).
+  @Override
+  public List<String> vector(Types.VectorType readVector) {
+    if (currentType.equals(readVector)) {
+      return NO_ERRORS;
+    }
+
+    return ImmutableList.of(String.format(": %s cannot be read as a %s", currentType, readVector));
+  }
+
   @Override
   public List<String> primitive(Type.PrimitiveType readPrimitive) {
     if (currentType.equals(readPrimitive)) {

@@ -135,7 +135,8 @@ public class TypeUtil {
   }
 
   public static Set<Integer> getProjectedIds(Type type) {
-    if (type.isPrimitiveType()) {
+    // Nested-only: primitive vectors already have no child field IDs to collect.
+    if (type.isPrimitiveType() || type.isVectorType()) {
       return ImmutableSet.of();
     }
     return ImmutableSet.copyOf(getIdsInternal(type, true));
@@ -737,6 +738,11 @@ public class TypeUtil {
       return null;
     }
 
+    // Nested-only: primitive vectors would use the existing primitive callback.
+    public T vector(Types.VectorType vector) {
+      return null;
+    }
+
     public T map(Types.MapType map, T keyResult, T valueResult) {
       return null;
     }
@@ -819,6 +825,11 @@ public class TypeUtil {
       case VARIANT:
         return visitor.variant(type.asVariantType());
 
+      case VECTOR:
+        // Nested-only: primitive vectors would reach the default primitive dispatch.
+        // There is no element field to visit: its type and dimension are parameters.
+        return visitor.vector(type.asVectorType());
+
       default:
         return visitor.primitive(type.asPrimitiveType());
     }
@@ -838,6 +849,11 @@ public class TypeUtil {
     }
 
     public T list(Types.ListType list, Supplier<T> elementResult) {
+      return null;
+    }
+
+    // Nested-only: primitive vectors would use the existing primitive callback.
+    public T vector(Types.VectorType vector) {
       return null;
     }
 
@@ -924,6 +940,10 @@ public class TypeUtil {
             map,
             new VisitFuture<>(map.keyType(), visitor),
             new VisitFuture<>(map.valueType(), visitor));
+
+      case VECTOR:
+        // Nested-only: primitive vectors would use the existing primitive dispatch.
+        return visitor.vector(type.asVectorType());
 
       case VARIANT:
         return visitor.variant(type.asVariantType());

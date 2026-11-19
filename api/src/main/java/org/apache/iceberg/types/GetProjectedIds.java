@@ -49,7 +49,9 @@ class GetProjectedIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
   public Set<Integer> field(Types.NestedField field, Set<Integer> fieldResult) {
     if ((includeStructIds && field.type().isStructType())
         || field.type().isPrimitiveType()
-        || field.type().isVariantType()) {
+        || field.type().isVariantType()
+        // Nested-only: primitive vectors already contribute their enclosing field ID.
+        || field.type().isVectorType()) {
       fieldIds.add(field.fieldId());
     }
     return fieldIds;

@@ -170,7 +170,8 @@ public final class MetricsConfig implements Serializable {
           }
 
           private boolean metricsEligible(Type type) {
-            return type.isPrimitiveType() || type.isVariantType();
+            // Nested-only: primitive vectors already qualify for column metrics.
+            return type.isPrimitiveType() || type.isVariantType() || type.isVectorType();
           }
 
           @Override

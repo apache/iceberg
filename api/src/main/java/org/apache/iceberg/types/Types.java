@@ -121,7 +121,9 @@ public class Types {
       return type.asPrimitiveType();
     }
 
-    throw new IllegalArgumentException("Cannot parse type string: variant is not a primitive type");
+    // Nested-only: vector is still parseable by name, but no longer a primitive.
+    throw new IllegalArgumentException(
+        "Cannot parse type string: " + type + " is not a primitive type");
   }
 
   public static class BooleanType extends PrimitiveType {
@@ -724,7 +726,7 @@ public class Types {
    * number of elements, at least 1). Serializes as {@code vector(<element-type>, <dimension>)},
    * e.g. {@code vector(int, 768)}.
    */
-  public static class VectorType extends PrimitiveType {
+  public static class VectorType extends NestedType {
     private static final String NAME = "vector";
 
     /** The primitive element types a vector may hold. */
@@ -778,6 +780,33 @@ public class Types {
 
     public int dimension() {
       return dimension;
+    }
+
+    // Nested-only: implement NestedType's field API without inventing an element field or ID.
+    // A primitive vector would not need these methods. Element type is a type parameter.
+    @Override
+    public List<NestedField> fields() {
+      return ImmutableList.of();
+    }
+
+    @Override
+    public Type fieldType(String name) {
+      return null;
+    }
+
+    @Override
+    public NestedField field(int id) {
+      return null;
+    }
+
+    @Override
+    public boolean isVectorType() {
+      return true;
+    }
+
+    @Override
+    public VectorType asVectorType() {
+      return this;
     }
 
     @Override
@@ -991,7 +1020,7 @@ public class Types {
     }
 
     private static Literal<?> castDefault(Literal<?> defaultValue, Type type) {
-      if (defaultValue != null && (type.isNestedType() || type.typeId() == Type.TypeID.VECTOR)) {
+      if (defaultValue != null && type.isNestedType()) {
         throw new IllegalArgumentException(
             String.format("Invalid default value for %s: %s (must be null)", type, defaultValue));
       } else if (defaultValue != null) {

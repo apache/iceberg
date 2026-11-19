@@ -85,6 +85,12 @@ class FindTypeVisitor extends TypeUtil.SchemaVisitor<Type> {
     return null;
   }
 
+  // Nested-only: primitive vectors already reach the predicate in primitive(...).
+  @Override
+  public Type vector(Types.VectorType vector) {
+    return predicate.test(vector) ? vector : null;
+  }
+
   @Override
   public Type primitive(Type.PrimitiveType primitive) {
     if (predicate.test(primitive)) {

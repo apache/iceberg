@@ -755,6 +755,12 @@ class SchemaUpdate implements UpdateSchema {
     public Type primitive(Type.PrimitiveType primitive) {
       return primitive;
     }
+
+    // Nested-only: primitive vectors are preserved by primitive(...) above.
+    @Override
+    public Type vector(Types.VectorType vector) {
+      return vector;
+    }
   }
 
   private static List<Types.NestedField> addAndMoveFields(

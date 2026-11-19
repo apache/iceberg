@@ -93,6 +93,12 @@ class AssignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     return variant;
   }
 
+  // Nested-only: primitive vectors are already preserved by primitive(...).
+  @Override
+  public Type vector(Types.VectorType vector) {
+    return vector;
+  }
+
   @Override
   public Type primitive(Type.PrimitiveType primitive) {
     return primitive;
