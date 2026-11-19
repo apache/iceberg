@@ -244,14 +244,14 @@ public class Metrics implements Serializable {
   }
 
   /**
-   * Not supported because average value sizes are no longer collected.
+   * Returns {@code null} because average value sizes are no longer collected.
    *
-   * @throws UnsupportedOperationException always
+   * @return null
    * @deprecated will be removed in 2.0.0
    */
   @Deprecated
   public Map<Integer, Integer> avgValueSizes() {
-    throw new UnsupportedOperationException("Average value sizes are no longer collected");
+    return null;
   }
 
   /**

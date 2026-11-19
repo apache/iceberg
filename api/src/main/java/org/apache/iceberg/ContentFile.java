@@ -105,14 +105,14 @@ public interface ContentFile<F> {
   }
 
   /**
-   * Not supported because average value sizes are no longer tracked for content files.
+   * Returns {@code null} because average value sizes are no longer tracked for content files.
    *
-   * @throws UnsupportedOperationException always
+   * @return null
    * @deprecated will be removed in 2.0.0
    */
   @Deprecated
   default Map<Integer, Integer> avgValueSizes() {
-    throw new UnsupportedOperationException("Average value sizes are no longer tracked");
+    return null;
   }
 
   /**
