@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.hive;
 
+import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.HIVE_LOCK_ENABLED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -31,20 +32,26 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.JsonUtil;
 import org.apache.thrift.TException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -328,6 +335,26 @@ public class TestHiveCommits extends HiveTableTestBase {
   void alreadyExistsSuccessOnCreate() throws TException, InterruptedException {
     HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(NEW_TABLE_IDENTIFIER);
     TableMetadata metadata = newTableMetadata(ImmutableMap.of());
+    HiveTableOperations spyOps = spy(ops);
+    createAndThrowAlreadyExists(ops, spyOps);
+
+    try {
+      spyOps.commit(null, metadata);
+
+      assertThat(metadataFileExists(ops.refresh()))
+          .as("Current metadata file should still exist")
+          .isTrue();
+    } finally {
+      catalog.dropTable(NEW_TABLE_IDENTIFIER, true);
+    }
+  }
+
+  @Test
+  void alreadyExistsSuccessOnCreateWithoutUuid()
+      throws TException, InterruptedException, IOException {
+    HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(NEW_TABLE_IDENTIFIER);
+    TableMetadata metadata = metadataWithoutUuid(ops.io());
+    assertThat(metadata.uuid()).as("Metadata should have no UUID").isNull();
     HiveTableOperations spyOps = spy(ops);
     createAndThrowAlreadyExists(ops, spyOps);
 
@@ -695,6 +722,19 @@ public class TestHiveCommits extends HiveTableTestBase {
         PartitionSpec.unpartitioned(),
         catalog.defaultWarehouseLocation(NEW_TABLE_IDENTIFIER),
         properties);
+  }
+
+  // Only metadata read from a file can lack a UUID, as when registerTable is given older metadata
+  private TableMetadata metadataWithoutUuid(FileIO io) throws IOException {
+    TableMetadata metadata = newTableMetadata(ImmutableMap.of(FORMAT_VERSION, "1"));
+    ObjectNode json = (ObjectNode) JsonUtil.mapper().readTree(TableMetadataParser.toJson(metadata));
+    json.remove("table-uuid");
+    String location = metadata.location() + "/metadata/00000-without-uuid.metadata.json";
+    try (OutputStream out = io.newOutputFile(location).create()) {
+      JsonUtil.mapper().writeValue(out, json);
+    }
+
+    return TableMetadataParser.read(io, location);
   }
 
   private void createAndThrowAlreadyExists(

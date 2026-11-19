@@ -351,7 +351,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
                 tableName(),
                 newMetadataLocation,
                 metadata.properties(),
-                () -> checkCurrentTableUuid(metadata.uuid()));
+                () -> checkCurrentTable(metadata.uuid(), newMetadataLocation));
         switch (commitStatus) {
           case SUCCESS:
             break;
@@ -430,10 +430,21 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
         "Committed to table {} with the new metadata location {}", fullName, newMetadataLocation);
   }
 
-  private boolean checkCurrentTableUuid(String uuid) {
+  private boolean checkCurrentTable(String uuid, String newMetadataLocation) {
     try {
       TableMetadata refreshed = refresh();
-      return refreshed != null && uuid.equals(refreshed.uuid());
+      if (refreshed == null) {
+        return false;
+      }
+
+      if (uuid != null) {
+        return uuid.equals(refreshed.uuid());
+      }
+
+      // Format v1 metadata may have no UUID
+      return refreshed.metadataFileLocation().equals(newMetadataLocation)
+          || refreshed.previousFiles().stream()
+              .anyMatch(log -> log.file().equals(newMetadataLocation));
     } catch (NoSuchTableException e) {
       // A view or a table that is not an Iceberg table holds the name
       return false;
