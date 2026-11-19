@@ -160,6 +160,11 @@ class TestV4ManifestReader {
 
   private static final InMemoryFileIO IO = new InMemoryFileIO();
 
+  static {
+    // avoid failing that file doesn't exist for tests that do not read
+    IO.addFile(UNREAD_MANIFEST_FILE.path(), new byte[0]);
+  }
+
   private static final ColumnFile COLUMN_FILE_1 =
       columnFile(
           "s3a://bucket/column_file_1.parquet",
@@ -802,6 +807,38 @@ class TestV4ManifestReader {
     List<TrackedFile> actual = read(builder);
 
     assertThat(actual).extracting(file -> file.tracking().firstRowId()).containsOnlyNulls();
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void inheritanceFirstRowIdSkipsManifests(FileFormat format) throws IOException {
+    Tracking trackingWithoutFirstRowId =
+        new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null);
+    TrackedFile dataFile = dataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-a.parquet");
+    TrackedFile dataManifest =
+        V4TestHelpers.manifestRefWithTracking(
+            trackingWithoutFirstRowId,
+            FileContent.DATA_MANIFEST,
+            "s3://bucket/table/manifest.parquet");
+    TrackedFile deleteManifest =
+        V4TestHelpers.manifestRefWithTracking(
+            trackingWithoutFirstRowId,
+            FileContent.DELETE_MANIFEST,
+            "s3://bucket/table/delete-manifest.parquet");
+
+    ManifestFile manifest =
+        writeManifest(
+            format, UNPARTITIONED_TYPE, ImmutableList.of(dataFile, dataManifest, deleteManifest));
+    when(manifest.firstRowId()).thenReturn(1_000L);
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
+            .metricsConfig(METRICS_CONFIG);
+    List<TrackedFile> actual = read(builder);
+
+    assertThat(actual)
+        .extracting(file -> file.tracking().firstRowId())
+        .containsExactly(1_000L, null, null);
   }
 
   @ParameterizedTest
@@ -1774,8 +1811,12 @@ class TestV4ManifestReader {
   @Test
   public void validationUnknownManifestFormatFailure() {
     ManifestFile fileWithoutFormat = Mockito.mock(ManifestFile.class);
+    Mockito.when(fileWithoutFormat.path()).thenReturn("manifest");
     Mockito.when(fileWithoutFormat.formatVersion()).thenReturn(4);
     Mockito.when(fileWithoutFormat.content()).thenReturn(ManifestContent.DATA);
+
+    // create the file
+    IO.addFile("manifest", new byte[0]);
 
     assertThatThrownBy(
             () ->
@@ -1787,6 +1828,7 @@ class TestV4ManifestReader {
   @Test
   public void validationUnknownFormatVersionFailure() {
     ManifestFile v3File = Mockito.mock(ManifestFile.class);
+    Mockito.when(v3File.path()).thenReturn(FileFormat.PARQUET.addExtension("manifest"));
     Mockito.when(v3File.formatVersion()).thenReturn(3);
     Mockito.when(v3File.content()).thenReturn(ManifestContent.DATA);
 
@@ -1799,6 +1841,7 @@ class TestV4ManifestReader {
   @Test
   public void validationDeleteManifestFailure() {
     ManifestFile v3File = Mockito.mock(ManifestFile.class);
+    Mockito.when(v3File.path()).thenReturn(FileFormat.PARQUET.addExtension("manifest"));
     Mockito.when(v3File.formatVersion()).thenReturn(4);
     Mockito.when(v3File.content()).thenReturn(ManifestContent.DELETES);
 

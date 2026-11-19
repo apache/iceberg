@@ -45,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
+import org.apache.iceberg.spark.source.metrics.TaskScanDuration;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -75,6 +76,7 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
   private final CloseableIterator<TaggedRow> mergedIterator;
   private final List<RowDataReader> fileReaders;
   private final ProjectingInternalRow projectingRow;
+  private final InheritedTaskMetrics inheritedMetrics = new InheritedTaskMetrics();
   private InternalRow current;
   private FileBlock currentBlock;
 
@@ -268,13 +270,21 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
   @Override
   public CustomTaskMetric[] currentMetricsValues() {
     long totalDeletes = 0L;
+    long totalScanDurationNanos = 0L;
     for (RowDataReader reader : fileReaders) {
       totalDeletes += reader.counter().get();
+      totalScanDurationNanos += reader.scanDurationNanos();
     }
 
-    return new CustomTaskMetric[] {
-      new TaskNumSplits(fileReaders.size()), new TaskNumDeletes(totalDeletes)
-    };
+    return inheritedMetrics.addTo(
+        new TaskNumSplits(fileReaders.size()),
+        new TaskNumDeletes(totalDeletes),
+        new TaskScanDuration(totalScanDurationNanos));
+  }
+
+  @Override
+  public void initMetricsValues(CustomTaskMetric[] metrics) {
+    inheritedMetrics.inherit(metrics);
   }
 
   private static Comparator<InternalRow> buildComparator(

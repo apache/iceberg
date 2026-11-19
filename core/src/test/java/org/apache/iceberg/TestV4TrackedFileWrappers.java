@@ -503,7 +503,7 @@ class TestV4TrackedFileWrappers {
                 wrapper.wrap(
                     manifest, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build(), firstRowId))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid manifest, deletion vector must be null: %s", manifest.location());
+        .hasMessage("Invalid manifest, data deletion vector must be null: %s", manifest.location());
   }
 
   @Test

@@ -12,7 +12,6 @@ dev/.rat-excludes
 **/NOTICE
 **/revapi.yml
 gradlew
-examples/**
 gradle/**
 **/*.sql
 **/*.html

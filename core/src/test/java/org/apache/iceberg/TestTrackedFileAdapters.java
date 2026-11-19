@@ -139,7 +139,7 @@ class TestTrackedFileAdapters {
           .replacedRowsCount(40L)
           .modifiedRowsCount(10L)
           .minSequenceNumber(7L)
-          .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
+          .dv(MumblingTestUtil.onlyFirstBitSet())
           .formatVersion(FORMAT_VERSION_V4)
           .build();
 

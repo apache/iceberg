@@ -61,17 +61,27 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
   static Builder builder(
       ManifestFile manifest, FileIO io, Schema tableSchema, Map<Integer, PartitionSpec> specsById) {
-    return new Builder(manifest, io, tableSchema, specsById, false /* committed */);
+    return new Builder(
+        manifest, io.newInputFile(manifest), tableSchema, specsById, false /* committed */);
+  }
+
+  static Builder builder(
+      ManifestFile manifest,
+      InputFile file,
+      Schema tableSchema,
+      Map<Integer, PartitionSpec> specsById) {
+    return new Builder(manifest, file, tableSchema, specsById, false /* committed */);
   }
 
   static Builder uncommitted(
       ManifestFile manifest, FileIO io, Schema tableSchema, Map<Integer, PartitionSpec> specsById) {
-    return new Builder(manifest, io, tableSchema, specsById, true /* uncommitted */);
+    return new Builder(
+        manifest, io.newInputFile(manifest), tableSchema, specsById, true /* uncommitted */);
   }
 
   private final ManifestFile manifest;
   private final ManifestBitmap dv;
-  private final FileIO io;
+  private final InputFile input;
   private final Schema readSchema;
   private final String tableLocation;
   private final InclusiveStatsEvaluator statsFilter;
@@ -83,7 +93,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
   private V4ManifestReader(
       ManifestFile manifest,
-      FileIO io,
+      InputFile input,
       Schema readSchema,
       String tableLocation,
       InclusiveStatsEvaluator statsFilter,
@@ -94,7 +104,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       ScanMetrics scanMetrics) {
     this.manifest = manifest;
     this.dv = manifest.manifestDeletionVector();
-    this.io = io;
+    this.input = input;
     this.readSchema = readSchema;
     this.tableLocation = tableLocation;
     this.statsFilter = statsFilter;
@@ -161,7 +171,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         public TrackedFile apply(TrackedFile file) {
           TrackingStruct tracking = (TrackingStruct) file.tracking();
           tracking.inherit(manifest.snapshotId(), manifest.sequenceNumber());
-          if (tracking.assignFirstRowId(nextRowId)) {
+          if (file.contentType() == FileContent.DATA && tracking.assignFirstRowId(nextRowId)) {
             nextRowId += file.recordCount();
           }
 
@@ -241,14 +251,13 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   }
 
   private CloseableIterable<TrackedFile> open() {
-    InputFile file = io.newInputFile(manifest);
-    FileFormat format = FileFormat.fromFileName(file.location());
+    FileFormat format = FileFormat.fromFileName(input.location());
 
     scanMetrics.scannedDataManifests().increment();
     scanMetrics.totalDataManifests().increment();
 
     InternalData.ReadBuilder readBuilder =
-        InternalData.read(format, file)
+        InternalData.read(format, input)
             .project(readSchema)
             .setRootType(TrackedFileStruct.class)
             .setCustomType(TrackedFile.TRACKING.fieldId(), TrackingStruct.class)
@@ -332,7 +341,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
   static class Builder {
     private final ManifestFile manifest;
-    private final FileIO io;
+    private final InputFile file;
     private final Schema tableSchema;
     private final Types.StructType unionPartitionType;
     private final Map<Integer, PartitionSpec> specsById;
@@ -349,7 +358,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
     private Builder(
         ManifestFile manifest,
-        FileIO io,
+        InputFile file,
         Schema tableSchema,
         Map<Integer, PartitionSpec> specsById,
         boolean isUncommitted) {
@@ -370,7 +379,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           format != null, "Cannot determine format of manifest: %s", manifest.path());
 
       this.manifest = manifest;
-      this.io = io;
+      this.file = file;
       this.tableSchema = tableSchema;
       this.unionPartitionType = Partitioning.unionPartitionTypes(specsById.values());
       this.specsById = specsById;
@@ -482,7 +491,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
       return new V4ManifestReader(
           manifest,
-          io,
+          file,
           readSchema(!partitionFilters.isEmpty()),
           tableLocation,
           statsFilter(),

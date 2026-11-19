@@ -114,7 +114,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   @Parameters(name = "fileFormat = {0}, formatVersion = {1}, vectorized = {2}, planningMode = {3}")
   public static Object[][] parameters() {
     List<Object[]> parameters = Lists.newArrayList();
-    for (int version : TestHelpers.V2_AND_ABOVE) {
+    for (int version : TestHelpers.V2_AND_V3) {
       parameters.add(new Object[] {FileFormat.PARQUET, version, false, PlanningMode.DISTRIBUTED});
       parameters.add(new Object[] {FileFormat.PARQUET, version, true, PlanningMode.LOCAL});
       if (version == 2) {

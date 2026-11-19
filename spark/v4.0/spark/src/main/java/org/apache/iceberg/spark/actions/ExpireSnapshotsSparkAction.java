@@ -148,8 +148,11 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
    */
   public Dataset<FileInfo> expireFiles() {
     if (expiredFileDS == null) {
-      // fetch metadata before expiration
-      TableMetadata originalMetadata = ops.current();
+      TableMetadata originalMetadata = ops.refresh();
+      ValidationException.check(
+          originalMetadata.snapshots().stream()
+              .noneMatch(snapshot -> snapshot.rootManifestLocation() != null),
+          "Cannot expire snapshots: this action does not support tables with root manifests");
 
       // perform expiration
       org.apache.iceberg.ExpireSnapshots expireSnapshots = table.expireSnapshots();

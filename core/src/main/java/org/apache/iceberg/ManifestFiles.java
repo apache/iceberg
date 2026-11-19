@@ -278,9 +278,6 @@ public class ManifestFiles {
       case 3:
         return new ManifestWriter.V3Writer(
             spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
-      case 4:
-        return new ManifestWriter.V4Writer(
-            spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
@@ -389,8 +386,6 @@ public class ManifestFiles {
         return new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId, writerProperties);
       case 3:
         return new ManifestWriter.V3DeleteWriter(spec, outputFile, snapshotId, writerProperties);
-      case 4:
-        return new ManifestWriter.V4DeleteWriter(spec, outputFile, snapshotId, writerProperties);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
