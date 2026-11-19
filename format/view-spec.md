@@ -262,6 +262,8 @@ When processing a `CREATE MATERIALIZED VIEW` statement, query engines should:
 
 The storage table must exist and be accessible before or at the time the materialized view metadata is committed.
 
+When a new view version references a different storage table than the previous version (e.g., a full refresh that writes a new storage table), writers must create the new storage table with the configuration of the previous storage table (table properties, partitioning, sort order, encryption, etc.), unless the user explicitly requests a change (e.g., `CREATE OR REPLACE MATERIALIZED VIEW`).
+
 A storage table that has not yet been refreshed has no snapshots. After a refresh, even if the query result is empty, the storage table will contain a snapshot with the `refresh-state` property in its summary. Readers can use the presence of a snapshot with `refresh-state` to distinguish a never-refreshed storage table from one that was refreshed with an empty result.
 
 ## Appendix A: Examples
