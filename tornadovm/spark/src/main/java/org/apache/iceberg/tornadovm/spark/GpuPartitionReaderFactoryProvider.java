@@ -25,7 +25,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.spark.source.IcebergInputPartition;
+import org.apache.iceberg.spark.source.HasScanTaskGroup;
 import org.apache.iceberg.spark.source.PartitionReaderFactoryProvider;
 import org.apache.iceberg.tornadovm.DeviceMergeOnReadScan;
 import org.apache.iceberg.types.Types;
@@ -109,7 +109,7 @@ public class GpuPartitionReaderFactoryProvider implements PartitionReaderFactory
 
     @Override
     public PartitionReader<ColumnarBatch> createColumnarReader(InputPartition partition) {
-      if (partition instanceof IcebergInputPartition iceberg
+      if (partition instanceof HasScanTaskGroup iceberg
           && iceberg.allTasksOfType(FileScanTask.class)) {
         ScanTaskGroup<FileScanTask> group = iceberg.taskGroup();
         PartitionReader<ColumnarBatch> reader =
