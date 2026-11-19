@@ -147,8 +147,8 @@ class SparkBatch implements Batch {
 
   // conditions for using Parquet batch reads:
   // - Parquet vectorization is enabled
-  // - only primitives, variant, or metadata columns are projected, excluding geometry
-  //   and geography which are primitives with no Arrow vector yet
+  // - only primitives, variant, metadata columns, or structs of these with no nested variant are
+  //   projected, excluding geometry and geography which are primitives with no Arrow vector yet
   // - all tasks are of FileScanTask type and read only Parquet files
   private boolean useParquetBatchReads() {
     return readConf.parquetVectorizationEnabled()
@@ -182,7 +182,17 @@ class SparkBatch implements Batch {
       return false;
     }
 
+    if (type.isStructType()) {
+      return supportsParquetBatchReads(type.asStructType());
+    }
+
     return type.isPrimitiveType() || type.isVariantType();
+  }
+
+  // variants nested in structs are read by the row reader
+  private boolean supportsParquetBatchReads(Types.StructType struct) {
+    return struct.fields().stream()
+        .allMatch(child -> !child.type().isVariantType() && supportsParquetBatchReads(child));
   }
 
   // conditions for using ORC batch reads:

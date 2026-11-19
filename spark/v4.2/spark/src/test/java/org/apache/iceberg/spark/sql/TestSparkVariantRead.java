@@ -281,6 +281,27 @@ public class TestSparkVariantRead extends TestBase {
     sql("DROP TABLE IF EXISTS %s", structTable);
   }
 
+  @Test
+  void structScanIsColumnarUnlessItHoldsVariant() {
+    String table = CATALOG + ".default.var_struct_scan";
+    sql("DROP TABLE IF EXISTS %s", table);
+    sql(
+        "CREATE TABLE %s (id BIGINT, s STRUCT<a: INT>, t STRUCT<v: VARIANT>) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        table);
+    setVectorization(table, true);
+    sql(
+        "INSERT INTO %s SELECT 1, named_struct('a', 1), named_struct('v', parse_json('{\"b\":2}'))",
+        table);
+
+    assertColumnarScan(
+        executeAndKeepPlan(() -> spark.table(table).select("id", "s").collectAsList()), true);
+    assertColumnarScan(
+        executeAndKeepPlan(() -> spark.table(table).select("id", "t").collectAsList()), false);
+
+    sql("DROP TABLE IF EXISTS %s", table);
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testNestedArrayVariant(boolean vectorized) {

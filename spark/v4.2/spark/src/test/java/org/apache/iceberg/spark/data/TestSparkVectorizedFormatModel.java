@@ -51,15 +51,10 @@ class TestSparkVectorizedFormatModel extends ReadFormatModelTests<ColumnarBatch>
   private static final Set<Type.TypeID> SPARK_UNSUPPORTED_TYPE_IDS =
       Set.of(Type.TypeID.TIME, Type.TypeID.TIMESTAMP_NANO);
 
-  // The Arrow-based Parquet reader cannot read nested or geospatial columns;
+  // The Arrow-based Parquet reader cannot read lists, maps, or geospatial columns;
   // the vectorized ORC reader supports nested types.
   private static final Set<Type.TypeID> ARROW_UNSUPPORTED_TYPE_IDS =
-      Set.of(
-          Type.TypeID.STRUCT,
-          Type.TypeID.LIST,
-          Type.TypeID.MAP,
-          Type.TypeID.GEOMETRY,
-          Type.TypeID.GEOGRAPHY);
+      Set.of(Type.TypeID.LIST, Type.TypeID.MAP, Type.TypeID.GEOMETRY, Type.TypeID.GEOGRAPHY);
 
   private static final Set<Type.TypeID> PARQUET_UNSUPPORTED_TYPE_IDS =
       ImmutableSet.<Type.TypeID>builder()

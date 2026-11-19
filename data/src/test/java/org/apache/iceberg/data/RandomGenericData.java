@@ -54,6 +54,13 @@ public class RandomGenericData {
         generateIcebergGenerics(schema, numRecords, () -> new RandomRecordGenerator(seed)));
   }
 
+  public static List<Record> generate(
+      Schema schema, int numRecords, long seed, float nullPercentage) {
+    return Lists.newArrayList(
+        generateIcebergGenerics(
+            schema, numRecords, () -> new RandomRecordGenerator(seed, nullPercentage)));
+  }
+
   public static Iterable<Record> generateFallbackRecords(
       Schema schema, int numRecords, long seed, long numDictRows) {
     return generateIcebergGenerics(
