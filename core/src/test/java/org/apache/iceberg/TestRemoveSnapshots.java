@@ -2145,6 +2145,89 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   @TestTemplate
+  void expireDoesNotDeletePuffinFileSharedByLiveDeletionVectors() {
+    assumeThat(formatVersion).as("Deletion vectors require V3 or later").isGreaterThanOrEqualTo(3);
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    // one Puffin file with deletion vectors for FILE_A and FILE_B
+    String sharedPuffinPath = "/path/to/shared-dvs-" + UUID.randomUUID() + ".puffin";
+    DeleteFile dvA = deletionVector(sharedPuffinPath, FILE_A, 4L);
+    DeleteFile dvB = deletionVector(sharedPuffinPath, FILE_B, 44L);
+    table.newRowDelta().addDeletes(dvA).addDeletes(dvB).commit();
+
+    // replace FILE_A's deletion vector; FILE_B's stays in the shared Puffin file
+    DeleteFile newDvA =
+        deletionVector("/path/to/new-dv-" + UUID.randomUUID() + ".puffin", FILE_A, 4L);
+    table
+        .newRowDelta()
+        .validateFromSnapshot(table.currentSnapshot().snapshotId())
+        .removeDeletes(dvA)
+        .addDeletes(newDvA)
+        .commit();
+
+    table.newAppend().appendFile(FILE_C).commit();
+
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots(table).expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
+
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(deletedFiles)
+        .as("Puffin file with a live deletion vector must not be deleted")
+        .doesNotContain(sharedPuffinPath);
+  }
+
+  @TestTemplate
+  void expireDeletesPuffinFileWhenAllSharedDeletionVectorsReplaced() {
+    assumeThat(formatVersion).as("Deletion vectors require V3 or later").isGreaterThanOrEqualTo(3);
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    String sharedPuffinPath = "/path/to/shared-dvs-" + UUID.randomUUID() + ".puffin";
+    DeleteFile dvA = deletionVector(sharedPuffinPath, FILE_A, 4L);
+    DeleteFile dvB = deletionVector(sharedPuffinPath, FILE_B, 44L);
+    table.newRowDelta().addDeletes(dvA).addDeletes(dvB).commit();
+
+    DeleteFile newDvA =
+        deletionVector("/path/to/new-dv-a-" + UUID.randomUUID() + ".puffin", FILE_A, 4L);
+    DeleteFile newDvB =
+        deletionVector("/path/to/new-dv-b-" + UUID.randomUUID() + ".puffin", FILE_B, 4L);
+    table
+        .newRowDelta()
+        .validateFromSnapshot(table.currentSnapshot().snapshotId())
+        .removeDeletes(dvA)
+        .removeDeletes(dvB)
+        .addDeletes(newDvA)
+        .addDeletes(newDvB)
+        .commit();
+
+    table.newAppend().appendFile(FILE_C).commit();
+
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots(table).expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
+
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(deletedFiles).contains(sharedPuffinPath);
+  }
+
+  private DeleteFile deletionVector(String puffinPath, DataFile dataFile, long contentOffset) {
+    return FileMetadata.deleteFileBuilder(table.spec())
+        .ofPositionDeletes()
+        .withPath(puffinPath)
+        .withFileSizeInBytes(100L)
+        .withPartition(dataFile.partition())
+        .withRecordCount(1L)
+        .withReferencedDataFile(dataFile.location())
+        .withContentOffset(contentOffset)
+        .withContentSizeInBytes(40L)
+        .build();
+  }
+
+  @TestTemplate
   void readManifestsProjectsManifestContent() throws IOException {
     assumeThat(formatVersion)
         .as("Delete files are only supported in V2 and later")
