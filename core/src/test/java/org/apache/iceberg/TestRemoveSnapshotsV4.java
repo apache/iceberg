@@ -35,9 +35,8 @@ import org.junit.jupiter.params.provider.EnumSource;
 class TestRemoveSnapshotsV4 {
   private static final String CLEANUP_UNSUPPORTED_MESSAGE =
       "File cleanup for V4 tables is not supported. "
-          + "Use CleanupLevel.NONE to cleanup snapshot metadata.";
+          + "Use CleanupLevel.NONE to skip file cleanup.";
   private static final long ROOT_MANIFEST_SNAPSHOT_ID = 42L;
-  private static final long FAR_FUTURE_MS = System.currentTimeMillis() + 100_000;
 
   @TempDir private File tableDir;
 
@@ -58,7 +57,7 @@ class TestRemoveSnapshotsV4 {
             () ->
                 table
                     .expireSnapshots()
-                    .expireOlderThan(FAR_FUTURE_MS)
+                    .expireOlderThan(table.currentSnapshot().timestampMillis() + 1)
                     .retainLast(1)
                     .cleanupLevel(cleanupLevel)
                     .commit())
@@ -70,13 +69,13 @@ class TestRemoveSnapshotsV4 {
   }
 
   @Test
-  void allowsMetadataOnlyRemovalWithRootManifestSnapshot() {
+  void allowsExpirationWithoutFileCleanupWithRootManifestSnapshot() {
     Table table = tableWithRootManifestSnapshot();
     Set<String> deletedFiles = Sets.newHashSet();
 
     table
         .expireSnapshots()
-        .expireOlderThan(FAR_FUTURE_MS)
+        .expireOlderThan(table.currentSnapshot().timestampMillis() + 1)
         .retainLast(1)
         .cleanupLevel(ExpireSnapshots.CleanupLevel.NONE)
         .deleteWith(deletedFiles::add)
