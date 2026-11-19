@@ -24,13 +24,16 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.SnapshotChanges;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.FileHelpers;
@@ -40,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -453,9 +457,7 @@ public class TestSparkVariantRead extends TestBase {
     assertHasTypedValueSubtree(table);
 
     sql("ALTER TABLE %s SET TBLPROPERTIES ('write.parquet.shred-variants'='false')", toggleTable);
-    setVectorization(toggleTable, vectorized);
-
-    List<Row> rows = spark.table(toggleTable).select("id", "v").orderBy("id").collectAsList();
+    List<Row> rows = readSortedById(toggleTable, vectorized, ImmutableMap.of());
     assertThat(rows).hasSize(2);
     Variant v1 =
         new Variant(
@@ -536,9 +538,7 @@ public class TestSparkVariantRead extends TestBase {
 
     Table table = Spark3Util.loadIcebergTable(spark, noStatsTable);
     assertHasTypedValueSubtree(table);
-    setVectorization(noStatsTable, true);
-
-    List<Row> rows = spark.table(noStatsTable).select("id", "v").orderBy("id").collectAsList();
+    List<Row> rows = assertVectorizedMatchesRowReader(noStatsTable);
     assertThat(rows).hasSize(2);
     Variant v1 =
         new Variant(
@@ -580,25 +580,80 @@ public class TestSparkVariantRead extends TestBase {
   }
 
   @Test
-  void readMixedShreddedAndUnshreddedFiles()
+  void readShreddedEnabledByTableProperty()
       throws IOException, NoSuchTableException, ParseException {
-    String table = CATALOG + ".default.var_mixed_files";
+    String table = CATALOG + ".default.var_shredded_property";
     sql("DROP TABLE IF EXISTS %s", table);
     sql(
         "CREATE TABLE %s (id BIGINT, v VARIANT) USING iceberg "
-            + "TBLPROPERTIES ('format-version'='3')",
+            + "TBLPROPERTIES ('format-version'='3', '%s'='true')",
+        table, TableProperties.PARQUET_SHRED_VARIANTS);
+    sql(
+        "INSERT INTO %s VALUES (1, parse_json('{\"a\": [1, 2]}')), (2, parse_json('{\"a\": [3]}'))",
         table);
-    spark
-        .sql("SELECT 1L AS id, parse_json('{\"name\":\"alice\",\"age\":30}') AS v")
-        .coalesce(1)
-        .writeTo(table)
-        .append();
-    insertShredded(
-        "INSERT INTO %s SELECT /*+ COALESCE(1) */ * FROM ("
-            + "SELECT 2L AS id, CAST(NULL AS VARIANT) AS v "
-            + "UNION ALL SELECT 3L, parse_json('{\"a\":[1,2]}') "
-            + "UNION ALL SELECT 4L, parse_json('{\"a\":[3]}'))",
-        table);
+
+    Table icebergTable = Spark3Util.loadIcebergTable(spark, table);
+    assertHasTypedValueSubtree(icebergTable);
+
+    List<Row> rows = assertVectorizedMatchesRowReader(table);
+    assertThat(rows).extracting(row -> row.getLong(0)).containsExactly(1L, 2L);
+    assertLongArray(toVariant(rows.get(0)).getFieldByKey("a"), 1L, 2L);
+    assertLongArray(toVariant(rows.get(1)).getFieldByKey("a"), 3L);
+
+    sql("DROP TABLE IF EXISTS %s", table);
+  }
+
+  @Test
+  void readMixedObjectShreddedAndUnshreddedFiles()
+      throws IOException, NoSuchTableException, ParseException {
+    String table = CATALOG + ".default.var_mixed_object_files";
+    writeUnshreddedThenShreddedFile(
+        table, "{\"name\":\"bob\",\"age\":25}", "{\"name\":\"carol\",\"age\":41}");
+
+    Table icebergTable = Spark3Util.loadIcebergTable(spark, table);
+    assertThat(shreddedFiles(icebergTable)).containsExactlyInAnyOrder(false, true);
+    int variantId = icebergTable.schema().findField("v").fieldId();
+    try (CloseableIterable<FileScanTask> tasks =
+        icebergTable.newScan().includeColumnStats().planFiles()) {
+      assertThat(tasks)
+          .anyMatch(
+              task ->
+                  task.file().lowerBounds() != null
+                      && task.file().lowerBounds().containsKey(variantId));
+    }
+
+    List<Row> rows = assertVectorizedMatchesRowReader(table);
+    assertThat(rows).extracting(row -> row.getLong(0)).containsExactly(1L, 2L, 3L, 4L);
+    assertThat(toVariant(rows.get(0)).getFieldByKey("name").getString()).isEqualTo("alice");
+    assertThat(rows.get(1).isNullAt(1)).isTrue();
+    assertThat(toVariant(rows.get(2)).getFieldByKey("name").getString()).isEqualTo("bob");
+    assertThat(toVariant(rows.get(3)).getFieldByKey("age").getLong()).isEqualTo(41L);
+
+    sql("DROP TABLE IF EXISTS %s", table);
+  }
+
+  @Test
+  void readShreddedIncrementalAppendScan() throws NoSuchTableException, ParseException {
+    String table = CATALOG + ".default.var_shredded_incremental";
+    writeUnshreddedThenShreddedFile(
+        table, "{\"name\":\"bob\",\"age\":25}", "{\"name\":\"carol\",\"age\":41}");
+
+    Table icebergTable = Spark3Util.loadIcebergTable(spark, table);
+    long unshreddedSnapshotId = icebergTable.currentSnapshot().parentId();
+    Map<String, String> incremental =
+        ImmutableMap.of(SparkReadOptions.START_SNAPSHOT_ID, String.valueOf(unshreddedSnapshotId));
+
+    List<Row> rows = assertVectorizedMatchesRowReader(table, incremental);
+    assertThat(rows).extracting(row -> row.getLong(0)).containsExactly(2L, 3L, 4L);
+
+    sql("DROP TABLE IF EXISTS %s", table);
+  }
+
+  @Test
+  void readMixedShreddedAndUnshreddedFiles()
+      throws IOException, NoSuchTableException, ParseException {
+    String table = CATALOG + ".default.var_mixed_files";
+    writeUnshreddedThenShreddedFile(table, "{\"a\":[1,2]}", "{\"a\":[3]}");
 
     Table icebergTable = Spark3Util.loadIcebergTable(spark, table);
     assertThat(shreddedFiles(icebergTable)).containsExactlyInAnyOrder(false, true);
@@ -648,6 +703,33 @@ public class TestSparkVariantRead extends TestBase {
     sql("DROP TABLE IF EXISTS %s", table);
   }
 
+  @Test
+  void readShreddedVariantAfterDelete() throws IOException, NoSuchTableException, ParseException {
+    String table = CATALOG + ".default.var_shredded_delete";
+    sql("DROP TABLE IF EXISTS %s", table);
+    sql(
+        "CREATE TABLE %s (id BIGINT, v VARIANT) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', '%s'='%s')",
+        table, TableProperties.DELETE_MODE, RowLevelOperationMode.MERGE_ON_READ.modeName());
+    insertShredded(
+        "INSERT INTO %s SELECT /*+ COALESCE(1) */ * FROM ("
+            + "SELECT 1L AS id, parse_json('{\"name\":\"alice\",\"age\":30}') AS v "
+            + "UNION ALL SELECT 2L, parse_json('{\"name\":\"bob\",\"age\":25}') "
+            + "UNION ALL SELECT 3L, parse_json('{\"name\":\"carol\",\"age\":41}'))",
+        table);
+    sql("DELETE FROM %s WHERE id = 2", table);
+
+    Table icebergTable = Spark3Util.loadIcebergTable(spark, table);
+    assertHasTypedValueSubtree(icebergTable);
+    assertThat(icebergTable.currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.ADDED_DVS_PROP, "1");
+
+    List<Row> rows = assertVectorizedMatchesRowReader(table);
+    assertThat(rows).extracting(row -> row.getLong(0)).containsExactly(1L, 3L);
+
+    sql("DROP TABLE IF EXISTS %s", table);
+  }
+
   private void setVectorization(boolean on) {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
@@ -679,13 +761,38 @@ public class TestSparkVariantRead extends TestBase {
     return false;
   }
 
+  private void writeUnshreddedThenShreddedFile(String table, String thirdValue, String fourthValue)
+      throws NoSuchTableException {
+    sql("DROP TABLE IF EXISTS %s", table);
+    sql(
+        "CREATE TABLE %s (id BIGINT, v VARIANT) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        table);
+    spark
+        .sql("SELECT 1L AS id, parse_json('{\"name\":\"alice\",\"age\":30}') AS v")
+        .coalesce(1)
+        .writeTo(table)
+        .append();
+    insertShredded(
+        "INSERT INTO %s SELECT /*+ COALESCE(1) */ * FROM ("
+            + "SELECT 2L AS id, CAST(NULL AS VARIANT) AS v "
+            + "UNION ALL SELECT 3L, parse_json('%s') "
+            + "UNION ALL SELECT 4L, parse_json('%s'))",
+        table, thirdValue, fourthValue);
+  }
+
   private void insertShredded(String query, Object... args) {
     withSQLConf(ImmutableMap.of(SparkSQLProperties.SHRED_VARIANTS, "true"), () -> sql(query, args));
   }
 
   private List<Row> assertVectorizedMatchesRowReader(String table) {
-    List<Row> expected = readSortedById(table, false);
-    List<Row> actual = readSortedById(table, true);
+    return assertVectorizedMatchesRowReader(table, ImmutableMap.of());
+  }
+
+  private List<Row> assertVectorizedMatchesRowReader(
+      String table, Map<String, String> readOptions) {
+    List<Row> expected = readSortedById(table, false, readOptions);
+    List<Row> actual = readSortedById(table, true, readOptions);
 
     assertThat(actual).hasSameSizeAs(expected);
     for (int i = 0; i < expected.size(); i += 1) {
@@ -704,11 +811,12 @@ public class TestSparkVariantRead extends TestBase {
     return actual;
   }
 
-  private List<Row> readSortedById(String table, boolean vectorized) {
+  private List<Row> readSortedById(
+      String table, boolean vectorized, Map<String, String> readOptions) {
     setVectorization(table, vectorized);
+    Dataset<Row> df = spark.read().options(readOptions).table(table).select("id", "v");
     List<Row> rows = Lists.newArrayList();
-    SparkPlan plan =
-        executeAndKeepPlan(() -> rows.addAll(spark.table(table).select("id", "v").collectAsList()));
+    SparkPlan plan = executeAndKeepPlan(() -> rows.addAll(df.collectAsList()));
     assertColumnarScan(plan, vectorized);
 
     rows.sort(Comparator.comparingLong(row -> row.getLong(0)));
