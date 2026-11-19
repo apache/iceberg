@@ -34,7 +34,7 @@ public class TestReaderFactoryProviders {
 
   /**
    * Passes every partition to the delegate and counts them, checking that each is an {@link
-   * IcebergInputPartition} of file scan tasks.
+   * HasScanTaskGroup} of file scan tasks.
    */
   public static class Counting implements PartitionReaderFactoryProvider {
     static final String NAME = "test-counting";
@@ -104,7 +104,7 @@ public class TestReaderFactoryProviders {
     }
 
     private static void inspect(InputPartition partition) {
-      IcebergInputPartition iceberg = (IcebergInputPartition) partition;
+      HasScanTaskGroup iceberg = (HasScanTaskGroup) partition;
       if (!iceberg.allTasksOfType(FileScanTask.class) || iceberg.projection() == null) {
         throw new IllegalStateException("Unexpected partition: " + partition);
       }

@@ -237,8 +237,7 @@ public class RewriteDataFilesSparkAction
             : new BinPackRewriteFilePlanner(table, filter, startingSnapshotId, caseSensitive);
 
     String providerName = runnerProviderName();
-    if (providerName != null
-        && (runner == null || runner instanceof SparkBinPackFileRewriteRunner)) {
+    if (providerName != null && (runner == null || runner instanceof SupportsRunnerProvider)) {
       FileRewriteRunner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> provided =
           providedRunner(providerName);
       if (provided != null) {
@@ -257,7 +256,7 @@ public class RewriteDataFilesSparkAction
   private String runnerProviderName() {
     String fromOption = options().get(REWRITE_RUNNER_PROVIDER);
     Preconditions.checkArgument(
-        fromOption == null || runner == null || runner instanceof SparkBinPackFileRewriteRunner,
+        fromOption == null || runner == null || runner instanceof SupportsRunnerProvider,
         "Cannot use %s with %s: it applies to bin-pack rewrites only",
         REWRITE_RUNNER_PROVIDER,
         runner == null ? null : runner.description());

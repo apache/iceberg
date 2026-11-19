@@ -26,11 +26,14 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.spark.sql.connector.read.InputPartition;
 
 /**
- * The input partition of an Iceberg batch scan, as a {@link PartitionReaderFactoryProvider}'s
- * factory receives it: the task group to read, with each task's delete files already chosen by
- * Iceberg's planning, and what the rows must look like.
+ * An input partition that exposes the Iceberg scan task group it reads: the tasks, with each task's
+ * delete files already chosen by Iceberg's planning, and what the rows must look like.
+ *
+ * <p>This is the one type a {@link PartitionReaderFactoryProvider}'s factory needs to check, in the
+ * style of Spark's {@code HasPartitionKey}; the input partitions of Iceberg's batch scans implement
+ * it, and nothing else about them is part of the contract.
  */
-public interface IcebergInputPartition extends InputPartition {
+public interface HasScanTaskGroup extends InputPartition {
 
   /** The scan tasks of this partition. */
   <T extends ScanTask> ScanTaskGroup<T> taskGroup();

@@ -30,7 +30,7 @@ import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.HasPartitionKey;
 
-class SparkInputPartition implements IcebergInputPartition, HasPartitionKey, Serializable {
+class SparkInputPartition implements HasScanTaskGroup, HasPartitionKey, Serializable {
   private final Types.StructType groupingKeyType;
   private final ScanTaskGroup<?> taskGroup;
   private final Broadcast<Table> tableBroadcast;
