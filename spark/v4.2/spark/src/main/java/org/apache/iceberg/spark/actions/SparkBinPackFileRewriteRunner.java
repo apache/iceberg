@@ -27,7 +27,8 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 
-class SparkBinPackFileRewriteRunner extends SparkDataFileRewriteRunner {
+class SparkBinPackFileRewriteRunner extends SparkDataFileRewriteRunner
+    implements SupportsRunnerProvider {
 
   SparkBinPackFileRewriteRunner(SparkSession spark, Table table) {
     super(spark, table);
