@@ -35,6 +35,7 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.ImmutableOrcBatchReadConf;
 import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
 import org.apache.iceberg.spark.OrcBatchReadConf;
@@ -64,6 +65,7 @@ class SparkBatch implements Batch {
   private final boolean executorCacheLocalityEnabled;
   private final int scanHashCode;
   private final boolean cacheDeleteFilesOnExecutors;
+  private final PartitionReaderFactory rowReaderFactory;
 
   SparkBatch(
       JavaSparkContext sparkContext,
@@ -74,6 +76,28 @@ class SparkBatch implements Batch {
       List<? extends ScanTaskGroup<?>> taskGroups,
       Schema projection,
       int scanHashCode) {
+    this(
+        sparkContext,
+        table,
+        fileIO,
+        readConf,
+        groupingKeyType,
+        taskGroups,
+        projection,
+        scanHashCode,
+        new SparkRowReaderFactory());
+  }
+
+  SparkBatch(
+      JavaSparkContext sparkContext,
+      Table table,
+      Supplier<FileIO> fileIO,
+      SparkReadConf readConf,
+      Types.StructType groupingKeyType,
+      List<? extends ScanTaskGroup<?>> taskGroups,
+      Schema projection,
+      int scanHashCode,
+      PartitionReaderFactory rowReaderFactory) {
     this.sparkContext = sparkContext;
     this.table = table;
     this.fileIO = fileIO;
@@ -86,6 +110,8 @@ class SparkBatch implements Batch {
     this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
     this.scanHashCode = scanHashCode;
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
+    this.rowReaderFactory =
+        Preconditions.checkNotNull(rowReaderFactory, "Invalid row reader factory: null");
   }
 
   @Override
@@ -139,7 +165,7 @@ class SparkBatch implements Batch {
       return new SparkColumnarReaderFactory(orcBatchReadConf());
 
     } else {
-      return new SparkRowReaderFactory();
+      return rowReaderFactory;
     }
   }
 

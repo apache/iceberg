@@ -54,7 +54,7 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
         partition.table(),
         partition.io(),
         partition.taskGroup(),
-        ChangelogUtil.dropChangelogMetadata(partition.projection()),
+        partition.projection(),
         partition.isCaseSensitive(),
         partition.cacheDeleteFilesOnExecutors());
   }
@@ -63,10 +63,16 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
       Table table,
       FileIO fileIO,
       ScanTaskGroup<ChangelogScanTask> taskGroup,
-      Schema dataSchema,
+      Schema expectedSchema,
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
-    super(table, fileIO, taskGroup, dataSchema, caseSensitive, cacheDeleteFilesOnExecutors);
+    super(
+        table,
+        fileIO,
+        taskGroup,
+        ChangelogUtil.dropChangelogMetadata(expectedSchema),
+        caseSensitive,
+        cacheDeleteFilesOnExecutors);
   }
 
   @Override
@@ -77,16 +83,19 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
   }
 
   Function<InternalRow, InternalRow> rowMapper(ChangelogScanTask task) {
-    InternalRow metadata =
-        new GenericInternalRow(
-            new Object[] {
-              UTF8String.fromString(task.operation().name()),
-              task.changeOrdinal(),
-              task.commitSnapshotId()
-            });
-    JoinedRow row = new JoinedRow();
-    row.withRight(metadata);
-    return row::withLeft;
+    JoinedRow cdcRow = new JoinedRow();
+    cdcRow.withRight(changelogMetadata(task));
+    return cdcRow::withLeft;
+  }
+
+  private static InternalRow changelogMetadata(ChangelogScanTask task) {
+    InternalRow metadataRow = new GenericInternalRow(3);
+
+    metadataRow.update(0, UTF8String.fromString(task.operation().name()));
+    metadataRow.update(1, task.changeOrdinal());
+    metadataRow.update(2, task.commitSnapshotId());
+
+    return metadataRow;
   }
 
   private CloseableIterable<InternalRow> openChangelogScanTask(ChangelogScanTask task) {

@@ -38,6 +38,7 @@ import org.apache.spark.sql.connector.catalog.ChangelogContext.DeduplicationMode
 import org.apache.spark.sql.connector.catalog.ChangelogRange;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
+import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.SupportsPushDownLimit;
 import org.apache.spark.sql.connector.read.SupportsPushDownRequiredColumns;
@@ -131,7 +132,14 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
 
     Schema projection = projectionWithMetadataColumns();
     IncrementalChangelogScan scan = buildIcebergScan(projection, startSnapshotId, endSnapshotId);
-    return newScan(scan, projection, startSnapshotId, endSnapshotId, Set.of(), false);
+    return newScan(
+        scan,
+        projection,
+        startSnapshotId,
+        endSnapshotId,
+        Set.of(),
+        false,
+        new SparkRowReaderFactory());
   }
 
   Scan build(ChangelogContext context, Schema outputSchema) {
@@ -143,6 +151,7 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
 
   private SparkChangelogScan build(
       ChangelogContext context, Schema outputSchema, Long endSnapshotId) {
+    PartitionReaderFactory readerFactory = new SparkChangelogRowReader.Factory();
     Snapshot oldest = null;
     Snapshot latest = null;
     Set<Long> excludedSnapshotIds = Sets.newHashSet();
@@ -161,7 +170,8 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
     }
 
     if (oldest == null) {
-      return newScan(null, outputSchema, null, null, Set.of(), requiresPostProcessing(context));
+      return newScan(
+          null, outputSchema, null, null, Set.of(), requiresPostProcessing(context), readerFactory);
     }
 
     IncrementalChangelogScan scan =
@@ -172,7 +182,8 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
         oldest.parentId(),
         latest.snapshotId(),
         excludedSnapshotIds,
-        requiresPostProcessing(context));
+        requiresPostProcessing(context),
+        readerFactory);
   }
 
   private SparkChangelogScan newScan(
@@ -181,7 +192,8 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
       Long startSnapshotId,
       Long endSnapshotId,
       Set<Long> excludedSnapshotIds,
-      boolean requiresRowLineage) {
+      boolean requiresRowLineage,
+      PartitionReaderFactory readerFactory) {
     return new SparkChangelogScan(
         spark(),
         table(),
@@ -192,7 +204,8 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
         startSnapshotId,
         endSnapshotId,
         excludedSnapshotIds,
-        requiresRowLineage);
+        requiresRowLineage,
+        readerFactory);
   }
 
   private IncrementalChangelogScan buildIcebergScan(
@@ -219,7 +232,14 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
   }
 
   private SparkChangelogScan emptyChangelogScan() {
-    return newScan(null, projectionWithMetadataColumns(), null, null, Set.of(), false);
+    return newScan(
+        null,
+        projectionWithMetadataColumns(),
+        null,
+        null,
+        Set.of(),
+        false,
+        new SparkRowReaderFactory());
   }
 
   private boolean noSnapshotsAfter(long timestamp) {

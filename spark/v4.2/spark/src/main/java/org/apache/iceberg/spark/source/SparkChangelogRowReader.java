@@ -36,6 +36,8 @@ import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.expressions.JoinedRow;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.connector.catalog.Changelog;
+import org.apache.spark.sql.connector.read.InputPartition;
+import org.apache.spark.sql.connector.read.PartitionReader;
 import org.apache.spark.unsafe.types.UTF8String;
 import scala.jdk.javaapi.CollectionConverters;
 
@@ -98,5 +100,16 @@ class SparkChangelogRowReader extends ChangelogRowReader {
       case UPDATE_BEFORE -> Changelog.CHANGE_TYPE_UPDATE_PREIMAGE;
       case UPDATE_AFTER -> Changelog.CHANGE_TYPE_UPDATE_POSTIMAGE;
     };
+  }
+
+  static class Factory extends SparkRowReaderFactory {
+    @Override
+    public PartitionReader<InternalRow> createReader(InputPartition inputPartition) {
+      Preconditions.checkArgument(
+          inputPartition instanceof SparkInputPartition,
+          "Unknown input partition type: %s",
+          inputPartition.getClass().getName());
+      return new SparkChangelogRowReader((SparkInputPartition) inputPartition);
+    }
   }
 }

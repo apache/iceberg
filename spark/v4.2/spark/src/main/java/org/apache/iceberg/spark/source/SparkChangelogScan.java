@@ -43,6 +43,7 @@ import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Batch;
+import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
@@ -62,6 +63,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   private final Long endSnapshotId;
   private final Set<Long> excludedSnapshotIds;
   private final boolean requiresRowLineage;
+  private final PartitionReaderFactory readerFactory;
 
   // lazy variables
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups = null;
@@ -77,7 +79,8 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
       Long startSnapshotId,
       Long endSnapshotId,
       Set<Long> excludedSnapshotIds,
-      boolean requiresRowLineage) {
+      boolean requiresRowLineage,
+      PartitionReaderFactory readerFactory) {
 
     SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), projection);
 
@@ -91,6 +94,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
     this.endSnapshotId = endSnapshotId;
     this.excludedSnapshotIds = Set.copyOf(excludedSnapshotIds);
     this.requiresRowLineage = requiresRowLineage;
+    this.readerFactory = Preconditions.checkNotNull(readerFactory, "Invalid reader factory: null");
     if (scan == null) {
       this.taskGroups = Collections.emptyList();
     }
@@ -122,7 +126,8 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         EMPTY_GROUPING_KEY_TYPE,
         taskGroups(),
         projection,
-        hashCode());
+        hashCode(),
+        readerFactory);
   }
 
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups() {
@@ -174,10 +179,6 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
   @Override
   public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
@@ -191,6 +192,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         && Objects.equals(endSnapshotId, that.endSnapshotId)
         && excludedSnapshotIds.equals(that.excludedSnapshotIds)
         && requiresRowLineage == that.requiresRowLineage
+        && readerFactory.getClass().equals(that.readerFactory.getClass())
         && (scan == null) == (that.scan == null);
   }
 
@@ -205,6 +207,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         endSnapshotId,
         excludedSnapshotIds,
         requiresRowLineage,
+        readerFactory.getClass(),
         scan == null);
   }
 
