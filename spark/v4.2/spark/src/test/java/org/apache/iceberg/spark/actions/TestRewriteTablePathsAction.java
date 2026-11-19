@@ -18,7 +18,8 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import static org.apache.iceberg.spark.actions.RewriteTablePathResultAssert.assertThat;
+import static org.apache.iceberg.actions.RewriteTablePathResultAssert.assertThat;
+import static org.apache.iceberg.spark.actions.RewriteTablePathSparkAction.NOT_APPLICABLE;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -1837,7 +1838,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertThat(result)
         .hasLatestVersion("v3.metadata.json")
         .as("File list location should not be set when createFileList is false")
-        .hasNoFileList();
+        .hasFileListLocation(NOT_APPLICABLE);
   }
 
   @TestTemplate

@@ -16,9 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.actions;
-
-import static org.apache.iceberg.spark.actions.RewriteTablePathSparkAction.NOT_APPLICABLE;
+package org.apache.iceberg.actions;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -34,11 +32,10 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.RewriteTablePathUtil;
-import org.apache.iceberg.actions.RewriteTablePath;
 import org.apache.iceberg.util.Pair;
 import org.assertj.core.api.AbstractAssert;
 
-class RewriteTablePathResultAssert
+public class RewriteTablePathResultAssert
     extends AbstractAssert<RewriteTablePathResultAssert, RewriteTablePath.Result> {
 
   private enum FileKind {
@@ -73,15 +70,15 @@ class RewriteTablePathResultAssert
   private final Set<FileKind> checkedKinds = EnumSet.noneOf(FileKind.class);
   private Map<FileKind, List<Pair<String, String>>> filesByKind;
 
-  RewriteTablePathResultAssert(RewriteTablePath.Result actual) {
+  public RewriteTablePathResultAssert(RewriteTablePath.Result actual) {
     super(actual, RewriteTablePathResultAssert.class);
   }
 
-  static RewriteTablePathResultAssert assertThat(RewriteTablePath.Result actual) {
+  public static RewriteTablePathResultAssert assertThat(RewriteTablePath.Result actual) {
     return new RewriteTablePathResultAssert(actual);
   }
 
-  RewriteTablePathResultAssert hasLatestVersion(String expected) {
+  public RewriteTablePathResultAssert hasLatestVersion(String expected) {
     isNotNull();
     if (!Objects.equals(actual.latestVersion(), expected)) {
       failWithMessage("Expected latest version %s but was %s", expected, actual.latestVersion());
@@ -90,7 +87,7 @@ class RewriteTablePathResultAssert
     return myself;
   }
 
-  RewriteTablePathResultAssert hasRewrittenDeleteFilePaths(int expected) {
+  public RewriteTablePathResultAssert hasRewrittenDeleteFilePaths(int expected) {
     isNotNull();
     if (actual.rewrittenDeleteFilePathsCount() != expected) {
       failWithMessage(
@@ -101,40 +98,41 @@ class RewriteTablePathResultAssert
     return myself;
   }
 
-  RewriteTablePathResultAssert hasNoFileList() {
+  public RewriteTablePathResultAssert hasFileListLocation(String expected) {
     isNotNull();
-    if (!NOT_APPLICABLE.equals(actual.fileListLocation())) {
-      failWithMessage("Expected no file list but found %s", actual.fileListLocation());
+    if (!Objects.equals(actual.fileListLocation(), expected)) {
+      failWithMessage(
+          "Expected file list location %s but was %s", expected, actual.fileListLocation());
     }
 
     return myself;
   }
 
-  RewriteTablePathResultAssert hasVersionFiles(int expected) {
+  public RewriteTablePathResultAssert hasVersionFiles(int expected) {
     return hasFiles(FileKind.VERSION_FILE, expected);
   }
 
-  RewriteTablePathResultAssert hasManifestLists(int expected) {
+  public RewriteTablePathResultAssert hasManifestLists(int expected) {
     return hasFiles(FileKind.MANIFEST_LIST, expected);
   }
 
-  RewriteTablePathResultAssert hasManifests(int expected) {
+  public RewriteTablePathResultAssert hasManifests(int expected) {
     return hasFiles(FileKind.MANIFEST, expected);
   }
 
-  RewriteTablePathResultAssert hasStatisticsFiles(int expected) {
+  public RewriteTablePathResultAssert hasStatisticsFiles(int expected) {
     return hasFiles(FileKind.STATISTICS_FILE, expected);
   }
 
-  RewriteTablePathResultAssert hasPartitionStatisticsFiles(int expected) {
+  public RewriteTablePathResultAssert hasPartitionStatisticsFiles(int expected) {
     return hasFiles(FileKind.PARTITION_STATISTICS_FILE, expected);
   }
 
-  RewriteTablePathResultAssert hasContentFiles(int expected) {
+  public RewriteTablePathResultAssert hasContentFiles(int expected) {
     return hasFiles(FileKind.CONTENT_FILE, expected);
   }
 
-  void hasNoOtherFiles() {
+  public void hasNoOtherFiles() {
     isNotNull();
     Map<FileKind, List<String>> unchecked = new EnumMap<>(FileKind.class);
     filesByKind()
@@ -151,12 +149,12 @@ class RewriteTablePathResultAssert
     }
   }
 
-  RewriteTablePathResultAssert hasStatisticsFilesCopiedAsIs(
+  public RewriteTablePathResultAssert hasStatisticsFilesCopiedAsIs(
       String sourcePrefix, String targetPrefix) {
     return hasFilesCopiedAsIs(FileKind.STATISTICS_FILE, sourcePrefix, targetPrefix);
   }
 
-  RewriteTablePathResultAssert hasPartitionStatisticsFilesCopiedAsIs(
+  public RewriteTablePathResultAssert hasPartitionStatisticsFilesCopiedAsIs(
       String sourcePrefix, String targetPrefix) {
     return hasFilesCopiedAsIs(FileKind.PARTITION_STATISTICS_FILE, sourcePrefix, targetPrefix);
   }
