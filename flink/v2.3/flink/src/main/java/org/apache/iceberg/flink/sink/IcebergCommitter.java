@@ -329,9 +329,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     // Check again inside the commit, because another commit for this checkpoint can land after the
     // up-front getMaxCommittedCheckpointIdBySink() read.
     operation.validateWith(
-        new SinkUtil.MaxCommittedCheckpointIdValidator(
-            checkpointId,
-            snapshotSummary -> SinkUtil.writtenBySameSink(snapshotSummary, sinkId, operatorId)));
+        new SinkUtil.MaxCommittedCheckpointIdValidator(checkpointId, sinkId, operatorId));
 
     long startNano = System.nanoTime();
     try {

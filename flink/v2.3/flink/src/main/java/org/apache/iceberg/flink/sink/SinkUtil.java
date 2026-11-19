@@ -30,7 +30,6 @@ import static org.apache.iceberg.TableProperties.PARQUET_VARIANT_BUFFER_SIZE;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.FileFormat;
@@ -145,32 +144,22 @@ public class SinkUtil {
   }
 
   /**
-   * Validates, inside the commit, that the target branch does not already contain a commit for the
-   * staged checkpoint.
+   * Rejects a commit when the branch already contains a commit for the staged checkpoint ID.
    *
-   * <p>The committers read the max committed checkpoint ID before they commit. Another commit for
-   * the same checkpoint can land after that read, for example when a slow commit succeeds after the
-   * committer gave up and the request is redelivered on recovery, or when an old and a new job
-   * commit the same restored checkpoint. The base ancestry is refreshed before every commit
-   * attempt, so this validator sees such a commit and rejects the duplicate with a {@link
-   * MaxCommittedCheckpointMismatchException}.
-   *
-   * <p>Shared by {@link IcebergCommitter} and {@code DynamicCommitter}, which identify their own
-   * snapshots differently, so the caller supplies the {@code writtenBySameSink} predicate.
+   * <p>Throws {@link MaxCommittedCheckpointMismatchException} instead of returning false. Callers
+   * must catch it to skip the duplicate commit.
    */
   @Internal
   public static class MaxCommittedCheckpointIdValidator implements SnapshotAncestryValidator {
     private final long stagedCheckpointId;
-    private final Predicate<Map<String, String>> writtenBySameSink;
+    private final String sinkId;
+    private final String operatorId;
 
-    /**
-     * @param stagedCheckpointId the checkpoint ID that is being committed
-     * @param writtenBySameSink returns true for snapshot summaries that the committing sink wrote
-     */
     public MaxCommittedCheckpointIdValidator(
-        long stagedCheckpointId, Predicate<Map<String, String>> writtenBySameSink) {
+        long stagedCheckpointId, String sinkId, String operatorId) {
       this.stagedCheckpointId = stagedCheckpointId;
-      this.writtenBySameSink = writtenBySameSink;
+      this.sinkId = sinkId;
+      this.operatorId = operatorId;
     }
 
     @Override
@@ -178,7 +167,7 @@ public class SinkUtil {
       long maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
       for (Snapshot ancestor : baseSnapshots) {
         Map<String, String> summary = ancestor.summary();
-        if (writtenBySameSink.test(summary)) {
+        if (writtenBySameSink(summary, sinkId, operatorId)) {
           String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
           if (value != null) {
             maxCommittedCheckpointId = Long.parseLong(value);
