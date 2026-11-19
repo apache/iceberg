@@ -271,13 +271,13 @@ Index entries are ordered by the [ordering key](#ordering-key) produced for each
 the fields in `ordering-key` order: index entries are compared by the value of the first field, and the next field is
 used only when the preceding values compare as equal. Each field is ordered ascending.
 
-Primitive values are compared using the rules defined in the
-[expressions specification](expressions-spec.md#comparisons), extended so that null and NaN values have a defined
-position in the ordering:
+Primitive values are compared as follows:
 
 - `null` values are ordered before all other values (nulls-first)
 - `float` and `double` values are ordered `-NaN` < `-Infinity` < `-value` < `-0.0` < `0.0` < `value` < `Infinity` <
   `NaN`, as defined by [sorting](spec.md#sorting) in the table specification
+- Values of other types are compared using the rules defined in the
+  [expressions specification](expressions-spec.md#comparisons)
 
 #### Tracking File
 
