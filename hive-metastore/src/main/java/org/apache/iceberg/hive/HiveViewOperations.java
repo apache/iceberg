@@ -152,7 +152,15 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
       }
 
       String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
-      updateHmsTable(tbl, base, metadata, baseMetadataLocation, newMetadataLocation);
+      String metadataLocation =
+          tbl.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
+      if (!Objects.equals(baseMetadataLocation, metadataLocation)) {
+        throw new CommitFailedException(
+            "Cannot commit: Base metadata location '%s' is not same as the current view metadata location '%s' for %s.%s",
+            baseMetadataLocation, metadataLocation, database, viewName);
+      }
+
+      updateHmsTable(tbl, base, metadata, newMetadataLocation);
       lock.ensureActive();
 
       try {
@@ -250,22 +258,11 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
   }
 
   private void updateHmsTable(
-      Table tbl,
-      ViewMetadata base,
-      ViewMetadata metadata,
-      String baseMetadataLocation,
-      String newMetadataLocation) {
+      Table tbl, ViewMetadata base, ViewMetadata metadata, String newMetadataLocation) {
+    // set to pick up any schema changes
     tbl.setSd(
         HiveOperationsBase.storageDescriptor(
-            metadata.schema(), metadata.location(), false)); // set to pick up any schema changes
-
-    String metadataLocation =
-        tbl.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
-    if (!Objects.equals(baseMetadataLocation, metadataLocation)) {
-      throw new CommitFailedException(
-          "Cannot commit: Base metadata location '%s' is not same as the current view metadata location '%s' for %s.%s",
-          baseMetadataLocation, metadataLocation, database, viewName);
-    }
+            metadata.schema(), metadata.location(), false /* hiveEngineEnabled */));
 
     // get Iceberg props that have been removed
     Set<String> removedProps = emptySet();
@@ -275,6 +272,7 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
               .filter(key -> !metadata.properties().containsKey(key))
               .collect(Collectors.toSet());
     }
+
     HMSTablePropertyHelper.updateHmsTableForIcebergView(
         newMetadataLocation,
         tbl,
