@@ -182,8 +182,14 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
       throw new ValidationException(
           "Invalid value for conversion to type %s: %s (%s)",
           boundTerm.type(), literal().value(), literal().value().getClass().getName());
+    }
 
-    } else if (lit == Literals.aboveMax()) {
+    Expression floatOrdering = bindOutOfRangeFloatOrdering(boundTerm, lit);
+    if (floatOrdering != null) {
+      return floatOrdering;
+    }
+
+    if (lit == Literals.aboveMax()) {
       switch (op()) {
         case LT:
         case LT_EQ:
@@ -209,6 +215,25 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
 
     // TODO: translate truncate(col) == value to startsWith(value)
     return new BoundLiteralPredicate<>(op(), boundTerm, lit);
+  }
+
+  private Expression bindOutOfRangeFloatOrdering(BoundTerm<T> boundTerm, Literal<T> lit) {
+    if (boundTerm.type().equals(Types.FloatType.get())
+        && (lit == Literals.aboveMax() || lit == Literals.belowMin())) {
+      // Infinities and NaN are valid float values beyond the finite range.
+      boolean aboveMax = lit == Literals.aboveMax();
+      Literal<T> boundary =
+          Literals.from(aboveMax ? Float.MAX_VALUE : -Float.MAX_VALUE).to(boundTerm.type());
+      if (op() == Operation.LT || op() == Operation.LT_EQ) {
+        return new BoundLiteralPredicate<>(
+            aboveMax ? Operation.LT_EQ : Operation.LT, boundTerm, boundary);
+      } else if (op() == Operation.GT || op() == Operation.GT_EQ) {
+        return new BoundLiteralPredicate<>(
+            aboveMax ? Operation.GT : Operation.GT_EQ, boundTerm, boundary);
+      }
+    }
+
+    return null;
   }
 
   private Expression bindInOperation(BoundTerm<T> boundTerm) {

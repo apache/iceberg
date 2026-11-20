@@ -49,9 +49,12 @@ import java.util.Collections;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 public class TestEvaluator {
   private static final StructType STRUCT =
@@ -86,6 +89,72 @@ public class TestEvaluator {
                       "s6",
                       Types.StructType.of(
                           Types.NestedField.required(23, "f", Types.FloatType.get()))))));
+
+  @ParameterizedTest
+  @EnumSource(
+      value = Operation.class,
+      names = {"LT", "LT_EQ", "GT", "GT_EQ", "EQ", "NOT_EQ"})
+  void floatComparisonsWithDoubleBounds(Operation operation) {
+    StructType floatStruct = StructType.of(optional(1, "value", Types.FloatType.get()));
+    StructType doubleStruct = StructType.of(optional(1, "value", Types.DoubleType.get()));
+    Float[] values = {
+      null,
+      Float.NEGATIVE_INFINITY,
+      -Float.MAX_VALUE,
+      -1.0F,
+      0.0F,
+      1.0F,
+      Float.MAX_VALUE,
+      Float.POSITIVE_INFINITY,
+      Float.NaN
+    };
+    for (double bound :
+        new double[] {-1e100, 1e100, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY}) {
+      Expression expression = predicate(operation, "value", bound);
+      Evaluator floatEvaluator = new Evaluator(floatStruct, expression);
+      Evaluator doubleEvaluator = new Evaluator(doubleStruct, expression);
+      for (Float value : values) {
+        Double widened = value == null ? null : value.doubleValue();
+        assertThat(floatEvaluator.eval(TestHelpers.Row.of(value)))
+            .as("%s %s %s", value, operation, bound)
+            .isEqualTo(doubleEvaluator.eval(TestHelpers.Row.of(widened)));
+      }
+    }
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = Operation.class,
+      names = {"IN", "NOT_IN"})
+  void floatSetsWithDoubleInfinities(Operation operation) {
+    StructType floatStruct = StructType.of(optional(1, "value", Types.FloatType.get()));
+    StructType doubleStruct = StructType.of(optional(1, "value", Types.DoubleType.get()));
+    for (Double[] bounds :
+        new Double[][] {
+          {Double.NEGATIVE_INFINITY},
+          {Double.POSITIVE_INFINITY},
+          {Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY}
+        }) {
+      Expression expression = predicate(operation, "value", Arrays.asList(bounds));
+      Evaluator floatEvaluator = new Evaluator(floatStruct, expression);
+      Evaluator doubleEvaluator = new Evaluator(doubleStruct, expression);
+      for (Float value :
+          new Float[] {
+            null,
+            Float.NEGATIVE_INFINITY,
+            -Float.MAX_VALUE,
+            0.0F,
+            Float.MAX_VALUE,
+            Float.POSITIVE_INFINITY,
+            Float.NaN
+          }) {
+        Double widened = value == null ? null : value.doubleValue();
+        assertThat(floatEvaluator.eval(TestHelpers.Row.of(value)))
+            .as("%s %s %s", value, operation, Arrays.toString(bounds))
+            .isEqualTo(doubleEvaluator.eval(TestHelpers.Row.of(widened)));
+      }
+    }
+  }
 
   @Test
   public void testLessThan() {

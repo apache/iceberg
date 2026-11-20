@@ -370,6 +370,10 @@ class Literals {
     public <T> Literal<T> to(Type type) {
       switch (type.typeId()) {
         case FLOAT:
+          if (value().isInfinite()) {
+            return (Literal<T>) new FloatLiteral(value().floatValue());
+          }
+
           if ((double) Float.MAX_VALUE < value()) {
             return aboveMax();
           } else if ((double) -Float.MAX_VALUE > value()) {
