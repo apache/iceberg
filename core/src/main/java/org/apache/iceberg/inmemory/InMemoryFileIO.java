@@ -36,7 +36,7 @@ public class InMemoryFileIO implements FileIO, SupportsPrefixOperations {
   private static class InMemoryFile extends FileInfo {
     private final byte[] content;
 
-    public InMemoryFile(String location, long size, long createdAtMillis, byte[] content) {
+    private InMemoryFile(String location, long size, long createdAtMillis, byte[] content) {
       super(location, size, createdAtMillis);
       Preconditions.checkArgument(content != null, "Invalid content: null");
       this.content = content;
@@ -71,7 +71,7 @@ public class InMemoryFileIO implements FileIO, SupportsPrefixOperations {
       return info.content;
     }
 
-    throw new NotFoundException("File does not exist: %s", location);
+    throw new NotFoundException("No in-memory file found for location: %s", location);
   }
 
   public boolean fileExists(String location) {

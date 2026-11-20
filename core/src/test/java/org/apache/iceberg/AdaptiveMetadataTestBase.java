@@ -70,7 +70,7 @@ public class AdaptiveMetadataTestBase {
 
   @BeforeEach
   public void setupTable() throws Exception {
-    this.defaultTable = create(SCHEMA, SPEC, 4);
+    this.defaultTable = create("test", SCHEMA, SPEC, 4);
   }
 
   @AfterEach
@@ -78,8 +78,9 @@ public class AdaptiveMetadataTestBase {
     InMemoryTables.clearTables();
   }
 
-  protected InMemoryTables.Table create(Schema schema, PartitionSpec spec, int formatVersion) {
-    return InMemoryTables.create("test", io, schema, spec, formatVersion);
+  protected InMemoryTables.Table create(
+      String name, Schema schema, PartitionSpec spec, int formatVersion) {
+    return InMemoryTables.create(name, io, schema, spec, formatVersion);
   }
 
   public TableMetadata readMetadata() {
