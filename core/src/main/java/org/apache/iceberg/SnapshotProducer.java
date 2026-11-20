@@ -293,10 +293,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    * manifests as a list.
    *
    * @param metadataToUpdate the base table metadata to apply changes to
-   * @param parent snapshot to apply the changes to; will be the new snapshot's parent
+   * @param snapshot snapshot to apply the changes to; will be the new snapshot's parent
    * @return a manifest list for the new snapshot.
    */
-  protected abstract List<ManifestFile> apply(TableMetadata metadataToUpdate, Snapshot parent);
+  protected abstract List<ManifestFile> apply(TableMetadata metadataToUpdate, Snapshot snapshot);
 
   /** Result type for root file writes implemented by child operations. */
   protected record NewSnapshotMetadata(
