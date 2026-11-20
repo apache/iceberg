@@ -453,7 +453,9 @@ class TrackedFileAdapters {
 
     @Override
     public long sequenceNumber() {
-      return file.tracking() != null ? file.tracking().dataSequenceNumber() : -1;
+      return file.tracking() != null
+          ? file.tracking().dataSequenceNumber()
+          : ManifestWriter.UNASSIGNED_SEQ;
     }
 
     @Override

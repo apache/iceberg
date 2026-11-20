@@ -72,11 +72,6 @@ public class TestAppend extends AdaptiveMetadataTestBase {
 
   @Test
   public void removeDeleteFile() {
-    Table v3Table = create("upgrade_v3_table", SCHEMA, SPEC, 3);
-    v3Table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
-    v3Table.newRowDelta().addDeletes(FILE_A_EQ_DELETES).commit();
-    upgrade("upgrade_v3_table", 4);
-
     MergingSnapshotProducer<?> producer = (MergeAppend) defaultTable.newAppend();
     producer.delete(FILE_A_EQ_DELETES);
     assertThatThrownBy(producer::commit)
@@ -224,7 +219,7 @@ public class TestAppend extends AdaptiveMetadataTestBase {
     Snapshot snapshot = upgraded.currentSnapshot();
     long snapshotId = snapshot.snapshotId();
 
-    List<TrackedFile> rootFiles = readRoot(defaultTable, snapshot);
+    List<TrackedFile> rootFiles = readRoot(upgraded, snapshot);
     validateFiles(
         rootFiles,
         contents(FileContent.DATA, FileContent.DATA_MANIFEST),
