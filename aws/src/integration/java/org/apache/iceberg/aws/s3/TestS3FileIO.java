@@ -291,6 +291,22 @@ public class TestS3FileIO {
     assertThat(Streams.stream(s3FileIO.listPrefix(prefix)).count()).isEqualTo(totalFiles);
   }
 
+  @Test
+  public void prefixListWithAccessPointReturnsBucketLocations() throws IOException {
+    String accessPoint = "access-point";
+    createBucket(accessPoint);
+    S3FileIO accessPointFileIO = new S3FileIO(() -> s3mock);
+    accessPointFileIO.initialize(
+        ImmutableMap.of(S3FileIOProperties.ACCESS_POINTS_PREFIX + "bucket", accessPoint));
+
+    String location = "s3://bucket/path/to/list-access-point/file.txt";
+    accessPointFileIO.newOutputFile(location).create().close();
+
+    assertThat(accessPointFileIO.listPrefix("s3://bucket/path/to/list-access-point/"))
+        .extracting(FileInfo::location)
+        .containsExactly(location);
+  }
+
   /**
    * Tests that we correctly insert the backslash for s3 express buckets. Currently the Adobe S3
    * Mock doesn't cater for express buckets eg. When you call createBucket with s3 express
