@@ -212,16 +212,16 @@ public class ResidualEvaluator implements Serializable {
 
     @Override
     public <T> Expression startsWith(BoundReference<T> ref, Literal<T> lit) {
-      return ((String) ref.eval(struct)).startsWith((String) lit.value())
-          ? alwaysTrue()
-          : alwaysFalse();
+      String value = (String) ref.eval(struct);
+      return value != null && value.startsWith((String) lit.value()) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression notStartsWith(BoundReference<T> ref, Literal<T> lit) {
-      return ((String) ref.eval(struct)).startsWith((String) lit.value())
-          ? alwaysFalse()
-          : alwaysTrue();
+      String value = (String) ref.eval(struct);
+      return value == null || !value.startsWith((String) lit.value())
+          ? alwaysTrue()
+          : alwaysFalse();
     }
 
     @Override
