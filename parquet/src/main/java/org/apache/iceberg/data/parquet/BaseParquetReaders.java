@@ -90,6 +90,9 @@ abstract class BaseParquetReaders<T> {
   protected abstract ParquetValueReader<?> timestampReader(
       ColumnDescriptor desc, boolean isAdjustedToUTC);
 
+  abstract ParquetValueReader<?> int96Reader(
+      ColumnDescriptor desc, TypeID expectedType, boolean isAdjustedToUTC);
+
   protected Object convertConstant(org.apache.iceberg.types.Type type, Object value) {
     return value;
   }
@@ -367,7 +370,10 @@ abstract class BaseParquetReaders<T> {
         case INT96:
           // Impala & Spark used to write timestamps as INT96 without a logical type. For backwards
           // compatibility we try to read INT96 as timestamps.
-          return timestampReader(desc, true);
+          boolean isAdjustedToUTC =
+              Types.TimestampType.withZone().equals(expected)
+                  || Types.TimestampNanoType.withZone().equals(expected);
+          return int96Reader(desc, expected.typeId(), isAdjustedToUTC);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
