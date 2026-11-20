@@ -18,11 +18,17 @@
  */
 package org.apache.iceberg.expressions;
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+
 public class Or implements Expression {
   private final Expression left;
   private final Expression right;
 
   Or(Expression left, Expression right) {
+    Preconditions.checkArgument(
+        !(left instanceof ValueExpression), "Invalid left operand, not a predicate: %s", left);
+    Preconditions.checkArgument(
+        !(right instanceof ValueExpression), "Invalid right operand, not a predicate: %s", right);
     this.left = left;
     this.right = right;
   }

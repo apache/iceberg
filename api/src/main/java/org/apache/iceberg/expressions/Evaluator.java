@@ -44,6 +44,14 @@ public class Evaluator implements Serializable {
     this.expr = Binder.bind(struct, unbound, caseSensitive);
   }
 
+  private Evaluator(Expression bound) {
+    this.expr = bound;
+  }
+
+  static Evaluator ofBound(Expression bound) {
+    return new Evaluator(bound);
+  }
+
   public boolean eval(StructLike data) {
     return new EvalVisitor().eval(data);
   }
@@ -82,6 +90,11 @@ public class Evaluator implements Serializable {
     }
 
     @Override
+    public <T> Boolean predicate(BoundValuePredicate<T> pred) {
+      return pred.eval(struct);
+    }
+
+    @Override
     public <T> Boolean isNull(Bound<T> valueExpr) {
       return valueExpr.eval(struct) == null;
     }
@@ -104,31 +117,36 @@ public class Evaluator implements Serializable {
     @Override
     public <T> Boolean lt(Bound<T> valueExpr, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return cmp.compare(valueExpr.eval(struct), lit.value()) < 0;
+      T value = valueExpr.eval(struct);
+      return BoundLiteralPredicate.isOrdered(value) && cmp.compare(value, lit.value()) < 0;
     }
 
     @Override
     public <T> Boolean ltEq(Bound<T> valueExpr, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return cmp.compare(valueExpr.eval(struct), lit.value()) <= 0;
+      T value = valueExpr.eval(struct);
+      return BoundLiteralPredicate.isOrdered(value) && cmp.compare(value, lit.value()) <= 0;
     }
 
     @Override
     public <T> Boolean gt(Bound<T> valueExpr, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return cmp.compare(valueExpr.eval(struct), lit.value()) > 0;
+      T value = valueExpr.eval(struct);
+      return BoundLiteralPredicate.isOrdered(value) && cmp.compare(value, lit.value()) > 0;
     }
 
     @Override
     public <T> Boolean gtEq(Bound<T> valueExpr, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return cmp.compare(valueExpr.eval(struct), lit.value()) >= 0;
+      T value = valueExpr.eval(struct);
+      return BoundLiteralPredicate.isOrdered(value) && cmp.compare(value, lit.value()) >= 0;
     }
 
     @Override
     public <T> Boolean eq(Bound<T> valueExpr, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return cmp.compare(valueExpr.eval(struct), lit.value()) == 0;
+      T value = valueExpr.eval(struct);
+      return BoundLiteralPredicate.isOrdered(value) && cmp.compare(value, lit.value()) == 0;
     }
 
     @Override

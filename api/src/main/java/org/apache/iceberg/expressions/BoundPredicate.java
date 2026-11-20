@@ -21,7 +21,7 @@ package org.apache.iceberg.expressions;
 import org.apache.iceberg.StructLike;
 
 public abstract class BoundPredicate<T> extends Predicate<T, BoundTerm<T>>
-    implements Bound<Boolean> {
+    implements BoundExpression<Boolean> {
   protected BoundPredicate(Operation op, BoundTerm<T> term) {
     super(op, term);
   }

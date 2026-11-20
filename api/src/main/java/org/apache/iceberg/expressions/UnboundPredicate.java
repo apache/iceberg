@@ -57,7 +57,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
     this.literals = Lists.newArrayList(Iterables.transform(values, Literals::from));
   }
 
-  private UnboundPredicate(Operation op, UnboundTerm<T> term, List<Literal<T>> literals) {
+  UnboundPredicate(Operation op, UnboundTerm<T> term, List<Literal<T>> literals) {
     super(op, term);
     this.literals = literals;
   }
