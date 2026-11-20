@@ -89,3 +89,15 @@ The **snapshot log** is a metadata log of how the table's current snapshot has c
 The log is a list of timestamp and ID pairs: when the current snapshot changed and the snapshot ID the current snapshot was changed to.
 
 The snapshot log is stored in [table metadata as `snapshot-log`](spec.md#table-metadata-fields).
+
+## Mumbling bitmap
+
+A **mumbling bitmap** is a compressed bitmap format used for bounded bitsets such as [deletion vectors](docs/latest/deletion-vectors.md).
+
+Mumbling bitmaps divide the bit space into fixed-size containers that are either sparse or dense, similar to Roaring bitmaps but at a smaller scale. See the [Mumbling Bitmap Spec](mumbling-spec.md).
+
+## Expression
+
+An **expression** is a portable value expression or predicate that Iceberg specifications can store and exchange—for example `CHECK` constraints, default values, and server-side scan planning filters.
+
+Expressions are constrained to constants, references, function calls, and predicates; complex logic is left to a limited set of portable functions or [user-defined functions](udf-spec.md). See the [Expressions Spec](expressions-spec.md).
