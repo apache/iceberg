@@ -96,9 +96,17 @@ public class SortOrder implements Serializable {
       return false;
     }
 
-    // this ordering has either more or the same number of sort fields
+    // this ordering has either more or the same number of sort fields. Only the last field of the
+    // other order may be satisfied by a finer-grained transform (e.g. ts satisfies day(ts)); for
+    // earlier fields, rows that tie on the coarse value must still be ordered by the next field,
+    // which a finer-grained sort does not guarantee. So [ts, a] does not satisfy [day(ts), a].
+    int last = anotherSortOrder.fields.length - 1;
     return IntStream.range(0, anotherSortOrder.fields.length)
-        .allMatch(index -> fields[index].satisfies(anotherSortOrder.fields[index]));
+        .allMatch(
+            index ->
+                index < last
+                    ? fields[index].equals(anotherSortOrder.fields[index])
+                    : fields[index].satisfies(anotherSortOrder.fields[index]));
   }
 
   /**
