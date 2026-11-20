@@ -74,7 +74,7 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.tables.auto-create-enabled         | Set to `true` to automatically create destination tables, default is `false`                                     |
 | iceberg.tables.evolve-schema-enabled       | Set to `true` to add any missing record fields to the table schema, default is `false`                           |
 | iceberg.tables.schema-force-optional       | Set to `true` to set columns as optional during table create and evolution, default is `false` to respect schema |
-| iceberg.tables.schema-case-insensitive     | Set to `true` to look up table columns by case-insensitive name, default is `false` for case-sensitive           |
+| iceberg.tables.schema-case-insensitive     | Set to `true` to look up table columns, including ID columns, by case-insensitive name, default is `false` for case-sensitive |
 | iceberg.tables.replace-null-with-default   | Set to `true` to replace null struct field values with the record schema default value, `false` to preserve explicit nulls, default is `true` |
 | iceberg.tables.auto-create-props.*         | Properties set on new tables during auto-create                                                                  |
 | iceberg.tables.write-props.*               | Properties passed through to Iceberg writer initialization, these take precedence                                |
