@@ -24,6 +24,7 @@ import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.io.IOException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +45,6 @@ class AnalyticsAcceleratorUtil {
   private static final Cache<Pair<S3AsyncClient, S3FileIOProperties>, S3SeekableInputStreamFactory>
       STREAM_FACTORY_CACHE =
           Caffeine.newBuilder()
-              .maximumSize(100)
               .removalListener(
                   (RemovalListener<
                           Pair<S3AsyncClient, S3FileIOProperties>, S3SeekableInputStreamFactory>)
@@ -57,9 +57,7 @@ class AnalyticsAcceleratorUtil {
     S3URI uri = S3URI.of(inputFile.uri().bucket(), inputFile.uri().key());
 
     S3SeekableInputStreamFactory factory =
-        STREAM_FACTORY_CACHE.get(
-            Pair.of(inputFile.asyncClient(), inputFile.s3FileIOProperties()),
-            AnalyticsAcceleratorUtil::createNewFactory);
+        streamFactory(inputFile.asyncClient(), inputFile.s3FileIOProperties());
 
     try {
       S3SeekableInputStream seekableInputStream = factory.createStream(uri);
@@ -68,6 +66,18 @@ class AnalyticsAcceleratorUtil {
       throw new RuntimeIOException(
           e, "Failed to create S3 analytics accelerator input stream for: %s", inputFile.uri());
     }
+  }
+
+  static S3SeekableInputStreamFactory streamFactory(
+      S3AsyncClient asyncClient, S3FileIOProperties s3FileIOProperties) {
+    return STREAM_FACTORY_CACHE.get(
+        Pair.of(asyncClient, s3FileIOProperties), AnalyticsAcceleratorUtil::createNewFactory);
+  }
+
+  @VisibleForTesting
+  static Cache<Pair<S3AsyncClient, S3FileIOProperties>, S3SeekableInputStreamFactory>
+      streamFactoryCache() {
+    return STREAM_FACTORY_CACHE;
   }
 
   private static S3SeekableInputStreamFactory createNewFactory(
