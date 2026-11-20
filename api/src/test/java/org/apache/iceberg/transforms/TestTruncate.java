@@ -130,4 +130,16 @@ public class TestTruncate {
 
     assertThat(truncate.canTransform(Types.UnknownType.get())).isFalse();
   }
+
+  @org.junit.jupiter.api.Test
+  public void testMinimumValueTruncationOverflow() {
+    int intResult =
+        org.apache.iceberg.util.TruncateUtil.truncateInt(10, Integer.MIN_VALUE);
+    long longResult =
+        org.apache.iceberg.util.TruncateUtil.truncateLong(10, Long.MIN_VALUE);
+
+    org.assertj.core.api.Assertions.assertThat(intResult).isLessThanOrEqualTo(Integer.MIN_VALUE);
+    org.assertj.core.api.Assertions.assertThat(longResult).isLessThanOrEqualTo(Long.MIN_VALUE);
+  }
+
 }
