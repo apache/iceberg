@@ -135,9 +135,7 @@ class RepairMetrics {
         metrics.nullValueCounts(),
         file.nanValueCounts(),
         preserveBounds(file.lowerBounds(), metrics.lowerBounds(), preservedBoundIds),
-        preserveBounds(file.upperBounds(), metrics.upperBounds(), preservedBoundIds),
-        file.totalBytes(),
-        null);
+        preserveBounds(file.upperBounds(), metrics.upperBounds(), preservedBoundIds));
   }
 
   static boolean statsAreIncorrect(
@@ -197,9 +195,7 @@ class RepairMetrics {
         file.nullValueCounts(),
         file.nanValueCounts(),
         file.lowerBounds(),
-        file.upperBounds(),
-        file.totalBytes(),
-        null);
+        file.upperBounds());
   }
 
   private static Map<Integer, ByteBuffer> preserveBounds(

@@ -75,9 +75,7 @@ class TestRepairMetrics {
           Map.of(1, 0L),
           Map.of(2, 1L),
           Map.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),
-          Map.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 3)),
-          Map.of(3, 21L),
-          null);
+          Map.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 3)));
 
   @TempDir private Path temp;
 
@@ -285,7 +283,6 @@ class TestRepairMetrics {
     assertThat(metrics.nanValueCounts()).isEqualTo(file.nanValueCounts());
     assertThat(metrics.lowerBounds()).isEqualTo(file.lowerBounds());
     assertThat(metrics.upperBounds()).isEqualTo(file.upperBounds());
-    assertThat(metrics.totalBytes()).isEqualTo(file.totalBytes());
   }
 
   @Test
