@@ -62,6 +62,7 @@ nav:
         - Databricks Unity Catalog: https://docs.databricks.com/aws/en/external-access/iceberg
         - DataHub: https://docs.datahub.com/docs/iceberg-catalog
         - Google BigLake metastore: https://cloud.google.com/bigquery/docs/blms-manage-resources
+        - LakehouseBox: https://lakehousebox.com/docs/
         - Lakekeeper: https://github.com/lakekeeper/lakekeeper
         - SeaweedFS: https://github.com/seaweedfs/seaweedfs
       - Integrations:
