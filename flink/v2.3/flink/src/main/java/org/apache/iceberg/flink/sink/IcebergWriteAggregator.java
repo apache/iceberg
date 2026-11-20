@@ -68,15 +68,19 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
   private transient Table table;
 
   IcebergWriteAggregator(TableLoader tableLoader, String sinkId) {
-      this(tableLoader,sinkId, false);
+    this(tableLoader, sinkId, false);
   }
 
-    IcebergWriteAggregator(TableLoader tableLoader, String sinkId, boolean dvOnlyMode) {
-        this.results = Sets.newHashSet();
-        this.tableLoader = tableLoader;
-        this.sinkId = sinkId;
-        this.dvOnlyMode = dvOnlyMode;
-    }
+  /**
+   * @param dvOnlyMode whether the sink resolves equality deletes to deletion vectors itself, whose
+   *     manifests need a newer serialization version, see {@link DeltaManifestsSerializer}
+   */
+  IcebergWriteAggregator(TableLoader tableLoader, String sinkId, boolean dvOnlyMode) {
+    this.results = Sets.newHashSet();
+    this.tableLoader = tableLoader;
+    this.sinkId = sinkId;
+    this.dvOnlyMode = dvOnlyMode;
+  }
 
   @Override
   public void initializeState(StateInitializationContext context) throws Exception {
