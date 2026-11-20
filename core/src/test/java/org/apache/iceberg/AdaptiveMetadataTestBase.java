@@ -91,7 +91,7 @@ public class AdaptiveMetadataTestBase {
           .withSplitOffsets(ImmutableList.of(1L))
           .build();
 
-  private final Iterator<FileContent> ALL_DATA_FILES = Iterators.cycle(FileContent.DATA);
+  private static final Iterator<FileContent> ALL_DATA_FILES = Iterators.cycle(FileContent.DATA);
 
   public InMemoryFileIO io = new InMemoryFileIO();
   public InMemoryTables.Table defaultTable = null;
@@ -161,15 +161,15 @@ public class AdaptiveMetadataTestBase {
   }
 
   protected Iterable<String> listLeafManifests(Table table) {
-    SupportsPrefixOperations io = (SupportsPrefixOperations) table.io();
+    SupportsPrefixOperations fileIO = (SupportsPrefixOperations) table.io();
     return Iterables.transform(
-        io.listPrefix(table.location() + "/metadata/leaf-"), FileInfo::location);
+        fileIO.listPrefix(table.location() + "/metadata/leaf-"), FileInfo::location);
   }
 
   protected Iterable<String> listRootManifests(Table table) {
-    SupportsPrefixOperations io = (SupportsPrefixOperations) table.io();
+    SupportsPrefixOperations fileIO = (SupportsPrefixOperations) table.io();
     return Iterables.transform(
-        io.listPrefix(table.location() + "/metadata/root-"), FileInfo::location);
+        fileIO.listPrefix(table.location() + "/metadata/root-"), FileInfo::location);
   }
 
   protected ManifestFile writeLeafManifest(Table table, OutputFile output, DataFile... files)
