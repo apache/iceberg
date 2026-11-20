@@ -253,7 +253,7 @@ String tag = "audit-tag";
 // Replace "audit-tag" to point to snapshot 4 and update its retention
 table.manageSnapshots()
      .replaceTag(tag, 4)
-     .setMaxRefAgeMs(1000)
+     .setMaxRefAgeMs(tag, 1000)
      .commit()
 
 
