@@ -112,6 +112,90 @@ public class TestSchemaConversions {
     assertThat(AvroSchemaUtil.convert(avroType)).isEqualTo(expectedIcebergType);
   }
 
+  private static Schema timeSchema() {
+    Schema millis = LogicalTypes.timeMillis().addToSchema(Schema.create(Schema.Type.INT));
+    Schema micros = LogicalTypes.timeMicros().addToSchema(Schema.create(Schema.Type.LONG));
+    return SchemaBuilder.record("times")
+        .fields()
+        .name("millis")
+        .type(millis)
+        .noDefault()
+        .name("micros")
+        .type(micros)
+        .noDefault()
+        .name("millisOrNull")
+        .type()
+        .optional()
+        .type(millis)
+        .name("microsOrNull")
+        .type()
+        .optional()
+        .type(micros)
+        .name("inList")
+        .type()
+        .array()
+        .items(micros)
+        .noDefault()
+        .name("inMap")
+        .type()
+        .map()
+        .values(millis)
+        .noDefault()
+        .name("date")
+        .type(LogicalTypes.date().addToSchema(Schema.create(Schema.Type.INT)))
+        .noDefault()
+        .endRecord();
+  }
+
+  @Test
+  public void testTimeLogicalTypesAreTimesByDefault() {
+    org.apache.iceberg.Schema converted = AvroSchemaUtil.toIceberg(timeSchema());
+
+    assertThat(converted.findType("millis")).isEqualTo(Types.TimeType.get());
+    assertThat(converted.findType("micros")).isEqualTo(Types.TimeType.get());
+    assertThat(converted.findField("millisOrNull").isOptional()).isTrue();
+    assertThat(converted.findType("millisOrNull")).isEqualTo(Types.TimeType.get());
+    assertThat(converted.findType("microsOrNull")).isEqualTo(Types.TimeType.get());
+    assertThat(AvroSchemaUtil.toIceberg(timeSchema(), false).asStruct())
+        .isEqualTo(converted.asStruct());
+  }
+
+  @Test
+  public void testTimeLogicalTypesAsNumbers() {
+    org.apache.iceberg.Schema converted = AvroSchemaUtil.toIceberg(timeSchema(), true);
+
+    assertThat(converted.findType("millis")).isEqualTo(Types.IntegerType.get());
+    assertThat(converted.findType("micros")).isEqualTo(Types.LongType.get());
+    assertThat(converted.findField("millis").isRequired()).isTrue();
+    assertThat(converted.findField("millisOrNull").isOptional()).isTrue();
+    assertThat(converted.findType("millisOrNull")).isEqualTo(Types.IntegerType.get());
+    assertThat(converted.findType("microsOrNull")).isEqualTo(Types.LongType.get());
+    assertThat(converted.findType("inList").asListType().elementType())
+        .isEqualTo(Types.LongType.get());
+    assertThat(converted.findType("inMap").asMapType().valueType())
+        .isEqualTo(Types.IntegerType.get());
+  }
+
+  @Test
+  public void testTimeAsNumbersLeavesOtherLogicalTypesAlone() {
+    org.apache.iceberg.Schema asTimes = AvroSchemaUtil.toIceberg(timeSchema());
+    org.apache.iceberg.Schema asNumbers = AvroSchemaUtil.toIceberg(timeSchema(), true);
+
+    assertThat(asNumbers.findType("date")).isEqualTo(Types.DateType.get());
+    assertThat(asNumbers.findType("date")).isEqualTo(asTimes.findType("date"));
+  }
+
+  @Test
+  public void testTimeAsNumbersOnAPrimitive() {
+    Schema millis = LogicalTypes.timeMillis().addToSchema(Schema.create(Schema.Type.INT));
+    Schema micros = LogicalTypes.timeMicros().addToSchema(Schema.create(Schema.Type.LONG));
+
+    assertThat(AvroSchemaUtil.convert(millis, true)).isEqualTo(Types.IntegerType.get());
+    assertThat(AvroSchemaUtil.convert(micros, true)).isEqualTo(Types.LongType.get());
+    assertThat(AvroSchemaUtil.convert(millis, false)).isEqualTo(Types.TimeType.get());
+    assertThat(AvroSchemaUtil.convert(micros)).isEqualTo(Types.TimeType.get());
+  }
+
   private Schema addAdjustToUtc(Schema schema, boolean adjustToUTC) {
     schema.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, adjustToUTC);
     return schema;

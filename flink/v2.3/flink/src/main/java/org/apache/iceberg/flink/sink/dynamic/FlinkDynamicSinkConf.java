@@ -102,6 +102,15 @@ public class FlinkDynamicSinkConf {
         .parse();
   }
 
+  boolean avroTimeAsNumber() {
+    return confParser
+        .booleanConf()
+        .option(FlinkDynamicSinkOptions.AVRO_TIME_AS_NUMBER.key())
+        .flinkConfig(FlinkDynamicSinkOptions.AVRO_TIME_AS_NUMBER)
+        .defaultValue(FlinkDynamicSinkOptions.AVRO_TIME_AS_NUMBER.defaultValue())
+        .parse();
+  }
+
   String generatorSlotSharingGroup() {
     return confParser
         .stringConf()

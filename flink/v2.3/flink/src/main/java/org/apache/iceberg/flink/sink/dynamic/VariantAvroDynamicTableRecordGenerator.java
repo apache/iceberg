@@ -54,6 +54,7 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
 
   private final Map<String, String> writeProperties;
   private transient int inputSchemasPerTableCacheMaxSize;
+  private transient boolean avroTimeAsNumber;
   private transient Map<TableIdentifier, SchemaAndPartitionSpecCacheItem> tableCache;
 
   public VariantAvroDynamicTableRecordGenerator(
@@ -75,6 +76,7 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
 
     this.inputSchemasPerTableCacheMaxSize =
         flinkDynamicSinkConf().inputSchemasPerTableCacheMaxSize();
+    this.avroTimeAsNumber = flinkDynamicSinkConf().avroTimeAsNumber();
     this.tableCache = new LRUCache<>(flinkDynamicSinkConf().cacheMaxSize());
   }
 
@@ -104,7 +106,9 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
     SchemaAndPartitionSpecCacheItem cacheItem =
         tableCache.computeIfAbsent(
             tableIdentifier,
-            identifier -> new SchemaAndPartitionSpecCacheItem(inputSchemasPerTableCacheMaxSize));
+            identifier ->
+                new SchemaAndPartitionSpecCacheItem(
+                    inputSchemasPerTableCacheMaxSize, avroTimeAsNumber));
 
     SchemaCacheItem schemaCacheItem = cacheItem.schemaItem(avroSchemaId, avroSchema);
 
@@ -178,17 +182,20 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
   static class SchemaAndPartitionSpecCacheItem {
     private final Map<String, SchemaCacheItem> schemaCache;
     private final Map<String, PartitionSpec> partitionSpecCache;
+    private final boolean timeAsNumber;
 
-    SchemaAndPartitionSpecCacheItem(int maximumSize) {
+    SchemaAndPartitionSpecCacheItem(int maximumSize, boolean timeAsNumber) {
       this.schemaCache = new LRUCache<>(maximumSize);
       this.partitionSpecCache = new LRUCache<>(maximumSize);
+      this.timeAsNumber = timeAsNumber;
     }
 
     private SchemaCacheItem schemaItem(String avroSchemaId, String avroSchema) {
       return schemaCache.computeIfAbsent(
           avroSchemaId,
           key -> {
-            Schema icebergTableSchema = AvroSchemaUtil.toIceberg(new Parser().parse(avroSchema));
+            Schema icebergTableSchema =
+                AvroSchemaUtil.toIceberg(new Parser().parse(avroSchema), timeAsNumber);
             RowType rowType = FlinkSchemaUtil.convert(icebergTableSchema);
             return new SchemaCacheItem(icebergTableSchema, new VariantRowDataWrapper(rowType));
           });
