@@ -315,7 +315,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       case 4:
         Preconditions.checkArgument(
             ContentFileUtil.isDV(file),
-            "Must use DVs for position deletes in V%s: %s",
+            "Must use DVs for deletes in v%s: %s",
             formatVersion,
             file.location());
         break;
