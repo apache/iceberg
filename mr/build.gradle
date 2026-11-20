@@ -25,12 +25,11 @@ project(':iceberg-mr') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
-    implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     api project(':iceberg-data')
-    implementation project(':iceberg-hive-metastore')
-    implementation project(':iceberg-orc')
-    implementation project(':iceberg-parquet')
+    runtimeOnly project(':iceberg-hive-metastore')
+    runtimeOnly project(':iceberg-orc')
+    runtimeOnly project(':iceberg-parquet')
 
     compileOnly(libs.hadoop3.client) {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -39,7 +38,7 @@ project(':iceberg-mr') {
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+    testImplementation project(':iceberg-hive-metastore')
 
     testRuntimeOnly(libs.hive2.metastore) {
       exclude group: 'org.apache.avro', module: 'avro'
