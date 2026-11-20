@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Set;
+import java.util.UUID;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
 import org.apache.flink.runtime.jobgraph.OperatorID;
@@ -36,20 +37,40 @@ class TestDynamicCommittableSerializer {
           new TableKey("table", "branch"),
           new byte[][] {{3, 4}, {5, 6}},
           JobID.generate().toHexString(),
+          UUID.randomUUID().toString(),
           new OperatorID().toHexString(),
           5);
 
   @Test
   void testV1() throws IOException {
+    String jobId = JobID.generate().toHexString();
+    // Older formats have no sinkId, the jobId is used instead
     var committable =
         new DynamicCommittable(
             new TableKey("table", "branch"),
             new byte[][] {{3, 4}},
-            JobID.generate().toHexString(),
+            jobId,
+            jobId,
             new OperatorID().toHexString(),
             5);
     DynamicCommittableSerializer serializer = new DynamicCommittableSerializer();
     assertThat(serializer.deserialize(1, serializeV1(committable))).isEqualTo(committable);
+  }
+
+  @Test
+  void testV2() throws IOException {
+    String jobId = JobID.generate().toHexString();
+    // Older formats have no sinkId, the jobId is used instead
+    var committable =
+        new DynamicCommittable(
+            new TableKey("table", "branch"),
+            new byte[][] {{3, 4}, {5, 6}},
+            jobId,
+            jobId,
+            new OperatorID().toHexString(),
+            5);
+    DynamicCommittableSerializer serializer = new DynamicCommittableSerializer();
+    assertThat(serializer.deserialize(2, serializeV2(committable))).isEqualTo(committable);
   }
 
   @Test
@@ -65,6 +86,22 @@ class TestDynamicCommittableSerializer {
     assertThatThrownBy(() -> serializer.deserialize(-1, serializer.serialize(COMMITTABLE)))
         .hasMessage("Unrecognized version or corrupt state: -1")
         .isInstanceOf(IOException.class);
+  }
+
+  byte[] serializeV2(DynamicCommittable committable) throws IOException {
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    DataOutputViewStreamWrapper view = new DataOutputViewStreamWrapper(out);
+    committable.key().serializeTo(view);
+    view.writeUTF(committable.jobId());
+    view.writeUTF(committable.operatorId());
+    view.writeLong(committable.checkpointId());
+    view.writeInt(committable.manifests().length);
+    for (byte[] manifest : committable.manifests()) {
+      view.writeInt(manifest.length);
+      view.write(manifest);
+    }
+
+    return out.toByteArray();
   }
 
   byte[] serializeV1(DynamicCommittable committable) throws IOException {

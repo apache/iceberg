@@ -607,3 +607,4 @@ Forward and regular records can be mixed in the same pipeline. The processor rou
 - **Range distribution mode**: Currently, the dynamic sink does not support the `RANGE` distribution mode, if set, it will fall back to `HASH`.
 - **Property Precedence Note**: When conflicts occur between table properties and sink properties, the sink properties will override the table properties configuration.
 - **Table Format Version upgrade**: Dynamic sink does not support upgrading a table with dynamic records. The job should not be running while the V2 to V3 upgrade is in progress.
+- **Snapshot summary**: Commits record `flink.sink-id` in the snapshot summary. It identifies the sink run that wrote the snapshot and is used to skip already committed checkpoints. Snapshots from older releases without it are identified by `flink.job-id`.
