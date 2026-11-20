@@ -283,6 +283,10 @@ class S3OutputStream extends PositionOutputStream {
       requestBuilder.storageClass(s3FileIOProperties.writeStorageClass());
     }
 
+    if (s3FileIOProperties.checksumAlgorithm() != null) {
+      requestBuilder.checksumAlgorithm(s3FileIOProperties.checksumAlgorithm());
+    }
+
     S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
     S3RequestUtil.configurePermission(s3FileIOProperties, requestBuilder);
 
@@ -316,6 +320,10 @@ class S3OutputStream extends PositionOutputStream {
                 requestBuilder.contentMD5(BinaryUtils.toBase64(fileAndDigest.digest()));
               }
 
+              if (s3FileIOProperties.checksumAlgorithm() != null) {
+                requestBuilder.checksumAlgorithm(s3FileIOProperties.checksumAlgorithm());
+              }
+
               S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
 
               UploadPartRequest uploadRequest = requestBuilder.build();
@@ -325,10 +333,26 @@ class S3OutputStream extends PositionOutputStream {
                           () -> {
                             UploadPartResponse response =
                                 s3.uploadPart(uploadRequest, RequestBody.fromFile(f));
-                            return CompletedPart.builder()
-                                .eTag(response.eTag())
-                                .partNumber(uploadRequest.partNumber())
-                                .build();
+                            CompletedPart.Builder completedPartBuilder =
+                                CompletedPart.builder()
+                                    .eTag(response.eTag())
+                                    .partNumber(uploadRequest.partNumber());
+                            if (s3FileIOProperties.checksumAlgorithm() != null) {
+                              // the part checksums calculated for the configured algorithm
+                              // must be passed on to CompleteMultipartUpload
+                              completedPartBuilder
+                                  .checksumCRC32(response.checksumCRC32())
+                                  .checksumCRC32C(response.checksumCRC32C())
+                                  .checksumCRC64NVME(response.checksumCRC64NVME())
+                                  .checksumSHA1(response.checksumSHA1())
+                                  .checksumSHA256(response.checksumSHA256())
+                                  .checksumSHA512(response.checksumSHA512())
+                                  .checksumMD5(response.checksumMD5())
+                                  .checksumXXHASH64(response.checksumXXHASH64())
+                                  .checksumXXHASH3(response.checksumXXHASH3())
+                                  .checksumXXHASH128(response.checksumXXHASH128());
+                            }
+                            return completedPartBuilder.build();
                           },
                           executorService)
                       .whenComplete(
@@ -435,6 +459,10 @@ class S3OutputStream extends PositionOutputStream {
 
       if (isChecksumEnabled) {
         requestBuilder.contentMD5(BinaryUtils.toBase64(completeMessageDigest.digest()));
+      }
+
+      if (s3FileIOProperties.checksumAlgorithm() != null) {
+        requestBuilder.checksumAlgorithm(s3FileIOProperties.checksumAlgorithm());
       }
 
       S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
