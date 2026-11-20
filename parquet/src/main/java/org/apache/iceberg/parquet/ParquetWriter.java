@@ -29,6 +29,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.parquet.metadata.ParquetMetadataUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.parquet.column.ColumnDescriptor;
@@ -63,13 +64,16 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final InternalFileEncryptor fileEncryptor;
   private final boolean trackUncompressedSize;
 
+  private final boolean nativeClient;
   private ColumnChunkPageWriteStore pageStore = null;
+  private NativePageWriteStore nativePageStore = null;
   private ColumnWriteStore writeStore;
   private long recordCount = 0;
   private long nextCheckRecordCount = 10;
   private long rowGroupUncompressedSize = 0;
   private boolean closed;
   private ParquetFileWriter writer;
+  private NativeParquetFileWriter nativeWriter;
   private int rowGroupOrdinal;
 
   private static final String COLUMN_INDEX_TRUNCATE_LENGTH = "parquet.columnindex.truncate.length";
@@ -95,7 +99,11 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.props = properties;
     this.trackUncompressedSize = trackUncompressedSize;
     this.metadata = ImmutableMap.copyOf(metadata);
-    this.codecFactory = new ParquetCodecFactory(conf, props.getPageSizeThreshold());
+    this.nativeClient = Parquet.ParquetClient.NATIVE == Parquet.parquetClient();
+    this.codecFactory =
+        nativeClient
+            ? new NativeCodecFactory()
+            : new ParquetCodecFactory(conf, props.getPageSizeThreshold());
     this.codec = codec;
     this.parquetSchema = parquetSchema;
     this.model = (ParquetValueWriter<T>) createWriterFunc.apply(schema, parquetSchema);
@@ -113,7 +121,24 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   }
 
   private void ensureWriterInitialized() {
-    if (writer == null) {
+    if (nativeClient) {
+      if (nativeWriter == null) {
+        try {
+          this.nativeWriter =
+              NativeParquetFileWriter.create(
+                  output,
+                  parquetSchema,
+                  codec,
+                  writeMode,
+                  targetRowGroupSize,
+                  0,
+                  ParquetProperties.DEFAULT_PAGE_WRITE_CHECKSUM_ENABLED,
+                  fileEncryptor);
+        } catch (IOException e) {
+          throw new UncheckedIOException("Failed to create Parquet file", e);
+        }
+      }
+    } else if (writer == null) {
       try {
         this.writer =
             new ParquetFileWriter(
@@ -159,9 +184,18 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   @Override
   public Metrics metrics() {
     Preconditions.checkState(closed, "Cannot return metrics for unclosed writer");
+    if (nativeWriter != null) {
+      return ParquetMetrics.metrics(
+          schema, parquetSchema, metricsConfig, nativeWriter.footer(), model.metrics());
+    }
+
     if (writer != null) {
       return ParquetMetrics.metrics(
-          schema, parquetSchema, metricsConfig, writer.getFooter(), model.metrics());
+          schema,
+          parquetSchema,
+          metricsConfig,
+          ParquetMetadataUtil.fromHadoopMetadata(writer.getFooter()),
+          model.metrics());
     }
     return EMPTY_METRICS;
   }
@@ -180,7 +214,9 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     try {
       long length = 0L;
 
-      if (writer != null) {
+      if (nativeWriter != null) {
+        length += nativeWriter.position();
+      } else if (writer != null) {
         length += writer.getPos();
       }
 
@@ -199,6 +235,10 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public List<Long> splitOffsets() {
+    if (nativeWriter != null) {
+      return ParquetUtil.getSplitOffsets(nativeWriter.footer());
+    }
+
     if (writer != null) {
       return ParquetUtil.getSplitOffsets(writer.getFooter());
     }
@@ -237,10 +277,17 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     try {
       if (recordCount > 0) {
         ensureWriterInitialized();
-        writer.startBlock(recordCount);
-        writeStore.flush();
-        pageStore.flushToFileWriter(writer);
-        writer.endBlock();
+        if (nativeClient) {
+          nativeWriter.startBlock(recordCount);
+          writeStore.flush();
+          nativePageStore.flushToFileWriter(nativeWriter);
+          nativeWriter.endBlock();
+        } else {
+          writer.startBlock(recordCount);
+          writeStore.flush();
+          pageStore.flushToFileWriter(writer);
+          writer.endBlock();
+        }
         if (!finished) {
           writeStore.close();
           startRowGroup();
@@ -261,10 +308,15 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.recordCount = 0;
     this.rowGroupUncompressedSize = 0;
 
-    this.pageStore = newColumnChunkPageWriteStore();
+    if (nativeClient) {
+      this.nativePageStore =
+          new NativePageWriteStore(codecFactory.getCompressor(codec), parquetSchema);
+      this.writeStore = props.newColumnWriteStore(parquetSchema, nativePageStore, nativePageStore);
+    } else {
+      this.pageStore = newColumnChunkPageWriteStore();
+      this.writeStore = props.newColumnWriteStore(parquetSchema, pageStore, pageStore);
+    }
     this.rowGroupOrdinal++;
-
-    this.writeStore = props.newColumnWriteStore(parquetSchema, pageStore, pageStore);
 
     model.setColumnStore(writeStore);
   }
@@ -296,7 +348,10 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       this.closed = true;
       flushRowGroup(true);
       writeStore.close();
-      if (writer != null) {
+      if (nativeWriter != null) {
+        nativeWriter.end(metadata);
+        nativeWriter.close();
+      } else if (writer != null) {
         writer.end(metadata);
       }
       codecFactory.release();

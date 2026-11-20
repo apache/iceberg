@@ -33,6 +33,7 @@ import org.apache.iceberg.encryption.NativeEncryptionInputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.parquet.metadata.ParquetMetadataUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -46,7 +47,6 @@ import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.crypto.FileDecryptionProperties;
-import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
@@ -66,14 +66,18 @@ public class ParquetUtil {
 
   public static Metrics fileMetrics(
       InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping) {
-    try (ParquetFileReader reader = openFileReader(file)) {
-      return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping);
+    try (ParquetFileReaderFactory.ParquetFileReaderWrapper reader = openFileReader(file)) {
+      return footerMetrics(reader.footer(), Stream.empty(), metricsConfig, nameMapping);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file.location());
+    } catch (Exception e) {
+      throw new RuntimeIOException(
+          new IOException(e), "Failed to read footer of file: %s", file.location());
     }
   }
 
-  private static ParquetFileReader openFileReader(InputFile file) throws IOException {
+  private static ParquetFileReaderFactory.ParquetFileReaderWrapper openFileReader(InputFile file)
+      throws IOException {
     if (file instanceof NativeEncryptionInputFile nativeFile) {
       FileDecryptionProperties decryptionProperties =
           FileDecryptionProperties.builder()
@@ -84,10 +88,10 @@ public class ParquetUtil {
           ParquetReadOptions.builder(new PlainParquetConfiguration())
               .withDecryption(decryptionProperties)
               .build();
-      return ParquetFileReader.open(ParquetIO.file(nativeFile.encryptedInputFile()), options);
+      return ParquetFileReaderFactory.open(nativeFile.encryptedInputFile(), options);
     }
 
-    return ParquetFileReader.open(ParquetIO.file(file));
+    return ParquetFileReaderFactory.open(file, null);
   }
 
   public static Metrics footerMetrics(
@@ -100,6 +104,15 @@ public class ParquetUtil {
       Stream<FieldMetrics<?>> fieldMetrics,
       MetricsConfig metricsConfig,
       NameMapping nameMapping) {
+    return footerMetrics(
+        ParquetMetadataUtil.fromHadoopMetadata(metadata), fieldMetrics, metricsConfig, nameMapping);
+  }
+
+  public static Metrics footerMetrics(
+      org.apache.iceberg.parquet.metadata.ParquetMetadata metadata,
+      Stream<FieldMetrics<?>> fieldMetrics,
+      MetricsConfig metricsConfig,
+      NameMapping nameMapping) {
     Preconditions.checkNotNull(fieldMetrics, "fieldMetrics should not be null");
     MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
     Schema fileSchema = ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
@@ -108,8 +121,8 @@ public class ParquetUtil {
   }
 
   private static MessageType getParquetTypeWithIds(
-      ParquetMetadata metadata, NameMapping nameMapping) {
-    MessageType type = metadata.getFileMetaData().getSchema();
+      org.apache.iceberg.parquet.metadata.ParquetMetadata metadata, NameMapping nameMapping) {
+    MessageType type = metadata.fileMetaData().schema();
 
     if (ParquetSchemaUtil.hasIds(type)) {
       return type;
@@ -130,6 +143,15 @@ public class ParquetUtil {
     List<Long> splitOffsets = Lists.newArrayListWithExpectedSize(md.getBlocks().size());
     for (BlockMetaData blockMetaData : md.getBlocks()) {
       splitOffsets.add(blockMetaData.getStartingPos());
+    }
+    Collections.sort(splitOffsets);
+    return splitOffsets;
+  }
+
+  static List<Long> getSplitOffsets(org.apache.iceberg.parquet.metadata.ParquetMetadata md) {
+    List<Long> splitOffsets = Lists.newArrayListWithExpectedSize(md.blocks().size());
+    for (org.apache.iceberg.parquet.metadata.BlockMetadata block : md.blocks()) {
+      splitOffsets.add(block.columns().get(0).getStartingPos());
     }
     Collections.sort(splitOffsets);
     return splitOffsets;
