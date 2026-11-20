@@ -42,14 +42,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.stream.Stream;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.FieldSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestInclusiveManifestEvaluator {
   private static final Schema SCHEMA =
@@ -91,6 +99,14 @@ public class TestInclusiveManifestEvaluator {
           .identity("single_value_nan_unknown")
           .identity("single_value_no_nan")
           .build();
+
+  private static final List<Type.PrimitiveType> BINARY_AND_FIXED =
+      List.of(Types.BinaryType.get(), Types.FixedType.ofLength(3));
+  private static final ByteBuffer BYTES_BELOW = ByteBuffer.wrap(new byte[] {0x01, 0x00, 0x00});
+  private static final ByteBuffer BYTES_BOUND =
+      ByteBuffer.wrap(new byte[] {(byte) 0xbc, (byte) 0xd1, 0x00});
+  private static final ByteBuffer BYTES_ABOVE =
+      ByteBuffer.wrap(new byte[] {(byte) 0xe3, (byte) 0xbc, (byte) 0xd1});
 
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
@@ -852,5 +868,92 @@ public class TestInclusiveManifestEvaluator {
     assertThat(shouldRead)
         .as("Should not read: manifest contains single float value with no NaNs")
         .isFalse();
+  }
+
+  @ParameterizedTest
+  @MethodSource("binaryAndFixedPredicatesOutsideBounds")
+  void binaryAndFixedBoundsAreNotUsed(Type.PrimitiveType type, Expression expr) {
+    ManifestFile manifest =
+        manifestWithSummaries(new TestHelpers.TestFieldSummary(false, BYTES_BOUND, BYTES_BOUND));
+
+    assertThat(ManifestEvaluator.forRowFilter(expr, bytesSpec(type), true).eval(manifest)).isTrue();
+  }
+
+  @ParameterizedTest
+  @MethodSource("binaryAndFixedValuePredicates")
+  void binaryAndFixedNullOnlyManifestsArePruned(Type.PrimitiveType type, Expression expr) {
+    ManifestFile manifest =
+        manifestWithSummaries(new TestHelpers.TestFieldSummary(true, null, null));
+
+    assertThat(ManifestEvaluator.forRowFilter(expr, bytesSpec(type), true).eval(manifest))
+        .isFalse();
+  }
+
+  @ParameterizedTest
+  @FieldSource("BINARY_AND_FIXED")
+  void otherPartitionFieldsPruneBesideBinaryAndFixed(Type.PrimitiveType type) {
+    Schema schema =
+        new Schema(required(1, "id", Types.IntegerType.get()), optional(2, "value", type));
+    PartitionSpec spec =
+        PartitionSpec.builderFor(schema).withSpecId(0).identity("id").identity("value").build();
+    ManifestFile manifest =
+        manifestWithSummaries(
+            new TestHelpers.TestFieldSummary(false, INT_MIN, INT_MAX),
+            new TestHelpers.TestFieldSummary(false, BYTES_BOUND, BYTES_BOUND));
+
+    assertThat(
+            ManifestEvaluator.forRowFilter(
+                    and(equal("id", INT_MIN_VALUE - 25), equal("value", BYTES_ABOVE)), spec, true)
+                .eval(manifest))
+        .isFalse();
+  }
+
+  private static Stream<Arguments> binaryAndFixedPredicatesOutsideBounds() {
+    return BINARY_AND_FIXED.stream()
+        .flatMap(
+            type ->
+                Stream.of(
+                        equal("value", BYTES_BELOW),
+                        equal("value", BYTES_ABOVE),
+                        notEqual("value", BYTES_BOUND),
+                        lessThan("value", BYTES_BOUND),
+                        lessThanOrEqual("value", BYTES_BELOW),
+                        greaterThan("value", BYTES_BOUND),
+                        greaterThanOrEqual("value", BYTES_ABOVE),
+                        in("value", BYTES_BELOW, BYTES_ABOVE),
+                        notIn("value", BYTES_BOUND, BYTES_ABOVE))
+                    .map(expr -> Arguments.of(type, expr)));
+  }
+
+  private static Stream<Arguments> binaryAndFixedValuePredicates() {
+    return BINARY_AND_FIXED.stream()
+        .flatMap(
+            type ->
+                Stream.of(
+                        equal("value", BYTES_BOUND),
+                        lessThan("value", BYTES_BOUND),
+                        lessThanOrEqual("value", BYTES_BOUND),
+                        greaterThan("value", BYTES_BOUND),
+                        greaterThanOrEqual("value", BYTES_BOUND),
+                        in("value", BYTES_BELOW, BYTES_ABOVE))
+                    .map(expr -> Arguments.of(type, expr)));
+  }
+
+  private static PartitionSpec bytesSpec(Type.PrimitiveType type) {
+    Schema schema = new Schema(optional(1, "value", type));
+    return PartitionSpec.builderFor(schema).withSpecId(0).identity("value").build();
+  }
+
+  private static ManifestFile manifestWithSummaries(PartitionFieldSummary... summaries) {
+    return new TestHelpers.TestManifestFile(
+        "manifest-list.avro",
+        1024,
+        0,
+        System.currentTimeMillis(),
+        5,
+        10,
+        0,
+        ImmutableList.copyOf(summaries),
+        null);
   }
 }

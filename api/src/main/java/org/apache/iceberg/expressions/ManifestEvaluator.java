@@ -177,6 +177,10 @@ public class ManifestEvaluator {
         return ROWS_CANNOT_MATCH; // values are all null
       }
 
+      if (!hasReliableSummaryBounds(ref.type())) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       T lower = Conversions.fromByteBuffer(ref.type(), lowerBound);
 
       int cmp = lit.comparator().compare(lower, lit.value());
@@ -193,6 +197,10 @@ public class ManifestEvaluator {
       ByteBuffer lowerBound = stats.get(pos).lowerBound();
       if (lowerBound == null) {
         return ROWS_CANNOT_MATCH; // values are all null
+      }
+
+      if (!hasReliableSummaryBounds(ref.type())) {
+        return ROWS_MIGHT_MATCH;
       }
 
       T lower = Conversions.fromByteBuffer(ref.type(), lowerBound);
@@ -213,6 +221,10 @@ public class ManifestEvaluator {
         return ROWS_CANNOT_MATCH; // values are all null
       }
 
+      if (!hasReliableSummaryBounds(ref.type())) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       T upper = Conversions.fromByteBuffer(ref.type(), upperBound);
 
       int cmp = lit.comparator().compare(upper, lit.value());
@@ -231,6 +243,10 @@ public class ManifestEvaluator {
         return ROWS_CANNOT_MATCH; // values are all null
       }
 
+      if (!hasReliableSummaryBounds(ref.type())) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       T upper = Conversions.fromByteBuffer(ref.type(), upperBound);
 
       int cmp = lit.comparator().compare(upper, lit.value());
@@ -247,6 +263,10 @@ public class ManifestEvaluator {
       PartitionFieldSummary fieldStats = stats.get(pos);
       if (fieldStats.lowerBound() == null) {
         return ROWS_CANNOT_MATCH; // values are all null and literal cannot contain null
+      }
+
+      if (!hasReliableSummaryBounds(ref.type())) {
+        return ROWS_MIGHT_MATCH;
       }
 
       T lower = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
@@ -285,6 +305,10 @@ public class ManifestEvaluator {
       PartitionFieldSummary fieldStats = stats.get(pos);
       if (fieldStats.lowerBound() == null) {
         return ROWS_CANNOT_MATCH; // values are all null and literalSet cannot contain null.
+      }
+
+      if (!hasReliableSummaryBounds(ref.type())) {
+        return ROWS_MIGHT_MATCH;
       }
 
       Collection<T> literals = literalSet;
@@ -410,9 +434,13 @@ public class ManifestEvaluator {
     /**
      * Returns the partition field's single value if all partitions contain the same value. Defined
      * as a partition field with no nulls, no NaNs (for floating-point types), and lower bound
-     * equals upper bound. Returns null otherwise.
+     * equals upper bound, for types other than binary and fixed. Returns null otherwise.
      */
     private <T> T uniqueValue(BoundReference<T> ref) {
+      if (!hasReliableSummaryBounds(ref.type())) {
+        return null;
+      }
+
       int pos = Accessors.toPosition(ref.accessor());
       PartitionFieldSummary fieldStats = stats.get(pos);
 
@@ -456,5 +484,9 @@ public class ManifestEvaluator {
       }
       return allNull;
     }
+  }
+
+  private static boolean hasReliableSummaryBounds(Type type) {
+    return type.typeId() != Type.TypeID.BINARY && type.typeId() != Type.TypeID.FIXED;
   }
 }

@@ -77,6 +77,10 @@ public class ManifestFileUtil {
         return false;
       }
 
+      if (!hasReliableSummaryBounds(type)) {
+        return true;
+      }
+
       T typedValue = javaClass.cast(value);
 
       if (comparator.compare(typedValue, lowerBound) < 0) {
@@ -159,5 +163,9 @@ public class ManifestFileUtil {
     }
 
     return summaries;
+  }
+
+  private static boolean hasReliableSummaryBounds(Type type) {
+    return type.typeId() != Type.TypeID.BINARY && type.typeId() != Type.TypeID.FIXED;
   }
 }
