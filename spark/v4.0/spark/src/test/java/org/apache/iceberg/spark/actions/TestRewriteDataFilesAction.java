@@ -652,6 +652,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testRemoveDangledEqualityDeletesPartitionEvolution() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     Table table =
         TABLES.create(
             SCHEMA,
@@ -1986,6 +1987,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   void snapshotPropertyAppliedToRemoveDanglingDeletesCommit() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     Table table =
         TABLES.create(
             SCHEMA,

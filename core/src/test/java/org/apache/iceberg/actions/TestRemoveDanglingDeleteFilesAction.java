@@ -398,6 +398,7 @@ public class TestRemoveDanglingDeleteFilesAction {
 
   @TestTemplate
   public void testPartitionedDeletesWithEqSeqNo() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     setupPartitionedTable();
 
     // Add Data Files

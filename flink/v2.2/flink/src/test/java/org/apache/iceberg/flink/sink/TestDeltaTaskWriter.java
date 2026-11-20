@@ -25,6 +25,7 @@ import static org.apache.iceberg.flink.SimpleDataUtil.createUpdateAfter;
 import static org.apache.iceberg.flink.SimpleDataUtil.createUpdateBefore;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -108,6 +109,7 @@ public class TestDeltaTaskWriter extends TestBase {
   }
 
   private void testCdcEvents(boolean partitioned) throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     Set<Integer> equalityFieldIds = Sets.newHashSet(idFieldId());
     TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds);
     taskWriterFactory.initialize(1, 1);
@@ -185,6 +187,7 @@ public class TestDeltaTaskWriter extends TestBase {
   }
 
   private void testWritePureEqDeletes(boolean partitioned) throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     createAndInitTable(partitioned);
     Set<Integer> equalityFieldIds = Sets.newHashSet(idFieldId());
     TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds);
@@ -254,6 +257,7 @@ public class TestDeltaTaskWriter extends TestBase {
 
   @TestTemplate
   public void testPartitionedTableWithDataAsKey() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     createAndInitTable(true);
     Set<Integer> equalityFieldIds = Sets.newHashSet(dataFieldId());
     TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds);
@@ -319,6 +323,7 @@ public class TestDeltaTaskWriter extends TestBase {
 
   @TestTemplate
   public void testEqualityColumnOnCustomPrecisionTSColumn() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     Schema tableSchema =
         new Schema(
             required(3, "id", Types.IntegerType.get()),

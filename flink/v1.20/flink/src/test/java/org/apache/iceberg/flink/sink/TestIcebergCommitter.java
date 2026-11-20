@@ -1228,6 +1228,7 @@ class TestIcebergCommitter extends TestBase {
 
   @TestTemplate
   public void testDeleteFiles() throws Exception {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
 
     assumeThat(formatVersion).as("Only support delete in format v2").isGreaterThanOrEqualTo(2);
 

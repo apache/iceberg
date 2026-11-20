@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.util.List;
@@ -351,6 +352,7 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testEqualityDeletes() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);

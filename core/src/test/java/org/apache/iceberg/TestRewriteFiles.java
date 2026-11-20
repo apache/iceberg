@@ -581,6 +581,7 @@ public class TestRewriteFiles extends TestBase {
 
   @TestTemplate
   public void testReplaceEqualityDeletesWithPositionDeletes() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     assumeThat(formatVersion)
         .as("Rewriting delete files is only supported in iceberg format v2 or later")
         .isGreaterThan(1);
@@ -681,6 +682,72 @@ public class TestRewriteFiles extends TestBase {
 
     // As commit success all the manifests added with rewrite should be available.
     assertThat(listManifestFiles()).hasSize(4);
+  }
+
+  @TestTemplate
+  public void testRewriteEqualityDeletesIntoEqualityDeletesFailsAfterUpgradeToV4() {
+    assumeThat(formatVersion).isEqualTo(3);
+
+    commit(table, table.newAppend().appendFile(FILE_A), branch);
+    commit(table, table.newRowDelta().addDeletes(FILE_A_EQUALITY_DELETES), branch);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "4").commit();
+
+    assertThatThrownBy(
+            () ->
+                table
+                    .newRewrite()
+                    .rewriteFiles(
+                        ImmutableSet.of(), ImmutableSet.of(FILE_A_EQUALITY_DELETES),
+                        ImmutableSet.of(), ImmutableSet.of(FILE_A2_DELETES)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot add equality deletes in V4: %s", FILE_A2_DELETES.location());
+  }
+
+  @TestTemplate
+  public void testRewriteEqualityDeletesIntoDVAfterUpgradeToV4() {
+    assumeThat(formatVersion).isEqualTo(3);
+
+    commit(table, table.newAppend().appendFile(FILE_A), branch);
+    commit(table, table.newRowDelta().addDeletes(FILE_A_EQUALITY_DELETES), branch);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "4").commit();
+
+    DeleteFile dv = newDV(FILE_A);
+    Snapshot snapshot =
+        commit(
+            table,
+            table
+                .newRewrite()
+                .rewriteFiles(
+                    ImmutableSet.of(), ImmutableSet.of(FILE_A_EQUALITY_DELETES),
+                    ImmutableSet.of(), ImmutableSet.of(dv)),
+            branch);
+
+    assertThat(snapshot.summary())
+        .containsEntry(SnapshotSummary.REMOVED_EQ_DELETE_FILES_PROP, "1")
+        .containsEntry(SnapshotSummary.ADDED_DVS_PROP, "1");
+  }
+
+  @TestTemplate
+  public void testRemoveEqualityDeletesAfterUpgradeToV4() {
+    assumeThat(formatVersion).isEqualTo(3);
+
+    commit(table, table.newAppend().appendFile(FILE_A), branch);
+    commit(table, table.newRowDelta().addDeletes(FILE_A_EQUALITY_DELETES), branch);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "4").commit();
+
+    Snapshot snapshot =
+        commit(
+            table,
+            table
+                .newRewrite()
+                .rewriteFiles(
+                    ImmutableSet.of(), ImmutableSet.of(FILE_A_EQUALITY_DELETES),
+                    ImmutableSet.of(), ImmutableSet.of()),
+            branch);
+
+    assertThat(snapshot.summary())
+        .containsEntry(SnapshotSummary.REMOVED_EQ_DELETE_FILES_PROP, "1")
+        .doesNotContainKey(SnapshotSummary.ADDED_DELETE_FILES_PROP);
   }
 
   @TestTemplate

@@ -230,6 +230,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void entriesTableDataFileContentEq() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     preparePartitionedTable();
 
     Table entriesTable = new ManifestEntriesTable(table);
@@ -253,6 +254,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void entriesTableDataFileContentNotEq() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     // Write position and equality deletes into the same delete manifest.
     preparePartitionedTable(true);
 
@@ -291,6 +293,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void entriesTableDataFileContentIn() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     preparePartitionedTable();
     Table entriesTable = new ManifestEntriesTable(table);
 
@@ -328,6 +331,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void entriesTableDataFileContentNotIn() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     // Write position and equality deletes into the same delete manifest.
     preparePartitionedTable(true);
     Table entriesTable = new ManifestEntriesTable(table);
@@ -634,6 +638,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void partitionsTableScanNoFilter() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -663,6 +668,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void partitionsTableScanWithProjection() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -688,6 +694,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void partitionsTableReusesPartitionDataSchema() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -722,6 +729,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void partitionsTableScanAndFilter() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -744,6 +752,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void partitionsTableScanLtFilter() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -767,6 +776,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void partitionsTableScanOrFilter() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -793,6 +803,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void partitionsScanNotFilter() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     preparePartitionedTable();
     Table partitionsTable = new PartitionsTable(table);
 
@@ -812,6 +823,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void partitionsTableScanInFilter() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -832,6 +844,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void partitionsTableScanNotNullFilter() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -854,6 +867,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void filesTableScanWithDroppedPartition() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     preparePartitionedTable();
 
     table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
@@ -900,6 +914,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void deleteFilesTableSelection() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     table.newFastAppend().appendFile(FILE_A).commit();
 
@@ -1102,6 +1117,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void partitionSpecEvolutionAdditive() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     preparePartitionedTable();
 
     // Change spec and add two data files
@@ -1167,6 +1183,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void partitionSpecEvolutionRemoval() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     preparePartitionedTable();
 
     // Remove partition field
@@ -1347,6 +1364,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void partitionsTableScanWithPlanExecutor() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -1545,6 +1563,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void positionDeletesWithFilter() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     preparePartitionedTable();
 
@@ -1599,11 +1618,13 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void positionDeletesBaseTableFilterManifestLevel() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     positionDeletesBaseTableFilter(false);
   }
 
   @TestTemplate
   public void positionDeletesBaseTableFilterEntriesLevel() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     positionDeletesBaseTableFilter(true);
   }
 
@@ -1752,6 +1773,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void positionDeletesResiduals() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     preparePartitionedTable();
 
@@ -1914,6 +1936,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void filesTableEstimateSize() throws Exception {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     preparePartitionedTable(true);
 
     assertEstimatedRowCount(new DataFilesTable(table), 4);
@@ -1928,6 +1951,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void entriesTableEstimateSize() throws Exception {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     preparePartitionedTable(true);
 
     assertEstimatedRowCount(new ManifestEntriesTable(table), 4);
@@ -2000,6 +2024,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void notEqualReturnsEqualityDeletesFromMixedDeleteManifest() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     assumeThat(formatVersion).as("Only V2+ tables support deletes").isGreaterThanOrEqualTo(2);
 
     // Creates one delete manifest containing both position and equality deletes.

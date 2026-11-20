@@ -1465,6 +1465,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testConcurrentNonConflictingRowDeltaAndRewriteFilesWithSequenceNumber() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     // change the spec to be partitioned by data
     table
         .updateSpec()
@@ -1515,6 +1516,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testRowDeltaAndRewriteFilesMergeManifestsWithSequenceNumber() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
     // change the spec to be partitioned by data
     table
@@ -1625,6 +1627,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testRowDeltaCaseSensitivity() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_A2), branch);
 
     Snapshot firstSnapshot = latestSnapshot(table, branch);
@@ -2254,6 +2257,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testDuplicateDVsAreMergedAndEqDelete() throws IOException {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
 
     DataFile dataFile = newDataFile("data_bucket=0");
@@ -2556,6 +2560,69 @@ public class TestRowDelta extends TestBase {
     assertThatThrownBy(() -> table.newRowDelta().addDeletes(dv))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Must not use DVs for position deletes in V2");
+  }
+
+  @TestTemplate
+  public void testInabilityToAddEqualityDeletesInV4() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(4);
+    assertThatThrownBy(() -> table.newRowDelta().addDeletes(FILE_A_EQUALITY_DELETES))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot add equality deletes in V%s: %s",
+            formatVersion, FILE_A_EQUALITY_DELETES.location());
+  }
+
+  @TestTemplate
+  public void testV3StagedEqualityDeleteCannotCommitToV4() {
+    assumeThat(formatVersion).isEqualTo(3);
+
+    Snapshot initial = commit(table, table.newAppend().appendFile(FILE_A), branch);
+    RowDelta rowDelta = table.newRowDelta().addDeletes(FILE_A_EQUALITY_DELETES);
+
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "4").commit();
+
+    assertThatThrownBy(() -> commit(table, rowDelta, branch))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot add equality deletes in V4");
+
+    table.refresh();
+    assertThat(table.snapshot(branch)).isEqualTo(initial);
+  }
+
+  @TestTemplate
+  public void testEqualityDeletesFromV3AreAppliedAfterUpgradeToV4() {
+    assumeThat(formatVersion).isEqualTo(3);
+
+    commit(table, table.newAppend().appendFile(FILE_A), branch);
+    commit(table, table.newRowDelta().addDeletes(FILE_A_EQUALITY_DELETES), branch);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "4").commit();
+
+    FileScanTask task = Iterables.getOnlyElement(planFiles()).asFileScanTask();
+    assertThat(task.deletes())
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_EQUALITY_DELETES.location());
+  }
+
+  @TestTemplate
+  public void testEqualityDeletesFromV3CanBeRemovedAfterUpgradeToV4() {
+    assumeThat(formatVersion).isEqualTo(3);
+
+    commit(table, table.newAppend().appendFile(FILE_A), branch);
+    commit(table, table.newRowDelta().addDeletes(FILE_A_EQUALITY_DELETES), branch);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "4").commit();
+
+    DeleteFile dv = newDV(FILE_A);
+    Snapshot snapshot =
+        commit(
+            table,
+            table.newRowDelta().removeDeletes(FILE_A_EQUALITY_DELETES).addDeletes(dv),
+            branch);
+
+    assertThat(snapshot.summary())
+        .containsEntry(SnapshotSummary.REMOVED_EQ_DELETE_FILES_PROP, "1")
+        .containsEntry(SnapshotSummary.ADDED_DVS_PROP, "1");
+    FileScanTask task = Iterables.getOnlyElement(planFiles()).asFileScanTask();
+    assertThat(task.deletes()).extracting(DeleteFile::location).containsExactly(dv.location());
   }
 
   private List<ScanTask> planFiles() {

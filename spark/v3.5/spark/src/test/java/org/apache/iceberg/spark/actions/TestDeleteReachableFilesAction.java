@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.util.List;
@@ -293,6 +294,7 @@ public class TestDeleteReachableFilesAction extends TestBase {
 
   @TestTemplate
   public void testEqualityDeleteFiles() {
+    assumeThat(formatVersion).as("v4 does not allow new equality deletes").isLessThan(4);
     table.newAppend().appendFile(FILE_A).commit();
 
     table.newAppend().appendFile(FILE_B).commit();
