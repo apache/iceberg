@@ -34,7 +34,7 @@ class DynamicSinkUtil {
   /**
    * Validates that a record's upsert configuration is writable, before it is shuffled to the
    * writer. Upsert requires non-empty equality fields, and every partition source column must be an
-   * equality field. Throws {@link IllegalStateException} otherwise so the convert/update stage can
+   * equality field. Throws {@link DynamicRecordException} otherwise so the convert/update stage can
    * divert the record (or fail the job) instead of letting it reach the write stage.
    */
   static void validateUpsert(

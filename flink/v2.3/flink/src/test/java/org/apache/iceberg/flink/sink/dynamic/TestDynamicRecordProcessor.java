@@ -263,6 +263,32 @@ class TestDynamicRecordProcessor {
   }
 
   @Test
+  void divertsRecordWhoseStructColumnConflictsWithPrimitiveTableColumn() throws Exception {
+    CATALOG_EXTENSION.catalog().createTable(TABLE_IDENTIFIER, SCHEMA);
+    Schema structId =
+        new Schema(
+            Types.NestedField.required(
+                1,
+                "id",
+                Types.StructType.of(Types.NestedField.required(3, "x", Types.IntegerType.get()))),
+            Types.NestedField.required(2, "data", Types.StringType.get()));
+    DynamicRecord record =
+        record(
+            structId,
+            DistributionMode.NONE,
+            GenericRowData.of(GenericRowData.of(1), StringData.fromString("a")));
+
+    try (OneInputStreamOperatorTestHarness<DynamicRecord, DynamicRecordInternal> harness =
+        ProcessFunctionTestHarnesses.forProcessFunction(processor(error -> true))) {
+      harness.processElement(record, 0L);
+
+      assertThat(harness.getSideOutput(ERROR_STREAM).poll().getValue().f1)
+          .isInstanceOf(DynamicRecordException.class)
+          .hasMessage("Not a struct type: int");
+    }
+  }
+
+  @Test
   void doesNotDivertRowThatOnlyDeletes() throws Exception {
     CATALOG_EXTENSION.catalog().createTable(TABLE_IDENTIFIER, SCHEMA_LONG_ID);
     DynamicRecord record =

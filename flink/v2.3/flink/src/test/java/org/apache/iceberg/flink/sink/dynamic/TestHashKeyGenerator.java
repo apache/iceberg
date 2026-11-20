@@ -197,7 +197,7 @@ class TestHashKeyGenerator {
                     writeParallelism,
                     equalityFields,
                     row))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(DynamicRecordException.class)
         .hasMessageContaining("should be included in equality fields");
   }
 
@@ -353,7 +353,7 @@ class TestHashKeyGenerator {
             () ->
                 getWriteKey(
                     generator, spec, DistributionMode.HASH, writeParallelism, equalityColumns, row))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(DynamicRecordException.class)
         .hasMessageContaining("partition field")
         .hasMessageContaining(spec.fields().get(0).toString())
         .hasMessageContaining("should be included in equality fields");
@@ -365,26 +365,30 @@ class TestHashKeyGenerator {
     HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
 
     assertThatThrownBy(
-        () -> {
-          getWriteKey(
-              generator,
-              PartitionSpec.unpartitioned(),
-              DistributionMode.NONE,
-              -1, // writeParallelism
-              Collections.emptySet(),
-              GenericRowData.of());
-        });
+            () -> {
+              getWriteKey(
+                  generator,
+                  PartitionSpec.unpartitioned(),
+                  DistributionMode.NONE,
+                  -1, // writeParallelism
+                  Collections.emptySet(),
+                  GenericRowData.of());
+            })
+        .isInstanceOf(DynamicRecordException.class)
+        .hasMessageContaining("writeParallelism must be > 0");
 
     assertThatThrownBy(
-        () -> {
-          getWriteKey(
-              generator,
-              PartitionSpec.unpartitioned(),
-              DistributionMode.NONE,
-              0, // writeParallelism
-              Collections.emptySet(),
-              GenericRowData.of());
-        });
+            () -> {
+              getWriteKey(
+                  generator,
+                  PartitionSpec.unpartitioned(),
+                  DistributionMode.NONE,
+                  0, // writeParallelism
+                  Collections.emptySet(),
+                  GenericRowData.of());
+            })
+        .isInstanceOf(DynamicRecordException.class)
+        .hasMessageContaining("writeParallelism must be > 0");
   }
 
   @Test
@@ -955,7 +959,7 @@ class TestHashKeyGenerator {
                     Collections.singleton("id"),
                     Collections.singleton("data"),
                     GenericRowData.of(1, StringData.fromString("foo"))))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(DynamicRecordException.class)
         .hasMessageContaining(
             "Invalid distribution fields '[data]'. Expected distribution fields "
                 + "to be a subset of equality fields '[id]'.");
@@ -983,7 +987,7 @@ class TestHashKeyGenerator {
     record.setDistributionFields(Collections.singleton("data"));
 
     assertThatThrownBy(() -> generator.generateKey(record))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(DynamicRecordException.class)
         .hasMessageContaining(
             "Invalid distribution fields '[data]'. Expected distribution fields "
                 + "to be a subset of equality fields '[id]'.");

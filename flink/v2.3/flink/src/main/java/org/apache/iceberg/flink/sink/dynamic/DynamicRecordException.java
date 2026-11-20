@@ -21,11 +21,12 @@ package org.apache.iceberg.flink.sink.dynamic;
 import org.apache.flink.annotation.Experimental;
 
 /**
- * Thrown when a {@link DynamicRecord} cannot be written because of the record itself, for example a
- * null value for a required column, an invalid upsert configuration, an equality field that is not
- * part of the schema, or a schema change that the table cannot take. Processing the same record
- * again fails the same way, which makes it safe to divert to the error stream configured with
- * {@link DynamicIcebergSink.Builder#errorStreamConsumer}.
+ * Thrown when a {@link DynamicRecord} cannot be written because of its schema, partition spec,
+ * equality or distribution fields, or data, for example a null value for a required column, an
+ * invalid upsert configuration, an equality field that is not part of the schema, or a schema
+ * change that the table cannot take. It is never thrown for failures of the catalog or of a commit,
+ * which can be transient, so it is safe to divert to the error stream configured with {@link
+ * DynamicIcebergSink.Builder#errorStreamConsumer}.
  */
 @Experimental
 public class DynamicRecordException extends RuntimeException {

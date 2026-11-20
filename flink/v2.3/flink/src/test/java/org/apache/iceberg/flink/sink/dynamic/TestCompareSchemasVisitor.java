@@ -21,8 +21,11 @@ package org.apache.iceberg.flink.sink.dynamic;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.LongType;
@@ -31,6 +34,9 @@ import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.VariantType;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class TestCompareSchemasVisitor {
 
@@ -427,5 +433,41 @@ class TestCompareSchemasVisitor {
     assertThat(
             CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
+  }
+
+  @ParameterizedTest
+  @MethodSource("nestedTypesAgainstPrimitive")
+  void nestedTypeAgainstPrimitiveTableFieldIsRecordException(Type dataType, String message) {
+    Schema dataSchema = new Schema(optional(1, "a", dataType));
+    Schema tableSchema = new Schema(optional(1, "a", IntegerType.get()));
+
+    assertThatThrownBy(
+            () ->
+                CompareSchemasVisitor.visit(
+                    dataSchema, tableSchema, CASE_SENSITIVE, PRESERVE_COLUMNS))
+        .isInstanceOf(DynamicRecordException.class)
+        .hasMessage(message);
+  }
+
+  @Test
+  void caseInsensitiveDuplicateFieldNamesInRecordIsRecordException() {
+    Schema dataSchema =
+        new Schema(optional(1, "a", IntegerType.get()), optional(2, "A", IntegerType.get()));
+    Schema tableSchema = new Schema(optional(1, "a", IntegerType.get()));
+
+    assertThatThrownBy(
+            () ->
+                CompareSchemasVisitor.visit(
+                    dataSchema, tableSchema, CASE_INSENSITIVE, PRESERVE_COLUMNS))
+        .isInstanceOf(DynamicRecordException.class)
+        .hasMessageContaining("Multiple entries with same key");
+  }
+
+  private static Stream<Arguments> nestedTypesAgainstPrimitive() {
+    return Stream.of(
+        Arguments.of(StructType.of(optional(2, "x", IntegerType.get())), "Not a struct type: int"),
+        Arguments.of(ListType.ofOptional(2, IntegerType.get()), "Not a list type: int"),
+        Arguments.of(
+            MapType.ofOptional(2, 3, StringType.get(), IntegerType.get()), "Not a map type: int"));
   }
 }

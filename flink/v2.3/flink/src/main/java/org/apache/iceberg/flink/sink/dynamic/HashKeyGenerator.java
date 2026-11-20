@@ -153,13 +153,14 @@ class HashKeyGenerator {
 
       case HASH:
         if (!distributionFields.isEmpty()) {
-          Preconditions.checkArgument(
-              equalityFields.isEmpty() || equalityFields.containsAll(distributionFields),
-              "%s: Invalid distribution fields '%s'. Expected distribution fields to be a subset of "
-                  + "equality fields '%s'.",
-              tableName,
-              distributionFields,
-              equalityFields);
+          if (!equalityFields.isEmpty() && !equalityFields.containsAll(distributionFields)) {
+            throw new DynamicRecordException(
+                String.format(
+                    "%s: Invalid distribution fields '%s'. Expected distribution fields to be a subset of "
+                        + "equality fields '%s'.",
+                    tableName, distributionFields, equalityFields));
+          }
+
           LOG.info("{}: Distribute rows by distribution fields {}", tableName, distributionFields);
           return fieldKeySelector(
               tableName,
@@ -198,13 +199,13 @@ class HashKeyGenerator {
             // match the schema used here.
             for (PartitionField partitionField : spec.fields()) {
               String sourceName = spec.schema().findColumnName(partitionField.sourceId());
-              Preconditions.checkState(
-                  sourceName != null && equalityFields.contains(sourceName),
-                  "%s: In 'hash' distribution mode with equality fields set, partition field '%s' "
-                      + "should be included in equality fields: '%s'",
-                  tableName,
-                  partitionField,
-                  equalityFields);
+              if (sourceName == null || !equalityFields.contains(sourceName)) {
+                throw new DynamicRecordException(
+                    String.format(
+                        "%s: In 'hash' distribution mode with equality fields set, partition field '%s' "
+                            + "should be included in equality fields: '%s'",
+                        tableName, partitionField, equalityFields));
+              }
             }
             return partitionKeySelector(
                 tableName, schema, spec, writeParallelism, maxWriteParallelism);
@@ -288,11 +289,12 @@ class HashKeyGenerator {
         String tableName,
         int writeParallelism,
         int maxWriteParallelism) {
-      Preconditions.checkArgument(
-          writeParallelism > 0,
-          "%s: writeParallelism must be > 0 (is: %s)",
-          tableName,
-          writeParallelism);
+      if (writeParallelism <= 0) {
+        throw new DynamicRecordException(
+            String.format(
+                "%s: writeParallelism must be > 0 (is: %s)", tableName, writeParallelism));
+      }
+
       Preconditions.checkArgument(
           writeParallelism <= maxWriteParallelism,
           "%s: writeParallelism (%s) must be <= maxWriteParallelism (%s)",
