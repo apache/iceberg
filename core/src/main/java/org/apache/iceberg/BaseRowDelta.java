@@ -168,9 +168,16 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
       }
 
       validateNoConflictingFileAndPositionDeletes();
-
-      validateAddedDVs(base, startingSnapshotId, conflictDetectionFilter, parent);
     }
+
+    // concurrent DVs can be merged only when this operation does not add or remove data files and
+    // does not require concurrent delete files to fail validation
+    boolean canMergeConcurrentDVs =
+        !validateNewDeleteFiles && !addsDataFiles() && !deletesDataFiles();
+
+    // runs without a parent snapshot to undo merges from earlier attempts on a removed branch
+    validateAddedDVs(
+        base, startingSnapshotId, conflictDetectionFilter, parent, canMergeConcurrentDVs);
   }
 
   /**
