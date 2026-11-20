@@ -42,6 +42,15 @@ interface SparkMicroBatchPlanner {
    */
   StreamingOffset latestOffset(StreamingOffset startOffset, ReadLimit limit);
 
+  /**
+   * Return the offset at the end of the latest snapshot in the table's current history that the
+   * stream reads.
+   *
+   * @return the offset, or {@code null} if the stream reads no snapshot in the current history
+   * @throws IllegalStateException if a later snapshot can't be skipped
+   */
+  StreamingOffset latestValidSnapshotOffset();
+
   /** Stop the planner and release any resources. */
   void stop();
 }
