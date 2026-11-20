@@ -84,6 +84,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RESTException;
@@ -502,6 +503,67 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .isEqualTo("s3://bucket/warehouse");
 
     restCat.close();
+  }
+
+  @Test
+  public void testCreateOrReplaceTableWhenViewAccessIsForbidden() {
+    // server denies access to view endpoints but allows table operations
+    RESTCatalogAdapter adapter =
+        new RESTCatalogAdapter(backendCatalog) {
+          @Override
+          protected <T extends RESTResponse> T execute(
+              HTTPRequest request,
+              Class<T> responseType,
+              Consumer<ErrorResponse> errorHandler,
+              Consumer<Map<String, String>> responseHeaders) {
+            if (request.method() == HTTPMethod.HEAD && request.path().contains("/views/")) {
+              throw new ForbiddenException("Forbidden: view access denied");
+            }
+            return super.execute(request, responseType, errorHandler, responseHeaders);
+          }
+        };
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    catalog.createNamespace(NS);
+    catalog.buildTable(TABLE, SCHEMA).create();
+
+    catalog.buildTable(TABLE, OTHER_SCHEMA).createOrReplaceTransaction().commitTransaction();
+    Table replaced = catalog.loadTable(TABLE);
+    assertThat(replaced.schema().columns()).extracting("name").containsExactly("some_id");
+  }
+
+  @Test
+  public void testCreateOrReplaceTableWithExistingViewStillFails() {
+    // server reports that a view with the same name exists
+    RESTCatalogAdapter adapter =
+        new RESTCatalogAdapter(backendCatalog) {
+          @Override
+          public <T extends RESTResponse> T handleRequest(
+              Route route,
+              Map<String, String> vars,
+              HTTPRequest httpRequest,
+              Class<T> responseType,
+              Consumer<Map<String, String>> responseHeaders) {
+            if (route == Route.VIEW_EXISTS) {
+              return null;
+            }
+            return super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
+          }
+        };
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    catalog.createNamespace(NS);
+    catalog.buildTable(TABLE, SCHEMA).create();
+
+    assertThatThrownBy(() -> catalog.buildTable(TABLE, OTHER_SCHEMA).createOrReplaceTransaction())
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("View with same name already exists");
   }
 
   @Test
