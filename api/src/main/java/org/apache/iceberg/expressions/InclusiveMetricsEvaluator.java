@@ -69,17 +69,20 @@ public class InclusiveMetricsEvaluator {
     Set<Integer> fields = new HashSet<>();
     for (Map.Entry<Integer, Integer> entry : parents.entrySet()) {
       Integer parentId = entry.getValue();
+      boolean hasOptionalStructAncestor = false;
       while (parentId != null) {
         Types.NestedField parent = schema.findField(parentId);
-        // ORC value counts have different semantics within repeated lists and maps.
+        // Only fields below a chain of structs have one logical value per row.
+        // Traversing the full chain also excludes structs nested inside lists or maps.
         if (parent == null || !parent.type().isStructType()) {
+          hasOptionalStructAncestor = false;
           break;
         }
-        if (parent.isOptional()) {
-          fields.add(entry.getKey());
-          break;
-        }
+        hasOptionalStructAncestor |= parent.isOptional();
         parentId = parents.get(parentId);
+      }
+      if (hasOptionalStructAncestor) {
+        fields.add(entry.getKey());
       }
     }
     return fields;
