@@ -687,6 +687,52 @@ class TestHashKeyGenerator {
   }
 
   @Test
+  void testCacheHitForEqualSchemaInstances() throws Exception {
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(10, maxWriteParallelism);
+    Map<HashKeyGenerator.SelectorKey, KeySelector<RowData, Integer>> keySelectorCache =
+        generator.getKeySelectorCache();
+
+    PartitionSpec unpartitioned = PartitionSpec.unpartitioned();
+    DynamicRecord record1 =
+        new DynamicRecord(
+            TABLE_IDENTIFIER,
+            BRANCH,
+            new Schema(SCHEMA.columns()),
+            GenericRowData.of(1, StringData.fromString("foo")),
+            unpartitioned,
+            DistributionMode.NONE,
+            2);
+    DynamicRecord record2 =
+        new DynamicRecord(
+            TABLE_IDENTIFIER,
+            BRANCH,
+            new Schema(SCHEMA.columns()),
+            GenericRowData.of(1, StringData.fromString("foo")),
+            unpartitioned,
+            DistributionMode.NONE,
+            2);
+
+    int writeKey1 = generator.generateKey(record1);
+    int writeKey2 = generator.generateKey(record2);
+    // The second record reuses the key selector, so the round robin moves on
+    assertThat(keySelectorCache).hasSize(1);
+    assertThat(writeKey2).isNotEqualTo(writeKey1);
+
+    DynamicRecord record3 =
+        new DynamicRecord(
+            TABLE_IDENTIFIER,
+            BRANCH,
+            new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get())),
+            GenericRowData.of(1),
+            unpartitioned,
+            DistributionMode.NONE,
+            2);
+    generator.generateKey(record3);
+    assertThat(keySelectorCache).hasSize(2);
+  }
+
+  @Test
   void testCacheMissOnWriteParallelismChange() throws Exception {
     int maxWriteParallelism = 8;
     HashKeyGenerator generator = new HashKeyGenerator(10, maxWriteParallelism);
