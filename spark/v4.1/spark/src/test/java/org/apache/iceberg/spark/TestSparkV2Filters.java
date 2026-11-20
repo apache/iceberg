@@ -44,6 +44,7 @@ import org.apache.spark.sql.connector.expressions.FieldReference;
 import org.apache.spark.sql.connector.expressions.LiteralValue;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.UserDefinedScalarFunc;
+import org.apache.spark.sql.connector.expressions.VariantGet;
 import org.apache.spark.sql.connector.expressions.filter.And;
 import org.apache.spark.sql.connector.expressions.filter.Not;
 import org.apache.spark.sql.connector.expressions.filter.Or;
@@ -62,7 +63,8 @@ public class TestSparkV2Filters {
           Types.NestedField.optional(2, "tsCol", Types.TimestampType.withZone()),
           Types.NestedField.optional(3, "tsNtzCol", Types.TimestampType.withoutZone()),
           Types.NestedField.optional(4, "intCol", Types.IntegerType.get()),
-          Types.NestedField.optional(5, "strCol", Types.StringType.get()));
+          Types.NestedField.optional(5, "strCol", Types.StringType.get()),
+          Types.NestedField.optional(6, "v", Types.VariantType.get()));
 
   @SuppressWarnings("checkstyle:MethodLength")
   @Test
@@ -650,6 +652,45 @@ public class TestSparkV2Filters {
             expressions(
                 LiteralValue.apply(6, DataTypes.IntegerType), FieldReference.apply("strCol")));
     testUDF(udf, Expressions.truncate("strCol", 6), "prefix", DataTypes.StringType);
+  }
+
+  @Test
+  public void testVariantGet() {
+    VariantGet vg = new VariantGet(FieldReference.apply("v"), "$.city", DataTypes.StringType, true, null);
+    testUDF(vg, Expressions.extract("v", "$.city", "string"), "NYC", DataTypes.StringType);
+  }
+
+  @Test
+  public void testTryVariantGet() {
+    VariantGet vg = new VariantGet(FieldReference.apply("v"), "$.city", DataTypes.StringType, false, null);
+    testUDF(vg, Expressions.extract("v", "$.city", "string"), "NYC", DataTypes.StringType);
+  }
+
+  @Test
+  public void testVariantGetNestedPath() {
+    VariantGet vg = new VariantGet(FieldReference.apply("v"), "$.event.id", DataTypes.LongType, true, null);
+    testUDF(vg, Expressions.extract("v", "$.event.id", "long"), 42L, DataTypes.LongType);
+  }
+
+  @Test
+  public void testVariantGetBigintTypeName() {
+    // LongType.catalogString() = "bigint"; toIcebergTypeName maps "bigint" -> "long"
+    VariantGet vg = new VariantGet(FieldReference.apply("v"), "$.event.id", DataTypes.LongType, true, null);
+    testUDF(vg, Expressions.extract("v", "$.event.id", "long"), 42L, DataTypes.LongType);
+  }
+
+  @Test
+  public void testVariantGetInPredicate() {
+    VariantGet vg = new VariantGet(FieldReference.apply("v"), "$.city", DataTypes.StringType, true, null);
+    org.apache.spark.sql.connector.expressions.Expression[] attrAndValues =
+        expressions(
+            vg,
+            LiteralValue.apply(UTF8String.fromString("NYC"), DataTypes.StringType),
+            LiteralValue.apply(UTF8String.fromString("LA"), DataTypes.StringType));
+    Predicate in = new Predicate("IN", attrAndValues);
+    Expression actual = SparkV2Filters.convert(in);
+    Expression expected = Expressions.in(Expressions.extract("v", "$.city", "string"), "NYC", "LA");
+    assertEquals(expected, actual);
   }
 
   @Test
