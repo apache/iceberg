@@ -156,6 +156,23 @@ public class ContentFileUtil {
         deleteFile.referencedDataFile());
   }
 
+  /**
+   * Validates that a deletion vector has a usable offset and length before it is read. The length
+   * must fit in an int so the bytes can be read into a single array.
+   *
+   * @param dv deletion vector to validate
+   */
+  public static void validateDV(DeleteFile dv) {
+    Preconditions.checkArgument(
+        dv.contentOffset() != null, "Invalid DV, offset cannot be null: %s", dvDesc(dv));
+    Preconditions.checkArgument(
+        dv.contentSizeInBytes() != null, "Invalid DV, length is null: %s", dvDesc(dv));
+    Preconditions.checkArgument(
+        dv.contentSizeInBytes() <= Integer.MAX_VALUE,
+        "Can't read DV larger than 2GB: %s",
+        dvDesc(dv));
+  }
+
   private static Metrics metricsWithoutPathBounds(DeleteFile file) {
     Map<Integer, ByteBuffer> lowerBounds =
         file.lowerBounds() == null ? null : Maps.newHashMap(file.lowerBounds());
