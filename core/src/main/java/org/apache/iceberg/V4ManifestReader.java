@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +42,8 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.RestoreColumns;
@@ -58,6 +62,31 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           MetadataColumns.ROW_POSITION.fieldId(), // needed to apply metadata DVs
           TrackedFile.CONTENT_TYPE.fieldId(), // needed for content filtering
           TrackedFile.RECORD_COUNT.fieldId()); // needed for first_row_id assignment and filtering
+
+  /**
+   * Reads leaf manifest locations from a root manifest file.
+   *
+   * @param root a root {@link ManifestFile}
+   * @param io a {@link FileIO}
+   * @return a list of manifest locations tracked by the root manifest
+   */
+  static List<String> readManifestLocations(ManifestFile root, FileIO io) {
+    try (V4ManifestReader reader =
+        builder(root, io, new Schema(), ImmutableMap.of())
+            .metricsConfig(MetricsConfig.getDefault())
+            .select(TrackedFile.CONTENT_TYPE.name(), TrackedFile.LOCATION.name())
+            .build()) {
+      Iterable<TrackedFile> manifests =
+          Iterables.filter(
+              reader,
+              file ->
+                  file.contentType() == FileContent.DATA_MANIFEST
+                      || file.contentType() == FileContent.DELETE_MANIFEST);
+      return Lists.newArrayList(Iterables.transform(manifests, TrackedFile::location));
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to read root manifest: " + root.path(), e);
+    }
+  }
 
   static Builder builder(
       ManifestFile manifest, FileIO io, Schema tableSchema, Map<Integer, PartitionSpec> specsById) {
