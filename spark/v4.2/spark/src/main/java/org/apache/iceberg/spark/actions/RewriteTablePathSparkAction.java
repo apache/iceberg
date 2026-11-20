@@ -360,7 +360,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
     Set<Pair<String, String>> copyPlan = Sets.newHashSet();
     copyPlan.addAll(rewriteVersionResult.copyPlan());
-    copyPlan.addAll(statisticsFilesCopyPlan(startMetadata, endMetadata));
+    copyPlan.addAll(endVersionStatisticsCopyPlan(startMetadata, endMetadata));
     copyPlan.addAll(rewriteManifestListResult.copyPlan());
     copyPlan.addAll(rewriteManifestResult.copyPlan());
     String fileListLocation = saveFileList(copyPlan);
@@ -454,7 +454,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     return result;
   }
 
-  private Set<Pair<String, String>> statisticsFilesCopyPlan(
+  private Set<Pair<String, String>> endVersionStatisticsCopyPlan(
       TableMetadata startMetadata, TableMetadata endMetadata) {
     TableMetadata newEndMetadata =
         RewriteTablePathUtil.replacePaths(endMetadata, sourcePrefix, targetPrefix);

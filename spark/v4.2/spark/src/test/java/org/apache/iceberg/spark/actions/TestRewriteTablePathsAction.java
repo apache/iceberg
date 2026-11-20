@@ -1636,6 +1636,37 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @TestTemplate
+  void rewriteSkipsReplacedStatisticsFiles() throws IOException {
+    String sourceTableLocation = newTableLocation();
+    Map<String, String> properties =
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    String tableName = String.format("v%stblwithreplacedstats", formatVersion);
+    Table sourceTable =
+        createMetastoreTable(sourceTableLocation, properties, "default", tableName, 1);
+    actions().computeTableStats(sourceTable).execute();
+    actions().computeTableStats(sourceTable).execute();
+    sourceTable.refresh();
+    String currentStatisticsFile = Iterables.getOnlyElement(sourceTable.statisticsFiles()).path();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
+            .execute();
+
+    assertThat(result)
+        .hasVersionFiles(4)
+        .hasManifestLists(1)
+        .hasManifests(1)
+        .hasStatisticsFiles(1)
+        .hasContentFiles(1)
+        .hasNoOtherFiles();
+    assertThat(readPathPairList(result.fileListLocation()))
+        .extracting(Tuple2::_1)
+        .contains(currentStatisticsFile);
+  }
+
+  @TestTemplate
   public void testMetadataCompressionWithMetastoreTable() throws Exception {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(TableProperties.METADATA_COMPRESSION, "gzip");
