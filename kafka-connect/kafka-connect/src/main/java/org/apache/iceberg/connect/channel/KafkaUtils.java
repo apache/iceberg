@@ -19,8 +19,10 @@
 package org.apache.iceberg.connect.channel;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import org.apache.iceberg.common.DynFields;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
@@ -57,31 +59,46 @@ class KafkaUtils {
     return kafkaConsumer(context).groupMetadata();
   }
 
-  static void seekToLastCommittedOffsets(SinkTaskContext context) {
+  /**
+   * Seeks each assigned partition to its last committed offset. A partition without a committed
+   * offset is sought to its offset in {@code firstDiscardedOffsets}, the first offset of the
+   * records that were buffered for it and discarded, so that those records are consumed again.
+   */
+  static void seekToLastCommittedOffsets(
+      SinkTaskContext context, Map<TopicPartition, Long> firstDiscardedOffsets) {
     Consumer<byte[], byte[]> consumer = kafkaConsumer(context);
     if (consumer == null) {
       return;
     }
 
-    Map<TopicPartition, OffsetAndMetadata> committedOffsets =
-        consumer.committed(consumer.assignment());
-    if (committedOffsets == null || committedOffsets.isEmpty()) {
-      return;
-    }
+    seekToLastCommittedOffsets(consumer, firstDiscardedOffsets);
+  }
 
-    committedOffsets.forEach(
-        (topicPartition, offsetAndMetadata) -> {
-          if (offsetAndMetadata != null) {
-            try {
-              consumer.seek(topicPartition, offsetAndMetadata.offset());
-            } catch (IllegalStateException e) {
-              LOG.warn(
-                  "Rebalance may have occurred, partition {} lost before seeking",
-                  topicPartition,
-                  e);
-            }
-          }
-        });
+  @VisibleForTesting
+  static void seekToLastCommittedOffsets(
+      Consumer<?, ?> consumer, Map<TopicPartition, Long> firstDiscardedOffsets) {
+    Set<TopicPartition> assignment = consumer.assignment();
+    Map<TopicPartition, OffsetAndMetadata> committedOffsets = consumer.committed(assignment);
+
+    for (TopicPartition topicPartition : assignment) {
+      OffsetAndMetadata committed =
+          committedOffsets != null ? committedOffsets.get(topicPartition) : null;
+      Long offset;
+      if (committed != null) {
+        offset = committed.offset();
+      } else {
+        offset = firstDiscardedOffsets.get(topicPartition);
+      }
+
+      if (offset != null) {
+        try {
+          consumer.seek(topicPartition, offset);
+        } catch (IllegalStateException e) {
+          LOG.warn(
+              "Rebalance may have occurred, partition {} lost before seeking", topicPartition, e);
+        }
+      }
+    }
   }
 
   @SuppressWarnings("unchecked")

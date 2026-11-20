@@ -20,12 +20,15 @@ package org.apache.iceberg.connect.channel;
 
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.SinkWriter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.MemberDescription;
@@ -47,6 +50,8 @@ public class CommitterImpl implements Committer {
   private KafkaClientFactory clientFactory;
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
   private final AtomicBoolean isInitialized = new AtomicBoolean(false);
+  // first offset of the records buffered by the current worker, per source partition
+  private final Map<TopicPartition, Long> firstBufferedOffsets = Maps.newHashMap();
   private String taskId;
 
   private void initialize(
@@ -159,6 +164,10 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void close(Collection<TopicPartition> closedPartitions) {
+    // Stopping the worker discards the records buffered for every partition, including those
+    // that stay assigned, so remember where those records started.
+    Map<TopicPartition, Long> firstDiscardedOffsets = ImmutableMap.copyOf(firstBufferedOffsets);
+
     // Always try to stop the worker to avoid duplicates.
     stopWorker();
 
@@ -181,15 +190,23 @@ public class CommitterImpl implements Committer {
       stopCoordinator();
     }
 
-    // Reset offsets to last committed to avoid data loss.
+    // Reset offsets to last committed to avoid data loss. Partitions without a committed offset
+    // are reset to the first discarded record.
     LOG.info("Seeking to last committed offsets for worker {}.", taskId);
-    KafkaUtils.seekToLastCommittedOffsets(context);
+    KafkaUtils.seekToLastCommittedOffsets(context, firstDiscardedOffsets);
   }
 
   @Override
   public void save(Collection<SinkRecord> sinkRecords) {
     if (sinkRecords != null && !sinkRecords.isEmpty()) {
       startWorker();
+      for (SinkRecord record : sinkRecords) {
+        // use the original topic, partition and offset, as the consumer does
+        firstBufferedOffsets.putIfAbsent(
+            new TopicPartition(record.originalTopic(), record.originalKafkaPartition()),
+            record.originalKafkaOffset());
+      }
+
       worker.save(sinkRecords);
     }
     processControlEvents();
@@ -235,6 +252,8 @@ public class CommitterImpl implements Committer {
       worker.stop();
       worker = null;
     }
+
+    firstBufferedOffsets.clear();
   }
 
   private void stopCoordinator() {
