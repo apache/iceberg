@@ -82,7 +82,11 @@ public class AvroSchemaUtil {
   }
 
   public static Type convert(Schema schema) {
-    return AvroSchemaVisitor.visit(schema, new SchemaToType(schema));
+    return convert(schema, false);
+  }
+
+  public static Type convert(Schema schema, boolean adjustToUtcDefault) {
+    return AvroSchemaVisitor.visit(schema, new SchemaToType(schema, adjustToUtcDefault));
   }
 
   public static org.apache.iceberg.Schema toIceberg(Schema schema) {
@@ -142,6 +146,10 @@ public class AvroSchemaUtil {
   }
 
   public static boolean isTimestamptz(Schema schema) {
+    return isTimestamptz(schema, false);
+  }
+
+  static boolean isTimestamptz(Schema schema, boolean adjustToUtcDefault) {
     LogicalType logicalType = schema.getLogicalType();
     if (logicalType instanceof LogicalTypes.TimestampMillis
         || logicalType instanceof LogicalTypes.TimestampMicros
@@ -150,14 +158,14 @@ public class AvroSchemaUtil {
       Object value = schema.getObjectProp(ADJUST_TO_UTC_PROP);
 
       if (value == null) {
-        // not all avro timestamp logical types will have the adjust_to_utc prop, default to
-        // timestamp without timezone
-        return false;
+        return adjustToUtcDefault;
       } else if (value instanceof Boolean) {
         return (Boolean) value;
       } else if (value instanceof String) {
         return Boolean.parseBoolean((String) value);
       }
+
+      return adjustToUtcDefault;
     }
 
     return false;

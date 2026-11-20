@@ -58,9 +58,24 @@ public class TestPlannedDataReader {
 
   @Test
   public void timestampDataReader() throws IOException {
+    timestampDataReader(
+        LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)),
+        LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)),
+        LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG)));
+  }
+
+  @Test
+  public void localTimestampDataReader() throws IOException {
+    timestampDataReader(
+        LogicalTypes.localTimestampNanos().addToSchema(Schema.create(Schema.Type.LONG)),
+        LogicalTypes.localTimestampMicros().addToSchema(Schema.create(Schema.Type.LONG)),
+        LogicalTypes.localTimestampMillis().addToSchema(Schema.create(Schema.Type.LONG)));
+  }
+
+  private void timestampDataReader(Schema nanos, Schema micros, Schema millis) throws IOException {
     org.apache.iceberg.Schema icebergSchema =
         new org.apache.iceberg.Schema(
-            Types.NestedField.required(1, "timestamp_nanos", Types.TimestampType.withoutZone()),
+            Types.NestedField.required(1, "timestamp_nanos", Types.TimestampNanoType.withoutZone()),
             Types.NestedField.required(2, "timestamp_micros", Types.TimestampType.withoutZone()),
             Types.NestedField.required(3, "timestamp_millis", Types.TimestampType.withoutZone()));
 
@@ -68,13 +83,13 @@ public class TestPlannedDataReader {
         SchemaBuilder.record("test_programmatic")
             .fields()
             .name("timestamp_nanos")
-            .type(LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)))
+            .type(nanos)
             .noDefault()
             .name("timestamp_micros")
-            .type(LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)))
+            .type(micros)
             .noDefault()
             .name("timestamp_millis")
-            .type(LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG)))
+            .type(millis)
             .noDefault()
             .endRecord();
 

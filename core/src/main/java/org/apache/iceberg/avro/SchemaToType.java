@@ -30,12 +30,15 @@ import org.apache.iceberg.types.Types;
 
 class SchemaToType extends AvroSchemaVisitor<Type> {
   private final Schema root;
+  private final boolean adjustToUtcDefault;
 
-  SchemaToType(Schema root) {
+  SchemaToType(Schema root, boolean adjustToUtcDefault) {
     this.root = root;
     if (root.getType() == Schema.Type.RECORD) {
       this.nextId = root.getFields().size();
     }
+
+    this.adjustToUtcDefault = adjustToUtcDefault;
   }
 
   private int nextId = 1;
@@ -193,24 +196,35 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
 
     } else if (logical instanceof LogicalTypes.TimestampMillis
         || logical instanceof LogicalTypes.TimestampMicros) {
-      if (AvroSchemaUtil.isTimestamptz(primitive)) {
-        return Types.TimestampType.withZone();
-      } else {
-        return Types.TimestampType.withoutZone();
-      }
+      return timestampType(primitive);
 
     } else if (logical instanceof LogicalTypes.TimestampNanos) {
-      if (AvroSchemaUtil.isTimestamptz(primitive)) {
-        return Types.TimestampNanoType.withZone();
-      } else {
-        return Types.TimestampNanoType.withoutZone();
-      }
+      return timestampNanoType(primitive);
+
+    } else if (logical instanceof LogicalTypes.LocalTimestampMillis
+        || logical instanceof LogicalTypes.LocalTimestampMicros) {
+      return Types.TimestampType.withoutZone();
+
+    } else if (logical instanceof LogicalTypes.LocalTimestampNanos) {
+      return Types.TimestampNanoType.withoutZone();
 
     } else if (LogicalTypes.uuid().getName().equals(name)) {
       return Types.UUIDType.get();
     }
 
     return null;
+  }
+
+  private Type timestampType(Schema primitive) {
+    return AvroSchemaUtil.isTimestamptz(primitive, adjustToUtcDefault)
+        ? Types.TimestampType.withZone()
+        : Types.TimestampType.withoutZone();
+  }
+
+  private Type timestampNanoType(Schema primitive) {
+    return AvroSchemaUtil.isTimestamptz(primitive, adjustToUtcDefault)
+        ? Types.TimestampNanoType.withZone()
+        : Types.TimestampNanoType.withoutZone();
   }
 
   @Override
