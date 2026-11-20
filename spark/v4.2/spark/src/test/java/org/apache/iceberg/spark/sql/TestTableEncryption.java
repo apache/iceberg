@@ -195,10 +195,14 @@ public class TestTableEncryption extends CatalogTestBase {
     Transaction transaction = table.newTransaction();
     transaction.newFastAppend().appendFile(file).commit();
 
-    // Commit twice to check that the transaction's keys survive back-to-back refreshes.
+    // Two commits are needed. The second refreshes twice, in updateProperties() and commit(),
+    // without rebuilding the encryption manager in between, and must keep the transaction's
+    // manifest list key.
     table.updateProperties().set("prop", "first").commit();
     table.updateProperties().set("prop", "second").commit();
 
+    // Only this read needs the pending manifest list key. commitTransaction() re-applies the
+    // append on the refreshed table and writes a new manifest list.
     assertThat(SnapshotChanges.builderFor(transaction.table()).build().addedDataFiles())
         .extracting(DataFile::location)
         .containsExactly(file.location());
