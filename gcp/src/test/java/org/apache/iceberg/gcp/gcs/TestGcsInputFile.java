@@ -114,7 +114,7 @@ public class TestGcsInputFile {
   }
 
   @Test
-  public void getLengthMissingBlob() {
+  void getLengthMissingBlob() {
     when(storage.get(any(BlobId.class))).thenReturn(null);
     GCSInputFile inputFile =
         new GCSInputFile(
