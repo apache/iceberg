@@ -1120,6 +1120,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       for (DataFile file : Iterables.concat(newDataFilesBySpec.values())) {
         rootManifestProducer.appendFile(file);
       }
+
+      this.hasNewDataFiles = false;
     }
 
     TrackedFile result = rootManifestProducer.apply(base, parent, sequenceNumber);
