@@ -156,7 +156,7 @@ public class TestOverwriteWithValidation extends TestBase {
 
   private static final DeleteFile FILE_DAY_2_ANOTHER_RANGE_EQ_DELETES =
       FileMetadata.deleteFileBuilder(PARTITION_SPEC)
-          .ofEqualityDeletes()
+          .ofEqualityDeletes(1)
           .withPath("/path/to/data-3-eq-deletes.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("date=2018-06-09")

@@ -21,14 +21,20 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Evaluates an {@link Expression} on a {@link DataFile} to test whether rows in the file may match.
@@ -46,6 +52,8 @@ import org.apache.iceberg.variants.VariantObject;
  * checks for NaN is necessary in order to not skip files that may contain matching data.
  */
 public class InclusiveMetricsEvaluator {
+  private static final Logger LOG = LoggerFactory.getLogger(InclusiveMetricsEvaluator.class);
+
   private final Expression expr;
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
@@ -75,6 +83,23 @@ public class InclusiveMetricsEvaluator {
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
 
+    private static List<Integer> equalityFieldIds(ContentFile<?> file) {
+      List<Integer> equalityFieldIds = file.equalityFieldIds();
+      if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
+        LOG.warn(
+            "Ignoring stats of equality delete file without equality field IDs: {}",
+            file.location());
+        return Collections.emptyList();
+      }
+
+      return equalityFieldIds;
+    }
+
+    private static <V> Map<Integer, V> statsForFields(
+        Map<Integer, V> stats, List<Integer> fieldIds) {
+      return stats != null ? Maps.filterKeys(stats, fieldIds::contains) : null;
+    }
+
     private boolean eval(ContentFile<?> file) {
       if (file.recordCount() == 0) {
         return ROWS_CANNOT_MATCH;
@@ -87,11 +112,21 @@ public class InclusiveMetricsEvaluator {
         return ROWS_MIGHT_MATCH;
       }
 
-      this.valueCounts = file.valueCounts();
-      this.nullCounts = file.nullValueCounts();
-      this.nanCounts = file.nanValueCounts();
-      this.lowerBounds = file.lowerBounds();
-      this.upperBounds = file.upperBounds();
+      if (file.content() == FileContent.EQUALITY_DELETES) {
+        // stats of columns outside the equality fields don't describe which rows the file deletes
+        List<Integer> fieldIds = equalityFieldIds(file);
+        this.valueCounts = statsForFields(file.valueCounts(), fieldIds);
+        this.nullCounts = statsForFields(file.nullValueCounts(), fieldIds);
+        this.nanCounts = statsForFields(file.nanValueCounts(), fieldIds);
+        this.lowerBounds = statsForFields(file.lowerBounds(), fieldIds);
+        this.upperBounds = statsForFields(file.upperBounds(), fieldIds);
+      } else {
+        this.valueCounts = file.valueCounts();
+        this.nullCounts = file.nullValueCounts();
+        this.nanCounts = file.nanValueCounts();
+        this.lowerBounds = file.lowerBounds();
+        this.upperBounds = file.upperBounds();
+      }
 
       return ExpressionVisitors.visitEvaluator(expr, this);
     }
