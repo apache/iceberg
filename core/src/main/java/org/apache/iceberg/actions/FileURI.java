@@ -21,54 +21,28 @@ package org.apache.iceberg.actions;
 import java.net.URI;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
-public class FileURI {
+/**
+ * A normalized file identifier that also retains its original URI string.
+ *
+ * <p>Use {@link FileIdentifier} when only location matching is required so that the original URI is
+ * not retained or transferred unnecessarily.
+ */
+public class FileURI extends FileIdentifier {
 
-  private String scheme;
-  private String authority;
-  private String path;
   private String uriAsString;
 
   public FileURI(String scheme, String authority, String path, String uriAsString) {
-    this.scheme = scheme;
-    this.authority = authority;
-    this.path = path;
+    super(scheme, authority, path);
     this.uriAsString = uriAsString;
   }
 
   public FileURI(URI uri, Map<String, String> equalSchemes, Map<String, String> equalAuthorities) {
-    this.scheme = equalSchemes.getOrDefault(uri.getScheme(), uri.getScheme());
-    this.authority = equalAuthorities.getOrDefault(uri.getAuthority(), uri.getAuthority());
-    this.path = uri.getPath();
+    super(uri, equalSchemes, equalAuthorities);
     this.uriAsString = uri.toString();
   }
 
   public FileURI() {}
-
-  public String getScheme() {
-    return scheme;
-  }
-
-  public void setScheme(String scheme) {
-    this.scheme = scheme;
-  }
-
-  public String getAuthority() {
-    return authority;
-  }
-
-  public void setAuthority(String authority) {
-    this.authority = authority;
-  }
-
-  public String getPath() {
-    return path;
-  }
-
-  public void setPath(String path) {
-    this.path = path;
-  }
 
   public String getUriAsString() {
     return uriAsString;
@@ -79,23 +53,19 @@ public class FileURI {
   }
 
   public boolean schemeMatch(FileURI another) {
-    return uriComponentMatch(scheme, another.getScheme());
+    return super.schemeMatch(another);
   }
 
   public boolean authorityMatch(FileURI another) {
-    return uriComponentMatch(authority, another.getAuthority());
-  }
-
-  private boolean uriComponentMatch(String valid, String actual) {
-    return Strings.isNullOrEmpty(valid) || valid.equalsIgnoreCase(actual);
+    return super.authorityMatch(another);
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("scheme", scheme)
-        .add("authority", authority)
-        .add("path", path)
+        .add("scheme", getScheme())
+        .add("authority", getAuthority())
+        .add("path", getPath())
         .add("uriAsString", uriAsString)
         .toString();
   }
