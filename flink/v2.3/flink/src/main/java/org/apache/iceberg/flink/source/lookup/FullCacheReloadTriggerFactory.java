@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.connector.source.lookup.LookupOptions;
 import org.apache.flink.table.connector.source.lookup.LookupOptions.LookupCacheType;
@@ -36,7 +37,12 @@ public class FullCacheReloadTriggerFactory {
 
   private static final Logger LOG = LoggerFactory.getLogger(FullCacheReloadTriggerFactory.class);
 
-  private static final String FULL_CACHE_PREFIX = "lookup.full-cache.";
+  private static final List<ConfigOption<?>> RELOAD_OPTIONS =
+      List.of(
+          LookupOptions.FULL_CACHE_PERIODIC_RELOAD_INTERVAL,
+          LookupOptions.FULL_CACHE_PERIODIC_RELOAD_SCHEDULE_MODE,
+          LookupOptions.FULL_CACHE_TIMED_RELOAD_ISO_TIME,
+          LookupOptions.FULL_CACHE_TIMED_RELOAD_INTERVAL_IN_DAYS);
 
   public static @Nullable CacheReloadTrigger create(Configuration lookupConf) {
     if (!lookupConf.contains(LookupOptions.FULL_CACHE_RELOAD_STRATEGY)) {
@@ -55,9 +61,9 @@ public class FullCacheReloadTriggerFactory {
 
   private static void warnIgnoredOptions(Configuration lookupConf) {
     List<String> ignored =
-        lookupConf.keySet().stream()
-            .filter(key -> key.startsWith(FULL_CACHE_PREFIX))
-            .sorted()
+        RELOAD_OPTIONS.stream()
+            .filter(lookupConf::contains)
+            .map(ConfigOption::key)
             .collect(Collectors.toList());
     if (!ignored.isEmpty()) {
       LOG.warn(

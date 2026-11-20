@@ -78,6 +78,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
   private transient Table table;
   private transient IcebergLookupReader reader;
   private transient RowDataSerializer rowSerializer;
+  // lookup() and reloads run on different threads, and toBinaryRow reuses its output row
   private transient RowDataSerializer lookupKeySerializer;
   private transient RowDataSerializer loadKeySerializer;
   private transient RowData.FieldGetter[] keyGetters;
