@@ -348,7 +348,7 @@ public class Partitioning {
   private static boolean equivalentIgnoringNames(
       PartitionField field, PartitionField anotherField) {
     return field.fieldId() == anotherField.fieldId()
-        && field.sourceId() == anotherField.sourceId()
+        && field.sourceIds().equals(anotherField.sourceIds())
         && compatibleTransforms(field.transform(), anotherField.transform());
   }
 
@@ -370,7 +370,7 @@ public class Partitioning {
   private static Set<Integer> allActiveFieldIds(Schema schema, Collection<PartitionSpec> specs) {
     return FluentIterable.from(specs)
         .transformAndConcat(PartitionSpec::fields)
-        .filter(field -> schema.findField(field.sourceId()) != null)
+        .filter(field -> hasAllSourceFields(schema, field))
         .transform(PartitionField::fieldId)
         .toSet();
   }
@@ -395,9 +395,19 @@ public class Partitioning {
 
   private static List<Integer> activeFieldIds(Schema schema, PartitionSpec spec) {
     return spec.fields().stream()
-        .filter(field -> schema == null || schema.findField(field.sourceId()) != null)
+        .filter(field -> schema == null || hasAllSourceFields(schema, field))
         .filter(field -> !isVoidTransform(field))
         .map(PartitionField::fieldId)
         .collect(Collectors.toList());
+  }
+
+  private static boolean hasAllSourceFields(Schema schema, PartitionField field) {
+    for (int sourceId : field.sourceIds()) {
+      if (schema.findField(sourceId) == null) {
+        return false;
+      }
+    }
+
+    return true;
   }
 }

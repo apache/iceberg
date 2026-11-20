@@ -30,6 +30,7 @@ import org.apache.iceberg.expressions.Term;
 import org.apache.iceberg.expressions.UnboundTerm;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -122,7 +123,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   private PartitionField recycleOrCreatePartitionField(
       Pair<Integer, Transform<?, ?>> sourceTransform, String name) {
     if (formatVersion >= 2 && base != null) {
-      int sourceId = sourceTransform.first();
+      List<Integer> sourceIds = ImmutableList.of(sourceTransform.first());
       Transform<?, ?> transform = sourceTransform.second();
 
       Set<PartitionField> allHistoricalFields = Sets.newHashSet();
@@ -131,7 +132,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
       }
 
       for (PartitionField field : allHistoricalFields) {
-        if (field.sourceId() == sourceId && field.transform().equals(transform)) {
+        if (field.sourceIds().equals(sourceIds) && field.transform().equals(transform)) {
           // if target name is specified then consider it too, otherwise not
           if (name == null || field.name().equals(name)) {
             return field;
@@ -308,9 +309,9 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
       if (!deletes.contains(field.fieldId())) {
         String newName = renames.get(field.name());
         if (newName != null) {
-          builder.add(field.sourceId(), field.fieldId(), newName, field.transform());
+          builder.add(field.sourceIds(), field.fieldId(), newName, field.transform());
         } else {
-          builder.add(field.sourceId(), field.fieldId(), field.name(), field.transform());
+          builder.add(field.sourceIds(), field.fieldId(), field.name(), field.transform());
         }
       } else if (formatVersion < 2) {
         // field IDs were not required for v1 and were assigned sequentially in each partition spec
@@ -320,9 +321,9 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
         // must be replaced with a null transform. null values are always allowed in partition data.
         String newName = renames.get(field.name());
         if (newName != null) {
-          builder.add(field.sourceId(), field.fieldId(), newName, Transforms.alwaysNull());
+          builder.add(field.sourceIds(), field.fieldId(), newName, Transforms.alwaysNull());
         } else {
-          builder.add(field.sourceId(), field.fieldId(), field.name(), Transforms.alwaysNull());
+          builder.add(field.sourceIds(), field.fieldId(), field.name(), Transforms.alwaysNull());
         }
       }
     }
@@ -399,7 +400,10 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     Map<Pair<Integer, String>, PartitionField> indexSpecs = Maps.newHashMap();
     List<PartitionField> fields = spec.fields();
     for (PartitionField field : fields) {
-      indexSpecs.put(Pair.of(field.sourceId(), field.transform().toString()), field);
+      // multi-arg fields cannot be referenced by a term, which always has a single source field
+      if (field.sourceIds().size() == 1) {
+        indexSpecs.put(Pair.of(field.sourceId(), field.transform().toString()), field);
+      }
     }
 
     return indexSpecs;
