@@ -42,10 +42,13 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsKeyedTokenAuthSession;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.rest.auth.AuthProperties;
+import org.apache.iceberg.rest.auth.KeyedTokenAuthSession;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.responses.ErrorResponse;
@@ -226,10 +229,18 @@ class RESTTableScan extends DataTableScan {
   }
 
   private FileIO scanFileIO(List<Credential> storageCredentials) {
+    KeyedTokenAuthSession authSession =
+        table().io() instanceof SupportsKeyedTokenAuthSession tableFileIO
+            ? tableFileIO.authSession()
+            : null;
     ImmutableMap.Builder<String, String> builder =
         ImmutableMap.<String, String>builder().putAll(catalogProperties);
     if (null != planId) {
       builder.put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId);
+    }
+
+    if (authSession != null) {
+      builder.put(AuthProperties.FILE_IO_SESSION_REQUIRED, "true");
     }
 
     Map<String, String> properties = builder.buildKeepingLast();
@@ -241,6 +252,15 @@ class RESTTableScan extends DataTableScan {
             storageCredentials.stream()
                 .map(c -> StorageCredential.create(c.prefix(), c.config()))
                 .collect(Collectors.toList()));
+    if (authSession != null) {
+      try {
+        RESTSessionCatalog.setAuthSession(ioForScan, authSession);
+      } catch (RuntimeException e) {
+        ioForScan.close();
+        throw e;
+      }
+    }
+
     FILEIO_TRACKER.put(this, ioForScan);
     return ioForScan;
   }

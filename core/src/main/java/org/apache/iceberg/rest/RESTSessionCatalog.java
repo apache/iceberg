@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -59,11 +60,13 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsKeyedTokenAuthSession;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
@@ -80,7 +83,10 @@ import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.RESTTableCache.TableWithETag;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
+import org.apache.iceberg.rest.auth.AuthProperties;
 import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.auth.KeyedTokenAuthSession;
+import org.apache.iceberg.rest.auth.TokenSource;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
@@ -160,6 +166,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private FileIOTracker fileIOTracker = null;
   private AuthSession catalogAuth = null;
   private AuthManager authManager;
+  private String fileIOSessionKeyPrefix = null;
+  private volatile boolean closed = false;
   private RESTClient client = null;
   private ResourcePaths paths = null;
   private SnapshotMode snapshotMode = null;
@@ -207,6 +215,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     this.authManager = AuthManagers.loadAuthManager(name, props);
     this.closeables.addCloseable(this.authManager);
+
+    if (PropertyUtil.propertyAsBoolean(
+        props,
+        AuthProperties.FILE_IO_SESSION_ENABLED,
+        AuthProperties.FILE_IO_SESSION_ENABLED_DEFAULT)) {
+      this.fileIOSessionKeyPrefix = UUID.randomUUID().toString();
+    }
 
     ConfigResponse config;
     try (RESTClient initClient = clientBuilder.apply(props);
@@ -983,6 +998,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public void close() throws IOException {
+    this.closed = true;
     if (closeables != null) {
       closeables.close();
     }
@@ -1355,8 +1371,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       List<Credential> storageCredentials,
       RemoteSigningConfig remoteSigningConfig) {
 
+    KeyedTokenAuthSession fileIOSession = fileIOSession(tableIdentifier, context, tableConf);
     boolean canReuseCatalogIO =
-        tableConf.isEmpty()
+        fileIOSession == null
+            && tableConf.isEmpty()
             && ioBuilder == null
             && storageCredentials.isEmpty()
             && remoteSigningConfig.isEmpty();
@@ -1378,7 +1396,93 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           RemoteSigningConfigParser.toJson(remoteSigningConfig));
     }
 
-    return newFileIO(context, fullConf.buildKeepingLast(), storageCredentials);
+    if (fileIOSession != null) {
+      fullConf.put(AuthProperties.FILE_IO_SESSION_REQUIRED, "true");
+    }
+
+    FileIO fileIO = newFileIO(context, fullConf.buildKeepingLast(), storageCredentials);
+    if (fileIOSession != null) {
+      try {
+        setAuthSession(fileIO, fileIOSession);
+      } catch (RuntimeException e) {
+        if (ioBuilder == null) {
+          fileIO.close();
+        }
+
+        throw e;
+      }
+    }
+
+    return fileIO;
+  }
+
+  static void setAuthSession(FileIO fileIO, KeyedTokenAuthSession authSession) {
+    Preconditions.checkState(
+        fileIO instanceof SupportsKeyedTokenAuthSession,
+        "Cannot set auth session: %s does not implement SupportsKeyedTokenAuthSession",
+        fileIO.getClass().getName());
+    SupportsKeyedTokenAuthSession fileIOWithSession = (SupportsKeyedTokenAuthSession) fileIO;
+    Preconditions.checkState(
+        fileIOWithSession.authSession() == null,
+        "Cannot set auth session: %s already has a session",
+        fileIO.getClass().getName());
+    fileIOWithSession.setAuthSession(authSession);
+  }
+
+  private KeyedTokenAuthSession fileIOSession(
+      TableIdentifier tableIdentifier, SessionContext context, Map<String, String> tableConf) {
+    if (fileIOSessionKeyPrefix == null) {
+      return null;
+    }
+
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    AuthSession tableSession =
+        authManager.tableSession(tableIdentifier, tableConf, contextualSession);
+    if (tableSession == catalogAuth) {
+      return null;
+    }
+
+    Preconditions.checkState(
+        tableSession instanceof TokenSource,
+        "Cannot set auth session for table %s: %s is not a token source",
+        tableIdentifier,
+        tableSession.getClass().getName());
+
+    Supplier<AuthSession> contextualSessionSupplier =
+        () -> authManager.contextualSession(context, catalogAuth);
+    String sessionKey = fileIOSessionKeyPrefix + "/" + RESTUtil.encodeString(context.sessionId());
+    if (tableSession == contextualSession) {
+      return KeyedTokenAuthSession.of(sessionKey, sessionSource(contextualSessionSupplier));
+    }
+
+    String tableSessionKey =
+        sessionKey
+            + "/"
+            + RESTUtil.encodeNamespace(tableIdentifier.namespace(), "/")
+            + "/"
+            + RESTUtil.encodeString(tableIdentifier.name());
+    return KeyedTokenAuthSession.of(
+        tableSessionKey,
+        sessionSource(
+            () ->
+                authManager.tableSession(
+                    tableIdentifier, tableConf, contextualSessionSupplier.get())));
+  }
+
+  private TokenSource sessionSource(Supplier<AuthSession> sessionSupplier) {
+    return () -> {
+      if (closed) {
+        throw new NotAuthorizedException("No token: catalog %s is closed", name());
+      }
+
+      AuthSession currentSession = sessionSupplier.get();
+      if (currentSession instanceof TokenSource tokenSource) {
+        return tokenSource.currentToken();
+      }
+
+      throw new NotAuthorizedException(
+          "No token: %s is not a token source", currentSession.getClass().getName());
+    };
   }
 
   /**
