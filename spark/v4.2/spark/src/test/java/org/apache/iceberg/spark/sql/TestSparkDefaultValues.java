@@ -22,19 +22,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HexFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.CatalogTestBase;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.spark.sql.connector.catalog.ColumnDefaultValue;
+import org.apache.spark.sql.connector.catalog.TableChange;
+import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -254,20 +261,147 @@ public class TestSparkDefaultValues extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testAlterTableAddColumnWithDefaultUnsupported() {
+  public void testDefaultValuesAfterCoercionAndFolding() {
+    sql(
+        "CREATE TABLE %s (id BIGINT DEFAULT 1, data INT DEFAULT 1 + 1) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        tableName);
+
+    Types.NestedField idField = validationCatalog.loadTable(tableIdent).schema().findField("id");
+    assertThat(idField.initialDefault()).isEqualTo(1L);
+    assertThat(idField.writeDefault()).isEqualTo(1L);
+
+    Types.NestedField dataField =
+        validationCatalog.loadTable(tableIdent).schema().findField("data");
+    assertThat(dataField.initialDefault()).isEqualTo(2);
+    assertThat(dataField.writeDefault()).isEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testAddColumnDefaultWithMismatchedValues() {
+    Schema schema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
+    Table table =
+        validationCatalog.createTable(
+            tableIdent,
+            schema,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of("format-version", "3"));
+
+    ColumnDefaultValue defaultValue =
+        new ColumnDefaultValue(
+            org.apache.spark.sql.connector.expressions.Expressions.literal("default-value"), null);
+    TableChange change =
+        TableChange.addColumn(
+            new String[] {"data"}, DataTypes.StringType, true, null, null, defaultValue);
+
+    assertThatThrownBy(
+            () -> {
+              UpdateSchema update = table.updateSchema();
+              Spark3Util.applySchemaChanges(update, ImmutableList.of(change));
+            })
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("initial and write defaults must match");
+  }
+
+  @TestTemplate
+  public void testAlterTableAddColumnWithDefault() {
     assertThat(validationCatalog.tableExists(tableIdent))
         .as("Table should not already exist")
         .isFalse();
 
-    Schema schema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
+    sql("CREATE TABLE %s (id INT) USING iceberg TBLPROPERTIES ('format-version'='3')", tableName);
+    sql("INSERT INTO %s VALUES (1)", tableName);
 
-    validationCatalog.createTable(
-        tableIdent, schema, PartitionSpec.unpartitioned(), ImmutableMap.of("format-version", "3"));
+    sql("ALTER TABLE %s ADD COLUMN data STRING DEFAULT 'default-value'", tableName);
 
-    assertThatThrownBy(
-            () -> sql("ALTER TABLE %s ADD COLUMN data STRING DEFAULT 'default-value'", tableName))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("default values in Spark is currently unsupported");
+    Types.NestedField field = validationCatalog.loadTable(tableIdent).schema().findField("data");
+    assertThat(field.initialDefault()).isEqualTo("default-value");
+    assertThat(field.writeDefault()).isEqualTo("default-value");
+
+    sql("INSERT INTO %s (id) VALUES (2)", tableName);
+
+    assertEquals(
+        "Should use the default for existing and new rows",
+        ImmutableList.of(row(1, "default-value"), row(2, "default-value")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testAlterTableAddColumnWithTypedDefaults() {
+    sql("CREATE TABLE %s (id INT) USING iceberg TBLPROPERTIES ('format-version'='3')", tableName);
+    sql("INSERT INTO %s VALUES (1)", tableName);
+
+    sql(
+        "ALTER TABLE %s ADD COLUMNS "
+            + "(int_col INT DEFAULT 34, date_col DATE DEFAULT DATE '2026-10-29')",
+        tableName);
+
+    Types.NestedField intField =
+        validationCatalog.loadTable(tableIdent).schema().findField("int_col");
+    assertThat(intField.initialDefault()).isEqualTo(34);
+    assertThat(intField.writeDefault()).isEqualTo(34);
+
+    Types.NestedField dateField =
+        validationCatalog.loadTable(tableIdent).schema().findField("date_col");
+    int expectedDays = DateTimeUtil.daysFromDate(LocalDate.of(2026, 10, 29));
+    assertThat(dateField.initialDefault()).isEqualTo(expectedDays);
+    assertThat(dateField.writeDefault()).isEqualTo(expectedDays);
+
+    sql("INSERT INTO %s (id) VALUES (2)", tableName);
+
+    assertEquals(
+        "Should apply typed defaults to existing and new rows",
+        ImmutableList.of(row(1, 34, "2026-10-29"), row(2, 34, "2026-10-29")),
+        sql("SELECT id, int_col, CAST(date_col AS STRING) FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testAlterColumnDefaultKeepsRowsWrittenWithPreviousDefault() {
+    sql("CREATE TABLE %s (id INT) USING iceberg TBLPROPERTIES ('format-version'='3')", tableName);
+    sql("INSERT INTO %s VALUES (1)", tableName);
+
+    sql("ALTER TABLE %s ADD COLUMN data STRING DEFAULT 'initial'", tableName);
+    sql("INSERT INTO %s (id) VALUES (2)", tableName);
+
+    sql("ALTER TABLE %s ALTER COLUMN data SET DEFAULT 'updated'", tableName);
+    sql("INSERT INTO %s (id) VALUES (3)", tableName);
+
+    assertEquals(
+        "Should keep rows written with the previous default",
+        ImmutableList.of(row(1, "initial"), row(2, "initial"), row(3, "updated")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testAlterColumnDefaultChangesOnlyNewRows() {
+    sql("CREATE TABLE %s (id INT) USING iceberg TBLPROPERTIES ('format-version'='3')", tableName);
+    sql("INSERT INTO %s VALUES (1)", tableName);
+
+    sql("ALTER TABLE %s ADD COLUMN data STRING DEFAULT 'initial'", tableName);
+    sql("ALTER TABLE %s ALTER COLUMN data SET DEFAULT 'updated'", tableName);
+
+    Types.NestedField updated = validationCatalog.loadTable(tableIdent).schema().findField("data");
+    assertThat(updated.initialDefault()).isEqualTo("initial");
+    assertThat(updated.writeDefault()).isEqualTo("updated");
+
+    sql("INSERT INTO %s (id) VALUES (2)", tableName);
+
+    assertEquals(
+        "Should apply the new default to new rows only",
+        ImmutableList.of(row(1, "initial"), row(2, "updated")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    sql("ALTER TABLE %s ALTER COLUMN data DROP DEFAULT", tableName);
+    sql("INSERT INTO %s (id) VALUES (3)", tableName);
+
+    Types.NestedField dropped = validationCatalog.loadTable(tableIdent).schema().findField("data");
+    assertThat(dropped.initialDefault()).isEqualTo("initial");
+    assertThat(dropped.writeDefault()).isNull();
+
+    assertEquals(
+        "Should write null after dropping the default",
+        ImmutableList.of(row(1, "initial"), row(2, "updated"), row(3, null)),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @TestTemplate
