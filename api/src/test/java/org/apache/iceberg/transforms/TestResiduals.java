@@ -47,8 +47,58 @@ import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestResiduals {
+  @Test
+  void lessThanKeepsNullDatePartition() {
+    Schema schema = new Schema(Types.NestedField.optional(1, "d", Types.DateType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("d").build();
+    ResidualEvaluator evaluator = ResidualEvaluator.of(spec, lessThan("d", "2026-10-27"), true);
+
+    assertThat(evaluator.residualFor(Row.of((Object) null))).isEqualTo(alwaysFalse());
+  }
+
+  @Test
+  void lessThanOrEqualKeepsNullDatePartition() {
+    Schema schema = new Schema(Types.NestedField.optional(1, "d", Types.DateType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("d").build();
+    ResidualEvaluator evaluator =
+        ResidualEvaluator.of(spec, Expressions.lessThanOrEqual("d", "2026-10-27"), true);
+
+    assertThat(evaluator.residualFor(Row.of((Object) null))).isEqualTo(alwaysFalse());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void negatedGreaterThanKeepsNullDatePartition(boolean inclusive) {
+    Schema schema = new Schema(Types.NestedField.optional(1, "d", Types.DateType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("d").build();
+    Expression comparison =
+        inclusive
+            ? Expressions.greaterThanOrEqual("d", "2026-10-27")
+            : greaterThan("d", "2026-10-27");
+    ResidualEvaluator evaluator = ResidualEvaluator.of(spec, Expressions.not(comparison), true);
+
+    assertThat(evaluator.residualFor(Row.of((Object) null))).isEqualTo(alwaysFalse());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void lessThanKeepsNullDayPartition(boolean inclusive) {
+    Schema schema =
+        new Schema(Types.NestedField.optional(1, "ts", Types.TimestampType.withoutZone()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).day("ts").build();
+    Expression comparison =
+        inclusive
+            ? Expressions.lessThanOrEqual("ts", "2026-10-27T00:00:00")
+            : lessThan("ts", "2026-10-27T00:00:00");
+    ResidualEvaluator evaluator = ResidualEvaluator.of(spec, comparison, true);
+
+    assertThat(evaluator.residualFor(Row.of((Object) null))).isEqualTo(alwaysFalse());
+  }
+
   @Test
   public void testIdentityTransformResiduals() {
     Schema schema =
