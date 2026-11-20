@@ -41,6 +41,7 @@ import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetViewProperties
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
+import org.apache.spark.sql.catalyst.plans.logical.ShowColumns
 import org.apache.spark.sql.catalyst.plans.logical.ShowCreateTable
 import org.apache.spark.sql.catalyst.plans.logical.ShowTableProperties
 import org.apache.spark.sql.catalyst.plans.logical.UnsetViewProperties
@@ -157,6 +158,16 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
         allowExisting,
         replace,
         viewSchemaMode) :: Nil
+
+    case ShowColumns(ResolvedV2View(_, ident, view), namespace, output) =>
+      namespace.foreach { ns =>
+        val viewNamespace = ident.namespace().toSeq
+        if (ns.length != viewNamespace.length ||
+          !ns.zip(viewNamespace).forall(spark.sessionState.conf.resolver.tupled)) {
+          throw QueryCompilationErrors.showColumnsWithConflictNamespacesError(ns, viewNamespace)
+        }
+      }
+      ShowV2ViewColumnsExec(output, view) :: Nil
 
     case DescribeRelation(ResolvedV2View(catalog, ident, view), isExtended, output) =>
       IcebergDescribeV2ViewExec(output, catalog.name(), ident, view, isExtended) :: Nil
