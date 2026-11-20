@@ -19,16 +19,21 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listener;
 import org.apache.iceberg.events.Listeners;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestCreateSnapshotEvent extends TestBase {
 
   private CreateSnapshotEvent currentEvent;
+  private final List<CreateSnapshotEvent> events = Lists.newArrayList();
 
   @BeforeEach
   public void initListener() {
@@ -77,10 +82,49 @@ public class TestCreateSnapshotEvent extends TestBase {
         .containsEntry("total-data-files", "1");
   }
 
+  @TestTemplate
+  void snapshotEventAfterTransactionCommit() {
+    Transaction transaction = table.newTransaction();
+    transaction.newAppend().appendFile(FILE_A).commit();
+    assertThat(currentEvent).isNull();
+
+    transaction.commitTransaction();
+    assertThat(currentEvent).isNotNull();
+    assertThat(currentEvent.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
+  }
+
+  @TestTemplate
+  void snapshotEventsInOrderAfterTransactionCommit() {
+    Transaction transaction = table.newTransaction();
+    transaction.newAppend().appendFile(FILE_A).commit();
+    transaction.newDelete().deleteFile(FILE_A).commit();
+    assertThat(events).isEmpty();
+
+    transaction.commitTransaction();
+    Snapshot delete = table.currentSnapshot();
+    assertThat(events)
+        .extracting(CreateSnapshotEvent::snapshotId)
+        .containsExactly(delete.parentId(), delete.snapshotId());
+  }
+
+  @TestTemplate
+  void noSnapshotEventWhenTransactionCommitFails() {
+    table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "0").commit();
+    Transaction transaction = table.newTransaction();
+    transaction.newAppend().appendFile(FILE_A).commit();
+    table.ops().failCommits(1);
+
+    assertThatThrownBy(transaction::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
+    assertThat(currentEvent).isNull();
+  }
+
   class MyListener implements Listener<CreateSnapshotEvent> {
     @Override
     public void notify(CreateSnapshotEvent event) {
       currentEvent = event;
+      events.add(event);
     }
   }
 }
