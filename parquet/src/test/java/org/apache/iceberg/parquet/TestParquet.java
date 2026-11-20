@@ -63,6 +63,12 @@ import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FilterFileSystem;
+import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.util.Progressable;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
@@ -75,6 +81,7 @@ import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.data.parquet.InternalReader;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
@@ -1070,6 +1077,52 @@ public class TestParquet {
     }
 
     return writeRecords(schema, records);
+  }
+
+  @Test
+  void writeUsesFileSystemOfHadoopOutputFile() throws IOException {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+    Record record = org.apache.iceberg.data.GenericRecord.create(schema);
+    record.setField("id", 1L);
+
+    File file = createTempFile(temp);
+    CreateCountingFileSystem fs =
+        new CreateCountingFileSystem(FileSystem.getLocal(new Configuration()));
+    try (FileAppender<Record> appender =
+        Parquet.write(HadoopOutputFile.fromLocation(file.toURI().toString(), fs))
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+      appender.add(record);
+    }
+
+    assertThat(fs.creates).isEqualTo(1);
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(file)))) {
+      assertThat(reader.getRecordCount()).isEqualTo(1);
+    }
+  }
+
+  private static class CreateCountingFileSystem extends FilterFileSystem {
+    private int creates = 0;
+
+    private CreateCountingFileSystem(FileSystem fs) {
+      super(fs);
+    }
+
+    @Override
+    public FSDataOutputStream create(
+        org.apache.hadoop.fs.Path path,
+        FsPermission permission,
+        boolean overwrite,
+        int bufferSize,
+        short replication,
+        long blockSize,
+        Progressable progress)
+        throws IOException {
+      creates += 1;
+      return super.create(
+          path, permission, overwrite, bufferSize, replication, blockSize, progress);
+    }
   }
 
   private File writeRecords(Schema schema, List<Record> records) throws IOException {
