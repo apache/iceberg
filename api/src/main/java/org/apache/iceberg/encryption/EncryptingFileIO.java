@@ -25,10 +25,7 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.ContentFile;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.EncryptedFile;
 import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.DelegateFileIO;
@@ -68,11 +65,11 @@ public class EncryptingFileIO implements FileIO, Serializable {
     this.em = em;
   }
 
-  public Map<String, InputFile> bulkDecrypt(Iterable<? extends ContentFile<?>> files) {
+  public Map<String, InputFile> bulkDecrypt(Iterable<? extends EncryptedFile> files) {
     ImmutableMap.Builder<String, InputFile> builder = ImmutableMap.builder();
 
     List<EncryptedInputFile> encryptedFiles = Lists.newArrayList();
-    for (ContentFile<?> file : files) {
+    for (EncryptedFile file : files) {
       if (file.keyMetadata() != null) {
         encryptedFiles.add(wrap(file));
       } else {
@@ -104,39 +101,21 @@ public class EncryptingFileIO implements FileIO, Serializable {
   }
 
   @Override
-  public InputFile newInputFile(DataFile file) {
-    return newInputFile((ContentFile<?>) file);
-  }
-
-  @Override
-  public InputFile newInputFile(DeleteFile file) {
-    return newInputFile((ContentFile<?>) file);
-  }
-
-  private InputFile newInputFile(ContentFile<?> file) {
-    if (file.keyMetadata() != null) {
-      return newDecryptingInputFile(file.location(), file.fileSizeInBytes(), file.keyMetadata());
-    } else {
-      return newInputFile(file.location(), file.fileSizeInBytes());
-    }
-  }
-
-  @Override
-  public InputFile newInputFile(ManifestFile manifest) {
-    if (manifest.keyMetadata() != null) {
-      return newDecryptingInputFile(manifest.path(), manifest.length(), manifest.keyMetadata());
-    } else {
-      return newInputFile(manifest.path(), manifest.length());
-    }
-  }
-
-  @Override
   public InputFile newInputFile(ManifestListFile manifestList) {
     if (manifestList.encryptionKeyID() != null) {
       ByteBuffer keyMetadata = manifestList.decryptKeyMetadata(em);
       return newDecryptingInputFile(manifestList.location(), keyMetadata);
     } else {
       return newInputFile(manifestList.location());
+    }
+  }
+
+  @Override
+  public InputFile newInputFile(EncryptedFile file) {
+    if (file.keyMetadata() != null) {
+      return newDecryptingInputFile(file.location(), file.fileSizeInBytes(), file.keyMetadata());
+    } else {
+      return newInputFile(file.location(), file.fileSizeInBytes());
     }
   }
 
@@ -181,7 +160,7 @@ public class EncryptingFileIO implements FileIO, Serializable {
     }
   }
 
-  private SimpleEncryptedInputFile wrap(ContentFile<?> file) {
+  private SimpleEncryptedInputFile wrap(EncryptedFile file) {
     InputFile encryptedInputFile = io.newInputFile(file.location(), file.fileSizeInBytes());
     return new SimpleEncryptedInputFile(encryptedInputFile, toKeyMetadata(file.keyMetadata()));
   }
