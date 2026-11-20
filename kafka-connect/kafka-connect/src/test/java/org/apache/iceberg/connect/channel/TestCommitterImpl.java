@@ -21,9 +21,12 @@ package org.apache.iceberg.connect.channel;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -32,6 +35,7 @@ import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -42,12 +46,19 @@ import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.InvalidProducerEpochException;
 import org.apache.kafka.common.errors.ProducerFencedException;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 
 public class TestCommitterImpl {
+
+  private static final TopicPartition LEADER_PARTITION = new TopicPartition("topic1", 0);
+  private static final TopicPartition OTHER_PARTITION = new TopicPartition("topic1", 1);
 
   @Test
   public void testIsLeader() {
@@ -200,5 +211,81 @@ public class TestCommitterImpl {
 
     committer.save(Collections.emptyList());
     assertThat(field.get(committer)).isNull();
+  }
+
+  @ParameterizedTest
+  @MethodSource("rebalancingGroups")
+  void closeStopsCoordinatorWhenLeaderPartitionIsRevoked(
+      List<MemberDescription> rebalancingMembers, List<TopicPartition> revokedPartitions) {
+    ConsumerGroupDescription groupDescription = mock(ConsumerGroupDescription.class);
+    try (MockedStatic<KafkaUtils> kafkaUtils = mockStatic(KafkaUtils.class);
+        MockedConstruction<KafkaClientFactory> clientFactories =
+            mockConstruction(KafkaClientFactory.class);
+        MockedConstruction<Coordinator> coordinators =
+            mockConstruction(Coordinator.class, TestCommitterImpl::slowProcess)) {
+      CommitterImpl committer = openAsLeader(kafkaUtils, groupDescription);
+
+      when(groupDescription.members()).thenReturn(rebalancingMembers);
+      committer.close(revokedPartitions);
+
+      verify(coordinators.constructed().get(0)).terminate();
+    }
+  }
+
+  @Test
+  void closeKeepsCoordinatorWhenLeaderPartitionIsRetained() {
+    try (MockedStatic<KafkaUtils> kafkaUtils = mockStatic(KafkaUtils.class);
+        MockedConstruction<KafkaClientFactory> clientFactories =
+            mockConstruction(KafkaClientFactory.class);
+        MockedConstruction<Coordinator> coordinators =
+            mockConstruction(Coordinator.class, TestCommitterImpl::slowProcess)) {
+      CommitterImpl committer = openAsLeader(kafkaUtils, mock(ConsumerGroupDescription.class));
+      committer.close(ImmutableList.of(OTHER_PARTITION));
+
+      verify(coordinators.constructed().get(0), never()).terminate();
+      committer.close(ImmutableList.of());
+    }
+  }
+
+  static Stream<Arguments> rebalancingGroups() {
+    return Stream.of(
+        Arguments.of(
+            Named.of("no assignments", ImmutableList.of(member())),
+            ImmutableList.of(LEADER_PARTITION, OTHER_PARTITION)),
+        Arguments.of(
+            Named.of("leader partition unassigned", ImmutableList.of(member(OTHER_PARTITION))),
+            ImmutableList.of(LEADER_PARTITION)));
+  }
+
+  private static CommitterImpl openAsLeader(
+      MockedStatic<KafkaUtils> kafkaUtils, ConsumerGroupDescription groupDescription) {
+    when(groupDescription.members())
+        .thenReturn(ImmutableList.of(member(LEADER_PARTITION, OTHER_PARTITION)));
+    kafkaUtils
+        .when(() -> KafkaUtils.consumerGroupDescription(any(), any()))
+        .thenReturn(groupDescription);
+
+    CommitterImpl committer = new CommitterImpl();
+    committer.open(
+        null,
+        mock(IcebergSinkConfig.class),
+        null,
+        ImmutableList.of(LEADER_PARTITION, OTHER_PARTITION));
+    return committer;
+  }
+
+  private static MemberDescription member(TopicPartition... partitions) {
+    return new MemberDescription(
+        null, Optional.empty(), null, null, new MemberAssignment(ImmutableSet.copyOf(partitions)));
+  }
+
+  private static void slowProcess(Coordinator coordinator, MockedConstruction.Context context) {
+    doAnswer(
+            invocation -> {
+              Thread.sleep(10);
+              return null;
+            })
+        .when(coordinator)
+        .process();
   }
 }
