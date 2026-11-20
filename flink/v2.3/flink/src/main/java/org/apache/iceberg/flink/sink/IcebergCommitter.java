@@ -254,7 +254,8 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     }
 
     CommitSummary summary = new CommitSummary(pendingResults);
-    commitPendingResult(pendingResults, baselineSnapshotIds, summary, newFlinkJobId,sinkId,  operatorId);
+    commitPendingResult(
+        pendingResults, baselineSnapshotIds, summary, newFlinkJobId, sinkId, operatorId);
     if (committerMetrics != null) {
       committerMetrics.updateCommitSummary(summary);
     }
@@ -286,7 +287,8 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       if (replacePartitions) {
         replacePartitions(pendingResults, summary, newFlinkJobId, sinkId, operatorId);
       } else {
-        commitDeltaTxn(pendingResults, baselineSnapshotIds, summary, newFlinkJobId, sinkId, operatorId);
+        commitDeltaTxn(
+            pendingResults, baselineSnapshotIds, summary, newFlinkJobId, sinkId, operatorId);
       }
       continuousEmptyCheckpoints = 0;
     } else {
@@ -352,6 +354,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
               baselineSnapshotIds.get(e.getKey()),
               summary,
               newFlinkJobId,
+              sinkId,
               operatorId,
               e.getKey());
           continue;
@@ -381,6 +384,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       Long baselineSnapshotId,
       CommitSummary summary,
       String newFlinkJobId,
+      String sinkId,
       String operatorId,
       long checkpointId) {
     table.refresh();
@@ -401,6 +405,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
           DvOnlyChange.asWritten(result, baselineSnapshotId),
           summary,
           newFlinkJobId,
+          sinkId,
           operatorId,
           checkpointId);
       return;
@@ -412,9 +417,17 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       table.refresh();
       DvOnlyDeletionVectorMerger.Merged merged =
           deletionVectorMerger.merge(result, baselineSnapshotId);
+      boolean committed;
       try {
-        commitDvOnlyAttempt(
-            result, DvOnlyChange.merged(merged), summary, newFlinkJobId, operatorId, checkpointId);
+        committed =
+            commitDvOnlyAttempt(
+                result,
+                DvOnlyChange.merged(merged),
+                summary,
+                newFlinkJobId,
+                sinkId,
+                operatorId,
+                checkpointId);
       } catch (ValidationException e) {
         CatalogUtil.deleteFiles(table.io(), merged.writtenFiles(), "deletion vector");
         if (merges >= MAX_DV_ONLY_COMMIT_ATTEMPTS) {
@@ -425,8 +438,15 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
         continue;
       }
 
-      // Superseded by the merged vectors, which are the ones that got committed.
-      CatalogUtil.deleteFiles(table.io(), merged.obsoleteFiles(), "deletion vector");
+      if (committed) {
+        // Superseded by the merged vectors, which are the ones that got committed.
+        CatalogUtil.deleteFiles(table.io(), merged.obsoleteFiles(), "deletion vector");
+      } else {
+        // The checkpoint was already committed by an earlier attempt, so the merged vectors are
+        // not referenced by the table.
+        CatalogUtil.deleteFiles(table.io(), merged.writtenFiles(), "deletion vector");
+      }
+
       return;
     }
   }
@@ -443,11 +463,12 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
         conflict);
   }
 
-  private void commitDvOnlyAttempt(
+  private boolean commitDvOnlyAttempt(
       WriteResult result,
       DvOnlyChange change,
       CommitSummary summary,
       String newFlinkJobId,
+      String sinkId,
       String operatorId,
       long checkpointId) {
     RowDelta rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
@@ -462,7 +483,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
 
     String description = "rowDelta";
     logCommitSummary(summary, description);
-    commitOperation(rowDelta, description, newFlinkJobId, operatorId, checkpointId);
+    return commitOperation(rowDelta, description, newFlinkJobId, sinkId, operatorId, checkpointId);
   }
 
   private record DvOnlyChange(
@@ -488,7 +509,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     }
   }
 
-  private void commitOperation(
+  private boolean commitOperation(
       SnapshotUpdate<?> operation,
       String description,
       String newFlinkJobId,
@@ -523,7 +544,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
           table.name(),
           checkpointId,
           e);
-      return;
+      return false;
     }
     long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano);
     LOG.info(
@@ -536,6 +557,8 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     if (committerMetrics != null) {
       committerMetrics.commitDuration(durationMs);
     }
+
+    return true;
   }
 
   @Override

@@ -28,6 +28,7 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.formats.FormatModelRegistry;
@@ -55,6 +56,9 @@ public class EqualityKeyReader {
   private final Schema keySchema;
   private final Schema keyWithPositionSchema;
   private final StructLikeSerializer serializer = new StructLikeSerializer();
+  // Generic records hold java.time values; the serializer expects Iceberg's internal
+  // representation (e.g. days for DATE, micros for TIMESTAMP).
+  private final InternalRecordWrapper keyWrapper;
 
   public EqualityKeyReader(FileIO io, Schema tableSchema, Set<Integer> equalityFieldIds) {
     Preconditions.checkArgument(
@@ -69,6 +73,7 @@ public class EqualityKeyReader {
         "Equality field IDs %s not present in table schema",
         fieldIds);
     this.keyWithPositionSchema = appendRowPosition(keySchema);
+    this.keyWrapper = new InternalRecordWrapper(keySchema.asStruct());
   }
 
   /** Receives the key and position of one row. */
@@ -94,7 +99,9 @@ public class EqualityKeyReader {
       for (Record record : records) {
         long position = (long) positionAccessor.get(record);
         if (deleted == null || !deleted.isDeleted(position)) {
-          out.accept(serializer.serializeKey(record, keySchema.asStruct()), position);
+          SerializedEqualityValues key =
+              serializer.serializeKey(keyWrapper.wrap(record), keySchema.asStruct());
+          out.accept(key, position);
           rows++;
         }
       }
@@ -108,7 +115,7 @@ public class EqualityKeyReader {
       throws IOException {
     try (CloseableIterable<Record> records = open(file, keySchema)) {
       for (Record record : records) {
-        out.accept(serializer.serializeKey(record, keySchema.asStruct()));
+        out.accept(serializer.serializeKey(keyWrapper.wrap(record), keySchema.asStruct()));
       }
     }
   }

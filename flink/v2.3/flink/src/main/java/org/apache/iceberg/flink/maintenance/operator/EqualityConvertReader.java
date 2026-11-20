@@ -31,15 +31,9 @@ import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.data.BaseDeleteLoader;
-import org.apache.iceberg.data.DeleteLoader;
-import org.apache.iceberg.data.InternalRecordWrapper;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -67,12 +61,6 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
   private final boolean stagingOnTargetBranch;
 
   private transient Table table;
-  private transient Schema keySchema;
-  private transient StructLikeSerializer fieldSerializer;
-  // Generic records hold java.time values; the serializer expects Iceberg's internal
-  // representation (e.g. days for DATE, micros for TIMESTAMP).
-  private transient InternalRecordWrapper keyWrapper;
-  private transient DeleteLoader deleteLoader;
   private transient EqualityKeyReader keyReader;
   private transient DeletionVectorHelper deletionVectorHelper;
 
@@ -94,15 +82,6 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
 
     table = tableLoader.loadTable();
     // Equality fields resolve against the current schema at build time, so it covers all ids.
-    // Fail fast on a missing id rather than silently widening the key.
-    keySchema = TypeUtil.select(table.schema(), eqFieldIds);
-    Preconditions.checkArgument(
-        TypeUtil.getProjectedIds(keySchema).containsAll(eqFieldIds),
-        "Equality field IDs %s not present in table schema",
-        eqFieldIds);
-    fieldSerializer = new StructLikeSerializer();
-    keyWrapper = new InternalRecordWrapper(keySchema.asStruct());
-    deleteLoader = new BaseDeleteLoader(deleteFile -> table.io().newInputFile(deleteFile));
     keyReader = new EqualityKeyReader(table.io(), table.schema(), eqFieldIds);
     deletionVectorHelper = new DeletionVectorHelper(table);
   }
@@ -148,7 +127,6 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
       Collector<IndexCommand> out)
       throws IOException {
     ContentFile<?> file = task.file();
-    Schema readSchema = appendRowPosition(keySchema);
     PositionDeleteIndex existingDeletes = loadExistingDVs(task, file.location());
 
     int specId = file.specId();
@@ -157,47 +135,31 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
     Types.StructType partitionType = task.spec().partitionType();
     byte[] partitionBytes = keyReader.encodePartition(file.partition(), partitionType);
 
-    InputFile input = table.io().newInputFile(file.location());
-    ReadBuilder<Record, Schema> builder =
-        FormatModelRegistry.readBuilder(file.format(), Record.class, input);
-    try (CloseableIterable<Record> records =
-        builder.project(readSchema).reuseContainers().build()) {
-      Accessor<StructLike> posAccessor =
-          readSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
-      for (Record record : records) {
-        long position = (long) posAccessor.get(record);
-        if (existingDeletes != null && existingDeletes.isDeleted(position)) {
-          continue;
-        }
-
-        SerializedEqualityValues key =
-            fieldSerializer.serializeKey(keyWrapper.wrap(record), keySchema.asStruct());
-        if (type == ReadCommand.Type.REMOVED_DATA_FILE) {
-          out.collect(
-              IndexCommand.removeDataRow(
-                  mainSnapshotId,
-                  indexGeneration,
-                  key,
-                  file.location(),
-                  position,
-                  specId,
-                  partitionBytes,
-                  dataSequenceNumber));
-        } else {
-          out.collect(
-              IndexCommand.addDataRow(
-                  mainSnapshotId,
-                  indexGeneration,
-                  key,
-                  file.location(),
-                  position,
-                  specId,
-                  partitionBytes,
-                  dataSequenceNumber,
-                  type == ReadCommand.Type.STAGING_DATA_FILE));
-        }
-      }
-    }
+    keyReader.readLiveRows(
+        file,
+        existingDeletes,
+        (key, position) ->
+            out.collect(
+                type == ReadCommand.Type.REMOVED_DATA_FILE
+                    ? IndexCommand.removeDataRow(
+                        mainSnapshotId,
+                        indexGeneration,
+                        key,
+                        file.location(),
+                        position,
+                        specId,
+                        partitionBytes,
+                        dataSequenceNumber)
+                    : IndexCommand.addDataRow(
+                        mainSnapshotId,
+                        indexGeneration,
+                        key,
+                        file.location(),
+                        position,
+                        specId,
+                        partitionBytes,
+                        dataSequenceNumber,
+                        type == ReadCommand.Type.STAGING_DATA_FILE)));
   }
 
   private void processDeleteFile(
@@ -215,30 +177,18 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
     // and may lack specs added after startup.
     int deleteSpecId = task.spec().isUnpartitioned() ? IndexCommand.GLOBAL_DELETE_SPEC_ID : specId;
 
-    InputFile input = table.io().newInputFile(file.location());
-    ReadBuilder<Record, Schema> builder =
-        FormatModelRegistry.readBuilder(file.format(), Record.class, input);
-    try (CloseableIterable<Record> records = builder.project(keySchema).reuseContainers().build()) {
-      for (Record record : records) {
-        SerializedEqualityValues key =
-            fieldSerializer.serializeKey(keyWrapper.wrap(record), keySchema.asStruct());
-        out.collect(
-            IndexCommand.resolveDelete(
-                mainSnapshotId, indexGeneration, key, dataSequenceNumber, deleteSpecId));
-      }
-    }
+    keyReader.readKeys(
+        file,
+        key ->
+            out.collect(
+                IndexCommand.resolveDelete(
+                    mainSnapshotId, indexGeneration, key, dataSequenceNumber, deleteSpecId)));
   }
 
   @Override
   public void close() throws Exception {
     super.close();
     tableLoader.close();
-  }
-
-  private Schema appendRowPosition(Schema schema) {
-    List<Types.NestedField> columns = Lists.newArrayList(schema.columns());
-    columns.add(MetadataColumns.ROW_POSITION);
-    return new Schema(columns);
   }
 
   private PositionDeleteIndex loadExistingDVs(FileScanTask task, String dataFilePath) {
