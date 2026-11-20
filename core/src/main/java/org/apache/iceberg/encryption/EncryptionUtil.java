@@ -65,6 +65,8 @@ public class EncryptionUtil {
                 CatalogProperties.ENCRYPTION_KMS_IMPL_GCP;
             case CatalogProperties.ENCRYPTION_KMS_TYPE_ALIYUN ->
                 CatalogProperties.ENCRYPTION_KMS_IMPL_ALIYUN;
+            case CatalogProperties.ENCRYPTION_KMS_TYPE_HASHICORP ->
+                CatalogProperties.ENCRYPTION_KMS_IMPL_HASHICORP;
             default -> throw new IllegalStateException("Unsupported KMS type: " + kmsType);
           };
     }
