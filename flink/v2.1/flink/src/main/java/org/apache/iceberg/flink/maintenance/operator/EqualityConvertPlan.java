@@ -34,6 +34,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
  * #NO_OP_STAGING_SNAPSHOT_ID}. Use {@link #noOp(Long, long, long)} to construct one and {@link
  * #noOp()} to check.
  *
+ * <p>A cycle-start marker is a no-op plan whose done timestamp is never reached. Use {@link
+ * #cycleStart(long)} to construct one.
+ *
  * @param dataFiles new staging data files committed in the cycle
  * @param stagingDVFiles staging DVs passed through to main, used by DVWriter to merge with
  *     newly-created DVs
@@ -77,5 +80,13 @@ public record EqualityConvertPlan(
         mainSnapshotId,
         triggerTimestamp,
         doneTimestamp);
+  }
+
+  /**
+   * Cycle-start marker: a no-op plan whose done timestamp is never reached, so consumers hold it
+   * until the cycle's actual plan replaces it.
+   */
+  public static EqualityConvertPlan cycleStart(long triggerTimestamp) {
+    return noOp(null, triggerTimestamp, Long.MAX_VALUE);
   }
 }
