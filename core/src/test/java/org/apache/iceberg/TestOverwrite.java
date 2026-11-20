@@ -26,6 +26,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -37,6 +38,8 @@ import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DataFileSet;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -167,6 +170,64 @@ public class TestOverwrite extends TestBase {
   public void addFilesProducesAppendOperation() {
     commit(table, table.newOverwrite().addFile(FILE_10_TO_14).addFile(FILE_5_TO_9), branch);
     assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.APPEND);
+  }
+
+  @TestTemplate
+  public void addFileAndRemoveDeleteFileProducesOverwriteOperation() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    DataFile addedDataFile = FileGenerationUtil.generateDataFile(table, FILE_10_TO_14.partition());
+    DeleteFile deleteFile = newDeleteFileForOperationTest();
+    commit(table, table.newRowDelta().addDeletes(deleteFile), branch);
+
+    Snapshot snapshot =
+        commit(
+            table,
+            table
+                .newOverwrite()
+                .addFile(addedDataFile)
+                .deleteFiles(DataFileSet.create(), DeleteFileSet.of(List.of(deleteFile))),
+            branch);
+
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+    assertThat(changes.addedDataFiles())
+        .extracting(DataFile::location)
+        .containsExactly(addedDataFile.location());
+    assertThat(changes.removedDataFiles()).isEmpty();
+    assertThat(changes.removedDeleteFiles())
+        .extracting(DeleteFile::location)
+        .containsExactly(deleteFile.location());
+  }
+
+  @TestTemplate
+  public void removeOnlyDeleteFileProducesOverwriteOperation() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    DeleteFile deleteFile = newDeleteFileForOperationTest();
+    commit(table, table.newRowDelta().addDeletes(deleteFile), branch);
+
+    Snapshot snapshot =
+        commit(
+            table,
+            table
+                .newOverwrite()
+                .deleteFiles(DataFileSet.create(), DeleteFileSet.of(List.of(deleteFile))),
+            branch);
+
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+    assertThat(changes.addedDataFiles()).isEmpty();
+    assertThat(changes.removedDataFiles()).isEmpty();
+    assertThat(changes.removedDeleteFiles())
+        .extracting(DeleteFile::location)
+        .containsExactly(deleteFile.location());
+  }
+
+  private DeleteFile newDeleteFileForOperationTest() {
+    return formatVersion >= 3
+        ? FileGenerationUtil.generateDV(table, FILE_0_TO_4)
+        : FileGenerationUtil.generatePositionDeleteFile(table, FILE_0_TO_4);
   }
 
   @TestTemplate

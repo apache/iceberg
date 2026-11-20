@@ -52,7 +52,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
       return DataOperations.DELETE;
     }
 
-    if (addsDataFiles() && !deletesDataFiles()) {
+    if (addsDataFiles() && !deletesDataFiles() && !deletesDeleteFiles()) {
       return DataOperations.APPEND;
     }
 
