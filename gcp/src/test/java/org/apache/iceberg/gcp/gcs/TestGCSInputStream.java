@@ -29,6 +29,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
@@ -244,6 +245,18 @@ public class TestGCSInputStream {
       assertThat(bytesRead).isLessThanOrEqualTo(0);
       assertThat(readBytes.value()).isEqualTo(0);
       assertThat(readOperations.value()).isEqualTo(0);
+    }
+  }
+
+  @Test
+  void readTailMissingBlob() throws Exception {
+    BlobId uri = BlobId.fromGsUtilUri("gs://bucket/path/to/missing.dat");
+
+    try (RangeReadable in =
+        new GCSInputStream(storage, uri, null, gcpProperties, MetricsContext.nullMetrics())) {
+      assertThatThrownBy(() -> in.readTail(new byte[8], 0, 8))
+          .isInstanceOf(NotFoundException.class)
+          .hasMessage("Location does not exist: gs://bucket/path/to/missing.dat");
     }
   }
 
