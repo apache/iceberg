@@ -19,6 +19,7 @@
 package org.apache.iceberg.gcp.gcs;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
@@ -37,6 +38,7 @@ import com.google.cloud.storage.Storage;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Collections;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
@@ -109,6 +111,24 @@ public class TestGcsInputFile {
             metricsContext);
 
     assertThat(inputFile.getLength()).isEqualTo(FILE_SIZE);
+  }
+
+  @Test
+  public void getLengthMissingBlob() {
+    when(storage.get(any(BlobId.class))).thenReturn(null);
+    GCSInputFile inputFile =
+        new GCSInputFile(
+            storage,
+            gcsFileSystem,
+            BlobId.fromGsUtilUri(LOCATION),
+            null,
+            gcpProperties,
+            metricsContext);
+
+    assertThat(inputFile.exists()).isFalse();
+    assertThatThrownBy(inputFile::getLength)
+        .isInstanceOf(NotFoundException.class)
+        .hasMessage("Location does not exist: %s", LOCATION);
   }
 
   @Test
