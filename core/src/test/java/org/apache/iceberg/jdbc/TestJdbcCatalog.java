@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
@@ -65,6 +66,7 @@ import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -1337,5 +1339,86 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     }
 
     return false;
+  }
+
+  @Test
+  void replayedUpdateIsTreatedAsCommitted() {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
+    Table table =
+        catalog
+            .buildTable(tableIdent, SCHEMA)
+            .withProperty(TableProperties.COMMIT_NUM_RETRIES, "0")
+            .create();
+
+    try (MockedStatic<JdbcUtil> mockedStatic =
+        Mockito.mockStatic(JdbcUtil.class, Mockito.CALLS_REAL_METHODS)) {
+      mockedStatic
+          .when(() -> JdbcUtil.updateTable(any(), any(), any(), any(), any(), any()))
+          .thenAnswer(
+              invocation -> {
+                invocation.callRealMethod();
+                return 0;
+              });
+      table.newAppend().appendFile(FILE_A).commit();
+    }
+
+    Table reloaded = catalog.loadTable(tableIdent);
+    assertThat(reloaded.snapshots()).hasSize(1);
+    assertThat(reloaded.currentSnapshot().addedDataFiles(reloaded.io()))
+        .extracting(DataFile::location)
+        .containsExactly(FILE_A.location());
+  }
+
+  @Test
+  void replayedUpdateDoesNotRewindConcurrentCommit() {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
+    Table table = catalog.buildTable(tableIdent, SCHEMA).create();
+    Table concurrent = catalog.loadTable(tableIdent);
+    AtomicBoolean replayed = new AtomicBoolean(false);
+
+    try (MockedStatic<JdbcUtil> mockedStatic =
+        Mockito.mockStatic(JdbcUtil.class, Mockito.CALLS_REAL_METHODS)) {
+      mockedStatic
+          .when(() -> JdbcUtil.updateTable(any(), any(), any(), any(), any(), any()))
+          .thenAnswer(
+              invocation -> {
+                if (replayed.getAndSet(true)) {
+                  return invocation.callRealMethod();
+                }
+
+                invocation.callRealMethod();
+                concurrent.newAppend().appendFile(FILE_B).commit();
+                return 0;
+              });
+      table.newAppend().appendFile(FILE_A).commit();
+    }
+
+    Table reloaded = catalog.loadTable(tableIdent);
+    assertThat(reloaded.snapshots()).hasSize(2);
+    assertThat(reloaded.currentSnapshot().addedDataFiles(reloaded.io()))
+        .extracting(DataFile::location)
+        .containsExactly(FILE_B.location());
+  }
+
+  @Test
+  void zeroRowUpdateWithoutAppliedCommitFails() {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
+    Table table =
+        catalog
+            .buildTable(tableIdent, SCHEMA)
+            .withProperty(TableProperties.COMMIT_NUM_RETRIES, "0")
+            .create();
+
+    try (MockedStatic<JdbcUtil> mockedStatic =
+        Mockito.mockStatic(JdbcUtil.class, Mockito.CALLS_REAL_METHODS)) {
+      mockedStatic
+          .when(() -> JdbcUtil.updateTable(any(), any(), any(), any(), any(), any()))
+          .thenReturn(0);
+      assertThatThrownBy(() -> table.newAppend().appendFile(FILE_A).commit())
+          .isInstanceOf(CommitFailedException.class)
+          .hasMessageStartingWith("Failed to update table " + tableIdent);
+    }
+
+    assertThat(catalog.loadTable(tableIdent).currentSnapshot()).isNull();
   }
 }
