@@ -21,11 +21,16 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.nio.ByteBuffer;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantObject;
@@ -47,6 +52,7 @@ import org.apache.iceberg.variants.VariantObject;
  */
 public class InclusiveMetricsEvaluator {
   private final Expression expr;
+  private final Set<Integer> fieldsWithOptionalStructAncestor;
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -55,6 +61,28 @@ public class InclusiveMetricsEvaluator {
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
     StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
+    this.fieldsWithOptionalStructAncestor = fieldsWithOptionalStructAncestor(schema);
+  }
+
+  private static Set<Integer> fieldsWithOptionalStructAncestor(Schema schema) {
+    Map<Integer, Integer> parents = TypeUtil.indexParents(schema.asStruct());
+    Set<Integer> fields = new HashSet<>();
+    for (Map.Entry<Integer, Integer> entry : parents.entrySet()) {
+      Integer parentId = entry.getValue();
+      while (parentId != null) {
+        Types.NestedField parent = schema.findField(parentId);
+        // ORC value counts have different semantics within repeated lists and maps.
+        if (parent == null || !parent.type().isStructType()) {
+          break;
+        }
+        if (parent.isOptional()) {
+          fields.add(entry.getKey());
+          break;
+        }
+        parentId = parents.get(parentId);
+      }
+    }
+    return fields;
   }
 
   /**
@@ -69,6 +97,8 @@ public class InclusiveMetricsEvaluator {
   }
 
   private class MetricsEvalVisitor extends InclusiveEvalVisitor {
+    private FileFormat fileFormat = null;
+    private long recordCount;
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Long> nullCounts = null;
     private Map<Integer, Long> nanCounts = null;
@@ -87,6 +117,8 @@ public class InclusiveMetricsEvaluator {
         return ROWS_MIGHT_MATCH;
       }
 
+      this.fileFormat = file.format();
+      this.recordCount = file.recordCount();
       this.valueCounts = file.valueCounts();
       this.nullCounts = file.nullValueCounts();
       this.nanCounts = file.nanValueCounts();
@@ -98,7 +130,20 @@ public class InclusiveMetricsEvaluator {
 
     @Override
     protected boolean mayContainNull(int id) {
-      return nullCounts == null || !nullCounts.containsKey(id) || nullCounts.get(id) != 0;
+      if (nullCounts == null || !nullCounts.containsKey(id) || nullCounts.get(id) != 0) {
+        return true;
+      }
+
+      // Older ORC writers in Iceberg used hasNull() to decide if a nested child's null count
+      // was zero. A NULL ancestor struct is not represented by hasNull() on its children,
+      // so legacy files may have nullCount = 0 but valueCount < recordCount. Do not prune
+      // those files based on the incorrect zero count; retain pruning for healthy ORC files.
+      if (fileFormat == FileFormat.ORC && fieldsWithOptionalStructAncestor.contains(id)) {
+        Long valueCount = valueCounts != null ? valueCounts.get(id) : null;
+        return valueCount == null || valueCount != recordCount;
+      }
+
+      return false;
     }
 
     @Override
