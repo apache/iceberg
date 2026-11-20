@@ -749,7 +749,7 @@ Order id `0` is reserved for the unsorted order.
 
 Sorting floating-point numbers should produce the following behavior: `-NaN` < `-Infinity` < `-value` < `-0` < `0` < `value` < `Infinity` < `NaN`. This aligns with the implementation of Java floating-point types comparisons.
 
-Vector values of the same `vector(E, D)` type must be sorted lexicographically using the sort order of E's value type.
+Vector values of the same `vector(E, D)` type must be sorted lexicographically using the numeric comparison rules of E's value type. Negative zero and positive zero compare equal; comparison continues with the next element.
 
 A data or delete file is associated with a sort order by the sort order's id within [a manifest](#manifests). Therefore, the table must declare all the sort orders for lookup. A table could also be configured with a default sort order id, indicating how the new data should be sorted by default. Writers should use this default sort order to sort the data on write, but are not required to if the default order is prohibitively expensive, as it would be for streaming writes.
 
