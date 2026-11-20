@@ -64,11 +64,12 @@ interface DataConverter {
     return object -> object;
   }
 
-  static DataConverter getNullable(LogicalType sourceType, LogicalType targetType) {
-    return nullable(get(sourceType, targetType));
+  static DataConverter getNullable(
+      LogicalType sourceType, LogicalType targetType, boolean caseSensitive) {
+    return nullable(get(sourceType, targetType, caseSensitive));
   }
 
-  static DataConverter get(LogicalType sourceType, LogicalType targetType) {
+  static DataConverter get(LogicalType sourceType, LogicalType targetType, boolean caseSensitive) {
     switch (targetType.getTypeRoot()) {
       case BOOLEAN:
       case INTEGER:
@@ -118,11 +119,11 @@ interface DataConverter {
           }
         };
       case ROW:
-        return new RowDataConverter((RowType) sourceType, (RowType) targetType);
+        return new RowDataConverter((RowType) sourceType, (RowType) targetType, caseSensitive);
       case ARRAY:
-        return new ArrayConverter((ArrayType) sourceType, (ArrayType) targetType);
+        return new ArrayConverter((ArrayType) sourceType, (ArrayType) targetType, caseSensitive);
       case MAP:
-        return new MapConverter((MapType) sourceType, (MapType) targetType);
+        return new MapConverter((MapType) sourceType, (MapType) targetType, caseSensitive);
       default:
         throw new UnsupportedOperationException("Not a supported type: " + targetType);
     }
@@ -136,7 +137,7 @@ interface DataConverter {
     private final RowData.FieldGetter[] fieldGetters;
     private final DataConverter[] dataConverters;
 
-    RowDataConverter(RowType sourceType, RowType targetType) {
+    RowDataConverter(RowType sourceType, RowType targetType, boolean caseSensitive) {
       this.fieldGetters = new RowData.FieldGetter[targetType.getFields().size()];
       this.dataConverters = new DataConverter[targetType.getFields().size()];
 
@@ -144,7 +145,7 @@ interface DataConverter {
         RowData.FieldGetter fieldGetter;
         DataConverter dataConverter;
         RowType.RowField targetField = targetType.getFields().get(i);
-        int sourceFieldIndex = sourceType.getFieldIndex(targetField.getName());
+        int sourceFieldIndex = findFieldIndex(sourceType, targetField.getName(), caseSensitive);
         if (sourceFieldIndex == -1) {
           if (targetField.getType().isNullable()) {
             fieldGetter = row -> null;
@@ -158,7 +159,9 @@ interface DataConverter {
         } else {
           RowType.RowField sourceField = sourceType.getFields().get(sourceFieldIndex);
           fieldGetter = RowData.createFieldGetter(sourceField.getType(), sourceFieldIndex);
-          dataConverter = DataConverter.getNullable(sourceField.getType(), targetField.getType());
+          dataConverter =
+              DataConverter.getNullable(
+                  sourceField.getType(), targetField.getType(), caseSensitive);
         }
 
         this.fieldGetters[i] = fieldGetter;
@@ -183,10 +186,11 @@ interface DataConverter {
     private final ArrayData.ElementGetter elementGetter;
     private final DataConverter elementConverter;
 
-    ArrayConverter(ArrayType sourceType, ArrayType targetType) {
+    ArrayConverter(ArrayType sourceType, ArrayType targetType, boolean caseSensitive) {
       this.elementGetter = ArrayData.createElementGetter(sourceType.getElementType());
       this.elementConverter =
-          DataConverter.getNullable(sourceType.getElementType(), targetType.getElementType());
+          DataConverter.getNullable(
+              sourceType.getElementType(), targetType.getElementType(), caseSensitive);
     }
 
     @Override
@@ -208,13 +212,15 @@ interface DataConverter {
     private final DataConverter keyConverter;
     private final DataConverter valueConverter;
 
-    MapConverter(MapType sourceType, MapType targetType) {
+    MapConverter(MapType sourceType, MapType targetType, boolean caseSensitive) {
       this.keyGetter = ArrayData.createElementGetter(sourceType.getKeyType());
       this.valueGetter = ArrayData.createElementGetter(sourceType.getValueType());
       this.keyConverter =
-          DataConverter.getNullable(sourceType.getKeyType(), targetType.getKeyType());
+          DataConverter.getNullable(
+              sourceType.getKeyType(), targetType.getKeyType(), caseSensitive);
       this.valueConverter =
-          DataConverter.getNullable(sourceType.getValueType(), targetType.getValueType());
+          DataConverter.getNullable(
+              sourceType.getValueType(), targetType.getValueType(), caseSensitive);
     }
 
     @Override
@@ -231,5 +237,29 @@ interface DataConverter {
 
       return new GenericMapData(convertedMap);
     }
+  }
+
+  private static int findFieldIndex(RowType sourceType, String targetName, boolean caseSensitive) {
+    if (caseSensitive) {
+      return sourceType.getFieldIndex(targetName);
+    }
+
+    int matchingIndex = -1;
+    for (int i = 0; i < sourceType.getFieldCount(); i++) {
+      if (sourceType.getFields().get(i).getName().equalsIgnoreCase(targetName)) {
+        if (matchingIndex != -1) {
+          throw new IllegalArgumentException(
+              String.format(
+                  "Ambiguous case-insensitive source field match for '%s': '%s' and '%s' in %s",
+                  targetName,
+                  sourceType.getFields().get(matchingIndex).getName(),
+                  sourceType.getFields().get(i).getName(),
+                  sourceType));
+        }
+        matchingIndex = i;
+      }
+    }
+
+    return matchingIndex;
   }
 }
