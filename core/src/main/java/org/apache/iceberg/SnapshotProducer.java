@@ -316,7 +316,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    *
    * @param metadataToUpdate the base table metadata to apply changes to
    * @param parent snapshot to apply the changes to; will be the new snapshot's parent
-   * @return a {@link TrackedFile} for the new root manifest
+   * @param sequenceNumber the sequence number of this commit if it succeeds
+   * @return metadata for the new snapshot, including root manifest location
    */
   protected NewSnapshotMetadata writeRootManifest(
       TableMetadata metadataToUpdate, Snapshot parent, long sequenceNumber) {
