@@ -610,6 +610,70 @@ public abstract class DeleteReadTests {
   }
 
   @TestTemplate
+  public void testEqualityDeleteFixedColumn() throws IOException {
+    Schema fixedSchema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()),
+            optional(3, "fixedData", Types.FixedType.ofLength(4)));
+    dropTable(tableName);
+    this.table =
+        createTable(
+            tableName,
+            fixedSchema,
+            PartitionSpec.builderFor(fixedSchema).bucket("data", 16).build());
+
+    Record record = GenericRecord.create(table.schema());
+    this.records = Lists.newArrayList();
+    for (int i = 0; i < 10; i++) {
+      records.add(
+          record.copy("id", i + 200, "data", "testData", "fixedData", ("fix" + i).getBytes()));
+    }
+    DataFile fixedDataFile =
+        FileHelpers.writeDataFile(
+            table,
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            Row.of(0),
+            records);
+    table.newAppend().appendFile(fixedDataFile).commit();
+
+    Schema deleteRowSchema = table.schema().select("fixedData");
+    Record fixedDataDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> fixedDataDeletes =
+        Lists.newArrayList(
+            fixedDataDelete.copy("fixedData", "fix0".getBytes()),
+            fixedDataDelete.copy("fixedData", "fix1".getBytes()),
+            fixedDataDelete.copy("fixedData", "fix2".getBytes()));
+
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            Row.of(0),
+            fixedDataDeletes,
+            deleteRowSchema);
+
+    table.newRowDelta().addDeletes(eqDeletes).commit();
+
+    // compare only the id column, so the fixed values are not compared across engines that
+    // return them as byte[]
+    StructLikeSet expected = selectColumns(rowSetWithoutIds(table, records, 200, 201, 202), "id");
+    StructLikeSet actual = rowSet(tableName, table, "id");
+
+    if (expectPruned()) {
+      assertThat(actual).as("Table should contain expected rows").isEqualTo(expected);
+    } else {
+      // fixedData is added by the reader to apply the eq deletes, use StructProjection to remove
+      // it from comparison
+      assertThat(selectColumns(actual, "id"))
+          .as("Table should contain expected rows")
+          .isEqualTo(expected);
+    }
+
+    checkDeleteCount(3L);
+  }
+
+  @TestTemplate
   public void testEqualityDeleteStructColumn() throws IOException {
     writeOptionalTestDataFile();
 
