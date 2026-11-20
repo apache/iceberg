@@ -107,6 +107,10 @@ public class InMemoryFileIO implements FileIO, SupportsPrefixOperations {
     closed = true;
   }
 
+  public void clear() {
+    IN_MEMORY_FILES.clear();
+  }
+
   @Override
   public Iterable<FileInfo> listPrefix(String prefix) {
     return Iterables.transform(

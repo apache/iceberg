@@ -453,7 +453,7 @@ class TrackedFileAdapters {
 
     @Override
     public long sequenceNumber() {
-      return file.tracking().dataSequenceNumber();
+      return file.tracking() != null ? file.tracking().dataSequenceNumber() : -1;
     }
 
     @Override
@@ -463,7 +463,7 @@ class TrackedFileAdapters {
 
     @Override
     public Long snapshotId() {
-      return file.tracking().snapshotId();
+      return file.tracking() != null ? file.tracking().snapshotId() : null;
     }
 
     @Override
@@ -528,7 +528,7 @@ class TrackedFileAdapters {
 
     @Override
     public Long firstRowId() {
-      return file.tracking().firstRowId();
+      return file.tracking() != null ? file.tracking().firstRowId() : null;
     }
 
     @Override

@@ -25,8 +25,13 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
+import org.apache.iceberg.io.FileInfo;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
@@ -56,6 +61,27 @@ public class AdaptiveMetadataTestBase {
           .withRecordCount(1)
           .build();
 
+  static final DeleteFile FILE_A_DV =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("file:/warehouse/table/data/data_bucket=0/data-a-deletes.puffin")
+          .withFileSizeInBytes(10)
+          .withPartition(TestHelpers.Row.of(0))
+          .withRecordCount(1)
+          .withReferencedDataFile(FILE_A.location())
+          .withContentOffset(4)
+          .withContentSizeInBytes(6)
+          .build();
+
+  static final DeleteFile FILE_A_EQ_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes(1)
+          .withPath("file:/warehouse/table/data/data_bucket=0/data-a-eq-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartition(TestHelpers.Row.of(0))
+          .withRecordCount(1)
+          .build();
+
   public static final DataFile FILE_B =
       DataFiles.builder(SPEC)
           .withPath("file:/warehouse/table/data/data_bucket=1/data-b.parquet")
@@ -64,6 +90,8 @@ public class AdaptiveMetadataTestBase {
           .withRecordCount(1)
           .withSplitOffsets(ImmutableList.of(1L))
           .build();
+
+  private final Iterator<FileContent> ALL_DATA_FILES = Iterators.cycle(FileContent.DATA);
 
   public InMemoryFileIO io = new InMemoryFileIO();
   public InMemoryTables.Table defaultTable = null;
@@ -76,11 +104,20 @@ public class AdaptiveMetadataTestBase {
   @AfterEach
   public void cleanupTables() {
     InMemoryTables.clearTables();
+    io.clear();
   }
 
   protected InMemoryTables.Table create(
       String name, Schema schema, PartitionSpec spec, int formatVersion) {
     return InMemoryTables.create(name, io, schema, spec, formatVersion);
+  }
+
+  protected InMemoryTables.Table load(String name) {
+    return InMemoryTables.load(name, io);
+  }
+
+  protected InMemoryTables.Table upgrade(String name, int newFormatVersion) {
+    return InMemoryTables.upgrade(name, io, newFormatVersion);
   }
 
   public TableMetadata readMetadata() {
@@ -120,19 +157,62 @@ public class AdaptiveMetadataTestBase {
   }
 
   protected void validateNoLeafManifests(List<TrackedFile> files) {
-    assertThat(files).extracting(file -> file.contentType()).containsOnly(FileContent.DATA);
+    assertThat(files).extracting(TrackedFile::contentType).containsOnly(FileContent.DATA);
   }
 
-  static Iterator<Long> dataSeqs(Long... seqs) {
+  protected Iterable<String> listLeafManifests(Table table) {
+    SupportsPrefixOperations io = (SupportsPrefixOperations) table.io();
+    return Iterables.transform(
+        io.listPrefix(table.location() + "/metadata/leaf-"), FileInfo::location);
+  }
+
+  protected Iterable<String> listRootManifests(Table table) {
+    SupportsPrefixOperations io = (SupportsPrefixOperations) table.io();
+    return Iterables.transform(
+        io.listPrefix(table.location() + "/metadata/root-"), FileInfo::location);
+  }
+
+  protected ManifestFile writeLeafManifest(Table table, OutputFile output, DataFile... files)
+      throws IOException {
+    Types.StructType contentStatsType =
+        StatsUtil.statsWriteSchema(table.schema(), MetricsConfig.forTable(table));
+    TrackedFileAdapters.DataTrackedFile wrapper = TrackedFileAdapters.forDataFile(table.schema());
+
+    V4ManifestWriter writer =
+        V4ManifestWriter.createLeaf(
+            EncryptionUtil.plainAsEncryptedOutput(output),
+            table.specs(),
+            contentStatsType,
+            Map.of(),
+            table.schema().schemaId(),
+            null);
+    try (writer) {
+      for (DataFile file : files) {
+        writer.append(wrapper.wrap(file));
+      }
+    }
+
+    return TrackedFileAdapters.asManifestFile(writer.toTrackedManifest());
+  }
+
+  protected static Iterator<FileContent> contents(FileContent... contents) {
+    return Iterators.forArray(contents);
+  }
+
+  protected static Iterator<Long> dataSeqs(Long... seqs) {
     return Iterators.forArray(seqs);
   }
 
-  static Iterator<Long> fileSeqs(Long... seqs) {
+  protected static Iterator<Long> fileSeqs(Long... seqs) {
     return Iterators.forArray(seqs);
   }
 
-  static Iterator<Long> ids(Long... ids) {
+  protected static Iterator<Long> ids(Long... ids) {
     return Iterators.forArray(ids);
+  }
+
+  protected static Iterator<String> locations(String... locations) {
+    return Iterators.forArray(locations);
   }
 
   protected static Iterator<String> locations(DataFile... files) {
@@ -153,7 +233,7 @@ public class AdaptiveMetadataTestBase {
 
   protected void validateFiles(
       List<TrackedFile> files, Iterator<Long> ids, Iterator<String> locations) {
-    validateFiles(files, null, null, ids, locations, null);
+    validateFiles(files, ALL_DATA_FILES, null, null, ids, locations, null);
   }
 
   protected void validateFiles(
@@ -162,7 +242,7 @@ public class AdaptiveMetadataTestBase {
       Iterator<Long> fileSeqs,
       Iterator<Long> ids,
       Iterator<String> locations) {
-    validateFiles(files, dataSeqs, fileSeqs, ids, locations, null);
+    validateFiles(files, ALL_DATA_FILES, dataSeqs, fileSeqs, ids, locations, null);
   }
 
   protected void validateFiles(
@@ -172,7 +252,19 @@ public class AdaptiveMetadataTestBase {
       Iterator<Long> ids,
       Iterator<String> locations,
       Iterator<EntryStatus> statuses) {
+    validateFiles(files, ALL_DATA_FILES, dataSeqs, fileSeqs, ids, locations, statuses);
+  }
+
+  protected void validateFiles(
+      List<TrackedFile> files,
+      Iterator<FileContent> contents,
+      Iterator<Long> dataSeqs,
+      Iterator<Long> fileSeqs,
+      Iterator<Long> ids,
+      Iterator<String> locations,
+      Iterator<EntryStatus> statuses) {
     for (TrackedFile file : files) {
+      assertThat(file.contentType()).as("Content type").isEqualTo(contents.next());
       assertThat(file.location()).as("Location").isEqualTo(locations.next());
       assertThat(file.tracking().snapshotId()).as("Snapshot ID").isEqualTo(ids.next());
       if (dataSeqs != null) {

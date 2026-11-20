@@ -1106,11 +1106,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     validateDeleteFilesForVersion(base.formatVersion());
 
     if (addsDeleteFiles()) {
-      throw new UnsupportedOperationException("Cannot commit new delete files to v4 table");
+      throw new UnsupportedOperationException("Cannot add new delete files in v4");
     } else if (filterManager.containsDeletes()) {
-      throw new UnsupportedOperationException("Cannot commit deleted data files to v4");
+      throw new UnsupportedOperationException("Cannot remove data files in v4");
     } else if (deleteFilterManager.containsDeletes()) {
-      throw new UnsupportedOperationException("Cannot commit deleted delete files to v4");
+      throw new UnsupportedOperationException("Cannot remove delete files in v4");
+    } else if (!appendManifests.isEmpty()) {
+      throw new UnsupportedOperationException("Cannot append manifest files in v4");
     }
 
     if (rootManifestProducer == null || hasNewDataFiles) {

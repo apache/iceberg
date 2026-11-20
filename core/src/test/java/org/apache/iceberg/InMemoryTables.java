@@ -199,18 +199,5 @@ public class InMemoryTables {
     public String metadataFileLocation(String fileName) {
       return current.location() + "/metadata/" + fileName;
     }
-
-    @Override
-    public long newSnapshotId() {
-      TableMetadata currentMetadata = current();
-      if (currentMetadata != null
-          && currentMetadata.propertyAsBoolean("random-snapshot-ids", false)) {
-        return SnapshotIdGeneratorUtil.generateSnapshotID();
-      } else {
-        long nextSnapshotId = lastSnapshotId + 1;
-        this.lastSnapshotId = nextSnapshotId;
-        return nextSnapshotId;
-      }
-    }
   }
 }
