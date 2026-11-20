@@ -24,6 +24,7 @@ import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Bound;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
@@ -31,8 +32,10 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.TypeID;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.common.type.HiveDecimal;
@@ -46,12 +49,44 @@ class ExpressionToSearchArgument
     extends ExpressionVisitors.BoundVisitor<ExpressionToSearchArgument.Action> {
 
   static SearchArgument convert(Expression expr, TypeDescription readSchema) {
-    Map<Integer, String> idToColumnName =
-        ORCSchemaUtil.idToOrcName(ORCSchemaUtil.convert(readSchema));
+    Schema schema = ORCSchemaUtil.convert(readSchema);
+    Map<Integer, String> idToColumnName = ORCSchemaUtil.idToOrcName(schema);
     SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
-    ExpressionVisitors.visit(expr, new ExpressionToSearchArgument(builder, idToColumnName))
+    ExpressionVisitors.visit(
+            expr,
+            new ExpressionToSearchArgument(
+                builder, idToColumnName, fieldsWithOptionalAncestor(schema)))
         .invoke();
     return builder.build();
+  }
+
+  private static Set<Integer> fieldsWithOptionalAncestor(Schema schema) {
+    Map<Integer, Integer> parents = TypeUtil.indexParents(schema.asStruct());
+    Set<Integer> fieldIds = Sets.newHashSet();
+    for (Map.Entry<Integer, Integer> entry : parents.entrySet()) {
+      Integer parentId = entry.getValue();
+      while (parentId != null
+          && !isContainer(schema, parentId)
+          && !isContainer(schema, parents.get(parentId))) {
+        if (schema.findField(parentId).isOptional()) {
+          fieldIds.add(entry.getKey());
+          break;
+        }
+
+        parentId = parents.get(parentId);
+      }
+    }
+
+    return fieldIds;
+  }
+
+  private static boolean isContainer(Schema schema, Integer fieldId) {
+    if (fieldId == null) {
+      return false;
+    }
+
+    Type type = schema.findField(fieldId).type();
+    return type.isListType() || type.isMapType();
   }
 
   // Currently every predicate in ORC requires a PredicateLeaf.Type field which is not available for
@@ -68,11 +103,15 @@ class ExpressionToSearchArgument
 
   private final SearchArgument.Builder builder;
   private final Map<Integer, String> idToColumnName;
+  private final Set<Integer> fieldsWithOptionalAncestor;
 
   private ExpressionToSearchArgument(
-      SearchArgument.Builder builder, Map<Integer, String> idToColumnName) {
+      SearchArgument.Builder builder,
+      Map<Integer, String> idToColumnName,
+      Set<Integer> fieldsWithOptionalAncestor) {
     this.builder = builder;
     this.idToColumnName = idToColumnName;
+    this.fieldsWithOptionalAncestor = fieldsWithOptionalAncestor;
   }
 
   @Override
@@ -116,6 +155,12 @@ class ExpressionToSearchArgument
 
   @Override
   public <T> Action isNull(Bound<T> expr) {
+    if (fieldsWithOptionalAncestor.contains(expr.ref().fieldId())) {
+      // ORC column statistics do not count rows where an ancestor struct is null, so they cannot
+      // show that such a field has no nulls
+      return () -> this.builder.literal(TruthValue.YES_NO_NULL);
+    }
+
     return () ->
         this.builder.isNull(idToColumnName.get(expr.ref().fieldId()), type(expr.ref().type()));
   }

@@ -283,7 +283,7 @@ public class TestExpressionToSearchArgument {
             .equals("`listOfStruct`.`_elem`.`long`", Type.LONG, 4L)
             .equals("`map`.`_value`", Type.FLOAT, Double.NaN)
             .startOr()
-            .isNull("`struct`.`float`", Type.FLOAT)
+            .literal(TruthValue.YES_NO_NULL)
             .startNot()
             .equals("`struct`.`float`", Type.FLOAT, Double.NaN)
             .end() // not
@@ -294,6 +294,46 @@ public class TestExpressionToSearchArgument {
     SearchArgument actual =
         ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
     assertThat(actual.toString()).isEqualTo(expected.toString());
+  }
+
+  @Test
+  public void testIsNullOnFieldWithOptionalAncestor() {
+    Schema schema =
+        new Schema(
+            optional(
+                1,
+                "optionalStruct",
+                Types.StructType.of(
+                    optional(2, "long", Types.LongType.get()),
+                    required(
+                        3,
+                        "requiredStruct",
+                        Types.StructType.of(optional(4, "long", Types.LongType.get()))))),
+            required(
+                5,
+                "requiredStruct",
+                Types.StructType.of(optional(6, "long", Types.LongType.get()))));
+
+    Expression expr =
+        and(
+            and(isNull("optionalStruct.long"), isNull("optionalStruct.requiredStruct.long")),
+            and(isNull("requiredStruct.long"), notNull("optionalStruct.long")));
+    Expression boundFilter = Binder.bind(schema.asStruct(), expr, true);
+    SearchArgument expected =
+        SearchArgumentFactory.newBuilder()
+            .startAnd()
+            .literal(TruthValue.YES_NO_NULL)
+            .literal(TruthValue.YES_NO_NULL)
+            .isNull("`requiredStruct`.`long`", Type.LONG)
+            .startNot()
+            .isNull("`optionalStruct`.`long`", Type.LONG)
+            .end() // not
+            .end() // and
+            .build();
+
+    SearchArgument actual =
+        ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
+    assertThat(actual).hasToString(expected.toString());
   }
 
   @Test
