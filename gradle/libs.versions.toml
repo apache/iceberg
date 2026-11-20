@@ -39,7 +39,6 @@ awssdk-s3accessgrants = "2.5.0"
 bouncycastle = "1.86"
 bson-ver = "4.11.5"
 caffeine = "3.3.1"
-calcite = "1.42.0"
 datasketches = "6.2.0"
 delta-standalone = "3.3.3"
 delta-spark = "3.3.3"
@@ -72,7 +71,6 @@ junit = "5.14.4"
 junit-platform = "1.14.4"
 junit-pioneer = "2.3.0"
 kafka = "3.9.2"
-kryo-shaded = "4.0.3"
 lz4Java = "1.14.0"
 microprofile-openapi-api = "3.1.2"
 mockito = "4.11.0"
@@ -92,7 +90,6 @@ spark41 = "4.1.4"
 spark42 = "4.2.1"
 sqlite-jdbc = "3.54.1.0"
 testcontainers = "2.0.5"
-tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
 [libraries]
 activation = { module = "javax.activation:activation", version.ref = "activation" }
@@ -117,8 +114,6 @@ bouncycastle-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref 
 bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
 bouncycastle-bcutil = { module = "org.bouncycastle:bcutil-jdk18on", version.ref = "bouncycastle" }
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
-calcite-core = { module = "org.apache.calcite:calcite-core", version.ref = "calcite" }
-calcite-druid = { module = "org.apache.calcite:calcite-druid", version.ref = "calcite" }
 datasketches = { module = "org.apache.datasketches:datasketches-java", version.ref = "datasketches" }
 errorprone-annotations = { module = "com.google.errorprone:error_prone_annotations", version.ref = "errorprone-annotations" }
 failsafe = { module = "dev.failsafe:failsafe", version.ref = "failsafe"}
@@ -151,7 +146,6 @@ hadoop3-mapreduce-client-core = { module = "org.apache.hadoop:hadoop-mapreduce-c
 hadoop3-minicluster = { module = "org.apache.hadoop:hadoop-minicluster", version.ref = "hadoop3" }
 hive2-exec = { module = "org.apache.hive:hive-exec", version.ref = "hive2" }
 hive2-metastore = { module = "org.apache.hive:hive-metastore", version.ref = "hive2" }
-hive2-service = { module = "org.apache.hive:hive-service", version.ref = "hive2" }
 httpcomponents-httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5", version.ref = "httpcomponents-httpclient5" }
 immutables-value = { module = "org.immutables:value", version.ref = "immutables-value" }
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson-bom" }
@@ -208,7 +202,6 @@ junit-pioneer = { module = "org.junit-pioneer:junit-pioneer", version.ref = "jun
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
 junit-suite-api = { module = "org.junit.platform:junit-platform-suite-api", version.ref = "junit-platform" }
 junit-suite-engine = { module = "org.junit.platform:junit-platform-suite-engine", version.ref = "junit-platform" }
-kryo-shaded = { module = "com.esotericsoftware:kryo-shaded", version.ref = "kryo-shaded" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 mockito-inline = { module = "org.mockito:mockito-inline", version.ref = "mockito" }
 mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
@@ -220,5 +213,3 @@ orc-tools = { module = "org.apache.orc:orc-tools", version.ref = "orc" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
 testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
 testcontainers-junit-jupiter = { module = "org.testcontainers:testcontainers-junit-jupiter", version.ref = "testcontainers" }
-tez08-dag = { module = "org.apache.tez:tez-dag", version.ref = "tez08" }
-tez08-mapreduce = { module = "org.apache.tez:tez-mapreduce", version.ref = "tez08" }
