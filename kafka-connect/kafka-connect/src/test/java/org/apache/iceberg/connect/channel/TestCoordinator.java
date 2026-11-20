@@ -40,8 +40,10 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotChanges;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.connect.TableSinkConfig;
 import org.apache.iceberg.connect.events.AvroUtil;
 import org.apache.iceberg.connect.events.CommitComplete;
 import org.apache.iceberg.connect.events.CommitToTable;
@@ -628,6 +630,35 @@ public class TestCoordinator extends ChannelTestBase {
     assertThat(table.snapshots()).hasSize(2);
     assertThat(table.currentSnapshot().summary())
         .containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":3,\"1\":7}");
+  }
+
+  @Test
+  public void testCommitToMissingBranchUsesOffsetsFromCurrentSnapshot() {
+    TableSinkConfig tableConfig = mock(TableSinkConfig.class);
+    when(tableConfig.commitBranch()).thenReturn("audit");
+    when(config.tableConfig(any())).thenReturn(tableConfig);
+
+    // The connector's offsets are on main and its commit branch does not exist, for example
+    // after the branch was published to main and dropped, or expired by max-ref-age
+    table
+        .newAppend()
+        .appendFile(EventTestUtil.createDataFile())
+        .set(OFFSETS_SNAPSHOT_PROP, "{\"0\":1}")
+        .commit();
+    table.refresh();
+    assertThat(table.refs()).containsOnlyKeys(SnapshotRef.MAIN_BRANCH);
+    Snapshot mainHead = table.currentSnapshot();
+
+    coordinatorTest(
+        ImmutableList.of(EventTestUtil.createDataFile()), ImmutableList.of(), EventTestUtil.now());
+
+    // The commit creates the branch from main and continues main's offsets
+    table.refresh();
+    Snapshot branchHead = table.snapshot("audit");
+    assertThat(branchHead).isNotNull();
+    assertThat(branchHead.parentId()).isEqualTo(mainHead.snapshotId());
+    assertThat(branchHead.summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":3}");
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(mainHead.snapshotId());
   }
 
   @Test
