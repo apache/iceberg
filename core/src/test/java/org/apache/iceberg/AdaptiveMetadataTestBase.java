@@ -21,12 +21,12 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
@@ -35,7 +35,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.io.TempDir;
 
 public class AdaptiveMetadataTestBase {
   // Schema passed to create tables
@@ -66,8 +65,8 @@ public class AdaptiveMetadataTestBase {
           .withSplitOffsets(ImmutableList.of(1L))
           .build();
 
-  @TempDir protected File tableDir = null;
-  public TestTables.TestTable defaultTable = null;
+  public InMemoryFileIO io = new InMemoryFileIO();
+  public InMemoryTables.Table defaultTable = null;
 
   @BeforeEach
   public void setupTable() throws Exception {
@@ -76,15 +75,15 @@ public class AdaptiveMetadataTestBase {
 
   @AfterEach
   public void cleanupTables() {
-    TestTables.clearTables();
+    InMemoryTables.clearTables();
   }
 
-  protected TestTables.TestTable create(Schema schema, PartitionSpec spec, int formatVersion) {
-    return TestTables.create(tableDir, "test", schema, spec, formatVersion);
+  protected InMemoryTables.Table create(Schema schema, PartitionSpec spec, int formatVersion) {
+    return InMemoryTables.create("test", io, schema, spec, formatVersion);
   }
 
   public TableMetadata readMetadata() {
-    return TestTables.readMetadata("test");
+    return InMemoryTables.readMetadata("test");
   }
 
   protected Snapshot commit(Table table, SnapshotUpdate<?> snapshotUpdate, String branch) {

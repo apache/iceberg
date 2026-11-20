@@ -30,6 +30,7 @@ import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -39,15 +40,12 @@ class RootManifestProducer {
   private final TableOperations ops;
   private final FileIO io;
   private final long snapshotId;
-  private final Types.StructType contentStatsType;
-  private final int startingSchemaId;
   private final Map<String, String> writerProperties = Map.of();
   private final List<TrackedFile> appendedDataFiles = Lists.newArrayList();
 
   // internal state
   private final String commitUUID = UUID.randomUUID().toString();
   private final AtomicInteger attempt = new AtomicInteger(0);
-  private final AtomicInteger manifestCount = new AtomicInteger(0);
 
   // commit metadata
   private final Set<String> manifestLocations = Sets.newHashSet();
@@ -57,9 +55,6 @@ class RootManifestProducer {
     this.ops = ops;
     this.io = ops.io();
     this.snapshotId = snapshotId;
-    this.contentStatsType =
-        StatsUtil.statsWriteSchema(ops.current().schema(), MetricsConfig.forTable(ops.current()));
-    this.startingSchemaId = ops.current().currentSchemaId();
   }
 
   void appendFile(DataFile dataFile) {
@@ -111,7 +106,7 @@ class RootManifestProducer {
   }
 
   Set<String> manifestLocations() {
-    return manifestLocations;
+    return ImmutableSet.copyOf(manifestLocations);
   }
 
   private EncryptedOutputFile newRootOutputFile() {
@@ -152,6 +147,7 @@ class RootManifestProducer {
 
       try (V4ManifestReader reader =
           V4ManifestReader.builder(root, io, meta.schema(), meta.specsById())
+              .tableLocation(meta.location())
               .metricsConfig(MetricsConfig.forTable(meta))
               .build()) {
 

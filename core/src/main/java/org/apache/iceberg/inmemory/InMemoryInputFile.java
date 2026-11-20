@@ -21,6 +21,7 @@ package org.apache.iceberg.inmemory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.UUID;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -29,6 +30,7 @@ public class InMemoryInputFile implements InputFile {
 
   private final String location;
   private final byte[] contents;
+  private final InMemoryFileIO parentFileIO;
 
   public InMemoryInputFile(byte[] contents) {
     this("memory:" + UUID.randomUUID(), contents);
@@ -36,19 +38,25 @@ public class InMemoryInputFile implements InputFile {
 
   public InMemoryInputFile(String location, byte[] contents) {
     Preconditions.checkNotNull(location, "location is null");
-    Preconditions.checkNotNull(contents, "contents is null");
     this.location = location;
-    this.contents = contents.clone();
+    this.contents = contents;
+    this.parentFileIO = null;
+  }
+
+  public InMemoryInputFile(String location, InMemoryFileIO parentFileIO) {
+    this.location = location;
+    this.contents = null;
+    this.parentFileIO = parentFileIO;
   }
 
   @Override
   public long getLength() {
-    return contents.length;
+    return content().length;
   }
 
   @Override
   public SeekableInputStream newStream() {
-    return new InMemorySeekableInputStream(contents);
+    return new InMemorySeekableInputStream(content());
   }
 
   @Override
@@ -56,9 +64,25 @@ public class InMemoryInputFile implements InputFile {
     return location;
   }
 
+  private byte[] content() {
+    if (contents != null) {
+      return contents;
+    } else if (parentFileIO != null) {
+      return parentFileIO.contents(location);
+    }
+
+    throw new NotFoundException("File does not exist: %s", location);
+  }
+
   @Override
   public boolean exists() {
-    return true;
+    if (contents != null) {
+      return true;
+    } else if (parentFileIO != null) {
+      return parentFileIO.fileExists(location);
+    }
+
+    return false;
   }
 
   private static class InMemorySeekableInputStream extends SeekableInputStream {

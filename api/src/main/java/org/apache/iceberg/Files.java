@@ -81,7 +81,7 @@ public class Files {
 
     @Override
     public String location() {
-      return file.toURI().toString();
+      return file.toString();
     }
 
     @Override
@@ -129,7 +129,7 @@ public class Files {
 
     @Override
     public String location() {
-      return file.toURI().toString();
+      return file.toString();
     }
 
     @Override

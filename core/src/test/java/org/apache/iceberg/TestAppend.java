@@ -31,6 +31,13 @@ import org.junit.jupiter.params.provider.FieldSource;
 public class TestAppend extends AdaptiveMetadataTestBase {
   private static final List<String> BRANCHES = List.of("main", "branch");
 
+  // TODO:
+  // - Append to upgraded v3 table
+  // - Fail append manifest
+  // - Fail delete data file
+  // - Fail delete delete file
+  // - Fail add delete files, DVs
+
   @Test
   public void appendNullFile() {
     assertThatThrownBy(() -> defaultTable.newAppend().appendFile(null).commit())
@@ -40,7 +47,7 @@ public class TestAppend extends AdaptiveMetadataTestBase {
 
   @ParameterizedTest
   @FieldSource("BRANCHES")
-  public void testEmptyTableAppend(String branch) throws IOException {
+  public void emptyTableAppend(String branch) throws IOException {
     assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
 
     TableMetadata base = readMetadata();
@@ -70,7 +77,7 @@ public class TestAppend extends AdaptiveMetadataTestBase {
   }
 
   @Test
-  public void testAppendWithDifferentSpecs() throws IOException {
+  public void appendWithDifferentSpecs() throws IOException {
     assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
 
     TableMetadata base = readMetadata();
@@ -110,7 +117,7 @@ public class TestAppend extends AdaptiveMetadataTestBase {
   }
 
   @Test
-  public void testFailure() throws IOException {
+  public void failureCleanup() throws IOException {
     assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
 
     defaultTable.newAppend().appendFile(FILE_A).commit();
@@ -161,7 +168,7 @@ public class TestAppend extends AdaptiveMetadataTestBase {
   }
 
   @Test
-  public void testRecovery() throws IOException {
+  public void recoveryAndCleanup() throws IOException {
     assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
 
     defaultTable.newAppend().appendFile(FILE_A).commit();
