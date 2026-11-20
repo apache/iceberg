@@ -175,7 +175,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         public TrackedFile apply(TrackedFile file) {
           TrackingStruct tracking = (TrackingStruct) file.tracking();
           tracking.inherit(manifest.snapshotId(), manifest.sequenceNumber());
-          if (tracking.assignFirstRowId(nextRowId)) {
+          if (file.contentType() == FileContent.DATA && tracking.assignFirstRowId(nextRowId)) {
             nextRowId += file.recordCount();
           }
 

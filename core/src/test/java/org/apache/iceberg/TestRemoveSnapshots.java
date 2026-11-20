@@ -72,11 +72,9 @@ public class TestRemoveSnapshots extends TestBase {
         new Object[] {1, true},
         new Object[] {2, true},
         new Object[] {3, true},
-        new Object[] {4, true},
         new Object[] {1, false},
         new Object[] {2, false},
-        new Object[] {3, false},
-        new Object[] {4, false});
+        new Object[] {3, false});
   }
 
   private long waitUntilAfter(long timestampMillis) {

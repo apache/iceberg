@@ -26,7 +26,7 @@ import java.util.Set;
 class Delegates {
   private Delegates() {}
 
-  static TrackedFile withDV(TrackedFile file, DeletionVector dv) {
+  static TrackedFile withDataDV(TrackedFile file, DeletionVector dv) {
     return new DelegatingTrackedFile(file) {
       @Override
       public DeletionVector deletionVector() {
@@ -337,11 +337,6 @@ class Delegates {
     @Override
     public Map<Integer, Long> nanValueCounts() {
       return wrapped.nanValueCounts();
-    }
-
-    @Override
-    public Map<Integer, Long> totalBytes() {
-      return wrapped.totalBytes();
     }
 
     @Override
