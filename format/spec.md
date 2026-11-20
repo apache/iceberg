@@ -316,13 +316,13 @@ A non-null `vector(E, D)` contains exactly D elements of element type E, and eve
 
 E must be one of the following vector element types:
 
-| Element type  | Element values                                                     | Value type |
-|---------------|--------------------------------------------------------------------|------------|
-| **`int`**     | 32-bit signed integers                                             | `int`      |
-| **`long`**    | 64-bit signed integers                                             | `long`     |
+| Element type  | Element values                 | Value type |
+|---------------|--------------------------------|------------|
+| **`int`**     | 32-bit signed integers         | `int`      |
+| **`long`**    | 64-bit signed integers         | `long`     |
 | **`float16`** | 16-bit IEEE 754 floating point | `float`    |
-| **`float`**   | 32-bit IEEE 754 floating point                                     | `float`    |
-| **`double`**  | 64-bit IEEE 754 floating point                                     | `double`   |
+| **`float`**   | 32-bit IEEE 754 floating point | `float`    |
+| **`double`**  | 64-bit IEEE 754 floating point  | `double`   |
 
 Vector element types are valid only inside a `vector`; `float16` is not a primitive type and cannot be used as the type of a field. Element values follow the rules of the value type, including JSON single-value serialization. Vector equality is element-wise, using the equality rules of the value type. Floating-point elements must be finite: `NaN`, `+Infinity`, and `-Infinity` are invalid.
 
