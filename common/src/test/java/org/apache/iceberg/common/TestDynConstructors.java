@@ -77,6 +77,92 @@ public class TestDynConstructors {
     assertThat(ctor.newInstance()).isInstanceOf(MyClass.class);
   }
 
+  @Test
+  public void implWithNoClassDefFoundError() throws Exception {
+    ClassLoader errorLoader =
+        new ClassLoader(Thread.currentThread().getContextClassLoader()) {
+          @Override
+          public Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+            if ("org.apache.iceberg.MissingDependencyClass".equals(name)) {
+              throw new NoClassDefFoundError("some/TransitiveDependency");
+            }
+
+            return super.loadClass(name, resolve);
+          }
+        };
+
+    assertThatThrownBy(
+            () ->
+                DynConstructors.builder(MyInterface.class)
+                    .loader(errorLoader)
+                    .impl("org.apache.iceberg.MissingDependencyClass")
+                    .buildChecked())
+        .isInstanceOf(NoSuchMethodException.class)
+        .hasMessageStartingWith("Cannot find constructor for interface")
+        .hasMessageContaining("Missing org.apache.iceberg.MissingDependencyClass");
+
+    assertThat(
+            DynConstructors.builder(MyInterface.class)
+                .loader(errorLoader)
+                .impl("org.apache.iceberg.MissingDependencyClass")
+                .impl(MyClass.class)
+                .buildChecked()
+                .newInstance())
+        .isInstanceOf(MyClass.class);
+
+    assertThat(
+            DynConstructors.builder(MyInterface.class)
+                .loader(errorLoader)
+                .hiddenImpl("org.apache.iceberg.MissingDependencyClass")
+                .impl(MyClass.class)
+                .buildChecked()
+                .newInstance())
+        .isInstanceOf(MyClass.class);
+  }
+
+  @Test
+  public void implWithNoClassDefFoundErrorFallsBackToContextClassLoader() throws Exception {
+    ClassLoader errorLoader =
+        new ClassLoader(Thread.currentThread().getContextClassLoader()) {
+          @Override
+          public Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+            if (MyClass.class.getName().equals(name)) {
+              throw new NoClassDefFoundError("some/TransitiveDependency");
+            }
+
+            return super.loadClass(name, resolve);
+          }
+        };
+
+    assertThat(
+            DynConstructors.builder(MyInterface.class)
+                .loader(errorLoader)
+                .impl(MyClass.class.getName())
+                .buildChecked()
+                .newInstance())
+        .isInstanceOf(MyClass.class);
+  }
+
+  @Test
+  public void implWithExceptionInInitializerError() {
+    ClassLoader errorLoader =
+        new ClassLoader(Thread.currentThread().getContextClassLoader()) {
+          @Override
+          public Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+            throw new ExceptionInInitializerError("static initializer failed");
+          }
+        };
+
+    assertThatThrownBy(
+            () ->
+                DynConstructors.builder(MyInterface.class)
+                    .loader(errorLoader)
+                    .impl("org.apache.iceberg.FailingInitClass")
+                    .buildChecked())
+        .isInstanceOf(ExceptionInInitializerError.class)
+        .hasMessage("static initializer failed");
+  }
+
   public interface MyInterface {}
 
   public static class MyClass implements MyInterface {}
