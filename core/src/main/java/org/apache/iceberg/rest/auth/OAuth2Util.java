@@ -403,12 +403,13 @@ public class OAuth2Util {
       return null;
     }
 
-    Long expiresAtSeconds = JsonUtil.getLongOrNull("exp", node);
-    if (expiresAtSeconds != null) {
-      return TimeUnit.SECONDS.toMillis(expiresAtSeconds);
+    JsonNode exp = node.get("exp");
+    if (exp == null || !exp.isNumber()) {
+      return null;
     }
 
-    return null;
+    // a NumericDate may be a non-integer value (RFC 7519, Section 2)
+    return (long) (exp.doubleValue() * TimeUnit.SECONDS.toMillis(1));
   }
 
   /** Class to handle authorization headers and token refresh. */
