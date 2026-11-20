@@ -156,7 +156,8 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
     }
 
     Type boundType = fieldStats.type().fieldType(boundFieldName);
-    return boundType != null && (!boundType.isStructType() || hasXY(boundType.asStructType()));
+    return boundType != null
+        && (!boundType.isStructType() || projectsGeoXY(boundType.asStructType()));
   }
 
   @SuppressWarnings("unchecked")
@@ -195,7 +196,7 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
    * struct is projected without x or y.
    */
   private static ByteBuffer geoBound(Types.StructType boundType, StructLike bound) {
-    if (bound == null || !hasXY(boundType)) {
+    if (bound == null || !projectsGeoXY(boundType)) {
       return null;
     }
 
@@ -215,7 +216,7 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
     }
   }
 
-  private static boolean hasXY(Types.StructType boundType) {
+  private static boolean projectsGeoXY(Types.StructType boundType) {
     return boundType.field(StatsUtil.GEO_BOUND_X_NAME) != null
         && boundType.field(StatsUtil.GEO_BOUND_Y_NAME) != null;
   }
