@@ -124,6 +124,19 @@ can be set explicitly using `iceberg.kafka.*` properties.
 
 Messages should be converted to a struct or map using the appropriate Kafka Connect converter.
 
+#### Error handling
+
+Kafka Connect's `errors.*` settings also cover records that the sink cannot convert to the table schema, for
+example a string value that does not parse as the table column's `long` type. When a dead letter queue
+(`errors.deadletterqueue.topic.name`) or error logging (`errors.log.enable`) is configured, such records are
+reported through the task's errant record reporter: with `errors.tolerance=all` they are sent to the dead letter
+queue and skipped, with `errors.tolerance=none` they are reported and the task fails. Without either setting,
+the task fails as before.
+
+A reported record's offset is committed with the next Iceberg commit only after the report has completed.
+Failures that are not about the record itself, such as file or catalog errors, including errors applying a
+schema update, always fail the task.
+
 ### Catalog configuration
 
 The `iceberg.catalog.*` properties are required for connecting to the Iceberg catalog. The core catalog
