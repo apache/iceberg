@@ -20,7 +20,9 @@ package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
@@ -39,6 +41,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.relocated.com.google.common.base.Throwables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -84,6 +87,17 @@ public abstract class AvroDataTestBase {
   }
 
   protected boolean supportsNestedTypes() {
+    return true;
+  }
+
+  /**
+   * Whether the format can write {@code unknown} as a list element or map value.
+   *
+   * <p>Unknown columns are omitted from data files. A struct drops the field, but a list or map
+   * would be left with no element or value type, so only formats with a null type, such as Avro,
+   * can represent it.
+   */
+  protected boolean supportsUnknownCollectionElements() {
     return true;
   }
 
@@ -708,7 +722,7 @@ public abstract class AvroDataTestBase {
             required(0, "id", LongType.get()),
             optional(1, "data", ListType.ofOptional(2, Types.UnknownType.get())));
 
-    writeAndValidate(schema);
+    writeAndValidateUnknownCollection(schema);
   }
 
   @Test
@@ -723,6 +737,21 @@ public abstract class AvroDataTestBase {
                 "data",
                 MapType.ofOptional(2, 3, Types.StringType.get(), Types.UnknownType.get())));
 
-    writeAndValidate(schema);
+    writeAndValidateUnknownCollection(schema);
+  }
+
+  private void writeAndValidateUnknownCollection(Schema schema) throws IOException {
+    if (supportsUnknownCollectionElements()) {
+      writeAndValidate(schema);
+      return;
+    }
+
+    // Writers that cannot represent the element or value type reject the schema. Engines may wrap
+    // that failure, so the root cause is checked instead of the thrown exception.
+    Throwable thrown = catchThrowable(() -> writeAndValidate(schema));
+    assertThat(thrown).isNotNull();
+    assertThat(Throwables.getRootCause(thrown))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("unknown");
   }
 }
