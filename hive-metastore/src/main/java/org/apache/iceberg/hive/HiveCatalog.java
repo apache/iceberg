@@ -173,8 +173,12 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
       if (listAllTables) {
         List<String> tableNames = clients.run(client -> client.getAllTables(database));
+        Set<String> viewNames =
+            Set.copyOf(
+                clients.run(client -> client.getTables(database, "*", TableType.VIRTUAL_VIEW)));
         tableIdentifiers =
             tableNames.stream()
+                .filter(tableName -> !viewNames.contains(tableName))
                 .map(t -> TableIdentifier.of(namespace, t))
                 .collect(Collectors.toList());
       } else {
