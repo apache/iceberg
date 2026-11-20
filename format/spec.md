@@ -320,7 +320,7 @@ E must be one of the following vector element types:
 |---------------|--------------------------------------------------------------------|------------|
 | **`int`**     | 32-bit signed integers                                             | `int`      |
 | **`long`**    | 64-bit signed integers                                             | `long`     |
-| **`float16`** | `float` values that are exactly representable as IEEE 754 binary16 | `float`    |
+| **`float16`** | 16-bit IEEE 754 floating point | `float`    |
 | **`float`**   | 32-bit IEEE 754 floating point                                     | `float`    |
 | **`double`**  | 64-bit IEEE 754 floating point                                     | `double`   |
 
