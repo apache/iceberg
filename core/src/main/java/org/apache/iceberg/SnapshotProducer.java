@@ -373,6 +373,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         base.currentSchemaId(),
         manifestList.location(),
         null, // rootManifest
+        null, // rootSizeInBytes
         nextRowId,
         assignedRows,
         manifestListEncryptionKeys != null ? manifestListEncryptionKeys.fileKey().keyId() : null);

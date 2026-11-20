@@ -181,6 +181,15 @@ public interface Snapshot extends Serializable {
   }
 
   /**
+   * Return the size in bytes of this snapshot's root manifest, or null if it has no root manifest.
+   *
+   * @return the size in bytes of the root manifest for this snapshot
+   */
+  default Long rootSizeInBytes() {
+    return null;
+  }
+
+  /**
    * Return the id of the schema used when this snapshot was created, or null if this information is
    * not available.
    *
