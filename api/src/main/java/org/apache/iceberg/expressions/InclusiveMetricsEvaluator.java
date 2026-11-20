@@ -131,22 +131,24 @@ public class InclusiveMetricsEvaluator {
       return ExpressionVisitors.visitEvaluator(expr, this);
     }
 
+    private boolean hasSuspectLegacyOrcCounts(int id) {
+      if (fileFormat != FileFormat.ORC || !fieldsWithOptionalStructAncestor.contains(id)) {
+        return false;
+      }
+
+      // Legacy ORC conversion could record zero nested nulls when a parent was null.
+      // In that case valueCounts retained only present child values, unlike the
+      // corrected metrics, which count one logical value (including null) per row.
+      Long valueCount = valueCounts != null ? valueCounts.get(id) : null;
+      return valueCount == null || valueCount != recordCount;
+    }
+
     @Override
     protected boolean mayContainNull(int id) {
-      if (nullCounts == null || !nullCounts.containsKey(id) || nullCounts.get(id) != 0) {
-        return true;
-      }
-
-      // Older ORC writers in Iceberg used hasNull() to decide if a nested child's null count
-      // was zero. A NULL ancestor struct is not represented by hasNull() on its children,
-      // so legacy files may have nullCount = 0 but valueCount < recordCount. Do not prune
-      // those files based on the incorrect zero count; retain pruning for healthy ORC files.
-      if (fileFormat == FileFormat.ORC && fieldsWithOptionalStructAncestor.contains(id)) {
-        Long valueCount = valueCounts != null ? valueCounts.get(id) : null;
-        return valueCount == null || valueCount != recordCount;
-      }
-
-      return false;
+      return nullCounts == null
+          || !nullCounts.containsKey(id)
+          || nullCounts.get(id) != 0
+          || hasSuspectLegacyOrcCounts(id);
     }
 
     @Override
@@ -165,7 +167,9 @@ public class InclusiveMetricsEvaluator {
 
     @Override
     protected boolean containsNaNsOnly(int id) {
-      return nanCounts != null
+      // NULL ancestors match NOT NaN even if every present child value is NaN.
+      return !hasSuspectLegacyOrcCounts(id)
+          && nanCounts != null
           && nanCounts.containsKey(id)
           && valueCounts != null
           && nanCounts.get(id).equals(valueCounts.get(id));
