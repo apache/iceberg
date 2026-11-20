@@ -120,6 +120,87 @@ class TestHashKeyGenerator {
   }
 
   @Test
+  void testHashDistributionModeWithNestedEqualityAndPartitionField() throws Exception {
+    // A partition sourced from a nested field that is also an equality field must be accepted.
+    // The check matches by fully-qualified name ("user.name"), not by the source field's simple
+    // name ("name") which would not match the dotted equality-field name.
+    int writeParallelism = 3;
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+    Schema nestedSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(
+                2,
+                "user",
+                Types.StructType.of(
+                    Types.NestedField.required(3, "name", Types.StringType.get()))));
+    PartitionSpec spec = PartitionSpec.builderFor(nestedSchema).identity("user.name").build();
+    Set<String> equalityFields = Collections.singleton("user.name");
+
+    GenericRowData row1 = GenericRowData.of(1, GenericRowData.of(StringData.fromString("a")));
+    GenericRowData row2 = GenericRowData.of(2, GenericRowData.of(StringData.fromString("a")));
+    GenericRowData row3 = GenericRowData.of(3, GenericRowData.of(StringData.fromString("b")));
+
+    int writeKey1 =
+        getWriteKey(
+            generator,
+            nestedSchema,
+            spec,
+            DistributionMode.HASH,
+            writeParallelism,
+            equalityFields,
+            row1);
+    int writeKey2 =
+        getWriteKey(
+            generator,
+            nestedSchema,
+            spec,
+            DistributionMode.HASH,
+            writeParallelism,
+            equalityFields,
+            row2);
+    int writeKey3 =
+        getWriteKey(
+            generator,
+            nestedSchema,
+            spec,
+            DistributionMode.HASH,
+            writeParallelism,
+            equalityFields,
+            row3);
+
+    // Rows sharing the nested partition value land on the same writer; a different value does not.
+    assertThat(writeKey1).isEqualTo(writeKey2);
+    assertThat(writeKey3).isNotEqualTo(writeKey1);
+  }
+
+  @Test
+  void testHashDistributionModePartitionFieldMustBeEqualityField() throws Exception {
+    // A partition source that is not an equality field is rejected: equality deletes are
+    // partition-scoped, so partitioning by a non-key column would corrupt upsert dedup.
+    int writeParallelism = 3;
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    Set<String> equalityFields = Collections.singleton("id");
+    GenericRowData row = GenericRowData.of(1, StringData.fromString("a"));
+
+    assertThatThrownBy(
+            () ->
+                getWriteKey(
+                    generator,
+                    SCHEMA,
+                    spec,
+                    DistributionMode.HASH,
+                    writeParallelism,
+                    equalityFields,
+                    row))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("should be included in equality fields");
+  }
+
+  @Test
   void testEqualityKeys() throws Exception {
     int writeParallelism = 2;
     int maxWriteParallelism = 8;
@@ -606,6 +687,52 @@ class TestHashKeyGenerator {
   }
 
   @Test
+  void testCacheHitForEqualSchemaInstances() throws Exception {
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(10, maxWriteParallelism);
+    Map<HashKeyGenerator.SelectorKey, KeySelector<RowData, Integer>> keySelectorCache =
+        generator.getKeySelectorCache();
+
+    PartitionSpec unpartitioned = PartitionSpec.unpartitioned();
+    DynamicRecord record1 =
+        new DynamicRecord(
+            TABLE_IDENTIFIER,
+            BRANCH,
+            new Schema(SCHEMA.columns()),
+            GenericRowData.of(1, StringData.fromString("foo")),
+            unpartitioned,
+            DistributionMode.NONE,
+            2);
+    DynamicRecord record2 =
+        new DynamicRecord(
+            TABLE_IDENTIFIER,
+            BRANCH,
+            new Schema(SCHEMA.columns()),
+            GenericRowData.of(1, StringData.fromString("foo")),
+            unpartitioned,
+            DistributionMode.NONE,
+            2);
+
+    int writeKey1 = generator.generateKey(record1);
+    int writeKey2 = generator.generateKey(record2);
+    // The second record reuses the key selector, so the round robin moves on
+    assertThat(keySelectorCache).hasSize(1);
+    assertThat(writeKey2).isNotEqualTo(writeKey1);
+
+    DynamicRecord record3 =
+        new DynamicRecord(
+            TABLE_IDENTIFIER,
+            BRANCH,
+            new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get())),
+            GenericRowData.of(1),
+            unpartitioned,
+            DistributionMode.NONE,
+            2);
+    generator.generateKey(record3);
+    assertThat(keySelectorCache).hasSize(2);
+  }
+
+  @Test
   void testCacheMissOnWriteParallelismChange() throws Exception {
     int maxWriteParallelism = 8;
     HashKeyGenerator generator = new HashKeyGenerator(10, maxWriteParallelism);
@@ -671,6 +798,25 @@ class TestHashKeyGenerator {
 
     generator.generateKey(record2);
     assertThat(keySelectorCache).hasSize(2);
+  }
+
+  private static int getWriteKey(
+      HashKeyGenerator generator,
+      Schema schema,
+      PartitionSpec spec,
+      DistributionMode mode,
+      int writeParallelism,
+      Set<String> equalityFields,
+      GenericRowData row)
+      throws Exception {
+    DynamicRecord inputRecord =
+        new DynamicRecord(TABLE_IDENTIFIER, BRANCH, schema, row, spec, mode, writeParallelism);
+    inputRecord.setEqualityFields(equalityFields);
+
+    DynamicRecordWithConfig dynamicRecordWithConfig =
+        new DynamicRecordWithConfig(
+            new FlinkWriteConf(Collections.emptyMap(), new Configuration()));
+    return generator.generateKey(dynamicRecordWithConfig.wrap(inputRecord));
   }
 
   private static int getWriteKey(
