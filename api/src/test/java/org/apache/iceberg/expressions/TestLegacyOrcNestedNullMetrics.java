@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
+import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -105,4 +106,58 @@ public class TestLegacyOrcNestedNullMetrics {
             "legacy.orc", Row.of(), 2L, null, Map.of(2, 0L), null, null, null);
     assertThat(mayMatch(missingCounts, isNull("parent.leaf"))).isTrue();
   }
+  @Test
+  public void testLegacyOrcNullParentStillMatchesNotNaN() {
+    Schema floatSchema =
+        new Schema(
+            optional(
+                10,
+                "parent",
+                Types.StructType.of(optional(11, "leaf", Types.FloatType.get()))));
+    DataFile legacyAllObservedNaN =
+        new TestDataFile(
+            "legacy.orc",
+            Row.of(),
+            2L,
+            Map.of(11, 1L),
+            Map.of(11, 0L),
+            Map.of(11, 1L),
+            null,
+            null);
+    DataFile legacyWithNoPresentChildren =
+        new TestDataFile(
+            "all-null-parents.orc",
+            Row.of(),
+            2L,
+            Map.of(11, 0L),
+            Map.of(11, 0L),
+            Map.of(11, 0L),
+            null,
+            null);
+    DataFile healthyAllNaN =
+        new TestDataFile(
+            "healthy.orc",
+            Row.of(),
+            2L,
+            Map.of(11, 2L),
+            Map.of(11, 0L),
+            Map.of(11, 2L),
+            null,
+            null);
+
+    // A NULL value matches NOT NaN in Iceberg's evaluator.
+    assertThat(
+            new InclusiveMetricsEvaluator(floatSchema, notNaN("parent.leaf"))
+                .eval(legacyAllObservedNaN))
+        .isTrue();
+    assertThat(
+            new InclusiveMetricsEvaluator(floatSchema, notNaN("parent.leaf"))
+                .eval(legacyWithNoPresentChildren))
+        .isTrue();
+    assertThat(
+            new InclusiveMetricsEvaluator(floatSchema, notNaN("parent.leaf"))
+                .eval(healthyAllNaN))
+        .isFalse();
+  }
+
 }
