@@ -22,12 +22,13 @@ import java.util.Collection;
 import java.util.Map;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ContentFile;
-import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.TableScanUtil;
 
 /** Resolves the files referenced by scan tasks into readable, decrypted {@link InputFile}s. */
 public class InputFilesDecryptor {
@@ -48,8 +49,14 @@ public class InputFilesDecryptor {
         EncryptingFileIO.combine(io, encryption));
   }
 
+  /**
+   * Returns a decryptor for the files referenced by the given tasks.
+   *
+   * <p>Resolution of referenced files are performed lazily on the first call of {@link
+   * #getInputFile(String)}.
+   */
   public static InputFilesDecryptor fromTasks(
-      Iterable<FileScanTask> tasks, EncryptingFileIO encryptingIO) {
+      Iterable<? extends ScanTask> tasks, EncryptingFileIO encryptingIO) {
     return new InputFilesDecryptor(() -> referencedFiles(tasks).iterator(), encryptingIO);
   }
 
@@ -71,12 +78,11 @@ public class InputFilesDecryptor {
     return lazyInputFiles;
   }
 
-  private static Collection<ContentFile<?>> referencedFiles(Iterable<FileScanTask> tasks) {
+  private static Collection<ContentFile<?>> referencedFiles(Iterable<? extends ScanTask> tasks) {
     Map<String, ContentFile<?>> files = Maps.newHashMap();
-    for (FileScanTask task : tasks) {
-      files.put(task.file().location(), task.file());
-      for (DeleteFile delete : task.deletes()) {
-        files.put(delete.location(), delete);
+    for (ScanTask task : tasks) {
+      for (ContentFile<?> file : TableScanUtil.referencedFiles(task)) {
+        files.put(file.location(), file);
       }
     }
 

@@ -19,8 +19,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
-import java.util.stream.Stream;
-import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
@@ -30,7 +28,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
 import org.apache.iceberg.spark.source.metrics.TaskScanDuration;
@@ -80,11 +77,6 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
   }
 
   @Override
-  protected Stream<ContentFile<?>> referencedFiles(FileScanTask task) {
-    return Stream.concat(Stream.of(task.file()), task.deletes().stream());
-  }
-
-  @Override
   protected CloseableIterator<InternalRow> open(FileScanTask task) {
     String filePath = task.file().location();
     LOG.debug("Opening data file {}", filePath);
@@ -107,8 +99,6 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
       return newDataIterable(task.asDataTask(), readSchema);
     } else {
       InputFile inputFile = getInputFile(task.file().location());
-      Preconditions.checkNotNull(
-          inputFile, "Could not find InputFile associated with FileScanTask");
       return newIterable(
           inputFile,
           task.file().format(),

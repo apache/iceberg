@@ -31,12 +31,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseCombinedScanTask;
-import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
@@ -91,11 +89,6 @@ public class TestBaseReader {
 
     ClosureTrackingReader(Table table, List<FileScanTask> tasks) {
       super(table, table.io(), new BaseCombinedScanTask(tasks), null, false, true);
-    }
-
-    @Override
-    protected Stream<ContentFile<?>> referencedFiles(FileScanTask task) {
-      return Stream.of();
     }
 
     @Override
