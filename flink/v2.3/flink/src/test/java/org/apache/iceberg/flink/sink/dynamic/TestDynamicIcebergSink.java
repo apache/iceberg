@@ -1397,6 +1397,61 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(ints = {2, 3})
+  void upsertAfterSchemaEvolution(int formatVersion) throws Exception {
+    // A restart replays the records against the already created table, which hides failures
+    Configuration configuration = new Configuration();
+    configuration.set(RestartStrategyOptions.RESTART_STRATEGY, "none");
+    env.configure(configuration);
+
+    Map<String, String> tableProps =
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    DynamicIcebergSink.forInput(env.fromData(1))
+        // Both versions of the key come from one input element, so no checkpoint barrier
+        // separates them
+        .generator(
+            (Integer id, Collector<DynamicRecord> out) -> {
+              out.collect(
+                  upsertById(
+                      SimpleDataUtil.SCHEMA, GenericRowData.of(id, StringData.fromString("a"))));
+              out.collect(
+                  upsertById(
+                      SimpleDataUtil.SCHEMA2,
+                      GenericRowData.of(
+                          id, StringData.fromString("b"), StringData.fromString("x"))));
+            })
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .writeParallelism(1)
+        .immediateTableUpdate(true)
+        .tableCreator(
+            (catalog, identifier, tableSchema, spec) ->
+                catalog.createTable(identifier, tableSchema, spec, null, tableProps))
+        .append();
+
+    env.execute("upsert after schema evolution");
+
+    Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, "t1"));
+    assertThat(table.schema().sameSchema(SimpleDataUtil.SCHEMA2)).isTrue();
+    SimpleDataUtil.assertTableRecords(
+        table, ImmutableList.of(SimpleDataUtil.createRecord(1, "b", "x")));
+  }
+
+  private static DynamicRecord upsertById(Schema schema, RowData row) {
+    DynamicRecord record =
+        new DynamicRecord(
+            TableIdentifier.of(DATABASE, "t1"),
+            SnapshotRef.MAIN_BRANCH,
+            schema,
+            row,
+            PartitionSpec.unpartitioned(),
+            DistributionMode.NONE,
+            1);
+    record.setUpsertMode(true);
+    record.setEqualityFields(Sets.newHashSet("id"));
+    return record;
+  }
+
   @Test
   void testDistributionFieldsWriteSameKeyToSingleDataFile() throws Exception {
     int parallelism = 2;

@@ -31,6 +31,7 @@ import org.apache.flink.api.connector.sink2.SinkWriter;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -38,12 +39,14 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
 import org.apache.iceberg.flink.sink.SinkUtil;
+import org.apache.iceberg.io.BaseTaskWriter.InsertedRowTracker;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,6 +61,12 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
 
   private final Map<WriteTarget, RowDataTaskWriterFactory> taskWriterFactories;
   private final Map<WriteTarget, TaskWriter<RowData>> writers;
+  // Inserted-row trackers shared by all writers of one table (key: WriteTarget without schema ID)
+  // within the current checkpoint. A schema evolution mid-checkpoint opens another writer for the
+  // same table; without a shared tracker its re-writes of keys already written by the earlier
+  // writer would produce equality deletes at the same sequence number as their targets, which
+  // never apply.
+  private final Map<WriteTarget, TableTrackers> insertedRowTrackers;
   private final Configuration flinkConfig;
   private final Map<String, String> commonWriteProperties;
   private final DynamicWriterMetrics metrics;
@@ -81,6 +90,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     this.attemptId = attemptId;
     this.taskWriterFactories = new LRUCache<>(cacheMaximumSize);
     this.writers = Maps.newHashMap();
+    this.insertedRowTrackers = Maps.newHashMap();
 
     LOG.debug("DynamicIcebergSinkWriter created for subtask {} attemptId {}", subTaskId, attemptId);
   }
@@ -97,56 +107,101 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                 element.spec().specId(),
                 element.upsertMode(),
                 element.equalityFields()),
-            writerKey -> {
-              RowDataTaskWriterFactory taskWriterFactory =
-                  taskWriterFactories.computeIfAbsent(
-                      writerKey,
-                      factoryKey -> {
-                        Table table =
-                            catalog.loadTable(TableIdentifier.parse(factoryKey.tableName()));
-
-                        Set<Integer> equalityFieldIds =
-                            getEqualityFields(table, element.equalityFields());
-                        if (element.upsertMode()) {
-                          Preconditions.checkState(
-                              !equalityFieldIds.isEmpty(),
-                              "Equality field columns shouldn't be empty when configuring to use UPSERT data.");
-
-                          if (!table.spec().isUnpartitioned()) {
-                            for (PartitionField partitionField : table.spec().fields()) {
-                              Preconditions.checkState(
-                                  equalityFieldIds.contains(partitionField.sourceId()),
-                                  "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",
-                                  partitionField,
-                                  equalityFieldIds);
-                            }
-                          }
-                        }
-
-                        FlinkWriteConf flinkWriteConf =
-                            new FlinkWriteConf(table, commonWriteProperties, flinkConfig);
-                        Map<String, String> tableWriteProperties =
-                            SinkUtil.writeProperties(
-                                flinkWriteConf.dataFileFormat(), flinkWriteConf, table);
-
-                        LOG.debug("Creating new writer factory for table '{}'", table.name());
-                        return new RowDataTaskWriterFactory(
-                            () -> table,
-                            FlinkSchemaUtil.convert(element.schema()),
-                            flinkWriteConf.targetDataFileSize(),
-                            flinkWriteConf.dataFileFormat(),
-                            tableWriteProperties,
-                            Lists.newArrayList(equalityFieldIds),
-                            element.upsertMode(),
-                            element.schema(),
-                            element.spec());
-                      });
-
-              taskWriterFactory.initialize(subTaskId, attemptId);
-              return taskWriterFactory.create();
-            })
+            writerKey -> createWriter(writerKey, element))
         .write(element.rowData());
     metrics.mainMetricsGroup().getNumRecordsSendCounter().inc();
+  }
+
+  private TaskWriter<RowData> createWriter(WriteTarget writerKey, DynamicRecordInternal element) {
+    RowDataTaskWriterFactory taskWriterFactory =
+        taskWriterFactories.computeIfAbsent(
+            writerKey,
+            factoryKey -> {
+              Table table = catalog.loadTable(TableIdentifier.parse(factoryKey.tableName()));
+
+              Set<Integer> equalityFieldIds = getEqualityFields(table, element.equalityFields());
+              if (element.upsertMode()) {
+                Preconditions.checkState(
+                    !equalityFieldIds.isEmpty(),
+                    "Equality field columns shouldn't be empty when configuring to use UPSERT data.");
+
+                if (!table.spec().isUnpartitioned()) {
+                  for (PartitionField partitionField : table.spec().fields()) {
+                    Preconditions.checkState(
+                        equalityFieldIds.contains(partitionField.sourceId()),
+                        "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",
+                        partitionField,
+                        equalityFieldIds);
+                  }
+                }
+              }
+
+              FlinkWriteConf flinkWriteConf =
+                  new FlinkWriteConf(table, commonWriteProperties, flinkConfig);
+              Map<String, String> tableWriteProperties =
+                  SinkUtil.writeProperties(flinkWriteConf.dataFileFormat(), flinkWriteConf, table);
+
+              WriteTarget trackerScope = factoryKey.withoutSchemaId();
+              LOG.debug("Creating new writer factory for table '{}'", table.name());
+              return new RowDataTaskWriterFactory(
+                  () -> table,
+                  FlinkSchemaUtil.convert(element.schema()),
+                  flinkWriteConf.targetDataFileSize(),
+                  flinkWriteConf.dataFileFormat(),
+                  tableWriteProperties,
+                  Lists.newArrayList(equalityFieldIds),
+                  element.upsertMode(),
+                  element.schema(),
+                  element.spec(),
+                  (partition, keyType) -> insertedRowTracker(trackerScope, partition, keyType));
+            });
+
+    taskWriterFactory.initialize(subTaskId, attemptId);
+    return taskWriterFactory.create();
+  }
+
+  private InsertedRowTracker insertedRowTracker(
+      WriteTarget trackerScope, StructLike partition, Types.StructType keyType) {
+    TableTrackers trackers =
+        insertedRowTrackers.computeIfAbsent(trackerScope, scope -> new TableTrackers(keyType));
+    if (!trackers.acceptsKeyType(keyType)) {
+      LOG.warn(
+          "Not sharing inserted-row tracker for table {} branch {}: key type {} of the earlier "
+              + "writers does not accept key type {} of the new writer (an equality field's type, "
+              + "optionality or position changed). Re-writes of a key across these schema versions "
+              + "within one checkpoint will produce equality deletes that cannot apply to data "
+              + "written in the same commit",
+          trackerScope.tableName(),
+          trackerScope.branch(),
+          trackers.keyType(),
+          keyType);
+      return null;
+    }
+
+    return trackers.forPartition(partition);
+  }
+
+  /** Inserted-row trackers of one table within one checkpoint, one per partition. */
+  private static class TableTrackers {
+    private final Types.StructType keyType;
+    private final Map<StructLike, InsertedRowTracker> byPartition = Maps.newHashMap();
+
+    private TableTrackers(Types.StructType keyType) {
+      this.keyType = keyType;
+    }
+
+    private Types.StructType keyType() {
+      return keyType;
+    }
+
+    private boolean acceptsKeyType(Types.StructType otherKeyType) {
+      return byPartition.isEmpty()
+          || byPartition.values().iterator().next().acceptsKeyType(otherKeyType);
+    }
+
+    private InsertedRowTracker forPartition(StructLike partition) {
+      return byPartition.computeIfAbsent(partition, part -> InsertedRowTracker.create(keyType));
+    }
   }
 
   @Override
@@ -156,8 +211,12 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
 
   @Override
   public void close() throws Exception {
-    for (TaskWriter<RowData> writer : writers.values()) {
-      writer.close();
+    try {
+      for (TaskWriter<RowData> writer : writers.values()) {
+        writer.close();
+      }
+    } finally {
+      insertedRowTrackers.clear();
     }
   }
 
@@ -196,6 +255,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     }
 
     writers.clear();
+    insertedRowTrackers.clear();
 
     return result;
   }
