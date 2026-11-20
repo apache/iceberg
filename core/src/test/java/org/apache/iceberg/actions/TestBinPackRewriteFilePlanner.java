@@ -24,7 +24,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -32,6 +34,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MockFileScanTask;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
@@ -45,6 +48,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -617,6 +622,42 @@ class TestBinPackRewriteFilePlanner {
     assertThat(fileScanTasks).isLessThanOrEqualTo(numFiles).isLessThanOrEqualTo(500);
   }
 
+  @Test
+  void plannedTasksCarryStatsForRequestedColumns() {
+    addFilesWithBounds();
+    BinPackRewriteFilePlanner planner =
+        new BinPackRewriteFilePlanner(table) {
+          @Override
+          protected Collection<String> statsColumns() {
+            return ImmutableList.of("data");
+          }
+        };
+    planner.init(REWRITE_ALL);
+
+    List<FileScanTask> tasks = plannedTasks(planner);
+
+    int dataId = table.schema().findField("data").fieldId();
+    assertThat(tasks).isNotEmpty();
+    assertThat(tasks)
+        .allSatisfy(
+            task -> {
+              assertThat(task.file().lowerBounds()).containsOnlyKeys(dataId);
+              assertThat(task.file().upperBounds()).containsOnlyKeys(dataId);
+            });
+  }
+
+  @Test
+  void plannedTasksCarryNoStatsByDefault() {
+    addFilesWithBounds();
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    planner.init(REWRITE_ALL);
+
+    List<FileScanTask> tasks = plannedTasks(planner);
+
+    assertThat(tasks).isNotEmpty();
+    assertThat(tasks).allSatisfy(task -> assertThat(task.file().lowerBounds()).isNullOrEmpty());
+  }
+
   private void addFiles() {
     table
         .newAppend()
@@ -627,6 +668,35 @@ class TestBinPackRewriteFilePlanner {
         .appendFile(FILE_5)
         .appendFile(FILE_6)
         .commit();
+  }
+
+  private void addFilesWithBounds() {
+    table
+        .newAppend()
+        .appendFile(newDataFileWithBounds("data_bucket=0"))
+        .appendFile(newDataFileWithBounds("data_bucket=1"))
+        .commit();
+  }
+
+  private static List<FileScanTask> plannedTasks(BinPackRewriteFilePlanner planner) {
+    return Lists.newArrayList(planner.plan().groups()).stream()
+        .flatMap(group -> group.fileScanTasks().stream())
+        .collect(Collectors.toList());
+  }
+
+  private DataFile newDataFileWithBounds(String partitionPath) {
+    Map<Integer, ByteBuffer> bounds =
+        ImmutableMap.of(
+            table.schema().findField("id").fieldId(),
+            Conversions.toByteBuffer(Types.IntegerType.get(), 1),
+            table.schema().findField("data").fieldId(),
+            Conversions.toByteBuffer(Types.StringType.get(), "a"));
+    return DataFiles.builder(table.spec())
+        .withPath("/path/to/data-" + UUID.randomUUID() + ".parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath(partitionPath)
+        .withMetrics(new Metrics(1L, null, null, null, null, bounds, bounds))
+        .build();
   }
 
   private static DataFile newDataFile(String partitionPath, long fileSize) {

@@ -28,6 +28,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFunctionCatalog;
@@ -91,6 +92,13 @@ abstract class SparkShufflingFileRewriteRunner extends SparkDataFileRewriteRunne
   protected abstract Dataset<Row> sortedDF(
       Dataset<Row> df, Function<Dataset<Row>, Dataset<Row>> sortFunc);
 
+  protected Dataset<Row> sortedDF(
+      Dataset<Row> df,
+      Function<Dataset<Row>, Dataset<Row>> sortFunc,
+      List<FileScanTask> groupTasks) {
+    return sortedDF(df, sortFunc);
+  }
+
   @Override
   public Set<String> validOptions() {
     return ImmutableSet.<String>builder()
@@ -105,6 +113,10 @@ abstract class SparkShufflingFileRewriteRunner extends SparkDataFileRewriteRunne
     this.numShufflePartitionsPerFile = numShufflePartitionsPerFile(options);
   }
 
+  List<String> statsColumns(Map<String, String> options) {
+    return ImmutableList.of();
+  }
+
   @Override
   public void doRewrite(String groupId, RewriteFileGroup fileGroup) {
     Dataset<Row> scanDF = spark().read().format("iceberg").load(groupId);
@@ -115,7 +127,8 @@ abstract class SparkShufflingFileRewriteRunner extends SparkDataFileRewriteRunne
             sortFunction(
                 fileGroup.fileScanTasks(),
                 spec(fileGroup.outputSpecId()),
-                fileGroup.expectedOutputFiles()));
+                fileGroup.expectedOutputFiles()),
+            fileGroup.fileScanTasks());
 
     org.apache.iceberg.SortOrder sortOrderInJobSpec = sortOrder();
 

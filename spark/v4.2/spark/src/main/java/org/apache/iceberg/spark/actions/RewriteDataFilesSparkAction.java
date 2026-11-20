@@ -223,8 +223,13 @@ public class RewriteDataFilesSparkAction
   @VisibleForTesting
   void init(long startingSnapshotId) {
     this.planner =
-        runner instanceof SparkShufflingFileRewriteRunner
-            ? new SparkShufflingDataRewritePlanner(table, filter, startingSnapshotId, caseSensitive)
+        runner instanceof SparkShufflingFileRewriteRunner shufflingRunner
+            ? new SparkShufflingDataRewritePlanner(
+                table,
+                filter,
+                startingSnapshotId,
+                caseSensitive,
+                shufflingRunner.statsColumns(options()))
             : new BinPackRewriteFilePlanner(table, filter, startingSnapshotId, caseSensitive);
 
     // Default to BinPack if no strategy selected

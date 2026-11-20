@@ -108,6 +108,56 @@ public class ZOrderByteUtils {
   }
 
   /**
+   * Maps a value linearly from [min, max] onto {@code 2^bits} equal-width buckets, returned as
+   * {@code bits / 8} unsigned big-endian bytes that sort in the same order as the values.
+   *
+   * <p>Values below min or above max are clamped to the first or last bucket, NaN maps to the last
+   * bucket, and every value maps to the first bucket when min equals max. The bytes are written to
+   * reuse, which must have a capacity of exactly {@code bits / 8}.
+   *
+   * @throws IllegalArgumentException if bits is not 8, 16, 24 or 32, if min or max is not finite,
+   *     if min is greater than max, or if max - min overflows to infinity
+   */
+  public static ByteBuffer quantizedOrderedBytes(
+      double value, double min, double max, int bits, ByteBuffer reuse) {
+    Preconditions.checkArgument(
+        bits == 8 || bits == 16 || bits == 24 || bits == 32,
+        "Invalid quantization bits: %s (must be 8, 16, 24 or 32)",
+        bits);
+    Preconditions.checkArgument(
+        Double.isFinite(min), "Invalid quantization min: %s (must be finite)", min);
+    Preconditions.checkArgument(
+        Double.isFinite(max), "Invalid quantization max: %s (must be finite)", max);
+    Preconditions.checkArgument(
+        min <= max, "Invalid quantization range: min %s is greater than max %s", min, max);
+    Preconditions.checkArgument(
+        Double.isFinite(max - min),
+        "Invalid quantization range: width from min %s to max %s is not a finite double",
+        min,
+        max);
+
+    long bucketCount = 1L << bits;
+    long lastBucket = bucketCount - 1;
+    long bucket;
+    if (Double.isNaN(value)) {
+      bucket = lastBucket;
+    } else if (min == max) {
+      bucket = 0;
+    } else {
+      long scaled = (long) Math.floor((value - min) / (max - min) * bucketCount);
+      bucket = Math.max(0, Math.min(lastBucket, scaled));
+    }
+
+    int length = bits / Byte.SIZE;
+    ByteBuffer bytes = ByteBuffers.reuse(reuse, length);
+    for (int i = 0; i < length; i++) {
+      bytes.put((byte) (bucket >>> (Byte.SIZE * (length - 1 - i))));
+    }
+
+    return bytes;
+  }
+
+  /**
    * Strings are lexicographically sortable BUT if different byte array lengths will ruin the
    * Z-Ordering. (ZOrder requires that a given column contribute the same number of bytes every
    * time). This implementation just uses a set size to for all output byte representations.
