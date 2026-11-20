@@ -89,6 +89,8 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.FourColumnRecord;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeMap;
@@ -433,90 +435,14 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
   @TestTemplate
   void keepsDeletesWhenBinaryPartitionSummaryExcludesLiveDataFile() throws Exception {
-    Schema schema =
-        new Schema(
-            Types.NestedField.required(1, "id", Types.IntegerType.get()),
-            Types.NestedField.required(2, "data", Types.BinaryType.get()));
-    Table table =
-        validationCatalog.createTable(
-            TableIdentifier.of("default", TABLE_NAME),
-            schema,
-            PartitionSpec.builderFor(schema).identity("data").build(),
-            tableProperties());
+    assertKeepsDeletesWhenPartitionSummaryExcludesLiveDataFile(
+        Types.BinaryType.get(), ByteBuffer.wrap(new byte[] {1}));
+  }
 
-    ByteBuffer value = ByteBuffer.wrap(new byte[] {1});
-    PartitionData partition = new PartitionData(table.spec().partitionType());
-    partition.set(0, value);
-    GenericRecord record = GenericRecord.create(schema);
-    DataFile liveFile =
-        FileHelpers.writeDataFile(
-            table,
-            table.io().newOutputFile(table.location() + "/data/live.parquet"),
-            partition,
-            ImmutableList.of(
-                record.copy(ImmutableMap.of("id", 1, "data", value)),
-                record.copy(ImmutableMap.of("id", 2, "data", value))));
-    DataFile removedFile =
-        FileHelpers.writeDataFile(
-            table,
-            table.io().newOutputFile(table.location() + "/data/removed.parquet"),
-            partition,
-            ImmutableList.of(record.copy(ImmutableMap.of("id", 3, "data", value))));
-
-    ManifestWriter<DataFile> writer =
-        ManifestFiles.write(
-            TableUtil.formatVersion(table),
-            table.spec(),
-            table.io().newOutputFile(table.location() + "/metadata/live-manifest.avro"),
-            null);
-    try (writer) {
-      writer.add(liveFile);
-    }
-    ManifestFile manifest = mock(ManifestFile.class, delegatesTo(writer.toManifestFile()));
-    ByteBuffer otherValue = ByteBuffer.wrap(new byte[] {2});
-    doReturn(
-            ImmutableList.of(
-                new GenericPartitionFieldSummary(false, false, otherValue, otherValue)))
-        .when(manifest)
-        .partitions();
-    table.newFastAppend().appendManifest(manifest).appendFile(removedFile).commit();
-
-    List<Pair<CharSequence, Long>> deletes =
-        ImmutableList.of(Pair.of(liveFile.location(), 0L), Pair.of(removedFile.location(), 0L));
-    DeleteFile deleteFile =
-        FileHelpers.writeDeleteFile(
-                table,
-                table.io().newOutputFile(table.location() + "/data/deletes.parquet"),
-                partition,
-                deletes)
-            .first();
-    table.newRowDelta().addDeletes(deleteFile).commit();
-    table.newDelete().deleteFile(removedFile).commit();
-
-    assertThat(table.currentSnapshot().dataManifests(table.io()))
-        .extracting(dataManifest -> dataManifest.partitions().get(0).lowerBound())
-        .contains(otherValue);
-    List<Object[]> expectedRecords =
-        rowsToJava(spark.read().format("iceberg").load(name(table)).sort("id").collectAsList());
-    assertThat(expectedRecords).hasSize(1);
-
-    SparkActions.get(spark)
-        .rewritePositionDeletes(table)
-        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
-        .execute();
-
-    assertThat(
-            rowsToJava(spark.read().format("iceberg").load(name(table)).sort("id").collectAsList()))
-        .containsExactlyElementsOf(expectedRecords);
-    assertThat(
-            rowsToJava(
-                spark
-                    .read()
-                    .format("iceberg")
-                    .load(name(table) + ".position_deletes")
-                    .select("file_path", "pos")
-                    .collectAsList()))
-        .containsExactly(row(liveFile.location(), 0L));
+  @TestTemplate
+  void keepsDeletesWhenFixedPartitionSummaryExcludesLiveDataFile() throws Exception {
+    assertKeepsDeletesWhenPartitionSummaryExcludesLiveDataFile(
+        Types.FixedType.ofLength(1), new byte[] {1});
   }
 
   @TestTemplate
@@ -1259,6 +1185,97 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     CloseableIterable<ScanTask> tasks = deletesTable.newBatchScan().planFiles();
     return Lists.newArrayList(
         CloseableIterable.transform(tasks, t -> ((PositionDeletesScanTask) t).file()));
+  }
+
+  private void assertKeepsDeletesWhenPartitionSummaryExcludesLiveDataFile(Type type, Object value)
+      throws Exception {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "category", Types.IntegerType.get()),
+            Types.NestedField.required(3, "data", type));
+    Table table =
+        validationCatalog.createTable(
+            TableIdentifier.of("default", TABLE_NAME),
+            schema,
+            PartitionSpec.builderFor(schema).identity("category").identity("data").build(),
+            tableProperties());
+
+    PartitionData partition = new PartitionData(table.spec().partitionType());
+    partition.set(0, 7);
+    partition.set(1, value);
+    GenericRecord record = GenericRecord.create(schema);
+    DataFile liveFile =
+        FileHelpers.writeDataFile(
+            table,
+            table.io().newOutputFile(table.location() + "/data/live.parquet"),
+            partition,
+            ImmutableList.of(
+                record.copy(ImmutableMap.of("id", 1, "category", 7, "data", value)),
+                record.copy(ImmutableMap.of("id", 2, "category", 7, "data", value))));
+    DataFile removedFile =
+        FileHelpers.writeDataFile(
+            table,
+            table.io().newOutputFile(table.location() + "/data/removed.parquet"),
+            partition,
+            ImmutableList.of(record.copy(ImmutableMap.of("id", 3, "category", 7, "data", value))));
+
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(
+            TableUtil.formatVersion(table),
+            table.spec(),
+            table.io().newOutputFile(table.location() + "/metadata/live-manifest.avro"),
+            null);
+    try (writer) {
+      writer.add(liveFile);
+    }
+    ManifestFile manifest = mock(ManifestFile.class, delegatesTo(writer.toManifestFile()));
+    ByteBuffer category = Conversions.toByteBuffer(Types.IntegerType.get(), 7);
+    ByteBuffer otherValue = ByteBuffer.wrap(new byte[] {2});
+    doReturn(
+            ImmutableList.of(
+                new GenericPartitionFieldSummary(false, false, category, category),
+                new GenericPartitionFieldSummary(false, false, otherValue, otherValue)))
+        .when(manifest)
+        .partitions();
+    table.newFastAppend().appendManifest(manifest).appendFile(removedFile).commit();
+
+    List<Pair<CharSequence, Long>> deletes =
+        ImmutableList.of(Pair.of(liveFile.location(), 0L), Pair.of(removedFile.location(), 0L));
+    DeleteFile deleteFile =
+        FileHelpers.writeDeleteFile(
+                table,
+                table.io().newOutputFile(table.location() + "/data/deletes.parquet"),
+                partition,
+                deletes)
+            .first();
+    table.newRowDelta().addDeletes(deleteFile).commit();
+    table.newDelete().deleteFile(removedFile).commit();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io()))
+        .extracting(dataManifest -> dataManifest.partitions().get(1).lowerBound())
+        .contains(otherValue);
+    List<Object[]> expectedRecords =
+        rowsToJava(spark.read().format("iceberg").load(name(table)).sort("id").collectAsList());
+    assertThat(expectedRecords).hasSize(1);
+
+    SparkActions.get(spark)
+        .rewritePositionDeletes(table)
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+        .execute();
+
+    assertThat(
+            rowsToJava(spark.read().format("iceberg").load(name(table)).sort("id").collectAsList()))
+        .containsExactlyElementsOf(expectedRecords);
+    assertThat(
+            rowsToJava(
+                spark
+                    .read()
+                    .format("iceberg")
+                    .load(name(table) + ".position_deletes")
+                    .select("file_path", "pos")
+                    .collectAsList()))
+        .containsExactly(row(liveFile.location(), 0L));
   }
 
   private <T extends ContentFile<?>> List<T> except(List<T> first, List<T> second) {

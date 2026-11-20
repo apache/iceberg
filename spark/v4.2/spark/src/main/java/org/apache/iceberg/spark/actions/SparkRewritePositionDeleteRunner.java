@@ -148,6 +148,6 @@ class SparkRewritePositionDeleteRunner
   }
 
   private static boolean hasReliableSummaryBounds(Type type) {
-    return type.typeId() != Type.TypeID.BINARY;
+    return type.typeId() != Type.TypeID.BINARY && type.typeId() != Type.TypeID.FIXED;
   }
 }
