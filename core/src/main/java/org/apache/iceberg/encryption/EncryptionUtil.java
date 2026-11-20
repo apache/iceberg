@@ -23,9 +23,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ManifestListFile;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.OutputFile;
@@ -202,6 +204,25 @@ public class EncryptionUtil {
         encryptor.encrypt(mlkMetadataBytes, keyTimestamp.getBytes(StandardCharsets.UTF_8));
 
     return ByteBuffer.wrap(encryptedKeyMetadata);
+  }
+
+  /**
+   * Checks that a commit does not remove or change the key ID of an encrypted table.
+   *
+   * @param base the table metadata that the commit is based on, or null for a new table
+   * @param metadata the table metadata to commit
+   */
+  public static void checkKeyIdUnchanged(TableMetadata base, TableMetadata metadata) {
+    if (base == null) {
+      return;
+    }
+
+    String baseKeyId = base.property(TableProperties.ENCRYPTION_TABLE_KEY, null);
+    String newKeyId = metadata.property(TableProperties.ENCRYPTION_TABLE_KEY, null);
+    Preconditions.checkArgument(
+        baseKeyId == null || newKeyId != null, "Cannot remove key ID from an encrypted table");
+    Preconditions.checkArgument(
+        Objects.equals(baseKeyId, newKeyId), "Cannot modify key ID of an encrypted table");
   }
 
   public static void checkCompatibility(Map<String, String> tableProperties, int formatVersion) {
