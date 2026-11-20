@@ -20,8 +20,14 @@ package org.apache.iceberg.spark.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.SnapshotChanges;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.iceberg.spark.source.metrics.AddedDataFiles;
 import org.apache.iceberg.spark.source.metrics.AddedDeleteFiles;
@@ -31,6 +37,11 @@ import org.apache.iceberg.spark.source.metrics.AddedFileSizeInBytes;
 import org.apache.iceberg.spark.source.metrics.AddedPositionalDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.AddedPositionalDeletes;
 import org.apache.iceberg.spark.source.metrics.AddedRecords;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MaxTaskWriteDuration;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MedianTaskWriteDuration;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.MinTaskWriteDuration;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteCloseDuration;
+import org.apache.iceberg.spark.source.metrics.NanoDurationMetric.WriteDuration;
 import org.apache.iceberg.spark.source.metrics.RemovedDataFiles;
 import org.apache.iceberg.spark.source.metrics.RemovedDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.RemovedEqualityDeleteFiles;
@@ -194,6 +205,74 @@ public class TestSparkWriteMetrics extends TestBaseWithCatalog {
       assertThat(metricsMap)
           .hasEntrySatisfying(metric, m -> assertThat(m.value()).as(metric).isEqualTo(0));
     }
+  }
+
+  @TestTemplate
+  public void writeDurationAcrossTasks() {
+    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
+
+    Dataset<Row> result =
+        spark.sql(
+            String.format(
+                "INSERT INTO %s SELECT /*+ REPARTITION(4) */ id FROM range(2000)", tableName));
+    result.collect();
+
+    Map<String, SQLMetric> metricsMap = writeMetrics(result.queryExecution().executedPlan());
+
+    assertThat(metricsMap)
+        .hasEntrySatisfying(AddedDataFiles.NAME, metric -> assertThat(metric.value()).isEqualTo(4));
+
+    long total = metricsMap.get(WriteDuration.NAME).value();
+    long min = metricsMap.get(MinTaskWriteDuration.NAME).value();
+    long median = metricsMap.get(MedianTaskWriteDuration.NAME).value();
+    long max = metricsMap.get(MaxTaskWriteDuration.NAME).value();
+    assertThat(min).isGreaterThan(0);
+    assertThat(median).isGreaterThanOrEqualTo(min);
+    assertThat(max).isGreaterThanOrEqualTo(median);
+    assertThat(total).isGreaterThanOrEqualTo(max);
+    assertThat(metricsMap)
+        .hasEntrySatisfying(
+            WriteCloseDuration.NAME, metric -> assertThat(metric.value()).isGreaterThan(0));
+  }
+
+  @TestTemplate
+  public void writeDurationForDVDelete() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id BIGINT) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', 'write.delete.mode'='merge-on-read')",
+        tableName);
+    spark.range(100).coalesce(1).writeTo(tableName).append();
+
+    Dataset<Row> result = spark.sql(String.format("DELETE FROM %s WHERE id = 1", tableName));
+    result.collect();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    List<DeleteFile> deleteFiles =
+        Lists.newArrayList(SnapshotChanges.builderFor(table).build().addedDeleteFiles());
+    assertThat(deleteFiles).extracting(DeleteFile::format).containsExactly(FileFormat.PUFFIN);
+
+    assertWriteDurationsReported(result.queryExecution().executedPlan());
+  }
+
+  private void assertWriteDurationsReported(SparkPlan plan) {
+    Map<String, SQLMetric> metricsMap = writeMetrics(plan);
+
+    assertThat(metricsMap)
+        .hasEntrySatisfying(
+            WriteDuration.NAME, metric -> assertThat(metric.value()).isGreaterThan(0));
+    assertThat(metricsMap)
+        .hasEntrySatisfying(
+            WriteCloseDuration.NAME, metric -> assertThat(metric.value()).isGreaterThan(0));
+  }
+
+  private Map<String, SQLMetric> writeMetrics(SparkPlan plan) {
+    Map<String, SQLMetric> metricsMap = CollectionConverters.asJava(plan.metrics());
+    if (!metricsMap.containsKey(WriteDuration.NAME)) {
+      metricsMap = findMetrics(plan, WriteDuration.NAME);
+    }
+
+    assertThat(metricsMap).as("write metrics not found in plan").isNotNull();
+    return metricsMap;
   }
 
   private Map<String, SQLMetric> findMetrics(SparkPlan plan, String metricName) {

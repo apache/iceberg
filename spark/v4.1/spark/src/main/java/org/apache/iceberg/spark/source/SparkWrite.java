@@ -116,6 +116,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
 
   private boolean cleanupOnAbort = false;
   private InMemoryMetricsReporter metricsReporter;
+  private WriteTimer.Totals writeTimes = new WriteTimer.Totals();
 
   SparkWrite(
       SparkSession spark,
@@ -285,20 +286,23 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
 
   private DataFileSet files(WriterCommitMessage[] messages) {
     DataFileSet files = DataFileSet.create();
+    // every commit path funnels through here, so this is where task write times are collected
+    WriteTimer.Totals totals = new WriteTimer.Totals();
 
     for (WriterCommitMessage message : messages) {
       if (message != null) {
-        TaskCommit taskCommit = (TaskCommit) message;
+        TaskCommit taskCommit = (TaskCommit) totals.unwrap(message);
         files.addAll(Arrays.asList(taskCommit.files()));
       }
     }
 
+    this.writeTimes = totals;
     return files;
   }
 
   @Override
   public CustomTaskMetric[] reportDriverMetrics() {
-    return SparkWriteUtil.customTaskMetrics(metricsReporter);
+    return writeTimes.driverMetrics(metricsReporter);
   }
 
   @Override
@@ -747,11 +751,13 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
       Table table = tableBroadcast.value();
       PartitionSpec spec = table.specs().get(outputSpecId);
       FileIO io = table.io();
+      WriteTimer timer = new WriteTimer(partitionId, taskId);
       String operationId = queryId + "-" + epochId;
       OutputFileFactory fileFactory =
           OutputFileFactory.builderFor(table, partitionId, taskId)
               .format(format)
               .operationId(operationId)
+              .ioSupplier(() -> new TimedFileIO(table.io(), timer))
               .build();
       SparkFileWriterFactory writerFactory =
           SparkFileWriterFactory.builderFor(table)
@@ -765,20 +771,22 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
       Function<InternalRow, InternalRow> rowLineageExtractor = new ExtractRowLineage(writeSchema);
 
       if (spec.isUnpartitioned()) {
-        return new UnpartitionedDataWriter(
-            writerFactory, fileFactory, io, spec, targetFileSize, rowLineageExtractor);
+        return timer.wrap(
+            new UnpartitionedDataWriter(
+                writerFactory, fileFactory, io, spec, targetFileSize, rowLineageExtractor));
 
       } else {
-        return new PartitionedDataWriter(
-            writerFactory,
-            fileFactory,
-            io,
-            spec,
-            writeSchema,
-            dsSchema,
-            targetFileSize,
-            useFanoutWriter,
-            rowLineageExtractor);
+        return timer.wrap(
+            new PartitionedDataWriter(
+                writerFactory,
+                fileFactory,
+                io,
+                spec,
+                writeSchema,
+                dsSchema,
+                targetFileSize,
+                useFanoutWriter,
+                rowLineageExtractor));
       }
     }
   }
