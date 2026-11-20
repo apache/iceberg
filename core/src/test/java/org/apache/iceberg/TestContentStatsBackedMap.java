@@ -227,6 +227,79 @@ public class TestContentStatsBackedMap {
   }
 
   @Test
+  public void projectedGeoBoundsInView() {
+    Schema geoSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(10, "geom", Types.GeometryType.crs84()),
+            optional(11, "geog", Types.GeographyType.crs84()));
+    // unprojected geo bounds have all four coordinates: x, y, z, and m
+    Types.StructType statsType = StatsUtil.statsReadSchema(geoSchema, List.of(1, 10, 11));
+    Types.StructType projectedStatsType =
+        new Schema(statsType.fields())
+            .select(
+                "id",
+                "geom.lower_bound.m",
+                "geom.upper_bound.y",
+                "geom.upper_bound.m",
+                "geog.lower_bound.x",
+                "geog.lower_bound.y",
+                "geog.lower_bound.m",
+                "geog.upper_bound.x",
+                "geog.upper_bound.y",
+                "geog.upper_bound.m")
+            .asStruct();
+    Types.StructType projectedGeomStats = projectedStatsType.field("geom").type().asStructType();
+    Types.StructType projectedGeogStats = projectedStatsType.field("geog").type().asStructType();
+
+    ContentStatsStruct stats = new ContentStatsStruct(projectedStatsType);
+    stats.setStats(
+        1,
+        StatsTestUtil.mockFieldStats(
+            projectedStatsType.field("id").type().asStructType(),
+            1,
+            1L, // lower bound
+            5L, // upper bound
+            26L, // value count
+            null, // null value count
+            null)); // NaN value count
+    stats.setStats(
+        10,
+        StatsTestUtil.mockFieldStats(
+            projectedGeomStats,
+            10,
+            TestHelpers.Row.of(4.0), // lower bound projected to (m)
+            TestHelpers.Row.of(6.0, 8.0), // upper bound projected to (y, m)
+            null, // value count
+            null, // null value count
+            null)); // NaN value count
+    stats.setStats(
+        11,
+        StatsTestUtil.mockFieldStats(
+            projectedGeogStats,
+            11,
+            TestHelpers.Row.of(1.0, 2.0, 4.0), // lower bound projected to (x, y, m)
+            TestHelpers.Row.of(5.0, 6.0, 8.0), // upper bound projected to (x, y, m)
+            null, // value count
+            null, // null value count
+            null)); // NaN value count
+
+    // geom (field 10) is absent from both maps: its bounds are projected without x or y, and these
+    // maps encode a geo bound as x:y[:z][:m] bytes, which requires both
+    Map<Integer, ByteBuffer> lower = ContentStatsBackedMap.lowerBounds(stats);
+    assertThat(lower)
+        .containsOnly(
+            Map.entry(1, Conversions.toByteBuffer(Types.LongType.get(), 1L)),
+            Map.entry(11, GeospatialBound.createXYM(1.0, 2.0, 4.0).toByteBuffer()));
+
+    Map<Integer, ByteBuffer> upper = ContentStatsBackedMap.upperBounds(stats);
+    assertThat(upper)
+        .containsOnly(
+            Map.entry(1, Conversions.toByteBuffer(Types.LongType.get(), 5L)),
+            Map.entry(11, GeospatialBound.createXYM(5.0, 6.0, 8.0).toByteBuffer()));
+  }
+
+  @Test
   public void testGetReturnsNullForMissingKey() {
     Map<Integer, Long> map = ContentStatsBackedMap.valueCounts(POPULATED_STATS);
     assertThat(map.get(999)).isNull();
@@ -248,6 +321,33 @@ public class TestContentStatsBackedMap {
 
     Map<Integer, Long> valueCounts = ContentStatsBackedMap.valueCounts(ONLY_REQUIRED_STATS);
     assertThat(valueCounts).isNotNull().containsOnly(Map.entry(1, 10L));
+  }
+
+  @Test
+  public void factoryReturnsNullWhenOnlyPartialGeoBounds() {
+    Schema geoSchema = new Schema(optional(10, "geom", Types.GeometryType.crs84()));
+    // unprojected geo bounds have all four coordinates: x, y, z, and m
+    Types.StructType statsType = StatsUtil.statsReadSchema(geoSchema, List.of(10));
+    Types.StructType projectedStatsType =
+        new Schema(statsType.fields())
+            .select("geom.lower_bound.m", "geom.upper_bound.m")
+            .asStruct();
+    Types.StructType projectedGeomStats = projectedStatsType.field("geom").type().asStructType();
+
+    ContentStatsStruct stats = new ContentStatsStruct(projectedStatsType);
+    stats.setStats(
+        10,
+        StatsTestUtil.mockFieldStats(
+            projectedGeomStats,
+            10,
+            TestHelpers.Row.of(4.0), // lower bound projected to (m)
+            TestHelpers.Row.of(8.0), // upper bound projected to (m)
+            null, // value count
+            null, // null value count
+            null)); // NaN value count
+
+    assertThat(ContentStatsBackedMap.lowerBounds(stats)).isNull();
+    assertThat(ContentStatsBackedMap.upperBounds(stats)).isNull();
   }
 
   @Test

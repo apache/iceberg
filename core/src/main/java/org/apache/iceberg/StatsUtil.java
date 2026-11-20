@@ -68,6 +68,12 @@ class StatsUtil {
   static final String LOWER_BOUND_NAME = "lower_bound";
   static final String UPPER_BOUND_NAME = "upper_bound";
 
+  // Field names used within geo_lower and geo_upper structs
+  static final String GEO_BOUND_X_NAME = "x";
+  static final String GEO_BOUND_Y_NAME = "y";
+  static final String GEO_BOUND_Z_NAME = "z";
+  static final String GEO_BOUND_M_NAME = "m";
+
   // Offsets used within geo_lower struct
   private static final int GEO_LOWER_X_OFFSET = 10;
   private static final int GEO_LOWER_Y_OFFSET = 11;
@@ -227,32 +233,48 @@ class StatsUtil {
     return Types.StructType.of(
         required(
             baseId + GEO_LOWER_X_OFFSET,
-            "x",
+            GEO_BOUND_X_NAME,
             Types.DoubleType.get(),
             "Bounding box westernmost/xmin; [-180..180]"),
         required(
             baseId + GEO_LOWER_Y_OFFSET,
-            "y",
+            GEO_BOUND_Y_NAME,
             Types.DoubleType.get(),
             "Bounding box southernmost/ymin; [-90..90]"),
-        optional(baseId + GEO_LOWER_Z_OFFSET, "z", Types.DoubleType.get(), "Bounding box zmin"),
-        optional(baseId + GEO_LOWER_M_OFFSET, "m", Types.DoubleType.get(), "Bounding box mmin"));
+        optional(
+            baseId + GEO_LOWER_Z_OFFSET,
+            GEO_BOUND_Z_NAME,
+            Types.DoubleType.get(),
+            "Bounding box zmin"),
+        optional(
+            baseId + GEO_LOWER_M_OFFSET,
+            GEO_BOUND_M_NAME,
+            Types.DoubleType.get(),
+            "Bounding box mmin"));
   }
 
   private static Types.StructType geoUpperBound(int baseId) {
     return Types.StructType.of(
         required(
             baseId + GEO_UPPER_X_OFFSET,
-            "x",
+            GEO_BOUND_X_NAME,
             Types.DoubleType.get(),
             "Bounding box easternmost/xmax; [-180..180]"),
         required(
             baseId + GEO_UPPER_Y_OFFSET,
-            "y",
+            GEO_BOUND_Y_NAME,
             Types.DoubleType.get(),
             "Bounding box northernmost/ymax; [-90..90]"),
-        optional(baseId + GEO_UPPER_Z_OFFSET, "z", Types.DoubleType.get(), "Bounding box zmax"),
-        optional(baseId + GEO_UPPER_M_OFFSET, "m", Types.DoubleType.get(), "Bounding box mmax"));
+        optional(
+            baseId + GEO_UPPER_Z_OFFSET,
+            GEO_BOUND_Z_NAME,
+            Types.DoubleType.get(),
+            "Bounding box zmax"),
+        optional(
+            baseId + GEO_UPPER_M_OFFSET,
+            GEO_BOUND_M_NAME,
+            Types.DoubleType.get(),
+            "Bounding box mmax"));
   }
 
   private static Types.NestedField lowerBoundField(Type type, int baseId) {

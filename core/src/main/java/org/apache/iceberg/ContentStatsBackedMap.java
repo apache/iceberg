@@ -20,12 +20,14 @@ package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
 /**
  * A lazy, read-only {@link Map} view of one stat across the columns of a {@link ContentStats},
@@ -143,8 +145,7 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
       case VALUE_COUNT -> fieldStats.hasValueCount();
       case NULL_VALUE_COUNT -> fieldStats.hasNullValueCount();
       case NAN_VALUE_COUNT -> fieldStats.hasNanValueCount();
-      case LOWER_BOUND -> fieldStats.lowerBound() != null;
-      case UPPER_BOUND -> fieldStats.upperBound() != null;
+      case LOWER_BOUND, UPPER_BOUND -> statValue(fieldStats, kind) != null;
     };
   }
 
@@ -172,24 +173,30 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
 
     if (boundType.isStructType()) {
       // geo bounds are bounding-box structs; convert to the spec's single-point encoding
-      return geoBound((StructLike) bound);
+      return geoBound(boundType.asStructType(), (StructLike) bound);
     }
 
     // toByteBuffer returns null for a null bound
     return Conversions.toByteBuffer(boundType, bound);
   }
 
-  /** Encodes a geo bounding-box struct (x, y, z, m) as the spec's single-point bound. */
-  private static ByteBuffer geoBound(StructLike bound) {
+  /**
+   * Encodes a geo bounding-box struct as the spec's single-point bound, or returns null if the
+   * struct is projected without x or y.
+   */
+  private static ByteBuffer geoBound(Types.StructType boundType, StructLike bound) {
     if (bound == null) {
       return null;
     }
 
-    // field order is fixed by the stats schema: x, y, z, m
-    double coordX = bound.get(0, Double.class);
-    double coordY = bound.get(1, Double.class);
-    Double coordZ = bound.get(2, Double.class);
-    Double coordM = bound.get(3, Double.class);
+    Double coordX = coordinate(boundType, bound, StatsUtil.GEO_BOUND_X_NAME);
+    Double coordY = coordinate(boundType, bound, StatsUtil.GEO_BOUND_Y_NAME);
+    if (coordX == null || coordY == null) {
+      return null;
+    }
+
+    Double coordZ = coordinate(boundType, bound, StatsUtil.GEO_BOUND_Z_NAME);
+    Double coordM = coordinate(boundType, bound, StatsUtil.GEO_BOUND_M_NAME);
 
     if (coordZ != null && coordM != null) {
       return GeospatialBound.createXYZM(coordX, coordY, coordZ, coordM).toByteBuffer();
@@ -200,5 +207,16 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
     } else {
       return GeospatialBound.createXY(coordX, coordY).toByteBuffer();
     }
+  }
+
+  private static Double coordinate(Types.StructType boundType, StructLike bound, String name) {
+    List<Types.NestedField> fields = boundType.fields();
+    for (int pos = 0; pos < fields.size(); pos += 1) {
+      if (fields.get(pos).name().equals(name)) {
+        return bound.get(pos, Double.class);
+      }
+    }
+
+    return null;
   }
 }
