@@ -853,6 +853,35 @@ public class TestRewriteFiles extends TestBase {
   }
 
   @TestTemplate
+  public void testRewriteFilesDetectsConcurrentlyAddedDV() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
+    Snapshot s0 = latestSnapshot(table, branch);
+
+    // deleting oldDeleteB only satisfies the precondition that adding a delete file requires
+    // deleting one; it is unrelated to the conflict under test
+    DeleteFile oldDeleteB = newDeletes(FILE_B);
+    commit(table, table.newRowDelta().addDeletes(oldDeleteB), branch);
+    Snapshot s1 = latestSnapshot(table, branch);
+
+    DeleteFile compactionDV = newDV(FILE_A);
+    RewriteFiles compaction =
+        table
+            .newRewrite()
+            .validateFromSnapshot(s1.snapshotId())
+            .deleteFile(oldDeleteB)
+            .addFile(compactionDV);
+
+    DeleteFile mergeDV = newDV(FILE_A);
+    commit(table, table.newRowDelta().addDeletes(mergeDV), branch);
+
+    assertThatThrownBy(() -> commit(table, compaction, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Found concurrently added DV for %s", FILE_A.location());
+  }
+
+  @TestTemplate
   public void testRewriteOfUnrelatedFileSucceedsWithSuccessiveDVReplacements() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
 
@@ -919,6 +948,7 @@ public class TestRewriteFiles extends TestBase {
 
     DeleteFile dv1 = newDV(FILE_A);
     commit(table, table.newRowDelta().addDeletes(dv1), branch);
+    Snapshot s1 = latestSnapshot(table, branch);
 
     // VALIDATE_ADDED_DELETE_FILES_OPERATIONS excludes "replace", so the window never opens the
     // manifest that records the removal of DV1 and DV1 keeps a live entry in it
@@ -927,6 +957,7 @@ public class TestRewriteFiles extends TestBase {
         table,
         table
             .newRewrite()
+            .validateFromSnapshot(s1.snapshotId())
             .rewriteFiles(
                 ImmutableSet.of(),
                 ImmutableSet.of(dv1),
