@@ -192,7 +192,7 @@ class TableUpdater {
     currentSpec = table.spec();
 
     PartitionSpecEvolution.PartitionSpecChanges result =
-        PartitionSpecEvolution.evolve(currentSpec, targetSpec);
+        PartitionSpecEvolution.evolve(currentSpec, targetSpec, caseSensitive);
     if (result.isEmpty()) {
       LOG.info("Returning equivalent existing spec {} for {}", currentSpec, targetSpec);
       return currentSpec;
@@ -203,7 +203,7 @@ class TableUpdater {
         identifier,
         currentSpec,
         targetSpec);
-    UpdatePartitionSpec updater = table.updateSpec();
+    UpdatePartitionSpec updater = table.updateSpec().caseSensitive(caseSensitive);
     result.termsToRemove().forEach(updater::removeField);
     result.termsToAdd().forEach(updater::addField);
 

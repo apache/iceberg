@@ -93,6 +93,51 @@ public class TestPartitionSpecEvolution {
   }
 
   @Test
+  void notCompatibleWhenSourceColumnWasDropped() {
+    Schema schemaWithRegion =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(1, "region", Types.StringType.get()));
+    Schema currentSchema = new Schema(Types.NestedField.required(0, "id", Types.IntegerType.get()));
+
+    PartitionSpec historicalSpec =
+        PartitionSpec.builderFor(schemaWithRegion)
+            .identity("region")
+            .build()
+            .toUnbound()
+            .bind(currentSchema, true);
+    PartitionSpec inputSpec = PartitionSpec.builderFor(currentSchema).identity("id").build();
+
+    assertThat(PartitionSpecEvolution.checkCompatibility(historicalSpec, inputSpec)).isFalse();
+  }
+
+  @Test
+  void compatibleIgnoringCaseOfSourceColumn() {
+    PartitionSpec lowerCaseSpec = PartitionSpec.builderFor(lowerCaseSchema()).day("ts").build();
+    PartitionSpec upperCaseSpec = PartitionSpec.builderFor(upperCaseSchema()).day("TS").build();
+
+    assertThat(PartitionSpecEvolution.checkCompatibility(lowerCaseSpec, upperCaseSpec, false))
+        .isTrue();
+  }
+
+  @Test
+  void notCompatibleWhenSourceColumnCaseDiffers() {
+    PartitionSpec lowerCaseSpec = PartitionSpec.builderFor(lowerCaseSchema()).day("ts").build();
+    PartitionSpec upperCaseSpec = PartitionSpec.builderFor(upperCaseSchema()).day("TS").build();
+
+    assertThat(PartitionSpecEvolution.checkCompatibility(lowerCaseSpec, upperCaseSpec)).isFalse();
+  }
+
+  @Test
+  void evolveIgnoringCaseOfSourceColumn() {
+    PartitionSpec lowerCaseSpec = PartitionSpec.builderFor(lowerCaseSchema()).day("ts").build();
+    PartitionSpec upperCaseSpec = PartitionSpec.builderFor(upperCaseSchema()).day("TS").build();
+
+    assertThat(PartitionSpecEvolution.evolve(lowerCaseSpec, upperCaseSpec, false).isEmpty())
+        .isTrue();
+  }
+
+  @Test
   void testPartitionSpecEvolution() {
     Schema schema1 =
         new Schema(
@@ -184,5 +229,17 @@ public class TestPartitionSpecEvolution {
 
     assertThat(result.termsToAdd().toString()).isEqualTo("[bucket[23](ref(name=\"data.str\"))]");
     assertThat(result.termsToRemove().toString()).isEqualTo("[bucket[10](ref(name=\"data.str\"))]");
+  }
+
+  private static Schema lowerCaseSchema() {
+    return new Schema(
+        Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+        Types.NestedField.optional(2, "ts", Types.TimestampType.withoutZone()));
+  }
+
+  private static Schema upperCaseSchema() {
+    return new Schema(
+        Types.NestedField.optional(1, "ID", Types.IntegerType.get()),
+        Types.NestedField.optional(2, "TS", Types.TimestampType.withoutZone()));
   }
 }
