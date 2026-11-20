@@ -2597,6 +2597,53 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
+  public void listNamespacesFailsOnRepeatedPageToken() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+    Mockito.doReturn(
+            namespacesPage("a", Namespace.of("ns1")),
+            namespacesPage("b", Namespace.of("ns2")),
+            namespacesPage("a", Namespace.of("ns3")))
+        .when(adapter)
+        .handleRequest(eq(Route.LIST_NAMESPACES), any(), any(), any(), any());
+
+    assertThatThrownBy(catalog::listNamespaces)
+        .isInstanceOf(RESTException.class)
+        .hasMessage("Invalid paginated response: next-page-token was already used: a");
+
+    Mockito.verify(adapter, times(3))
+        .handleRequest(eq(Route.LIST_NAMESPACES), any(), any(), any(), any());
+  }
+
+  @Test
+  public void listTablesFailsOnRepeatedPageToken() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+    Namespace namespace = Namespace.of("ns");
+    Mockito.doReturn(
+            tablesPage("a", TableIdentifier.of(namespace, "t1")),
+            tablesPage("b", TableIdentifier.of(namespace, "t2")),
+            tablesPage("a", TableIdentifier.of(namespace, "t3")))
+        .when(adapter)
+        .handleRequest(eq(Route.LIST_TABLES), any(), any(), any(), any());
+
+    assertThatThrownBy(() -> catalog.listTables(namespace))
+        .isInstanceOf(RESTException.class)
+        .hasMessage("Invalid paginated response: next-page-token was already used: a");
+
+    Mockito.verify(adapter, times(3))
+        .handleRequest(eq(Route.LIST_TABLES), any(), any(), any(), any());
+  }
+
+  private static ListNamespacesResponse namespacesPage(String nextPageToken, Namespace namespace) {
+    return ListNamespacesResponse.builder().add(namespace).nextPageToken(nextPageToken).build();
+  }
+
+  private static ListTablesResponse tablesPage(String nextPageToken, TableIdentifier identifier) {
+    return ListTablesResponse.builder().add(identifier).nextPageToken(nextPageToken).build();
+  }
+
+  @Test
   public void testCleanupUncommitedFilesForCleanableFailures() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog = catalog(adapter);

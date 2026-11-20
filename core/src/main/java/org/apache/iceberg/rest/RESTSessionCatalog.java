@@ -59,6 +59,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
@@ -75,6 +76,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RESTCatalogProperties.ScanPlanningMode;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.RESTTableCache.TableWithETag;
@@ -320,6 +322,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     this.conf = newConf;
   }
 
+  private static String checkPageToken(String nextPageToken, Set<String> usedPageTokens) {
+    if (nextPageToken != null && !usedPageTokens.add(nextPageToken)) {
+      throw new RESTException(
+          "Invalid paginated response: next-page-token was already used: %s", nextPageToken);
+    }
+
+    return nextPageToken;
+  }
+
   @Override
   public List<TableIdentifier> listTables(SessionContext context, Namespace ns) {
     if (!endpoints.contains(Endpoint.V1_LIST_TABLES)) {
@@ -330,6 +341,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Map<String, String> queryParams = Maps.newHashMap();
     ImmutableList.Builder<TableIdentifier> tables = ImmutableList.builder();
     String pageToken = "";
+    Set<String> usedPageTokens = Sets.newHashSet(pageToken);
     if (pageSize != null) {
       queryParams.put("pageSize", String.valueOf(pageSize));
     }
@@ -346,7 +358,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   ListTablesResponse.class,
                   Map.of(),
                   ErrorHandlers.namespaceErrorHandler());
-      pageToken = response.nextPageToken();
+      pageToken = checkPageToken(response.nextPageToken(), usedPageTokens);
       tables.addAll(response.identifiers());
     } while (pageToken != null);
 
@@ -878,6 +890,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
     String pageToken = "";
+    Set<String> usedPageTokens = Sets.newHashSet(pageToken);
     if (pageSize != null) {
       queryParams.put("pageSize", String.valueOf(pageSize));
     }
@@ -894,7 +907,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   ListNamespacesResponse.class,
                   Map.of(),
                   ErrorHandlers.namespaceErrorHandler());
-      pageToken = response.nextPageToken();
+      pageToken = checkPageToken(response.nextPageToken(), usedPageTokens);
       namespaces.addAll(response.namespaces());
     } while (pageToken != null);
 
@@ -1565,6 +1578,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Map<String, String> queryParams = Maps.newHashMap();
     ImmutableList.Builder<TableIdentifier> views = ImmutableList.builder();
     String pageToken = "";
+    Set<String> usedPageTokens = Sets.newHashSet(pageToken);
     if (pageSize != null) {
       queryParams.put("pageSize", String.valueOf(pageSize));
     }
@@ -1581,7 +1595,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   ListTablesResponse.class,
                   Map.of(),
                   ErrorHandlers.namespaceErrorHandler());
-      pageToken = response.nextPageToken();
+      pageToken = checkPageToken(response.nextPageToken(), usedPageTokens);
       views.addAll(response.identifiers());
     } while (pageToken != null);
 
