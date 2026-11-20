@@ -245,7 +245,6 @@ subprojects {
     implementation libs.slf4j.api
 
     testImplementation libs.junit.jupiter
-    testImplementation libs.junit.jupiter.engine
     testImplementation libs.junit.platform.launcher
     testImplementation libs.slf4j.simple
     testImplementation libs.mockito.core
@@ -454,7 +453,6 @@ project(':iceberg-core') {
     testImplementation libs.jetty.compression.server
     testImplementation libs.jetty.compression.gzip
     testImplementation libs.mockserver.netty
-    testImplementation libs.mockserver.client.java
     testImplementation libs.sqlite.jdbc
     testImplementation libs.derby.core
     testImplementation libs.derby.tools
@@ -550,7 +548,6 @@ project(':iceberg-aliyun') {
     testImplementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.esotericsoftware.kryo
-    testImplementation libs.mockito.core
     testImplementation libs.junit.pioneer
   }
 }
@@ -596,18 +593,14 @@ project(':iceberg-aws') {
 
     compileOnly libs.httpcomponents.httpclient5
 
-    testImplementation(platform(libs.awssdk.bom))
     testImplementation("software.amazon.awssdk:iam")
     testImplementation("software.amazon.awssdk:s3control")
-    testImplementation("software.amazon.s3.accessgrants:aws-s3-accessgrants-java-plugin")
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.sqlite.jdbc
     testImplementation libs.testcontainers
     testImplementation libs.testcontainers.junit.jupiter
-    testImplementation libs.httpcomponents.httpclient5
     testImplementation libs.mockserver.netty
-    testImplementation libs.mockserver.client.java
     testImplementation libs.jaxb.api
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation libs.awaitility
@@ -670,7 +663,6 @@ project(':iceberg-azure') {
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.testcontainers
     testImplementation libs.mockserver.netty
-    testImplementation libs.mockserver.client.java
     testImplementation libs.mockito.junit.jupiter
   }
 
@@ -832,7 +824,6 @@ project(':iceberg-gcp') {
     testImplementation libs.awaitility
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.mockserver.netty
-    testImplementation libs.mockserver.client.java
     testImplementation libs.mockito.junit.jupiter
     testImplementation libs.testcontainers
     testImplementation libs.testcontainers.junit.jupiter
@@ -1079,9 +1070,6 @@ project(':iceberg-nessie') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
-
-    // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
-    testCompileOnly libs.microprofile.openapi.api
   }
 }
 
@@ -1137,10 +1125,8 @@ project(':iceberg-open-api') {
     testImplementation project(':iceberg-core').sourceSets.test.runtimeClasspath
     testImplementation(testFixtures(project(':iceberg-open-api')))
 
-    testImplementation libs.junit.jupiter
     testImplementation libs.junit.suite.api
     testImplementation libs.junit.suite.engine
-    testImplementation libs.assertj.core
 
     testImplementation project(':iceberg-aws-bundle')
     testImplementation project(':iceberg-gcp-bundle')
@@ -1184,7 +1170,6 @@ project(':iceberg-open-api') {
     testFixturesImplementation libs.jetty.compression.gzip
     testFixturesImplementation libs.sqlite.jdbc
 
-    testFixturesCompileOnly libs.apiguardian
     testFixturesCompileOnly libs.junit.jupiter
 
     testFixturesRuntimeOnly project(':iceberg-aws-bundle')
