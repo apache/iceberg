@@ -161,4 +161,16 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " doesn't implement cleanExpiredMetadata");
   }
+
+  /**
+   * Enables skipping files that are missing from storage while cleaning up expired files.
+   *
+   * <p>A file that is still reachable from a retained snapshot is never skipped.
+   *
+   * @return this for method chaining
+   */
+  default ExpireSnapshots ignoreMissingFiles() {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement ignoreMissingFiles");
+  }
 }

@@ -112,6 +112,15 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
     throw new UnsupportedOperationException("cleanExpiredMetadata is not supported");
   }
 
+  /**
+   * Enables skipping files that are missing from storage while cleaning up expired files.
+   *
+   * @return this for method chaining
+   */
+  default ExpireSnapshots ignoreMissingFiles() {
+    throw new UnsupportedOperationException("Ignoring missing files is not supported");
+  }
+
   /** The action result that contains a summary of the execution. */
   interface Result {
     /** Returns the number of deleted data files. */
