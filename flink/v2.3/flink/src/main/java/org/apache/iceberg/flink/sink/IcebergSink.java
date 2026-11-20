@@ -904,42 +904,14 @@ public class IcebergSink
           SinkUtil.checkAndGetEqualityFieldIds(table, equalityFieldColumns);
 
       if (flinkWriteConf.upsertMode()) {
-        Preconditions.checkState(
-            !overwriteMode,
-            "OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.");
-        Preconditions.checkState(
-            !equalityFieldIds.isEmpty(),
-            "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
-        if (!table.spec().isUnpartitioned()) {
-          for (PartitionField partitionField : table.spec().fields()) {
-            Preconditions.checkState(
-                equalityFieldIds.contains(partitionField.sourceId()),
-                "In 'hash' distribution mode with equality fields set, source column '%s' of partition field '%s' "
-                    + "should be included in equality fields: '%s'",
-                table.schema().findColumnName(partitionField.sourceId()),
-                partitionField,
-                equalityFieldColumns);
-          }
-        }
+        checkUpsertMode(overwriteMode, equalityFieldIds);
       }
 
       FlinkMaintenanceConfig flinkMaintenanceConfig =
           new FlinkMaintenanceConfig(table, writeOptions, readableConfig);
 
       if (flinkWriteConf.compactMode()) {
-        RewriteDataFilesConfig rewriteDataFilesConfig =
-            flinkMaintenanceConfig.createRewriteDataFilesConfig();
-
-        String defaultRewriteBranch = flinkWriteConf.branch();
-        if (flinkWriteConf.convertEqualityDeletesMode()) {
-          defaultRewriteBranch =
-              convertTargetBranch(
-                  flinkWriteConf, flinkMaintenanceConfig.createConvertEqualityDeletesConfig());
-          validateRewriteBranch(defaultRewriteBranch, rewriteDataFilesConfig);
-        }
-
-        maintenanceTasks.add(
-            RewriteDataFiles.builder().branch(defaultRewriteBranch).config(rewriteDataFilesConfig));
+        addRewriteDataFilesTask(flinkWriteConf, flinkMaintenanceConfig);
       }
 
       if (flinkWriteConf.expireSnapshotsMode()) {
@@ -982,6 +954,43 @@ public class IcebergSink
           maintenanceTasks,
           flinkMaintenanceConfig,
           equalityFieldColumnsSet);
+    }
+
+    private void checkUpsertMode(boolean overwriteMode, Set<Integer> equalityFieldIds) {
+      Preconditions.checkState(
+          !overwriteMode,
+          "OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.");
+      Preconditions.checkState(
+          !equalityFieldIds.isEmpty(),
+          "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
+      if (!table.spec().isUnpartitioned()) {
+        for (PartitionField partitionField : table.spec().fields()) {
+          Preconditions.checkState(
+              equalityFieldIds.contains(partitionField.sourceId()),
+              "In 'hash' distribution mode with equality fields set, source column '%s' of partition field '%s' "
+                  + "should be included in equality fields: '%s'",
+              table.schema().findColumnName(partitionField.sourceId()),
+              partitionField,
+              equalityFieldColumns);
+        }
+      }
+    }
+
+    private void addRewriteDataFilesTask(
+        FlinkWriteConf flinkWriteConf, FlinkMaintenanceConfig flinkMaintenanceConfig) {
+      RewriteDataFilesConfig rewriteDataFilesConfig =
+          flinkMaintenanceConfig.createRewriteDataFilesConfig();
+
+      String defaultRewriteBranch = flinkWriteConf.branch();
+      if (flinkWriteConf.convertEqualityDeletesMode()) {
+        defaultRewriteBranch =
+            convertTargetBranch(
+                flinkWriteConf, flinkMaintenanceConfig.createConvertEqualityDeletesConfig());
+        validateRewriteBranch(defaultRewriteBranch, rewriteDataFilesConfig);
+      }
+
+      maintenanceTasks.add(
+          RewriteDataFiles.builder().branch(defaultRewriteBranch).config(rewriteDataFilesConfig));
     }
 
     private void addConvertEqualityDeletesTask(
