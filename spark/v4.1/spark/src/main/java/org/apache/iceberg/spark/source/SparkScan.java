@@ -185,6 +185,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
         groupingKeyType(),
         taskGroups(),
         projection,
+        readSchema(),
         hashCode());
   }
 

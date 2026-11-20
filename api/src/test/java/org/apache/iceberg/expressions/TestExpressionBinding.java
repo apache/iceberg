@@ -361,7 +361,9 @@ public class TestExpressionBinding {
       new String[] {
         "$", // root path
         "$.event_id",
-        "$.event.id"
+        "$.event.id",
+        "$['event_id']", // bracket notation
+        "$.events[0].event_id" // array index accessor
       };
 
   @ParameterizedTest
@@ -378,9 +380,7 @@ public class TestExpressionBinding {
         null,
         "",
         "event_id", // missing root
-        "$['event_id']", // uses bracket notation
         "$..event_id", // uses recursive descent
-        "$.events[0].event_id", // uses position accessor
         "$.events.*" // uses wildcard
       };
 
