@@ -75,27 +75,6 @@ class SparkBatch implements Batch {
       Types.StructType groupingKeyType,
       List<? extends ScanTaskGroup<?>> taskGroups,
       Schema projection,
-      int scanHashCode) {
-    this(
-        sparkContext,
-        table,
-        fileIO,
-        readConf,
-        groupingKeyType,
-        taskGroups,
-        projection,
-        scanHashCode,
-        new SparkRowReaderFactory());
-  }
-
-  SparkBatch(
-      JavaSparkContext sparkContext,
-      Table table,
-      Supplier<FileIO> fileIO,
-      SparkReadConf readConf,
-      Types.StructType groupingKeyType,
-      List<? extends ScanTaskGroup<?>> taskGroups,
-      Schema projection,
       int scanHashCode,
       PartitionReaderFactory rowReaderFactory) {
     this.sparkContext = sparkContext;
