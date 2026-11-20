@@ -58,12 +58,15 @@ import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadataParser;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -77,6 +80,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class TestEqualityConvertPlanner extends OperatorTestBase {
 
   private static final String STAGING_BRANCH = "__flink_staging_test";
+  private static final long IDLE_TIMEOUT_MS = 1000L;
 
   @TempDir private Path tempDir;
 
@@ -1933,6 +1937,580 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
     }
   }
 
+  @Test
+  void partitionScopedIndexReadsOnlyPartitionsWithEqualityDeletes() throws Exception {
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+    insertPartitioned(table, 2, "b");
+    insertPartitioned(table, 3, "a");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete = writePartitionedEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.open();
+      sendTrigger(harness);
+
+      assertThat(dataFileLocations(harness.extractOutputValues()))
+          .isEqualTo(dataFilesInPartition(table, "a"));
+    }
+  }
+
+  @Test
+  void partitionScopedIndexReadsEveryPartitionForUnpartitionedDelete() throws Exception {
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+    insertPartitioned(table, 2, "b");
+
+    table.updateSpec().removeField("data").commit();
+    table.refresh();
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.open();
+      sendTrigger(harness);
+
+      assertThat(dataFileLocations(harness.extractOutputValues())).isEqualTo(liveDataFiles(table));
+    }
+  }
+
+  @Test
+  void evictsPartitionWithoutEqualityDeletesForIdleTimeout() throws Exception {
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete = writePartitionedEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.open();
+      long deleteTime = 10_000L;
+      sendTrigger(harness, deleteTime);
+      simulatePartitionedConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+
+      sendTrigger(harness, deleteTime + IDLE_TIMEOUT_MS - 1);
+      assertThat(evictedPartitions(harness)).isEmpty();
+
+      sendTrigger(harness, deleteTime + IDLE_TIMEOUT_MS);
+      assertThat(evictedPartitions(harness)).containsExactly(partition(table, "a"));
+    }
+  }
+
+  @Test
+  void keepsIdlePartitionWhoseRowsTheCycleSends() throws Exception {
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+    insertPartitioned(table, 2, "b");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile firstDelete = writePartitionedEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(firstDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.open();
+      long deleteTime = 10_000L;
+      sendTrigger(harness, deleteTime);
+      simulatePartitionedConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+
+      // Partition "a" is idle, but the cycle sends the rows of a new data file in it.
+      DataFile newDataFile = writePartitionedDataFile(table, createRecord(3, "a"), "a");
+      table.newRowDelta().addRows(newDataFile).toBranch(STAGING_BRANCH).commit();
+      table.refresh();
+
+      sendTrigger(harness, deleteTime + IDLE_TIMEOUT_MS);
+
+      assertThat(evictedPartitions(harness)).isEmpty();
+      assertThat(dataFileLocations(harness.extractOutputValues())).contains(newDataFile.location());
+    }
+  }
+
+  @Test
+  void rebuildsIndexAfterRestoreWithPartitionIndexDisabled() throws Exception {
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+    insertPartitioned(table, 2, "b");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete = writePartitionedEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    OperatorSubtaskState state;
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.open();
+      sendTrigger(harness);
+      state = harness.snapshot(1, System.currentTimeMillis());
+    }
+
+    simulatePartitionedConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+    Set<String> liveFiles = liveDataFiles(table);
+
+    // The partition-scoped index covers only partition "a", so an index of every partition must be
+    // rebuilt.
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.initializeState(state);
+      harness.open();
+      sendTrigger(harness);
+
+      assertThat(planner(harness).reindexCount()).isEqualTo(1);
+      assertThat(dataFileLocations(harness.extractOutputValues())).isEqualTo(liveFiles);
+    }
+  }
+
+  @Test
+  void rebuildsIndexAfterRestoreWithPartitionIndexEnabled() throws Exception {
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+    insertPartitioned(table, 2, "b");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile firstDelete = writePartitionedEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(firstDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    long time = 10_000L;
+    OperatorSubtaskState state;
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+      sendTrigger(harness, time);
+      simulatePartitionedConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+      sendTrigger(harness, time + 10);
+      state = harness.snapshot(1, System.currentTimeMillis());
+    }
+
+    DeleteFile secondDelete = writePartitionedEqualityDelete(table, 3, "a");
+    table.newRowDelta().addDeletes(secondDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    // The restored index covers every partition but records none as indexed, so it is rebuilt
+    // as a partition-scoped index.
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.initializeState(state);
+      harness.open();
+      sendTrigger(harness, time + 20);
+
+      assertThat(planner(harness).reindexCount()).isEqualTo(1);
+      assertThat(dataFileLocations(harness.extractOutputValues()))
+          .isEqualTo(dataFilesInPartition(table, "a"));
+    }
+  }
+
+  @Test
+  void keepsIndexedPartitionsAfterRestore() throws Exception {
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+    insertPartitioned(table, 2, "b");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile firstDelete = writePartitionedEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(firstDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    long time = 10_000L;
+    OperatorSubtaskState state;
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.open();
+      sendTrigger(harness, time);
+      simulatePartitionedConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+      sendTrigger(harness, time + 10);
+      state = harness.snapshot(1, System.currentTimeMillis());
+    }
+
+    DeleteFile secondDelete = writePartitionedEqualityDelete(table, 3, "a");
+    table.newRowDelta().addDeletes(secondDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.initializeState(state);
+      harness.open();
+      sendTrigger(harness, time + 20);
+
+      List<ReadCommand> commands = harness.extractOutputValues();
+      assertThat(planner(harness).reindexCount()).isZero();
+      assertThat(countDataFileTasks(commands)).isZero();
+      assertThat(countEqDeleteTasks(commands)).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void reloadsIndexedPartitionAfterRebuild() throws Exception {
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+    insertPartitioned(table, 2, "b");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete = writePartitionedEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.open();
+      long time = 10_000L;
+      sendTrigger(harness, time);
+      int firstTriggerCount = harness.extractOutputValues().size();
+
+      // The cycle did not commit, so the same staging snapshot is planned again on a rebuilt index.
+      sendTrigger(harness, time + 10);
+      List<ReadCommand> allCommands = harness.extractOutputValues();
+      List<ReadCommand> trigger2Commands =
+          allCommands.subList(firstTriggerCount, allCommands.size());
+
+      assertThat(planner(harness).reindexCount()).isEqualTo(2);
+      assertThat(dataFileLocations(trigger2Commands)).isEqualTo(dataFilesInPartition(table, "a"));
+    }
+  }
+
+  @Test
+  void doesNotIndexStagingDataOfUnindexedPartition() throws Exception {
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+    insertPartitioned(table, 2, "b");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DataFile newDataFile = writePartitionedDataFile(table, createRecord(3, "b"), "b");
+    DeleteFile eqDelete = writePartitionedEqualityDelete(table, 1, "a");
+    table.newRowDelta().addRows(newDataFile).addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.open();
+      sendTrigger(harness);
+
+      assertThat(dataFileLocations(harness.extractOutputValues()))
+          .isEqualTo(dataFilesInPartition(table, "a"));
+    }
+  }
+
+  @Test
+  void reindexesExternalCommitsOnlyInIndexedPartitions() throws Exception {
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+    insertPartitioned(table, 2, "b");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete = writePartitionedEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.open();
+      long time = 10_000L;
+      sendTrigger(harness, time);
+      int firstTriggerCount = harness.extractOutputValues().size();
+      simulatePartitionedConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+
+      insertPartitioned(table, 3, "a");
+      String addedToIndexed =
+          table.currentSnapshot().addedDataFiles(table.io()).iterator().next().location();
+      insertPartitioned(table, 4, "b");
+
+      sendTrigger(harness, time + 10);
+      List<ReadCommand> allCommands = harness.extractOutputValues();
+      List<ReadCommand> trigger2Commands =
+          allCommands.subList(firstTriggerCount, allCommands.size());
+
+      assertThat(planner(harness).incrementalReindexCount()).isEqualTo(1);
+      assertThat(dataFileLocations(trigger2Commands)).containsExactly(addedToIndexed);
+    }
+  }
+
+  @Test
+  void doesNotReloadIndexedPartition() throws Exception {
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+    insertPartitioned(table, 2, "b");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile firstDelete = writePartitionedEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(firstDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.open();
+      long time = 10_000L;
+      sendTrigger(harness, time);
+      int firstTriggerCount = harness.extractOutputValues().size();
+      simulatePartitionedConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+
+      DeleteFile secondDelete = writePartitionedEqualityDelete(table, 3, "a");
+      table.newRowDelta().addDeletes(secondDelete).toBranch(STAGING_BRANCH).commit();
+      table.refresh();
+
+      sendTrigger(harness, time + 10);
+      List<ReadCommand> allCommands = harness.extractOutputValues();
+      List<ReadCommand> trigger2Commands =
+          allCommands.subList(firstTriggerCount, allCommands.size());
+
+      assertThat(countDataFileTasks(trigger2Commands)).isZero();
+      assertThat(countEqDeleteTasks(trigger2Commands)).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void equalityDeleteDelaysEvictionOfIndexedPartition() throws Exception {
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile firstDelete = writePartitionedEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(firstDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.open();
+      long firstDeleteTime = 10_000L;
+      sendTrigger(harness, firstDeleteTime);
+      simulatePartitionedConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+
+      DeleteFile secondDelete = writePartitionedEqualityDelete(table, 2, "a");
+      table.newRowDelta().addDeletes(secondDelete).toBranch(STAGING_BRANCH).commit();
+      table.refresh();
+
+      long secondDeleteTime = firstDeleteTime + IDLE_TIMEOUT_MS / 2;
+      sendTrigger(harness, secondDeleteTime);
+      simulatePartitionedConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+
+      sendTrigger(harness, firstDeleteTime + IDLE_TIMEOUT_MS);
+      assertThat(evictedPartitions(harness)).isEmpty();
+
+      sendTrigger(harness, secondDeleteTime + IDLE_TIMEOUT_MS);
+      assertThat(evictedPartitions(harness)).containsExactly(partition(table, "a"));
+    }
+  }
+
+  @Test
+  void unpartitionedDeleteDelaysEvictionOfEveryPartition() throws Exception {
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+    insertPartitioned(table, 2, "b");
+    IndexPartition partitionA = partition(table, "a");
+    IndexPartition partitionB = partition(table, "b");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile partitionedDelete = writePartitionedEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(partitionedDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.open();
+      long partitionedDeleteTime = 10_000L;
+      sendTrigger(harness, partitionedDeleteTime);
+      simulatePartitionedConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+
+      table.updateSpec().removeField("data").commit();
+      table.refresh();
+
+      DeleteFile unpartitionedDelete = writeEqualityDelete(table, 2, "b");
+      table.newRowDelta().addDeletes(unpartitionedDelete).toBranch(STAGING_BRANCH).commit();
+      table.refresh();
+
+      long unpartitionedDeleteTime = partitionedDeleteTime + IDLE_TIMEOUT_MS / 2;
+      sendTrigger(harness, unpartitionedDeleteTime);
+      simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+
+      sendTrigger(harness, partitionedDeleteTime + IDLE_TIMEOUT_MS);
+      assertThat(evictedPartitions(harness)).isEmpty();
+
+      sendTrigger(harness, unpartitionedDeleteTime + IDLE_TIMEOUT_MS);
+      assertThat(evictedPartitions(harness)).contains(partitionA, partitionB);
+    }
+  }
+
+  @Test
+  void unpartitionedDeleteDoesNotPlanFullyIndexedSnapshot() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile firstDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(firstDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.open();
+      long time = 10_000L;
+      sendTrigger(harness, time);
+      simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+
+      DeleteFile secondDelete = writeEqualityDelete(table, 2, "b");
+      table.newRowDelta().addDeletes(secondDelete).toBranch(STAGING_BRANCH).commit();
+      table.refresh();
+
+      // Planning the indexed snapshot fails while its data manifests are hidden.
+      List<File> manifests = dataManifestFiles(table);
+      hide(manifests);
+      sendTrigger(harness, time + 10);
+      restore(manifests);
+
+      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNullOrEmpty();
+      assertThat(countEqDeleteTasks(harness.extractOutputValues())).isEqualTo(2);
+    }
+  }
+
+  @Test
+  void unpartitionedDeleteLoadsPartitionAddedAfterFullLoad() throws Exception {
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+
+    table.updateSpec().removeField("data").commit();
+    table.refresh();
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile firstDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(firstDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.open();
+      long time = 10_000L;
+      sendTrigger(harness, time);
+      int firstTriggerCount = harness.extractOutputValues().size();
+      simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+
+      // An external append in the unpartitioned spec, which the index does not cover yet.
+      DataFile addedFile = writeDataFile(table, createRecord(2, "b"));
+      table.newAppend().appendFile(addedFile).commit();
+      table.refresh();
+
+      DeleteFile secondDelete = writeEqualityDelete(table, 2, "b");
+      table.newRowDelta().addDeletes(secondDelete).toBranch(STAGING_BRANCH).commit();
+      table.refresh();
+
+      sendTrigger(harness, time + 10);
+      List<ReadCommand> allCommands = harness.extractOutputValues();
+      List<ReadCommand> trigger2Commands =
+          allCommands.subList(firstTriggerCount, allCommands.size());
+
+      // Partition "a" stays indexed, so only the new partition is loaded.
+      assertThat(dataFileLocations(trigger2Commands))
+          .isEqualTo(Sets.difference(liveDataFiles(table), dataFilesInPartition(table, "a")));
+    }
+  }
+
+  @Test
+  void unpartitionedDeleteReloadsEvictedPartition() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile firstDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(firstDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.open();
+      long deleteTime = 10_000L;
+      sendTrigger(harness, deleteTime);
+      simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+
+      sendTrigger(harness, deleteTime + IDLE_TIMEOUT_MS);
+      assertThat(evictedPartitions(harness)).hasSize(1);
+      int evictingTriggerCount = harness.extractOutputValues().size();
+
+      DeleteFile secondDelete = writeEqualityDelete(table, 2, "b");
+      table.newRowDelta().addDeletes(secondDelete).toBranch(STAGING_BRANCH).commit();
+      table.refresh();
+
+      sendTrigger(harness, deleteTime + IDLE_TIMEOUT_MS + 10);
+      List<ReadCommand> allCommands = harness.extractOutputValues();
+      List<ReadCommand> trigger3Commands =
+          allCommands.subList(evictingTriggerCount, allCommands.size());
+
+      assertThat(dataFileLocations(trigger3Commands)).isEqualTo(liveDataFiles(table));
+    }
+  }
+
+  @Test
+  void unpartitionedDeleteReloadsPartitionsAfterRebuild() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createPartitionScopedHarness()) {
+      harness.open();
+      long time = 10_000L;
+      sendTrigger(harness, time);
+      int firstTriggerCount = harness.extractOutputValues().size();
+
+      // The cycle did not commit, so the same staging snapshot is planned again on a rebuilt index.
+      sendTrigger(harness, time + 10);
+      List<ReadCommand> allCommands = harness.extractOutputValues();
+      List<ReadCommand> trigger2Commands =
+          allCommands.subList(firstTriggerCount, allCommands.size());
+
+      assertThat(planner(harness).reindexCount()).isEqualTo(2);
+      assertThat(dataFileLocations(trigger2Commands)).isEqualTo(liveDataFiles(table));
+    }
+  }
+
   private OneInputStreamOperatorTestHarness<Trigger, ReadCommand> createHarness(
       String stagingBranch) throws Exception {
     // Default matches the [1, 2] equality-field-id list produced by writeEqualityDelete.
@@ -1949,6 +2527,19 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
             stagingBranch,
             SnapshotRef.MAIN_BRANCH,
             Sets.newHashSet(eqFieldIds)));
+  }
+
+  private OneInputStreamOperatorTestHarness<Trigger, ReadCommand> createPartitionScopedHarness()
+      throws Exception {
+    return new OneInputStreamOperatorTestHarness<>(
+        new EqualityConvertPlanner(
+            DUMMY_TABLE_NAME,
+            DUMMY_TASK_NAME,
+            tableLoader(),
+            STAGING_BRANCH,
+            SnapshotRef.MAIN_BRANCH,
+            Sets.newHashSet(1, 2),
+            IDLE_TIMEOUT_MS));
   }
 
   private static void sendTrigger(OneInputStreamOperatorTestHarness<Trigger, ?> harness)
@@ -2124,6 +2715,81 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
     }
 
     return locations;
+  }
+
+  private DataFile writePartitionedDataFile(Table table, Record record, String data)
+      throws IOException {
+    return new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
+        .writeFile(TestHelpers.Row.of(data), Lists.newArrayList(record));
+  }
+
+  private DeleteFile writePartitionedEqualityDelete(Table table, int id, String data)
+      throws IOException {
+    File file = File.createTempFile("junit", null, tempDir.toFile());
+    assertThat(file.delete()).isTrue();
+    PartitionData partition = new PartitionData(table.spec().partitionType());
+    partition.set(0, data);
+    return FileHelpers.writeDeleteFile(
+        table,
+        Files.localOutput(file),
+        partition,
+        Lists.newArrayList(createRecord(id, data)),
+        table.schema());
+  }
+
+  private static IndexPartition partition(Table table, String data) {
+    PartitionData partition = new PartitionData(table.spec().partitionType());
+    partition.set(0, data);
+    return new IndexPartition(
+        table.spec().specId(),
+        new StructLikeSerializer().encodePartition(partition, table.spec().partitionType()));
+  }
+
+  private static List<IndexPartition> evictedPartitions(
+      OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness) {
+    List<IndexPartition> evicted = Lists.newArrayList();
+    for (StreamRecord<IndexCommand> record :
+        harness.getSideOutput(EqualityConvertPlanner.CLEAR_BROADCAST_STREAM)) {
+      if (record.getValue().type() == IndexCommand.Type.EVICT_PARTITIONS) {
+        evicted.addAll(record.getValue().partitions());
+      }
+    }
+
+    return evicted;
+  }
+
+  private static Set<String> dataFileLocations(List<ReadCommand> commands) {
+    return commands.stream()
+        .filter(c -> c.task() instanceof FileScanTask)
+        .map(TestEqualityConvertPlanner::filePath)
+        .collect(Collectors.toSet());
+  }
+
+  private static Set<String> dataFilesInPartition(Table table, String data) throws IOException {
+    Set<String> locations = Sets.newHashSet();
+    try (CloseableIterable<FileScanTask> tasks =
+        table.newScan().filter(Expressions.equal("data", data)).planFiles()) {
+      for (FileScanTask task : tasks) {
+        locations.add(task.file().location());
+      }
+    }
+
+    return locations;
+  }
+
+  // Unlike simulateConvertCommit, writes the marker row into its own partition.
+  private void simulatePartitionedConvertCommit(Table table, long stagingSnapshotId)
+      throws IOException {
+    String marker = "marker" + stagingSnapshotId;
+    DataFile dummy = writePartitionedDataFile(table, createRecord(-1, marker), marker);
+    table
+        .newRowDelta()
+        .addRows(dummy)
+        .set(
+            EqualityConvertCommitter.COMMITTED_STAGING_SNAPSHOT_PROPERTY,
+            String.valueOf(stagingSnapshotId))
+        .commit();
+    table.refresh();
   }
 
   private void simulateConvertCommit(Table table, long stagingSnapshotId) throws IOException {

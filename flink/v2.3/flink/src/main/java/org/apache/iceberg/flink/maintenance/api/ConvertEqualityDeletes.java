@@ -91,6 +91,7 @@ public class ConvertEqualityDeletes {
     private String stagingBranch;
     private String targetBranch = SnapshotRef.MAIN_BRANCH;
     private List<String> equalityFieldColumns = Collections.emptyList();
+    private Duration partitionIndexIdleTimeout;
 
     @Override
     String maintenanceTaskName() {
@@ -128,6 +129,26 @@ public class ConvertEqualityDeletes {
     }
 
     /**
+     * Indexes only the partitions of the target branch that receive equality deletes, and drops a
+     * partition from the index once it receives no equality delete for {@code newIdleTimeout}. By
+     * default, the index covers every partition.
+     *
+     * <p>An unpartitioned equality delete applies to every partition, so it adds all of them to the
+     * index.
+     *
+     * @param newIdleTimeout how long a partition stays indexed without equality deletes
+     * @return this for method chaining
+     */
+    public Builder partitionIndexIdleTimeout(Duration newIdleTimeout) {
+      Preconditions.checkArgument(
+          newIdleTimeout == null || newIdleTimeout.toMillis() > 0,
+          "Invalid partition index idle timeout: %s (must be positive)",
+          newIdleTimeout);
+      this.partitionIndexIdleTimeout = newIdleTimeout;
+      return this;
+    }
+
+    /**
      * Configures the scheduling of the conversion.
      *
      * @param config properties for the conversion, see {@link ConvertEqualityDeletesConfig} for
@@ -138,6 +159,11 @@ public class ConvertEqualityDeletes {
       Long intervalSecond = config.scheduleOnIntervalSecond();
       if (intervalSecond != null) {
         scheduleOnInterval(Duration.ofSeconds(intervalSecond));
+      }
+
+      Long idleTimeoutSecond = config.partitionIndexIdleTimeoutSecond();
+      if (idleTimeoutSecond != null) {
+        partitionIndexIdleTimeout(Duration.ofSeconds(idleTimeoutSecond));
       }
 
       return this;
@@ -163,7 +189,10 @@ public class ConvertEqualityDeletes {
                           tableLoader(),
                           stagingBranch,
                           targetBranch,
-                          eqFieldIds))
+                          eqFieldIds,
+                          partitionIndexIdleTimeout != null
+                              ? partitionIndexIdleTimeout.toMillis()
+                              : null))
                   .uid(PLANNER_TASK_NAME + uidSuffix())
                   .forceNonParallel());
 

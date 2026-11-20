@@ -213,27 +213,61 @@ public class EqualityConvertPKIndex
   @Override
   public void processBroadcastElement(IndexCommand cmd, Context ctx, Collector<DVPosition> out) {
     Preconditions.checkArgument(
-        cmd.type() == IndexCommand.Type.CLEAR_INDEX,
-        "Broadcast element must be %s",
-        IndexCommand.Type.CLEAR_INDEX);
+        cmd.type() == IndexCommand.Type.CLEAR_INDEX
+            || cmd.type() == IndexCommand.Type.EVICT_PARTITIONS,
+        "Broadcast element must be %s or %s",
+        IndexCommand.Type.CLEAR_INDEX,
+        IndexCommand.Type.EVICT_PARTITIONS);
 
-    final long broadcastGeneration = cmd.indexGeneration();
     try {
-      ctx.applyToKeyedState(
-          INDEX_GENERATION_DESCRIPTOR,
-          (key, generationState) -> {
-            Long storedGeneration = generationState.value();
-            if (storedGeneration != null && storedGeneration < broadcastGeneration) {
-              clearKeyState();
-              generationState.clear();
-              eagerlyEvictedKeyNumCounter.inc();
-            }
-          });
+      if (cmd.type() == IndexCommand.Type.CLEAR_INDEX) {
+        clearStaleKeys(cmd.indexGeneration(), ctx);
+      } else {
+        evictPartitions(cmd.partitions(), ctx);
+      }
     } catch (Exception e) {
-      LOG.error("PKIndex failed to apply CLEAR_INDEX for snapshot {}", cmd.mainSnapshotId(), e);
+      LOG.error("PKIndex failed to apply {} for snapshot {}", cmd.type(), cmd.mainSnapshotId(), e);
       ctx.output(TaskResultAggregator.ERROR_STREAM, e);
       out.collect(DVPosition.ABORT);
     }
+  }
+
+  private void clearStaleKeys(long broadcastGeneration, Context ctx) throws Exception {
+    ctx.applyToKeyedState(
+        INDEX_GENERATION_DESCRIPTOR,
+        (key, generationState) -> {
+          Long storedGeneration = generationState.value();
+          if (storedGeneration != null && storedGeneration < broadcastGeneration) {
+            clearKeyState();
+            generationState.clear();
+            eagerlyEvictedKeyNumCounter.inc();
+          }
+        });
+  }
+
+  // The planner evicts only partitions that receive no keyed command in the evicting cycle, and the
+  // maintenance lock delays the next cycle until this broadcast is applied, so no row of an evicted
+  // partition can arrive after its eviction.
+  private void evictPartitions(List<IndexPartition> partitions, Context ctx) throws Exception {
+    Set<IndexPartition> evicted = Sets.newHashSet(partitions);
+    ctx.applyToKeyedState(
+        DATA_ROW_POSITIONS_DESCRIPTOR,
+        (key, positions) -> {
+          List<DVPosition> kept = Lists.newArrayList();
+          boolean removed = false;
+          for (DVPosition position : positions.get()) {
+            if (evicted.contains(IndexPartition.of(position))) {
+              removed = true;
+            } else {
+              kept.add(position);
+            }
+          }
+
+          if (removed) {
+            positions.update(kept);
+            clearGenerationIfEmpty();
+          }
+        });
   }
 
   @Override
