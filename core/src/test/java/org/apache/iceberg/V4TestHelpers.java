@@ -62,6 +62,10 @@ class V4TestHelpers {
     return dataFile(ADDED_TRACKING, location, null, null, null, dv, null);
   }
 
+  static TrackedFile dataFileWithDV(Tracking tracking, String location, DeletionVector dv) {
+    return dataFile(tracking, location, null, null, null, dv, null);
+  }
+
   static TrackedFile dataFileWithColumnFiles(String location, List<ColumnFile> columnFiles) {
     return dataFile(ADDED_TRACKING, location, null, null, null, null, columnFiles);
   }
