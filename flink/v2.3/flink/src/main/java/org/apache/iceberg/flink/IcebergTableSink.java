@@ -46,6 +46,8 @@ import org.apache.iceberg.flink.sink.dynamic.DynamicTableRecordGenerator;
 import org.apache.iceberg.flink.sink.dynamic.TableCreator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning, SupportsOverwrite {
@@ -61,6 +63,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
   private final Map<String, String> writeProps;
   private final String dynamicRecordGeneratorImpl;
   private boolean overwrite = false;
+  private Map<String, String> staticPartition = ImmutableMap.of();
   private boolean useDynamicSink = false;
 
   private IcebergTableSink(IcebergTableSink toCopy) {
@@ -69,6 +72,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
     this.tableSchema = toCopy.tableSchema;
     this.resolvedSchema = toCopy.resolvedSchema;
     this.overwrite = toCopy.overwrite;
+    this.staticPartition = toCopy.staticPartition;
     this.readableConfig = toCopy.readableConfig;
     this.writeProps = toCopy.writeProps;
     this.dynamicRecordGeneratorImpl = toCopy.dynamicRecordGeneratorImpl;
@@ -130,6 +134,11 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
     Preconditions.checkState(
         !overwrite || context.isBounded(),
         "Unbounded data stream doesn't support overwrite operation.");
+    Preconditions.checkState(
+        staticPartition.isEmpty() || useDynamicSink || !replaceTable(),
+        "Cannot overwrite PARTITION %s when %s is static: a static overwrite replaces the whole table.",
+        staticPartition,
+        FlinkWriteOptions.OVERWRITE_STRATEGY.key());
 
     return (DataStreamSinkProvider)
         (providerContext, dataStream) -> {
@@ -167,10 +176,20 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
         };
   }
 
+  private boolean replaceTable() {
+    // a write option can turn overwrite on or off, so it takes priority over the planner's flag
+    Map<String, String> writeOptions = Maps.newHashMap();
+    writeOptions.put(FlinkWriteOptions.OVERWRITE_MODE.key(), Boolean.toString(overwrite));
+    writeOptions.putAll(writeProps);
+    FlinkWriteConf writeConf = new FlinkWriteConf(writeOptions, readableConfig);
+    return writeConf.overwriteMode() && writeConf.staticOverwrite();
+  }
+
   @Override
   public void applyStaticPartition(Map<String, String> partition) {
     // The flink's PartitionFanoutWriter will handle the static partition write policy
-    // automatically.
+    // automatically. The partition is kept only to reject it in static overwrite mode.
+    this.staticPartition = partition;
   }
 
   @Override

@@ -166,6 +166,7 @@ public class IcebergSink
   private final long targetDataFileSize;
   private final String branch;
   private final boolean overwriteMode;
+  private final boolean staticOverwrite;
   private final int workerPoolSize;
   private final boolean maintenanceEnabled;
   private final Table table;
@@ -188,6 +189,7 @@ public class IcebergSink
       Set<Integer> equalityFieldIds,
       String branch,
       boolean overwriteMode,
+      boolean staticOverwrite,
       List<MaintenanceTaskBuilder<?>> maintenanceTasks,
       FlinkMaintenanceConfig flinkMaintenanceConfig,
       Set<String> equalityFieldColumns) {
@@ -201,6 +203,7 @@ public class IcebergSink
     this.equalityFieldIds = equalityFieldIds;
     this.branch = branch;
     this.overwriteMode = overwriteMode;
+    this.staticOverwrite = staticOverwrite;
     this.table = table;
     this.upsertMode = flinkWriteConf.upsertMode();
     this.dataFileFormat = flinkWriteConf.dataFileFormat();
@@ -246,6 +249,7 @@ public class IcebergSink
         branch,
         snapshotProperties,
         overwriteMode,
+        staticOverwrite,
         workerPoolSize,
         sinkId,
         metrics,
@@ -308,6 +312,10 @@ public class IcebergSink
 
   @Override
   public DataStream<RowData> addPreWriteTopology(DataStream<RowData> inputDataStream) {
+    if (overwriteMode && staticOverwrite) {
+      SinkUtil.checkStaticOverwriteRuntimeMode(inputDataStream);
+    }
+
     return distributeDataStream(inputDataStream);
   }
 
@@ -774,6 +782,7 @@ public class IcebergSink
       }
 
       boolean overwriteMode = flinkWriteConf.overwriteMode();
+      boolean staticOverwrite = flinkWriteConf.staticOverwrite();
 
       // Validate the equality fields and partition fields if we enable the upsert mode.
       Set<Integer> equalityFieldIds =
@@ -851,6 +860,7 @@ public class IcebergSink
           equalityFieldIds,
           flinkWriteConf.branch(),
           overwriteMode,
+          staticOverwrite,
           maintenanceTasks,
           flinkMaintenanceConfig,
           equalityFieldColumnsSet);
