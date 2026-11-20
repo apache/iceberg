@@ -37,6 +37,8 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.connector.catalog.Column;
+import org.apache.spark.sql.types.StructField;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -356,6 +358,22 @@ public class TestChangelogTable extends ExtensionsTestBase {
         "Should have expected rows",
         ImmutableList.of(row(1, "INSERT"), row(2, "INSERT")),
         sql("SELECT id, _change_type FROM %s.changes ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  void preservesChangelogColumnMetadata() {
+    createTable();
+    sql("ALTER TABLE %s ALTER COLUMN data COMMENT 'Change payload'", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    String fieldId = String.valueOf(table.schema().findField("data").fieldId());
+    Column column = new SparkChangelogTable(table).columns()[1];
+    assertThat(column.id()).isEqualTo(fieldId);
+    assertThat(column.comment()).isEqualTo("Change payload");
+
+    StructField field = spark.read().table(tableName + ".changes").schema().apply("data");
+    assertThat(field.id().get()).isEqualTo(fieldId);
+    assertThat(field.getComment().get()).isEqualTo("Change payload");
   }
 
   @TestTemplate

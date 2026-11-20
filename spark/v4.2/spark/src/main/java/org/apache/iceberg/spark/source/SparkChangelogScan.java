@@ -132,23 +132,19 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups() {
     if (taskGroups == null) {
-      this.taskGroups = planTaskGroups();
+      try (CloseableIterable<ScanTaskGroup<ChangelogScanTask>> groups =
+          TableScanUtil.planTaskGroups(
+              CloseableIterable.filter(scan.planFiles(), this::shouldRead),
+              scan.targetSplitSize(),
+              scan.splitLookback(),
+              scan.splitOpenFileCost())) {
+        this.taskGroups = Lists.newArrayList(groups);
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to close changelog scan: " + scan, e);
+      }
     }
 
     return taskGroups;
-  }
-
-  private List<ScanTaskGroup<ChangelogScanTask>> planTaskGroups() {
-    try (CloseableIterable<ScanTaskGroup<ChangelogScanTask>> groups =
-        TableScanUtil.planTaskGroups(
-            CloseableIterable.filter(scan.planFiles(), this::shouldRead),
-            scan.targetSplitSize(),
-            scan.splitLookback(),
-            scan.splitOpenFileCost())) {
-      return Lists.newArrayList(groups);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to close changelog scan: " + scan, e);
-    }
   }
 
   private boolean shouldRead(ChangelogScanTask task) {

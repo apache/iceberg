@@ -18,12 +18,10 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.util.Arrays;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.types.StructType;
 
 abstract class SparkChangelogBase {
@@ -34,7 +32,6 @@ abstract class SparkChangelogBase {
 
   private SparkSession lazySpark = null;
   private StructType lazySparkSchema = null;
-  private Column[] lazySparkColumns = null;
 
   SparkChangelogBase(Table table) {
     this.table = table;
@@ -42,17 +39,6 @@ abstract class SparkChangelogBase {
 
   public String name() {
     return table.name() + "." + NAME;
-  }
-
-  public Column[] columns() {
-    if (lazySparkColumns == null) {
-      this.lazySparkColumns =
-          Arrays.stream(sparkSchema().fields())
-              .map(field -> Column.create(field.name(), field.dataType(), field.nullable()))
-              .toArray(Column[]::new);
-    }
-
-    return lazySparkColumns;
   }
 
   abstract Schema changelogSchema();

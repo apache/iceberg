@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.Arrays;
 import java.util.Set;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
@@ -31,6 +32,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.connector.catalog.Changelog;
 import org.apache.spark.sql.connector.catalog.ChangelogContext;
+import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -77,6 +79,8 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
   private final ChangelogContext context;
   private final Schema dataSchema;
 
+  private Column[] lazySparkColumns = null;
+
   public SparkChangelog(Table table, ChangelogContext context, CaseInsensitiveStringMap options) {
     super(table);
     this.context = Preconditions.checkNotNull(context, "Changelog context cannot be null");
@@ -113,6 +117,18 @@ public class SparkChangelog extends SparkChangelogBase implements Changelog {
   @Override
   Schema changelogSchema() {
     return TypeUtil.join(dataSchema, CDC_METADATA_SCHEMA);
+  }
+
+  @Override
+  public Column[] columns() {
+    if (lazySparkColumns == null) {
+      this.lazySparkColumns =
+          Arrays.stream(sparkSchema().fields())
+              .map(field -> Column.create(field.name(), field.dataType(), field.nullable()))
+              .toArray(Column[]::new);
+    }
+
+    return lazySparkColumns;
   }
 
   @Override

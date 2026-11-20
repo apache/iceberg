@@ -146,11 +146,6 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
     validateVersions(table(), context);
     Snapshot currentSnapshot = table().currentSnapshot();
     Long endSnapshotId = currentSnapshot != null ? currentSnapshot.snapshotId() : null;
-    return build(context, outputSchema, endSnapshotId);
-  }
-
-  private SparkChangelogScan build(
-      ChangelogContext context, Schema outputSchema, Long endSnapshotId) {
     PartitionReaderFactory readerFactory = new SparkChangelogRowReader.Factory();
     Snapshot oldest = null;
     Snapshot latest = null;
