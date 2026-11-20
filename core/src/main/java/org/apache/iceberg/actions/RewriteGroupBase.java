@@ -62,7 +62,7 @@ public abstract class RewriteGroupBase<I, T extends ContentScanTask<F>, F extend
 
   /** Accumulated size for the input files. */
   public long inputFilesSizeInBytes() {
-    return fileScanTasks.stream().mapToLong(T::length).sum();
+    return fileScanTasks.stream().mapToLong(ContentScanTask::length).sum();
   }
 
   /** Number of the input files. */
