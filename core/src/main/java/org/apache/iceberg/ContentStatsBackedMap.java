@@ -145,8 +145,18 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
       case VALUE_COUNT -> fieldStats.hasValueCount();
       case NULL_VALUE_COUNT -> fieldStats.hasNullValueCount();
       case NAN_VALUE_COUNT -> fieldStats.hasNanValueCount();
-      case LOWER_BOUND, UPPER_BOUND -> statValue(fieldStats, kind) != null;
+      case LOWER_BOUND -> hasBound(fieldStats, fieldStats.lowerBound(), StatsUtil.LOWER_BOUND_NAME);
+      case UPPER_BOUND -> hasBound(fieldStats, fieldStats.upperBound(), StatsUtil.UPPER_BOUND_NAME);
     };
+  }
+
+  private static boolean hasBound(FieldStats<?> fieldStats, Object bound, String boundFieldName) {
+    if (bound == null) {
+      return false;
+    }
+
+    Type boundType = fieldStats.type().fieldType(boundFieldName);
+    return boundType != null && (!boundType.isStructType() || hasXY(boundType.asStructType()));
   }
 
   @SuppressWarnings("unchecked")
@@ -185,16 +195,12 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
    * struct is projected without x or y.
    */
   private static ByteBuffer geoBound(Types.StructType boundType, StructLike bound) {
-    if (bound == null) {
+    if (bound == null || !hasXY(boundType)) {
       return null;
     }
 
-    Double coordX = coordinate(boundType, bound, StatsUtil.GEO_BOUND_X_NAME);
-    Double coordY = coordinate(boundType, bound, StatsUtil.GEO_BOUND_Y_NAME);
-    if (coordX == null || coordY == null) {
-      return null;
-    }
-
+    double coordX = coordinate(boundType, bound, StatsUtil.GEO_BOUND_X_NAME);
+    double coordY = coordinate(boundType, bound, StatsUtil.GEO_BOUND_Y_NAME);
     Double coordZ = coordinate(boundType, bound, StatsUtil.GEO_BOUND_Z_NAME);
     Double coordM = coordinate(boundType, bound, StatsUtil.GEO_BOUND_M_NAME);
 
@@ -207,6 +213,11 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
     } else {
       return GeospatialBound.createXY(coordX, coordY).toByteBuffer();
     }
+  }
+
+  private static boolean hasXY(Types.StructType boundType) {
+    return boundType.field(StatsUtil.GEO_BOUND_X_NAME) != null
+        && boundType.field(StatsUtil.GEO_BOUND_Y_NAME) != null;
   }
 
   private static Double coordinate(Types.StructType boundType, StructLike bound, String name) {
