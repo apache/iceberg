@@ -605,11 +605,71 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         locations);
   }
 
+  /**
+   * Validates that no delete files that may apply to the given data files, among those matching a
+   * filter, have been added to the table since a starting snapshot.
+   *
+   * <p>Position deletes and deletion vectors that apply to a single data file not in {@code
+   * dataFiles} are ignored. Equality deletes and position deletes that may apply to more than one
+   * data file are always considered conflicting.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param dataFilter an expression used to find new conflicting delete files
+   * @param dataFiles locations of the data files to validate have no new row deletes
+   * @param parent ending snapshot on the branch being validated
+   */
+  @SuppressWarnings("CollectionUndefinedEquality")
+  void validateNoNewDeleteFiles(
+      TableMetadata base,
+      Long startingSnapshotId,
+      Expression dataFilter,
+      CharSequenceSet dataFiles,
+      Snapshot parent) {
+    Set<String> locations =
+        referencedDeleteFileLocations(
+            addedDeleteFilesIndexedPerSnapshot(base, startingSnapshotId, dataFilter, null, parent),
+            deleteFile -> {
+              CharSequence referencedDataFile = ContentFileUtil.referencedDataFile(deleteFile);
+              return referencedDataFile == null || dataFiles.contains(referencedDataFile);
+            });
+    ValidationException.check(
+        locations.isEmpty(),
+        "Found new conflicting delete files that can apply to records matching %s: %s",
+        dataFilter,
+        locations);
+  }
+
+  /**
+   * Returns the locations of the data files that the delete files added by this operation apply to,
+   * or null if one of them may apply to more than one data file.
+   */
+  CharSequenceSet referencedDataFilesOfAddedDeletes() {
+    CharSequenceSet referencedDataFiles = CharSequenceSet.of(dvsByReferencedFile.keySet());
+    for (DeleteFile deleteFile : v2Deletes) {
+      CharSequence referencedDataFile = ContentFileUtil.referencedDataFile(deleteFile);
+      if (referencedDataFile == null) {
+        return null;
+      }
+
+      referencedDataFiles.add(referencedDataFile);
+    }
+
+    return referencedDataFiles;
+  }
+
   private static Set<String> referencedDeleteFileLocations(List<DeleteFileIndex> deleteIndexes) {
+    return referencedDeleteFileLocations(deleteIndexes, deleteFile -> true);
+  }
+
+  private static Set<String> referencedDeleteFileLocations(
+      List<DeleteFileIndex> deleteIndexes, Predicate<DeleteFile> conflicts) {
     Set<String> locations = Sets.newLinkedHashSet();
     for (DeleteFileIndex deletes : deleteIndexes) {
       for (DeleteFile deleteFile : deletes.referencedDeleteFiles()) {
-        locations.add(deleteFile.location());
+        if (conflicts.apply(deleteFile)) {
+          locations.add(deleteFile.location());
+        }
       }
     }
 
