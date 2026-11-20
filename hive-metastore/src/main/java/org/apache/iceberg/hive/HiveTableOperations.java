@@ -22,10 +22,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
@@ -58,7 +56,6 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -205,7 +202,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     refreshFromMetadataLocation(metadataLocation, metadataRefreshMaxRetries);
 
     if (tableKeyIdFromHMS != null) {
-      checkIntegrityForEncryption(tableKeyIdFromHMS, dekLengthFromHMS, metadataHashFromHMS);
+      EncryptionUtil.verifyMetadataIntegrity(
+          tableName, current(), tableKeyIdFromHMS, dekLengthFromHMS, metadataHashFromHMS);
 
       tableKeyId = tableKeyIdFromHMS;
       encryptionDekLength =
@@ -213,22 +211,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               ? Integer.parseInt(dekLengthFromHMS)
               : TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT;
 
-      encryptedKeys =
-          Optional.ofNullable(current().encryptionKeys())
-              .map(Lists::newLinkedList)
-              .orElseGet(Lists::newLinkedList);
-
-      // Active transactions may still need keys that are not in committed metadata.
-      if (encryptionManager != null) {
-        Set<String> keyIdsFromMetadata =
-            encryptedKeys.stream().map(EncryptedKey::keyId).collect(Collectors.toSet());
-
-        for (EncryptedKey keyFromEM : EncryptionUtil.encryptionKeys(encryptionManager).values()) {
-          if (!keyIdsFromMetadata.contains(keyFromEM.keyId())) {
-            encryptedKeys.add(keyFromEM);
-          }
-        }
-      }
+      encryptedKeys = EncryptionUtil.mergeEncryptionKeys(current(), encryptionManager);
 
       // Force re-creation of encryption manager with updated keys
       encryptingFileIO = null;
@@ -300,17 +283,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
             base.properties().keySet().stream()
                 .filter(key -> !metadata.properties().containsKey(key))
                 .collect(Collectors.toSet());
-
-        Preconditions.checkArgument(
-            !removedProps.contains(TableProperties.ENCRYPTION_TABLE_KEY),
-            "Cannot remove key ID from an encrypted table");
-
-        Preconditions.checkArgument(
-            Objects.equals(
-                base.properties().get(TableProperties.ENCRYPTION_TABLE_KEY),
-                metadata.properties().get(TableProperties.ENCRYPTION_TABLE_KEY)),
-            "Cannot modify key ID of an encrypted table");
       }
+
+      EncryptionUtil.validateKeyIdUnchanged(base, metadata);
 
       HMSTablePropertyHelper.updateHmsTableForIcebergTable(
           newMetadataLocation,
@@ -552,42 +527,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               tableProperties,
               TableProperties.ENCRYPTION_DEK_LENGTH,
               TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
-    }
-  }
-
-  private void checkIntegrityForEncryption(
-      String encryptionKeyIdFromHMS, String dekLengthFromHMS, String metadataHashFromHMS) {
-    TableMetadata metadata = current();
-    if (StringUtils.isNotEmpty(metadataHashFromHMS)) {
-      HMSTablePropertyHelper.verifyMetadataHash(metadata, metadataHashFromHMS);
-      return;
-    }
-
-    LOG.warn(
-        "Full metadata integrity check skipped because no metadata hash was recorded in HMS for table {}."
-            + " Falling back to encryption property based check.",
-        tableName);
-
-    Map<String, String> propertiesFromMetadata = metadata.properties();
-
-    String encryptionKeyIdFromMetadata =
-        propertiesFromMetadata.get(TableProperties.ENCRYPTION_TABLE_KEY);
-    if (!Objects.equals(encryptionKeyIdFromHMS, encryptionKeyIdFromMetadata)) {
-      String errMsg =
-          String.format(
-              "Metadata file might have been modified. Encryption key id %s differs from HMS value %s",
-              encryptionKeyIdFromMetadata, encryptionKeyIdFromHMS);
-      throw new RuntimeException(errMsg);
-    }
-
-    String dekLengthFromMetadata =
-        propertiesFromMetadata.get(TableProperties.ENCRYPTION_DEK_LENGTH);
-    if (!Objects.equals(dekLengthFromHMS, dekLengthFromMetadata)) {
-      String errMsg =
-          String.format(
-              "Metadata file might have been modified. DEK length %s differs from HMS value %s",
-              dekLengthFromMetadata, dekLengthFromHMS);
-      throw new RuntimeException(errMsg);
     }
   }
 
