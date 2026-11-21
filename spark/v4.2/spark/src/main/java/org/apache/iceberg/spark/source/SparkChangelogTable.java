@@ -23,8 +23,6 @@ import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.connector.catalog.SupportsMetadataColumns;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
@@ -33,37 +31,29 @@ import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-public class SparkChangelogTable
-    implements org.apache.spark.sql.connector.catalog.Table, SupportsRead, SupportsMetadataColumns {
+public class SparkChangelogTable extends SparkChangelogBase
+    implements SupportsRead, SupportsMetadataColumns {
 
-  public static final String TABLE_NAME = "changes";
+  public static final String TABLE_NAME = NAME;
 
   private static final Set<TableCapability> CAPABILITIES =
       ImmutableSet.of(TableCapability.BATCH_READ);
 
-  private final Table table;
   private final Schema schema;
 
-  private SparkSession lazySpark = null;
-  private StructType lazySparkSchema = null;
-
   public SparkChangelogTable(Table table) {
-    this.table = table;
+    super(table);
     this.schema = ChangelogUtil.changelogSchema(table.schema());
   }
 
   @Override
-  public String name() {
-    return table.name() + "." + TABLE_NAME;
+  Schema changelogSchema() {
+    return schema;
   }
 
   @Override
   public StructType schema() {
-    if (lazySparkSchema == null) {
-      this.lazySparkSchema = SparkSchemaUtil.convert(schema);
-    }
-
-    return lazySparkSchema;
+    return sparkSchema();
   }
 
   @Override
@@ -73,22 +63,14 @@ public class SparkChangelogTable
 
   @Override
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
-    return new SparkChangelogScanBuilder(spark(), table, schema, options);
-  }
-
-  private SparkSession spark() {
-    if (lazySpark == null) {
-      this.lazySpark = SparkSession.active();
-    }
-
-    return lazySpark;
+    return new SparkChangelogScanBuilder(spark(), table(), schema, options);
   }
 
   @Override
   public MetadataColumn[] metadataColumns() {
     return new MetadataColumn[] {
       SparkMetadataColumns.SPEC_ID,
-      SparkMetadataColumns.partition(table),
+      SparkMetadataColumns.partition(table()),
       SparkMetadataColumns.FILE_PATH,
       SparkMetadataColumns.ROW_POSITION,
       SparkMetadataColumns.IS_DELETED,

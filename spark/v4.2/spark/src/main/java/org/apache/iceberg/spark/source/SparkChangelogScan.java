@@ -24,21 +24,26 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import org.apache.iceberg.ChangelogScanTask;
+import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Batch;
+import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
@@ -56,6 +61,9 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   private final List<Expression> filters;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
+  private final Set<Long> excludedSnapshotIds;
+  private final boolean requiresRowLineage;
+  private final PartitionReaderFactory readerFactory;
 
   // lazy variables
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups = null;
@@ -67,7 +75,12 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
       IncrementalChangelogScan scan,
       SparkReadConf readConf,
       Schema projection,
-      List<Expression> filters) {
+      List<Expression> filters,
+      Long startSnapshotId,
+      Long endSnapshotId,
+      Set<Long> excludedSnapshotIds,
+      boolean requiresRowLineage,
+      PartitionReaderFactory readerFactory) {
 
     SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), projection);
 
@@ -77,8 +90,11 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
     this.readConf = readConf;
     this.projection = projection;
     this.filters = filters != null ? filters : Collections.emptyList();
-    this.startSnapshotId = readConf.startSnapshotId();
-    this.endSnapshotId = readConf.endSnapshotId();
+    this.startSnapshotId = startSnapshotId;
+    this.endSnapshotId = endSnapshotId;
+    this.excludedSnapshotIds = Set.copyOf(excludedSnapshotIds);
+    this.requiresRowLineage = requiresRowLineage;
+    this.readerFactory = Preconditions.checkNotNull(readerFactory, "Invalid reader factory: null");
     if (scan == null) {
       this.taskGroups = Collections.emptyList();
     }
@@ -110,12 +126,18 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         EMPTY_GROUPING_KEY_TYPE,
         taskGroups(),
         projection,
-        hashCode());
+        hashCode(),
+        readerFactory);
   }
 
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups() {
     if (taskGroups == null) {
-      try (CloseableIterable<ScanTaskGroup<ChangelogScanTask>> groups = scan.planTasks()) {
+      try (CloseableIterable<ScanTaskGroup<ChangelogScanTask>> groups =
+          TableScanUtil.planTaskGroups(
+              CloseableIterable.filter(scan.planFiles(), this::shouldRead),
+              scan.targetSplitSize(),
+              scan.splitLookback(),
+              scan.splitOpenFileCost())) {
         this.taskGroups = Lists.newArrayList(groups);
       } catch (IOException e) {
         throw new UncheckedIOException("Failed to close changelog scan: " + scan, e);
@@ -123,6 +145,21 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
     }
 
     return taskGroups;
+  }
+
+  private boolean shouldRead(ChangelogScanTask task) {
+    // Commit timestamps need not follow snapshot order. Filter whole commits, not rows.
+    if (excludedSnapshotIds.contains(task.commitSnapshotId())) {
+      return false;
+    }
+
+    Preconditions.checkArgument(
+        !requiresRowLineage
+            || (task instanceof ContentScanTask<?> contentTask
+                && contentTask.file().firstRowId() != null),
+        "Cannot read Spark CDC from a file without row lineage in snapshot %s",
+        task.commitSnapshotId());
+    return true;
   }
 
   @Override
@@ -138,10 +175,6 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
   @Override
   public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
@@ -152,13 +185,26 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field IDs
         && filtersDesc().equals(that.filtersDesc())
         && Objects.equals(startSnapshotId, that.startSnapshotId)
-        && Objects.equals(endSnapshotId, that.endSnapshotId);
+        && Objects.equals(endSnapshotId, that.endSnapshotId)
+        && excludedSnapshotIds.equals(that.excludedSnapshotIds)
+        && requiresRowLineage == that.requiresRowLineage
+        && readerFactory.getClass().equals(that.readerFactory.getClass())
+        && (scan == null) == (that.scan == null);
   }
 
   @Override
   public int hashCode() {
     return Objects.hash(
-        table.name(), table.uuid(), readSchema(), filtersDesc(), startSnapshotId, endSnapshotId);
+        table.name(),
+        table.uuid(),
+        readSchema(),
+        filtersDesc(),
+        startSnapshotId,
+        endSnapshotId,
+        excludedSnapshotIds,
+        requiresRowLineage,
+        readerFactory.getClass(),
+        scan == null);
   }
 
   private String filtersDesc() {

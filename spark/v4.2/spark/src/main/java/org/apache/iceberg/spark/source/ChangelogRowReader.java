@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.iceberg.AddedRowsScanTask;
 import org.apache.iceberg.ChangelogScanTask;
@@ -76,14 +77,15 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
 
   @Override
   protected CloseableIterator<InternalRow> open(ChangelogScanTask task) {
-    JoinedRow cdcRow = new JoinedRow();
-
-    cdcRow.withRight(changelogMetadata(task));
-
+    Function<InternalRow, InternalRow> rowMapper = rowMapper(task);
     CloseableIterable<InternalRow> rows = openChangelogScanTask(task);
-    CloseableIterable<InternalRow> cdcRows = CloseableIterable.transform(rows, cdcRow::withLeft);
+    return CloseableIterable.transform(rows, rowMapper).iterator();
+  }
 
-    return cdcRows.iterator();
+  Function<InternalRow, InternalRow> rowMapper(ChangelogScanTask task) {
+    JoinedRow cdcRow = new JoinedRow();
+    cdcRow.withRight(changelogMetadata(task));
+    return cdcRow::withLeft;
   }
 
   private static InternalRow changelogMetadata(ChangelogScanTask task) {
