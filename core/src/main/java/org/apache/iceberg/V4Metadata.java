@@ -88,7 +88,7 @@ class V4Metadata {
       Integer fileSpecId = file.specId();
       if (file.specId() != null) {
         PartitionSpec spec = specsById.get(fileSpecId);
-        return spec.isUnpartitioned() ? null : fileSpecId;
+        return isPreV4Manifest(file) || !spec.isUnpartitioned() ? fileSpecId : null;
       }
 
       return null;
@@ -96,7 +96,7 @@ class V4Metadata {
 
     protected StructLike unionPartition(TrackedFile file) {
       Integer specId = specId(file);
-      if (specId != null) {
+      if (specId != null && file.contentType() == FileContent.DATA) {
         StructProjection projection = partitionProjections.get(specId);
         // projection is null when the spec's partition type already matches the union type
         return projection != null ? projection.wrap(file.partition()) : file.partition();
@@ -168,6 +168,11 @@ class V4Metadata {
       }
 
       return projections;
+    }
+
+    private static boolean isPreV4Manifest(TrackedFile file) {
+      ManifestInfo info = file.manifestInfo();
+      return info != null && info.formatVersion() == ManifestInfo.PRE_V4_FORMAT_VERSION;
     }
   }
 

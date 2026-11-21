@@ -165,11 +165,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     if (statsFilter != null) {
-      files =
-          CloseableIterable.filter(
-              this::incrementSkipCount,
-              files,
-              file -> statsFilter.eval(file.contentStats(), file.recordCount()));
+      files = CloseableIterable.filter(this::incrementSkipCount, files, this::mayMatchFilter);
     } else {
       files =
           CloseableIterable.filter(
@@ -231,6 +227,16 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     return file;
+  }
+
+  private boolean mayMatchFilter(TrackedFile file) {
+    if (file.contentType() == FileContent.DELETE_MANIFEST) {
+      // Can't use stats to skip a delete manifest because deletes can apply to rows that don't
+      // match the filter but need to be still read, such as when residuals are ignored
+      return file.recordCount() != 0L;
+    }
+
+    return statsFilter.eval(file.contentStats(), file.recordCount());
   }
 
   private boolean isDeletedByMDV(TrackedFile file) {

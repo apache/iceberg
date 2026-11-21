@@ -1358,6 +1358,54 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  void statsFilterKeepsDeleteManifests(FileFormat format) throws IOException {
+    // a root can only carry delete manifests written before v4
+    TrackedFile deleteManifestWithStats =
+        new TrackedFileStruct(
+            new TrackingStruct(
+                EntryStatus.EXISTING,
+                SNAPSHOT_ID,
+                1L, // dataSequenceNumber
+                1L, // fileSequenceNumber
+                null, // modifiedSnapshotId
+                null, // firstRowId
+                null, // deletedPositions
+                null), // replacedPositions
+            FileContent.DELETE_MANIFEST,
+            "s3://bucket/table/metadata/delete-manifest.avro",
+            FileFormat.AVRO,
+            1L, // recordCount
+            FILE_SIZE_IN_BYTES,
+            PartitionSpec.unpartitioned().specId(),
+            null, // partition
+            CONTENT_STATS,
+            false, // tightStats
+            null, // sortOrderId
+            null, // deletionVector
+            V4TestHelpers.manifestInfo(0, 1, 0, 0, ManifestInfo.PRE_V4_FORMAT_VERSION),
+            null, // keyMetadata
+            null, // splitOffsets
+            null); // columnFiles
+    // both manifests have stats {id in [0, 99], data in [a, z]}
+    ManifestFile manifest =
+        writeManifest(
+            format,
+            UNPARTITIONED_TYPE,
+            ImmutableList.of(DATA_MANIFEST_WITH_STATS_REF, deleteManifestWithStats));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .filter(Expressions.equal("id", 105))
+            .metricsConfig(METRICS_CONFIG);
+
+    assertThat(read(builder))
+        .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
+        .as("stats can skip the data manifest but not the delete manifest")
+        .containsExactly(deleteManifestWithStats);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   public void statsFilterBoundsFilteringWithForScanPlanning(FileFormat format) throws IOException {
     // FILE_C has stats {id in [0, 99], data in [a, z]}, FILE_D has no stats
     ManifestFile manifest =

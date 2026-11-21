@@ -27,7 +27,9 @@ import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.metrics.ScanMetricsUtil;
@@ -38,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.ThreadPools;
 
@@ -45,8 +48,8 @@ import org.apache.iceberg.util.ThreadPools;
  * Plans {@link FileScanTask}s from a V4 root manifest.
  *
  * <p>Emits a task for each live {@code DATA} entry and expands {@code DATA_MANIFEST} entries into
- * their leaf manifests. A data file's colocated deletion vector is attached to its task as a {@link
- * DeleteFile}.
+ * their leaf manifests, which may be v4 manifests or data manifests written in v1-v3. A data file's
+ * colocated deletion vector is attached to its task as a {@link DeleteFile}.
  */
 class FilePlanner {
   private static final DeleteFile[] NO_DELETES = new DeleteFile[0];
@@ -149,30 +152,35 @@ class FilePlanner {
       throw new UncheckedIOException("Failed to close root manifest: " + root.path(), e);
     }
 
-    List<CloseableIterable<TrackedFile>> leafPlanTasks = Lists.newArrayList();
+    List<CloseableIterable<DataFile>> leafPlanTasks = Lists.newArrayList();
     for (ManifestFile leaf : leafManifests) {
       if (hasLiveFiles(leaf)) {
-        leafPlanTasks.add(reader(leaf));
+        leafPlanTasks.add(dataFiles(leaf));
       } else {
         scanMetrics.skippedDataManifests().increment();
         scanMetrics.totalDataManifests().increment();
       }
     }
 
-    CloseableIterable<TrackedFile> leafFiles =
+    CloseableIterable<DataFile> leafDataFiles =
         executorService != null && leafPlanTasks.size() > 1
             ? new ParallelIterable<>(leafPlanTasks, executorService)
             : CloseableIterable.concat(leafPlanTasks);
-
-    CloseableIterable<DataFile> leafDataFiles =
-        CloseableIterable.transform(
-            leafFiles, file -> TrackedFileAdapters.asDataFile(file, specsById));
 
     CloseableIterable<DataFile> dataFiles =
         CloseableIterable.concat(
             ImmutableList.of(CloseableIterable.of(rootDataFiles), leafDataFiles));
 
     return CloseableIterable.transform(dataFiles, this::createTask);
+  }
+
+  private CloseableIterable<DataFile> dataFiles(ManifestFile leaf) {
+    if (leaf.formatVersion() == ManifestInfo.PRE_V4_FORMAT_VERSION) {
+      return new PreV4DataFiles(leaf);
+    }
+
+    return CloseableIterable.transform(
+        reader(leaf), file -> TrackedFileAdapters.asDataFile(file, specsById));
   }
 
   private CloseableIterable<TrackedFile> reader(ManifestFile manifest) {
@@ -224,6 +232,35 @@ class FilePlanner {
     return leaf.hasAddedFiles()
         || leaf.hasExistingFiles()
         || (leaf.modifiedFilesCount() != null && leaf.modifiedFilesCount() > 0);
+  }
+
+  /** Data files in a manifest written before v4, read using the v1-v3 reader when iterated. */
+  private class PreV4DataFiles extends CloseableGroup implements CloseableIterable<DataFile> {
+    private final ManifestFile manifest;
+
+    private PreV4DataFiles(ManifestFile manifest) {
+      this.manifest = manifest;
+    }
+
+    @Override
+    public CloseableIterator<DataFile> iterator() {
+      scanMetrics.scannedDataManifests().increment();
+      scanMetrics.totalDataManifests().increment();
+
+      ManifestReader<DataFile> reader =
+          ManifestFiles.read(manifest, io, specsById)
+              .select(
+                  statsFieldIds != null ? BaseScan.SCAN_WITH_STATS_COLUMNS : BaseScan.SCAN_COLUMNS)
+              .filterRows(dataFilter)
+              .caseSensitive(caseSensitive)
+              .scanMetrics(scanMetrics);
+      addCloseable(reader);
+
+      return CloseableIterable.transform(
+              reader.liveEntries(),
+              entry -> ContentFileUtil.copy(entry.file(), statsFieldIds != null, statsFieldIds))
+          .iterator();
+    }
   }
 
   /** Per-spec task inputs computed once and shared across all files of a spec. */
