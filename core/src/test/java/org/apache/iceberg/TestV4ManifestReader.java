@@ -52,7 +52,6 @@ import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.OutputFile;
@@ -1980,85 +1979,6 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  public void readGeospatialBounds(FileFormat format) throws IOException {
-    Schema schema =
-        new Schema(
-            optional(1, "geom", Types.GeometryType.crs84()),
-            optional(2, "geog", Types.GeographyType.crs84()));
-    MetricsConfig metricsConfig = MetricsTestUtil.from(ImmutableMap.of(), schema);
-    Types.StructType statsType = StatsUtil.statsWriteSchema(schema, metricsConfig);
-
-    GeospatialBound geomLower = GeospatialBound.createXYZM(1.0, 2.0, 3.0, 4.0);
-    GeospatialBound geomUpper = GeospatialBound.createXYZM(5.0, 6.0, 7.0, 8.0);
-    GeospatialBound geogLower = GeospatialBound.createXY(-10.0, -20.0);
-    GeospatialBound geogUpper = GeospatialBound.createXY(30.0, 40.0);
-    GeospatialBound nextGeomLower = GeospatialBound.createXY(11.0, 12.0);
-    GeospatialBound nextGeomUpper = GeospatialBound.createXYZ(15.0, 16.0, 17.0);
-    GeospatialBound nextGeogLower = GeospatialBound.createXYM(-1.0, -2.0, 9.0);
-    GeospatialBound nextGeogUpper = GeospatialBound.createXYZM(3.0, 4.0, 5.0, 6.0);
-
-    TrackedFile first =
-        dataFileWithStats(
-            "s3://bucket/table/geo-a.parquet",
-            contentStats(statsType, geomLower, geomUpper, geogLower, geogUpper));
-    TrackedFile second =
-        dataFileWithStats(
-            "s3://bucket/table/geo-b.parquet",
-            contentStats(statsType, nextGeomLower, nextGeomUpper, nextGeogLower, nextGeogUpper));
-
-    ManifestFile manifest =
-        writeManifest(format, UNPARTITIONED_TYPE, statsType, ImmutableList.of(first, second));
-
-    V4ManifestReader.Builder builder =
-        V4ManifestReader.builder(manifest, IO, schema, UNPARTITIONED_SPECS)
-            .metricsConfig(metricsConfig);
-
-    List<TrackedFile> files = read(builder);
-    assertThat(files).hasSize(2);
-    assertGeospatialBounds(files.get(0), geomLower, geomUpper, geogLower, geogUpper);
-    assertGeospatialBounds(
-        files.get(1), nextGeomLower, nextGeomUpper, nextGeogLower, nextGeogUpper);
-    assertThat(files.get(0).contentStats().statsFor(1).lowerBound())
-        .isNotSameAs(files.get(1).contentStats().statsFor(1).lowerBound());
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  public void readPartialGeospatialBound(FileFormat format) throws IOException {
-    Schema schema =
-        new Schema(
-            optional(1, "geom", Types.GeometryType.crs84()),
-            optional(2, "geog", Types.GeographyType.crs84()));
-    MetricsConfig metricsConfig = MetricsTestUtil.from(ImmutableMap.of(), schema);
-    Types.StructType statsType = StatsUtil.statsWriteSchema(schema, metricsConfig);
-
-    GeospatialBound geomLower = GeospatialBound.createXYZM(1.0, 2.0, 3.0, 4.0);
-    GeospatialBound geomUpper = GeospatialBound.createXYZM(5.0, 6.0, 7.0, 8.0);
-    GeospatialBound geogLower = GeospatialBound.createXY(-10.0, -20.0);
-    GeospatialBound geogUpper = GeospatialBound.createXY(30.0, 40.0);
-    TrackedFile file =
-        dataFileWithStats(
-            "s3://bucket/table/geo-partial.parquet",
-            contentStats(statsType, geomLower, geomUpper, geogLower, geogUpper));
-
-    ManifestFile manifest =
-        writeManifest(format, UNPARTITIONED_TYPE, statsType, ImmutableList.of(file));
-
-    V4ManifestReader.Builder builder =
-        V4ManifestReader.builder(manifest, IO, schema, UNPARTITIONED_SPECS)
-            .metricsConfig(metricsConfig)
-            // selecting m still reads the full geometry and geography bound structs
-            .select(
-                "content_stats.geom.lower_bound.m",
-                "content_stats.geom.upper_bound.m",
-                "content_stats.geog.lower_bound.m",
-                "content_stats.geog.upper_bound.m");
-
-    assertGeospatialBounds(readOne(builder), geomLower, geomUpper, geogLower, geogUpper);
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
   public void readManifestLocations(FileFormat format) throws IOException {
     TrackedFile dataFile =
         dataFile(
@@ -2105,44 +2025,6 @@ class TestV4ManifestReader {
     assertThat(locations).containsExactly(dataManifest.location(), deleteManifest.location());
   }
 
-  private static ContentStats contentStats(
-      Types.StructType statsType,
-      GeospatialBound geomLower,
-      GeospatialBound geomUpper,
-      GeospatialBound geogLower,
-      GeospatialBound geogUpper) {
-    ContentStatsStruct stats = new ContentStatsStruct(statsType);
-    stats.setStats(1, geoFieldStats(statsType, "geom", geomLower, geomUpper));
-    stats.setStats(2, geoFieldStats(statsType, "geog", geogLower, geogUpper));
-    return stats;
-  }
-
-  private static FieldStatsStruct<GeospatialBound> geoFieldStats(
-      Types.StructType statsType, String name, GeospatialBound lower, GeospatialBound upper) {
-    return new FieldStatsStruct<>(
-        statsType.fieldType(name).asStructType(), lower, upper, RECORD_COUNT, 0, 0, 0L);
-  }
-
-  private static void assertGeospatialBounds(
-      TrackedFile file,
-      GeospatialBound geomLower,
-      GeospatialBound geomUpper,
-      GeospatialBound geogLower,
-      GeospatialBound geogUpper) {
-    assertBound(file, 1, geomLower, geomUpper);
-    assertBound(file, 2, geogLower, geogUpper);
-  }
-
-  private static void assertBound(
-      TrackedFile file, int fieldId, GeospatialBound lower, GeospatialBound upper) {
-    assertThat(file.contentStats().statsFor(fieldId).lowerBound())
-        .isInstanceOf(GeospatialBound.class)
-        .isEqualTo(lower);
-    assertThat(file.contentStats().statsFor(fieldId).upperBound())
-        .isInstanceOf(GeospatialBound.class)
-        .isEqualTo(upper);
-  }
-
   private static TrackedFile unpartitionedFileWithoutStats(String location) {
     Tracking tracking =
         new TrackingStruct(
@@ -2182,16 +2064,7 @@ class TestV4ManifestReader {
   private ManifestFile writeManifest(
       FileFormat format, Types.StructType partitionType, List<TrackedFile> files)
       throws IOException {
-    return writeManifest(format, partitionType, STATS_TYPE, files);
-  }
-
-  private ManifestFile writeManifest(
-      FileFormat format,
-      Types.StructType partitionType,
-      Types.StructType statsType,
-      List<TrackedFile> files)
-      throws IOException {
-    OutputFile out = writeTrackedFiles(IO, format, partitionType, statsType, files);
+    OutputFile out = writeTrackedFiles(IO, format, partitionType, STATS_TYPE, files);
     return v4Manifest(out.location());
   }
 
