@@ -22,7 +22,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableSummary;
@@ -32,12 +35,17 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.sink.DeltaManifests;
 import org.apache.iceberg.flink.sink.DeltaManifestsSerializer;
+import org.apache.iceberg.flink.sink.ManifestOutputFileFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -212,6 +220,49 @@ class TestDynamicWriteResultAggregator {
           .isEqualTo(testHarness.getEnvironment().getJobID().toString());
       assertThat(dynamicCommittable.operatorId())
           .isEqualTo(testHarness.getOperator().getOperatorID().toString());
+    }
+  }
+
+  @Test
+  void testCachedOutputFileFactoryDoesNotRetainTableMetadata() throws Exception {
+    Table table =
+        CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table"), new Schema());
+
+    DynamicWriteResultAggregator aggregator =
+        new DynamicWriteResultAggregator(
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId");
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>>
+        testHarness = new OneInputStreamOperatorTestHarness<>(aggregator)) {
+      testHarness.open();
+
+      TableKey tableKey = new TableKey("table", "branch");
+      testHarness.processElement(createRecord(tableKey, 1L, DATA_FILE.specId(), DATA_FILE));
+      testHarness.prepareSnapshotPreBarrier(1L);
+
+      Map<String, Tuple2<ManifestOutputFileFactory, Integer>> factories =
+          DynFields.builder()
+              .hiddenImpl(
+                  DynamicWriteResultAggregator.class, "outputFileFactoriesAndFormatVersions")
+              .<Map<String, Tuple2<ManifestOutputFileFactory, Integer>>>build(aggregator)
+              .get();
+      Supplier<Table> tableSupplier =
+          DynFields.builder()
+              .hiddenImpl(ManifestOutputFileFactory.class, "tableSupplier")
+              .<Supplier<Table>>build(factories.get("table").f0)
+              .get();
+
+      // A cached factory holding the loaded table would keep all of its snapshots in memory.
+      assertThat(tableSupplier.get()).isInstanceOf(SerializableTable.class);
+
+      // Manifests still land where the table's own metadata location would put them.
+      Set<String> manifestPaths =
+          getManifestPaths(Lists.newArrayList(testHarness.getRecordOutput().iterator()));
+      assertThat(manifestPaths).hasSize(1);
+      String manifestPath = manifestPaths.iterator().next();
+      String manifestName = manifestPath.substring(manifestPath.lastIndexOf('/') + 1);
+      assertThat(manifestPath)
+          .isEqualTo(((HasTableOperations) table).operations().metadataFileLocation(manifestName));
     }
   }
 
