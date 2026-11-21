@@ -185,11 +185,17 @@ class TestControlTopicReplay extends ChannelTestBase {
   }
 
   private static class TrackingChannel extends Channel {
+    private final ChannelMetrics channelMetrics = mock(ChannelMetrics.class);
     private int receivedCount = 0;
 
     private TrackingChannel(
         IcebergSinkConfig config, KafkaClientFactory clientFactory, SinkTaskContext context) {
       super("tracking", "tracking-group", config, clientFactory, context);
+    }
+
+    @Override
+    protected ChannelMetrics getChannelMetrics() {
+      return channelMetrics;
     }
 
     @Override
