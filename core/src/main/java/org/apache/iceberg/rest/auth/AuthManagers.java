@@ -101,6 +101,9 @@ public class AuthManagers {
       case AuthProperties.AUTH_TYPE_OAUTH2:
         impl = AuthProperties.AUTH_MANAGER_IMPL_OAUTH2;
         break;
+      case AuthProperties.AUTH_TYPE_BEARER:
+        impl = AuthProperties.AUTH_MANAGER_IMPL_BEARER;
+        break;
       default:
         impl = authType;
     }
@@ -111,6 +114,7 @@ public class AuthManagers {
       ctor =
           DynConstructors.builder(AuthManager.class)
               .loader(AuthManagers.class.getClassLoader())
+              .impl(impl) // default constructor, for managers that don't need a name
               .impl(impl, String.class) // with name
               .impl(impl, String.class, AuthManager.class) // with name and delegate
               .buildChecked();
