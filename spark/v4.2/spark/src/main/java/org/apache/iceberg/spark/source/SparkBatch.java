@@ -38,7 +38,6 @@ import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
@@ -46,9 +45,9 @@ import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 
 class SparkBatch implements Batch {
 
-  private final JavaSparkContext sparkContext;
   private final Table table;
   private final Supplier<FileIO> fileIO;
+  private final SparkScanBroadcasts broadcasts;
   private final SparkReadConf readConf;
   private final Types.StructType groupingKeyType;
   private final List<? extends ScanTaskGroup<?>> taskGroups;
@@ -60,17 +59,17 @@ class SparkBatch implements Batch {
   private final boolean cacheDeleteFilesOnExecutors;
 
   SparkBatch(
-      JavaSparkContext sparkContext,
       Table table,
       Supplier<FileIO> fileIO,
+      SparkScanBroadcasts broadcasts,
       SparkReadConf readConf,
       Types.StructType groupingKeyType,
       List<? extends ScanTaskGroup<?>> taskGroups,
       Schema projection,
       int scanHashCode) {
-    this.sparkContext = sparkContext;
     this.table = table;
     this.fileIO = fileIO;
+    this.broadcasts = broadcasts;
     this.readConf = readConf;
     this.groupingKeyType = groupingKeyType;
     this.taskGroups = taskGroups;
@@ -85,10 +84,8 @@ class SparkBatch implements Batch {
   @Override
   public InputPartition[] planInputPartitions() {
     // broadcast the table metadata as input partitions will be sent to executors
-    Broadcast<Table> tableBroadcast =
-        sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
-    Broadcast<FileIO> fileIOBroadcast =
-        sparkContext.broadcast(SerializableFileIOWithSize.wrap(fileIO.get()));
+    Broadcast<Table> tableBroadcast = broadcasts.table();
+    Broadcast<FileIO> fileIOBroadcast = broadcasts.fileIO();
     String projectionString = SchemaParser.toJson(projection);
     String[][] locations = computePreferredLocations();
 
