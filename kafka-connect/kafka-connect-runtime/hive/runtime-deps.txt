@@ -88,7 +88,10 @@ com.jcraft:jsch:0.1
 com.jolbox:bonecp:0.8
 com.microsoft.azure:msal4j-persistence-extension:1.3
 com.microsoft.azure:msal4j:1.26
-com.nimbusds:nimbus-jose-jwt:10.4
+com.nimbusds:content-type:2.3
+com.nimbusds:lang-tag:1.7
+com.nimbusds:nimbus-jose-jwt:10.10
+com.nimbusds:oauth2-oidc-sdk:11.39
 com.sun.xml.bind:jaxb-impl:2.2
 commons-cli:commons-cli:1.9
 commons-codec:commons-codec:1.19
@@ -198,6 +201,8 @@ jline:jline:2.12
 joda-time:joda-time:2.8
 net.java.dev.jna:jna-platform:5.17
 net.java.dev.jna:jna:5.17
+net.minidev:accessors-smart:2.6
+net.minidev:json-smart:2.6
 net.sf.opencsv:opencsv:2.3
 org.antlr:antlr-runtime:3.5
 org.apache.ant:ant-launcher:1.9
