@@ -166,7 +166,7 @@ Primitive types are compared using signed comparison, except for the following t
 * `uuid` uses unsigned byte-wise comparison of the UUID bytes
 * `decimal` uses signed comparison independent of scale; this is equivalent to comparison of unscaled values because type alignment produces values with the same scale
 * `float` and `double` use IEEE 754 order for all non-NaN values; see below for NaN comparison rules
-* `vector` values support `=` and `!=` using the equality rules defined in [Vector](spec.md#vector). Implementations must reject `<`, `<=`, `>`, and `>=` comparisons with vector operands.
+* `vector` values use the equality rules defined in [Vector](spec.md#vector)
 
 For floating point values, comparison with NaN behaves similarly to comparison of values with null. NaN should be specifically handled using `IS NaN` and `IS NOT NaN` tests. However, when value expressions produce a NaN value, the following rules must be applied:
 
