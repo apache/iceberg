@@ -31,14 +31,14 @@ public enum FileFormat {
   METADATA("metadata.json", false);
 
   private final String ext;
-  private final String lowerCaseName;
+  private final String metadataValue;
   private final boolean splittable;
 
   private static final FileFormat[] VALUES = values();
 
   FileFormat(String ext, boolean splittable) {
     this.ext = "." + ext;
-    this.lowerCaseName = name().toLowerCase(Locale.ROOT);
+    this.metadataValue = name().toLowerCase(Locale.ROOT);
     this.splittable = splittable;
   }
 
@@ -46,8 +46,8 @@ public enum FileFormat {
     return splittable;
   }
 
-  String lowerCaseName() {
-    return lowerCaseName;
+  String metadataValue() {
+    return metadataValue;
   }
 
   /**
