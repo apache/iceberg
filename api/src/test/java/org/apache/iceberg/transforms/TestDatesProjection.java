@@ -601,4 +601,22 @@ public class TestDatesProjection {
     assertProjectionInclusiveValue(
         spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
   }
+
+  @Test
+  void dateBoundaryProjection() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("date").build();
+
+    assertProjectionInclusiveValue(
+        spec, lessThan("date", Integer.MIN_VALUE), Expression.Operation.FALSE);
+    assertProjectionInclusiveValue(
+        spec, greaterThan("date", Integer.MAX_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, lessThan("date", Integer.MIN_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, greaterThan("date", Integer.MAX_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, lessThanOrEqual("date", Integer.MAX_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, greaterThanOrEqual("date", Integer.MIN_VALUE), Expression.Operation.FALSE);
+  }
 }

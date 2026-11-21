@@ -449,7 +449,11 @@ class Literals {
         case DATE:
           return (Literal<T>) new DateLiteral(DateTimeUtil.microsToDays(value()));
         case TIMESTAMP_NANO:
-          return (Literal<T>) new TimestampNanoLiteral(DateTimeUtil.microsToNanos(value()));
+          try {
+            return (Literal<T>) new TimestampNanoLiteral(DateTimeUtil.microsToNanos(value()));
+          } catch (ArithmeticException e) {
+            return (Literal<T>) (value() < 0 ? belowMin() : aboveMax());
+          }
         default:
       }
       return null;
