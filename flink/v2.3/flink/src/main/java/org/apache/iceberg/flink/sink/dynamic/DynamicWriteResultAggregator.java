@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
@@ -106,6 +107,13 @@ class DynamicWriteResultAggregator
   @Override
   public void finish() throws IOException {
     prepareSnapshotPreBarrier(lastCheckpointId + 1);
+  }
+
+  @Override
+  public void close() throws Exception {
+    try (Closeable ignored = DynamicSinkUtil.closeable(catalog)) {
+      super.close();
+    }
   }
 
   @Override

@@ -22,9 +22,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import javax.annotation.Nonnull;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
@@ -326,6 +328,33 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
     assertThat(firstFile.getName()).isNotEqualTo(secondFile.getName());
   }
 
+  @Test
+  void closesCatalogOnClose() throws Exception {
+    CloseCountingCatalog catalog = new CloseCountingCatalog();
+
+    createDynamicWriter(catalog).close();
+
+    assertThat(catalog.closeCount()).isEqualTo(1);
+  }
+
+  @Test
+  void closesCatalogWhenClosingTaskWriterFails() {
+    CloseCountingCatalog catalog = new CloseCountingCatalog();
+    DynamicWriter dynamicWriter = createDynamicWriter(catalog);
+    DynFields.BoundField<Map<WriteTarget, TaskWriter<RowData>>> writers =
+        DynFields.builder().hiddenImpl(DynamicWriter.class, "writers").build(dynamicWriter);
+    writers
+        .get()
+        .put(
+            new WriteTarget(TABLE1.name(), null, 0, 0, false, Set.of()),
+            new FailingCloseTaskWriter());
+
+    assertThatThrownBy(dynamicWriter::close)
+        .isInstanceOf(IOException.class)
+        .hasMessage("Failed to close task writer");
+    assertThat(catalog.closeCount()).isEqualTo(1);
+  }
+
   private static @Nonnull DynamicWriter createDynamicWriter(
       Catalog catalog, Map<String, String> properties) {
     DynamicWriter dynamicWriter =
@@ -374,5 +403,23 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
             .hiddenImpl(RegistryBasedFileWriterFactory.class, "writerProperties")
             .build(writerFactoryField.get());
     return propsField.get();
+  }
+
+  private static class FailingCloseTaskWriter implements TaskWriter<RowData> {
+    @Override
+    public void write(RowData row) {}
+
+    @Override
+    public void abort() {}
+
+    @Override
+    public WriteResult complete() {
+      return WriteResult.builder().build();
+    }
+
+    @Override
+    public void close() throws IOException {
+      throw new IOException("Failed to close task writer");
+    }
   }
 }

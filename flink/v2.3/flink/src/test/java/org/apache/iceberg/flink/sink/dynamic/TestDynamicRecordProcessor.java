@@ -36,6 +36,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -159,10 +160,27 @@ class TestDynamicRecordProcessor {
     }
   }
 
+  @Test
+  void closesCatalogOnClose() throws Exception {
+    CloseCountingCatalog catalog = new CloseCountingCatalog();
+    OneInputStreamOperatorTestHarness<DynamicRecord, DynamicRecordInternal> harness =
+        ProcessFunctionTestHarnesses.forProcessFunction(
+            processorWithoutImmediateUpdate(catalog.loader()));
+
+    harness.close();
+
+    assertThat(catalog.closeCount()).isEqualTo(1);
+  }
+
   private static DynamicRecordProcessor<DynamicRecord> processorWithoutImmediateUpdate() {
+    return processorWithoutImmediateUpdate(CATALOG_EXTENSION.catalogLoader());
+  }
+
+  private static DynamicRecordProcessor<DynamicRecord> processorWithoutImmediateUpdate(
+      CatalogLoader catalogLoader) {
     return new DynamicRecordProcessor<>(
         (input, out) -> out.collect(input),
-        CATALOG_EXTENSION.catalogLoader(),
+        catalogLoader,
         TableCreator.DEFAULT,
         new FlinkDynamicSinkConf(
             ImmutableMap.of(

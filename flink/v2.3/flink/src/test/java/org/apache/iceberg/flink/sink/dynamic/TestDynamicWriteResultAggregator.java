@@ -215,6 +215,21 @@ class TestDynamicWriteResultAggregator {
     }
   }
 
+  @Test
+  void closesCatalogOnClose() throws Exception {
+    CloseCountingCatalog catalog = new CloseCountingCatalog();
+    OneInputStreamOperatorTestHarness<
+            CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>>
+        testHarness =
+            new OneInputStreamOperatorTestHarness<>(
+                new DynamicWriteResultAggregator(catalog.loader(), cacheMaximumSize, "sinkId"));
+    testHarness.open();
+
+    testHarness.close();
+
+    assertThat(catalog.closeCount()).isEqualTo(1);
+  }
+
   private static Set<String> getManifestPaths(
       List<StreamRecord<CommittableMessage<DynamicCommittable>>> messages) throws IOException {
     Set<String> manifestPaths = Sets.newHashSet();

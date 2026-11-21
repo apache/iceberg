@@ -1176,6 +1176,15 @@ class TestDynamicCommitter {
         .containsEntry("total-records", "66");
   }
 
+  @Test
+  void closesCatalogOnClose() throws Exception {
+    CloseCountingCatalog closeCountingCatalog = new CloseCountingCatalog();
+
+    createCommitter(closeCountingCatalog).close();
+
+    assertThat(closeCountingCatalog.closeCount()).isEqualTo(1);
+  }
+
   private DynamicWriteResultAggregator openAggregator() throws Exception {
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
@@ -1187,8 +1196,12 @@ class TestDynamicCommitter {
   }
 
   private static DynamicCommitter createCommitter() {
+    return createCommitter(CATALOG_EXTENSION.catalog());
+  }
+
+  private static DynamicCommitter createCommitter(Catalog catalog) {
     return new DynamicCommitter(
-        CATALOG_EXTENSION.catalog(),
+        catalog,
         Maps.newHashMap(),
         false,
         1,
