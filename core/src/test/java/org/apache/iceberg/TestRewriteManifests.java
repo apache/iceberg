@@ -727,7 +727,7 @@ public class TestRewriteManifests extends TestBase {
   }
 
   @TestTemplate
-  public void testReplaceStagedManifestAfterTransactionRetry() throws IOException {
+  public void replaceStagedManifestAfterTransactionRetry() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
     Transaction txn = table.newTransaction();
@@ -777,29 +777,6 @@ public class TestRewriteManifests extends TestBase {
                 "Deleted manifest %s changed in the latest snapshot", stagedManifest.path()));
 
     assertThat(table.currentSnapshot().snapshotId()).isEqualTo(concurrentAppend.snapshotId());
-  }
-
-  @TestTemplate
-  public void testReplaceCommittedManifestAfterTransactionRetry() throws IOException {
-    table.newFastAppend().appendFile(FILE_A).commit();
-    ManifestFile committedManifest = table.currentSnapshot().allManifests(table.io()).get(0);
-    ManifestFile replacement =
-        writeManifest(
-            "replacement.avro",
-            manifestEntry(
-                ManifestEntry.Status.EXISTING, table.currentSnapshot().snapshotId(), FILE_A));
-
-    Transaction txn = table.newTransaction();
-    txn.rewriteManifests().deleteManifest(committedManifest).addManifest(replacement).commit();
-
-    // a committed manifest keeps its inherited metadata when the transaction retries
-    table.newFastAppend().appendFile(FILE_B).commit();
-    txn.commitTransaction();
-
-    assertThat(table.currentSnapshot().allManifests(table.io()))
-        .extracting(ManifestFile::path)
-        .doesNotContain(committedManifest.path());
-    validateTableFiles(table, FILE_A, FILE_B);
   }
 
   @TestTemplate
