@@ -1158,6 +1158,12 @@ public class Types {
   public static final class FileType extends NestedType {
     public static final String NAME = "file";
     public static final int NUM_NESTED_FIELDS = 6;
+    private static final int URI_ID_OFFSET = 1;
+    private static final int OFFSET_ID_OFFSET = 2;
+    private static final int SIZE_ID_OFFSET = 3;
+    private static final int CONTENT_TYPE_ID_OFFSET = 4;
+    private static final int CHECKSUM_ID_OFFSET = 5;
+    private static final int INLINE_ID_OFFSET = 6;
 
     private static final String URI = "uri";
     private static final String OFFSET = "offset";
@@ -1284,12 +1290,13 @@ public class Types {
       if (fieldList == null) {
         this.fieldList =
             ImmutableList.of(
-                NestedField.optional(baseId + 1, URI, StringType.get()),
-                NestedField.optional(baseId + 2, OFFSET, LongType.get()),
-                NestedField.optional(baseId + 3, SIZE, LongType.get()),
-                NestedField.optional(baseId + 4, CONTENT_TYPE, StringType.get()),
-                NestedField.optional(baseId + 5, CHECKSUM, StringType.get()),
-                NestedField.optional(baseId + 6, INLINE, BinaryType.get()));
+                NestedField.optional(baseId + URI_ID_OFFSET, URI, StringType.get()),
+                NestedField.optional(baseId + OFFSET_ID_OFFSET, OFFSET, LongType.get()),
+                NestedField.optional(baseId + SIZE_ID_OFFSET, SIZE, LongType.get()),
+                NestedField.optional(
+                    baseId + CONTENT_TYPE_ID_OFFSET, CONTENT_TYPE, StringType.get()),
+                NestedField.optional(baseId + CHECKSUM_ID_OFFSET, CHECKSUM, StringType.get()),
+                NestedField.optional(baseId + INLINE_ID_OFFSET, INLINE, BinaryType.get()));
       }
 
       return fieldList;
