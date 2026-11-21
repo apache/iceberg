@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import java.util.function.Supplier;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
@@ -30,6 +31,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.ImmutableOrcBatchReadConf;
 import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
 import org.apache.iceberg.spark.OrcBatchReadConf;
@@ -126,6 +128,31 @@ class SparkBatch implements Batch {
 
   @Override
   public PartitionReaderFactory createReaderFactory() {
+    PartitionReaderFactory factory = defaultReaderFactory();
+    String providerName = readConf.partitionReaderFactoryProvider();
+    return providerName == null ? factory : providedReaderFactory(providerName, factory);
+  }
+
+  private PartitionReaderFactory providedReaderFactory(
+      String name, PartitionReaderFactory delegate) {
+    List<String> available = Lists.newArrayList();
+    for (PartitionReaderFactoryProvider provider :
+        ServiceLoader.load(PartitionReaderFactoryProvider.class)) {
+      if (name.equals(provider.name())) {
+        PartitionReaderFactory factory = provider.create(table, delegate);
+        return factory != null ? factory : delegate;
+      }
+
+      available.add(provider.name());
+    }
+
+    throw new IllegalArgumentException(
+        String.format(
+            "Cannot find partition reader factory provider %s, available providers: %s",
+            name, available));
+  }
+
+  private PartitionReaderFactory defaultReaderFactory() {
     if (useParquetBatchReads()) {
       return new SparkColumnarReaderFactory(parquetBatchReadConf());
 

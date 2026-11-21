@@ -139,4 +139,11 @@ public class SparkSQLProperties {
   // This determines how many rows are buffered before inferring shredded schema
   public static final String VARIANT_INFERENCE_BUFFER_SIZE =
       "spark.sql.iceberg.variant-inference-buffer-size";
+
+  // Selects a FileRewriteRunnerProvider by name for bin-pack rewrite_data_files in the session
+  public static final String REWRITE_RUNNER_PROVIDER = "spark.sql.iceberg.rewrite-runner-provider";
+
+  // Selects a PartitionReaderFactoryProvider by name for batch reads in the session
+  public static final String PARTITION_READER_FACTORY_PROVIDER =
+      "spark.sql.iceberg.partition-reader-factory-provider";
 }

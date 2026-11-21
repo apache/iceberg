@@ -105,4 +105,8 @@ public class SparkReadOptions {
   public static final String TIMESTAMP_AS_OF = "timestampAsOf";
 
   public static final String AGGREGATE_PUSH_DOWN_ENABLED = "aggregate-push-down-enabled";
+
+  // Selects a PartitionReaderFactoryProvider by name for this read
+  public static final String PARTITION_READER_FACTORY_PROVIDER =
+      "partition-reader-factory-provider";
 }
