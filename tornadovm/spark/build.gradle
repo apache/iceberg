@@ -1,0 +1,177 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+// Spark 4.2 on the GPU: reads through Spark 4.2's PartitionReaderFactoryProvider, rewrites through its
+// FileRewriteRunnerProvider, both handing files to the merge-on-read scan in :iceberg-tornadovm. Java 21
+// with preview, as that module.
+
+def tornadoHome = System.getenv('TORNADOVM_HOME')
+// Spark 4 is built for Scala 2.13 only.
+def scalaVersion = '2.13'
+def tornadoApi = fileTree("${tornadoHome}/share/java/tornado") {
+  include 'tornado-api-*.jar'
+  include 'tornado-cudf-*.jar'
+}
+
+// The aggregate planning (GpuAggregateStrategy) is Scala: Spark's planner API is.
+apply plugin: 'scala'
+
+sourceSets {
+  main {
+    scala.srcDirs = ['src/main/scala']
+  }
+}
+
+tasks.withType(ScalaCompile).configureEach {
+  // The Java classes it calls are Java 21 (with preview, as :iceberg-tornadovm).
+  scalaCompileOptions.additionalParameters.removeAll { it.startsWith('-release') }
+  scalaCompileOptions.additionalParameters.add('-release:21')
+  sourceCompatibility = '21'
+  targetCompatibility = '21'
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.release = 21
+  options.compilerArgs += ['--enable-preview']
+}
+
+dependencies {
+  implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+  implementation project(':iceberg-api')
+  implementation project(':iceberg-core')
+  implementation project(':iceberg-tornadovm')
+  implementation project(":iceberg-spark:iceberg-spark-4.2_${scalaVersion}")
+  // CALL system.rewrite_data_files and the other procedures, for spark-submit-gpu
+  runtimeOnly(project(":iceberg-spark:iceberg-spark-extensions-4.2_${scalaVersion}")) {
+    transitive = false
+  }
+
+  compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark42.get()}") {
+    exclude group: 'org.apache.avro', module: 'avro'
+    exclude group: 'org.apache.arrow'
+    exclude group: 'org.apache.parquet'
+    exclude group: 'org.apache.hadoop', module: 'hadoop-client'
+  }
+  compileOnly tornadoApi
+
+  testImplementation("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark42.get()}") {
+    exclude group: 'org.apache.avro', module: 'avro'
+    exclude group: 'org.apache.arrow'
+    exclude group: 'org.apache.parquet'
+    exclude group: 'org.apache.hadoop', module: 'hadoop-client'
+  }
+  testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+  testImplementation libs.junit.jupiter
+  testImplementation libs.assertj.core
+}
+
+// The test JVM runs Spark and TornadoVM together. TornadoVM's argfile puts its whole jar directory on
+// the module path, and Java resolves every automatic module once one is: its JMH, log4j and junit
+// would shadow the class path's. The tests get a module directory without them.
+def tornadoModules = layout.buildDirectory.dir('tornado-modules')
+def tornadoArgfile = layout.buildDirectory.file('tornado-argfile')
+tasks.register('tornadoModules') {
+  outputs.dir tornadoModules
+  outputs.file tornadoArgfile
+  doLast {
+    def dir = tornadoModules.get().asFile
+    project.delete(dir)
+    dir.mkdirs()
+    file("${tornadoHome}/share/java/tornado").listFiles().findAll {
+      it.name.endsWith('.jar') && !(it.name ==~ /(jmh-core|jopt-simple|junit|hamcrest|log4j-|commons-lang3|tornado-benchmarks|tornado-unittests|tornado-examples).*/)
+    }.each { java.nio.file.Files.createSymbolicLink(new File(dir, it.name).toPath(), it.toPath()) }
+    // SDKMAN installs ship only the argfile's template, with ${TORNADOVM_HOME} to expand.
+    def sdkArgfile = file("${tornadoHome}/tornado-argfile")
+    def text = sdkArgfile.exists()
+        ? sdkArgfile.text
+        : file("${tornadoHome}/tornado-argfile.template").text.replace('${TORNADOVM_HOME}', tornadoHome)
+    tornadoArgfile.get().asFile.text = text
+        .replace("--module-path .:${tornadoHome}/share/java/tornado", "--module-path ${dir}")
+  }
+}
+
+test {
+  dependsOn 'tornadoModules'
+  useJUnitPlatform()
+  jvmArgs '--enable-preview', "@${tornadoArgfile.get().asFile}", '--enable-native-access=ALL-UNNAMED', '-da:tornado...', '-da:uk.ac.manchester.tornado...'
+  jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+  if (project.hasProperty('extraJvmArgs')) {
+    jvmArgs project.extraJvmArgs
+  }
+  maxHeapSize = '16g'
+  maxParallelForks = 1
+}
+
+// The class path a Spark job needs to read on the GPU: this module, Iceberg's modules and their
+// dependencies, unshaded (Spark itself comes from the distribution). See run.sh spark-gpu.
+tasks.register('printSparkClasspath') {
+  dependsOn 'jar'
+  doLast {
+    println((files(tasks.jar.archiveFile) + configurations.runtimeClasspath).asPath)
+  }
+}
+
+// A ready-to-use directory for spark-submit: build/spark-gpu/{jars, tornado-modules, tornado-argfile,
+// bin/spark-submit-gpu}. The jars are this module's runtime class path less what a Spark 4.2
+// distribution already ships (Hadoop, Jackson, Netty, Guava, logging, commons, ...); Iceberg's
+// modules and the Parquet, Avro, Arrow and ORC versions they need stay, ahead of Spark's.
+def sparkProvided = [
+  'org.apache.hadoop', 'org.apache.hadoop.thirdparty', 'com.fasterxml.jackson.core', 'com.fasterxml.jackson.datatype',
+  'com.fasterxml.jackson.jaxrs', 'com.fasterxml.jackson.module', 'com.fasterxml.woodstox', 'org.codehaus.woodstox',
+  'io.netty', 'com.google.guava', 'com.google.code.gson', 'com.google.code.findbugs', 'com.google.errorprone',
+  'com.google.j2objc', 'com.google.re2j', 'com.google.flatbuffers', 'org.slf4j', 'ch.qos.reload4j', 'log4j',
+  'org.apache.logging.log4j', 'commons-cli', 'commons-codec', 'commons-io', 'commons-logging', 'commons-net',
+  'commons-pool', 'commons-collections', 'commons-beanutils', 'org.apache.commons', 'com.nimbusds', 'dnsjava',
+  'io.dropwizard.metrics', 'com.sun.jersey', 'com.sun.xml.bind', 'javax.xml.bind', 'org.apache.httpcomponents',
+  'org.apache.zookeeper', 'org.apache.curator', 'org.apache.kerby', 'org.eclipse.jetty', 'javax.servlet',
+  'jakarta.activation', 'jakarta.xml.bind', 'org.xerial.snappy', 'org.lz4', 'org.apache.yetus', 'org.apache.avro.hadoop',
+  'org.scala-lang', 'org.bouncycastle', 'org.checkerframework', 'org.eclipse.collections', 'javax.annotation', 'javax.inject',
+  'org.jline', 'jline', 'org.threeten', 'com.github.pjfanning']
+def sparkGpuDir = layout.buildDirectory.dir('spark-gpu')
+tasks.register('sparkGpuBundle') {
+  dependsOn 'jar', 'tornadoModules'
+  // Inputs, so that the bundle is rebuilt whenever a jar or the TornadoVM SDK changes.
+  inputs.files(tasks.jar.archiveFile, configurations.runtimeClasspath, tornadoArgfile, 'spark-submit-gpu.sh')
+  inputs.property('tornadoHome', tornadoHome)
+  outputs.dir sparkGpuDir
+  doLast {
+    def out = sparkGpuDir.get().asFile
+    project.delete(out)
+    def bundled = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.findAll { artifact ->
+      def group = artifact.moduleVersion.id.group
+      !sparkProvided.any { group == it || group.startsWith(it + '.') }
+    }*.file
+    project.copy {
+      from tasks.jar.archiveFile
+      from bundled
+      into new File(out, 'jars')
+    }
+    project.copy {
+      from tornadoModules
+      into new File(out, 'tornado-modules')
+    }
+    new File(out, 'tornado-argfile').text = tornadoArgfile.get().asFile.text
+        .replace(tornadoModules.get().asFile.path, new File(out, 'tornado-modules').path)
+    def bin = new File(out, 'bin')
+    bin.mkdirs()
+    def script = new File(bin, 'spark-submit-gpu')
+    script.text = file('spark-submit-gpu.sh').text
+    script.setExecutable(true)
+  }
+}

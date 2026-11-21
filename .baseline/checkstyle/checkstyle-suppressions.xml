@@ -53,6 +53,9 @@
     <suppress files="org.apache.iceberg.flink.maintenance.api.ZkLockFactory" id="BanShadedClasses"/>
     <suppress files="org.apache.iceberg.flink.maintenance.api.TestZkLockFactory" id="BanShadedClasses"/>
 
+    <!-- TornadoVM bench mains print their results as CSV on stdout, which scripts parse -->
+    <suppress files=".*[/\\]tornadovm[/\\]src[/\\]main[/\\]java[/\\]org[/\\]apache[/\\]iceberg[/\\]tornadovm[/\\]bench[/\\].*" id="BanSystemOut" />
+
     <!-- Suppress TestClassNamingConvention for main source files -->
     <suppress files=".*[/\\]src[/\\]main[/\\].*" id="TestClassNamingConvention" />
 </suppressions>
