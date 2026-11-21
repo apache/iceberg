@@ -182,4 +182,102 @@ public class TestResolvingIO {
         .isEqualTo(storageCredentials)
         .isEqualTo(resolvingFileIO.credentials());
   }
+
+  @Test
+  void delegateKeepsItsRefreshedCredentials() {
+    List<StorageCredential> initial =
+        ImmutableList.of(StorageCredential.create("prefix", Map.of("key", "initial")));
+    List<StorageCredential> refreshed =
+        ImmutableList.of(StorageCredential.create("prefix", Map.of("key", "refreshed")));
+    ResolvingFileIO resolvingFileIO = resolvingFileIOWithCredentialsDelegate();
+    resolvingFileIO.setCredentials(initial);
+
+    CredentialsDelegateFileIO delegate =
+        (CredentialsDelegateFileIO) resolvingFileIO.io("delegate://file");
+    assertThat(delegate.credentials()).isEqualTo(initial);
+
+    // the delegate refreshes its credentials without going through ResolvingFileIO
+    delegate.refreshCredentials(refreshed);
+    resolvingFileIO.newInputFile("delegate://file");
+
+    assertThat(resolvingFileIO.io("delegate://file")).isSameAs(delegate);
+    assertThat(delegate.credentials()).isEqualTo(refreshed);
+  }
+
+  @Test
+  void setCredentialsUpdatesExistingDelegates() {
+    List<StorageCredential> initial =
+        ImmutableList.of(StorageCredential.create("prefix", Map.of("key", "initial")));
+    List<StorageCredential> updated =
+        ImmutableList.of(StorageCredential.create("prefix", Map.of("key", "updated")));
+    ResolvingFileIO resolvingFileIO = resolvingFileIOWithCredentialsDelegate();
+    resolvingFileIO.setCredentials(initial);
+    CredentialsDelegateFileIO delegate =
+        (CredentialsDelegateFileIO) resolvingFileIO.io("delegate://file");
+
+    resolvingFileIO.setCredentials(updated);
+
+    assertThat(delegate.credentials()).isEqualTo(updated);
+    assertThat(resolvingFileIO.credentials()).isEqualTo(updated);
+  }
+
+  private static ResolvingFileIO resolvingFileIOWithCredentialsDelegate() {
+    ResolvingFileIO resolvingFileIO = spy(new ResolvingFileIO());
+    resolvingFileIO.setConf(new Configuration());
+    resolvingFileIO.initialize(ImmutableMap.of());
+    doReturn(CredentialsDelegateFileIO.class.getName())
+        .when(resolvingFileIO)
+        .implFromLocation(any());
+    return resolvingFileIO;
+  }
+
+  /**
+   * A delegate FileIO that stores the storage credentials it receives.
+   *
+   * <p>{@link CatalogUtil#loadFileIO} loads it by class name, so it must be public.
+   */
+  public static class CredentialsDelegateFileIO
+      implements DelegateFileIO, SupportsStorageCredentials {
+    private List<StorageCredential> storageCredentials = ImmutableList.of();
+
+    public CredentialsDelegateFileIO() {}
+
+    void refreshCredentials(List<StorageCredential> credentials) {
+      this.storageCredentials = credentials;
+    }
+
+    @Override
+    public void setCredentials(List<StorageCredential> credentials) {
+      this.storageCredentials = credentials;
+    }
+
+    @Override
+    public List<StorageCredential> credentials() {
+      return storageCredentials;
+    }
+
+    @Override
+    public InputFile newInputFile(String path) {
+      return null;
+    }
+
+    @Override
+    public OutputFile newOutputFile(String path) {
+      return null;
+    }
+
+    @Override
+    public void deleteFile(String path) {}
+
+    @Override
+    public Iterable<FileInfo> listPrefix(String prefix) {
+      return ImmutableList.of();
+    }
+
+    @Override
+    public void deletePrefix(String prefix) {}
+
+    @Override
+    public void deleteFiles(Iterable<String> pathsToDelete) {}
+  }
 }
