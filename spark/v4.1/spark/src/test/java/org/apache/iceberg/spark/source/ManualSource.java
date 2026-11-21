@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.spark.sql.connector.catalog.CatalogV2Util;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableProvider;
 import org.apache.spark.sql.connector.expressions.Transform;
@@ -50,7 +51,7 @@ public class ManualSource implements TableProvider, DataSourceRegister {
 
   @Override
   public StructType inferSchema(CaseInsensitiveStringMap options) {
-    return getTable(null, null, options).schema();
+    return CatalogV2Util.v2ColumnsToStructType(getTable(null, null, options).columns());
   }
 
   @Override

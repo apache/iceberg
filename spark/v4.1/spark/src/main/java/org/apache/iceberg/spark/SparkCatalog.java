@@ -85,7 +85,6 @@ import org.apache.spark.sql.connector.catalog.TableSummary;
 import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.catalog.ViewChange;
 import org.apache.spark.sql.connector.catalog.ViewInfo;
-import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
@@ -190,17 +189,6 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  /**
-   * @deprecated since 1.12.0, use {@link #createTable(Identifier, TableInfo)} instead.
-   */
-  @Deprecated
-  @Override
-  public Table createTable(
-      Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
-      throws TableAlreadyExistsException {
-    return createTable(ident, Spark3Util.tableInfo(schema, transforms, properties));
-  }
-
   @Override
   public Table createTable(Identifier ident, TableInfo tableInfo)
       throws TableAlreadyExistsException {
@@ -217,17 +205,6 @@ public class SparkCatalog extends BaseCatalog {
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
     }
-  }
-
-  /**
-   * @deprecated since 1.12.0, use {@link #stageCreate(Identifier, TableInfo)} instead.
-   */
-  @Deprecated
-  @Override
-  public StagedTable stageCreate(
-      Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
-      throws TableAlreadyExistsException {
-    return stageCreate(ident, Spark3Util.tableInfo(schema, transforms, properties));
   }
 
   @Override
@@ -248,17 +225,6 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  /**
-   * @deprecated since 1.12.0, use {@link #stageReplace(Identifier, TableInfo)} instead.
-   */
-  @Deprecated
-  @Override
-  public StagedTable stageReplace(
-      Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
-      throws NoSuchTableException {
-    return stageReplace(ident, Spark3Util.tableInfo(schema, transforms, properties));
-  }
-
   @Override
   public StagedTable stageReplace(Identifier ident, TableInfo tableInfo)
       throws NoSuchTableException {
@@ -275,16 +241,6 @@ public class SparkCatalog extends BaseCatalog {
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
     }
-  }
-
-  /**
-   * @deprecated since 1.12.0, use {@link #stageCreateOrReplace(Identifier, TableInfo)} instead.
-   */
-  @Deprecated
-  @Override
-  public StagedTable stageCreateOrReplace(
-      Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties) {
-    return stageCreateOrReplace(ident, Spark3Util.tableInfo(schema, transforms, properties));
   }
 
   @Override
