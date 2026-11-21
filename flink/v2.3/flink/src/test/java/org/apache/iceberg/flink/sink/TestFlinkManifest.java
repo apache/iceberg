@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -36,8 +37,10 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -45,6 +48,7 @@ import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Pair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -147,7 +151,7 @@ public class TestFlinkManifest {
             TableUtil.formatVersion(table));
 
     assertThat(deltaManifests.dataManifest()).isNotNull();
-    assertThat(deltaManifests.deleteManifest()).isNull();
+    assertThat(deltaManifests.deleteManifests()).isEmpty();
     assertThat(Paths.get(deltaManifests.dataManifest().path()))
         .hasParent(userProvidedFolder.toPath());
 
@@ -161,6 +165,82 @@ public class TestFlinkManifest {
     for (int i = 0; i < dataFiles.size(); i++) {
       TestHelpers.assertEquals(dataFiles.get(i), result.dataFiles()[i]);
     }
+  }
+
+  @Test
+  public void writesDeleteFilesToAManifestOfTheirOwnSpec() throws IOException {
+    PartitionSpec unpartitioned = table.spec();
+    table.updateSpec().addField("data").commit();
+    PartitionSpec partitioned = table.spec();
+    ManifestOutputFileFactory factory =
+        FlinkManifestUtil.createOutputFileFactory(
+            () -> table, table.properties(), newFlinkJobId(), newOperatorUniqueId(), 1, 1);
+
+    DeleteFile oldSpecDelete = metadataOnlyDelete(unpartitioned, null, "old-spec");
+    DeleteFile newSpecDelete = metadataOnlyDelete(partitioned, "data=a", "new-spec");
+    DeleteFile replaced = metadataOnlyDelete(unpartitioned, null, "replaced");
+    DeltaManifests deltaManifests =
+        FlinkManifestUtil.writeCompletedFiles(
+            WriteResult.builder()
+                .addDeleteFiles(oldSpecDelete, newSpecDelete)
+                .addRewrittenDeleteFiles(replaced)
+                .build(),
+            () -> factory.create(1),
+            table.spec(),
+            table.specs(),
+            TableUtil.formatVersion(table),
+            42L);
+
+    assertThat(deltaManifests.deleteManifests())
+        .extracting(ManifestFile::partitionSpecId)
+        .containsExactlyInAnyOrder(unpartitioned.specId(), partitioned.specId());
+    assertThat(deltaManifests.rewrittenDeleteManifests())
+        .extracting(ManifestFile::partitionSpecId)
+        .containsExactly(unpartitioned.specId());
+
+    assertThatThrownBy(() -> DeltaManifestsSerializer.INSTANCE.serialize(deltaManifests))
+        .as("The default serializer keeps writing a version earlier releases can read")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("DV-only");
+
+    byte[] serialized =
+        SimpleVersionedSerialization.writeVersionAndSerialize(
+            DeltaManifestsSerializer.DV_ONLY, deltaManifests);
+    DeltaManifests restored =
+        SimpleVersionedSerialization.readVersionAndDeSerialize(
+            DeltaManifestsSerializer.INSTANCE, serialized);
+    assertThat(restored.baselineSnapshotId()).isEqualTo(42L);
+    assertThat(restored.manifests()).hasSameSizeAs(deltaManifests.manifests());
+
+    WriteResult result = FlinkManifestUtil.readCompletedFiles(restored, table.io(), table.specs());
+    Map<String, Integer> specByLocation = Maps.newHashMap();
+    for (DeleteFile deleteFile : result.deleteFiles()) {
+      specByLocation.put(deleteFile.location(), deleteFile.specId());
+    }
+
+    assertThat(specByLocation)
+        .containsEntry(oldSpecDelete.location(), unpartitioned.specId())
+        .containsEntry(newSpecDelete.location(), partitioned.specId())
+        .hasSize(2);
+    assertThat(result.rewrittenDeleteFiles())
+        .singleElement()
+        .extracting(DeleteFile::location)
+        .isEqualTo(replaced.location());
+  }
+
+  private DeleteFile metadataOnlyDelete(PartitionSpec spec, String partitionPath, String name) {
+    FileMetadata.Builder builder =
+        FileMetadata.deleteFileBuilder(spec)
+            .ofPositionDeletes()
+            .withPath(table.location() + "/data/" + name + ".parquet")
+            .withFormat(FileFormat.PARQUET)
+            .withFileSizeInBytes(10)
+            .withRecordCount(1);
+    if (partitionPath != null) {
+      builder.withPartitionPath(partitionPath);
+    }
+
+    return builder.build();
   }
 
   @Test
@@ -193,12 +273,43 @@ public class TestFlinkManifest {
         SimpleVersionedSerialization.readVersionAndDeSerialize(
             DeltaManifestsSerializer.INSTANCE, versionedSerializeData);
     TestHelpers.assertEquals(expected.dataManifest(), actual.dataManifest());
-    TestHelpers.assertEquals(expected.deleteManifest(), actual.deleteManifest());
+    assertThat(actual.deleteManifests()).hasSameSizeAs(expected.deleteManifests());
+    for (int i = 0; i < expected.deleteManifests().size(); i++) {
+      TestHelpers.assertEquals(expected.deleteManifests().get(i), actual.deleteManifests().get(i));
+    }
 
     byte[] versionedSerializeData2 =
         SimpleVersionedSerialization.writeVersionAndSerialize(
             DeltaManifestsSerializer.INSTANCE, actual);
     assertThat(versionedSerializeData2).containsExactly(versionedSerializeData);
+  }
+
+  @Test
+  public void theDefaultWritePathKeepsWritingVersion2() throws IOException {
+    ManifestOutputFileFactory factory =
+        FlinkManifestUtil.createOutputFileFactory(
+            () -> table, table.properties(), newFlinkJobId(), newOperatorUniqueId(), 1, 1);
+    DeltaManifests deltaManifests =
+        FlinkManifestUtil.writeCompletedFiles(
+            WriteResult.builder()
+                .addDataFiles(generateDataFiles(2))
+                .addDeleteFiles(generateEqDeleteFiles(2))
+                .build(),
+            () -> factory.create(1),
+            table.spec(),
+            TableUtil.formatVersion(table));
+
+    assertThat(DeltaManifestsSerializer.INSTANCE.getVersion()).isEqualTo(2);
+    byte[] serialized =
+        SimpleVersionedSerialization.writeVersionAndSerialize(
+            DeltaManifestsSerializer.INSTANCE, deltaManifests);
+    DeltaManifests restored =
+        SimpleVersionedSerialization.readVersionAndDeSerialize(
+            DeltaManifestsSerializer.INSTANCE, serialized);
+    TestHelpers.assertEquals(deltaManifests.dataManifest(), restored.dataManifest());
+    assertThat(restored.deleteManifests()).hasSize(1);
+    TestHelpers.assertEquals(
+        deltaManifests.deleteManifests().get(0), restored.deleteManifests().get(0));
   }
 
   @Test
@@ -221,7 +332,7 @@ public class TestFlinkManifest {
     DeltaManifests delta =
         SimpleVersionedSerialization.readVersionAndDeSerialize(
             DeltaManifestsSerializer.INSTANCE, dataV1);
-    assertThat(delta.deleteManifest()).isNull();
+    assertThat(delta.deleteManifests()).isEmpty();
     assertThat(delta.dataManifest()).isNotNull();
     TestHelpers.assertEquals(manifest, delta.dataManifest());
 
