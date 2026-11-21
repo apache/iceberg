@@ -1536,10 +1536,12 @@ class DataFile(ContentFile):
     column_sizes: CountMap | None = Field(
         None,
         alias='column-sizes',
-        description='Map of column id to total count, including null and NaN',
+        description='Map of column id to total size on disk in bytes of all regions that store the column',
     )
     value_counts: CountMap | None = Field(
-        None, alias='value-counts', description='Map of column id to null value count'
+        None,
+        alias='value-counts',
+        description='Map of column id to number of values in the column (including null and NaN values)',
     )
     null_value_counts: CountMap | None = Field(
         None,
