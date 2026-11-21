@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.io.Serializable;
+import java.util.List;
 import org.apache.flink.annotation.Internal;
 
 /**
@@ -38,6 +39,10 @@ import org.apache.flink.annotation.Internal;
  * was removed by CoW). Has no {@link #key} or row position. Carries the new {@link
  * #indexGeneration} as the staleness threshold.
  *
+ * <p>{@link Type#EVICT_PARTITIONS} is emitted on the broadcast side when the planner drops idle
+ * {@link #partitions} from a partition-scoped index. The worker removes the rows of those
+ * partitions from every key. Has no {@link #key} or row position.
+ *
  * <p>{@link #rowPosition} is the data row's location, set for the add and remove types and null
  * otherwise; the data sequence number it carries lets the worker apply a delete only to older rows.
  * {@code deleteSequenceNumber} is the equality delete's sequence number, set for {@link
@@ -54,7 +59,8 @@ public record IndexCommand(
     SerializedEqualityValues key,
     DVPosition rowPosition,
     long deleteSequenceNumber,
-    int deleteSpecId)
+    int deleteSpecId,
+    List<IndexPartition> partitions)
     implements Serializable {
 
   /** Spec id sentinel for an unpartitioned equality delete, which applies as a global delete. */
@@ -65,7 +71,8 @@ public record IndexCommand(
     ADD_STAGING_DATA_ROW,
     REMOVE_DATA_ROW,
     RESOLVE_DELETE,
-    CLEAR_INDEX
+    CLEAR_INDEX,
+    EVICT_PARTITIONS
   }
 
   public static IndexCommand addDataRow(
@@ -85,7 +92,8 @@ public record IndexCommand(
         key,
         new DVPosition(filePath, position, specId, partition, dataSequenceNumber),
         -1,
-        -1);
+        -1,
+        null);
   }
 
   public static IndexCommand removeDataRow(
@@ -104,7 +112,8 @@ public record IndexCommand(
         key,
         new DVPosition(filePath, position, specId, partition, dataSequenceNumber),
         -1,
-        -1);
+        -1,
+        null);
   }
 
   public static IndexCommand resolveDelete(
@@ -120,10 +129,18 @@ public record IndexCommand(
         key,
         null,
         deleteSequenceNumber,
-        deleteSpecId);
+        deleteSpecId,
+        null);
   }
 
   public static IndexCommand clearBeforeReindex(long mainSnapshotId, long indexGeneration) {
-    return new IndexCommand(Type.CLEAR_INDEX, mainSnapshotId, indexGeneration, null, null, -1, -1);
+    return new IndexCommand(
+        Type.CLEAR_INDEX, mainSnapshotId, indexGeneration, null, null, -1, -1, null);
+  }
+
+  public static IndexCommand evictPartitions(
+      Long mainSnapshotId, long indexGeneration, List<IndexPartition> partitions) {
+    return new IndexCommand(
+        Type.EVICT_PARTITIONS, mainSnapshotId, indexGeneration, null, null, -1, -1, partitions);
   }
 }

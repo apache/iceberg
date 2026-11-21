@@ -213,16 +213,12 @@ class TestEqualityConvertPKIndex {
   }
 
   private static IndexCommand addRow(String filePath, long position, int specId) {
+    return addRow(filePath, position, specId, EMPTY_PARTITION);
+  }
+
+  private static IndexCommand addRow(String filePath, long position, int specId, byte[] partition) {
     return IndexCommand.addDataRow(
-        MAIN_SNAPSHOT,
-        MAIN_SEQ,
-        KEY_1,
-        filePath,
-        position,
-        specId,
-        EMPTY_PARTITION,
-        DATA_SEQ,
-        false);
+        MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, filePath, position, specId, partition, DATA_SEQ, false);
   }
 
   @Test
@@ -473,6 +469,59 @@ class TestEqualityConvertPKIndex {
       harness.watermark(2);
 
       assertThat(harness.extractOutputValues()).isEmpty();
+    }
+  }
+
+  @Test
+  void evictPartitionsRemovesOnlyRowsOfEvictedPartitions() throws Exception {
+    byte[] evictedPartition = {1};
+    byte[] keptPartition = {2};
+    try (KeyedBroadcastOperatorTestHarness<
+            SerializedEqualityValues, IndexCommand, IndexCommand, DVPosition>
+        harness = createHarness()) {
+      harness.open();
+
+      harness.processElement(
+          new StreamRecord<>(addRow("evicted.parquet", 0, 0, evictedPartition), 0));
+      harness.processElement(new StreamRecord<>(addRow("kept.parquet", 0, 0, keptPartition), 0));
+
+      harness.processBroadcastElement(
+          new StreamRecord<>(
+              IndexCommand.evictPartitions(
+                  MAIN_SNAPSHOT,
+                  MAIN_SEQ,
+                  List.of(new IndexPartition(0, evictedPartition.clone()))),
+              1));
+
+      harness.processElement(
+          new StreamRecord<>(
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 2));
+      harness.watermark(2);
+
+      assertThat(harness.extractOutputValues())
+          .extracting(DVPosition::dataFilePath)
+          .containsExactly("kept.parquet");
+    }
+  }
+
+  @Test
+  void evictPartitionsKeepsNoStateForEmptiedKey() throws Exception {
+    byte[] evictedPartition = {1};
+    try (KeyedBroadcastOperatorTestHarness<
+            SerializedEqualityValues, IndexCommand, IndexCommand, DVPosition>
+        harness = createHarness()) {
+      harness.open();
+
+      harness.processElement(
+          new StreamRecord<>(addRow("evicted.parquet", 0, 0, evictedPartition), 0));
+
+      harness.processBroadcastElement(
+          new StreamRecord<>(
+              IndexCommand.evictPartitions(
+                  MAIN_SNAPSHOT, MAIN_SEQ, List.of(new IndexPartition(0, evictedPartition))),
+              1));
+
+      assertThat(keyedStateEntries(harness)).isZero();
     }
   }
 
