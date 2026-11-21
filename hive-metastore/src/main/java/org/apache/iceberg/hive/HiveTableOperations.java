@@ -343,7 +343,23 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
                 + "iceberg.hive.lock-heartbeat-interval-ms.",
             le);
       } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
-        throw new AlreadyExistsException(e, "Table already exists: %s.%s", database, tableName);
+        // The HMS client can incorrectly retry a successful create_table and trigger this
+        // exception, so double-check whether the existing table is the one this commit created
+        commitStatus = BaseMetastoreOperations.CommitStatus.UNKNOWN;
+        commitStatus =
+            checkCommitStatusStrict(
+                tableName(),
+                newMetadataLocation,
+                metadata.properties(),
+                () -> checkCurrentTable(metadata.uuid(), newMetadataLocation));
+        switch (commitStatus) {
+          case SUCCESS:
+            break;
+          case FAILURE:
+            throw new AlreadyExistsException(e, "Table already exists: %s.%s", database, tableName);
+          case UNKNOWN:
+            throw new CommitStateUnknownException(e);
+        }
 
       } catch (InvalidObjectException e) {
         throw new ValidationException(e, "Invalid Hive object for %s.%s", database, tableName);
@@ -412,6 +428,27 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
     LOG.info(
         "Committed to table {} with the new metadata location {}", fullName, newMetadataLocation);
+  }
+
+  private boolean checkCurrentTable(String uuid, String newMetadataLocation) {
+    try {
+      TableMetadata refreshed = refresh();
+      if (refreshed == null) {
+        return false;
+      }
+
+      if (uuid != null) {
+        return uuid.equals(refreshed.uuid());
+      }
+
+      // Format v1 metadata may have no UUID
+      return refreshed.metadataFileLocation().equals(newMetadataLocation)
+          || refreshed.previousFiles().stream()
+              .anyMatch(log -> log.file().equals(newMetadataLocation));
+    } catch (NoSuchTableException e) {
+      // A view or a table that is not an Iceberg table holds the name
+      return false;
+    }
   }
 
   @Override
