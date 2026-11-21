@@ -420,6 +420,9 @@ public class S3FileIO
                         ImmutableMap.<String, String>builder()
                             .putAll(properties)
                             .putAll(storageCredential.config())
+                            .put(
+                                VendedCredentialsProvider.STORAGE_PREFIX,
+                                storageCredential.prefix())
                             .buildKeepingLast();
 
                     localClientByPrefix.put(
