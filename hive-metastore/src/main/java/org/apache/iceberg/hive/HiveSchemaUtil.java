@@ -168,7 +168,7 @@ public final class HiveSchemaUtil {
       case BINARY:
         return "binary";
       case VARIANT:
-        return "unknown";
+        return "binary";
       case DECIMAL:
         final Types.DecimalType decimalType = (Types.DecimalType) type;
         return String.format("decimal(%s,%s)", decimalType.precision(), decimalType.scale());
