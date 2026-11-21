@@ -37,6 +37,14 @@ public interface Unbound<T, B> {
    */
   B bind(Types.StructType struct, boolean caseSensitive);
 
-  /** Returns this expression's underlying reference. */
-  NamedReference<?> ref();
+  /**
+   * Returns this expression's underlying reference.
+   *
+   * @return the underlying reference
+   * @throws UnsupportedOperationException if this expression does not have a reference
+   */
+  default NamedReference<?> ref() {
+    throw new UnsupportedOperationException(
+        getClass().getSimpleName() + " does not have a reference");
+  }
 }

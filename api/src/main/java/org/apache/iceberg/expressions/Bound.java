@@ -26,8 +26,16 @@ import org.apache.iceberg.StructLike;
  * @param <T> the Java type of values produced by this expression
  */
 public interface Bound<T> {
-  /** Returns the underlying reference. */
-  BoundReference<?> ref();
+  /**
+   * Returns the underlying reference.
+   *
+   * @return the underlying reference
+   * @throws UnsupportedOperationException if this expression does not have a reference
+   */
+  default BoundReference<?> ref() {
+    throw new UnsupportedOperationException(
+        getClass().getSimpleName() + " does not have a reference");
+  }
 
   /**
    * Produce a value from the struct for this expression.

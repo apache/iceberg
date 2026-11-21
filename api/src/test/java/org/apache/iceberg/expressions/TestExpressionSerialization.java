@@ -23,9 +23,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Collection;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.TestHelpers.RoundTripSerializer;
+import org.apache.iceberg.catalog.CatalogObjectIdentifier;
 import org.apache.iceberg.expressions.Expression.Operation;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestExpressionSerialization {
   @Test
@@ -70,6 +75,48 @@ public class TestExpressionSerialization {
           .as("Expression should equal the deserialized copy: " + expression + " != " + copy)
           .isTrue();
     }
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  void unboundApplySerialization(RoundTripSerializer<UnboundApply<Integer>> serializer)
+      throws Exception {
+    UnboundApply<Integer> apply = bucketApply();
+
+    UnboundApply<Integer> copy = serializer.apply(apply);
+
+    assertThat(copy.function().catalog()).isEqualTo(apply.function().catalog());
+    assertThat(copy.function().identifier()).isEqualTo(apply.function().identifier());
+    assertThat(copy.arguments()).hasToString(apply.arguments().toString());
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  void boundApplySerialization(RoundTripSerializer<BoundApply<Integer>> serializer)
+      throws Exception {
+    Types.StructType struct =
+        Types.StructType.of(Types.NestedField.required(1, "id", Types.LongType.get()));
+    BoundApply<Integer> bound =
+        bucketApply()
+            .bind(
+                struct,
+                true,
+                (function, args) ->
+                    new BoundFunctionReference<>(
+                        function.catalog(), function.identifier(), Types.IntegerType.get()));
+
+    BoundApply<Integer> copy = serializer.apply(bound);
+
+    assertThat(copy.function().catalog()).isEqualTo(bound.function().catalog());
+    assertThat(copy.function().identifier()).isEqualTo(bound.function().identifier());
+    assertThat(copy.type()).isEqualTo(bound.type());
+    assertThat(copy.arguments()).hasToString(bound.arguments().toString());
+  }
+
+  private static UnboundApply<Integer> bucketApply() {
+    return new UnboundApply<>(
+        new FunctionReference("iceberg_functions", CatalogObjectIdentifier.of("bucket")),
+        Lists.newArrayList(Literal.of(16), Expressions.ref("id")));
   }
 
   // You may be wondering why this isn't implemented as Expression.equals. The reason is that

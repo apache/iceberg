@@ -39,6 +39,8 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
   }
 
   private final Literal<T> literal;
+  private final BoundExpression<T> left;
+  private final BoundExpression<T> right;
 
   BoundLiteralPredicate(Operation op, BoundTerm<T> term, Literal<T> lit) {
     super(op, term);
@@ -47,15 +49,42 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
         "Bound literal predicate does not support operation: %s",
         op);
     this.literal = lit;
+    this.left = term;
+    this.right = lit;
+  }
+
+  BoundLiteralPredicate(Operation op, BoundExpression<T> left, BoundExpression<T> right) {
+    super(op);
+    Preconditions.checkArgument(
+        op != Operation.IN && op != Operation.NOT_IN,
+        "Bound literal predicate does not support operation: %s",
+        op);
+    Preconditions.checkNotNull(left, "Left expression cannot be null");
+    Preconditions.checkNotNull(right, "Right expression cannot be null");
+    this.literal = null;
+    this.left = left;
+    this.right = right;
   }
 
   @Override
   public Expression negate() {
+    if (term() == null) {
+      return super.negate();
+    }
+
     return new BoundLiteralPredicate<>(op().negate(), term(), literal);
   }
 
   public Literal<T> literal() {
     return literal;
+  }
+
+  public BoundExpression<T> left() {
+    return left;
+  }
+
+  public BoundExpression<T> right() {
+    return right;
   }
 
   @Override
@@ -98,7 +127,7 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
   public boolean isEquivalentTo(Expression expr) {
     if (op() == expr.op()) {
       BoundLiteralPredicate<?> other = (BoundLiteralPredicate<?>) expr;
-      if (term().isEquivalentTo(other.term())) {
+      if (termsEquivalent(term(), other.term())) {
         // because the term is equivalent, the literal must have the same type, T
         Literal<T> otherLiteral = (Literal<T>) other.literal();
         Comparator<T> cmp = literal.comparator();
@@ -107,7 +136,8 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
 
     } else if (expr instanceof BoundLiteralPredicate) {
       BoundLiteralPredicate<?> other = (BoundLiteralPredicate<?>) expr;
-      if (INTEGRAL_TYPES.contains(term().type().typeId()) && term().isEquivalentTo(other.term())) {
+      if (termsEquivalent(term(), other.term())
+          && INTEGRAL_TYPES.contains(term().type().typeId())) {
         switch (op()) {
           case LT:
             if (other.op() == Operation.LT_EQ) {
@@ -144,25 +174,25 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
   public String toString() {
     switch (op()) {
       case LT:
-        return term() + " < " + literal;
+        return left + " < " + right;
       case LT_EQ:
-        return term() + " <= " + literal;
+        return left + " <= " + right;
       case GT:
-        return term() + " > " + literal;
+        return left + " > " + right;
       case GT_EQ:
-        return term() + " >= " + literal;
+        return left + " >= " + right;
       case EQ:
-        return term() + " == " + literal;
+        return left + " == " + right;
       case NOT_EQ:
-        return term() + " != " + literal;
+        return left + " != " + right;
       case STARTS_WITH:
-        return term() + " startsWith \"" + literal + "\"";
+        return left + " startsWith \"" + right + "\"";
       case NOT_STARTS_WITH:
-        return term() + " notStartsWith \"" + literal + "\"";
+        return left + " notStartsWith \"" + right + "\"";
       case IN:
-        return term() + " in { " + literal + " }";
+        return left + " in { " + right + " }";
       case NOT_IN:
-        return term() + " not in { " + literal + " }";
+        return left + " not in { " + right + " }";
       default:
         return "Invalid literal predicate: operation = " + op();
     }

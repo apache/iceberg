@@ -27,8 +27,9 @@ import org.apache.iceberg.types.Type;
  *
  * @param <T> the Java type of values produced by this term
  */
-public interface BoundTerm<T> extends Bound<T>, Term {
+public interface BoundTerm<T> extends Bound<T>, Term, BoundValueExpression<T> {
   /** Returns the type produced by this expression. */
+  @Override
   Type type();
 
   /** Returns whether values produced by this expression may be null. */

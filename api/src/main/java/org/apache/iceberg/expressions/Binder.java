@@ -48,6 +48,8 @@ public class Binder {
    * <p>The expression cannot contain references that are already bound, or an {@link
    * IllegalStateException} will be thrown.
    *
+   * <p>A value expression is bound as by {@link #bind(StructType, ValueExpression, boolean)}.
+   *
    * @param struct The {@link StructType struct type} to resolve references by name.
    * @param expr An {@link Expression expression} to rewrite with bound references.
    * @param caseSensitive A boolean flag to control whether the bind should enforce case
@@ -55,9 +57,92 @@ public class Binder {
    * @return the expression rewritten with bound references
    * @throws ValidationException if literals do not match bound references
    * @throws IllegalStateException if any references are already bound
+   * @throws UnsupportedOperationException if the expression calls a function outside {@code
+   *     iceberg_functions}; use {@link #bind(StructType, Expression, boolean, FunctionBinder)} to
+   *     resolve other functions
    */
   public static Expression bind(StructType struct, Expression expr, boolean caseSensitive) {
-    return ExpressionVisitors.visit(expr, new BindVisitor(struct, caseSensitive));
+    return bind(struct, expr, caseSensitive, IcebergFunctions.INSTANCE);
+  }
+
+  /**
+   * Replaces all unbound references with bound references to fields in the given struct, using a
+   * function binder to resolve function calls.
+   *
+   * <p>Behaves like {@link #bind(StructType, Expression, boolean)} for everything other than
+   * function calls.
+   *
+   * @param struct The {@link StructType struct type} to resolve references by name.
+   * @param expr An {@link Expression expression} to rewrite with bound references.
+   * @param caseSensitive A boolean flag to control whether the bind should enforce case
+   *     sensitivity.
+   * @param functionBinder a {@link FunctionBinder} used to resolve functions
+   * @return the expression rewritten with bound references
+   * @throws ValidationException if literals do not match bound references
+   * @throws IllegalStateException if any references are already bound
+   */
+  public static Expression bind(
+      StructType struct, Expression expr, boolean caseSensitive, FunctionBinder functionBinder) {
+    Preconditions.checkNotNull(functionBinder, "Function binder cannot be null");
+    if (expr instanceof ValueExpression<?> value) {
+      return bind(struct, value, caseSensitive, functionBinder);
+    }
+
+    return ExpressionVisitors.visit(expr, new BindVisitor(struct, caseSensitive, functionBinder));
+  }
+
+  /**
+   * Binds a value expression to fields in the given struct, resolving functions only in the
+   * reserved {@code iceberg_functions} catalog.
+   *
+   * <p>A value expression that is already bound is returned as it is.
+   *
+   * @param struct The {@link StructType struct type} to resolve references by name or ID.
+   * @param expr a value expression
+   * @param caseSensitive whether references by name are resolved using case-sensitive matching
+   * @param <T> the Java type produced by the value expression
+   * @return the bound value expression
+   * @throws ValidationException if a reference cannot be resolved or arguments are not valid
+   * @throws UnsupportedOperationException if the expression calls a function outside {@code
+   *     iceberg_functions}; use {@link #bind(StructType, ValueExpression, boolean, FunctionBinder)}
+   *     to resolve other functions
+   */
+  public static <T> BoundValueExpression<T> bind(
+      StructType struct, ValueExpression<T> expr, boolean caseSensitive) {
+    return bind(struct, expr, caseSensitive, IcebergFunctions.INSTANCE);
+  }
+
+  /**
+   * Binds a value expression to fields in the given struct, using a function binder to resolve
+   * function calls.
+   *
+   * <p>A value expression that is already bound is returned as it is.
+   *
+   * @param struct The {@link StructType struct type} to resolve references by name or ID.
+   * @param expr a value expression
+   * @param caseSensitive whether references by name are resolved using case-sensitive matching
+   * @param functionBinder a {@link FunctionBinder} used to resolve functions
+   * @param <T> the Java type produced by the value expression
+   * @return the bound value expression
+   * @throws ValidationException if a reference cannot be resolved or arguments are not valid
+   */
+  public static <T> BoundValueExpression<T> bind(
+      StructType struct,
+      ValueExpression<T> expr,
+      boolean caseSensitive,
+      FunctionBinder functionBinder) {
+    Preconditions.checkNotNull(functionBinder, "Function binder cannot be null");
+    if (expr instanceof BoundValueExpression<T> bound) {
+      return bound;
+    } else if (expr instanceof UnboundTerm<T> term) {
+      return term.bind(struct, caseSensitive);
+    } else if (expr instanceof IdReference<T> reference) {
+      return reference.bind(struct, caseSensitive);
+    } else if (expr instanceof UnboundApply<T> apply) {
+      return apply.bind(struct, caseSensitive, functionBinder);
+    }
+
+    throw new UnsupportedOperationException("Cannot bind value expression: " + expr);
   }
 
   /**
@@ -123,10 +208,12 @@ public class Binder {
   private static class BindVisitor extends ExpressionVisitor<Expression> {
     private final StructType struct;
     private final boolean caseSensitive;
+    private final FunctionBinder functionBinder;
 
-    private BindVisitor(StructType struct, boolean caseSensitive) {
+    private BindVisitor(StructType struct, boolean caseSensitive, FunctionBinder functionBinder) {
       this.struct = struct;
       this.caseSensitive = caseSensitive;
+      this.functionBinder = functionBinder;
     }
 
     @Override
@@ -161,7 +248,7 @@ public class Binder {
 
     @Override
     public <T> Expression predicate(UnboundPredicate<T> pred) {
-      return pred.bind(struct, caseSensitive);
+      return pred.bind(struct, caseSensitive, functionBinder);
     }
 
     @Override

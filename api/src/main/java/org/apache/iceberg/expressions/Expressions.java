@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.List;
 import java.util.stream.Stream;
+import org.apache.iceberg.catalog.CatalogObjectIdentifier;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -280,6 +282,91 @@ public class Expressions {
     return new UnboundPredicate<>(op, expr);
   }
 
+  /**
+   * Creates a predicate that tests a value expression, like {@code is_null(f(x))}.
+   *
+   * <p>A term, like a named reference or a transform, produces the same predicate as {@link
+   * #predicate(Operation, UnboundTerm)}.
+   *
+   * @param op a unary test: {@code IS_NULL}, {@code NOT_NULL}, {@code IS_NAN}, or {@code NOT_NAN}
+   * @param child the value expression to test
+   * @param <T> the Java type of the tested value
+   * @return an unbound predicate
+   * @throws IllegalArgumentException if the operation is not a unary test
+   */
+  public static <T> UnboundPredicate<T> predicate(Operation op, ValueExpression<T> child) {
+    Preconditions.checkArgument(
+        UnboundPredicate.isUnaryTest(op), "Invalid operation for unary test: %s", op);
+    if (child instanceof UnboundTerm<T> term) {
+      return new UnboundPredicate<>(op, term);
+    }
+
+    return new UnboundPredicate<>(op, child);
+  }
+
+  /**
+   * Creates a predicate that compares two value expressions, like {@code a < b}.
+   *
+   * <p>A term, like a named reference or a transform, compared with a literal produces the same
+   * predicate as the term and literal factories, such as {@link #lessThan(UnboundTerm, Object)}.
+   *
+   * @param op a comparison: {@code LT}, {@code LT_EQ}, {@code GT}, {@code GT_EQ}, {@code EQ},
+   *     {@code NOT_EQ}, {@code STARTS_WITH}, or {@code NOT_STARTS_WITH}
+   * @param left the left value expression
+   * @param right the right value expression
+   * @param <T> the Java type of the compared values
+   * @return an unbound predicate
+   * @throws IllegalArgumentException if the operation is not a comparison or a literal is NaN
+   */
+  public static <T> UnboundPredicate<T> predicate(
+      Operation op, ValueExpression<T> left, ValueExpression<T> right) {
+    Preconditions.checkArgument(
+        UnboundPredicate.isComparison(op), "Invalid operation for comparison: %s", op);
+    Preconditions.checkArgument(
+        !isNaNLiteral(left) && !isNaNLiteral(right),
+        "Invalid expression literal: NaN, use isNaN or notNaN instead");
+    if (left instanceof UnboundTerm<T> term && right instanceof Literal<T> lit) {
+      return new UnboundPredicate<>(op, term, lit);
+    }
+
+    return new UnboundPredicate<>(op, left, right);
+  }
+
+  /**
+   * Creates a predicate that tests whether a value expression is in a set of values, like {@code
+   * f(x) IN (1, 2, 3)}.
+   *
+   * <p>A term, like a named reference or a transform, produces the same predicate as {@link
+   * #predicate(Operation, UnboundTerm, Iterable)}.
+   *
+   * @param op a set test: {@code IN} or {@code NOT_IN}
+   * @param child the value expression to test
+   * @param values the set of values
+   * @param <T> the Java type of the tested value
+   * @return an unbound predicate
+   * @throws IllegalArgumentException if the operation is not a set test or a value is invalid
+   */
+  public static <T> UnboundPredicate<T> predicate(
+      Operation op, ValueExpression<T> child, Iterable<T> values) {
+    Preconditions.checkArgument(
+        UnboundPredicate.isSetTest(op), "Invalid operation for set test: %s", op);
+    Preconditions.checkArgument(values != null, "Invalid values: null");
+    if (child instanceof UnboundTerm<T> term) {
+      return new UnboundPredicate<>(op, term, values);
+    }
+
+    List<Literal<T>> literals = Lists.newArrayList();
+    for (T value : values) {
+      literals.add(Literals.from(value));
+    }
+
+    return new UnboundPredicate<>(op, child, literals);
+  }
+
+  private static boolean isNaNLiteral(ValueExpression<?> expr) {
+    return expr instanceof Literal<?> lit && NaNUtil.isNaN(lit.value());
+  }
+
   public static True alwaysTrue() {
     return True.INSTANCE;
   }
@@ -306,6 +393,17 @@ public class Expressions {
   }
 
   /**
+   * Constructs a reference to a field by field ID.
+   *
+   * @param fieldId a field ID
+   * @param <T> the Java type of this reference
+   * @return an ID reference
+   */
+  public static <T> IdReference<T> ref(int fieldId) {
+    return new IdReference<>(fieldId);
+  }
+
+  /**
    * Constructs a transform expression for a given column.
    *
    * @param name a column name
@@ -315,6 +413,42 @@ public class Expressions {
    */
   public static <T> UnboundTerm<T> transform(String name, Transform<?, T> transform) {
     return new UnboundTransform<>(ref(name), transform);
+  }
+
+  /**
+   * Creates a reference to a function in the catalog of the object that stores the expression.
+   *
+   * @param identifier zero or more namespace levels followed by the function name
+   * @return a function reference
+   * @throws IllegalArgumentException if the identifier is null or has no function name
+   */
+  public static FunctionReference function(CatalogObjectIdentifier identifier) {
+    return new FunctionReference(null, identifier);
+  }
+
+  /**
+   * Creates a reference to a function in a catalog.
+   *
+   * @param catalog a catalog name or a reserved name, like {@code iceberg_functions}; null refers
+   *     to the catalog of the object that stores the expression
+   * @param identifier zero or more namespace levels followed by the function name
+   * @return a function reference
+   * @throws IllegalArgumentException if the identifier is null or has no function name
+   */
+  public static FunctionReference function(String catalog, CatalogObjectIdentifier identifier) {
+    return new FunctionReference(catalog, identifier);
+  }
+
+  /**
+   * Constructs a function call.
+   *
+   * @param function a function reference
+   * @param arguments value expressions or predicates passed to the function
+   * @param <T> the Java type produced by the function
+   * @return an unbound function call
+   */
+  public static <T> UnboundApply<T> apply(FunctionReference function, Expression... arguments) {
+    return new UnboundApply<>(function, Lists.newArrayList(arguments));
   }
 
   /**
@@ -333,7 +467,7 @@ public class Expressions {
    * Create a {@link Literal} from a microsecond value.
    *
    * @param micros a timestamp in microseconds from the unix epoch
-   * @return a literal representing the timestamp
+   * @return a {@code timestamp} literal representing the timestamp
    */
   public static Literal<Long> micros(long micros) {
     return new Literals.TimestampLiteral(micros);
@@ -343,7 +477,7 @@ public class Expressions {
    * Create a {@link Literal} from a millisecond value.
    *
    * @param millis a timestamp in milliseconds from the unix epoch
-   * @return a literal representing the timestamp
+   * @return a {@code timestamp} literal representing the timestamp
    */
   public static Literal<Long> millis(long millis) {
     return new Literals.TimestampLiteral(millis * 1000);
@@ -353,7 +487,7 @@ public class Expressions {
    * Create a {@link Literal} from a nanosecond value.
    *
    * @param nanos a timestamp in nanoseconds from the unix epoch
-   * @return a literal representing the timestamp
+   * @return a {@code timestamp_ns} literal representing the timestamp
    */
   public static Literal<Long> nanos(long nanos) {
     return new Literals.TimestampNanoLiteral(nanos);

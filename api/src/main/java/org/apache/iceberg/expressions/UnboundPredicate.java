@@ -37,6 +37,8 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
   private static final Joiner COMMA = Joiner.on(", ");
 
   private final List<Literal<T>> literals;
+  private final ValueExpression<T> left;
+  private final ValueExpression<T> right;
 
   UnboundPredicate(Operation op, UnboundTerm<T> term, T value) {
     this(op, term, Literals.from(value));
@@ -45,30 +47,71 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
   UnboundPredicate(Operation op, UnboundTerm<T> term) {
     super(op, term);
     this.literals = null;
+    this.left = null;
+    this.right = null;
   }
 
   UnboundPredicate(Operation op, UnboundTerm<T> term, Literal<T> lit) {
     super(op, term);
     this.literals = Lists.newArrayList(lit);
+    this.left = null;
+    this.right = null;
   }
 
   UnboundPredicate(Operation op, UnboundTerm<T> term, Iterable<T> values) {
     super(op, term);
     this.literals = Lists.newArrayList(Iterables.transform(values, Literals::from));
+    this.left = null;
+    this.right = null;
   }
 
   private UnboundPredicate(Operation op, UnboundTerm<T> term, List<Literal<T>> literals) {
     super(op, term);
     this.literals = literals;
+    this.left = null;
+    this.right = null;
+  }
+
+  UnboundPredicate(Operation op, ValueExpression<T> child) {
+    super(op);
+    Preconditions.checkArgument(isUnaryTest(op), "Invalid operation for unary test: %s", op);
+    Preconditions.checkNotNull(child, "Child expression cannot be null");
+    this.literals = null;
+    this.left = child;
+    this.right = null;
+  }
+
+  UnboundPredicate(Operation op, ValueExpression<T> left, ValueExpression<T> right) {
+    super(op);
+    Preconditions.checkArgument(isComparison(op), "Invalid operation for comparison: %s", op);
+    Preconditions.checkNotNull(left, "Left expression cannot be null");
+    Preconditions.checkNotNull(right, "Right expression cannot be null");
+    this.literals = null;
+    this.left = left;
+    this.right = right;
+  }
+
+  UnboundPredicate(Operation op, ValueExpression<T> child, List<Literal<T>> values) {
+    super(op);
+    Preconditions.checkArgument(isSetTest(op), "Invalid operation for set test: %s", op);
+    Preconditions.checkNotNull(child, "Child expression cannot be null");
+    Preconditions.checkNotNull(values, "Values cannot be null");
+    this.literals = Lists.newArrayList(values);
+    this.left = child;
+    this.right = null;
   }
 
   @Override
   public NamedReference<?> ref() {
-    return term().ref();
+    return requireTerm().ref();
   }
 
   @Override
   public Expression negate() {
+    if (term() == null) {
+      return super.negate();
+    }
+
     return new UnboundPredicate<>(op().negate(), term(), literals);
   }
 
@@ -82,6 +125,40 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
 
   public List<Literal<T>> literals() {
     return literals;
+  }
+
+  /**
+   * Returns the value expression tested by a unary or set predicate.
+   *
+   * @return the child value expression
+   * @throws IllegalArgumentException if this predicate is a comparison
+   */
+  public ValueExpression<T> child() {
+    Preconditions.checkArgument(
+        isUnaryTest(op()) || isSetTest(op()), "%s predicate does not have a child", op());
+    return term() != null ? term() : left;
+  }
+
+  /**
+   * Returns the left operand of a comparison.
+   *
+   * @return the left value expression
+   * @throws IllegalArgumentException if this predicate is not a comparison
+   */
+  public ValueExpression<T> left() {
+    Preconditions.checkArgument(isComparison(op()), "%s predicate is not a comparison", op());
+    return term() != null ? term() : left;
+  }
+
+  /**
+   * Returns the right operand of a comparison.
+   *
+   * @return the right value expression
+   * @throws IllegalArgumentException if this predicate is not a comparison
+   */
+  public ValueExpression<T> right() {
+    Preconditions.checkArgument(isComparison(op()), "%s predicate is not a comparison", op());
+    return term() != null ? literal() : right;
   }
 
   /**
@@ -107,9 +184,16 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
    * @return an {@link Expression}
    * @throws ValidationException if literals do not match bound references, or if comparison on
    *     expression is invalid
+   * @throws UnsupportedOperationException if this predicate calls a function outside {@code
+   *     iceberg_functions}; use {@link #bind(StructType, boolean, FunctionBinder)} to resolve other
+   *     functions
    */
   @Override
   public Expression bind(StructType struct, boolean caseSensitive) {
+    if (term() == null) {
+      return bind(struct, caseSensitive, IcebergFunctions.INSTANCE);
+    }
+
     BoundTerm<T> bound = term().bind(struct, caseSensitive);
 
     if (literals == null) {
@@ -121,6 +205,36 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
     }
 
     return bindLiteralOperation(bound);
+  }
+
+  /**
+   * Bind this UnboundPredicate, using a function binder to resolve function applications.
+   *
+   * <p>Operands that are already bound are used as they are.
+   *
+   * @param struct The {@link StructType struct type} to resolve references by name.
+   * @param caseSensitive A boolean flag to control whether the bind should enforce case
+   *     sensitivity.
+   * @param functionBinder a {@link FunctionBinder} used to resolve functions
+   * @return an {@link Expression}
+   * @throws ValidationException if literals do not match bound references, or if comparison on
+   *     expression is invalid
+   */
+  public Expression bind(StructType struct, boolean caseSensitive, FunctionBinder functionBinder) {
+    Preconditions.checkNotNull(functionBinder, "Function binder cannot be null");
+    if (term() != null) {
+      return bind(struct, caseSensitive);
+    }
+
+    BoundExpression<T> boundLeft = Binder.bind(struct, left, caseSensitive, functionBinder);
+    if (right != null) {
+      return new BoundLiteralPredicate<>(
+          op(), boundLeft, Binder.bind(struct, right, caseSensitive, functionBinder));
+    } else if (literals != null) {
+      return new BoundSetPredicate<>(op(), boundLeft, literals);
+    } else {
+      return new BoundUnaryPredicate<>(op(), boundLeft);
+    }
   }
 
   private Expression bindUnaryOperation(StructType struct, BoundTerm<T> boundTerm) {
@@ -261,36 +375,54 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
   public String toString() {
     switch (op()) {
       case IS_NULL:
-        return "is_null(" + term() + ")";
+        return "is_null(" + child() + ")";
       case NOT_NULL:
-        return "not_null(" + term() + ")";
+        return "not_null(" + child() + ")";
       case IS_NAN:
-        return "is_nan(" + term() + ")";
+        return "is_nan(" + child() + ")";
       case NOT_NAN:
-        return "not_nan(" + term() + ")";
+        return "not_nan(" + child() + ")";
       case LT:
-        return term() + " < " + literal();
+        return left() + " < " + right();
       case LT_EQ:
-        return term() + " <= " + literal();
+        return left() + " <= " + right();
       case GT:
-        return term() + " > " + literal();
+        return left() + " > " + right();
       case GT_EQ:
-        return term() + " >= " + literal();
+        return left() + " >= " + right();
       case EQ:
-        return term() + " == " + literal();
+        return left() + " == " + right();
       case NOT_EQ:
-        return term() + " != " + literal();
+        return left() + " != " + right();
       case STARTS_WITH:
-        return term() + " startsWith \"" + literal() + "\"";
+        return left() + " startsWith \"" + right() + "\"";
       case NOT_STARTS_WITH:
-        return term() + " notStartsWith \"" + literal() + "\"";
+        return left() + " notStartsWith \"" + right() + "\"";
       case IN:
-        return term() + " in (" + COMMA.join(literals()) + ")";
+        return child() + " in (" + COMMA.join(literals()) + ")";
       case NOT_IN:
-        return term() + " not in (" + COMMA.join(literals()) + ")";
+        return child() + " not in (" + COMMA.join(literals()) + ")";
       default:
         return "Invalid predicate: operation = " + op();
     }
+  }
+
+  static boolean isUnaryTest(Operation op) {
+    return switch (op) {
+      case IS_NULL, NOT_NULL, IS_NAN, NOT_NAN -> true;
+      default -> false;
+    };
+  }
+
+  static boolean isComparison(Operation op) {
+    return switch (op) {
+      case LT, LT_EQ, GT, GT_EQ, EQ, NOT_EQ, STARTS_WITH, NOT_STARTS_WITH -> true;
+      default -> false;
+    };
+  }
+
+  static boolean isSetTest(Operation op) {
+    return op == Operation.IN || op == Operation.NOT_IN;
   }
 
   @SuppressWarnings("unchecked")
