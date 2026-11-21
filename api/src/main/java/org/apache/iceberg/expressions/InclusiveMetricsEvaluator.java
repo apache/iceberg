@@ -21,11 +21,16 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.nio.ByteBuffer;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantObject;
@@ -47,6 +52,7 @@ import org.apache.iceberg.variants.VariantObject;
  */
 public class InclusiveMetricsEvaluator {
   private final Expression expr;
+  private final Set<Integer> fieldsWithOptionalStructAncestor;
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -55,6 +61,31 @@ public class InclusiveMetricsEvaluator {
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
     StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
+    this.fieldsWithOptionalStructAncestor = fieldsWithOptionalStructAncestor(schema);
+  }
+
+  private static Set<Integer> fieldsWithOptionalStructAncestor(Schema schema) {
+    Map<Integer, Integer> parents = TypeUtil.indexParents(schema.asStruct());
+    Set<Integer> fields = new HashSet<>();
+    for (Map.Entry<Integer, Integer> entry : parents.entrySet()) {
+      Integer parentId = entry.getValue();
+      boolean hasOptionalStructAncestor = false;
+      while (parentId != null) {
+        Types.NestedField parent = schema.findField(parentId);
+        // Only fields below a chain of structs have one logical value per row.
+        // Traversing the full chain also excludes structs nested inside lists or maps.
+        if (parent == null || !parent.type().isStructType()) {
+          hasOptionalStructAncestor = false;
+          break;
+        }
+        hasOptionalStructAncestor |= parent.isOptional();
+        parentId = parents.get(parentId);
+      }
+      if (hasOptionalStructAncestor) {
+        fields.add(entry.getKey());
+      }
+    }
+    return fields;
   }
 
   /**
@@ -69,6 +100,8 @@ public class InclusiveMetricsEvaluator {
   }
 
   private class MetricsEvalVisitor extends InclusiveEvalVisitor {
+    private FileFormat fileFormat = null;
+    private long recordCount;
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Long> nullCounts = null;
     private Map<Integer, Long> nanCounts = null;
@@ -87,6 +120,8 @@ public class InclusiveMetricsEvaluator {
         return ROWS_MIGHT_MATCH;
       }
 
+      this.fileFormat = file.format();
+      this.recordCount = file.recordCount();
       this.valueCounts = file.valueCounts();
       this.nullCounts = file.nullValueCounts();
       this.nanCounts = file.nanValueCounts();
@@ -96,9 +131,24 @@ public class InclusiveMetricsEvaluator {
       return ExpressionVisitors.visitEvaluator(expr, this);
     }
 
+    private boolean hasSuspectLegacyOrcCounts(int id) {
+      if (fileFormat != FileFormat.ORC || !fieldsWithOptionalStructAncestor.contains(id)) {
+        return false;
+      }
+
+      // Legacy ORC conversion could record zero nested nulls when a parent was null.
+      // In that case valueCounts retained only present child values, unlike the
+      // corrected metrics, which count one logical value (including null) per row.
+      Long valueCount = valueCounts != null ? valueCounts.get(id) : null;
+      return valueCount == null || valueCount != recordCount;
+    }
+
     @Override
     protected boolean mayContainNull(int id) {
-      return nullCounts == null || !nullCounts.containsKey(id) || nullCounts.get(id) != 0;
+      return nullCounts == null
+          || !nullCounts.containsKey(id)
+          || nullCounts.get(id) != 0
+          || hasSuspectLegacyOrcCounts(id);
     }
 
     @Override
@@ -117,7 +167,9 @@ public class InclusiveMetricsEvaluator {
 
     @Override
     protected boolean containsNaNsOnly(int id) {
-      return nanCounts != null
+      // NULL ancestors match NOT NaN even if every present child value is NaN.
+      return !hasSuspectLegacyOrcCounts(id)
+          && nanCounts != null
           && nanCounts.containsKey(id)
           && valueCounts != null
           && nanCounts.get(id).equals(valueCounts.get(id));
