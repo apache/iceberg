@@ -266,14 +266,15 @@ class IcebergToGlueConverter {
       Map<String, String> existingColumnNameToComment = null;
       if (existingTable != null) {
         List<Column> existingColumns = existingTable.storageDescriptor().columns();
-        // First-seen-wins on duplicate names. toColumns writes current-schema columns before
-        // historical-schema columns. Preserve the current-schema comment.
+        // Glue returns lowercased names. First-seen-wins keeps the current-schema comment.
         existingColumnNameToComment =
             existingColumns.stream()
                 .filter(column -> column.comment() != null)
                 .collect(
                     Collectors.toMap(
-                        Column::name, Column::comment, (existing, duplicate) -> existing));
+                        column -> toGlueColumnKey(column.name()),
+                        Column::comment,
+                        (existing, duplicate) -> existing));
       } else {
         existingColumnNameToComment = Collections.emptyMap();
       }
@@ -343,6 +344,12 @@ class IcebergToGlueConverter {
     }
   }
 
+  // Glue stores column names lowercased, so names that differ only by case are the same column:
+  // https://docs.aws.amazon.com/lake-formation/latest/dg/notes-s3-catalog.html
+  private static String toGlueColumnKey(String name) {
+    return name.toLowerCase(Locale.ROOT);
+  }
+
   private static List<Column> toColumns(
       TableMetadata metadata, Map<String, String> existingColumnNameToComment) {
     List<Column> columns = Lists.newArrayList();
@@ -371,7 +378,8 @@ class IcebergToGlueConverter {
       NestedField field,
       boolean isCurrent,
       Map<String, String> existingColumnNameToComment) {
-    if (!dedupe.contains(field.name())) {
+    String glueColumnKey = toGlueColumnKey(field.name());
+    if (!dedupe.contains(glueColumnKey)) {
       Column.Builder builder =
           Column.builder()
               .name(field.name())
@@ -385,12 +393,12 @@ class IcebergToGlueConverter {
       if (field.doc() != null && !field.doc().isEmpty()) {
         builder.comment(field.doc());
       } else if (existingColumnNameToComment != null
-          && existingColumnNameToComment.containsKey(field.name())) {
-        builder.comment(existingColumnNameToComment.get(field.name()));
+          && existingColumnNameToComment.containsKey(glueColumnKey)) {
+        builder.comment(existingColumnNameToComment.get(glueColumnKey));
       }
 
       columns.add(builder.build());
-      dedupe.add(field.name());
+      dedupe.add(glueColumnKey);
     }
   }
 }

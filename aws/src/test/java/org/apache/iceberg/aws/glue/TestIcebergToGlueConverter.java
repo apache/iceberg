@@ -437,4 +437,98 @@ public class TestIcebergToGlueConverter {
         .as("Columns should match")
         .isEqualTo(expectedTableInput.storageDescriptor().columns());
   }
+
+  @Test
+  void caseOnlyDropAndAddKeepsCurrentColumn() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.StringType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+    TableMetadata tableMetadata =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), "s3://test", tableLocationProperties);
+
+    // Drop "data" and add "Data" as a new field. Glue folds both names to "data".
+    Schema newSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.StringType.get()),
+            Types.NestedField.optional(3, "Data", Types.StringType.get()));
+    tableMetadata = tableMetadata.updateSchema(newSchema);
+
+    TableInput.Builder actualTableInputBuilder = TableInput.builder();
+    IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata);
+
+    assertThat(actualTableInputBuilder.build().storageDescriptor().columns())
+        .as("Historical column differing only by case should not be emitted")
+        .containsExactly(
+            glueColumn("id", "string", 1, false, true),
+            glueColumn("Data", "string", 3, true, true));
+  }
+
+  @Test
+  void caseOnlyRenameKeepsCurrentColumn() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "fieldName", Types.StringType.get()),
+            Types.NestedField.required(2, "data", Types.StringType.get()));
+    TableMetadata tableMetadata =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), "s3://test", tableLocationProperties);
+
+    Schema renamedSchema =
+        new Schema(
+            Types.NestedField.required(1, "fieldname", Types.StringType.get()),
+            Types.NestedField.required(2, "data", Types.StringType.get()));
+    tableMetadata = tableMetadata.updateSchema(renamedSchema);
+
+    TableInput.Builder actualTableInputBuilder = TableInput.builder();
+    IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata);
+
+    assertThat(actualTableInputBuilder.build().storageDescriptor().columns())
+        .as("Case-only rename should emit only the current name")
+        .containsExactly(
+            glueColumn("fieldname", "string", 1, false, true),
+            glueColumn("data", "string", 2, false, true));
+  }
+
+  @Test
+  void existingLowercasedGlueCommentPreservedForMixedCaseField() {
+    Schema schema = new Schema(Types.NestedField.optional(1, "Data", Types.StringType.get()));
+    TableMetadata tableMetadata =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), "s3://test", tableLocationProperties);
+
+    // Glue returns column names lowercased, regardless of the case they were written with.
+    Table existingGlueTable =
+        Table.builder()
+            .storageDescriptor(
+                StorageDescriptor.builder()
+                    .columns(Column.builder().name("data").comment("existing comment").build())
+                    .build())
+            .build();
+
+    TableInput.Builder actualTableInputBuilder = TableInput.builder();
+    IcebergToGlueConverter.setTableInputInformation(
+        actualTableInputBuilder, tableMetadata, existingGlueTable);
+
+    assertThat(actualTableInputBuilder.build().storageDescriptor().columns())
+        .as("Comment stored under the lowercased Glue name should be preserved")
+        .containsExactly(
+            glueColumn("Data", "string", 1, true, true).toBuilder()
+                .comment("existing comment")
+                .build());
+  }
+
+  private static Column glueColumn(
+      String name, String type, int fieldId, boolean optional, boolean current) {
+    return Column.builder()
+        .name(name)
+        .type(type)
+        .parameters(
+            ImmutableMap.of(
+                IcebergToGlueConverter.ICEBERG_FIELD_ID, Integer.toString(fieldId),
+                IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, Boolean.toString(optional),
+                IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, Boolean.toString(current)))
+        .build();
+  }
 }
