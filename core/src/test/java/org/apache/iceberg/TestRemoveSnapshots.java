@@ -589,6 +589,26 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   @TestTemplate
+  void retainLastWithoutExpireOlderThan() {
+    table.updateProperties().set(TableProperties.MAX_SNAPSHOT_AGE_MS, "1").commit();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    table.newAppend().appendFile(FILE_B).commit();
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    table.newAppend().appendFile(FILE_C).commit();
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    removeSnapshots(table).retainLast(2).commit();
+
+    assertThat(table.snapshots()).hasSize(2);
+    assertThat(table.snapshot(firstSnapshotId)).isNull();
+  }
+
+  @TestTemplate
   public void testRetainZeroSnapshots() {
     assertThatThrownBy(() -> removeSnapshots(table).retainLast(0).commit())
         .isInstanceOf(IllegalArgumentException.class)
