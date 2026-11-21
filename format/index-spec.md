@@ -274,8 +274,7 @@ used only when the preceding values compare as equal. Each field is ordered asce
 Primitive values are compared as follows:
 
 - `null` values are ordered before all other values (nulls-first)
-- `float` and `double` values are ordered `-NaN` < `-Infinity` < `-value` < `-0.0` < `0.0` < `value` < `Infinity` <
-  `NaN`, as defined by [sorting](spec.md#sorting) in the table specification
+- `float` and `double` values are ordered as defined by [sorting](spec.md#sorting) in the table specification
 - Values of other types are compared using the rules defined in the
   [expressions specification](expressions-spec.md#comparisons)
 
