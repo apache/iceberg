@@ -49,6 +49,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -74,9 +75,11 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TestCatalogUtil;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
+import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.CatalogTests;
+import org.apache.iceberg.catalog.ImmutableTableCommit;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
@@ -2460,6 +2463,192 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(schema2.findField("data")).isNull();
     assertThat(schema2.findField("new-column")).isNull();
     assertThat(schema2.columns()).hasSize(1);
+  }
+
+  @Test
+  public void multipleDiffsWithRequirementOnlyTable() {
+    Namespace namespace = Namespace.of("reqOnlyNamespace");
+    TableIdentifier identifier1 = TableIdentifier.of(namespace, "reqOnlyTable1");
+    TableIdentifier identifier2 = TableIdentifier.of(namespace, "reqOnlyTable2");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(namespace);
+    }
+
+    catalog().createTable(identifier1, SCHEMA);
+    catalog().createTable(identifier2, SCHEMA);
+
+    Table table1 = catalog().loadTable(identifier1);
+    Table table2 = catalog().loadTable(identifier2);
+
+    Transaction t1Transaction = table1.newTransaction();
+    UpdateSchema updateSchema =
+        t1Transaction.updateSchema().addColumn("new_col", Types.LongType.get());
+    Schema expectedSchema = updateSchema.apply();
+    updateSchema.commit();
+
+    TableCommit tableCommit1 =
+        TableCommit.create(
+            identifier1,
+            ((BaseTransaction) t1Transaction).startMetadata(),
+            ((BaseTransaction) t1Transaction).currentMetadata());
+
+    // table2 has only requirements asserting its current schema, with no updates
+    TableCommit tableCommit2ReadOnly =
+        ImmutableTableCommit.builder()
+            .identifier(identifier2)
+            .requirements(
+                ImmutableList.of(
+                    new UpdateRequirement.AssertCurrentSchemaID(table2.schema().schemaId())))
+            .updates(ImmutableList.of())
+            .build();
+
+    restCatalog.commitTransaction(tableCommit1, tableCommit2ReadOnly);
+
+    assertThat(catalog().loadTable(identifier1).schema().asStruct())
+        .isEqualTo(expectedSchema.asStruct());
+    assertThat(catalog().loadTable(identifier2).schema().asStruct())
+        .isEqualTo(table2.schema().asStruct());
+  }
+
+  @Test
+  public void multipleDiffsWithRequirementOnlyTableFails() {
+    Namespace namespace = Namespace.of("reqOnlyFailNamespace");
+    TableIdentifier identifier1 = TableIdentifier.of(namespace, "reqOnlyFailTable1");
+    TableIdentifier identifier2 = TableIdentifier.of(namespace, "reqOnlyFailTable2");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(namespace);
+    }
+
+    catalog().createTable(identifier1, SCHEMA);
+    catalog().createTable(identifier2, SCHEMA);
+
+    Table table1 = catalog().loadTable(identifier1);
+    Table table2 = catalog().loadTable(identifier2);
+    Schema originalSchemaOne = table1.schema();
+
+    Transaction t1Transaction = table1.newTransaction();
+    t1Transaction.updateSchema().addColumn("new_col", Types.LongType.get()).commit();
+
+    TableCommit tableCommit1 =
+        TableCommit.create(
+            identifier1,
+            ((BaseTransaction) t1Transaction).startMetadata(),
+            ((BaseTransaction) t1Transaction).currentMetadata());
+
+    // table2 asserts a stale schema ID that does not match
+    TableCommit tableCommit2Stale =
+        ImmutableTableCommit.builder()
+            .identifier(identifier2)
+            .requirements(ImmutableList.of(new UpdateRequirement.AssertCurrentSchemaID(999)))
+            .updates(ImmutableList.of())
+            .build();
+
+    assertThatThrownBy(() -> restCatalog.commitTransaction(tableCommit1, tableCommit2Stale))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Requirement failed: current schema changed");
+
+    // Verify table1 was not committed
+    assertThat(catalog().loadTable(identifier1).schema().asStruct())
+        .isEqualTo(originalSchemaOne.asStruct());
+  }
+
+  @Test
+  public void concurrentCommitTransactionsWithCrossRequirementOnlyTables() throws Exception {
+    Namespace namespace = Namespace.of("concurrentCrossNamespace");
+    TableIdentifier identifier1 = TableIdentifier.of(namespace, "concurrentCrossTable1");
+    TableIdentifier identifier2 = TableIdentifier.of(namespace, "concurrentCrossTable2");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(namespace);
+    }
+
+    catalog().createTable(identifier1, SCHEMA);
+    catalog().createTable(identifier2, SCHEMA);
+
+    int rounds = 10;
+    int bothCommittedCount = 0;
+
+    for (int i = 0; i < rounds; i++) {
+      Table table1 = catalog().loadTable(identifier1);
+      Table table2 = catalog().loadTable(identifier2);
+      int schemaId1 = table1.schema().schemaId();
+      int schemaId2 = table2.schema().schemaId();
+
+      // Transaction 1: updates table 1, asserts table 2 is unchanged (updates: [])
+      Transaction tx1 = table1.newTransaction();
+      tx1.updateSchema().addColumn("col_t1_" + i, Types.LongType.get()).commit();
+      TableCommit t1Update =
+          TableCommit.create(
+              identifier1,
+              ((BaseTransaction) tx1).startMetadata(),
+              ((BaseTransaction) tx1).currentMetadata());
+      TableCommit t2ReadOnly =
+          ImmutableTableCommit.builder()
+              .identifier(identifier2)
+              .requirements(
+                  ImmutableList.of(new UpdateRequirement.AssertCurrentSchemaID(schemaId2)))
+              .updates(ImmutableList.of())
+              .build();
+
+      // Transaction 2: updates table 2, asserts table 1 is unchanged (updates: [])
+      Transaction tx2 = table2.newTransaction();
+      tx2.updateSchema().addColumn("col_t2_" + i, Types.LongType.get()).commit();
+      TableCommit t2Update =
+          TableCommit.create(
+              identifier2,
+              ((BaseTransaction) tx2).startMetadata(),
+              ((BaseTransaction) tx2).currentMetadata());
+      TableCommit t1ReadOnly =
+          ImmutableTableCommit.builder()
+              .identifier(identifier1)
+              .requirements(
+                  ImmutableList.of(new UpdateRequirement.AssertCurrentSchemaID(schemaId1)))
+              .updates(ImmutableList.of())
+              .build();
+
+      CyclicBarrier barrier = new CyclicBarrier(2);
+      AtomicBoolean t1Success = new AtomicBoolean(false);
+      AtomicBoolean t2Success = new AtomicBoolean(false);
+
+      Thread thread1 =
+          new Thread(
+              () -> {
+                try {
+                  barrier.await();
+                  restCatalog.commitTransaction(t1Update, t2ReadOnly);
+                  t1Success.set(true);
+                } catch (Exception ignored) {
+                  // expected on conflict
+                }
+              });
+
+      Thread thread2 =
+          new Thread(
+              () -> {
+                try {
+                  barrier.await();
+                  restCatalog.commitTransaction(t2Update, t1ReadOnly);
+                  t2Success.set(true);
+                } catch (Exception ignored) {
+                  // expected on conflict
+                }
+              });
+
+      thread1.start();
+      thread2.start();
+      thread1.join();
+      thread2.join();
+
+      if (t1Success.get() && t2Success.get()) {
+        bothCommittedCount++;
+      }
+    }
+
+    assertThat(bothCommittedCount)
+        .as("Concurrent conflicting transactions should not both commit")
+        .isEqualTo(0);
   }
 
   @Test
