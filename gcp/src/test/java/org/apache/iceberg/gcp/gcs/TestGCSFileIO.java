@@ -59,11 +59,19 @@ import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.rest.HttpMethod;
+import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.rest.credentials.ImmutableCredential;
+import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
+import org.apache.iceberg.rest.responses.LoadCredentialsResponseParser;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockserver.integration.ClientAndServer;
+import org.mockserver.model.HttpRequest;
+import org.mockserver.model.HttpResponse;
 
 public class TestGCSFileIO {
   private static final String TEST_BUCKET = "TEST_BUCKET";
@@ -403,6 +411,61 @@ public class TestGCSFileIO {
           .extracting("temporaryAccess")
           .isEqualTo(new AccessToken("gcsTokenFromProperties", new Date(1000L)));
     }
+  }
+
+  @Test
+  void refreshUsesCredentialOfStoragePrefix() throws IOException {
+    ClientAndServer mockServer = ClientAndServer.startClientAndServer();
+    try {
+      mockServer
+          .when(HttpRequest.request("/v1/credentials").withMethod(HttpMethod.GET.name()))
+          .respond(
+              HttpResponse.response(
+                      LoadCredentialsResponseParser.toJson(
+                          ImmutableLoadCredentialsResponse.builder()
+                              .addCredentials(
+                                  gcsCredential("gs://bucket/table1", "refreshedToken1"),
+                                  gcsCredential("gs://bucket/table2", "refreshedToken2"))
+                              .build()))
+                  .withStatusCode(200));
+
+      try (GCSFileIO fileIO = new GCSFileIO()) {
+        fileIO.setCredentials(
+            ImmutableList.of(
+                StorageCredential.create("gs://bucket/table1", tokenConfig("token1")),
+                StorageCredential.create("gs://bucket/table2", tokenConfig("token2"))));
+        fileIO.initialize(
+            ImmutableMap.of(
+                CatalogProperties.URI,
+                format("http://127.0.0.1:%d/v1/", mockServer.getPort()),
+                GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
+                format("http://127.0.0.1:%d/v1/credentials", mockServer.getPort())));
+
+        OAuth2Credentials table1 =
+            (OAuth2Credentials) fileIO.client("gs://bucket/table1/f").getOptions().getCredentials();
+        OAuth2Credentials table2 =
+            (OAuth2Credentials) fileIO.client("gs://bucket/table2/f").getOptions().getCredentials();
+        table1.refresh();
+        table2.refresh();
+
+        assertThat(table1.getAccessToken().getTokenValue()).isEqualTo("refreshedToken1");
+        assertThat(table2.getAccessToken().getTokenValue()).isEqualTo("refreshedToken2");
+      }
+    } finally {
+      mockServer.stop();
+    }
+  }
+
+  private static Credential gcsCredential(String prefix, String token) {
+    return ImmutableCredential.builder().prefix(prefix).config(tokenConfig(token)).build();
+  }
+
+  private static Map<String, String> tokenConfig(String token) {
+    return ImmutableMap.of(
+        GCS_OAUTH2_TOKEN,
+        token,
+        GCS_OAUTH2_TOKEN_EXPIRES_AT,
+        Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli()));
   }
 
   @ParameterizedTest
