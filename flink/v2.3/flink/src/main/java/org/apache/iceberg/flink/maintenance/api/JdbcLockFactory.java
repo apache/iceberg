@@ -141,6 +141,12 @@ public class JdbcLockFactory implements TriggerLockFactory {
             LOG.info("Creating Flink maintenance lock table {}", LOCK_TABLE_NAME);
             try (PreparedStatement ps = conn.prepareStatement(CREATE_LOCK_TABLE_SQL)) {
               ps.execute();
+            } catch (SQLException e) {
+              if (lockTableExists(dbMeta)) {
+                return true;
+              }
+
+              throw e;
             }
 
             return true;
@@ -156,6 +162,12 @@ public class JdbcLockFactory implements TriggerLockFactory {
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted in call to initialize");
+    }
+  }
+
+  private static boolean lockTableExists(DatabaseMetaData metadata) throws SQLException {
+    try (ResultSet rs = metadata.getTables(null, null, LOCK_TABLE_NAME, null)) {
+      return rs.next();
     }
   }
 
