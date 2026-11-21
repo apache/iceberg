@@ -30,6 +30,7 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
@@ -43,6 +44,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.LoadContext;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -124,7 +126,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog {
+public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContext {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
@@ -174,8 +176,13 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
+    return loadTable(ident, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, LoadContext context) throws NoSuchTableException {
     try {
-      return load(ident);
+      return load(ident, context);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
     }
@@ -183,7 +190,13 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
-    Table table = loadTable(ident);
+    return loadTable(ident, version, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, String version, LoadContext context)
+      throws NoSuchTableException {
+    Table table = loadTable(ident, context);
 
     if (table instanceof SparkTable) {
       SparkTable sparkTable = (SparkTable) table;
@@ -218,7 +231,13 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public Table loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
-    Table table = loadTable(ident);
+    return loadTable(ident, timestamp, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, long timestamp, LoadContext context)
+      throws NoSuchTableException {
+    Table table = loadTable(ident, context);
 
     if (table instanceof SparkTable) {
       SparkTable sparkTable = (SparkTable) table;
@@ -591,9 +610,14 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public View loadView(Identifier ident) throws NoSuchViewException {
+    return loadView(ident, LoadContext.empty());
+  }
+
+  @Override
+  public View loadView(Identifier ident, LoadContext context) throws NoSuchViewException {
     if (null != asViewCatalog) {
       try {
-        org.apache.iceberg.view.View view = asViewCatalog.loadView(buildIdentifier(ident));
+        org.apache.iceberg.view.View view = asViewCatalog.loadView(buildIdentifier(ident), context);
         return new SparkView(catalogName, view);
       } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
         throw new NoSuchViewException(ident);
@@ -677,6 +701,7 @@ public class SparkCatalog extends BaseCatalog {
                 .withLocation(properties.get("location"))
                 .withProperties(props)
                 .createOrReplace();
+        removeStaleSqlConfigs(view, props);
         return new SparkView(catalogName, view);
       } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
         throw new NoSuchNamespaceException(currentNamespace);
@@ -721,8 +746,24 @@ public class SparkCatalog extends BaseCatalog {
         "Altering a view is not supported by catalog: " + catalogName);
   }
 
+  // Iceberg view replacement merges properties, so configs captured only by the replaced version
+  // must be removed. ViewBuilder cannot remove properties, which makes this a separate commit.
+  private static void removeStaleSqlConfigs(
+      org.apache.iceberg.view.View view, Map<String, String> replacementProperties) {
+    List<String> staleConfigs =
+        view.properties().keySet().stream()
+            .filter(key -> key.startsWith(SparkView.SQL_CONFIG_PREFIX))
+            .filter(key -> !replacementProperties.containsKey(key))
+            .collect(Collectors.toList());
+    if (!staleConfigs.isEmpty()) {
+      UpdateViewProperties update = view.updateProperties();
+      staleConfigs.forEach(update::remove);
+      update.commit();
+    }
+  }
+
   private static void verifyNonReservedProperty(String property, String errorMsg) {
-    if (SparkView.RESERVED_PROPERTIES.contains(property)) {
+    if (SparkView.isReservedProperty(property)) {
       throw new UnsupportedOperationException(String.format(errorMsg, property));
     }
   }
@@ -888,13 +929,13 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  private Table load(Identifier ident) {
+  private Table load(Identifier ident, LoadContext context) {
     if (isPathIdentifier(ident)) {
       return loadFromPathIdentifier((PathIdentifier) ident);
     }
 
     try {
-      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident));
+      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident), context);
       return new SparkTable(table, !cacheEnabled);
 
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -907,7 +948,7 @@ public class SparkCatalog extends BaseCatalog {
       TableIdentifier namespaceAsIdent = buildIdentifier(namespaceToIdentifier(ident.namespace()));
       org.apache.iceberg.Table table;
       try {
-        table = icebergCatalog.loadTable(namespaceAsIdent);
+        table = icebergCatalog.loadTable(namespaceAsIdent, context);
       } catch (Exception ignored) {
         // the namespace does not identify a table, so it cannot be a table with a snapshot selector
         // throw the original exception
