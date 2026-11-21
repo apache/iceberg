@@ -166,7 +166,6 @@ Primitive types are compared using signed comparison, except for the following t
 * `uuid` uses unsigned byte-wise comparison of the UUID bytes
 * `decimal` uses signed comparison independent of scale; this is equivalent to comparison of unscaled values because type alignment produces values with the same scale
 * `float` and `double` use IEEE 754 order for all non-NaN values; see below for NaN comparison rules
-* `vector` values use the equality rules defined in [Vector](spec.md#vector)
 
 For floating point values, comparison with NaN behaves similarly to comparison of values with null. NaN should be specifically handled using `IS NaN` and `IS NOT NaN` tests. However, when value expressions produce a NaN value, the following rules must be applied:
 
@@ -223,7 +222,7 @@ Note that `year`, `month`, and `hour` transforms produce ordinal values and not 
 
 | Parameterized function name | Description                                                           | Source types                                                                                 | Result type |
 |-----------------------------|-----------------------------------------------------------------------|----------------------------------------------------------------------------------------------|-------------|
-| `bucket(N, value)`          | Hash of value, mod `N` (see [table spec details][bucket-ref])         | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
+| `bucket(N, value)`          | Hash of value, mod `N` (see [table spec details][bucket-ref])         | Any primitive except for `geometry`, `geography`, `boolean`, `float`, or `double` | `int`       |
 | `truncate(W, value)`        | Value truncated to width `W` (see [table spec details][truncate-ref]) | `int`, `long`, `decimal`, `string`, `binary`                                                 | Source type |
 
 [bucket-ref]: spec.md#bucket-transform-details
