@@ -267,6 +267,7 @@ class Transform(RootModel[str]):
         ...,
         examples=[
             'identity',
+            'void',
             'year',
             'month',
             'day',
