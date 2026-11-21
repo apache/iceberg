@@ -551,15 +551,8 @@ public class NessieIcebergClient implements AutoCloseable {
     getRef().checkMutable();
 
     IcebergContent existingContent = fetchContent(identifier);
-    if (existingContent == null) {
+    if (existingContent == null || existingContent.getType() != type) {
       return false;
-    }
-
-    if (existingContent.getType() != type) {
-      throw new RuntimeException(
-          String.format(
-              "Cannot drop %s: not matching with the type `%s`",
-              identifier, NessieUtil.contentTypeString(type)));
     }
 
     String contentType = NessieUtil.contentTypeString(type).toLowerCase(Locale.ROOT);
