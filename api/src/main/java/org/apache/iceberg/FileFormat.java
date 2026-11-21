@@ -44,6 +44,10 @@ public enum FileFormat {
     return splittable;
   }
 
+  String lowerCaseName() {
+    return name().toLowerCase(Locale.ROOT);
+  }
+
   /**
    * Returns filename with this format's extension added, if necessary.
    *

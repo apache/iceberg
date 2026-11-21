@@ -251,7 +251,7 @@ class V4Metadata {
         case 0 -> trackingWrapper;
         case 1 -> wrapped.contentType().id();
         case 2 -> wrapped.location();
-        case 3 -> wrapped.fileFormat().toString();
+        case 3 -> wrapped.fileFormat().lowerCaseName();
         case 4 -> wrapped.recordCount();
         case 5 -> wrapped.fileSizeInBytes();
         case 6 -> specId(wrapped);
@@ -339,7 +339,7 @@ class V4Metadata {
         case 0 -> trackingWrapper;
         case 1 -> wrapped.contentType().id();
         case 2 -> wrapped.location();
-        case 3 -> wrapped.fileFormat().toString();
+        case 3 -> wrapped.fileFormat().lowerCaseName();
         case 4 -> wrapped.recordCount();
         case 5 -> wrapped.fileSizeInBytes();
         case 6 -> specId(wrapped);
@@ -704,7 +704,7 @@ class V4Metadata {
       return switch (pos) {
         case 0 -> wrapped.location();
         case 1 -> wrapped.fieldIds();
-        case 2 -> wrapped.fileFormat().toString();
+        case 2 -> wrapped.fileFormat().lowerCaseName();
         case 3 -> wrapped.fileSizeInBytes();
         case 4 -> wrapped.keyMetadata();
         default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);

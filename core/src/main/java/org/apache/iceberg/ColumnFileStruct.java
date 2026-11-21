@@ -130,7 +130,7 @@ class ColumnFileStruct extends SupportsIndexProjection implements ColumnFile, Se
     return switch (pos) {
       case 0 -> location;
       case 1 -> ArrayUtil.toUnmodifiableIntList(fieldIds);
-      case 2 -> fileFormat != null ? fileFormat.toString() : null;
+      case 2 -> fileFormat != null ? fileFormat.lowerCaseName() : null;
       case 3 -> fileSizeInBytes;
       case 4 -> keyMetadata();
       default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
