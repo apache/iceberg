@@ -24,9 +24,14 @@ import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIAL
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.OAuth2Credentials;
@@ -34,6 +39,7 @@ import com.google.auth.oauth2.OAuth2CredentialsWithRefresh;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
 import java.io.IOException;
 import java.io.InputStream;
@@ -50,6 +56,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.gcp.GCPProperties;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
@@ -183,6 +191,38 @@ public class TestGCSFileIO {
 
     assertThat(StreamSupport.stream(io.listPrefix(gsUri("del/")).spliterator(), false).count())
         .isEqualTo(1);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testDeleteFilesThrowsBulkDeletionFailureException() {
+    Storage failing = mock(Storage.class);
+    when(failing.delete(any(Iterable.class)))
+        .thenThrow(new StorageException(403, "forbidden", "forbidden", null));
+
+    try (GCSFileIO failingIo = new GCSFileIO(() -> failing)) {
+      assertThatThrownBy(() -> failingIo.deleteFiles(ImmutableList.of(gsUri("a"), gsUri("b"))))
+          .isInstanceOf(BulkDeletionFailureException.class)
+          .hasMessageContaining("2");
+    }
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testDeleteFilesAttemptsRemainingBatchesAfterFailure() {
+    Storage failing = mock(Storage.class);
+    when(failing.delete(any(Iterable.class)))
+        .thenThrow(new StorageException(403, "forbidden", "forbidden", null))
+        .thenReturn(ImmutableList.of(true));
+
+    try (GCSFileIO failingIo = new GCSFileIO(() -> failing)) {
+      failingIo.initialize(ImmutableMap.of(GCPProperties.GCS_DELETE_BATCH_SIZE, "1"));
+      assertThatThrownBy(() -> failingIo.deleteFiles(ImmutableList.of(gsUri("a"), gsUri("b"))))
+          .isInstanceOf(BulkDeletionFailureException.class)
+          .hasMessageContaining("1");
+    }
+
+    verify(failing, times(2)).delete(any(Iterable.class));
   }
 
   @Test

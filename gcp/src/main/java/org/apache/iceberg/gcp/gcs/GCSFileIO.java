@@ -23,6 +23,7 @@ import com.google.api.client.util.Maps;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -34,6 +35,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.common.DynConstructors;
@@ -333,16 +335,28 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
 
   @SuppressWarnings("resource")
   private void internalDeleteFiles(Stream<BlobId> blobIdsToDelete) {
+    AtomicInteger failureCount = new AtomicInteger();
     Streams.stream(
             Iterators.partition(
                 blobIdsToDelete.iterator(),
                 clientForStoragePath(ROOT_STORAGE_PREFIX).gcpProperties().deleteBatchSize()))
         .forEach(
             batch -> {
-              if (!batch.isEmpty()) {
-                clientForStoragePath(batch.get(0).toGsUtilUri()).storage().delete(batch);
+              if (batch.isEmpty()) {
+                return;
+              }
+              Storage storage = clientForStoragePath(batch.get(0).toGsUtilUri()).storage();
+              try {
+                storage.delete(batch);
+              } catch (StorageException e) {
+                LOG.warn("Encountered failure when deleting GCS batch", e);
+                failureCount.addAndGet(batch.size());
               }
             });
+
+    if (failureCount.get() > 0) {
+      throw new BulkDeletionFailureException(failureCount.get());
+    }
   }
 
   @Override
