@@ -49,6 +49,11 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
 
   public void setBatchSize(int batchSize) {
     this.batchSize = batchSize;
+    vectorizedPageIterator.clearStructPresences();
+  }
+
+  public void addStructPresence(NullabilityHolder structNulls, int structDefinitionLevel) {
+    vectorizedPageIterator.addStructPresence(structNulls, structDefinitionLevel);
   }
 
   public Dictionary setRowGroupInfo(PageReader store, boolean allPagesDictEncoded) {

@@ -72,6 +72,11 @@ public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads
 
   @Test
   @Override
+  @Disabled // The fallback generator ignores nullPercentage, so the struct column is not all null
+  void allNullNestedStruct() {}
+
+  @Test
+  @Override
   @Disabled // Ignored since this code path is already tested in TestParquetVectorizedReads
   public void testVectorizedReadsWithNewContainers() throws IOException {}
 }
