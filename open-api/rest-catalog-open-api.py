@@ -900,7 +900,7 @@ class Labels(BaseModel):
 class TableLocation(RootModel[str]):
     root: str = Field(
         ...,
-        description="The table's base location, used to resolve relative paths in metadata. Must be an absolute path with a URI scheme when present, and must be present when the returned metadata contains relative paths and omits `location`, because the metadata cannot be resolved otherwise. Takes precedence over `metadata.location`.",
+        description="The table's base location, used to resolve relative paths in metadata. Must be an absolute location with a URI scheme.",
     )
 
 
@@ -1917,10 +1917,7 @@ class Apply(BaseModel):
 class TableMetadata(BaseModel):
     format_version: int = Field(..., alias='format-version', ge=1, le=4)
     table_uuid: str = Field(..., alias='table-uuid')
-    location: str | None = Field(
-        None,
-        description="The table's base location. Required through format version 3, where it may be a path without a URI scheme; readers prepend a scheme for consistency with v4 absolute paths. Optional for format version 4, where the location may be managed externally and supplied by the catalog when the table is loaded, and where it must be an absolute path when present. See the `table-location` field of `LoadTableResult`.",
-    )
+    location: str | None = None
     last_updated_ms: int | None = Field(None, alias='last-updated-ms')
     next_row_id: int | None = Field(
         None,
@@ -2017,11 +2014,11 @@ class LoadTableResult(BaseModel):
 
 
     The `metadata-location` field is optional.
-    It is absent when the metadata is staged but not committed, as in a create transaction, and when the table has no client-visible metadata location, as for a catalog-managed table where the catalog is the source of truth for table state and no metadata pointer need exist.
+    It is absent when the metadata is staged but not committed, as in a create transaction, and when the table has no client-visible metadata location.
 
 
     When present, clients can check whether metadata has changed by comparing metadata locations.
-    To obtain a metadata location for a catalog-managed table, use the `unregisterTable` endpoint, which returns the table's last metadata location at the point the table leaves catalog control and further commits are rejected.
+    To obtain a metadata location for a table that does not return one, use the `unregisterTable` endpoint, which returns the table's last metadata location at the point the table leaves catalog control and further commits are rejected.
 
 
     ## Table location
@@ -2081,7 +2078,7 @@ class LoadTableResult(BaseModel):
     metadata_location: str | None = Field(
         None,
         alias='metadata-location',
-        description='Location of the table metadata file. Absent when the metadata is staged but not committed, as in a create transaction, and when the table has no client-visible metadata location, as for a catalog-managed table where the catalog is the source of truth for table state.',
+        description='Location of the table metadata file. Absent when the metadata is staged but not committed, as in a create transaction, and when the table has no client-visible metadata location.',
     )
     table_location: TableLocation | None = Field(None, alias='table-location')
     metadata: TableMetadata
@@ -2169,7 +2166,11 @@ class UnregisterTableResult(BaseModel):
         alias='metadata-location',
         description='The last metadata location for the table at the time it was unregistered.',
     )
-    table_location: TableLocation | None = Field(None, alias='table-location')
+    table_location: TableLocation | None = Field(
+        None,
+        alias='table-location',
+        description='Follows the same presence and precedence rules as `table-location` in `LoadTableResult`.',
+    )
     metadata: TableMetadata
 
 
@@ -2361,6 +2362,7 @@ class CommitTableResponse(BaseModel):
 
 
     The `table-location` field carries the table's base location, so that a client can resolve relative paths in the returned metadata.
+    It follows the same presence and precedence rules as `table-location` in `LoadTableResult`.
 
     """
 

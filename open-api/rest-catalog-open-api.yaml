@@ -1092,7 +1092,7 @@ paths:
 
 
         Servers MUST NOT return format version 4 tables from this endpoint.
-        A request to load a format version 4 table fails with a 406 `UnsupportedTableFormatVersionException`; clients should load it through the `/v2` endpoint instead.
+        A request to load a format version 4 table fails with a 422 `UnsupportedTableFormatVersionException`; clients must load v4 tables through the `/v2` endpoint.
 
 
         The response contains both configuration and table metadata. The configuration, if non-empty is used
@@ -1101,6 +1101,9 @@ paths:
 
 
         The response also contains the table's full metadata, matching the table metadata JSON file.
+
+
+        If the `snapshots` query parameter is not provided, it defaults to `all`.
 
 
         The catalog configuration may contain credentials that should be used for subsequent requests for the
@@ -1145,9 +1148,9 @@ paths:
               examples:
                 TableToLoadDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
-        406:
+        422:
           description:
-            Not Acceptable - The table is at a format version that this endpoint does not serve.
+            Unprocessable Entity - The table is at format version 4, which this endpoint does not serve.
           content:
             application/json:
               schema:
@@ -1371,8 +1374,12 @@ paths:
         Load a table from the catalog.
 
 
-        Behaves exactly like the v1 `loadTable` endpoint, except that it may also return format version 4 tables.
+        The response contains the table's metadata and table-specific configuration.
+        This endpoint may return tables at any format version, including format version 4.
         Clients that support format version 4 should load tables through this endpoint.
+
+
+        If the `snapshots` query parameter is not provided, it defaults to `all`.
       parameters:
         - $ref: '#/components/parameters/data-access'
         - $ref: '#/components/parameters/if-none-match'
@@ -2338,8 +2345,7 @@ components:
       in: header
       description:
         An optional header that allows the server to return 304 (Not Modified) if the metadata
-        is current. The content is the value of the ETag received in a CreateTableResponse,
-        LoadTableResponse or CommitTableResponse.
+        is current.
       required: false
       schema:
         type: string
@@ -2351,8 +2357,6 @@ components:
         The snapshots to return in the body of the metadata via the `snapshots` field. Setting
         the value to `all` would return the full set of snapshots currently valid for the table.
         Setting the value to `refs` would load all snapshots referenced by branches or tags.
-
-        Default if no param is provided is `all`.
       required: false
       schema:
         type: string
@@ -3215,11 +3219,6 @@ components:
           type: string
         location:
           type: string
-          description:
-            The table's base location.
-            Required through format version 3, where it may be a path without a URI scheme; readers prepend a scheme for consistency with v4 absolute paths.
-            Optional for format version 4, where the location may be managed externally and supplied by the catalog when the table is loaded, and where it must be an absolute path when present.
-            See the `table-location` field of `LoadTableResult`.
         last-updated-ms:
           type: integer
           format: int64
@@ -4367,8 +4366,7 @@ components:
       type: string
       description:
         The table's base location, used to resolve relative paths in metadata.
-        Must be an absolute path with a URI scheme when present, and must be present when the returned metadata contains relative paths and omits `location`, because the metadata cannot be resolved otherwise.
-        Takes precedence over `metadata.location`.
+        Must be an absolute location with a URI scheme.
 
     LoadTableResult:
       description: |
@@ -4383,11 +4381,11 @@ components:
 
 
         The `metadata-location` field is optional.
-        It is absent when the metadata is staged but not committed, as in a create transaction, and when the table has no client-visible metadata location, as for a catalog-managed table where the catalog is the source of truth for table state and no metadata pointer need exist.
+        It is absent when the metadata is staged but not committed, as in a create transaction, and when the table has no client-visible metadata location.
 
 
         When present, clients can check whether metadata has changed by comparing metadata locations.
-        To obtain a metadata location for a catalog-managed table, use the `unregisterTable` endpoint, which returns the table's last metadata location at the point the table leaves catalog control and further commits are rejected.
+        To obtain a metadata location for a table that does not return one, use the `unregisterTable` endpoint, which returns the table's last metadata location at the point the table leaves catalog control and further commits are rejected.
 
 
         ## Table location
@@ -4449,7 +4447,7 @@ components:
           type: string
           description:
             Location of the table metadata file.
-            Absent when the metadata is staged but not committed, as in a create transaction, and when the table has no client-visible metadata location, as for a catalog-managed table where the catalog is the source of truth for table state.
+            Absent when the metadata is staged but not committed, as in a create transaction, and when the table has no client-visible metadata location.
         table-location:
           $ref: '#/components/schemas/TableLocation'
         metadata:
@@ -4715,7 +4713,10 @@ components:
           description:
             The last metadata location for the table at the time it was unregistered.
         table-location:
-          $ref: '#/components/schemas/TableLocation'
+          allOf:
+            - $ref: '#/components/schemas/TableLocation'
+          description:
+            Follows the same presence and precedence rules as `table-location` in `LoadTableResult`.
         metadata:
           $ref: '#/components/schemas/TableMetadata'
 
@@ -5489,6 +5490,7 @@ components:
 
 
         The `table-location` field carries the table's base location, so that a client can resolve relative paths in the returned metadata.
+        It follows the same presence and precedence rules as `table-location` in `LoadTableResult`.
       type: object
       required:
         - metadata
@@ -6482,12 +6484,12 @@ components:
       }
 
     UnsupportedTableFormatVersionError:
-      summary: The table's format version is not served by this endpoint
+      summary: A format version 4 table was requested through the v1 loadTable endpoint
       value: {
         "error": {
-          "message": "The given table's format version is not supported by this endpoint",
+          "message": "Cannot load format version 4 table through /v1: use the /v2 loadTable endpoint",
           "type": "UnsupportedTableFormatVersionException",
-          "code": 406
+          "code": 422
         }
       }
 
