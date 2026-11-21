@@ -201,7 +201,6 @@ class TestV4TrackedFileWrappers {
     TrackedFile file = mock(TrackedFile.class);
     when(file.contentType()).thenReturn(FileContent.DATA);
     when(file.location()).thenReturn(DATA_LOCATION);
-    when(file.fileFormat()).thenReturn(FileFormat.PARQUET);
 
     LeafTrackedFileWrapper wrapper =
         new LeafTrackedFileWrapper(
@@ -211,7 +210,6 @@ class TestV4TrackedFileWrappers {
     assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.SEQUENCE_NUMBER)).isNull();
     assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.FILE_SEQUENCE_NUMBER)).isNull();
     assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.FIRST_ROW_ID)).isNull();
-    assertThat(get(row, TRACKED_FILE_SCHEMA, TrackedFile.FILE_FORMAT)).isEqualTo("parquet");
   }
 
   @ParameterizedTest
@@ -222,7 +220,6 @@ class TestV4TrackedFileWrappers {
     TrackedFile file = mock(TrackedFile.class);
     when(file.contentType()).thenReturn(content);
     when(file.location()).thenReturn(DATA_LOCATION);
-    when(file.fileFormat()).thenReturn(FileFormat.PARQUET);
     if (content == FileContent.DATA_MANIFEST) {
       when(file.manifestInfo()).thenReturn(mock(ManifestInfo.class));
     }
@@ -236,6 +233,36 @@ class TestV4TrackedFileWrappers {
     assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.SEQUENCE_NUMBER)).isEqualTo(COMMIT_SEQ);
     assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.FILE_SEQUENCE_NUMBER)).isEqualTo(COMMIT_SEQ);
     assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.FIRST_ROW_ID)).isEqualTo(FIRST_ROW_ID);
+  }
+
+  @Test
+  void leafWritesLowerCaseFileFormat() {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+    when(file.fileFormat()).thenReturn(FileFormat.PARQUET);
+
+    LeafTrackedFileWrapper wrapper =
+        new LeafTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+    StructLike row = wrapper.wrap(file, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build());
+
+    assertThat(get(row, TRACKED_FILE_SCHEMA, TrackedFile.FILE_FORMAT)).isEqualTo("parquet");
+  }
+
+  @Test
+  void rootWritesLowerCaseFileFormat() {
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+    when(file.fileFormat()).thenReturn(FileFormat.PARQUET);
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+    StructLike row =
+        wrapper.wrap(file, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build(), FIRST_ROW_ID);
+
     assertThat(get(row, TRACKED_FILE_SCHEMA, TrackedFile.FILE_FORMAT)).isEqualTo("parquet");
   }
 
