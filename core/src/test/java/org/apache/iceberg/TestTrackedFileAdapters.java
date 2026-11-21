@@ -234,7 +234,7 @@ class TestTrackedFileAdapters {
     assertThat(dataFile.sortOrderId()).isEqualTo(3);
     assertThat(dataFile.dataSequenceNumber()).isEqualTo(DATA_SEQUENCE_NUMBER);
     assertThat(dataFile.fileSequenceNumber()).isEqualTo(FILE_SEQUENCE_NUMBER);
-    assertThat(dataFile.snapshotTimestampMicros()).isEqualTo(SNAPSHOT_TIMESTAMP_MICROS);
+    assertThat(dataFile.lastUpdatedTimestampMicros()).isEqualTo(SNAPSHOT_TIMESTAMP_MICROS);
     assertThat(dataFile.firstRowId()).isEqualTo(FIRST_ROW_ID);
     assertThat(dataFile.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(dataFile.splitOffsets()).containsExactly(50L, 100L);
@@ -347,7 +347,7 @@ class TestTrackedFileAdapters {
     assertThat(dvFile.partition()).isSameAs(PARTITION);
     assertThat(dvFile.dataSequenceNumber()).isEqualTo(DATA_SEQUENCE_NUMBER);
     assertThat(dvFile.fileSequenceNumber()).isEqualTo(FILE_SEQUENCE_NUMBER);
-    assertThat(dvFile.snapshotTimestampMicros()).isEqualTo(SNAPSHOT_TIMESTAMP_MICROS);
+    assertThat(dvFile.lastUpdatedTimestampMicros()).isEqualTo(SNAPSHOT_TIMESTAMP_MICROS);
     assertThat(dvFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
 
     // fields that are null for DVs
@@ -394,7 +394,8 @@ class TestTrackedFileAdapters {
     assertThat(actual.sortOrderId()).isEqualTo(expected.sortOrderId());
     assertThat(actual.dataSequenceNumber()).isEqualTo(expected.dataSequenceNumber());
     assertThat(actual.fileSequenceNumber()).isEqualTo(expected.fileSequenceNumber());
-    assertThat(actual.snapshotTimestampMicros()).isEqualTo(expected.snapshotTimestampMicros());
+    assertThat(actual.lastUpdatedTimestampMicros())
+        .isEqualTo(expected.lastUpdatedTimestampMicros());
     assertThat(actual.firstRowId()).isEqualTo(expected.firstRowId());
     assertThat(actual.pos()).isEqualTo(expected.pos());
     assertThat(actual.manifestLocation()).isEqualTo(expected.manifestLocation());

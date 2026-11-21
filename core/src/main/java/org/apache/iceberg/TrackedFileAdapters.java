@@ -149,7 +149,7 @@ class TrackedFileAdapters {
     }
 
     @Override
-    public Long snapshotTimestampMicros() {
+    public Long lastUpdatedTimestampMicros() {
       Tracking tracking = tracking();
       return tracking != null ? tracking.snapshotTimestampMicros() : null;
     }

@@ -192,7 +192,7 @@ public interface ContentFile<F> {
    * <p>Returns null if the snapshot timestamp is unknown. This may happen for files in tables with
    * format version below 4.
    */
-  default Long snapshotTimestampMicros() {
+  default Long lastUpdatedTimestampMicros() {
     return null;
   }
 
