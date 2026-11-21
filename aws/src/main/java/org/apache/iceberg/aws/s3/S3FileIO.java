@@ -106,6 +106,7 @@ public class S3FileIO
   private String credential = null;
   private SerializableSupplier<S3Client> s3;
   private SerializableSupplier<S3AsyncClient> s3Async;
+  private Object clientFactory;
   private SerializableMap<String, String> properties = null;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
@@ -410,7 +411,8 @@ public class S3FileIO
           Map<String, PrefixedS3Client> localClientByPrefix = Maps.newHashMap();
 
           localClientByPrefix.put(
-              ROOT_PREFIX, new PrefixedS3Client(ROOT_PREFIX, properties, s3, s3Async));
+              ROOT_PREFIX,
+              new PrefixedS3Client(ROOT_PREFIX, properties, s3, s3Async, clientFactory));
           storageCredentials.stream()
               .filter(c -> c.prefix().startsWith(ROOT_PREFIX))
               .collect(Collectors.toList())
@@ -514,7 +516,7 @@ public class S3FileIO
             : null;
 
     if (s3 == null) {
-      Object clientFactory = S3FileIOAwsClientFactories.initialize(properties);
+      this.clientFactory = S3FileIOAwsClientFactories.initialize(properties);
       if (clientFactory instanceof CredentialSupplier) {
         this.credential = ((CredentialSupplier) clientFactory).getCredential();
       }
