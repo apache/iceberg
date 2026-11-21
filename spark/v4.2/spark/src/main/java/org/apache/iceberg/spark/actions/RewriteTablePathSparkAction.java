@@ -41,6 +41,7 @@ import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionStatisticsFile;
+import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.RewriteTablePathUtil;
 import org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter;
 import org.apache.iceberg.RewriteTablePathUtil.RewriteResult;
@@ -359,6 +360,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
     Set<Pair<String, String>> copyPlan = Sets.newHashSet();
     copyPlan.addAll(rewriteVersionResult.copyPlan());
+    copyPlan.addAll(endVersionStatisticsCopyPlan(startMetadata, endMetadata));
     copyPlan.addAll(rewriteManifestListResult.copyPlan());
     copyPlan.addAll(rewriteManifestResult.copyPlan());
     String fileListLocation = saveFileList(copyPlan);
@@ -449,13 +451,28 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         Pair.of(
             stagingPath,
             RewriteTablePathUtil.newPath(versionFilePath, sourcePrefix, targetPrefix)));
+    return result;
+  }
 
-    // include statistics files in copy plan
+  private Set<Pair<String, String>> endVersionStatisticsCopyPlan(
+      TableMetadata startMetadata, TableMetadata endMetadata) {
+    TableMetadata newEndMetadata =
+        RewriteTablePathUtil.replacePaths(endMetadata, sourcePrefix, targetPrefix);
+    Set<Pair<String, String>> result = Sets.newHashSet();
     result.addAll(
-        statsFileCopyPlan(metadata.statisticsFiles(), newTableMetadata.statisticsFiles()));
+        statsFileCopyPlan(endMetadata.statisticsFiles(), newEndMetadata.statisticsFiles()));
     result.addAll(
         partitionStatsFileCopyPlan(
-            metadata.partitionStatisticsFiles(), newTableMetadata.partitionStatisticsFiles()));
+            endMetadata.partitionStatisticsFiles(), newEndMetadata.partitionStatisticsFiles()));
+
+    if (startMetadata != null) {
+      Set<String> startStatisticsFiles =
+          Sets.newHashSet(
+              ReachableFileUtil.statisticsFilesLocations(
+                  newStaticTable(startMetadata, table.io())));
+      result.removeIf(pair -> startStatisticsFiles.contains(pair.first()));
+    }
+
     return result;
   }
 
