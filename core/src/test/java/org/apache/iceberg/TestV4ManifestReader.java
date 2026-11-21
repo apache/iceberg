@@ -2066,29 +2066,31 @@ class TestV4ManifestReader {
   public void readManifestLocations(FileFormat format) throws IOException {
     TrackedFile dataFile =
         dataFile(
-            new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null),
+            new TrackingStruct(
+                EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null, null),
             "s3://bucket/table/data-file.parquet");
     TrackedFile deletedDataManifest =
         V4TestHelpers.manifestRefWithTracking(
             new TrackingStruct(
-                EntryStatus.DELETED, SNAPSHOT_ID, null, null, null, null, null, null),
+                EntryStatus.DELETED, SNAPSHOT_ID, null, null, null, null, null, null, null),
             FileContent.DATA_MANIFEST,
             "s3://bucket/table/deleted-data-manifest.parquet");
     TrackedFile dataManifest =
         V4TestHelpers.manifestRefWithTracking(
-            new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null),
+            new TrackingStruct(
+                EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null, null),
             FileContent.DATA_MANIFEST,
             "s3://bucket/table/data-manifest.parquet");
     TrackedFile deletedDeleteManifest =
         V4TestHelpers.manifestRefWithTracking(
             new TrackingStruct(
-                EntryStatus.DELETED, SNAPSHOT_ID, null, null, null, null, null, null),
+                EntryStatus.DELETED, SNAPSHOT_ID, null, null, null, null, null, null, null),
             FileContent.DELETE_MANIFEST,
             "s3://bucket/table/deleted-delete-manifest.parquet");
     TrackedFile deleteManifest =
         V4TestHelpers.manifestRefWithTracking(
             new TrackingStruct(
-                EntryStatus.EXISTING, SNAPSHOT_ID, null, null, null, null, null, null),
+                EntryStatus.EXISTING, SNAPSHOT_ID, null, null, null, null, null, null, null),
             FileContent.DELETE_MANIFEST,
             "s3://bucket/table/delete-manifest.parquet");
 
