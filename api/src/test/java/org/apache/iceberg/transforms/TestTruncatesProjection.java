@@ -19,7 +19,6 @@
 package org.apache.iceberg.transforms;
 
 import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
-import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -495,13 +494,10 @@ public class TestTruncatesProjection {
         spec, notIn("value", Integer.MIN_VALUE, 5), Expression.Operation.TRUE);
 
     // the MIN_VALUE side of the range contributes no bound; the upper bound still applies
+    assertProjectionInclusiveValue(
+        spec, greaterThanOrEqual("value", Integer.MIN_VALUE), Expression.Operation.TRUE);
     assertProjectionInclusive(
-        spec,
-        and(
-            greaterThanOrEqual("value", Integer.MIN_VALUE),
-            lessThanOrEqual("value", -2147483640)),
-        Expression.Operation.LT_EQ,
-        "-2147483640");
+        spec, lessThanOrEqual("value", -2147483640), Expression.Operation.LT_EQ, "-2147483640");
 
     // a boundary whose truncated value fits still projects normally
     assertProjectionInclusive(spec, lessThan("value", 0), Expression.Operation.LT_EQ, "-10");
