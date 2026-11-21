@@ -171,7 +171,7 @@ class TestTrackedFileStruct {
     assertThat(file.get(pos("content_type"), Integer.class)).isEqualTo(FileContent.DATA.id());
     assertThat(file.get(pos("location"), String.class))
         .isEqualTo("s3://bucket/data/00000-0-file.parquet");
-    assertThat(file.get(pos("file_format"), String.class)).isEqualTo(FileFormat.PARQUET.toString());
+    assertThat(file.get(pos("file_format"), String.class)).isEqualTo("parquet");
     assertThat(file.get(pos("record_count"), Long.class)).isEqualTo(50L);
     assertThat(file.get(pos("file_size_in_bytes"), Long.class)).isEqualTo(512L);
     assertThat(file.get(pos("spec_id"), Integer.class)).isEqualTo(1);
