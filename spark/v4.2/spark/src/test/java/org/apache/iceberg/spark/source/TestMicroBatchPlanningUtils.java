@@ -19,11 +19,13 @@
 package org.apache.iceberg.spark.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.CatalogTestBase;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -96,5 +98,68 @@ public class TestMicroBatchPlanningUtils extends CatalogTestBase {
     long actual = MicroBatchUtils.addedFilesCount(table, table.currentSnapshot());
 
     assertThat(actual).isEqualTo(expectedAddedFiles);
+  }
+
+  @TestTemplate
+  void determineInitialOffsetAcceptsKeywordsInAnyCase() {
+    sql("INSERT INTO %s VALUES (1, 'one')", tableName);
+    table.refresh();
+
+    assertThat(MicroBatchUtils.determineInitialOffset(table, Long.MIN_VALUE, "LATEST"))
+        .isEqualTo(
+            MicroBatchUtils.determineInitialOffset(
+                table, Long.MIN_VALUE, SparkReadOptions.STREAM_FROM_SNAPSHOT_LATEST));
+  }
+
+  @TestTemplate
+  void determineInitialOffsetRejectsUnsupportedValue() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> MicroBatchUtils.determineInitialOffset(table, Long.MIN_VALUE, "newest"))
+        .withMessage(
+            "Invalid value for stream-from-snapshot: newest (supported: a snapshot ID, latest, earliest)");
+  }
+
+  @TestTemplate
+  void determineInitialOffsetRejectsStreamFromTimestamp() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                MicroBatchUtils.determineInitialOffset(
+                    table, 1L, SparkReadOptions.STREAM_FROM_SNAPSHOT_EARLIEST))
+        .withMessage("Cannot set both stream-from-snapshot and stream-from-timestamp");
+  }
+
+  @TestTemplate
+  void determineInitialOffsetRejectsUnknownSnapshot() {
+    sql("INSERT INTO %s VALUES (1, 'one')", tableName);
+    table.refresh();
+    long unknownSnapshotId = table.currentSnapshot().snapshotId() + 1;
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                MicroBatchUtils.determineInitialOffset(
+                    table, Long.MIN_VALUE, String.valueOf(unknownSnapshotId)))
+        .withMessage("Cannot find snapshot for stream-from-snapshot: %s", unknownSnapshotId);
+  }
+
+  @TestTemplate
+  void determineInitialOffsetRejectsSnapshotThatIsNotAnAncestor() {
+    sql("INSERT INTO %s VALUES (1, 'one')", tableName);
+    table.refresh();
+    long rollbackSnapshotId = table.currentSnapshot().snapshotId();
+    sql("INSERT INTO %s VALUES (2, 'two')", tableName);
+    table.refresh();
+    long orphanedSnapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().rollbackTo(rollbackSnapshotId).commit();
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                MicroBatchUtils.determineInitialOffset(
+                    table, Long.MIN_VALUE, String.valueOf(orphanedSnapshotId)))
+        .withMessage(
+            "Cannot stream from snapshot %s: not an ancestor of the current snapshot",
+            orphanedSnapshotId);
   }
 }

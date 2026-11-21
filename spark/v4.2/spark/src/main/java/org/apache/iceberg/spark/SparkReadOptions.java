@@ -77,6 +77,16 @@ public class SparkReadOptions {
   // Timestamp in milliseconds; start a stream from the snapshot that occurs after this timestamp
   public static final String STREAM_FROM_TIMESTAMP = "stream-from-timestamp";
 
+  // Snapshot ID to start a stream from, "latest", or "earliest"; when neither this nor
+  // stream-from-timestamp is set, a new stream reads the current snapshot in full first
+  public static final String STREAM_FROM_SNAPSHOT = "stream-from-snapshot";
+
+  // Start a stream after the current snapshot, reading only snapshots committed later
+  public static final String STREAM_FROM_SNAPSHOT_LATEST = "latest";
+
+  // Start a stream from the oldest ancestor snapshot and read each snapshot's added files
+  public static final String STREAM_FROM_SNAPSHOT_EARLIEST = "earliest";
+
   // maximum file per micro_batch
   public static final String STREAMING_MAX_FILES_PER_MICRO_BATCH =
       "streaming-max-files-per-micro-batch";
