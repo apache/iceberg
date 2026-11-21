@@ -78,8 +78,8 @@ class ReadConf<T> {
 
     MessageType typeWithIds;
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
-      typeWithIds = fileSchema;
-      this.projection = ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema);
+      typeWithIds = ParquetSchemaUtil.removeContainersWithMissingIds(fileSchema, expectedSchema);
+      this.projection = ParquetSchemaUtil.pruneColumns(typeWithIds, expectedSchema);
     } else if (nameMapping != null) {
       typeWithIds = ParquetSchemaUtil.applyNameMapping(fileSchema, nameMapping);
       this.projection = ParquetSchemaUtil.pruneColumns(typeWithIds, expectedSchema);
@@ -103,13 +103,20 @@ class ReadConf<T> {
     long computedTotalValues = 0L;
     for (int i = 0; i < shouldSkip.length; i += 1) {
       BlockMetaData rowGroup = rowGroups.get(i);
+      BlockMetaData filterRowGroup = new BlockMetaData();
+      filterRowGroup.setRowCount(rowGroup.getRowCount());
+      for (ColumnChunkMetaData column : rowGroup.getColumns()) {
+        if (typeWithIds.containsPath(column.getPath().toArray())) {
+          filterRowGroup.addColumn(column);
+        }
+      }
       boolean shouldRead =
           filter == null
-              || (statsFilter.shouldRead(typeWithIds, rowGroup)
+              || (statsFilter.shouldRead(typeWithIds, filterRowGroup)
                   && dictFilter.shouldRead(
-                      typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup))
+                      typeWithIds, filterRowGroup, reader.getDictionaryReader(rowGroup))
                   && bloomFilter.shouldRead(
-                      typeWithIds, rowGroup, reader.getBloomFilterDataReader(rowGroup)));
+                      typeWithIds, filterRowGroup, reader.getBloomFilterDataReader(rowGroup)));
       this.shouldSkip[i] = !shouldRead;
       if (shouldRead) {
         computedTotalValues += rowGroup.getRowCount();
