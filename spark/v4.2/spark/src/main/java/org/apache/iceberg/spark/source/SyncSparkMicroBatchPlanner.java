@@ -90,8 +90,10 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
       Snapshot currentSnapshot = table().snapshot(currentOffset.snapshotId());
       if (currentOffset.snapshotId() == endOffset.snapshotId()) {
         endFileIndex = endOffset.position();
-      } else {
+      } else if (currentOffset.shouldScanAllFiles()) {
         endFileIndex = MicroBatchUtils.addedFilesCount(table(), currentSnapshot);
+      } else {
+        endFileIndex = MicroBatchUtils.addedFilesEndIndex(table(), currentSnapshot);
       }
 
       MicroBatch latestMicroBatch =
