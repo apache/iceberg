@@ -156,7 +156,7 @@ public class TestOverwriteWithValidation extends TestBase {
 
   private static final DeleteFile FILE_DAY_2_ANOTHER_RANGE_EQ_DELETES =
       FileMetadata.deleteFileBuilder(PARTITION_SPEC)
-          .ofEqualityDeletes()
+          .ofEqualityDeletes(1)
           .withPath("/path/to/data-3-eq-deletes.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("date=2018-06-09")
@@ -872,6 +872,46 @@ public class TestOverwriteWithValidation extends TestBase {
             .validateNoConflictingDeletes();
 
     commit(table, table.newRowDelta().addDeletes(FILE_DAY_2_EQ_DELETES), branch);
+
+    assertThatThrownBy(() -> commit(table, overwrite, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot commit, found new delete for replaced data file");
+  }
+
+  @TestTemplate
+  public void concurrentEqualityDeletesOutsideConflictFilterForReplacedFile() {
+    assumeThat(formatVersion).isIn(2, 3);
+
+    commit(table, table.newAppend().appendFile(FILE_DAY_2), branch);
+
+    Snapshot firstSnapshot = latestSnapshot(table, branch);
+
+    OverwriteFiles overwrite =
+        table
+            .newOverwrite()
+            .deleteFile(FILE_DAY_2)
+            .addFile(FILE_DAY_2_MODIFIED)
+            .validateFromSnapshot(firstSnapshot.snapshotId())
+            .conflictDetectionFilter(equal("id", 5L))
+            .validateNoConflictingDeletes();
+
+    DeleteFile eqDeletes =
+        FileMetadata.deleteFileBuilder(PARTITION_SPEC)
+            .ofEqualityDeletes(1)
+            .withPath("/path/to/data-2-id-7-eq-deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("date=2018-06-09")
+            .withMetrics(
+                new Metrics(
+                    1L,
+                    null,
+                    ImmutableMap.of(1, 1L),
+                    ImmutableMap.of(1, 0L),
+                    null,
+                    ImmutableMap.of(1, longToBuffer(7L)),
+                    ImmutableMap.of(1, longToBuffer(7L))))
+            .build();
+    commit(table, table.newRowDelta().addDeletes(eqDeletes), branch);
 
     assertThatThrownBy(() -> commit(table, overwrite, branch))
         .isInstanceOf(ValidationException.class)

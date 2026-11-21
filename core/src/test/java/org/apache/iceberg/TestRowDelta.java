@@ -32,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -56,10 +57,13 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -415,6 +419,47 @@ public class TestRowDelta extends TestBase {
         ids(snap.snapshotId()),
         files(fileADeletes()),
         statuses(Status.ADDED));
+  }
+
+  @TestTemplate
+  public void concurrentEqualityDeletesOutsideConflictFilterForRemovedFile() {
+    assumeThat(formatVersion).isIn(2, 3);
+
+    commit(table, table.newAppend().appendFile(FILE_A), branch);
+    long initialCommit = latestSnapshot(table, branch).snapshotId();
+
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .removeRows(FILE_A)
+            .addRows(FILE_A2)
+            .validateFromSnapshot(initialCommit)
+            .conflictDetectionFilter(Expressions.equal("id", 5))
+            .validateNoConflictingDeleteFiles();
+
+    int idFieldId = table.schema().findField("id").fieldId();
+    ByteBuffer seven = Conversions.toByteBuffer(Types.IntegerType.get(), 7);
+    DeleteFile eqDeletes =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofEqualityDeletes(idFieldId)
+            .withPath("/path/to/data-a-id-7-eq-deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withMetrics(
+                new Metrics(
+                    1L,
+                    null,
+                    ImmutableMap.of(idFieldId, 1L),
+                    ImmutableMap.of(idFieldId, 0L),
+                    null,
+                    ImmutableMap.of(idFieldId, seven),
+                    ImmutableMap.of(idFieldId, seven)))
+            .build();
+    commit(table, table.newRowDelta().addDeletes(eqDeletes), branch);
+
+    assertThatThrownBy(() -> commit(table, rowDelta, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot commit, found new delete for replaced data file");
   }
 
   @TestTemplate
