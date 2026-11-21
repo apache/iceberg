@@ -89,13 +89,9 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
       } else if (field.type() == type) {
         newFields.add(field);
 
-      } else if (field.isOptional()) {
-        changed = true;
-        newFields.add(Types.NestedField.optional(field.fieldId(), field.name(), type));
-
       } else {
         changed = true;
-        newFields.add(Types.NestedField.required(field.fieldId(), field.name(), type));
+        newFields.add(Types.NestedField.from(field).ofType(type).build());
       }
     }
 

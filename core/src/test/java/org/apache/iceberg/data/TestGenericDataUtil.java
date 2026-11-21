@@ -106,4 +106,23 @@ public class TestGenericDataUtil {
     Object result = GenericDataUtil.internalToGeneric(Types.IntegerType.get(), null);
     assertThat(result).isNull();
   }
+
+  @Test
+  void structConversion() {
+    Types.StructType struct =
+        Types.StructType.of(
+            Types.NestedField.optional(1, "day", Types.DateType.get()),
+            Types.NestedField.optional(2, "count", Types.IntegerType.get()));
+    LocalDate day = LocalDate.of(2025, 1, 15);
+    Record internal = GenericRecord.create(struct);
+    internal.set(0, DateTimeUtil.daysFromDate(day));
+    internal.set(1, 34);
+
+    Object result = GenericDataUtil.internalToGeneric(struct, internal);
+
+    Record expected = GenericRecord.create(struct);
+    expected.set(0, day);
+    expected.set(1, 34);
+    assertThat(result).isInstanceOf(Record.class).isEqualTo(expected);
+  }
 }

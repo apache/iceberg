@@ -25,9 +25,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -893,7 +895,14 @@ public class Types {
     }
 
     private static Literal<?> castDefault(Literal<?> defaultValue, Type type) {
-      if (type.isNestedType() && defaultValue != null) {
+      if (type.isStructType() && Literal.emptyStruct().equals(defaultValue)) {
+        return defaultValue;
+      } else if (type.isStructType() && defaultValue != null) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Invalid default value for %s: %s (must be null or empty struct)",
+                type, defaultValue));
+      } else if (type.isNestedType() && defaultValue != null) {
         throw new IllegalArgumentException(
             String.format("Invalid default value for %s: %s (must be null)", type, defaultValue));
       } else if (defaultValue != null) {
@@ -956,7 +965,18 @@ public class Types {
       return initialDefault;
     }
 
+    /**
+     * Returns the value used for this field in records written before the field was added.
+     *
+     * <p>A struct's non-null default is a struct of its fields' initial defaults.
+     *
+     * @return the initial default value, or null if it is not set
+     */
     public Object initialDefault() {
+      if (initialDefault != null && type.isStructType()) {
+        return structDefault(type.asStructType(), NestedField::initialDefault);
+      }
+
       return initialDefault != null ? initialDefault.value() : null;
     }
 
@@ -964,8 +984,30 @@ public class Types {
       return writeDefault;
     }
 
+    /**
+     * Returns the value written for this field when a writer does not supply one.
+     *
+     * <p>A struct's non-null default is a struct of its fields' write defaults.
+     *
+     * @return the write default value, or null if it is not set
+     */
     public Object writeDefault() {
+      if (writeDefault != null && type.isStructType()) {
+        return structDefault(type.asStructType(), NestedField::writeDefault);
+      }
+
       return writeDefault != null ? writeDefault.value() : null;
+    }
+
+    private static StructLike structDefault(
+        StructType struct, Function<NestedField, Object> fieldDefault) {
+      List<NestedField> fields = struct.fields();
+      Object[] values = new Object[fields.size()];
+      for (int pos = 0; pos < values.length; pos += 1) {
+        values[pos] = fieldDefault.apply(fields.get(pos));
+      }
+
+      return new DefaultStruct(values);
     }
 
     @Override
@@ -1005,6 +1047,29 @@ public class Types {
     @Override
     public int hashCode() {
       return Objects.hash(NestedField.class, id, isOptional, name, type);
+    }
+  }
+
+  private static class DefaultStruct implements StructLike {
+    private final Object[] values;
+
+    private DefaultStruct(Object[] values) {
+      this.values = values;
+    }
+
+    @Override
+    public int size() {
+      return values.length;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(values[pos]);
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Cannot modify a default value");
     }
   }
 
