@@ -57,11 +57,15 @@ public class CompareSchemasVisitor
 
   public static Result visit(
       Schema dataSchema, Schema tableSchema, boolean caseSensitive, boolean dropUnusedColumns) {
-    return visit(
-        dataSchema,
-        -1,
-        new CompareSchemasVisitor(tableSchema, caseSensitive, dropUnusedColumns),
-        new PartnerIdByNameAccessors(tableSchema, caseSensitive));
+    try {
+      return visit(
+          dataSchema,
+          -1,
+          new CompareSchemasVisitor(tableSchema, caseSensitive, dropUnusedColumns),
+          new PartnerIdByNameAccessors(tableSchema, caseSensitive));
+    } catch (IllegalArgumentException e) {
+      throw new DynamicRecordException(e.getMessage(), e);
+    }
   }
 
   @VisibleForTesting

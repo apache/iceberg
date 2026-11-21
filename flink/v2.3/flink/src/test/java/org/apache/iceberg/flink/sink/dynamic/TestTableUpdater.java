@@ -19,10 +19,13 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
@@ -32,6 +35,9 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -39,6 +45,8 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -513,5 +521,206 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
         TableCreator.DEFAULT);
 
     assertThat(catalog.tableExists(tableIdentifier)).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {DROP_COLUMNS, PRESERVE_COLUMNS})
+  void omittingIdentifierColumnIsRecordException(boolean dropUnusedColumns) {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
+    catalog.createTable(
+        tableIdentifier,
+        new Schema(
+            List.of(
+                Types.NestedField.required(1, "id", Types.IntegerType.get()),
+                Types.NestedField.required(2, "data", Types.StringType.get())),
+            Set.of(2)));
+    TableUpdater tableUpdater = tableUpdater(catalog, dropUnusedColumns);
+
+    assertThatThrownBy(
+            () ->
+                tableUpdater.update(
+                    tableIdentifier,
+                    SnapshotRef.MAIN_BRANCH,
+                    new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get())),
+                    PartitionSpec.unpartitioned(),
+                    TableCreator.DEFAULT))
+        .isInstanceOf(DynamicRecordException.class)
+        .hasMessageContaining("identifier field");
+  }
+
+  @Test
+  void makingIdentifierColumnOptionalIsRecordException() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
+    catalog.createTable(
+        tableIdentifier,
+        new Schema(
+            List.of(
+                Types.NestedField.required(1, "id", Types.IntegerType.get()),
+                Types.NestedField.optional(2, "data", Types.StringType.get())),
+            Set.of(1)));
+    TableUpdater tableUpdater = tableUpdater(catalog, PRESERVE_COLUMNS);
+
+    assertThatThrownBy(
+            () ->
+                tableUpdater.update(
+                    tableIdentifier,
+                    SnapshotRef.MAIN_BRANCH,
+                    SCHEMA,
+                    PartitionSpec.unpartitioned(),
+                    TableCreator.DEFAULT))
+        .isInstanceOf(DynamicRecordException.class)
+        .hasMessageContaining("not a required field");
+  }
+
+  @Test
+  void changingMapKeyTypeIsRecordException() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
+    catalog.createTable(
+        tableIdentifier,
+        new Schema(
+            Types.NestedField.optional(
+                1,
+                "a",
+                Types.MapType.ofOptional(2, 3, Types.IntegerType.get(), Types.IntegerType.get()))));
+    TableUpdater tableUpdater = tableUpdater(catalog, PRESERVE_COLUMNS);
+
+    assertThatThrownBy(
+            () ->
+                tableUpdater.update(
+                    tableIdentifier,
+                    SnapshotRef.MAIN_BRANCH,
+                    new Schema(
+                        Types.NestedField.optional(
+                            1,
+                            "a",
+                            Types.MapType.ofOptional(
+                                2, 3, Types.LongType.get(), Types.IntegerType.get()))),
+                    PartitionSpec.unpartitioned(),
+                    TableCreator.DEFAULT))
+        .isInstanceOf(DynamicRecordException.class)
+        .hasMessageContaining("Cannot update map keys");
+  }
+
+  @Test
+  void addingColumnOfTypeNotSupportedByFormatVersionIsRecordException() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
+    catalog.createTable(
+        tableIdentifier,
+        new Schema(Types.NestedField.optional(1, "id", Types.IntegerType.get())),
+        PartitionSpec.unpartitioned(),
+        Map.of(TableProperties.FORMAT_VERSION, "2"));
+    TableUpdater tableUpdater = tableUpdater(catalog, PRESERVE_COLUMNS);
+
+    assertThatThrownBy(
+            () ->
+                tableUpdater.update(
+                    tableIdentifier,
+                    SnapshotRef.MAIN_BRANCH,
+                    new Schema(
+                        Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+                        Types.NestedField.optional(2, "payload", Types.VariantType.get())),
+                    PartitionSpec.unpartitioned(),
+                    TableCreator.DEFAULT))
+        .isInstanceOf(DynamicRecordException.class)
+        .hasMessageContaining("Invalid schema for v2");
+  }
+
+  @Test
+  void specOnColumnMissingFromTableIsRecordException() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
+    catalog.createTable(tableIdentifier, SCHEMA);
+    Schema schemaWithExtra =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()),
+            Types.NestedField.optional(3, "extra", Types.StringType.get()));
+    TableUpdater tableUpdater = tableUpdater(catalog, PRESERVE_COLUMNS);
+
+    assertThatThrownBy(
+            () ->
+                tableUpdater.update(
+                    tableIdentifier,
+                    SnapshotRef.MAIN_BRANCH,
+                    SCHEMA,
+                    PartitionSpec.builderFor(schemaWithExtra).identity("extra").build(),
+                    TableCreator.DEFAULT))
+        .isInstanceOf(DynamicRecordException.class)
+        .hasMessageContaining("Cannot find field 'extra'");
+  }
+
+  @Test
+  void commitFailureIsNotRecordException() {
+    CommitFailingCatalog catalog = new CommitFailingCatalog();
+    catalog.initialize("catalog", Map.of());
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "myTable");
+    catalog.createNamespace(tableIdentifier.namespace());
+    catalog.createTable(tableIdentifier, SCHEMA);
+    catalog.commitFailure = new IllegalStateException("Connection pool shut down");
+    TableUpdater tableUpdater = tableUpdater(catalog, PRESERVE_COLUMNS);
+
+    assertThatThrownBy(
+            () ->
+                tableUpdater.update(
+                    tableIdentifier,
+                    SnapshotRef.MAIN_BRANCH,
+                    SCHEMA2,
+                    PartitionSpec.unpartitioned(),
+                    TableCreator.DEFAULT))
+        .isSameAs(catalog.commitFailure);
+  }
+
+  private static TableUpdater tableUpdater(Catalog catalog, boolean dropUnusedColumns) {
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, dropUnusedColumns);
+    return new TableUpdater(cache, catalog, CASE_SENSITIVE, dropUnusedColumns);
+  }
+
+  private static class CommitFailingCatalog extends InMemoryCatalog {
+    private RuntimeException commitFailure;
+
+    @Override
+    protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
+      TableOperations delegate = super.newTableOps(tableIdentifier);
+      return new TableOperations() {
+        @Override
+        public TableMetadata current() {
+          return delegate.current();
+        }
+
+        @Override
+        public TableMetadata refresh() {
+          return delegate.refresh();
+        }
+
+        @Override
+        public void commit(TableMetadata base, TableMetadata metadata) {
+          if (commitFailure != null && metadata.schemas().size() > base.schemas().size()) {
+            throw commitFailure;
+          }
+
+          delegate.commit(base, metadata);
+        }
+
+        @Override
+        public FileIO io() {
+          return delegate.io();
+        }
+
+        @Override
+        public String metadataFileLocation(String fileName) {
+          return delegate.metadataFileLocation(fileName);
+        }
+
+        @Override
+        public LocationProvider locationProvider() {
+          return delegate.locationProvider();
+        }
+      };
+    }
   }
 }

@@ -46,6 +46,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class TestRowDataConverter {
@@ -121,8 +122,77 @@ class TestRowDataConverter {
             required(2, "data", Types.StringType.get()));
 
     assertThatThrownBy(() -> convert(GenericRowData.of(42), currentSchema, targetSchema))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(DynamicRecordException.class)
         .hasMessageContaining("is non-nullable but does not exist in source schema");
+  }
+
+  @Test
+  void nullValueForRequiredField() {
+    Schema currentSchema = new Schema(optional(1, "id", Types.IntegerType.get()));
+    Schema targetSchema = new Schema(required(1, "id", Types.IntegerType.get()));
+
+    assertThatThrownBy(() -> convert(GenericRowData.of((Object) null), currentSchema, targetSchema))
+        .isInstanceOf(DynamicRecordException.class)
+        .hasMessageContaining("Null value for non-nullable field: id");
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = RowKind.class,
+      names = {"DELETE", "UPDATE_BEFORE"})
+  void nullValueForRequiredFieldAllowedForRowsThatOnlyDelete(RowKind kind) {
+    Schema currentSchema = new Schema(optional(1, "id", Types.IntegerType.get()));
+    Schema targetSchema = new Schema(required(1, "id", Types.IntegerType.get()));
+
+    RowData converted =
+        convert(GenericRowData.ofKind(kind, (Object) null), currentSchema, targetSchema);
+
+    assertThat(converted.getRowKind()).isEqualTo(kind);
+    assertThat(converted.isNullAt(0)).isTrue();
+  }
+
+  @Test
+  void identityRejectsNullInRequiredColumnOfInsert() {
+    Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
+
+    assertThatThrownBy(
+            () -> DataConverter.identity(schema).convert(GenericRowData.of((Object) null)))
+        .isInstanceOf(DynamicRecordException.class)
+        .hasMessage("Null value for non-nullable field: id");
+  }
+
+  @Test
+  void identityRejectsNullInRequiredColumnOfUpdateAfter() {
+    Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
+
+    assertThatThrownBy(
+            () ->
+                DataConverter.identity(schema)
+                    .convert(GenericRowData.ofKind(RowKind.UPDATE_AFTER, (Object) null)))
+        .isInstanceOf(DynamicRecordException.class)
+        .hasMessage("Null value for non-nullable field: id");
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = RowKind.class,
+      names = {"DELETE", "UPDATE_BEFORE"})
+  void identityAcceptsNullInRequiredColumnOfRowsThatOnlyDelete(RowKind kind) {
+    Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
+    RowData row = GenericRowData.ofKind(kind, (Object) null);
+
+    assertThat(DataConverter.identity(schema).convert(row)).isSameAs(row);
+  }
+
+  @Test
+  void identityAcceptsNullInOptionalColumn() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(2, "data", Types.StringType.get()));
+    RowData row = GenericRowData.of(1, null);
+
+    assertThat(DataConverter.identity(schema).convert(row)).isSameAs(row);
   }
 
   @Test
@@ -276,7 +346,7 @@ class TestRowDataConverter {
                     required(102, "name", Types.StringType.get()))));
 
     assertThatThrownBy(() -> convert(oldData, oldSchema, newSchema))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(DynamicRecordException.class)
         .hasMessageContaining("is non-nullable but does not exist in source schema");
   }
 

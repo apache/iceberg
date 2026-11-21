@@ -24,6 +24,7 @@ import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.catalog.Catalog;
@@ -31,6 +32,7 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -139,7 +141,7 @@ class TableUpdater {
         case SAME:
           cache.update(identifier, table);
           return new TableMetadataCache.ResolvedSchemaInfo(
-              tableSchema, result, DataConverter.identity());
+              tableSchema, result, DataConverter.identity(tableSchema));
         case DATA_CONVERSION_NEEDED:
           cache.update(identifier, table);
           return new TableMetadataCache.ResolvedSchemaInfo(
@@ -153,8 +155,16 @@ class TableUpdater {
           LOG.info(
               "Triggering schema update for table {} {} to {}", identifier, tableSchema, schema);
           UpdateSchema updateApi = table.updateSchema();
-          EvolveSchemaVisitor.visit(
-              identifier, updateApi, tableSchema, schema, caseSensitive, dropUnusedColumns);
+          int formatVersion = TableUtil.formatVersion(table);
+          try {
+            EvolveSchemaVisitor.visit(
+                identifier, updateApi, tableSchema, schema, caseSensitive, dropUnusedColumns);
+            // Validates what commit() would reject: commit() failures cannot be told apart from
+            // catalog failures, so commit() itself is not classified.
+            checkCompatibility(updateApi.apply(), formatVersion);
+          } catch (IllegalArgumentException e) {
+            throw new DynamicRecordException(e.getMessage(), e);
+          }
 
           try {
             updateApi.commit();
@@ -182,6 +192,14 @@ class TableUpdater {
     }
   }
 
+  private static void checkCompatibility(Schema schema, int formatVersion) {
+    try {
+      Schema.checkCompatibility(schema, formatVersion);
+    } catch (IllegalStateException e) {
+      throw new DynamicRecordException(e.getMessage(), e);
+    }
+  }
+
   private PartitionSpec findOrCreateSpec(TableIdentifier identifier, PartitionSpec targetSpec) {
     PartitionSpec currentSpec = cache.spec(identifier, targetSpec);
     if (currentSpec != null) {
@@ -204,8 +222,13 @@ class TableUpdater {
         currentSpec,
         targetSpec);
     UpdatePartitionSpec updater = table.updateSpec();
-    result.termsToRemove().forEach(updater::removeField);
-    result.termsToAdd().forEach(updater::addField);
+    try {
+      result.termsToRemove().forEach(updater::removeField);
+      result.termsToAdd().forEach(updater::addField);
+      updater.apply();
+    } catch (IllegalArgumentException | ValidationException e) {
+      throw new DynamicRecordException(e.getMessage(), e);
+    }
 
     try {
       updater.commit();
