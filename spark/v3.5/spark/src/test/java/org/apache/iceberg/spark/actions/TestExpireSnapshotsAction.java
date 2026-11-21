@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
@@ -1519,7 +1520,9 @@ public class TestExpireSnapshotsAction extends TestBase {
 
     Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
 
-    assertThatThrownBy(
+    // adaptive execution may report several failed stages, so check the whole failure chain
+    Throwable failure =
+        catchThrowable(
             () ->
                 SparkActions.get()
                     .expireSnapshots(table)
@@ -1528,9 +1531,8 @@ public class TestExpireSnapshotsAction extends TestBase {
                     .deleteWith(deletedFiles::add)
                     .option(
                         ExpireSnapshotsSparkAction.STREAM_RESULTS, String.valueOf(streamResults))
-                    .execute())
-        .isInstanceOf(SparkException.class)
-        .hasMessageContaining(sharedManifest);
+                    .execute());
+    assertThat(failure).isInstanceOf(SparkException.class).hasStackTraceContaining(sharedManifest);
 
     assertThat(deletedFiles)
         .as("Must not delete any file when the delete set cannot be computed safely")
