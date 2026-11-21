@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Map;
 import javax.annotation.Nonnull;
@@ -30,13 +31,16 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.data.RegistryBasedFileWriterFactory;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.SimpleDataUtil;
+import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
 import org.apache.iceberg.io.BaseTaskWriter;
 import org.apache.iceberg.io.FileWriterFactory;
@@ -45,6 +49,7 @@ import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class TestDynamicWriter extends TestFlinkIcebergSinkBase {
 
@@ -324,6 +329,65 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
 
     // File names must be different
     assertThat(firstFile.getName()).isNotEqualTo(secondFile.getName());
+  }
+
+  @Test
+  void writesToRecreatedTable(@TempDir Path newDataDir) throws Exception {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    Table table = catalog.createTable(TABLE1, SimpleDataUtil.SCHEMA);
+
+    DynamicWriter dynamicWriter =
+        createDynamicWriter(
+            catalog, ImmutableMap.of(FlinkDynamicSinkOptions.CACHE_REFRESH_MS.key(), "0"));
+    dynamicWriter.write(getDynamicRecordInternal(table), null);
+    dynamicWriter.prepareCommit();
+
+    catalog.dropTable(TABLE1, true);
+    Table recreated =
+        catalog.createTable(
+            TABLE1,
+            SimpleDataUtil.SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(TableProperties.WRITE_DATA_LOCATION, newDataDir.toString()));
+
+    dynamicWriter.write(getDynamicRecordInternal(recreated), null);
+    Collection<DynamicWriteResult> writeResults = dynamicWriter.prepareCommit();
+
+    assertThat(writeResults)
+        .singleElement()
+        .satisfies(
+            result ->
+                assertThat(result.writeResult().dataFiles())
+                    .singleElement()
+                    .satisfies(
+                        dataFile ->
+                            assertThat(dataFile.location()).startsWith(newDataDir.toString())));
+
+    dynamicWriter.close();
+  }
+
+  @Test
+  void reusesTaskWriterFactoryWithinCacheRefreshInterval() throws Exception {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    Table table = catalog.createTable(TABLE1, SimpleDataUtil.SCHEMA);
+
+    DynamicWriter dynamicWriter =
+        createDynamicWriter(
+            catalog,
+            ImmutableMap.of(
+                FlinkDynamicSinkOptions.CACHE_REFRESH_MS.key(), String.valueOf(Long.MAX_VALUE)));
+
+    dynamicWriter.write(getDynamicRecordInternal(table), null);
+    dynamicWriter.prepareCommit();
+    RowDataTaskWriterFactory factory =
+        dynamicWriter.getTaskWriterFactories().values().iterator().next();
+
+    dynamicWriter.write(getDynamicRecordInternal(table), null);
+    dynamicWriter.prepareCommit();
+
+    assertThat(dynamicWriter.getTaskWriterFactories().values()).containsExactly(factory);
+
+    dynamicWriter.close();
   }
 
   private static @Nonnull DynamicWriter createDynamicWriter(
