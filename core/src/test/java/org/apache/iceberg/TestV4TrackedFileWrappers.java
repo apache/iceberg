@@ -26,6 +26,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.V4Metadata.LeafTrackedFileWrapper;
@@ -200,6 +201,7 @@ class TestV4TrackedFileWrappers {
     TrackedFile file = mock(TrackedFile.class);
     when(file.contentType()).thenReturn(FileContent.DATA);
     when(file.location()).thenReturn(DATA_LOCATION);
+    when(file.fileFormat()).thenReturn(FileFormat.PARQUET);
 
     LeafTrackedFileWrapper wrapper =
         new LeafTrackedFileWrapper(
@@ -209,6 +211,7 @@ class TestV4TrackedFileWrappers {
     assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.SEQUENCE_NUMBER)).isNull();
     assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.FILE_SEQUENCE_NUMBER)).isNull();
     assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.FIRST_ROW_ID)).isNull();
+    assertThat(get(row, TRACKED_FILE_SCHEMA, TrackedFile.FILE_FORMAT)).isEqualTo("parquet");
   }
 
   @ParameterizedTest
@@ -219,6 +222,7 @@ class TestV4TrackedFileWrappers {
     TrackedFile file = mock(TrackedFile.class);
     when(file.contentType()).thenReturn(content);
     when(file.location()).thenReturn(DATA_LOCATION);
+    when(file.fileFormat()).thenReturn(FileFormat.PARQUET);
     if (content == FileContent.DATA_MANIFEST) {
       when(file.manifestInfo()).thenReturn(mock(ManifestInfo.class));
     }
@@ -232,6 +236,32 @@ class TestV4TrackedFileWrappers {
     assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.SEQUENCE_NUMBER)).isEqualTo(COMMIT_SEQ);
     assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.FILE_SEQUENCE_NUMBER)).isEqualTo(COMMIT_SEQ);
     assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.FIRST_ROW_ID)).isEqualTo(FIRST_ROW_ID);
+    assertThat(get(row, TRACKED_FILE_SCHEMA, TrackedFile.FILE_FORMAT)).isEqualTo("parquet");
+  }
+
+  @Test
+  void rootWritesLowerCaseColumnFileFormat() {
+    ColumnFile columnFile = mock(ColumnFile.class);
+    when(columnFile.fileFormat()).thenReturn(FileFormat.PARQUET);
+
+    TrackedFile file = mock(TrackedFile.class);
+    when(file.contentType()).thenReturn(FileContent.DATA);
+    when(file.location()).thenReturn(DATA_LOCATION);
+    when(file.columnFiles()).thenReturn(List.of(columnFile));
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+    StructLike row =
+        wrapper.wrap(file, TrackingBuilder.added(COMMIT_SNAPSHOT_ID).build(), FIRST_ROW_ID);
+
+    List<?> columnFiles = (List<?>) get(row, TRACKED_FILE_SCHEMA, TrackedFile.COLUMN_FILES);
+    assertThat(
+            get(
+                (StructLike) columnFiles.get(0),
+                new Schema(ColumnFile.schema().fields()),
+                ColumnFile.FILE_FORMAT))
+        .isEqualTo("parquet");
   }
 
   @Test
