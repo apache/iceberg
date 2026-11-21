@@ -42,6 +42,7 @@ nav:
     - Quickstart: java-api-quickstart.md
     - API: api.md
     - File I/O: fileio.md
+    - File Format API: file-format-api.md
     - Javadoc: ../../javadoc/latest/
   - Integrations:
     - Apache Spark:
