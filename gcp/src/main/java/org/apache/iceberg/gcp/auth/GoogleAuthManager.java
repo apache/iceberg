@@ -65,8 +65,7 @@ public class GoogleAuthManager implements AuthManager {
   public static final String GCP_SCOPES_PROPERTY = "gcp.auth.scopes";
   private final String name;
 
-  private GoogleCredentials credentials;
-  private boolean initialized = false;
+  private volatile GoogleCredentials credentials;
 
   public GoogleAuthManager(String managerName) {
     this.name = managerName;
@@ -77,12 +76,29 @@ public class GoogleAuthManager implements AuthManager {
   }
 
   private void initialize(Map<String, String> properties) {
-    if (initialized) {
+    if (credentials != null) {
       return;
     }
 
-    String credentialsPath = properties.get(GCP_CREDENTIALS_PATH_PROPERTY);
-    String credentialsJson = properties.get(GCP_CREDENTIALS_JSON_PROPERTY);
+    synchronized (this) {
+      if (credentials != null) {
+        return;
+      }
+
+      String credentialsPath = properties.get(GCP_CREDENTIALS_PATH_PROPERTY);
+      String credentialsJson = properties.get(GCP_CREDENTIALS_JSON_PROPERTY);
+      String scopesString = properties.getOrDefault(GCP_SCOPES_PROPERTY, DEFAULT_SCOPES);
+
+      try {
+        this.credentials = loadCredentials(credentialsPath, credentialsJson, scopesString);
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to load Google credentials", e);
+      }
+    }
+  }
+
+  private static GoogleCredentials loadCredentials(
+      String credentialsPath, String credentialsJson, String scopesString) throws IOException {
     boolean useCredentialsPath = credentialsPath != null && !credentialsPath.isEmpty();
     boolean useCredentialsJson = credentialsJson != null && !credentialsJson.isEmpty();
     if (useCredentialsPath && useCredentialsJson) {
@@ -92,33 +108,26 @@ public class GoogleAuthManager implements AuthManager {
               GCP_CREDENTIALS_PATH_PROPERTY, GCP_CREDENTIALS_JSON_PROPERTY));
     }
 
-    String scopesString = properties.getOrDefault(GCP_SCOPES_PROPERTY, DEFAULT_SCOPES);
     List<String> scopes =
         Strings.isNullOrEmpty(scopesString)
             ? ImmutableList.of()
             : ImmutableList.copyOf(SPLITTER.splitToList(scopesString));
 
-    try {
-      if (useCredentialsPath) {
-        LOG.info("Using Google credentials from path: {}", credentialsPath);
-        try (FileInputStream credentialsStream = new FileInputStream(credentialsPath)) {
-          this.credentials = GoogleCredentials.fromStream(credentialsStream).createScoped(scopes);
-        }
-      } else if (useCredentialsJson) {
-        LOG.info("Using Google credentials from json");
-        try (InputStream credentialsStream =
-            new ByteArrayInputStream(credentialsJson.getBytes(StandardCharsets.UTF_8))) {
-          this.credentials = GoogleCredentials.fromStream(credentialsStream).createScoped(scopes);
-        }
-      } else {
-        LOG.info("Using Application Default Credentials with scopes: {}", scopesString);
-        this.credentials = GoogleCredentials.getApplicationDefault().createScoped(scopes);
+    if (useCredentialsPath) {
+      LOG.info("Using Google credentials from path: {}", credentialsPath);
+      try (FileInputStream credentialsStream = new FileInputStream(credentialsPath)) {
+        return GoogleCredentials.fromStream(credentialsStream).createScoped(scopes);
       }
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to load Google credentials", e);
+    } else if (useCredentialsJson) {
+      LOG.info("Using Google credentials from json");
+      try (InputStream credentialsStream =
+          new ByteArrayInputStream(credentialsJson.getBytes(StandardCharsets.UTF_8))) {
+        return GoogleCredentials.fromStream(credentialsStream).createScoped(scopes);
+      }
+    } else {
+      LOG.info("Using Application Default Credentials with scopes: {}", scopesString);
+      return GoogleCredentials.getApplicationDefault().createScoped(scopes);
     }
-
-    this.initialized = true;
   }
 
   /**
