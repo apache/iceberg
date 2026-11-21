@@ -29,6 +29,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -139,6 +140,100 @@ class DvOnlyDeletionVectorMerger {
             Maps.filterKeys(positionsByFile, path -> !vectors.containsKey(path)),
             workerPool));
 
+    return new Merged(head, result, vectors, replaced, affected, write(positionsByFile, attached));
+  }
+
+  /**
+   * Rebases the deletion vectors of one checkpoint onto the commits this sink made since the
+   * baseline, without reading the delete manifests of the whole table. A vector stays as it was
+   * written unless one of those commits changed the vector of its data file, in which case its
+   * positions are merged with the vector that commit left.
+   *
+   * <p>Only applies while every snapshot since the baseline was committed by this sink. Those
+   * commits never remove data files, and each of them replaced the vector it found with a superset,
+   * so the vector they leave is the one the data file carries at the head.
+   *
+   * @param result the files of the checkpoint, as written by {@link
+   *     DvOnlyDeletionVectorWriterOperator}
+   * @param baselineSnapshotId snapshot the deletes were resolved against, or null when the branch
+   *     had none; has to be an ancestor of the branch head
+   * @param ownCommit tells whether a snapshot was committed by this sink
+   * @return the deletion vectors to commit, validated from the branch head, or null when the branch
+   *     is empty or another writer committed since the baseline
+   */
+  Merged rebaseOnOwnCommits(
+      WriteResult result, Long baselineSnapshotId, Predicate<Snapshot> ownCommit) {
+    Snapshot head = table.snapshot(branch);
+    if (head == null) {
+      return null;
+    }
+
+    List<Snapshot> since = SinkUtil.snapshotsSince(table, head, baselineSnapshotId);
+    if (!since.stream().allMatch(ownCommit)) {
+      return null;
+    }
+
+    Map<String, DeleteFile> vectors =
+        Maps.uniqueIndex(Arrays.asList(result.deleteFiles()), DeleteFile::referencedDataFile);
+    Map<String, DeleteFile> replaced =
+        Maps.uniqueIndex(
+            Arrays.asList(result.rewrittenDeleteFiles()), DeleteFile::referencedDataFile);
+    Map<String, DeleteFile> current = vectorsCommittedFor(since, vectors.keySet());
+    Set<String> stale =
+        vectors.keySet().stream()
+            .filter(
+                path ->
+                    current.containsKey(path)
+                        && !isSameVector(replaced.get(path), current.get(path)))
+            .collect(Collectors.toSet());
+
+    Map<String, FilePositions> positionsByFile = Maps.newConcurrentMap();
+    Tasks.foreach(stale)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(workerPool)
+        .run(
+            path ->
+                positionsByFile.put(path, addedPositions(vectors.get(path), replaced.get(path))));
+
+    if (!stale.isEmpty()) {
+      LOG.info(
+          "Rebased {} of {} deletion vector(s) onto {} commit(s) of this sink to branch '{}' of "
+              + "table {}",
+          stale.size(),
+          vectors.size(),
+          since.size(),
+          branch,
+          table.name());
+    }
+
+    return new Merged(head, result, vectors, replaced, stale, write(positionsByFile, current));
+  }
+
+  // The vector each data file was left with by the given snapshots, applied oldest first.
+  private Map<String, DeleteFile> vectorsCommittedFor(
+      List<Snapshot> snapshots, Set<String> dataFilePaths) {
+    Map<String, DeleteFile> committed = Maps.newHashMap();
+    for (Snapshot snapshot : snapshots) {
+      if (SinkUtil.summaryCount(snapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP) == 0) {
+        continue;
+      }
+
+      SnapshotChanges changes =
+          SnapshotChanges.builderFor(table).snapshot(snapshot).executeWith(workerPool).build();
+      for (DeleteFile deleteFile : changes.addedDeleteFiles()) {
+        if (ContentFileUtil.isDV(deleteFile)
+            && dataFilePaths.contains(deleteFile.referencedDataFile())) {
+          committed.put(deleteFile.referencedDataFile(), deleteFile);
+        }
+      }
+    }
+
+    return committed;
+  }
+
+  private Collection<DeleteWriteResult> write(
+      Map<String, FilePositions> positionsByFile, Map<String, DeleteFile> attached) {
     Queue<DeleteWriteResult> written = new ConcurrentLinkedQueue<>();
     Tasks.foreach(Iterables.partition(positionsByFile.keySet(), WRITE_BATCH_SIZE))
         .stopOnFailure()
@@ -151,8 +246,7 @@ class DvOnlyDeletionVectorMerger {
                         fileFactory,
                         Maps.filterKeys(positionsByFile, Sets.newHashSet(batch)::contains),
                         attached)));
-
-    return new Merged(head, result, vectors, replaced, affected, written);
+    return written;
   }
 
   private static boolean isSameVector(DeleteFile expected, DeleteFile actual) {

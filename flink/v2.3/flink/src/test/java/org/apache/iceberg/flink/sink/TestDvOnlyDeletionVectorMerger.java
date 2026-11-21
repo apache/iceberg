@@ -34,6 +34,7 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.RowDelta;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -63,6 +64,8 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 class TestDvOnlyDeletionVectorMerger {
 
   private static final Set<Integer> EQUALITY_FIELD_IDS = ImmutableSet.of(1);
+  private static final String SINK_ID = "sink";
+  private static final String OPERATOR_ID = "operator";
 
   @RegisterExtension
   private static final HadoopCatalogExtension CATALOG_EXTENSION =
@@ -392,6 +395,85 @@ class TestDvOnlyDeletionVectorMerger {
     assertThatThrownBy(() -> merger.merge(checkpoint, baseline))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("is no longer an ancestor of branch");
+  }
+
+  @Test
+  void rebasesOntoTheVectorThePreviousCheckpointOfTheSinkCommitted() throws IOException {
+    DataFile file = appendFile("file", row(1, "a"), row(2, "b"), row(3, "c"));
+    long baseline = table.currentSnapshot().snapshotId();
+    WriteResult checkpoint = checkpoint(writeVector(file, null, 1L));
+
+    // The previous checkpoint of the sink, committed after the barrier of this one.
+    DeleteFile previous = vector(writeVector(file, null, 0L));
+    commitAsSink(previous);
+
+    table.refresh();
+    DvOnlyDeletionVectorMerger.Merged rebased =
+        merger.rebaseOnOwnCommits(checkpoint, baseline, this::committedBySink);
+
+    assertThat(rebased).isNotNull();
+    assertThat(rebased.head().snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
+    assertThat(rebased.deletionVectors())
+        .singleElement()
+        .satisfies(dv -> assertVector(dv, file, 0L, 1L));
+    assertThat(rebased.replacedDeletionVectors())
+        .singleElement()
+        .extracting(DeleteFile::location)
+        .isEqualTo(previous.location());
+
+    commit(rebased);
+    assertRows(row(3, "c"));
+  }
+
+  @Test
+  void keepsTheVectorsOfFilesTheCommitsOfTheSinkLeftAlone() throws IOException {
+    DataFile file = appendFile("file", row(1, "a"), row(2, "b"));
+    DataFile other = appendFile("other", row(3, "c"), row(4, "d"));
+    long baseline = table.currentSnapshot().snapshotId();
+    DeleteWriteResult written = writeVector(file, null, 1L);
+    WriteResult checkpoint = checkpoint(written);
+
+    commitAsSink(vector(writeVector(other, null, 0L)));
+
+    table.refresh();
+    DvOnlyDeletionVectorMerger.Merged rebased =
+        merger.rebaseOnOwnCommits(checkpoint, baseline, this::committedBySink);
+
+    assertThat(rebased).isNotNull();
+    assertThat(rebased.deletionVectors())
+        .singleElement()
+        .extracting(DeleteFile::location)
+        .isEqualTo(vector(written).location());
+    assertThat(rebased.writtenFiles()).isEmpty();
+    assertThat(rebased.obsoleteFiles()).isEmpty();
+
+    commit(rebased);
+    assertRows(row(1, "a"), row(4, "d"));
+  }
+
+  @Test
+  void doesNotRebaseOntoCommitsOfAnotherWriter() throws IOException {
+    DataFile file = appendFile("file", row(1, "a"), row(2, "b"));
+    long baseline = table.currentSnapshot().snapshotId();
+    WriteResult checkpoint = checkpoint(writeVector(file, null, 1L));
+
+    commit(vector(writeVector(file, null, 0L)), null);
+
+    table.refresh();
+    assertThat(merger.rebaseOnOwnCommits(checkpoint, baseline, this::committedBySink)).isNull();
+  }
+
+  private boolean committedBySink(Snapshot snapshot) {
+    return SinkUtil.writtenBySameSink(snapshot.summary(), SINK_ID, OPERATOR_ID);
+  }
+
+  private void commitAsSink(DeleteFile vector) {
+    table
+        .newRowDelta()
+        .addDeletes(vector)
+        .set(SinkUtil.SINK_ID, SINK_ID)
+        .set(SinkUtil.OPERATOR_ID, OPERATOR_ID)
+        .commit();
   }
 
   private void expire(long snapshotId) {

@@ -399,15 +399,28 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
         table.name(),
         baselineSnapshotId);
 
+    // Commits of this sink that landed after the baseline, typically the previous checkpoint when
+    // committing lags behind the barriers, only need the vectors of the files they touched rebased.
+    // Validating from the baseline would report them as concurrent deletion vectors instead.
+    DvOnlyDeletionVectorMerger.Merged rebased =
+        deletionVectorMerger.rebaseOnOwnCommits(
+            result,
+            baselineSnapshotId,
+            snapshot -> SinkUtil.writtenBySameSink(snapshot.summary(), sinkId, operatorId));
     try {
-      commitDvOnlyAttempt(
-          result,
-          DvOnlyChange.asWritten(result, baselineSnapshotId),
-          summary,
-          newFlinkJobId,
-          sinkId,
-          operatorId,
-          checkpointId);
+      if (rebased != null) {
+        commitMerged(result, rebased, summary, newFlinkJobId, sinkId, operatorId, checkpointId);
+      } else {
+        commitDvOnlyAttempt(
+            result,
+            DvOnlyChange.asWritten(result, baselineSnapshotId),
+            summary,
+            newFlinkJobId,
+            sinkId,
+            operatorId,
+            checkpointId);
+      }
+
       return;
     } catch (ValidationException e) {
       logDvOnlyConflict(checkpointId, 0, e);
@@ -417,37 +430,50 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       table.refresh();
       DvOnlyDeletionVectorMerger.Merged merged =
           deletionVectorMerger.merge(result, baselineSnapshotId);
-      boolean committed;
       try {
-        committed =
-            commitDvOnlyAttempt(
-                result,
-                DvOnlyChange.merged(merged),
-                summary,
-                newFlinkJobId,
-                sinkId,
-                operatorId,
-                checkpointId);
+        commitMerged(result, merged, summary, newFlinkJobId, sinkId, operatorId, checkpointId);
+        return;
       } catch (ValidationException e) {
-        CatalogUtil.deleteFiles(table.io(), merged.writtenFiles(), "deletion vector");
         if (merges >= MAX_DV_ONLY_COMMIT_ATTEMPTS) {
           throw e;
         }
 
         logDvOnlyConflict(checkpointId, merges, e);
-        continue;
       }
+    }
+  }
 
-      if (committed) {
-        // Superseded by the merged vectors, which are the ones that got committed.
-        CatalogUtil.deleteFiles(table.io(), merged.obsoleteFiles(), "deletion vector");
-      } else {
-        // The checkpoint was already committed by an earlier attempt, so the merged vectors are
-        // not referenced by the table.
-        CatalogUtil.deleteFiles(table.io(), merged.writtenFiles(), "deletion vector");
-      }
+  private void commitMerged(
+      WriteResult result,
+      DvOnlyDeletionVectorMerger.Merged merged,
+      CommitSummary summary,
+      String newFlinkJobId,
+      String sinkId,
+      String operatorId,
+      long checkpointId) {
+    boolean committed;
+    try {
+      committed =
+          commitDvOnlyAttempt(
+              result,
+              DvOnlyChange.merged(merged),
+              summary,
+              newFlinkJobId,
+              sinkId,
+              operatorId,
+              checkpointId);
+    } catch (ValidationException e) {
+      CatalogUtil.deleteFiles(table.io(), merged.writtenFiles(), "deletion vector");
+      throw e;
+    }
 
-      return;
+    if (committed) {
+      // Superseded by the merged vectors, which are the ones that got committed.
+      CatalogUtil.deleteFiles(table.io(), merged.obsoleteFiles(), "deletion vector");
+    } else {
+      // The checkpoint was already committed by an earlier attempt, so the merged vectors are
+      // not referenced by the table.
+      CatalogUtil.deleteFiles(table.io(), merged.writtenFiles(), "deletion vector");
     }
   }
 
