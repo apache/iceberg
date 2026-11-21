@@ -19,12 +19,38 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.util.Tasks;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+/**
+ * A {@link Table} implementation that exposes a table's metadata log as rows.
+ *
+ * <p>Each row represents a historical or current metadata file and includes the snapshot details
+ * and table properties recorded in that file. The current metadata is included as the latest row.
+ *
+ * <p>Queries that reference {@code properties} read each retained historical metadata file. These
+ * additional reads are skipped when {@code properties} is not referenced, and the already loaded
+ * current metadata is reused.
+ */
 public class MetadataLogEntriesTable extends BaseMetadataTable {
+
+  private static final Logger LOG = LoggerFactory.getLogger(MetadataLogEntriesTable.class);
+
+  private static final Types.NestedField PROPERTIES =
+      Types.NestedField.optional(
+          6,
+          "properties",
+          Types.MapType.ofRequired(7, 8, Types.StringType.get(), Types.StringType.get()));
 
   private static final Schema METADATA_LOG_ENTRIES_SCHEMA =
       new Schema(
@@ -32,7 +58,8 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
           Types.NestedField.required(2, "file", Types.StringType.get()),
           Types.NestedField.optional(3, "latest_snapshot_id", Types.LongType.get()),
           Types.NestedField.optional(4, "latest_schema_id", Types.IntegerType.get()),
-          Types.NestedField.optional(5, "latest_sequence_number", Types.LongType.get()));
+          Types.NestedField.optional(5, "latest_sequence_number", Types.LongType.get()),
+          PROPERTIES);
 
   MetadataLogEntriesTable(Table table) {
     this(table, table.name() + ".metadata_log_entries");
@@ -57,20 +84,44 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
     return METADATA_LOG_ENTRIES_SCHEMA;
   }
 
-  private DataTask task(TableScan scan) {
+  private DataTask task(StaticTableScan scan) {
     TableMetadata current = table().operations().current();
     List<TableMetadata.MetadataLogEntry> metadataLogEntries =
         Lists.newArrayList(current.previousFiles().listIterator());
     metadataLogEntries.add(
         new TableMetadata.MetadataLogEntry(
             current.lastUpdatedMillis(), current.metadataFileLocation()));
+    FileIO io = table().io();
+    Schema projectedSchema = scan.schema();
+    boolean shouldLoadProperties = projectedSchema.findField(PROPERTIES.fieldId()) != null;
+    ConcurrentMap<String, Map<String, String>> propertiesByMetadataFile = Maps.newConcurrentMap();
+
+    if (shouldLoadProperties) {
+      propertiesByMetadataFile.put(current.metadataFileLocation(), current.properties());
+
+      Tasks.Builder<TableMetadata.MetadataLogEntry> propertyLoadTasks =
+          Tasks.foreach(current.previousFiles()).stopOnFailure();
+      if (scan.shouldPlanWithExecutor()) {
+        propertyLoadTasks.executeWith(scan.planExecutor());
+      }
+
+      propertyLoadTasks.run(
+          metadataLogEntry -> {
+            Map<String, String> properties = loadTableProperties(metadataLogEntry, io);
+            if (properties != null) {
+              propertiesByMetadataFile.put(metadataLogEntry.file(), properties);
+            }
+          });
+    }
+
     return StaticDataTask.of(
-        table().io().newInputFile(current.metadataFileLocation()),
+        io.newInputFile(current.metadataFileLocation()),
         schema(),
-        scan.schema(),
+        projectedSchema,
         metadataLogEntries,
         metadataLogEntry ->
-            MetadataLogEntriesTable.metadataLogEntryToRow(metadataLogEntry, table()));
+            MetadataLogEntriesTable.metadataLogEntryToRow(
+                metadataLogEntry, table(), propertiesByMetadataFile.get(metadataLogEntry.file())));
   }
 
   private class MetadataLogScan extends StaticTableScan {
@@ -103,7 +154,9 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
   }
 
   private static StaticDataTask.Row metadataLogEntryToRow(
-      TableMetadata.MetadataLogEntry metadataLogEntry, Table table) {
+      TableMetadata.MetadataLogEntry metadataLogEntry,
+      Table table,
+      Map<String, String> properties) {
     Long latestSnapshotId = null;
     Snapshot latestSnapshot = null;
     try {
@@ -119,6 +172,19 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
         // latest snapshot in this file corresponding to the log entry
         latestSnapshotId,
         latestSnapshot != null ? latestSnapshot.schemaId() : null,
-        latestSnapshot != null ? latestSnapshot.sequenceNumber() : null);
+        latestSnapshot != null ? latestSnapshot.sequenceNumber() : null,
+        properties);
+  }
+
+  private static Map<String, String> loadTableProperties(
+      TableMetadata.MetadataLogEntry metadataLogEntry, FileIO io) {
+    try {
+      return TableMetadataParser.read(io, metadataLogEntry.file()).properties();
+    } catch (NotFoundException e) {
+      // Preserve access to the metadata log when a historical file has been deleted.
+      LOG.warn(
+          "Metadata file {} was not found, setting properties to null", metadataLogEntry.file(), e);
+      return null;
+    }
   }
 }
