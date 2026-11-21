@@ -35,6 +35,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitionedFanoutWriter;
+import org.apache.iceberg.io.PositionDeleteTracker;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -184,6 +185,10 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
   @Override
   public TaskWriter<RowData> create() {
+    return create(null);
+  }
+
+  public TaskWriter<RowData> create(PositionDeleteTracker positionDeleteTracker) {
     Preconditions.checkNotNull(
         outputFileFactory,
         "The outputFileFactory shouldn't be null if we have invoked the initialize().");
@@ -225,7 +230,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
             flinkSchema,
             equalityFieldIds,
             upsert,
-            useDv);
+            useDv,
+            positionDeleteTracker);
       } else {
         return new PartitionedDeltaWriter(
             spec,
@@ -238,7 +244,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
             flinkSchema,
             equalityFieldIds,
             upsert,
-            useDv);
+            useDv,
+            positionDeleteTracker);
       }
     }
   }

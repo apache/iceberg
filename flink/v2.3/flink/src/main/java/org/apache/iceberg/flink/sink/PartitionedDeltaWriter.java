@@ -31,6 +31,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.io.PositionDeleteTracker;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 
@@ -51,7 +52,8 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
       RowType flinkSchema,
       Set<Integer> equalityFieldIds,
       boolean upsert,
-      boolean useDv) {
+      boolean useDv,
+      PositionDeleteTracker positionDeleteTracker) {
     super(
         spec,
         format,
@@ -63,7 +65,8 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
         flinkSchema,
         equalityFieldIds,
         upsert,
-        useDv);
+        useDv,
+        positionDeleteTracker);
     this.partitionKey = new PartitionKey(spec, schema);
   }
 
