@@ -54,6 +54,26 @@ import org.apache.iceberg.types.Types.StructType;
 import org.junit.jupiter.api.Test;
 
 public class TestEvaluator {
+
+  @Test
+  public void testSignedZeroComparison() {
+    StructType doubleStruct = StructType.of(required(1, "x", Types.DoubleType.get()));
+
+    TestHelpers.Row negativeZero = TestHelpers.Row.of(-0.0D);
+
+    assertThat(new Evaluator(doubleStruct, equal("x", 0.0D)).eval(negativeZero)).isTrue();
+
+    assertThat(new Evaluator(doubleStruct, in("x", 0.0D, 1.0D)).eval(negativeZero)).isTrue();
+
+    assertThat(new Evaluator(doubleStruct, greaterThanOrEqual("x", 0.0D)).eval(negativeZero))
+        .isTrue();
+
+    StructType floatStruct = StructType.of(required(1, "x", Types.FloatType.get()));
+
+    assertThat(new Evaluator(floatStruct, equal("x", 0.0F)).eval(TestHelpers.Row.of(-0.0F)))
+        .isTrue();
+  }
+
   private static final StructType STRUCT =
       StructType.of(
           required(13, "x", Types.IntegerType.get()),

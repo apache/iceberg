@@ -53,6 +53,36 @@ import org.apache.iceberg.types.Types.StringType;
 import org.junit.jupiter.api.Test;
 
 public class TestStrictMetricsEvaluator {
+
+  @Test
+  public void testSignedZeroStrictEvaluation() {
+    Schema schema = new Schema(required(1, "x", Types.DoubleType.get()));
+
+    DataFile file =
+        new TestDataFile(
+            "signed-zero.parquet",
+            Row.of(),
+            10,
+            ImmutableMap.of(1, 10L),
+            ImmutableMap.of(1, 0L),
+            ImmutableMap.of(1, 0L),
+            ImmutableMap.of(1, toByteBuffer(Types.DoubleType.get(), -0.0D)),
+            ImmutableMap.of(1, toByteBuffer(Types.DoubleType.get(), -0.0D)));
+
+    assertThat(new StrictMetricsEvaluator(schema, equal("x", 0.0D)).eval(file)).isTrue();
+    assertThat(new StrictMetricsEvaluator(schema, in("x", 0.0D, 1.0D)).eval(file)).isTrue();
+    assertThat(new StrictMetricsEvaluator(schema, greaterThanOrEqual("x", 0.0D)).eval(file))
+        .isTrue();
+
+    assertThat(new StrictMetricsEvaluator(schema, notEqual("x", 0.0D)).eval(file)).isFalse();
+
+    assertThat(new StrictMetricsEvaluator(schema, notIn("x", 0.0D, 1.0D)).eval(file)).isFalse();
+
+    assertThat(new StrictMetricsEvaluator(schema, notIn("x", -0.0D, 1.0D)).eval(file)).isFalse();
+    assertThat(new StrictMetricsEvaluator(schema, greaterThan("x", 0.0D)).eval(file)).isFalse();
+    assertThat(new StrictMetricsEvaluator(schema, lessThan("x", 0.0D)).eval(file)).isFalse();
+  }
+
   private static final Schema SCHEMA =
       new Schema(
           required(1, "id", IntegerType.get()),
