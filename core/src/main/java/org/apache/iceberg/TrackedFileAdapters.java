@@ -147,6 +147,12 @@ class TrackedFileAdapters {
       Tracking tracking = tracking();
       return tracking != null ? tracking.fileSequenceNumber() : null;
     }
+
+    @Override
+    public Long lastUpdatedTimestampMicros() {
+      Tracking tracking = tracking();
+      return tracking != null ? tracking.snapshotTimestampMicros() : null;
+    }
   }
 
   /**
@@ -531,6 +537,11 @@ class TrackedFileAdapters {
     @Override
     public Long firstRowId() {
       return file.tracking() != null ? file.tracking().firstRowId() : null;
+    }
+
+    @Override
+    public Long snapshotTimestampMicros() {
+      return file.tracking().snapshotTimestampMicros();
     }
 
     @Override
@@ -958,6 +969,11 @@ class TrackedFileAdapters {
     }
 
     @Override
+    public Long snapshotTimestampMicros() {
+      return null;
+    }
+
+    @Override
     public String manifestLocation() {
       return entry.file().manifestLocation();
     }
@@ -1021,6 +1037,11 @@ class TrackedFileAdapters {
     @Override
     public ByteBuffer replacedPositions() {
       return null;
+    }
+
+    @Override
+    public Long snapshotTimestampMicros() {
+      return manifest.snapshotTimestampMicros();
     }
 
     @Override

@@ -65,6 +65,12 @@ interface Tracking {
           "replaced_positions",
           Types.BinaryType.get(),
           "Bitmap of positions replaced in this snapshot");
+  Types.NestedField SNAPSHOT_TIMESTAMP =
+      Types.NestedField.optional(
+          8,
+          "snapshot_timestamp",
+          Types.TimestampType.withZone(),
+          "Timestamp in microseconds of the snapshot that added or last modified the file's data");
 
   static Types.StructType schema() {
     return Types.StructType.of(
@@ -75,7 +81,8 @@ interface Tracking {
         MODIFIED_SNAPSHOT_ID,
         FIRST_ROW_ID,
         DELETED_POSITIONS,
-        REPLACED_POSITIONS);
+        REPLACED_POSITIONS,
+        SNAPSHOT_TIMESTAMP);
   }
 
   /** Returns the status of the entry. */
@@ -106,6 +113,12 @@ interface Tracking {
 
   /** Returns the bitmap of positions replaced in this snapshot. */
   ByteBuffer replacedPositions();
+
+  /**
+   * Returns the timestamp in microseconds of the snapshot that added or last modified the file's
+   * data.
+   */
+  Long snapshotTimestampMicros();
 
   /** Returns the manifest location this entry was read from, or null. */
   String manifestLocation();

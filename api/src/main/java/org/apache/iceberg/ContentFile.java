@@ -184,6 +184,19 @@ public interface ContentFile<F> {
   }
 
   /**
+   * Returns the microsecond timestamp of the snapshot that added or changed this file.
+   *
+   * <p>The value is the snapshot's {@code timestamp-ms} converted to microseconds and is assigned
+   * at commit.
+   *
+   * <p>Returns null if the snapshot timestamp is unknown. This may happen for files in tables with
+   * format version below 4.
+   */
+  default Long lastUpdatedTimestampMicros() {
+    return null;
+  }
+
+  /**
    * Returns the starting row ID to assign to new rows in the data file (with _row_id set to null).
    */
   default Long firstRowId() {
