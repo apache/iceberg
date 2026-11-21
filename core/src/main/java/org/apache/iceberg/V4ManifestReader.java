@@ -300,6 +300,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       readBuilder.setCustomType(TrackedFile.CONTENT_STATS_ID, ContentStatsStruct.class);
       for (Types.NestedField fieldStats : statsField.type().asStructType().fields()) {
         readBuilder.setCustomType(fieldStats.fieldId(), FieldStatsStruct.class);
+        for (Types.NestedField stat : fieldStats.type().asStructType().fields()) {
+          // geo lower and upper bounds are the only struct stats
+          if (stat.type().isStructType()) {
+            readBuilder.setCustomType(stat.fieldId(), GeospatialBoundStruct.class);
+          }
+        }
       }
     }
 
