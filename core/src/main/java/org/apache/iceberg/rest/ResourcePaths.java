@@ -136,6 +136,10 @@ public class ResourcePaths {
         "metrics");
   }
 
+  public String credentials(TableIdentifier identifier) {
+    return SLASH.join(table(identifier), "credentials");
+  }
+
   public String remoteSign(TableIdentifier identifier) {
     return SLASH.join(
         "v1",

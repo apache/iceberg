@@ -25,6 +25,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.VendedCredentialsProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -151,6 +152,37 @@ public class TestAwsClientProperties {
 
     assertThat(awsClientProperties.credentialsProvider("key", "secret", "token"))
         .isInstanceOf(VendedCredentialsProvider.class);
+  }
+
+  @Test
+  void usesCatalogCredentialsEndpoint() {
+    String endpoint = "https://catalog.example/table/credentials";
+    AwsClientProperties properties =
+        new AwsClientProperties(
+            ImmutableMap.of(
+                CatalogProperties.URI, "https://catalog.example",
+                RESTCatalogProperties.CREDENTIALS_ENDPOINT, endpoint,
+                AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT, "/legacy"));
+
+    try (VendedCredentialsProvider provider =
+        (VendedCredentialsProvider) properties.credentialsProvider("key", "secret", "token")) {
+      assertThat(provider).extracting("credentialsEndpoint").isEqualTo(endpoint);
+    }
+  }
+
+  @Test
+  void sharedEndpointDoesNotEnableClientRefresh() {
+    AwsClientProperties properties =
+        new AwsClientProperties(
+            ImmutableMap.of(
+                CatalogProperties.URI, "https://catalog.example",
+                RESTCatalogProperties.CREDENTIALS_ENDPOINT,
+                    "https://catalog.example/table/credentials"));
+
+    AwsCredentialsProvider provider = properties.credentialsProvider("key", "secret", "token");
+    assertThat(provider).isInstanceOf(StaticCredentialsProvider.class);
+    assertThat(provider.resolveCredentials().accessKeyId()).isEqualTo("key");
+    assertThat(provider.resolveCredentials()).isInstanceOf(AwsSessionCredentials.class);
   }
 
   @Test
