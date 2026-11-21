@@ -780,6 +780,44 @@ public class TestRewriteManifests extends TestBase {
   }
 
   @TestTemplate
+  public void rewriteStagedManifestAfterTransactionRetry() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    Transaction txn = table.newTransaction();
+    txn.newFastAppend().appendFile(FILE_A).commit();
+
+    // the rewrite reads the staged manifest's entries with the metadata they inherit in this
+    // attempt
+    txn.rewriteManifests().clusterBy(file -> "file").commit();
+
+    // a concurrent commit forces the transaction to retry, which reuses the staged manifest
+    // but assigns it a new sequence number and first row ID
+    table.newFastAppend().appendFile(FILE_B).commit();
+    txn.commitTransaction();
+
+    // the rewrite reads the staged manifest again, so FILE_A keeps the metadata of the retry
+    Snapshot rewrite = table.currentSnapshot();
+    Snapshot retriedAppend = table.snapshot(rewrite.parentId());
+    ManifestEntry<DataFile> entryA = null;
+    for (ManifestFile manifest : rewrite.dataManifests(table.io())) {
+      try (ManifestReader<DataFile> reader =
+          ManifestFiles.read(manifest, table.io(), table.specs())) {
+        for (ManifestEntry<DataFile> entry : reader.entries()) {
+          if (entry.file().location().equals(FILE_A.location())) {
+            entryA = entry.copy();
+          }
+        }
+      }
+    }
+
+    assertThat(entryA).isNotNull();
+    assertThat(entryA.dataSequenceNumber()).isEqualTo(retriedAppend.sequenceNumber());
+    if (formatVersion >= 3) {
+      assertThat(entryA.file().firstRowId()).isEqualTo(retriedAppend.firstRowId());
+    }
+  }
+
+  @TestTemplate
   public void testManifestReplacementConcurrentDelete() throws IOException {
     assertThat(table.currentSnapshot()).isNull();
 
