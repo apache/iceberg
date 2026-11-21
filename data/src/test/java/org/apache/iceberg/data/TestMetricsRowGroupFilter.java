@@ -1104,6 +1104,33 @@ public class TestMetricsRowGroupFilter {
   }
 
   @TestTemplate
+  public void testLargeIntegerIn() {
+    List<Integer> ids = Lists.newArrayList();
+    for (int id = -400; id < INT_MIN_VALUE; id++) {
+      ids.add(id);
+    }
+
+    boolean shouldRead = shouldRead(in("id", ids));
+    assertThat(shouldRead).as("Should not read: large in expression below lower bound").isFalse();
+
+    ids.add(INT_MIN_VALUE);
+    shouldRead = shouldRead(in("id", ids));
+    assertThat(shouldRead).as("Should read: large in expression contains lower bound").isTrue();
+
+    ids.remove(Integer.valueOf(INT_MIN_VALUE));
+    ids.add(INT_MAX_VALUE);
+    shouldRead = shouldRead(in("id", ids));
+    assertThat(shouldRead).as("Should read: large in expression contains upper bound").isTrue();
+
+    ids.remove(Integer.valueOf(INT_MAX_VALUE));
+    ids.add(INT_MAX_VALUE + 1);
+    shouldRead = shouldRead(in("id", ids));
+    assertThat(shouldRead)
+        .as("Should not read: large in expression outside bounds on both sides")
+        .isFalse();
+  }
+
+  @TestTemplate
   public void testIntegerNotIn() {
     boolean shouldRead = shouldRead(notIn("id", INT_MIN_VALUE - 25, INT_MIN_VALUE - 24));
     assertThat(shouldRead).as("Should read: id below lower bound (5 < 30, 6 < 30)").isTrue();
@@ -1152,7 +1179,7 @@ public class TestMetricsRowGroupFilter {
   }
 
   @TestTemplate
-  public void testInLimitParquet() {
+  public void testLargeInParquet() {
     assumeThat(format).isEqualTo(FileFormat.PARQUET);
 
     boolean shouldRead = shouldRead(in("id", 1, 2));
@@ -1164,7 +1191,7 @@ public class TestMetricsRowGroupFilter {
     }
 
     shouldRead = shouldRead(in("id", ids));
-    assertThat(shouldRead).as("Should read if IN is not evaluated").isTrue();
+    assertThat(shouldRead).as("Should not read: large IN is evaluated").isFalse();
   }
 
   @TestTemplate

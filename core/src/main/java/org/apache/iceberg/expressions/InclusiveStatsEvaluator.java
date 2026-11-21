@@ -44,6 +44,7 @@ import org.apache.iceberg.variants.VariantObject;
  */
 public class InclusiveStatsEvaluator {
   private final Expression expr;
+  private final SortedInLiterals sortedInLiterals;
 
   public InclusiveStatsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -51,6 +52,7 @@ public class InclusiveStatsEvaluator {
 
   public InclusiveStatsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
     this.expr = Binder.bind(schema.asStruct(), rewriteNot(unbound), caseSensitive);
+    this.sortedInLiterals = new SortedInLiterals();
   }
 
   /**
@@ -67,6 +69,10 @@ public class InclusiveStatsEvaluator {
   private class StatsEvalVisitor extends InclusiveEvalVisitor {
     private ContentStats stats = null;
     private long recordCount = 0;
+
+    private StatsEvalVisitor() {
+      super(sortedInLiterals);
+    }
 
     private boolean eval(ContentStats contentStats, long fileRecordCount) {
       if (fileRecordCount == 0) {

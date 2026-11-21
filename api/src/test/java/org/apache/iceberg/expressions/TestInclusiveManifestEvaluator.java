@@ -42,12 +42,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -714,6 +716,33 @@ public class TestInclusiveManifestEvaluator {
     shouldRead =
         ManifestEvaluator.forRowFilter(in("no_nulls", "abc", "def"), SPEC, true).eval(FILE);
     assertThat(shouldRead).as("Should read: in on no nulls column").isTrue();
+  }
+
+  @Test
+  public void testLargeIntegerIn() {
+    List<Integer> ids = Lists.newArrayList();
+    for (int id = -400; id < INT_MIN_VALUE; id++) {
+      ids.add(id);
+    }
+
+    boolean shouldRead = ManifestEvaluator.forRowFilter(in("id", ids), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should not read: large in expression below lower bound").isFalse();
+
+    ids.add(INT_MIN_VALUE);
+    shouldRead = ManifestEvaluator.forRowFilter(in("id", ids), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should read: large in expression contains lower bound").isTrue();
+
+    ids.remove(Integer.valueOf(INT_MIN_VALUE));
+    ids.add(INT_MAX_VALUE);
+    shouldRead = ManifestEvaluator.forRowFilter(in("id", ids), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should read: large in expression contains upper bound").isTrue();
+
+    ids.remove(Integer.valueOf(INT_MAX_VALUE));
+    ids.add(INT_MAX_VALUE + 1);
+    shouldRead = ManifestEvaluator.forRowFilter(in("id", ids), SPEC, true).eval(FILE);
+    assertThat(shouldRead)
+        .as("Should not read: large in expression outside bounds on both sides")
+        .isFalse();
   }
 
   @Test
