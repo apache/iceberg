@@ -153,6 +153,12 @@ public abstract class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type>
     return variant;
   }
 
+  // Nested-only: primitive vectors already pass unchanged through primitive(...).
+  @Override
+  public Type vector(Types.VectorType vector) {
+    return vector;
+  }
+
   @Override
   public Type primitive(Type.PrimitiveType primitive) {
     if (sourceType.equals(primitive)) {

@@ -141,7 +141,8 @@ public class SchemaParser {
   }
 
   static void toJson(Type type, JsonGenerator generator) throws IOException {
-    if (type.isPrimitiveType() || type.isVariantType()) {
+    // Nested-only: primitive vectors already use the compact string serialization path.
+    if (type.isPrimitiveType() || type.isVariantType() || type.isVectorType()) {
       generator.writeString(type.toString());
     } else {
       Type.NestedType nested = type.asNestedType();

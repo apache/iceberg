@@ -152,6 +152,18 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     return partnerId == null;
   }
 
+  // Nested-only: primitive vectors use primitive(...) and primitive promotion validation.
+  @Override
+  public Boolean vector(Types.VectorType vector, Integer partnerId) {
+    if (partnerId != null) {
+      Type existing = findFieldType(partnerId);
+      Preconditions.checkArgument(
+          existing.equals(vector), "Cannot change vector type: %s to %s", existing, vector);
+    }
+
+    return partnerId == null;
+  }
+
   private Type findFieldType(int fieldId) {
     if (fieldId == -1) {
       return partnerSchema.asStruct();

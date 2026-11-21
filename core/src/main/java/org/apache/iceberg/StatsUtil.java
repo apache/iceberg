@@ -208,6 +208,11 @@ class StatsUtil {
     return statId >= baseId && statId < (baseId + NUM_RESERVED_FIELD_STATS_IDS);
   }
 
+  /** Lower and upper bounds are excluded for vector type. */
+  private static boolean hasBounds(Type type) {
+    return type.typeId() != Type.TypeID.VECTOR;
+  }
+
   private static boolean isFloatingPoint(Type type) {
     return type.typeId() == Type.TypeID.FLOAT || type.typeId() == Type.TypeID.DOUBLE;
   }
@@ -267,13 +272,17 @@ class StatsUtil {
 
   @VisibleForTesting
   static Types.StructType fieldStatsStruct(Type type, int baseId, MetricsModes.MetricsMode mode) {
-    if (null == mode || mode == MetricsModes.None.get() || type.isNestedType() || baseId < 0) {
+    // Nested-only: primitive vectors already reach the value/null count fields below.
+    if (null == mode
+        || mode == MetricsModes.None.get()
+        || (type.isNestedType() && !type.isVectorType())
+        || baseId < 0) {
       return null;
     }
 
     List<Types.NestedField> fields = Lists.newArrayList();
 
-    if (mode.hasBounds()) {
+    if (mode.hasBounds() && hasBounds(type)) {
       fields.add(lowerBoundField(type, baseId));
       fields.add(upperBoundField(type, baseId));
     }

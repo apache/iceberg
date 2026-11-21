@@ -68,6 +68,7 @@ public class Schema implements Serializable {
           Type.TypeID.UNKNOWN, 3,
           Type.TypeID.GEOMETRY, 3,
           Type.TypeID.GEOGRAPHY, 3,
+          Type.TypeID.VECTOR, 4,
           Type.TypeID.FILE, 4);
 
   private final StructType struct;

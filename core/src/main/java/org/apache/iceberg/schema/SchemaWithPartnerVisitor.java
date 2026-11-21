@@ -110,6 +110,10 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
       case VARIANT:
         return visitor.variant(type.asVariantType(), partner);
 
+      case VECTOR:
+        // Nested-only: primitive vectors would use the default primitive dispatch.
+        return visitor.vector(type.asVectorType(), partner);
+
       default:
         return visitor.primitive(type.asPrimitiveType(), partner);
     }
@@ -169,5 +173,10 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
 
   public R primitive(Type.PrimitiveType primitive, P partner) {
     return null;
+  }
+
+  // Nested-only: primitive vectors would use the existing primitive callback.
+  public R vector(Types.VectorType vector, P partner) {
+    throw new UnsupportedOperationException("Unsupported type: " + vector);
   }
 }
