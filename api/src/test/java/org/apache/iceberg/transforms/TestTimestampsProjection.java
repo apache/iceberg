@@ -794,4 +794,22 @@ public class TestTimestampsProjection {
     assertProjectionInclusiveValue(
         spec, notIn("timestamp", date, anotherDate), Expression.Operation.TRUE);
   }
+
+  @Test
+  void timestampBoundaryProjection() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("timestamp").build();
+
+    assertProjectionInclusiveValue(
+        spec, lessThan("timestamp", Long.MIN_VALUE), Expression.Operation.FALSE);
+    assertProjectionInclusiveValue(
+        spec, greaterThan("timestamp", Long.MAX_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, lessThan("timestamp", Long.MIN_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, greaterThan("timestamp", Long.MAX_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, lessThanOrEqual("timestamp", Long.MAX_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, greaterThanOrEqual("timestamp", Long.MIN_VALUE), Expression.Operation.FALSE);
+  }
 }

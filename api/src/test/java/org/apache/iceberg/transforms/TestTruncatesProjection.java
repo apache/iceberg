@@ -509,9 +509,13 @@ public class TestTruncatesProjection {
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
 
     assertProjectionInclusiveValue(
-        spec, lessThan("value", Integer.MIN_VALUE), Expression.Operation.TRUE);
+        spec, lessThan("value", Integer.MIN_VALUE), Expression.Operation.FALSE);
     assertProjectionInclusiveValue(
-        spec, greaterThan("value", Integer.MAX_VALUE), Expression.Operation.TRUE);
+        spec, greaterThan("value", Integer.MAX_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, lessThan("value", Integer.MIN_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, greaterThan("value", Integer.MAX_VALUE), Expression.Operation.FALSE);
     assertProjectionStrictValue(
         spec, lessThanOrEqual("value", Integer.MAX_VALUE), Expression.Operation.FALSE);
     assertProjectionStrictValue(
@@ -524,9 +528,13 @@ public class TestTruncatesProjection {
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
 
     assertProjectionInclusiveValue(
-        spec, lessThan("value", Long.MIN_VALUE), Expression.Operation.TRUE);
+        spec, lessThan("value", Long.MIN_VALUE), Expression.Operation.FALSE);
     assertProjectionInclusiveValue(
-        spec, greaterThan("value", Long.MAX_VALUE), Expression.Operation.TRUE);
+        spec, greaterThan("value", Long.MAX_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, lessThan("value", Long.MIN_VALUE), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, greaterThan("value", Long.MAX_VALUE), Expression.Operation.FALSE);
     assertProjectionStrictValue(
         spec, lessThanOrEqual("value", Long.MAX_VALUE), Expression.Operation.FALSE);
     assertProjectionStrictValue(

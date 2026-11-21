@@ -205,6 +205,10 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
         case EQ:
           return Expressions.alwaysFalse();
       }
+    } else if (op() == Operation.LT && isMin(boundTerm.type(), lit)) {
+      return Expressions.alwaysFalse();
+    } else if (op() == Operation.GT && isMax(boundTerm.type(), lit)) {
+      return Expressions.alwaysFalse();
     }
 
     // TODO: translate truncate(col) == value to startsWith(value)
@@ -302,6 +306,40 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
       return (Set<T>) CharSequenceSet.of(charSeqs);
     } else {
       return Sets.newHashSet(Iterables.transform(literals, Literal::value));
+    }
+  }
+
+  private static final long TIME_MAX_MICROS = 86_399_999_999L;
+
+  private static boolean isMin(Type type, Literal<?> lit) {
+    switch (type.typeId()) {
+      case INTEGER:
+      case DATE:
+        return Integer.valueOf(Integer.MIN_VALUE).equals(lit.value());
+      case LONG:
+      case TIMESTAMP:
+      case TIMESTAMP_NANO:
+        return Long.valueOf(Long.MIN_VALUE).equals(lit.value());
+      case TIME:
+        return lit.value() instanceof Long && ((Long) lit.value()) <= 0L;
+      default:
+        return false;
+    }
+  }
+
+  private static boolean isMax(Type type, Literal<?> lit) {
+    switch (type.typeId()) {
+      case INTEGER:
+      case DATE:
+        return Integer.valueOf(Integer.MAX_VALUE).equals(lit.value());
+      case LONG:
+      case TIMESTAMP:
+      case TIMESTAMP_NANO:
+        return Long.valueOf(Long.MAX_VALUE).equals(lit.value());
+      case TIME:
+        return lit.value() instanceof Long && ((Long) lit.value()) >= TIME_MAX_MICROS;
+      default:
+        return false;
     }
   }
 }
