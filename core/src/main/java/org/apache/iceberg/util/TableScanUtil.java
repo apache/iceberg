@@ -53,7 +53,7 @@ public class TableScanUtil {
 
   private TableScanUtil() {}
 
-  public static class ScanTaskBinWeighter<T extends ScanTask> implements BinPacking.BinWeighter<T> {
+  static class ScanTaskBinWeighter<T extends ScanTask> implements BinPacking.BinWeighter<T> {
     private final Set<String> seenDeletePaths = Sets.newHashSet();
     private final long openFileCost;
 

@@ -39,7 +39,7 @@ public class BinPacking {
    * A new instance is created for each bin, allowing stateful deduplication of shared resources
    * (e.g. equality delete files that apply to multiple data files in the same bin).
    */
-  public interface BinWeighter<T> {
+  interface BinWeighter<T> {
     /**
      * Returns the weight this item would add to the bin given its current contents. Must not modify
      * internal state — called speculatively during bin selection.
@@ -53,10 +53,10 @@ public class BinPacking {
     void commit(T item);
   }
 
-  public static class StatelessBinWeighter<T> implements BinWeighter<T>, Supplier<BinWeighter<T>> {
+  static class StatelessBinWeighter<T> implements BinWeighter<T>, Supplier<BinWeighter<T>> {
     private final Function<T, Long> weightFunc;
 
-    public StatelessBinWeighter(Function<T, Long> weightFunc) {
+    StatelessBinWeighter(Function<T, Long> weightFunc) {
       this.weightFunc = weightFunc;
     }
 
@@ -151,7 +151,7 @@ public class BinPacking {
           maxSize);
     }
 
-    public PackingIterable(
+    PackingIterable(
         Iterable<T> iterable,
         long targetWeight,
         int lookback,
@@ -160,7 +160,7 @@ public class BinPacking {
       this(iterable, targetWeight, lookback, weighterFactory, largestBinFirst, Long.MAX_VALUE);
     }
 
-    public PackingIterable(
+    PackingIterable(
         Iterable<T> iterable,
         long targetWeight,
         int lookback,
