@@ -21,12 +21,14 @@ package org.apache.iceberg.util;
 import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.SystemConfigs;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -109,6 +111,36 @@ public class ThreadPools {
   }
 
   /**
+   * Creates a fixed-size thread pool that uses daemon threads, which exit after being idle for the
+   * given duration.
+   *
+   * <p>Threads do not inherit thread-locals or the context class loader of the thread that creates
+   * them, so a pool that is no longer used does not keep its users reachable, even if it is never
+   * shut down.
+   */
+  public static ExecutorService newFixedThreadPool(
+      String namePrefix, int poolSize, Duration idleTimeout) {
+    Preconditions.checkArgument(
+        idleTimeout.compareTo(Duration.ZERO) > 0,
+        "Invalid idle timeout: %s (must be positive)",
+        idleTimeout);
+    ThreadPoolExecutor executor =
+        new ThreadPoolExecutor(
+            poolSize,
+            poolSize,
+            idleTimeout.toNanos(),
+            TimeUnit.NANOSECONDS,
+            new LinkedBlockingQueue<>(),
+            new ThreadFactoryBuilder()
+                .setThreadFactory(ThreadPools::newNonInheritingThread)
+                .setDaemon(true)
+                .setNameFormat(namePrefix + "-%d")
+                .build());
+    executor.allowCoreThreadTimeOut(true);
+    return executor;
+  }
+
+  /**
    * Create a new {@link ScheduledExecutorService} with the given name and pool size.
    *
    * <p>Threads used by this service will be daemon threads.
@@ -140,5 +172,11 @@ public class ThreadPools {
 
   private static ThreadFactory newDaemonThreadFactory(String namePrefix) {
     return new ThreadFactoryBuilder().setDaemon(true).setNameFormat(namePrefix + "-%d").build();
+  }
+
+  private static Thread newNonInheritingThread(Runnable runnable) {
+    Thread thread = new Thread(null, runnable, "", 0, false /* inheritThreadLocals */);
+    thread.setContextClassLoader(ThreadPools.class.getClassLoader());
+    return thread;
   }
 }

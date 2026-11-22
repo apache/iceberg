@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -122,6 +123,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     implements Configurable<Object>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
+  private static final Duration METRICS_EXECUTOR_IDLE_TIMEOUT = Duration.ofSeconds(60);
 
   // these default endpoints must not be updated in order to maintain backwards compatibility with
   // legacy servers
@@ -286,7 +288,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
 
     if (reportingViaRestEnabled) {
-      this.metricsExecutor = ThreadPools.newFixedThreadPool("rest-metrics-reporter", 1);
+      this.metricsExecutor =
+          ThreadPools.newFixedThreadPool("rest-metrics-reporter", 1, METRICS_EXECUTOR_IDLE_TIMEOUT);
       this.closeables.addCloseable(metricsExecutor::shutdown);
     }
 
