@@ -15,8 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# SPDX-License-Identifier: Apache-2.0
-#
 
 ##############################################################################
 #
@@ -88,6 +86,17 @@ APP_BASE_NAME=${0##*/}
 # Discard cd standard output in case $CDPATH is set (https://github.com/gradle/gradle/issues/25036)
 APP_HOME=$( cd -P "${APP_HOME:-./}" > /dev/null && printf '%s\n' "$PWD" ) || exit
 
+if [ ! -e "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" ]; then
+    # A partial JAR at the final path would prevent subsequent download attempts.
+    wrapper_tmp=$(mktemp "$APP_HOME/gradle/wrapper/gradle-wrapper.jar.XXXXXX") || exit 1
+    if ! curl -fL -o "$wrapper_tmp" https://raw.githubusercontent.com/gradle/gradle/v8.14.7/gradle/wrapper/gradle-wrapper.jar ||
+        ! mv "$wrapper_tmp" "$APP_HOME/gradle/wrapper/gradle-wrapper.jar"; then
+        rm -f "$wrapper_tmp"
+        echo "Failed to download or install Gradle wrapper JAR" >&2
+        exit 1
+    fi
+fi
+
 # Use the maximum available, or set MAX_FD != -1 to use that value.
 MAX_FD=maximum
 
@@ -114,7 +123,7 @@ case "$( uname )" in                #(
   NONSTOP* )        nonstop=true ;;
 esac
 
-CLASSPATH="\\\"\\\""
+CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
 
 
 # Determine the Java command to use to start the JVM.
@@ -213,7 +222,7 @@ DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
 set -- \
         "-Dorg.gradle.appname=$APP_BASE_NAME" \
         -classpath "$CLASSPATH" \
-        -jar "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" \
+        org.gradle.wrapper.GradleWrapperMain \
         "$@"
 
 # Stop when "xargs" is not available.
