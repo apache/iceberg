@@ -23,6 +23,8 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.File;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
@@ -30,19 +32,22 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers.Row;
+import org.apache.iceberg.TestTables;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.io.TempDir;
 
 class TestGroupedAggregateEvaluator {
   private static final Schema SCHEMA =
@@ -183,15 +188,30 @@ class TestGroupedAggregateEvaluator {
     assertThat(evaluator.allAggregatorsValid()).isFalse();
   }
 
-  @ParameterizedTest
-  @ValueSource(ints = {7, 8})
-  void floatingPointGroupByFieldNotSupported(int fieldId) {
-    GroupedAggregateEvaluator evaluator = create(fieldId);
+  @Test
+  void groupByFloatingPointFieldsMergesNegativeZero() {
+    GroupedAggregateEvaluator evaluator = create(7, 8);
     evaluator.update(file(RATIO_SCORE_SPEC, Row.of(-0.0f, -0.0d), 10, 1, 20));
     evaluator.update(file(RATIO_SCORE_SPEC, Row.of(0.0f, 0.0d), 5, 15, 30));
 
-    assertThat(evaluator.allAggregatorsValid()).isFalse();
-    assertThatThrownBy(evaluator::results).isInstanceOf(IllegalStateException.class);
+    assertThat(evaluator.allAggregatorsValid()).isTrue();
+    assertThat(rows(evaluator)).containsExactly(Arrays.asList(0.0f, 0.0d, 15L, 1, 30));
+  }
+
+  @Test
+  void groupByFloatingPointFieldsMergesNaN() {
+    GroupedAggregateEvaluator evaluator = create(7, 8);
+    evaluator.update(file(RATIO_SCORE_SPEC, Row.of(Float.NaN, Double.NaN), 10, 1, 20));
+    evaluator.update(
+        file(
+            RATIO_SCORE_SPEC,
+            Row.of(Float.intBitsToFloat(0x7fc00001), Double.longBitsToDouble(0x7ff8000000000001L)),
+            5,
+            15,
+            30));
+
+    assertThat(evaluator.allAggregatorsValid()).isTrue();
+    assertThat(rows(evaluator)).containsExactly(Arrays.asList(Float.NaN, Double.NaN, 15L, 1, 30));
   }
 
   @Test
@@ -239,6 +259,37 @@ class TestGroupedAggregateEvaluator {
             () -> GroupedAggregateEvaluator.create(SCHEMA, SPECS, ImmutableList.of(), AGGREGATES))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid group by fields: empty");
+  }
+
+  @Test
+  void groupByFieldPromotedFromIntToLong(@TempDir File tableDir) throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(2, "level", Types.IntegerType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("level").build();
+    Table table = TestTables.create(tableDir, "promoted_level", schema, spec, 2);
+    table.newAppend().appendFile(file(table.spec(), Row.of(1), 10, 1, 20)).commit();
+
+    table.updateSchema().updateColumn("level", Types.LongType.get()).commit();
+    table.newAppend().appendFile(file(table.spec(), Row.of(1L), 5, 21, 30)).commit();
+
+    GroupedAggregateEvaluator evaluator =
+        GroupedAggregateEvaluator.create(
+            table.schema(),
+            table.specs(),
+            ImmutableList.of(2),
+            ImmutableList.of(
+                (BoundAggregate<?, ?>)
+                    Binder.bind(table.schema().asStruct(), Expressions.countStar())));
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      for (FileScanTask task : tasks) {
+        evaluator.update(task.file());
+      }
+    }
+
+    assertThat(evaluator.allAggregatorsValid()).isTrue();
+    assertThat(rows(evaluator)).containsExactly(Arrays.asList(1L, 15L));
   }
 
   private static GroupedAggregateEvaluator create(Integer... groupByFieldIds) {

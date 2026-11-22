@@ -29,7 +29,6 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeMap;
 
@@ -38,8 +37,7 @@ import org.apache.iceberg.util.StructLikeMap;
  *
  * <p>Each group-by field must be the source of an identity partition field in the spec of every
  * file passed to {@link #update(DataFile)}. Otherwise, the grouped result cannot be computed from
- * metadata and {@link #allAggregatorsValid()} returns false. Float and double group-by fields are
- * not supported.
+ * metadata and {@link #allAggregatorsValid()} returns false.
  *
  * <p>Results are computed from data file metadata only, so callers must not use this evaluator when
  * any file has row-level deletes.
@@ -75,12 +73,6 @@ public class GroupedAggregateEvaluator {
       int fieldId = groupByFieldIds.get(pos);
       Types.NestedField field = schema.findField(fieldId);
       Preconditions.checkArgument(field != null, "Cannot find group by field with ID %s", fieldId);
-      // -0.0 and 0.0 are different keys in StructLikeMap, but engines group them together
-      Type.TypeID typeId = field.type().typeId();
-      if (typeId == Type.TypeID.FLOAT || typeId == Type.TypeID.DOUBLE) {
-        this.canGroup = false;
-      }
-
       groupFields.add(
           Types.NestedField.optional(pos, schema.findColumnName(fieldId), field.type()));
     }
@@ -118,7 +110,7 @@ public class GroupedAggregateEvaluator {
     StructLike partition = file.partition();
     GenericRecord group = GenericRecord.create(groupType);
     for (int i = 0; i < positions.length; i += 1) {
-      group.set(i, partition.get(positions[i], Object.class));
+      group.set(i, normalize(partition.get(positions[i], Object.class)));
     }
 
     evaluatorsByGroup
@@ -150,8 +142,8 @@ public class GroupedAggregateEvaluator {
   public List<StructLike> results() {
     Preconditions.checkState(
         canGroup,
-        "Cannot return grouped results: a group-by field is float or double, "
-            + "or is not an identity partition field in the spec of every file");
+        "Cannot return grouped results: "
+            + "a group-by field is not an identity partition field in the spec of every file");
     int groupSize = groupType.fields().size();
     List<StructLike> results = Lists.newArrayListWithExpectedSize(evaluatorsByGroup.size());
     for (Map.Entry<StructLike, AggregateEvaluator> entry : evaluatorsByGroup.entrySet()) {
@@ -170,6 +162,17 @@ public class GroupedAggregateEvaluator {
     }
 
     return results;
+  }
+
+  // engines group -0.0 with 0.0, but they are different keys in StructLikeMap
+  private static Object normalize(Object value) {
+    if (value instanceof Float && (Float) value == 0.0f) {
+      return 0.0f;
+    } else if (value instanceof Double && (Double) value == 0.0d) {
+      return 0.0d;
+    }
+
+    return value;
   }
 
   private int[] identityPositions(int specId) {
