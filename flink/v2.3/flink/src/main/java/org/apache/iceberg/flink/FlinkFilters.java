@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -250,6 +251,10 @@ public class FlinkFilters {
       String name = ((FieldReferenceExpression) left).getName();
       Optional<Object> lit = convertLiteral((ValueLiteralExpression) right);
       if (lit.isPresent()) {
+        if (lit.get() instanceof BigDecimal
+            && isFloatingPointField((FieldReferenceExpression) left)) {
+          return Optional.empty();
+        }
         return Optional.of(convertLR.apply(name, lit.get()));
       }
     } else if (left instanceof ValueLiteralExpression
@@ -257,10 +262,24 @@ public class FlinkFilters {
       Optional<Object> lit = convertLiteral((ValueLiteralExpression) left);
       String name = ((FieldReferenceExpression) right).getName();
       if (lit.isPresent()) {
+        if (lit.get() instanceof BigDecimal
+            && isFloatingPointField((FieldReferenceExpression) right)) {
+          return Optional.empty();
+        }
         return Optional.of(convertRL.apply(name, lit.get()));
       }
     }
 
     return Optional.empty();
+  }
+
+  private static boolean isFloatingPointField(FieldReferenceExpression field) {
+    switch (field.getOutputDataType().getLogicalType().getTypeRoot()) {
+      case FLOAT:
+      case DOUBLE:
+        return true;
+      default:
+        return false;
+    }
   }
 }
