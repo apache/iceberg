@@ -20,6 +20,7 @@ package org.apache.iceberg.actions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -31,6 +32,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.TestBase;
+import org.apache.iceberg.TestTables;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -78,6 +80,43 @@ class TestRewriteDataFilesCommitManager extends TestBase {
 
     assertThat(service.results()).isEmpty();
     assertThat(output).doesNotExist();
+  }
+
+  @TestTemplate
+  void staleTableValidatesHistoryAndCleansOutput() throws IOException {
+    assumeTrue(formatVersion >= 2, "Delete conflict validation requires format v2 or later");
+    table.newAppend().appendFile(FILE_A).commit();
+    long startingSnapshotId = table.currentSnapshot().snapshotId();
+    RewriteDataFilesCommitManager manager =
+        new RewriteDataFilesCommitManager(table, startingSnapshotId);
+    TestTables.TestTable concurrentTable = TestTables.load(tableDir, "test");
+    concurrentTable.newAppend().appendFile(FILE_B).commit();
+    long intermediateSnapshotId = concurrentTable.currentSnapshot().snapshotId();
+    concurrentTable.newAppend().appendFile(FILE_C).commit();
+    concurrentTable
+        .expireSnapshots()
+        .expireSnapshotId(startingSnapshotId)
+        .expireSnapshotId(intermediateSnapshotId)
+        .commit();
+
+    assertThat(concurrentTable.snapshot(startingSnapshotId)).isNull();
+    assertThat(table.snapshot(startingSnapshotId)).isNotNull();
+
+    Path output = Files.createFile(temp.resolve("stale-rewritten.parquet"));
+    DataFile addedFile =
+        DataFiles.builder(SPEC)
+            .withPath(output.toString())
+            .withFileSizeInBytes(0)
+            .withRecordCount(1)
+            .withPartitionPath("data_bucket=0")
+            .build();
+
+    assertThatThrownBy(() -> manager.commitOrClean(Set.of(rewriteGroup(addedFile))))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith(
+            "Cannot determine history between starting snapshot %s", startingSnapshotId);
+    assertThat(output).doesNotExist();
+    assertThat(table.snapshot(startingSnapshotId)).isNull();
   }
 
   private RewriteFileGroup rewriteGroup(DataFile addedFile) {
