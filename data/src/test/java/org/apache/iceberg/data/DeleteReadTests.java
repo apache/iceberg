@@ -33,16 +33,23 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers.Row;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -385,6 +392,110 @@ public abstract class DeleteReadTests {
   }
 
   @TestTemplate
+  public void testEqualityDeletesSkipNewerDataFileInSameTask() throws IOException {
+    String olderManifestPath = table.currentSnapshot().dataManifests(table.io()).get(0).path();
+    table.newRowDelta().addDeletes(writeEqDeletesOnData(Row.of(0), "a")).commit(); // id = 29
+
+    GenericRecord record = GenericRecord.create(table.schema());
+    List<Record> newerRecords =
+        Lists.newArrayList(
+            record.copy("id", 144, "data", "a"), record.copy("id", 145, "data", "b"));
+    DataFile newerDataFile = writeDataFile(Row.of(0), newerRecords);
+    table.newAppend().appendFile(newerDataFile).commit();
+    records.addAll(newerRecords);
+
+    // planning reads manifests newest first and in parallel; moving the older manifest to the
+    // front and then combining both into one manifest makes the older data file be read first
+    table
+        .rewriteManifests()
+        .rewriteIf(manifest -> manifest.path().equals(olderManifestPath))
+        .clusterBy(file -> "older")
+        .commit();
+    table
+        .rewriteManifests()
+        .clusterBy(file -> "all")
+        .scanManifestsWith(MoreExecutors.newDirectExecutorService())
+        .commit();
+
+    List<ManifestFile> dataManifests = table.currentSnapshot().dataManifests(table.io());
+    assertThat(dataManifests).hasSize(1);
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(dataManifests.get(0), table.io(), table.specs())) {
+      assertThat(Iterables.transform(reader, DataFile::location))
+          .as("Older data file must be read first")
+          .containsExactly(dataFile.location(), newerDataFile.location());
+    }
+
+    table.newRowDelta().addDeletes(writeEqDeletesOnData(Row.of(0), "b")).commit(); // id = 43, 145
+
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 43, 145);
+    StructLikeSet actual = rowSet(tableName, table, "*");
+
+    assertThat(actual).as("Table should contain expected rows").isEqualTo(expected);
+    checkDeleteCount(3L);
+  }
+
+  @TestTemplate
+  public void testEqualityDeletesScopedToSpecInSameTask() throws IOException {
+    assumeThat(table.spec().isPartitioned()).as("Requires a partitioned table").isTrue();
+
+    DeleteFile oldSpecEqDeletes = writeEqDeletesOnData(Row.of(0), "a"); // id = 29
+
+    table.updateSpec().removeField("data_bucket").addField(Expressions.bucket("id", 16)).commit();
+
+    GenericRecord record = GenericRecord.create(table.schema());
+    List<Record> newSpecRecords =
+        Lists.newArrayList(
+            record.copy("id", 144, "data", "a"), record.copy("id", 145, "data", "b"));
+    table.newAppend().appendFile(writeDataFile(Row.of(0), newSpecRecords)).commit();
+    records.addAll(newSpecRecords);
+
+    table
+        .newRowDelta()
+        .addDeletes(oldSpecEqDeletes)
+        .addDeletes(writeEqDeletesOnData(Row.of(0), "b")) // id = 145
+        .commit();
+
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 145);
+    StructLikeSet actual = rowSet(tableName, table, "*");
+
+    assertThat(actual).as("Table should contain expected rows").isEqualTo(expected);
+    checkDeleteCount(2L);
+  }
+
+  @TestTemplate
+  public void testGlobalEqualityDeletesInSameTask() throws IOException {
+    assumeThat(table.spec().isPartitioned()).as("Requires a partitioned table").isTrue();
+
+    GenericRecord record = GenericRecord.create(table.schema());
+    List<Record> otherPartitionRecords =
+        Lists.newArrayList(
+            record.copy("id", 144, "data", "a"),
+            record.copy("id", 145, "data", "b"),
+            record.copy("id", 146, "data", "c"));
+    table.newAppend().appendFile(writeDataFile(Row.of(1), otherPartitionRecords)).commit();
+    records.addAll(otherPartitionRecords);
+
+    DeleteFile partitionEqDeletes = writeEqDeletesOnData(Row.of(0), "a"); // id = 29
+    DeleteFile otherPartitionEqDeletes = writeEqDeletesOnData(Row.of(1), "b"); // id = 145
+
+    table.updateSpec().removeField("data_bucket").commit();
+
+    table
+        .newRowDelta()
+        .addDeletes(partitionEqDeletes)
+        .addDeletes(otherPartitionEqDeletes)
+        .addDeletes(writeEqDeletesOnData(null, "c")) // id = 61, 146
+        .commit();
+
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 61, 145, 146);
+    StructLikeSet actual = rowSet(tableName, table, "*");
+
+    assertThat(actual).as("Table should contain expected rows").isEqualTo(expected);
+    checkDeleteCount(4L);
+  }
+
+  @TestTemplate
   public void testPositionDeletes() throws IOException {
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
@@ -687,6 +798,31 @@ public abstract class DeleteReadTests {
         .map(row -> StructProjection.create(table.schema(), projection).wrap(row))
         .forEach(set::add);
     return set;
+  }
+
+  private DataFile writeDataFile(StructLike partition, List<Record> rows) throws IOException {
+    return FileHelpers.writeDataFile(
+        table,
+        Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+        partition,
+        rows);
+  }
+
+  private DeleteFile writeEqDeletesOnData(StructLike partition, String... values)
+      throws IOException {
+    Schema deleteRowSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> deletes = Lists.newArrayList();
+    for (String value : values) {
+      deletes.add(dataDelete.copy("data", value));
+    }
+
+    return FileHelpers.writeDeleteFile(
+        table,
+        Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+        partition,
+        deletes,
+        deleteRowSchema);
   }
 
   protected static StructLikeSet rowSetWithoutIds(
