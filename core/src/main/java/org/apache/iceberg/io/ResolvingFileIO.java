@@ -274,19 +274,11 @@ public class ResolvingFileIO
     io(prefix).deletePrefix(prefix);
   }
 
-  /**
-   * Sets the storage credentials for new delegates and for existing delegates that support storage
-   * credentials.
-   *
-   * <p>Call this method before other threads use this FileIO. A delegate that another thread
-   * creates during this call can keep the previous credentials.
-   */
   @Override
   public void setCredentials(List<StorageCredential> credentials) {
     Preconditions.checkArgument(credentials != null, "Invalid storage credentials: null");
     // copy credentials into a modifiable collection for Kryo serde
     this.storageCredentials = Lists.newArrayList(credentials);
-    // A delegate can refresh its own credentials, so io() does not replace them with this list.
     for (DelegateFileIO io : ioInstances.values()) {
       if (io instanceof SupportsStorageCredentials ioWithCredentials) {
         ioWithCredentials.setCredentials(storageCredentials);
