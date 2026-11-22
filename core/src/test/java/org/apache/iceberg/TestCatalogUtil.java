@@ -553,9 +553,20 @@ public class TestCatalogUtil {
   public static class TestFileIOWithStorageCredentials
       implements FileIO, SupportsStorageCredentials {
 
-    private List<StorageCredential> storageCredentials;
+    private Map<String, String> properties = ImmutableMap.of();
+    private List<StorageCredential> storageCredentials = ImmutableList.of();
 
     public TestFileIOWithStorageCredentials() {}
+
+    @Override
+    public void initialize(Map<String, String> props) {
+      this.properties = props;
+    }
+
+    @Override
+    public Map<String, String> properties() {
+      return properties;
+    }
 
     @Override
     public InputFile newInputFile(String path) {

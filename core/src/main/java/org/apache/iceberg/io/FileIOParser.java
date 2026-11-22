@@ -21,9 +21,11 @@ package org.apache.iceberg.io;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.JsonUtil;
 
 public class FileIOParser {
@@ -31,6 +33,7 @@ public class FileIOParser {
 
   private static final String FILE_IO_IMPL = "io-impl";
   private static final String PROPERTIES = "properties";
+  private static final String STORAGE_CREDENTIALS = "storage-credentials";
 
   public static String toJson(FileIO io) {
     return toJson(io, false);
@@ -41,6 +44,9 @@ public class FileIOParser {
   }
 
   public static void toJson(FileIO io, JsonGenerator generator) throws IOException {
+    Preconditions.checkArgument(io != null, "Invalid FileIO: null");
+    Preconditions.checkArgument(generator != null, "Invalid JSON generator: null");
+
     String impl = io.getClass().getName();
     Map<String, String> properties;
     try {
@@ -61,6 +67,17 @@ public class FileIOParser {
     generator.writeStringField(FILE_IO_IMPL, impl);
     JsonUtil.writeStringMap(PROPERTIES, properties, generator);
 
+    if (io instanceof SupportsStorageCredentials) {
+      List<StorageCredential> credentials = ((SupportsStorageCredentials) io).credentials();
+      if (credentials != null && !credentials.isEmpty()) {
+        generator.writeArrayFieldStart(STORAGE_CREDENTIALS);
+        for (StorageCredential credential : credentials) {
+          StorageCredentialParser.toJson(credential, generator);
+        }
+        generator.writeEndArray();
+      }
+    }
+
     generator.writeEndObject();
   }
 
@@ -73,9 +90,25 @@ public class FileIOParser {
   }
 
   public static FileIO fromJson(JsonNode json, Object conf) {
+    Preconditions.checkArgument(json != null, "Cannot parse FileIO from null object");
     Preconditions.checkArgument(json.isObject(), "Cannot parse FileIO from non-object: %s", json);
     String impl = JsonUtil.getString(FILE_IO_IMPL, json);
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, json);
-    return CatalogUtil.loadFileIO(impl, properties, conf);
+
+    List<StorageCredential> credentials = ImmutableList.of();
+    if (json.has(STORAGE_CREDENTIALS)) {
+      JsonNode credentialsNode = json.get(STORAGE_CREDENTIALS);
+      Preconditions.checkArgument(
+          credentialsNode != null && credentialsNode.isArray(),
+          "Cannot parse storage credentials from non-array: %s",
+          credentialsNode);
+      ImmutableList.Builder<StorageCredential> builder = ImmutableList.builder();
+      for (JsonNode credentialNode : credentialsNode) {
+        builder.add(StorageCredentialParser.fromJson(credentialNode));
+      }
+      credentials = builder.build();
+    }
+
+    return CatalogUtil.loadFileIO(impl, properties, conf, credentials);
   }
 }
