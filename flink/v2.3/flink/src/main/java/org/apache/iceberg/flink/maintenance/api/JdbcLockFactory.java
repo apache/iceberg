@@ -127,16 +127,9 @@ public class JdbcLockFactory implements TriggerLockFactory {
       pool.run(
           conn -> {
             DatabaseMetaData dbMeta = conn.getMetaData();
-            try (ResultSet rs =
-                dbMeta.getTables(
-                    null /* catalog name */,
-                    null /* schemaPattern */,
-                    LOCK_TABLE_NAME /* tableNamePattern */,
-                    null /* types */)) {
-              if (rs.next()) {
-                LOG.debug("Flink maintenance lock table already exists");
-                return true;
-              }
+            if (lockTableExists(dbMeta)) {
+              LOG.debug("Flink maintenance lock table already exists");
+              return true;
             }
             LOG.info("Creating Flink maintenance lock table {}", LOCK_TABLE_NAME);
             try (PreparedStatement ps = conn.prepareStatement(CREATE_LOCK_TABLE_SQL)) {
