@@ -156,6 +156,19 @@ public class TestSnapshotUtil {
   }
 
   @Test
+  public void oldestAncestorAfterOnBranch() {
+    long branchTimestamp = table.snapshot(snapshotBranchId).timestampMillis();
+    assertThat(SnapshotUtil.oldestAncestorAfter(table, "b1", branchTimestamp))
+        .extracting(Snapshot::snapshotId)
+        .isEqualTo(snapshotBranchId);
+  }
+
+  @Test
+  public void oldestAncestorAfterOnMissingBranch() {
+    assertThat(SnapshotUtil.oldestAncestorAfter(table, "missing", snapshotBaseTimestamp)).isNull();
+  }
+
+  @Test
   public void snapshotsBetween() {
     List<Long> snapshotIdsBetween =
         SnapshotUtil.snapshotIdsBetween(table, snapshotBaseId, snapshotMain2Id);

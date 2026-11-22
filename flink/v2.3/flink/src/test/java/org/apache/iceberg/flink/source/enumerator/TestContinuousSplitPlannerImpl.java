@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.source.enumerator;
 
+import static org.apache.iceberg.TestHelpers.waitUntilAfter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
@@ -52,6 +54,7 @@ public class TestContinuousSplitPlannerImpl {
 
   private static final FileFormat FILE_FORMAT = FileFormat.PARQUET;
   private static final AtomicLong RANDOM_SEED = new AtomicLong();
+  private static final String BRANCH = "b1";
 
   @RegisterExtension
   private static final HadoopTableExtension TABLE_RESOURCE =
@@ -655,6 +658,127 @@ public class TestContinuousSplitPlannerImpl {
     }
   }
 
+  @Test
+  public void testIncrementalFromLatestSnapshotStartsFromBranchHead() throws Exception {
+    DataFile branchFile = appendToBranch();
+
+    ScanContext scanContext =
+        ScanContext.builder()
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
+            .useBranch(BRANCH)
+            .build();
+    ContinuousSplitPlannerImpl splitPlanner =
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
+
+    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    assertThat(splitPlanner.planSplits(initialResult.toPosition()).splits())
+        .flatExtracting(split -> split.task().files())
+        .extracting(task -> task.file().location())
+        .containsExactly(branchFile.location());
+  }
+
+  @Test
+  public void testIncrementalFromSnapshotTimestampUsesBranchHistory() throws Exception {
+    DataFile branchFile = appendToBranch();
+
+    ScanContext scanContext =
+        ScanContext.builder()
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP)
+            .startSnapshotTimestamp(TABLE_RESOURCE.table().snapshot(BRANCH).timestampMillis())
+            .useBranch(BRANCH)
+            .build();
+    ContinuousSplitPlannerImpl splitPlanner =
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
+
+    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    IcebergSourceSplit split =
+        Iterables.getOnlyElement(splitPlanner.planSplits(initialResult.toPosition()).splits());
+    assertThat(split.task().files())
+        .singleElement()
+        .satisfies(task -> assertThat(task.file().location()).isEqualTo(branchFile.location()));
+  }
+
+  @Test
+  public void testIncrementalFromEarliestSnapshotUsesBranchHistoryAfterMainExpiration()
+      throws Exception {
+    Table table = TABLE_RESOURCE.table();
+    DataFile baseFile =
+        dataAppender.writeFile(null, RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L));
+    dataAppender.appendToTable(baseFile);
+    table.manageSnapshots().createBranch(BRANCH, table.currentSnapshot().snapshotId()).commit();
+    dataAppender.appendToTable(RandomGenericData.generate(TestFixtures.SCHEMA, 2, 1L));
+    long expiredMainSnapshotId = table.currentSnapshot().snapshotId();
+    dataAppender.appendToTable(RandomGenericData.generate(TestFixtures.SCHEMA, 2, 2L));
+    DataFile branchFile =
+        dataAppender.writeFile(null, RandomGenericData.generate(TestFixtures.SCHEMA, 2, 3L));
+    table.newAppend().appendFile(branchFile).toBranch(BRANCH).commit();
+    table.expireSnapshots().expireSnapshotId(expiredMainSnapshotId).commit();
+
+    ScanContext scanContext =
+        ScanContext.builder()
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
+            .useBranch(BRANCH)
+            .build();
+    ContinuousSplitPlannerImpl splitPlanner =
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
+
+    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    assertThat(splitPlanner.planSplits(initialResult.toPosition()).splits())
+        .flatExtracting(split -> split.task().files())
+        .extracting(task -> task.file().location())
+        .containsExactlyInAnyOrder(baseFile.location(), branchFile.location());
+  }
+
+  @Test
+  public void testTableScanThenIncrementalExcludesMainOnlyFiles() throws Exception {
+    Table table = TABLE_RESOURCE.table();
+    DataFile baseFile =
+        dataAppender.writeFile(null, RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L));
+    dataAppender.appendToTable(baseFile);
+    table.manageSnapshots().createBranch(BRANCH, table.currentSnapshot().snapshotId()).commit();
+    dataAppender.appendToTable(RandomGenericData.generate(TestFixtures.SCHEMA, 2, 1L));
+    DataFile branchFile =
+        dataAppender.writeFile(null, RandomGenericData.generate(TestFixtures.SCHEMA, 2, 2L));
+    table.newAppend().appendFile(branchFile).toBranch(BRANCH).commit();
+
+    ScanContext scanContext =
+        ScanContext.builder()
+            .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+            .useBranch(BRANCH)
+            .build();
+    ContinuousSplitPlannerImpl splitPlanner =
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
+
+    assertThat(splitPlanner.planSplits(null).splits())
+        .flatExtracting(split -> split.task().files())
+        .extracting(task -> task.file().location())
+        .containsExactlyInAnyOrder(baseFile.location(), branchFile.location());
+  }
+
+  @Test
+  public void testIncrementalFromLatestSnapshotExclusiveSkipsExistingBranchFiles()
+      throws Exception {
+    appendToBranch();
+
+    ScanContext scanContext =
+        ScanContext.builder()
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT_EXCLUSIVE)
+            .useBranch(BRANCH)
+            .build();
+    ContinuousSplitPlannerImpl splitPlanner =
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
+
+    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    DataFile newBranchFile =
+        dataAppender.writeFile(null, RandomGenericData.generate(TestFixtures.SCHEMA, 2, 2L));
+    TABLE_RESOURCE.table().newAppend().appendFile(newBranchFile).toBranch(BRANCH).commit();
+
+    assertThat(splitPlanner.planSplits(initialResult.toPosition()).splits())
+        .flatExtracting(split -> split.task().files())
+        .extracting(task -> task.file().location())
+        .containsExactly(newBranchFile.location());
+  }
+
   private void verifyStatCount(IcebergSourceSplit split, int expected) {
     if (expected == 0) {
       split
@@ -720,6 +844,22 @@ public class TestContinuousSplitPlannerImpl {
     DataFile dataFile = dataAppender.writeFile(null, batch);
     dataAppender.appendToTable(dataFile);
     return TABLE_RESOURCE.table().currentSnapshot();
+  }
+
+  private DataFile appendToBranch() throws IOException {
+    dataAppender.appendToTable(RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L));
+    Snapshot mainSnapshot = TABLE_RESOURCE.table().currentSnapshot();
+    TABLE_RESOURCE
+        .table()
+        .manageSnapshots()
+        .createBranch(BRANCH, mainSnapshot.snapshotId())
+        .commit();
+
+    waitUntilAfter(mainSnapshot.timestampMillis());
+    DataFile branchFile =
+        dataAppender.writeFile(null, RandomGenericData.generate(TestFixtures.SCHEMA, 2, 1L));
+    TABLE_RESOURCE.table().newAppend().appendFile(branchFile).toBranch(BRANCH).commit();
+    return branchFile;
   }
 
   private static class CycleResult {

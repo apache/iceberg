@@ -220,13 +220,21 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
    */
   @VisibleForTesting
   static Optional<Snapshot> startSnapshot(Table table, ScanContext scanContext) {
+    String branch = scanContext.branch();
+    if (branch != null && table.snapshot(branch) == null) {
+      branch = null;
+    }
+
+    Snapshot headSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+
     switch (scanContext.streamingStartingStrategy()) {
       case TABLE_SCAN_THEN_INCREMENTAL:
       case INCREMENTAL_FROM_LATEST_SNAPSHOT:
       case INCREMENTAL_FROM_LATEST_SNAPSHOT_EXCLUSIVE:
-        return Optional.ofNullable(table.currentSnapshot());
+        return Optional.ofNullable(headSnapshot);
       case INCREMENTAL_FROM_EARLIEST_SNAPSHOT:
-        return Optional.ofNullable(SnapshotUtil.oldestAncestor(table));
+        return Optional.ofNullable(headSnapshot)
+            .map(snapshot -> SnapshotUtil.oldestAncestorOf(table, snapshot.snapshotId()));
       case INCREMENTAL_FROM_SNAPSHOT_ID:
         Snapshot matchedSnapshotById = table.snapshot(scanContext.startSnapshotId());
         Preconditions.checkArgument(
@@ -235,7 +243,7 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
         return Optional.of(matchedSnapshotById);
       case INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP:
         Snapshot matchedSnapshotByTimestamp =
-            SnapshotUtil.oldestAncestorAfter(table, scanContext.startSnapshotTimestamp());
+            SnapshotUtil.oldestAncestorAfter(table, branch, scanContext.startSnapshotTimestamp());
         Preconditions.checkArgument(
             matchedSnapshotByTimestamp != null,
             "Cannot find a snapshot after: " + scanContext.startSnapshotTimestamp());
