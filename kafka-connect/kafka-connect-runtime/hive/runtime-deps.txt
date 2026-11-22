@@ -268,7 +268,7 @@ org.apache.tomcat:tomcat-annotations-api:8.5
 org.apache.yetus:audience-annotations:0.12
 org.apache.zookeeper:zookeeper-jute:3.8
 org.apache.zookeeper:zookeeper:3.8
-org.bouncycastle:bcprov-jdk18on:1.86
+org.bouncycastle:bcprov-jdk18on:1.87
 org.checkerframework:checker-compat-qual:2.5
 org.checkerframework:checker-qual:3.49
 org.codehaus.jettison:jettison:1.5
