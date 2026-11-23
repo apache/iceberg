@@ -21,6 +21,7 @@ package org.apache.iceberg.util;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Contains the logic for various {@code truncate} transformations for various types.
@@ -44,20 +45,81 @@ public class TruncateUtil {
 
   private TruncateUtil() {}
 
+  /**
+   * Truncates a value to a multiple of the width, rounding toward negative infinity.
+   *
+   * @param width the truncation width, must be positive
+   * @param value the value to truncate
+   * @return the truncated value
+   * @throws IllegalArgumentException if the truncated value does not fit in a byte
+   */
   public static byte truncateByte(int width, byte value) {
-    return (byte) (value - (((value % width) + width) % width));
+    int truncated = value - Math.floorMod(value, width);
+    Preconditions.checkArgument(
+        truncated >= Byte.MIN_VALUE && truncated <= Byte.MAX_VALUE,
+        "Truncated value %s does not fit in a byte: truncate(%s, %s)",
+        truncated,
+        width,
+        value);
+    return (byte) truncated;
   }
 
+  /**
+   * Truncates a value to a multiple of the width, rounding toward negative infinity.
+   *
+   * @param width the truncation width, must be positive
+   * @param value the value to truncate
+   * @return the truncated value
+   * @throws IllegalArgumentException if the truncated value does not fit in a short
+   */
   public static short truncateShort(int width, short value) {
-    return (short) (value - (((value % width) + width) % width));
+    int truncated = value - Math.floorMod(value, width);
+    Preconditions.checkArgument(
+        truncated >= Short.MIN_VALUE && truncated <= Short.MAX_VALUE,
+        "Truncated value %s does not fit in a short: truncate(%s, %s)",
+        truncated,
+        width,
+        value);
+    return (short) truncated;
   }
 
+  /**
+   * Truncates a value to a multiple of the width, rounding toward negative infinity.
+   *
+   * @param width the truncation width, must be positive
+   * @param value the value to truncate
+   * @return the truncated value
+   * @throws IllegalArgumentException if the truncated value does not fit in an int
+   */
   public static int truncateInt(int width, int value) {
-    return value - (((value % width) + width) % width);
+    long truncated = (long) value - Math.floorMod(value, width);
+    Preconditions.checkArgument(
+        truncated >= Integer.MIN_VALUE && truncated <= Integer.MAX_VALUE,
+        "Truncated value %s does not fit in an int: truncate(%s, %s)",
+        truncated,
+        width,
+        value);
+    return (int) truncated;
   }
 
+  /**
+   * Truncates a value to a multiple of the width, rounding toward negative infinity.
+   *
+   * @param width the truncation width, must be positive
+   * @param value the value to truncate
+   * @return the truncated value
+   * @throws IllegalArgumentException if the truncated value does not fit in a long
+   */
   public static long truncateLong(int width, long value) {
-    return value - (((value % width) + width) % width);
+    long remainder = Math.floorMod(value, (long) width);
+    long truncated;
+    try {
+      truncated = Math.subtractExact(value, remainder);
+    } catch (ArithmeticException e) {
+      throw new IllegalArgumentException(
+          "Truncated value does not fit in a long: truncate(" + width + ", " + value + ")", e);
+    }
+    return truncated;
   }
 
   public static BigDecimal truncateDecimal(BigInteger unscaledWidth, BigDecimal value) {

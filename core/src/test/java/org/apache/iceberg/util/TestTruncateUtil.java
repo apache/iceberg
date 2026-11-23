@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.util;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatException;
 import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
@@ -33,5 +35,44 @@ class TestTruncateUtil {
     assertThatException()
         .as("Invalid width input can possibly throw an exception")
         .isThrownBy(() -> TruncateUtil.truncateInt(0, 100));
+  }
+
+  @Test
+  public void testTruncateIntNearMinValue() {
+    assertThatThrownBy(() -> TruncateUtil.truncateInt(10, Integer.MIN_VALUE))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not fit in an int");
+    assertThatThrownBy(() -> TruncateUtil.truncateInt(10, -2147483645))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThat(TruncateUtil.truncateInt(10, -2147483640)).isEqualTo(-2147483640);
+    assertThat(TruncateUtil.truncateInt(10, -21)).isEqualTo(-30);
+    assertThat(TruncateUtil.truncateInt(10, 5)).isEqualTo(0);
+    assertThat(TruncateUtil.truncateInt(10, Integer.MAX_VALUE)).isEqualTo(2147483640);
+  }
+
+  @Test
+  public void testTruncateLongNearMinValue() {
+    assertThatThrownBy(() -> TruncateUtil.truncateLong(10, Long.MIN_VALUE))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not fit in a long");
+    assertThatThrownBy(() -> TruncateUtil.truncateLong(10, -9223372036854775805L))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThat(TruncateUtil.truncateLong(10, -9223372036854775800L))
+        .isEqualTo(-9223372036854775800L);
+    assertThat(TruncateUtil.truncateLong(10, -21L)).isEqualTo(-30L);
+    assertThat(TruncateUtil.truncateLong(10, Long.MAX_VALUE)).isEqualTo(9223372036854775800L);
+  }
+
+  @Test
+  public void testTruncateByteAndShortNearMinValue() {
+    assertThatThrownBy(() -> TruncateUtil.truncateByte(10, Byte.MIN_VALUE))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not fit in a byte");
+    assertThat(TruncateUtil.truncateByte(10, (byte) -120)).isEqualTo((byte) -120);
+    assertThat(TruncateUtil.truncateByte(10, (byte) -21)).isEqualTo((byte) -30);
+    assertThatThrownBy(() -> TruncateUtil.truncateShort(10, Short.MIN_VALUE))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not fit in a short");
+    assertThat(TruncateUtil.truncateShort(10, (short) -32760)).isEqualTo((short) -32760);
   }
 }
