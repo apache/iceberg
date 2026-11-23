@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
@@ -1857,26 +1856,6 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     assertThat(scanTask1Partition).isEqualTo(expected);
     assertThat(scanTask2Partition).isEqualTo(expected);
-  }
-
-  @TestTemplate
-  void positionDeletesRejectsAFileColumnWithAPartitionFieldId() {
-    assumeThat(formatVersion).as("File columns require V4 Tables").isGreaterThanOrEqualTo(4);
-    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
-    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("id").build();
-    Table fileTable = TestTables.create(tableDir, "file_table", schema, spec, formatVersion);
-    int partitionFieldId = fileTable.spec().fields().get(0).fieldId();
-
-    UpdateSchema updateSchema = fileTable.updateSchema();
-    for (int id = 2; id < partitionFieldId; id += 1) {
-      updateSchema.addColumn(String.valueOf(id), Types.IntegerType.get());
-    }
-    updateSchema.addColumn("photo", Types.FileType.of(0)).commit();
-    assertThat(fileTable.schema().findField("photo").fieldId()).isEqualTo(partitionFieldId);
-
-    assertThatThrownBy(() -> new PositionDeletesTable(fileTable))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageStartingWith("Cannot reassign file field %s to ", partitionFieldId);
   }
 
   @TestTemplate

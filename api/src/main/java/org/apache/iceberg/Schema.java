@@ -163,7 +163,7 @@ public class Schema implements Serializable {
     this.highestFieldId = lazyIdToName().keySet().stream().mapToInt(i -> i).max().orElse(0);
   }
 
-  private void validateFileBaseIds(Type type, String parentName) {
+  private static void validateFileBaseIds(Type type, String parentName) {
     if (!type.isNestedType()) {
       return;
     }

@@ -293,6 +293,31 @@ public class TestMetricsConfig {
   }
 
   @Test
+  void fileFieldsPastTheInferredLimitUseTheConfiguredDefault() {
+    Map<String, String> properties =
+        Map.of(
+            TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS,
+            "1",
+            TableProperties.DEFAULT_WRITE_METRICS_MODE,
+            "full");
+    Map<String, MetricsModes.MetricsMode> expected =
+        ImmutableMap.<String, MetricsModes.MetricsMode>builder()
+            .put("id", FULL)
+            .put("photo.uri", FULL)
+            .put("photo.offset", COUNTS)
+            .put("photo.size", FULL)
+            .put("photo.content_type", FULL)
+            .put("photo.checksum", COUNTS)
+            .put("photo.inline", COUNTS)
+            .put("data", FULL)
+            .buildOrThrow();
+
+    MetricsConfig config = MetricsTestUtil.from(properties, FILE_SCHEMA);
+
+    assertThat(leafColumnModes(config, FILE_SCHEMA)).isEqualTo(expected);
+  }
+
+  @Test
   void configuredModeOverridesAnInferredFileFieldDefault() {
     Map<String, String> properties =
         Map.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "photo.size", "full");

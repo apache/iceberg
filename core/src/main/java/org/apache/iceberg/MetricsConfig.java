@@ -51,10 +51,16 @@ public final class MetricsConfig implements Serializable {
 
   private static final Logger LOG = LoggerFactory.getLogger(MetricsConfig.class);
   private static final int FILE_URI_ID_OFFSET = 1;
+  private static final int FILE_OFFSET_ID_OFFSET = 2;
   private static final int FILE_SIZE_ID_OFFSET = 3;
   private static final int FILE_CONTENT_TYPE_ID_OFFSET = 4;
+  private static final int FILE_CHECKSUM_ID_OFFSET = 5;
+  private static final int FILE_INLINE_ID_OFFSET = 6;
   private static final int[] FILE_INFERRED_METRIC_ID_OFFSETS = {
     FILE_URI_ID_OFFSET, FILE_SIZE_ID_OFFSET, FILE_CONTENT_TYPE_ID_OFFSET
+  };
+  private static final int[] FILE_COUNTS_METRIC_ID_OFFSETS = {
+    FILE_OFFSET_ID_OFFSET, FILE_CHECKSUM_ID_OFFSET, FILE_INLINE_ID_OFFSET
   };
 
   // Disable metrics by default for wide tables to prevent excessive metadata
@@ -336,11 +342,13 @@ public final class MetricsConfig implements Serializable {
     ImmutableMap.Builder<String, MetricsMode> builder = ImmutableMap.builder();
     if (schema != null) {
       MetricsMode fileMode =
-          defaultMode == MetricsModes.None.get() ? defaultMode : MetricsModes.Counts.get();
+          defaultMode == MetricsModes.None.get()
+              ? MetricsModes.None.get()
+              : MetricsModes.Counts.get();
       for (Types.NestedField field : TypeUtil.indexById(schema.asStruct()).values()) {
         if (field.type().isFileType()) {
-          for (Types.NestedField nested : field.type().asFileType().fields()) {
-            builder.put(schema.findColumnName(nested.fieldId()), fileMode);
+          for (int offset : FILE_COUNTS_METRIC_ID_OFFSETS) {
+            builder.put(schema.findColumnName(field.fieldId() + offset), fileMode);
           }
         }
       }

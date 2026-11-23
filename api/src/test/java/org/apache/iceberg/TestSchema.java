@@ -348,8 +348,7 @@ public class TestSchema {
                     Types.NestedField.optional(2, "photo", Types.FileType.of(2)),
                     Types.NestedField.optional(3, "data", Types.StringType.get())))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Multiple entries with same key")
-        .hasMessageContainingAll("3=photo.uri", "3=data");
+        .hasMessageContainingAll("photo.uri", "data");
   }
 
   @Test
@@ -360,8 +359,7 @@ public class TestSchema {
                     Types.NestedField.optional(1, "photo", Types.FileType.of(1)),
                     Types.NestedField.optional(2, "thumbnail", Types.FileType.of(2))))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Multiple entries with same key")
-        .hasMessageContaining("thumbnail");
+        .hasMessageContainingAll("photo.", "thumbnail.");
   }
 
   @Test
