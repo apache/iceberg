@@ -204,7 +204,7 @@ org.codehaus.woodstox:stax2-api:4.3
 org.conscrypt:conscrypt-openjdk-uber:2.6
 org.json:json:20250517
 org.locationtech.jts:jts-core:1.20
-org.mongodb:bson:4.11
+org.mongodb:bson:5.15
 org.reactivestreams:reactive-streams:1.0
 org.roaringbitmap:RoaringBitmap:1.6
 org.slf4j:slf4j-api:2.0
