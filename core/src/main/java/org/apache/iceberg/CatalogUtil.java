@@ -48,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.Exceptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -377,7 +378,8 @@ public class CatalogUtil {
    * Hadoop config will be passed using Configurable.setConf. If the class implements {@link
    * SupportsStorageCredentials}, the storage credentials will be passed using {@link
    * SupportsStorageCredentials#setCredentials(List)}. {@link FileIO#initialize(Map properties)} is
-   * called to complete the initialization.
+   * called to complete the initialization. If any of these steps fails, the FileIO is closed before
+   * the failure is propagated.
    *
    * @param impl full class name of a custom FileIO implementation
    * @param properties used to initialize the FileIO implementation
@@ -415,13 +417,17 @@ public class CatalogUtil {
           String.format("Cannot initialize FileIO, %s does not implement FileIO.", impl), e);
     }
 
-    configureHadoopConf(fileIO, hadoopConf);
-    if (fileIO instanceof SupportsStorageCredentials) {
-      ((SupportsStorageCredentials) fileIO).setCredentials(storageCredentials);
-    }
+    try {
+      configureHadoopConf(fileIO, hadoopConf);
+      if (fileIO instanceof SupportsStorageCredentials) {
+        ((SupportsStorageCredentials) fileIO).setCredentials(storageCredentials);
+      }
 
-    fileIO.initialize(properties);
-    return fileIO;
+      fileIO.initialize(properties);
+      return fileIO;
+    } catch (RuntimeException e) {
+      throw Exceptions.suppressExceptions(e, fileIO::close);
+    }
   }
 
   /**
