@@ -123,17 +123,16 @@ public class OAuth2RefreshCredentialsHandler
   }
 
   public static OAuth2RefreshCredentialsHandler create(Map<String, String> properties) {
-    return new OAuth2RefreshCredentialsHandler(properties, null);
+    return create(properties, null);
   }
 
   /**
    * Creates a handler for the storage client of the given prefix. When the catalog returns more
    * than one GCS credential, the handler uses the one with the longest prefix that the storage
-   * prefix starts with.
+   * prefix starts with. If the storage prefix is null, the handler expects a single GCS credential.
    */
   public static OAuth2RefreshCredentialsHandler create(
       Map<String, String> properties, String storagePrefix) {
-    Preconditions.checkArgument(null != storagePrefix, "Invalid storage prefix: null");
     return new OAuth2RefreshCredentialsHandler(properties, storagePrefix);
   }
 

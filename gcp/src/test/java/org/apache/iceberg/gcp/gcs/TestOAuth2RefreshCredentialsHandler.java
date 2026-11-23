@@ -318,7 +318,7 @@ public class TestOAuth2RefreshCredentialsHandler {
   }
 
   @Test
-  void multipleGcsCredentialsUseLongestPrefixOfStoragePrefix() {
+  void multipleGcsCredentialsUseLongestPrefix() {
     respondWithCredentials(
         gcsCredential("gs", "rootToken"),
         gcsCredential("gs://bucket/warehouse", "warehouseToken"),

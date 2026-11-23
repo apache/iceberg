@@ -32,20 +32,15 @@ public final class GCPAuthUtils {
 
   public static OAuth2Credentials oauth2CredentialsFromGcpProperties(
       GCPProperties gcpProperties, CloseableGroup closeableGroup) {
-    return oauth2Credentials(gcpProperties, null, closeableGroup);
+    return oauth2CredentialsFromGcpProperties(gcpProperties, null, closeableGroup);
   }
 
   /**
    * Creates OAuth2 credentials for the storage client of the given prefix. A refresh uses the GCS
-   * credential with the longest prefix that the storage prefix starts with.
+   * credential with the longest prefix that the storage prefix starts with. If the storage prefix
+   * is null, a refresh expects a single GCS credential.
    */
   public static OAuth2Credentials oauth2CredentialsFromGcpProperties(
-      GCPProperties gcpProperties, String storagePrefix, CloseableGroup closeableGroup) {
-    Preconditions.checkArgument(null != storagePrefix, "Invalid storage prefix: null");
-    return oauth2Credentials(gcpProperties, storagePrefix, closeableGroup);
-  }
-
-  private static OAuth2Credentials oauth2Credentials(
       GCPProperties gcpProperties, String storagePrefix, CloseableGroup closeableGroup) {
     Optional<String> optionalToken = gcpProperties.oauth2Token();
     Preconditions.checkState(
@@ -62,9 +57,7 @@ public final class GCPAuthUtils {
           closeableGroup,
           "Must specify a closeable group that handles closure of refresh handler.");
       OAuth2RefreshCredentialsHandler oAuthRefreshHandler =
-          null != storagePrefix
-              ? OAuth2RefreshCredentialsHandler.create(gcpProperties.properties(), storagePrefix)
-              : OAuth2RefreshCredentialsHandler.create(gcpProperties.properties());
+          OAuth2RefreshCredentialsHandler.create(gcpProperties.properties(), storagePrefix);
       closeableGroup.addCloseable(oAuthRefreshHandler);
 
       return OAuth2CredentialsWithRefresh.newBuilder()
