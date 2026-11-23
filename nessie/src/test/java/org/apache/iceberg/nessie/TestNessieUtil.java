@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.util.ClearSystemProperty;
 import org.projectnessie.model.CommitMeta;
 
 public class TestNessieUtil {
@@ -62,14 +63,9 @@ public class TestNessieUtil {
   }
 
   @Test
+  @ClearSystemProperty(key = "user.name")
   public void testAuthorIsNullWithoutJvmUser() {
-    String jvmUserName = System.getProperty("user.name");
-    try {
-      System.clearProperty("user.name");
-      CommitMeta commitMeta = NessieUtil.buildCommitMetadata("commit msg", ImmutableMap.of());
-      assertThat(commitMeta.getAuthor()).isNull();
-    } finally {
-      System.setProperty("user.name", jvmUserName);
-    }
+    CommitMeta commitMeta = NessieUtil.buildCommitMetadata("commit msg", ImmutableMap.of());
+    assertThat(commitMeta.getAuthor()).isNull();
   }
 }
