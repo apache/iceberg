@@ -52,6 +52,7 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteManifests;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.RepairTable;
@@ -143,6 +144,10 @@ class TestRepairTableAction extends TestBase {
     DataFile repaired = onlyDataFile(table);
     assertThat(repaired.recordCount()).isEqualTo(original.recordCount());
     assertThat(repaired.fileSizeInBytes()).isEqualTo(original.fileSizeInBytes());
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, String.valueOf(original.recordCount()))
+        .containsEntry(
+            SnapshotSummary.TOTAL_FILE_SIZE_PROP, String.valueOf(original.fileSizeInBytes()));
     assertNoRepair(table, false);
   }
 
@@ -277,6 +282,11 @@ class TestRepairTableAction extends TestBase {
     DeleteFile repaired = onlyDeleteFile(table);
     assertThat(repaired.recordCount()).isEqualTo(original.recordCount());
     assertThat(repaired.fileSizeInBytes()).isEqualTo(original.fileSizeInBytes());
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(
+            SnapshotSummary.TOTAL_EQ_DELETES_PROP, String.valueOf(original.recordCount()))
+        .containsEntry(
+            SnapshotSummary.TOTAL_FILE_SIZE_PROP, String.valueOf(original.fileSizeInBytes()));
     assertNoRepair(table, false);
   }
 
@@ -295,6 +305,11 @@ class TestRepairTableAction extends TestBase {
     DeleteFile repaired = onlyDeleteFile(table);
     assertThat(repaired.recordCount()).isEqualTo(original.recordCount());
     assertThat(repaired.fileSizeInBytes()).isEqualTo(original.fileSizeInBytes());
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(
+            SnapshotSummary.TOTAL_POS_DELETES_PROP, String.valueOf(original.recordCount()))
+        .containsEntry(
+            SnapshotSummary.TOTAL_FILE_SIZE_PROP, String.valueOf(original.fileSizeInBytes()));
     assertNoRepair(table, false);
   }
 
@@ -338,6 +353,14 @@ class TestRepairTableAction extends TestBase {
               assertThat(file.lowerBounds()).isEqualTo(original.lowerBounds());
               assertThat(file.upperBounds()).isEqualTo(original.upperBounds());
             });
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(
+            SnapshotSummary.TOTAL_POS_DELETES_PROP, String.valueOf(posDelete.recordCount()))
+        .containsEntry(
+            SnapshotSummary.TOTAL_EQ_DELETES_PROP, String.valueOf(eqDelete.recordCount()))
+        .containsEntry(
+            SnapshotSummary.TOTAL_FILE_SIZE_PROP,
+            String.valueOf(posDelete.fileSizeInBytes() + eqDelete.fileSizeInBytes()));
     assertNoRepair(table, true);
   }
 

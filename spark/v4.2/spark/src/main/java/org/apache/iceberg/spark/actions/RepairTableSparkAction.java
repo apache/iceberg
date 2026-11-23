@@ -44,6 +44,7 @@ import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.RewriteManifests;
 import org.apache.iceberg.RollingManifestWriter;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
@@ -57,6 +58,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -80,7 +82,7 @@ import org.apache.spark.sql.functions;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.Tuple2;
+import scala.Tuple5;
 
 /**
  * An action that repairs incorrect statistics in the manifests of a table, rewriting only the
@@ -113,6 +115,15 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
           .build();
 
   private static final String NEW_MANIFEST_PREFIX = "repaired-m-";
+
+  // manifest, file path, the snapshot total of the file's records, record delta and size delta
+  private static final Encoder<Tuple5<String, String, String, Long, Long>> VERDICT_ENCODER =
+      Encoders.tuple(
+          Encoders.STRING(),
+          Encoders.STRING(),
+          Encoders.STRING(),
+          Encoders.LONG(),
+          Encoders.LONG());
 
   // positions of the columns that markEntriesToRepair selects, which WriteManifests reads
   private static final int MANIFEST_INDEX = 0;
@@ -191,6 +202,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     List<ManifestFile> repairedManifests = Lists.newArrayList();
     List<ManifestFile> newManifests = Lists.newArrayList();
     long repairedCount = 0L;
+    Map<String, Long> totalDeltas = Maps.newHashMap();
 
     try {
       for (ManifestContent content : ManifestContent.values()) {
@@ -204,6 +216,9 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
           repairedManifests.addAll(repaired.repairedManifests());
           newManifests.addAll(repaired.newManifests());
           repairedCount += repaired.repairedCount();
+          repaired
+              .totalDeltas()
+              .forEach((total, delta) -> totalDeltas.merge(total, delta, Long::sum));
         }
       }
     } catch (Exception e) {
@@ -218,7 +233,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     }
 
     if (!dryRun) {
-      replaceManifests(repairedManifests, newManifests);
+      replaceManifests(repairedManifests, newManifests, totalDeltas);
     }
 
     LOG.info(
@@ -243,9 +258,8 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
         df -> {
           // cached because it is read several times and recomputing it would read every file again
           Dataset<Row> verdicts =
-              df.mapPartitions(
-                      new CheckStats(context), Encoders.tuple(Encoders.STRING(), Encoders.STRING()))
-                  .toDF("manifest", "path")
+              df.mapPartitions(new CheckStats(context), VERDICT_ENCODER)
+                  .toDF("manifest", "path", "records_total", "record_delta", "size_delta")
                   .cache();
 
           try {
@@ -264,8 +278,12 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
                     .collect(Collectors.toList());
 
             if (dryRun) {
-              return RepairedManifests.of(rewritten, ImmutableList.of(), repairedCount);
+              return RepairedManifests.of(
+                  rewritten, ImmutableList.of(), repairedCount, ImmutableMap.of());
             }
+
+            // computed before writing, so a failure here can't leave the new manifests behind
+            Map<String, Long> totalDeltas = totalDeltas(verdicts);
 
             // join rather than collect the paths, which can cover every file of the table
             Dataset<Row> entriesToRewrite =
@@ -273,11 +291,34 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
             Dataset<Row> markedEntries = markEntriesToRepair(entriesToRewrite, verdicts);
             List<ManifestFile> written = writeManifests(context, specId, markedEntries, rewritten);
 
-            return RepairedManifests.of(rewritten, written, repairedCount);
+            return RepairedManifests.of(rewritten, written, repairedCount, totalDeltas);
           } finally {
             verdicts.unpersist(false);
           }
         });
+  }
+
+  private static Map<String, Long> totalDeltas(Dataset<Row> verdicts) {
+    Map<String, Long> deltas = Maps.newHashMap();
+    for (Row row :
+        verdicts
+            .groupBy("records_total")
+            .agg(functions.sum("record_delta"), functions.sum("size_delta"))
+            .collectAsList()) {
+      deltas.put(row.getString(0), row.getLong(1));
+      deltas.merge(SnapshotSummary.TOTAL_FILE_SIZE_PROP, row.getLong(2), Long::sum);
+    }
+
+    return deltas;
+  }
+
+  private static String recordsTotal(FileContent content) {
+    return switch (content) {
+      case DATA -> SnapshotSummary.TOTAL_RECORDS_PROP;
+      case POSITION_DELETES -> SnapshotSummary.TOTAL_POS_DELETES_PROP;
+      case EQUALITY_DELETES -> SnapshotSummary.TOTAL_EQ_DELETES_PROP;
+      default -> throw new IllegalArgumentException("Unsupported file content: " + content);
+    };
   }
 
   private Dataset<Row> markEntriesToRepair(Dataset<Row> entries, Dataset<Row> verdicts) {
@@ -343,11 +384,14 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
   }
 
   private void replaceManifests(
-      List<ManifestFile> deletedManifests, List<ManifestFile> addedManifests) {
+      List<ManifestFile> deletedManifests,
+      List<ManifestFile> addedManifests,
+      Map<String, Long> totalDeltas) {
     try {
       RewriteManifests rewriteManifests = table.rewriteManifests();
       deletedManifests.forEach(rewriteManifests::deleteManifest);
       addedManifests.forEach(rewriteManifests::addManifest);
+      totalDeltas.forEach(rewriteManifests::adjustTotal);
       commit(rewriteManifests);
 
       if (shouldStageManifests) {
@@ -383,21 +427,29 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     private final List<ManifestFile> repairedManifests;
     private final List<ManifestFile> newManifests;
     private final long repairedCount;
+    private final Map<String, Long> totalDeltas;
 
     private RepairedManifests(
-        List<ManifestFile> repairedManifests, List<ManifestFile> newManifests, long repairedCount) {
+        List<ManifestFile> repairedManifests,
+        List<ManifestFile> newManifests,
+        long repairedCount,
+        Map<String, Long> totalDeltas) {
       this.repairedManifests = repairedManifests;
       this.newManifests = newManifests;
       this.repairedCount = repairedCount;
+      this.totalDeltas = totalDeltas;
     }
 
     static RepairedManifests empty() {
-      return new RepairedManifests(ImmutableList.of(), ImmutableList.of(), 0L);
+      return new RepairedManifests(ImmutableList.of(), ImmutableList.of(), 0L, ImmutableMap.of());
     }
 
     static RepairedManifests of(
-        List<ManifestFile> repairedManifests, List<ManifestFile> newManifests, long repairedCount) {
-      return new RepairedManifests(repairedManifests, newManifests, repairedCount);
+        List<ManifestFile> repairedManifests,
+        List<ManifestFile> newManifests,
+        long repairedCount,
+        Map<String, Long> totalDeltas) {
+      return new RepairedManifests(repairedManifests, newManifests, repairedCount, totalDeltas);
     }
 
     List<ManifestFile> repairedManifests() {
@@ -410,6 +462,10 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
 
     long repairedCount() {
       return repairedCount;
+    }
+
+    Map<String, Long> totalDeltas() {
+      return totalDeltas;
     }
   }
 
@@ -497,7 +553,8 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     }
   }
 
-  private static class CheckStats implements MapPartitionsFunction<Row, Tuple2<String, String>> {
+  private static class CheckStats
+      implements MapPartitionsFunction<Row, Tuple5<String, String, String, Long, Long>> {
     private final RepairContext context;
 
     CheckStats(RepairContext context) {
@@ -505,8 +562,8 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     }
 
     @Override
-    public Iterator<Tuple2<String, String>> call(Iterator<Row> rows) {
-      List<Tuple2<String, String>> verdicts = Lists.newArrayList();
+    public Iterator<Tuple5<String, String, String, Long, Long>> call(Iterator<Row> rows) {
+      List<Tuple5<String, String, String, Long, Long>> verdicts = Lists.newArrayList();
       Types.StructType combinedFileType =
           DataFile.getType(Partitioning.partitionType(context.table()));
       SparkContentFile<?> fileWrapper = null;
@@ -540,7 +597,15 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
 
           if (RepairMetrics.statsAreIncorrect(
               file, expected, fileSizeInBytes, context.repairColumnMetrics())) {
-            verdicts.add(new Tuple2<>(manifest, location));
+            long recordCount =
+                expected.recordCount() != null ? expected.recordCount() : file.recordCount();
+            verdicts.add(
+                new Tuple5<>(
+                    manifest,
+                    location,
+                    recordsTotal(file.content()),
+                    recordCount - file.recordCount(),
+                    fileSizeInBytes - file.fileSizeInBytes()));
           }
         } catch (Exception e) {
           // A file we can't read keeps its stats as is, so skipping can only leave an entry
