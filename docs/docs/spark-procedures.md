@@ -977,7 +977,7 @@ The procedure can be optionally configured to compute statistics for a specific 
 | Argument Name | Required? | Type          | Description                         |
 |---------------|-----------|---------------|-------------------------------------|
 | `table`       | ✔️        | string        | Name of the table                   |
-| `snapshot_id` |           | string        | Id of the snapshot to collect stats |
+| `snapshot_id` |           | long          | Id of the snapshot to collect stats |
 | `columns`     |           | array<string> | Columns to collect stats            |
 
 #### Output
@@ -993,14 +993,14 @@ Collect statistics of the latest snapshot of table `my_table`
 CALL catalog_name.system.compute_table_stats('my_table');
 ```
 
-Collect statistics of the snapshot with id `snap1` of table `my_table`
+Collect statistics of the snapshot with id `1` of table `my_table`
 ```sql
-CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id => 'snap1' );
+CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id => 1);
 ```
 
-Collect statistics of the snapshot with id `snap1` of table `my_table` for columns `col1` and `col2`
+Collect statistics of the snapshot with id `1` of table `my_table` for columns `col1` and `col2`
 ```sql
-CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id => 'snap1', columns => array('col1', 'col2'));
+CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id => 1, columns => array('col1', 'col2'));
 ```
 
 ## Partition Statistics
@@ -1015,7 +1015,7 @@ It performs a full compute if the previous partition statistics file does not ex
 | Argument Name | Required? | Type          | Description                                                                    |
 |---------------|-----------|---------------|--------------------------------------------------------------------------------|
 | `table`       | ✔️        | string        | Name of the table                                                              |
-| `snapshot_id` |           | string        | Id of the snapshot to compute partition stats. Defaults to current snapshot id |
+| `snapshot_id` |           | long          | Id of the snapshot to compute partition stats. Defaults to current snapshot id |
 
 #### Output
 
@@ -1030,9 +1030,9 @@ Collect partition statistics of the latest snapshot of table `my_table`
 CALL catalog_name.system.compute_partition_stats('my_table');
 ```
 
-Collect partition statistics of the snapshot with id `snap1` of table `my_table`
+Collect partition statistics of the snapshot with id `1` of table `my_table`
 ```sql
-CALL catalog_name.system.compute_partition_stats(table => 'my_table', snapshot_id => 'snap1');
+CALL catalog_name.system.compute_partition_stats(table => 'my_table', snapshot_id => 1);
 ```
 
 ## Table Replication

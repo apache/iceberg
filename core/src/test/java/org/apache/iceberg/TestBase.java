@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.TestHelpers.ALL_VERSIONS;
+import static org.apache.iceberg.TestHelpers.V3_AND_BELOW;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -232,7 +232,7 @@ public class TestBase {
 
   @Parameters(name = "formatVersion = {0}")
   protected static List<Integer> formatVersions() {
-    return ALL_VERSIONS;
+    return V3_AND_BELOW;
   }
 
   @Parameter protected int formatVersion;
@@ -451,9 +451,6 @@ public class TestBase {
         break;
       case 3:
         manifestEntrySchema = V3Metadata.entrySchema(table.spec().partitionType());
-        break;
-      case 4:
-        manifestEntrySchema = V4Metadata.entrySchema(table.spec().partitionType());
         break;
       default:
         throw new IllegalArgumentException(

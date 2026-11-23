@@ -179,7 +179,7 @@ class TestDynamicRecordProcessor {
     return new OutputTag<>(
         DynamicRecordProcessor.DYNAMIC_TABLE_UPDATE_STREAM,
         new DynamicRecordInternalType(
-            CATALOG_EXTENSION.catalogLoader(), true, CACHE_REFRESH_MS)) {};
+            CATALOG_EXTENSION.catalogLoader(), true, CACHE_REFRESH_MS, 10)) {};
   }
 
   private static DynamicRecord recordWithDistributionMode(

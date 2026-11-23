@@ -157,6 +157,35 @@ public class TestS3InputStream {
     testRangeRead(s3);
   }
 
+  @Test
+  void zeroLengthReadTailSucceedsForNonEmptyObject() throws Exception {
+    S3URI uri = new S3URI("s3://bucket/path/to/zero-tail-nonempty.dat");
+    writeS3Data(uri, new byte[] {1});
+
+    try (RangeReadable in = newInputStream(s3, uri)) {
+      assertThat(in.readTail(new byte[0], 0, 0)).isZero();
+    }
+  }
+
+  @Test
+  void zeroLengthReadTailSucceedsForEmptyObject() throws Exception {
+    S3URI uri = new S3URI("s3://bucket/path/to/zero-tail-empty.dat");
+    writeS3Data(uri, new byte[0]);
+
+    try (RangeReadable in = newInputStream(s3, uri)) {
+      assertThat(in.readTail(new byte[0], 0, 0)).isZero();
+    }
+  }
+
+  @Test
+  void zeroLengthReadTailSucceedsForMissingObject() throws Exception {
+    S3URI uri = new S3URI("s3://bucket/path/to/missing-read-tail.dat");
+
+    try (RangeReadable in = newInputStream(s3, uri)) {
+      assertThat(in.readTail(new byte[0], 0, 0)).isZero();
+    }
+  }
+
   protected void testRangeRead(S3Client s3Client) throws Exception {
     S3URI uri = new S3URI("s3://bucket/path/to/range-read.dat");
     int dataSize = 1024 * 1024 * 10;

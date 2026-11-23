@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
+import org.apache.iceberg.catalog.LoadContext;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -64,6 +65,11 @@ public class TestSparkCatalog<
     }
 
     return new SparkTable(table);
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, LoadContext context) throws NoSuchTableException {
+    return loadTable(ident);
   }
 
   public static void clearTables() {

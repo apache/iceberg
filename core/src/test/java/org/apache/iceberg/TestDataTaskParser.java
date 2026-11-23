@@ -219,6 +219,7 @@ public class TestDataTaskParser {
                 summary1,
                 1,
                 "file:/tmp/manifest1.avro",
+                null /* rootManifest */,
                 null,
                 null,
                 null),
@@ -231,6 +232,7 @@ public class TestDataTaskParser {
                 summary2,
                 1,
                 "file:/tmp/manifest2.avro",
+                null /* rootManifest */,
                 null,
                 null,
                 null));

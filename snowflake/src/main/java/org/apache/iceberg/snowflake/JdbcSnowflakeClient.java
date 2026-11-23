@@ -236,7 +236,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
   @Override
   public List<SnowflakeIdentifier> listSchemas(SnowflakeIdentifier scope) {
     StringBuilder baseQuery = new StringBuilder("SHOW SCHEMAS");
-    String[] queryParams = null;
+    String[] queryParams = new String[0];
     switch (scope.type()) {
       case ROOT:
         // account-level listing
@@ -281,7 +281,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
   @Override
   public List<SnowflakeIdentifier> listIcebergTables(SnowflakeIdentifier scope) {
     StringBuilder baseQuery = new StringBuilder("SHOW ICEBERG TABLES");
-    String[] queryParams = null;
+    String[] queryParams = new String[0];
     switch (scope.type()) {
       case ROOT:
         // account-level listing

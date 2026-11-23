@@ -33,6 +33,7 @@ import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
+import org.apache.iceberg.spark.source.metrics.TaskScanDuration;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.PartitionReader;
@@ -46,6 +47,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
   private static final Logger LOG = LoggerFactory.getLogger(BatchDataReader.class);
 
   private final long numSplits;
+  private final InheritedTaskMetrics inheritedMetrics = new InheritedTaskMetrics();
 
   BatchDataReader(
       SparkInputPartition partition,
@@ -87,9 +89,15 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
 
   @Override
   public CustomTaskMetric[] currentMetricsValues() {
-    return new CustomTaskMetric[] {
-      new TaskNumSplits(numSplits), new TaskNumDeletes(counter().get())
-    };
+    return inheritedMetrics.addTo(
+        new TaskNumSplits(numSplits),
+        new TaskNumDeletes(counter().get()),
+        new TaskScanDuration(scanDurationNanos()));
+  }
+
+  @Override
+  public void initMetricsValues(CustomTaskMetric[] metrics) {
+    inheritedMetrics.inherit(metrics);
   }
 
   @Override

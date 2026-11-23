@@ -93,6 +93,45 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     return false;
   }
 
+  @ParameterizedTest(name = "purge = {0}")
+  @ValueSource(booleans = {false, true})
+  public void dropTableThatAlreadyExistsAsView(boolean purge) {
+    assumeThat(tableCatalog()).as("Only valid for catalogs that support tables").isNotNull();
+
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withQuery("hive", "select * from ns.tbl")
+            .create();
+
+    assertThat(tableCatalog().dropTable(identifier, purge)).isFalse();
+    assertThat(catalog().viewExists(identifier)).isTrue();
+    assertThat(catalog().loadView(identifier).uuid()).isEqualTo(view.uuid());
+  }
+
+  @Test
+  public void dropViewThatAlreadyExistsAsTable() {
+    assumeThat(tableCatalog()).as("Only valid for catalogs that support tables").isNotNull();
+
+    TableIdentifier identifier = TableIdentifier.of("ns", "table");
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    Table table = tableCatalog().buildTable(identifier, SCHEMA).create();
+
+    assertThat(catalog().dropView(identifier)).isFalse();
+    assertThat(tableCatalog().tableExists(identifier)).isTrue();
+    assertThat(tableCatalog().loadTable(identifier).uuid()).isEqualTo(table.uuid());
+  }
+
   @Test
   public void loadViewWithNonExistingNamespace() {
     TableIdentifier ident = TableIdentifier.of("non-existing", "view");

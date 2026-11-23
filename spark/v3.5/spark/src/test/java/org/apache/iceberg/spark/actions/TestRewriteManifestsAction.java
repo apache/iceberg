@@ -77,6 +77,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBase;
@@ -387,6 +388,31 @@ public class TestRewriteManifestsAction extends TestBase {
         resultDF.sort("c1", "c2").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
 
     assertThat(actualRecords).as("Rows must match").isEqualTo(expectedRecords);
+  }
+
+  @TestTemplate
+  void snapshotPropertyFromSessionConf() {
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            tableLocation);
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(1, null, "AAAA")));
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(2, "CCCC", "CCCC")));
+    table.refresh();
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "key", "session-value"),
+        () -> {
+          SparkActions.get()
+              .rewriteManifests(table)
+              .rewriteIf(manifest -> true)
+              .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+              .execute();
+          table.refresh();
+          assertThat(table.currentSnapshot().summary()).containsEntry("key", "session-value");
+        });
   }
 
   @TestTemplate
