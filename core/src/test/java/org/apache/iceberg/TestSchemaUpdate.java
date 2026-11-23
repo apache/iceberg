@@ -89,8 +89,22 @@ public class TestSchemaUpdate {
           optional(2, "photo", Types.FileType.of(2)),
           optional(9, "data", Types.StringType.get()));
 
+  private static final Schema NESTED_FILE_SCHEMA =
+      new Schema(
+          required(1, "id", Types.LongType.get()),
+          optional(
+              2,
+              "info",
+              Types.StructType.of(
+                  optional(3, "photo", Types.FileType.of(3)),
+                  optional(10, "caption", Types.StringType.get()))));
+
   private static SchemaUpdate fileUpdate() {
     return new SchemaUpdate(FILE_SCHEMA, FILE_SCHEMA.highestFieldId());
+  }
+
+  private static SchemaUpdate nestedFileUpdate() {
+    return new SchemaUpdate(NESTED_FILE_SCHEMA, NESTED_FILE_SCHEMA.highestFieldId());
   }
 
   @Test
@@ -2702,6 +2716,43 @@ public class TestSchemaUpdate {
                     required(1, "id", Types.LongType.get()),
                     optional(9, "data", Types.StringType.get()))
                 .asStruct());
+  }
+
+  @Test
+  void renameFileInStruct() {
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(
+                2,
+                "info",
+                Types.StructType.of(
+                    optional(3, "image", Types.FileType.of(3)),
+                    optional(10, "caption", Types.StringType.get()))));
+
+    Schema renamed = nestedFileUpdate().renameColumn("info.photo", "image").apply();
+
+    assertThat(renamed.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  void deleteFileInStruct() {
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(
+                2, "info", Types.StructType.of(optional(10, "caption", Types.StringType.get()))));
+
+    Schema deleted = nestedFileUpdate().deleteColumn("info.photo").apply();
+
+    assertThat(deleted.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  void cannotRenameNestedFieldOfFileInStruct() {
+    assertThatThrownBy(() -> nestedFileUpdate().renameColumn("info.photo.uri", "location"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change a nested field of a file column: info.photo.uri");
   }
 
   @Test

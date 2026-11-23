@@ -1859,6 +1859,27 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
+  void positionDeletesKeepsAFileColumnWithAPartitionFieldId() {
+    assumeThat(formatVersion).as("File columns require V4 Tables").isGreaterThanOrEqualTo(4);
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("id").build();
+    Table fileTable = TestTables.create(tableDir, "file_table", schema, spec, formatVersion);
+    int partitionFieldId = fileTable.spec().fields().get(0).fieldId();
+
+    UpdateSchema updateSchema = fileTable.updateSchema();
+    for (int id = 2; id < partitionFieldId; id += 1) {
+      updateSchema.addColumn(String.valueOf(id), Types.IntegerType.get());
+    }
+    updateSchema.addColumn("photo", Types.FileType.of(0)).commit();
+    assertThat(fileTable.schema().findField("photo").fieldId()).isEqualTo(partitionFieldId);
+
+    Schema positionDeletesSchema = new PositionDeletesTable(fileTable).schema();
+
+    assertThat(positionDeletesSchema.findType(MetadataColumns.DELETE_FILE_ROW_FIELD_NAME))
+        .isEqualTo(fileTable.schema().asStruct());
+  }
+
+  @TestTemplate
   public void positionDeletesManyColumns() {
     assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     UpdateSchema updateSchema = table.updateSchema();

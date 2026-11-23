@@ -38,6 +38,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ParallelIterable;
@@ -179,15 +180,24 @@ public class PositionDeletesTable extends BaseMetadataTable {
         new Schema(
             columns,
             ImmutableSet.of(),
-            oldId -> {
-              if (!idsToReassign.contains(oldId)) {
-                return oldId;
+            new TypeUtil.GetID() {
+              @Override
+              public int get(int oldId) {
+                if (!idsToReassign.contains(oldId)) {
+                  return oldId;
+                }
+                int candidate = nextId.incrementAndGet();
+                while (allUsedIds.contains(candidate)) {
+                  candidate = nextId.incrementAndGet();
+                }
+                return candidate;
               }
-              int candidate = nextId.incrementAndGet();
-              while (allUsedIds.contains(candidate)) {
-                candidate = nextId.incrementAndGet();
+
+              @Override
+              public int get(int oldId, Type type) {
+                // partition fields are never files, so a file's ID never needs to change
+                return type.isFileType() ? oldId : get(oldId);
               }
-              return candidate;
             });
 
     if (!partitionType.fields().isEmpty()) {
