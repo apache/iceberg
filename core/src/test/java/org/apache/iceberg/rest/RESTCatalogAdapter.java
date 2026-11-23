@@ -583,8 +583,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
       }
     }
 
-    // only commit if validations passed previously; a retry re-validates requirements against the
-    // refreshed table so that a concurrent change is either rebased onto or rejected
+    // only commit if validations passed previously; on a concurrent change, requirements are
+    // re-checked against the refreshed table before the updates are reapplied
     List<TableIdentifier> committed = Lists.newArrayList();
     for (Pair<TableOperations, UpdateTableRequest> change : validatedChanges) {
       UpdateTableRequest tableChange = change.second();

@@ -2465,7 +2465,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  void singleTableTransactionKeepsConcurrentChange() {
+  void singleTableTransactionAppliesOnTopOfConcurrentChange() {
     Namespace namespace = Namespace.of("concurrentNamespace");
     TableIdentifier identifier = TableIdentifier.of(namespace, "concurrentTable");
 
@@ -2571,10 +2571,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .isNull();
   }
 
-  /**
-   * Returns a catalog whose server sees {@code concurrentCommit} applied to the table just before
-   * its own first commit to that table, as if another writer committed first.
-   */
   private RESTCatalog catalogWithConcurrentCommit(
       TableIdentifier identifier, Consumer<Table> concurrentCommit) {
     InMemoryCatalog racingBackend = Mockito.spy(backendCatalog);
