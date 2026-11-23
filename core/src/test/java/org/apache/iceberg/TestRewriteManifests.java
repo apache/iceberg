@@ -727,6 +727,53 @@ public class TestRewriteManifests extends TestBase {
   }
 
   @TestTemplate
+  public void testManifestReplacementAdjustsTotals() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    Snapshot snapshot = table.currentSnapshot();
+    DataFile correctedA =
+        DataFiles.builder(SPEC).copy(FILE_A).withRecordCount(3).withFileSizeInBytes(4).build();
+    DataFile correctedB =
+        DataFiles.builder(SPEC).copy(FILE_B).withRecordCount(2).withFileSizeInBytes(12).build();
+    ManifestFile newManifest =
+        writeManifest(
+            manifestFormat().addExtension("manifest-file-1"),
+            manifestEntry(ManifestEntry.Status.EXISTING, snapshot.snapshotId(), correctedA),
+            manifestEntry(ManifestEntry.Status.EXISTING, snapshot.snapshotId(), correctedB));
+
+    RewriteManifests rewriteManifests =
+        table
+            .rewriteManifests()
+            .deleteManifest(Iterables.getOnlyElement(snapshot.allManifests(table.io())))
+            .addManifest(newManifest)
+            .adjustTotal(SnapshotSummary.TOTAL_RECORDS_PROP, 2)
+            .adjustTotal(SnapshotSummary.TOTAL_FILE_SIZE_PROP, -6)
+            .adjustTotal(SnapshotSummary.TOTAL_RECORDS_PROP, 1)
+            .adjustTotal(SnapshotSummary.TOTAL_FILE_SIZE_PROP, 2);
+
+    assertThat(rewriteManifests.apply().summary())
+        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "5")
+        .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "16")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "2");
+
+    table.newFastAppend().appendFile(FILE_C).commit();
+    rewriteManifests.commit();
+
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "6")
+        .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "26")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "3");
+  }
+
+  @TestTemplate
+  public void testAdjustTotalRejectsFileCounts() {
+    assertThatThrownBy(
+            () -> table.rewriteManifests().adjustTotal(SnapshotSummary.TOTAL_DATA_FILES_PROP, 1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot adjust total-data-files: only record count and file size totals can change");
+  }
+
+  @TestTemplate
   public void testManifestReplacementConcurrentDelete() throws IOException {
     assertThat(table.currentSnapshot()).isNull();
 

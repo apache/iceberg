@@ -434,6 +434,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         valid, "Snapshot ancestry validation failed: %s", snapshotAncestryValidator.errorMessage());
   }
 
+  // changes to the table totals that are not counted by the summary's added and removed properties
+  protected Map<String, Long> totalDeltas() {
+    return ImmutableMap.of();
+  }
+
   protected abstract Map<String, String> summary();
 
   /** Returns the snapshot summary from the implementation and updates totals. */
@@ -982,7 +987,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     }
   }
 
-  private static void updateTotal(
+  private void updateTotal(
       ImmutableMap.Builder<String, String> summaryBuilder,
       Map<String, String> previousSummary,
       String totalProperty,
@@ -1002,6 +1007,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         String deletedStr = currentSummary.get(deletedProperty);
         if (newTotal >= 0 && deletedStr != null) {
           newTotal -= Long.parseLong(deletedStr);
+        }
+
+        Long delta = totalDeltas().get(totalProperty);
+        if (newTotal >= 0 && delta != null) {
+          newTotal += delta;
         }
 
         if (newTotal >= 0) {

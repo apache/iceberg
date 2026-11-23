@@ -86,4 +86,23 @@ public interface RewriteManifests extends SnapshotUpdate<RewriteManifests> {
    * @return this for method chaining
    */
   RewriteManifests addManifest(ManifestFile manifest);
+
+  /**
+   * Adds a delta to one of the table totals in the snapshot summary.
+   *
+   * <p>Use this when the added manifests correct the stats of the files they replace, such as their
+   * record counts or file sizes, so that the totals match the corrected files. Only {@code
+   * total-records}, {@code total-files-size}, {@code total-position-deletes} and {@code
+   * total-equality-deletes} can be adjusted. Deltas for the same total are summed and added to the
+   * totals of the snapshot this update is committed on, so they stay correct when the commit is
+   * retried on a newer snapshot.
+   *
+   * @param totalProperty the summary property of the total
+   * @param delta the amount to add to the total, which can be negative
+   * @return this for method chaining
+   */
+  default RewriteManifests adjustTotal(String totalProperty, long delta) {
+    throw new UnsupportedOperationException(
+        getClass().getName() + " does not implement adjustTotal");
+  }
 }
