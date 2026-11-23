@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.util.List;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -32,6 +33,7 @@ import org.apache.iceberg.flink.maintenance.operator.SerializedEqualityValues;
 import org.apache.iceberg.flink.maintenance.operator.StructLikeSerializer;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
 
 class TestSinkWriteResultSerializer {
@@ -77,36 +79,88 @@ class TestSinkWriteResultSerializer {
   @Test
   void theDvOnlyWritePathKeepsThePayload() throws IOException {
     SinkWriteResultSerializer serializer = SinkWriteResultSerializer.dvOnly();
+    SinkWriteResult original = withPayload();
 
     SinkWriteResult restored =
         SimpleVersionedSerialization.readVersionAndDeSerialize(
             SinkWriteResultSerializer.filesOnly(),
-            SimpleVersionedSerialization.writeVersionAndSerialize(serializer, withPayload()));
+            SimpleVersionedSerialization.writeVersionAndSerialize(serializer, original));
 
     assertThat(serializer.getVersion()).isEqualTo(2);
+    assertThat(restored.isBaseline()).isFalse();
     assertThat(restored.writeResult().dataFiles()).hasSize(1);
-    assertThat(restored.deleteKeys()).hasSize(1);
-    assertThat(restored.liveRows()).hasSize(1);
+    assertThat(restored.deleteKeys()).isEqualTo(original.deleteKeys());
+    assertThat(restored.liveRows()).isEqualTo(original.liveRows());
+  }
 
-    SinkWriteResult baseline =
+  @Test
+  void theDvOnlyWritePathKeepsTheBaseline() throws IOException {
+    SinkWriteResultSerializer serializer = SinkWriteResultSerializer.dvOnly();
+
+    SinkWriteResult withSnapshot =
+        serializer.deserialize(
+            serializer.getVersion(), serializer.serialize(SinkWriteResult.baseline(42L)));
+    SinkWriteResult emptyBranch =
         serializer.deserialize(
             serializer.getVersion(), serializer.serialize(SinkWriteResult.baseline(null)));
-    assertThat(baseline.isBaseline()).isTrue();
-    assertThat(baseline.baselineSnapshotId()).isNull();
+
+    assertThat(withSnapshot.isBaseline()).isTrue();
+    assertThat(withSnapshot.baselineSnapshotId()).isEqualTo(42L);
+    assertThat(emptyBranch.isBaseline()).isTrue();
+    assertThat(emptyBranch.baselineSnapshotId()).isNull();
+  }
+
+  @Test
+  void theDvOnlyWritePathWritesTheFileOfManyRowsOnce() throws IOException {
+    String path = "s3://bucket/warehouse/db/table/data/00000-0-" + "0".repeat(64) + ".parquet";
+    int rowCount = 1_000;
+    List<PkIndexEntry> rows = Lists.newArrayList();
+    for (int i = 0; i < rowCount; i++) {
+      rows.add(row(i, path, i, 0, StructLikeSerializer.EMPTY_PARTITION));
+    }
+
+    byte[] serialized =
+        SinkWriteResultSerializer.dvOnly()
+            .serialize(
+                new SinkWriteResult(WriteResult.builder().build(), ImmutableList.of(), rows));
+
+    assertThat(serialized.length).isLessThan(rowCount * path.length());
+  }
+
+  @Test
+  void theDvOnlyWritePathRejectsAKnownDataSequenceNumber() {
+    SerializedEqualityValues key = new SerializedEqualityValues(new byte[] {1});
+    PkIndexEntry row =
+        new PkIndexEntry(
+            key,
+            new DVPosition(DATA_FILE.location(), 0L, 0, StructLikeSerializer.EMPTY_PARTITION, 5L));
+    SinkWriteResult result =
+        new SinkWriteResult(WriteResult.builder().build(), ImmutableList.of(), List.of(row));
+
+    assertThatThrownBy(() -> SinkWriteResultSerializer.dvOnly().serialize(result))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("data sequence number 5");
   }
 
   private static SinkWriteResult withPayload() {
-    SerializedEqualityValues key = new SerializedEqualityValues(new byte[] {1, 2, 3});
-    DVPosition position =
-        new DVPosition(
-            DATA_FILE.location(),
-            0L,
-            0,
-            StructLikeSerializer.EMPTY_PARTITION,
-            PkIndexEntry.UNKNOWN_SEQUENCE);
+    String otherFile = "/path/to/data-2.parquet";
+    byte[] otherPartition = {7, 8, 9};
     return new SinkWriteResult(
         WriteResult.builder().addDataFiles(DATA_FILE).build(),
-        ImmutableList.of(key),
-        ImmutableList.of(new PkIndexEntry(key, position)));
+        ImmutableList.of(key(100), key(101)),
+        ImmutableList.of(
+            row(1, DATA_FILE.location(), 0L, 0, StructLikeSerializer.EMPTY_PARTITION),
+            row(2, otherFile, Long.MAX_VALUE, 3, otherPartition),
+            row(3, DATA_FILE.location(), 128L, 0, StructLikeSerializer.EMPTY_PARTITION)));
+  }
+
+  private static PkIndexEntry row(
+      int id, String path, long position, int specId, byte[] partition) {
+    return new PkIndexEntry(
+        key(id), new DVPosition(path, position, specId, partition, PkIndexEntry.UNKNOWN_SEQUENCE));
+  }
+
+  private static SerializedEqualityValues key(int id) {
+    return new SerializedEqualityValues(new byte[] {(byte) (id >>> 8), (byte) id});
   }
 }
