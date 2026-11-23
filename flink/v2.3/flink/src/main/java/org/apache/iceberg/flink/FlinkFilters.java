@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -34,6 +35,7 @@ import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.expressions.ValueLiteralExpression;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.functions.FunctionDefinition;
+import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.Expressions;
@@ -229,6 +231,60 @@ public class FlinkFilters {
         });
   }
 
+  private static Optional<Object> convertLiteral(
+      ValueLiteralExpression expression, FieldReferenceExpression field) {
+    LogicalTypeRoot column = field.getOutputDataType().getLogicalType().getTypeRoot();
+    return convertLiteral(expression).flatMap(lit -> toColumnType(lit, column));
+  }
+
+  // Flink compares a column with a wider numeric literal in the wider type, while binding converts
+  // the literal to the column type. Only literals whose conversion keeps Flink's result are pushed.
+  private static Optional<Object> toColumnType(Object lit, LogicalTypeRoot column) {
+    if (!(lit instanceof Float || lit instanceof Double || lit instanceof BigDecimal)) {
+      return Optional.of(lit);
+    }
+
+    return switch (column) {
+      case TINYINT, SMALLINT, INTEGER, BIGINT -> exactLong((Number) lit);
+      case FLOAT -> exactFloat((Number) lit);
+        // Flink casts a DECIMAL literal to DOUBLE to compare it with a DOUBLE column
+      case DOUBLE -> Optional.of(((Number) lit).doubleValue());
+        // Flink compares a DECIMAL column with a FLOAT or DOUBLE literal as DOUBLE
+      case DECIMAL -> lit instanceof BigDecimal ? Optional.of(lit) : Optional.empty();
+      default -> Optional.of(lit);
+    };
+  }
+
+  private static Optional<Object> exactLong(Number lit) {
+    BigDecimal value;
+    if (lit instanceof BigDecimal decimal) {
+      value = decimal;
+    } else if (Double.isFinite(lit.doubleValue())) {
+      value = new BigDecimal(lit.doubleValue());
+    } else {
+      return Optional.empty();
+    }
+
+    try {
+      return Optional.of(value.longValueExact());
+    } catch (ArithmeticException e) {
+      return Optional.empty();
+    }
+  }
+
+  private static Optional<Object> exactFloat(Number lit) {
+    float narrowed = lit.floatValue();
+    if (lit instanceof Float || Float.isNaN(narrowed)) {
+      return Optional.of(narrowed);
+    }
+
+    boolean exact =
+        lit instanceof BigDecimal decimal
+            ? Float.isFinite(narrowed) && new BigDecimal(narrowed).compareTo(decimal) == 0
+            : narrowed == lit.doubleValue();
+    return exact ? Optional.of(narrowed) : Optional.empty();
+  }
+
   private static Optional<Expression> convertFieldAndLiteral(
       BiFunction<String, Object, Expression> expr, CallExpression call) {
     return convertFieldAndLiteral(expr, expr, call);
@@ -247,15 +303,17 @@ public class FlinkFilters {
     org.apache.flink.table.expressions.Expression right = args.get(1);
 
     if (left instanceof FieldReferenceExpression && right instanceof ValueLiteralExpression) {
-      String name = ((FieldReferenceExpression) left).getName();
-      Optional<Object> lit = convertLiteral((ValueLiteralExpression) right);
+      FieldReferenceExpression field = (FieldReferenceExpression) left;
+      String name = field.getName();
+      Optional<Object> lit = convertLiteral((ValueLiteralExpression) right, field);
       if (lit.isPresent()) {
         return Optional.of(convertLR.apply(name, lit.get()));
       }
     } else if (left instanceof ValueLiteralExpression
         && right instanceof FieldReferenceExpression) {
-      Optional<Object> lit = convertLiteral((ValueLiteralExpression) left);
-      String name = ((FieldReferenceExpression) right).getName();
+      FieldReferenceExpression field = (FieldReferenceExpression) right;
+      Optional<Object> lit = convertLiteral((ValueLiteralExpression) left, field);
+      String name = field.getName();
       if (lit.isPresent()) {
         return Optional.of(convertRL.apply(name, lit.get()));
       }
