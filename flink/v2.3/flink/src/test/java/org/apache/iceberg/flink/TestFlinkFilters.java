@@ -248,6 +248,54 @@ public class TestFlinkFilters {
   }
 
   @Test
+  public void testRejectsNarrowingDoubleLiteralForFloatColumn() {
+    assertThat(
+            FlinkFilters.convert(resolve(Expressions.$("field3").isGreater(Expressions.lit(0.1D)))))
+        .isEmpty();
+
+    assertThat(FlinkFilters.convert(resolve(Expressions.lit(0.1D).isLess(Expressions.$("field3")))))
+        .isEmpty();
+  }
+
+  @Test
+  public void testRejectsFractionalDoubleLiteralForIntegerColumn() {
+    assertThat(
+            FlinkFilters.convert(resolve(Expressions.$("field1").isGreater(Expressions.lit(6.5D)))))
+        .isEmpty();
+
+    assertThat(FlinkFilters.convert(resolve(Expressions.lit(6.5D).isLess(Expressions.$("field1")))))
+        .isEmpty();
+  }
+
+  @Test
+  public void testRejectsFractionalDecimalLiteralForIntegerColumn() {
+    assertThat(
+            FlinkFilters.convert(
+                resolve(Expressions.$("field1").isGreater(Expressions.lit(new BigDecimal("6.5"))))))
+        .isEmpty();
+  }
+
+  @Test
+  public void testRejectsFractionalLiteralForBigIntColumn() {
+    assertThat(FlinkFilters.convert(resolve(Expressions.$("field2").isLess(Expressions.lit(5.5D)))))
+        .isEmpty();
+  }
+
+  @Test
+  public void testAllowsSafeIntegerWideningForBigIntColumn() {
+    Expression expr = resolve(Expressions.$("field2").isGreater(Expressions.lit(6)));
+
+    Optional<org.apache.iceberg.expressions.Expression> actual = FlinkFilters.convert(expr);
+
+    assertThat(actual).isPresent();
+
+    UnboundPredicate<Object> expected =
+        org.apache.iceberg.expressions.Expressions.greaterThan("field2", 6);
+
+    assertPredicatesMatch(expected, actual.get());
+  }
+
+  @Test
   public void testIsNull() {
     Expression expr = resolve(Expressions.$("field1").isNull());
     Optional<org.apache.iceberg.expressions.Expression> actual = FlinkFilters.convert(expr);
