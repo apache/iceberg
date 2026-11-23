@@ -37,7 +37,6 @@ public class VectorizedListReader extends VectorizedArrowReader {
   private final int definitionLevel;
   private final boolean isElementRequired;
   private final ListVectorBuilder listBuilder;
-  private long estimatedSize;
   private int batchSize = DEFAULT_BATCH_SIZE;
 
   public VectorizedListReader(
@@ -86,7 +85,7 @@ public class VectorizedListReader extends VectorizedArrowReader {
 
   @Override
   public VectorHolder read(VectorHolder reuse, int numRowsToRead) {
-    listBuilder.prepareBatch(numRowsToRead, (int) estimatedSize);
+    listBuilder.prepareBatch(numRowsToRead, batchSize);
     int rowsRemaining = numRowsToRead;
 
     while (rowsRemaining > 0 && elements.hasNext()) {
@@ -131,23 +130,6 @@ public class VectorizedListReader extends VectorizedArrowReader {
     elementReader.setRowGroupInfo(source, metadata);
     // Reset element iterator state for the new row group.
     elements.reset();
-    ColumnDescriptor descriptor = columnDescriptor();
-    if (descriptor != null) {
-      ColumnChunkMetaData chunkMetaData = metadata.get(ColumnPath.get(descriptor.getPath()));
-      List<Long> repetitionLevelHistogram =
-          chunkMetaData.getSizeStatistics().getRepetitionLevelHistogram();
-      if (!repetitionLevelHistogram.isEmpty()) {
-        this.estimatedSize = 0;
-        // Values less than the repetition level signals start of a new list
-        for (int i = 0; i < repetitionLevel; i++) {
-          this.estimatedSize += repetitionLevelHistogram.get(i);
-        }
-
-        return;
-      }
-    }
-
-    this.estimatedSize = batchSize;
   }
 
   @Override
