@@ -332,11 +332,7 @@ class Summary(BaseModel):
 
 class Snapshot1(BaseModel):
     """
-    A snapshot of the table's contents at a point in time.
-
-
-    Format versions 1-3 use `manifest-list` and format versions 4 and higher use `root-manifest`.
-
+    A snapshot has exactly one of `manifest-list` or `root-manifest`.
     """
 
     snapshot_id: int = Field(..., alias='snapshot-id')
@@ -346,12 +342,12 @@ class Snapshot1(BaseModel):
     manifest_list: str = Field(
         ...,
         alias='manifest-list',
-        description="Location of the snapshot's manifest list file. Used for format versions 1-3 and must be absent for format versions 4 and higher, which use `root-manifest` instead.",
+        description="Location of the snapshot's manifest list file",
     )
     root_manifest: str | None = Field(
         None,
         alias='root-manifest',
-        description="Location of the snapshot's root manifest. Required for format versions 4 and higher and must be absent for format versions 1-3.",
+        description="Location of the snapshot's root manifest",
     )
     first_row_id: int | None = Field(
         None,
@@ -369,11 +365,7 @@ class Snapshot1(BaseModel):
 
 class Snapshot2(BaseModel):
     """
-    A snapshot of the table's contents at a point in time.
-
-
-    Format versions 1-3 use `manifest-list` and format versions 4 and higher use `root-manifest`.
-
+    A snapshot has exactly one of `manifest-list` or `root-manifest`.
     """
 
     snapshot_id: int = Field(..., alias='snapshot-id')
@@ -383,12 +375,12 @@ class Snapshot2(BaseModel):
     manifest_list: str | None = Field(
         None,
         alias='manifest-list',
-        description="Location of the snapshot's manifest list file. Used for format versions 1-3 and must be absent for format versions 4 and higher, which use `root-manifest` instead.",
+        description="Location of the snapshot's manifest list file",
     )
     root_manifest: str = Field(
         ...,
         alias='root-manifest',
-        description="Location of the snapshot's root manifest. Required for format versions 4 and higher and must be absent for format versions 1-3.",
+        description="Location of the snapshot's root manifest",
     )
     first_row_id: int | None = Field(
         None,
@@ -407,7 +399,7 @@ class Snapshot2(BaseModel):
 class Snapshot(RootModel[Snapshot1 | Snapshot2]):
     root: Snapshot1 | Snapshot2 = Field(
         ...,
-        description="A snapshot of the table's contents at a point in time.\n\n\nFormat versions 1-3 use `manifest-list` and format versions 4 and higher use `root-manifest`.\n",
+        description='A snapshot has exactly one of `manifest-list` or `root-manifest`.',
     )
 
 
@@ -2025,13 +2017,11 @@ class LoadTableResult(BaseModel):
 
 
     The `table-location` field carries the table's base location.
-    Format version 4 allows location fields in metadata to be relative, and such paths must be resolved against the table location.
-    Format version 4 also makes `metadata.location` optional, so a table may have metadata that contains relative paths and omits `location`.
-    Servers must populate `table-location` for any such table, because it cannot be read otherwise.
+    Format version 4 allows location fields in metadata to be relative and makes `metadata.location` optional.
+    Servers must populate `table-location` whenever `metadata.location` is absent.
 
 
-    When both `metadata.location` and `table-location` are present, `table-location` takes precedence:
-    the catalog is authoritative for table state.
+    When both `metadata.location` and `table-location` are present, `table-location` takes precedence.
 
 
     The `config` map returns table-specific configuration for the table's resources, including its HTTP client and FileIO. For example, config may contain a specific FileIO implementation class for the table depending on its underlying storage.
