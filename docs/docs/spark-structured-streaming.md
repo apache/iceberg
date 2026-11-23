@@ -102,7 +102,7 @@ Iceberg supports `append` and `complete` output modes:
 
 Prior to starting the streaming query, ensure you created the table. Refer to the [SQL create table](spark-ddl.md#create-table) documentation to learn how to create the Iceberg table.
 
-Iceberg doesn't support experimental [continuous processing](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#continuous-processing), as it doesn't provide the interface to "commit" the output.
+Iceberg doesn't support experimental [continuous processing](https://spark.apache.org/docs/latest/streaming/performance-tips.html#continuous-processing), as it doesn't provide the interface to "commit" the output.
 
 ### Partitioned table
 
@@ -134,7 +134,7 @@ is highly recommended.
 
 Having a high rate of commits produces data files, manifests, and snapshots which leads to additional maintenance. It is recommended to have a trigger interval of 1 minute at the minimum and increase the interval if needed.
 
-The triggers section in [Structured Streaming Programming Guide](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#triggers)
+The triggers section in [Structured Streaming Programming Guide](https://spark.apache.org/docs/latest/streaming/apis-on-dataframes-and-datasets.html#triggers)
 documents how to configure the interval.
 
 ### Expire old snapshots

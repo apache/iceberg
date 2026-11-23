@@ -248,7 +248,6 @@ subprojects {
     testImplementation libs.junit.platform.launcher
     testImplementation libs.slf4j.simple
     testImplementation libs.mockito.core
-    testImplementation libs.mockito.inline
     testImplementation libs.assertj.core
   }
 

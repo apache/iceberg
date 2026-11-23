@@ -89,7 +89,7 @@ APP_HOME=$( cd -P "${APP_HOME:-./}" > /dev/null && printf '%s\n' "$PWD" ) || exi
 if [ ! -e "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" ]; then
     # A partial JAR at the final path would prevent subsequent download attempts.
     wrapper_tmp=$(mktemp "$APP_HOME/gradle/wrapper/gradle-wrapper.jar.XXXXXX") || exit 1
-    if ! curl -fL -o "$wrapper_tmp" https://raw.githubusercontent.com/gradle/gradle/v8.14.6/gradle/wrapper/gradle-wrapper.jar ||
+    if ! curl -fL -o "$wrapper_tmp" https://raw.githubusercontent.com/gradle/gradle/v8.14.7/gradle/wrapper/gradle-wrapper.jar ||
         ! mv "$wrapper_tmp" "$APP_HOME/gradle/wrapper/gradle-wrapper.jar"; then
         rm -f "$wrapper_tmp"
         echo "Failed to download or install Gradle wrapper JAR" >&2

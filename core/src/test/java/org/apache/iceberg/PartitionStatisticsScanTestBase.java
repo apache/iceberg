@@ -45,24 +45,17 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
       ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format().name());
 
   @Test
-  public void testEmptyTable() throws Exception {
+  public void testEmptyTable() {
     Table testTable =
-        TestTables.create(
-            tempDir("scan_empty_table"), "scan_empty_table", SCHEMA, SPEC, 2, fileFormatProperty);
+        TestTables.create(tempDir, "scan_empty_table", SCHEMA, SPEC, 2, fileFormatProperty);
 
     assertThat(Lists.newArrayList(testTable.newPartitionStatisticsScan().scan())).isEmpty();
   }
 
   @Test
-  public void testInvalidSnapshotId() throws Exception {
+  public void testInvalidSnapshotId() {
     Table testTable =
-        TestTables.create(
-            tempDir("scan_invalid_snapshot"),
-            "scan_invalid_snapshot",
-            SCHEMA,
-            SPEC,
-            2,
-            fileFormatProperty);
+        TestTables.create(tempDir, "scan_invalid_snapshot", SCHEMA, SPEC, 2, fileFormatProperty);
 
     assertThatThrownBy(() -> testTable.newPartitionStatisticsScan().useSnapshot(1234L).scan())
         .isInstanceOf(IllegalArgumentException.class)
@@ -70,10 +63,9 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
   }
 
   @Test
-  public void testNoStatsForSnapshot() throws Exception {
+  public void testNoStatsForSnapshot() {
     Table testTable =
-        TestTables.create(
-            tempDir("scan_no_stats"), "scan_no_stats", SCHEMA, SPEC, 2, fileFormatProperty);
+        TestTables.create(tempDir, "scan_no_stats", SCHEMA, SPEC, 2, fileFormatProperty);
 
     DataFile dataFile =
         DataFiles.builder(SPEC)
@@ -92,13 +84,7 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
   public void testReadingStatsWithInvalidSchema() throws Exception {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
     Table testTable =
-        TestTables.create(
-            tempDir("scan_with_old_schema"),
-            "scan_with_old_schema",
-            SCHEMA,
-            spec,
-            2,
-            fileFormatProperty);
+        TestTables.create(tempDir, "scan_with_old_schema", SCHEMA, spec, 2, fileFormatProperty);
     Types.StructType partitionType = Partitioning.partitionType(testTable);
     Schema oldSchema = invalidOldSchema(partitionType);
 
@@ -142,12 +128,7 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
   public void testV2toV3SchemaEvolution() throws Exception {
     Table testTable =
         TestTables.create(
-            tempDir("scan_with_schema_evolution"),
-            "scan_with_schema_evolution",
-            SCHEMA,
-            SPEC,
-            2,
-            fileFormatProperty);
+            tempDir, "scan_with_schema_evolution", SCHEMA, SPEC, 2, fileFormatProperty);
 
     // write stats file using v2 schema
     DataFile dataFile =
@@ -190,13 +171,7 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
   @Test
   public void testScanPartitionStatsForCurrentSnapshot() throws Exception {
     Table testTable =
-        TestTables.create(
-            tempDir("scan_partition_stats"),
-            "scan_partition_stats",
-            SCHEMA,
-            SPEC,
-            2,
-            fileFormatProperty);
+        TestTables.create(tempDir, "scan_partition_stats", SCHEMA, SPEC, 2, fileFormatProperty);
 
     DataFile dataFile1 =
         FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
@@ -362,13 +337,7 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
   @Test
   public void testScanPartitionStatsForOlderSnapshot() throws Exception {
     Table testTable =
-        TestTables.create(
-            tempDir("scan_older_snapshot"),
-            "scan_older_snapshot",
-            SCHEMA,
-            SPEC,
-            2,
-            fileFormatProperty);
+        TestTables.create(tempDir, "scan_older_snapshot", SCHEMA, SPEC, 2, fileFormatProperty);
 
     DataFile dataFile1 =
         FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
@@ -422,13 +391,7 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
   @Test
   public void testProjectStatFields() throws Exception {
     Table testTable =
-        TestTables.create(
-            tempDir("scan_project_subset"),
-            "scan_project_subset",
-            SCHEMA,
-            SPEC,
-            3,
-            fileFormatProperty);
+        TestTables.create(tempDir, "scan_project_subset", SCHEMA, SPEC, 3, fileFormatProperty);
 
     DataFile dataFile1 =
         FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
@@ -487,10 +450,9 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
   }
 
   @Test
-  public void testProjectNullSchemaIsRejected() throws Exception {
+  public void testProjectNullSchemaIsRejected() {
     Table testTable =
-        TestTables.create(
-            tempDir("scan_project_null"), "scan_project_null", SCHEMA, SPEC, 2, fileFormatProperty);
+        TestTables.create(tempDir, "scan_project_null", SCHEMA, SPEC, 2, fileFormatProperty);
 
     assertThatThrownBy(() -> testTable.newPartitionStatisticsScan().project(null))
         .isInstanceOf(IllegalArgumentException.class)
@@ -500,13 +462,7 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
   @Test
   public void testProjectIgnoresUnknownField() throws Exception {
     Table testTable =
-        TestTables.create(
-            tempDir("scan_project_unknown"),
-            "scan_project_unknown",
-            SCHEMA,
-            SPEC,
-            3,
-            fileFormatProperty);
+        TestTables.create(tempDir, "scan_project_unknown", SCHEMA, SPEC, 3, fileFormatProperty);
 
     DataFile dataFile1 =
         FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
@@ -560,10 +516,9 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
   }
 
   @Test
-  public void testNullFilter() throws Exception {
+  public void testNullFilter() {
     Table testTable =
-        TestTables.create(
-            tempDir("scan_filter_null"), "scan_filter_null", SCHEMA, SPEC, 2, fileFormatProperty);
+        TestTables.create(tempDir, "scan_filter_null", SCHEMA, SPEC, 2, fileFormatProperty);
 
     assertThatThrownBy(() -> testTable.newPartitionStatisticsScan().filter(null))
         .isInstanceOf(IllegalArgumentException.class)
@@ -825,7 +780,7 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
   }
 
   private Table tableWithTwoPartitions(String name) throws IOException {
-    Table testTable = TestTables.create(tempDir(name), name, SCHEMA, SPEC, 2, fileFormatProperty);
+    Table testTable = TestTables.create(tempDir, name, SCHEMA, SPEC, 2, fileFormatProperty);
 
     DataFile dataFile1 =
         FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
@@ -843,7 +798,7 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
   }
 
   private Table tableWithUnevenPartitions(String name) throws IOException {
-    Table testTable = TestTables.create(tempDir(name), name, SCHEMA, SPEC, 2, fileFormatProperty);
+    Table testTable = TestTables.create(tempDir, name, SCHEMA, SPEC, 2, fileFormatProperty);
 
     for (int i = 0; i < 3; i++) {
       testTable
