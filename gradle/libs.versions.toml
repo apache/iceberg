@@ -61,7 +61,6 @@ jackson-annotations = "2.23"
 jackson-bom = "2.23.0"
 jackson218 = { strictly = "2.18.11"}
 jackson221 = { strictly = "2.21.7"}
-jakarta-el-api = "3.0.3"
 jakarta-servlet-api = "6.1.0"
 jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.9"
@@ -140,7 +139,6 @@ gcs-analytics-core = { module = "com.google.cloud.gcs.analytics:gcs-analytics-co
 guava-guava = { module = "com.google.guava:guava", version.ref = "guava" }
 hadoop3-client = { module = "org.apache.hadoop:hadoop-client", version.ref = "hadoop3" }
 hadoop3-common = { module = "org.apache.hadoop:hadoop-common", version.ref = "hadoop3" }
-hadoop3-hdfs = { module = "org.apache.hadoop:hadoop-hdfs", version.ref = "hadoop3" }
 hadoop3-mapreduce-client-core = { module = "org.apache.hadoop:hadoop-mapreduce-client-core", version.ref = "hadoop3" }
 hadoop3-minicluster = { module = "org.apache.hadoop:hadoop-minicluster", version.ref = "hadoop3" }
 hive2-exec = { module = "org.apache.hive:hive-exec", version.ref = "hive2" }
@@ -190,7 +188,6 @@ flink23-core = { module = "org.apache.flink:flink-core", version.ref = "flink23"
 flink23-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink23" }
 flink23-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink23" }
 guava-testlib = { module = "com.google.guava:guava-testlib", version.ref = "guava" }
-jakarta-el-api = { module = "jakarta.el:jakarta.el-api", version.ref = "jakarta-el-api" }
 jakarta-servlet = {module = "jakarta.servlet:jakarta.servlet-api", version.ref = "jakarta-servlet-api"}
 jetty-compression-server = { module = "org.eclipse.jetty.compression:jetty-compression-server", version.ref = "jetty" }
 jetty-compression-gzip = { module = "org.eclipse.jetty.compression:jetty-compression-gzip", version.ref = "jetty" }

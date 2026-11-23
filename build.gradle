@@ -544,7 +544,7 @@ project(':iceberg-aliyun') {
     }
 
     testImplementation platform(libs.jackson.bom)
-    testImplementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml"
+    testImplementation libs.jackson.databind
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.junit.pioneer
@@ -1062,8 +1062,6 @@ project(':iceberg-nessie') {
     testImplementation libs.nessie.jaxrs.testextension
     testImplementation libs.nessie.versioned.storage.inmemory.tests
     testImplementation libs.nessie.versioned.storage.testextension
-    // Need to "pull in" el-api explicitly :(
-    testImplementation libs.jakarta.el.api
 
     testImplementation libs.avro.avro
 
