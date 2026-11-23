@@ -259,12 +259,10 @@ public class FlinkFilters {
     }
 
     if (fieldType == LogicalTypeRoot.INTEGER) {
-      return literalType == LogicalTypeRoot.SMALLINT
-          || literalType == LogicalTypeRoot.TINYINT;
+      return literalType == LogicalTypeRoot.SMALLINT || literalType == LogicalTypeRoot.TINYINT;
     }
 
-    return fieldType == LogicalTypeRoot.SMALLINT
-        && literalType == LogicalTypeRoot.TINYINT;
+    return fieldType == LogicalTypeRoot.SMALLINT && literalType == LogicalTypeRoot.TINYINT;
   }
 
   private static boolean isNumeric(LogicalTypeRoot type) {
