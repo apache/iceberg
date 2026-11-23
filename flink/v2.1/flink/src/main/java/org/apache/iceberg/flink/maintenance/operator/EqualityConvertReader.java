@@ -38,6 +38,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.BaseDeleteLoader;
 import org.apache.iceberg.data.DeleteLoader;
+import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.flink.TableLoader;
@@ -75,6 +76,9 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
   private transient Table table;
   private transient Schema keySchema;
   private transient StructLikeSerializer fieldSerializer;
+  // Generic records hold java.time values; the serializer expects Iceberg's internal
+  // representation (e.g. days for DATE, micros for TIMESTAMP).
+  private transient InternalRecordWrapper keyWrapper;
   private transient DeleteLoader deleteLoader;
 
   public EqualityConvertReader(
@@ -102,6 +106,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
         "Equality field IDs %s not present in table schema",
         eqFieldIds);
     fieldSerializer = new StructLikeSerializer();
+    keyWrapper = new InternalRecordWrapper(keySchema.asStruct());
     deleteLoader = new BaseDeleteLoader(deleteFile -> table.io().newInputFile(deleteFile));
   }
 
@@ -165,7 +170,8 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
           continue;
         }
 
-        SerializedEqualityValues key = fieldSerializer.serializeKey(record, keySchema.asStruct());
+        SerializedEqualityValues key =
+            fieldSerializer.serializeKey(keyWrapper.wrap(record), keySchema.asStruct());
         out.collect(
             IndexCommand.addDataRow(
                 mainSnapshotId,
@@ -201,7 +207,8 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
         FormatModelRegistry.readBuilder(file.format(), Record.class, input);
     try (CloseableIterable<Record> records = builder.project(keySchema).reuseContainers().build()) {
       for (Record record : records) {
-        SerializedEqualityValues key = fieldSerializer.serializeKey(record, keySchema.asStruct());
+        SerializedEqualityValues key =
+            fieldSerializer.serializeKey(keyWrapper.wrap(record), keySchema.asStruct());
         out.collect(
             IndexCommand.resolveDelete(
                 mainSnapshotId, indexGeneration, key, dataSequenceNumber, deleteSpecId));
