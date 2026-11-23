@@ -41,6 +41,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.Uninterruptibles;
@@ -162,6 +165,49 @@ public class TestTasks {
         // SocketTimeoutException extends InterruptedIOException but is not an interrupt
         new SocketTimeoutException("read timed out"),
         new RuntimeException("failed to read manifest", new SocketTimeoutException("timed out")));
+  }
+
+  @Test
+  void tasksAreNotRetriedWhenFailureIsAStopRetryException() {
+    Counter counter = new DefaultMetricsContext().counter("counter");
+    NotFoundException failure = new NotFoundException("metadata file not found");
+
+    assertThatThrownBy(
+            () ->
+                Tasks.foreach(1)
+                    .countAttempts(counter)
+                    .exponentialBackoff(0, 0, 5000, 0)
+                    .retry(3)
+                    .stopRetryOn(NotFoundException.class)
+                    .run(
+                        x -> {
+                          throw failure;
+                        }))
+        .isSameAs(failure);
+
+    assertThat(counter.value()).isOne();
+  }
+
+  @Test
+  void tasksAreNotRetriedWhenFailureIsNotAnOnlyRetryException() {
+    Counter counter = new DefaultMetricsContext().counter("counter");
+    CommitStateUnknownException failure =
+        new CommitStateUnknownException(new RuntimeException("commit response lost"));
+
+    assertThatThrownBy(
+            () ->
+                Tasks.foreach(1)
+                    .countAttempts(counter)
+                    .exponentialBackoff(0, 0, 5000, 0)
+                    .retry(3)
+                    .onlyRetryOn(CommitFailedException.class)
+                    .run(
+                        x -> {
+                          throw failure;
+                        }))
+        .isSameAs(failure);
+
+    assertThat(counter.value()).isOne();
   }
 
   @Test
