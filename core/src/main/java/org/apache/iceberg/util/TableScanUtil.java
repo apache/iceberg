@@ -27,6 +27,7 @@ import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MergeableScanTask;
 import org.apache.iceberg.PartitionData;
@@ -54,7 +55,7 @@ public class TableScanUtil {
   private TableScanUtil() {}
 
   static class ScanTaskBinWeighter<T extends ScanTask> implements BinPacking.BinWeighter<T> {
-    private final Set<String> seenDeletePaths = Sets.newHashSet();
+    private final Set<String> seenEqualityDeletePaths = Sets.newHashSet();
     private final long openFileCost;
 
     ScanTaskBinWeighter(long openFileCost) {
@@ -70,11 +71,9 @@ public class TableScanUtil {
         filesCount = 1;
         // Check the size of delete file as well to avoid unbalanced bin-packing
         for (DeleteFile delete : fileScanTask.deletes()) {
-          if (delete.location() == null || !seenDeletePaths.contains(delete.location())) {
+          if (!isLoadedOncePerBin(delete) || !seenEqualityDeletePaths.contains(delete.location())) {
             sizeWeight += ScanTaskUtil.contentSizeInBytes(delete);
             filesCount++;
-          } else if (ContentFileUtil.isDV(delete)) {
-            sizeWeight += ScanTaskUtil.contentSizeInBytes(delete);
           }
         }
       } else {
@@ -88,11 +87,15 @@ public class TableScanUtil {
     public void commit(ScanTask task) {
       if (task instanceof FileScanTask fileScanTask) {
         for (DeleteFile delete : fileScanTask.deletes()) {
-          if (delete.location() != null) {
-            seenDeletePaths.add(delete.location());
+          if (isLoadedOncePerBin(delete)) {
+            seenEqualityDeletePaths.add(delete.location());
           }
         }
       }
+    }
+
+    private static boolean isLoadedOncePerBin(DeleteFile delete) {
+      return delete.location() != null && delete.content() == FileContent.EQUALITY_DELETES;
     }
   }
 
@@ -112,28 +115,68 @@ public class TableScanUtil {
 
   public static CloseableIterable<CombinedScanTask> planTasks(
       CloseableIterable<FileScanTask> splitFiles, long splitSize, int lookback, long openFileCost) {
+    return planTasks(splitFiles, splitSize, lookback, openFileCost, false);
+  }
+
+  public static CloseableIterable<CombinedScanTask> planTasks(
+      CloseableIterable<FileScanTask> splitFiles,
+      long splitSize,
+      int lookback,
+      long openFileCost,
+      boolean shareEqualityDeletes) {
 
     validatePlanningArguments(splitSize, lookback, openFileCost);
 
-    Supplier<BinPacking.BinWeighter<FileScanTask>> weightFactory =
-        () -> new ScanTaskBinWeighter<>(openFileCost);
+    // Check the size of delete file as well to avoid unbalanced bin-packing
+    Supplier<BinPacking.BinWeighter<FileScanTask>> weighterSupplier =
+        shareEqualityDeletes
+            ? () -> new ScanTaskBinWeighter<>(openFileCost)
+            : new BinPacking.StatelessBinWeighter<>(
+                file ->
+                    Math.max(
+                        file.length() + ScanTaskUtil.contentSizeInBytes(file.deletes()),
+                        (1 + file.deletes().size()) * openFileCost));
 
     return CloseableIterable.transform(
         CloseableIterable.combine(
-            new BinPacking.PackingIterable<>(splitFiles, splitSize, lookback, weightFactory, true),
+            new BinPacking.PackingIterable<>(
+                splitFiles, splitSize, lookback, weighterSupplier, true),
             splitFiles),
         BaseCombinedScanTask::new);
   }
 
   public static <T extends ScanTask> List<ScanTaskGroup<T>> planTaskGroups(
       List<T> tasks, long splitSize, int lookback, long openFileCost) {
+    return planTaskGroups(tasks, splitSize, lookback, openFileCost, false);
+  }
+
+  public static <T extends ScanTask> List<ScanTaskGroup<T>> planTaskGroups(
+      List<T> tasks,
+      long splitSize,
+      int lookback,
+      long openFileCost,
+      boolean shareEqualityDeletes) {
     return Lists.newArrayList(
-        planTaskGroups(CloseableIterable.withNoopClose(tasks), splitSize, lookback, openFileCost));
+        planTaskGroups(
+            CloseableIterable.withNoopClose(tasks),
+            splitSize,
+            lookback,
+            openFileCost,
+            shareEqualityDeletes));
+  }
+
+  public static <T extends ScanTask> CloseableIterable<ScanTaskGroup<T>> planTaskGroups(
+      CloseableIterable<T> tasks, long splitSize, int lookback, long openFileCost) {
+    return planTaskGroups(tasks, splitSize, lookback, openFileCost, false);
   }
 
   @SuppressWarnings("unchecked")
   public static <T extends ScanTask> CloseableIterable<ScanTaskGroup<T>> planTaskGroups(
-      CloseableIterable<T> tasks, long splitSize, int lookback, long openFileCost) {
+      CloseableIterable<T> tasks,
+      long splitSize,
+      int lookback,
+      long openFileCost,
+      boolean shareEqualityDeletes) {
 
     validatePlanningArguments(splitSize, lookback, openFileCost);
 
@@ -151,14 +194,27 @@ public class TableScanUtil {
                     }),
             tasks);
 
-    Supplier<BinPacking.BinWeighter<T>> weightFactory =
-        () -> new ScanTaskBinWeighter<>(openFileCost);
+    Supplier<BinPacking.BinWeighter<T>> weighterSupplier =
+        shareEqualityDeletes
+            ? () -> new ScanTaskBinWeighter<>(openFileCost)
+            : new BinPacking.StatelessBinWeighter<>(
+                task -> Math.max(task.sizeBytes(), task.filesCount() * openFileCost));
 
     return CloseableIterable.transform(
         CloseableIterable.combine(
-            new BinPacking.PackingIterable<>(splitTasks, splitSize, lookback, weightFactory, true),
+            new BinPacking.PackingIterable<>(
+                splitTasks, splitSize, lookback, weighterSupplier, true),
             splitTasks),
         combinedTasks -> new BaseScanTaskGroup<>(mergeTasks(combinedTasks)));
+  }
+
+  public static <T extends PartitionScanTask> List<ScanTaskGroup<T>> planTaskGroups(
+      List<T> tasks,
+      long splitSize,
+      int lookback,
+      long openFileCost,
+      Types.StructType groupingKeyType) {
+    return planTaskGroups(tasks, splitSize, lookback, openFileCost, groupingKeyType, false);
   }
 
   @SuppressWarnings("unchecked")
@@ -167,12 +223,16 @@ public class TableScanUtil {
       long splitSize,
       int lookback,
       long openFileCost,
-      Types.StructType groupingKeyType) {
+      Types.StructType groupingKeyType,
+      boolean shareEqualityDeletes) {
 
     validatePlanningArguments(splitSize, lookback, openFileCost);
 
-    Supplier<BinPacking.BinWeighter<T>> weightFactory =
-        () -> new ScanTaskBinWeighter<>(openFileCost);
+    Supplier<BinPacking.BinWeighter<T>> weighterSupplier =
+        shareEqualityDeletes
+            ? () -> new ScanTaskBinWeighter<>(openFileCost)
+            : new BinPacking.StatelessBinWeighter<>(
+                task -> Math.max(task.sizeBytes(), task.filesCount() * openFileCost));
 
     Map<Integer, StructProjection> groupingKeyProjectionsBySpec = Maps.newHashMap();
     PartitionData groupingKeyTemplate = new PartitionData(groupingKeyType);
@@ -205,7 +265,8 @@ public class TableScanUtil {
       List<T> groupingKeyTasks = entry.getValue();
       Iterables.addAll(
           taskGroups,
-          toTaskGroupIterable(groupingKey, groupingKeyTasks, splitSize, lookback, weightFactory));
+          toTaskGroupIterable(
+              groupingKey, groupingKeyTasks, splitSize, lookback, weighterSupplier));
     }
 
     return taskGroups;
@@ -216,10 +277,10 @@ public class TableScanUtil {
       Iterable<T> tasks,
       long splitSize,
       int lookback,
-      Supplier<BinPacking.BinWeighter<T>> weightFactory) {
+      Supplier<BinPacking.BinWeighter<T>> weighterSupplier) {
 
     return Iterables.transform(
-        new BinPacking.PackingIterable<>(tasks, splitSize, lookback, weightFactory, true),
+        new BinPacking.PackingIterable<>(tasks, splitSize, lookback, weighterSupplier, true),
         combinedTasks -> new BaseScanTaskGroup<>(groupingKey, mergeTasks(combinedTasks)));
   }
 

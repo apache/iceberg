@@ -53,6 +53,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 public class TestTableScanUtil {
@@ -133,8 +135,9 @@ public class TestTableScanUtil {
     }
   }
 
-  @Test
-  public void testPlanCountsSharedEqualityDeleteOnce() {
+  @ParameterizedTest(name = "shareEqualityDeletes = {0}")
+  @ValueSource(booleans = {false, true})
+  public void testPlanSharedEqualityDeletes(boolean shareEqualityDeletes) {
     DeleteFile sharedDelete =
         FileMetadata.deleteFileBuilder(SPEC1)
             .ofEqualityDeletes()
@@ -160,18 +163,19 @@ public class TestTableScanUtil {
             new MockFileScanTask(data1, new DeleteFile[] {sharedDelete}, TEST_SCHEMA, SPEC1),
             new MockFileScanTask(data2, new DeleteFile[] {sharedDelete}, TEST_SCHEMA, SPEC1));
 
-    // The shared equality delete (10 B) should be counted only once per bin.
-    // 2 data files x 250 B + 1 equality delete x 10 B = 510 B < 512 B -> 1 bin
-    // Bug: equality delete counted per task -> 260 B + 260 B = 520 B > 512 B -> 2 bins
-    assertThat(TableScanUtil.planTasks(CloseableIterable.withNoopClose(tasks), 512L, 1, 0L))
-        .as("Shared equality delete should be counted once per bin, not once per data file")
-        .hasSize(1);
-    assertThat(TableScanUtil.planTaskGroups(tasks, 512L, 1, 0L))
-        .as("Shared equality delete should be counted once per bin, not once per data file")
-        .hasSize(1);
-    assertThat(TableScanUtil.planTaskGroups(tasks, 512L, 1, 0L, SPEC1.partitionType()))
-        .as("Shared equality delete should be counted once per bin, not once per data file")
-        .hasSize(1);
+    // counted per data file: 260 B + 260 B = 520 B > 512 B -> 2 bins
+    // counted once per bin:  260 B + 250 B = 510 B < 512 B -> 1 bin
+    int bins = shareEqualityDeletes ? 1 : 2;
+    assertThat(
+            TableScanUtil.planTasks(
+                CloseableIterable.withNoopClose(tasks), 512L, 1, 0L, shareEqualityDeletes))
+        .hasSize(bins);
+    assertThat(TableScanUtil.planTaskGroups(tasks, 512L, 1, 0L, shareEqualityDeletes))
+        .hasSize(bins);
+    assertThat(
+            TableScanUtil.planTaskGroups(
+                tasks, 512L, 1, 0L, SPEC1.partitionType(), shareEqualityDeletes))
+        .hasSize(bins);
   }
 
   @Test
