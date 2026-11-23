@@ -585,7 +585,30 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
     // only commit if validations passed previously; a retry re-validates requirements against the
     // refreshed table so that a concurrent change is either rebased onto or rejected
-    validatedChanges.forEach(change -> CatalogHandlers.commit(change.first(), change.second()));
+    List<TableIdentifier> committed = Lists.newArrayList();
+    for (Pair<TableOperations, UpdateTableRequest> change : validatedChanges) {
+      UpdateTableRequest tableChange = change.second();
+      try {
+        CatalogHandlers.commit(change.first(), tableChange);
+      } catch (CommitStateUnknownException e) {
+        throw e;
+      } catch (RuntimeException e) {
+        if (committed.isEmpty()) {
+          throw e;
+        }
+
+        // earlier tables are already committed, so the client must not treat this as a failure
+        // that it can retry or clean up after
+        throw new CommitStateUnknownException(
+            String.format(
+                "Failed to commit %s after committing %s", tableChange.identifier(), committed),
+            e);
+      }
+
+      if (!tableChange.updates().isEmpty()) {
+        committed.add(tableChange.identifier());
+      }
+    }
   }
 
   @Override

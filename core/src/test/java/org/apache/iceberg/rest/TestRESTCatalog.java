@@ -2524,6 +2524,53 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(schema.findField("transaction_col")).isNull();
   }
 
+  @Test
+  void multiTableTransactionReportsUnknownStateAfterPartialCommit() {
+    Namespace namespace = Namespace.of("concurrentNamespace");
+    TableIdentifier committedIdentifier = TableIdentifier.of(namespace, "committedTable");
+    TableIdentifier conflictingIdentifier = TableIdentifier.of(namespace, "conflictingTable");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(namespace);
+    }
+
+    Transaction committedTransaction =
+        catalog().buildTable(committedIdentifier, SCHEMA).create().newTransaction();
+    committedTransaction.updateProperties().set("transaction", "true").commit();
+
+    Transaction conflictingTransaction =
+        catalog().buildTable(conflictingIdentifier, SCHEMA).create().newTransaction();
+    conflictingTransaction
+        .updateSchema()
+        .addColumn("transaction_col", Types.LongType.get())
+        .commit();
+
+    RESTCatalog racingCatalog =
+        catalogWithConcurrentCommit(
+            conflictingIdentifier,
+            table ->
+                table.updateSchema().addColumn("concurrent_col", Types.LongType.get()).commit());
+
+    assertThatThrownBy(
+            () ->
+                racingCatalog.commitTransaction(
+                    TableCommit.create(
+                        committedIdentifier,
+                        ((BaseTransaction) committedTransaction).startMetadata(),
+                        ((BaseTransaction) committedTransaction).currentMetadata()),
+                    TableCommit.create(
+                        conflictingIdentifier,
+                        ((BaseTransaction) conflictingTransaction).startMetadata(),
+                        ((BaseTransaction) conflictingTransaction).currentMetadata())))
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageContaining(committedIdentifier.toString());
+
+    assertThat(catalog().loadTable(committedIdentifier).properties())
+        .containsEntry("transaction", "true");
+    assertThat(catalog().loadTable(conflictingIdentifier).schema().findField("transaction_col"))
+        .isNull();
+  }
+
   /**
    * Returns a catalog whose server sees {@code concurrentCommit} applied to the table just before
    * its own first commit to that table, as if another writer committed first.
