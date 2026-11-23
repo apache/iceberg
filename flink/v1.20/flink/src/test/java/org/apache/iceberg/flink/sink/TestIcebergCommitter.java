@@ -47,6 +47,8 @@ import org.apache.flink.api.common.TaskInfo;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.TypeSerializerSnapshot;
 import org.apache.flink.api.connector.sink2.Committer;
+import org.apache.flink.api.connector.sink2.mocks.MockCommitRequest;
+import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
@@ -331,6 +333,43 @@ class TestIcebergCommitter extends TestBase {
 
     assertSnapshotSize(1);
     SimpleDataUtil.assertTableRows(table, ImmutableList.of(rowFromPreviousRun), branch);
+  }
+
+  @TestTemplate
+  void staleCommitterDoesNotCommitCheckpointTwice() throws Exception {
+    // Two committers for the same sink read the table at construction. The first one commits
+    // checkpoint 1, so the second one holds a stale pre-commit view and would otherwise commit
+    // the same checkpoint again (apache/iceberg#14425). The in-commit validator must reject the
+    // duplicate so only one snapshot lands.
+    IcebergCommitter stale = getCommitter();
+    IcebergCommitter other = getCommitter();
+
+    other.commit(Lists.newArrayList(duplicateCommitRequest(1, dataFileTest1)));
+    stale.commit(Lists.newArrayList(duplicateCommitRequest(1, dataFileTest2)));
+
+    assertSnapshotSize(1);
+    assertMaxCommittedCheckpointId(jobId, 1);
+  }
+
+  private MockCommitRequest<IcebergCommittable> duplicateCommitRequest(
+      long checkpointId, DataFile dataFile) throws IOException {
+    DeltaManifests manifests =
+        FlinkManifestUtil.writeCompletedFiles(
+            WriteResult.builder().addDataFiles(dataFile).build(),
+            () ->
+                FlinkManifestUtil.createOutputFileFactory(
+                        () -> table, table.properties(), jobId, OPERATOR_ID, 0, 0)
+                    .create(checkpointId),
+            table.spec(),
+            formatVersion);
+    return new MockCommitRequest<>(
+        new IcebergCommittable(
+            SimpleVersionedSerialization.writeVersionAndSerialize(
+                DeltaManifestsSerializer.INSTANCE, manifests),
+            jobId,
+            SINK_ID,
+            OPERATOR_ID,
+            checkpointId));
   }
 
   @TestTemplate
