@@ -250,7 +250,6 @@ public class IcebergSink
         sinkId,
         metrics,
         maintenanceEnabled,
-        context.getRestoredCheckpointId().isPresent(),
         context.getTaskInfo().getIndexOfThisSubtask());
   }
 
@@ -327,7 +326,10 @@ public class IcebergSink
     // parallelism to 1, this can be removed.
     return writeResults
         .global()
-        .transform(preCommitAggregatorUid, typeInformation, new IcebergWriteAggregator(tableLoader))
+        .transform(
+            preCommitAggregatorUid,
+            typeInformation,
+            new IcebergWriteAggregator(tableLoader, sinkId))
         .uid(preCommitAggregatorUid)
         .setParallelism(1)
         .setMaxParallelism(1)

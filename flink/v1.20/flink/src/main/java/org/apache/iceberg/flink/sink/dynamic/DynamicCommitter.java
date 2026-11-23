@@ -50,6 +50,7 @@ import org.apache.iceberg.flink.sink.CommitSummary;
 import org.apache.iceberg.flink.sink.DeltaManifests;
 import org.apache.iceberg.flink.sink.DeltaManifestsSerializer;
 import org.apache.iceberg.flink.sink.FlinkManifestUtil;
+import org.apache.iceberg.flink.sink.SinkUtil;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -198,7 +199,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
 
     for (Snapshot ancestor : ancestors) {
       Map<String, String> summary = ancestor.summary();
-      if (writtenBySameSink(summary, sinkId, operatorId)) {
+      if (SinkUtil.writtenBySameSink(summary, sinkId, operatorId)) {
         String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
         if (value != null) {
           lastCommittedCheckpointId = Long.parseLong(value);
@@ -208,18 +209,6 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     }
 
     return lastCommittedCheckpointId;
-  }
-
-  private static boolean writtenBySameSink(
-      Map<String, String> summary, String sinkId, String operatorId) {
-    String snapshotOperatorId = summary.get(OPERATOR_ID);
-    if (snapshotOperatorId != null && !snapshotOperatorId.equals(operatorId)) {
-      return false;
-    }
-
-    // Snapshots written before the sinkId was introduced are identified by the jobId
-    String snapshotSinkId = summary.get(SINK_ID);
-    return sinkId.equals(snapshotSinkId != null ? snapshotSinkId : summary.get(FLINK_JOB_ID));
   }
 
   /**

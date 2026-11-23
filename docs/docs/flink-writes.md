@@ -423,6 +423,10 @@ IcebergSink.forRowData(dataStream)
 See [IcebergSink with Post-Commit Integration](flink-maintenance.md#icebergsink-with-post-commit-integration)
 for the full options, locking, and the `convertEqualityDeletes` staging/target-branch setup.
 
+### Notes
+
+Commits record `flink.sink-id` in the snapshot summary. It identifies the sink run that wrote the snapshot and is used to skip already committed checkpoints. Snapshots from older releases without it are identified by `flink.job-id`.
+
 ## Flink Dynamic Iceberg Sink
 
 The Flink Dynamic Iceberg Sink (Dynamic Sink) allows:

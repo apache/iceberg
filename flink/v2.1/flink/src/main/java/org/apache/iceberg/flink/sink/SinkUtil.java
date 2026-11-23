@@ -48,6 +48,7 @@ public class SinkUtil {
   static final long INITIAL_CHECKPOINT_ID = -1L;
 
   public static final String FLINK_JOB_ID = "flink.job-id";
+  public static final String SINK_ID = "flink.sink-id";
 
   public static final String OPERATOR_ID = "flink.operator-id";
   public static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
@@ -80,6 +81,40 @@ public class SinkUtil {
       equalityFieldIds = Sets.newHashSet(equalityFieldSet);
     }
     return equalityFieldIds;
+  }
+
+  static long getMaxCommittedCheckpointIdBySink(
+      Table table, String sinkId, String operatorId, String branch) {
+    Snapshot snapshot = table.snapshot(branch);
+    long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
+
+    while (snapshot != null) {
+      Map<String, String> summary = snapshot.summary();
+      if (writtenBySameSink(summary, sinkId, operatorId)) {
+        String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
+        if (value != null) {
+          lastCommittedCheckpointId = Long.parseLong(value);
+          break;
+        }
+      }
+
+      Long parentSnapshotId = snapshot.parentId();
+      snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
+    }
+
+    return lastCommittedCheckpointId;
+  }
+
+  public static boolean writtenBySameSink(
+      Map<String, String> summary, String sinkId, String operatorId) {
+    String snapshotOperatorId = summary.get(OPERATOR_ID);
+    if (snapshotOperatorId != null && !snapshotOperatorId.equals(operatorId)) {
+      return false;
+    }
+
+    // Snapshots written before the sinkId was introduced are identified by the jobId
+    String snapshotSinkId = summary.get(SINK_ID);
+    return sinkId.equals(snapshotSinkId != null ? snapshotSinkId : summary.get(FLINK_JOB_ID));
   }
 
   static long getMaxCommittedCheckpointId(
