@@ -637,6 +637,48 @@ class TestV4TrackedFileWrappers {
         .hasMessage("Missing first-row-id for %s file: %s", status, file.location());
   }
 
+  @Test
+  void rootAssignsFirstRowIdToExistingManifestWithoutFirstRowId() {
+    TrackedFile manifest = mock(TrackedFile.class);
+    when(manifest.contentType()).thenReturn(FileContent.DATA_MANIFEST);
+    when(manifest.location()).thenReturn(MANIFEST_LOCATION);
+    when(manifest.manifestInfo()).thenReturn(mock(ManifestInfo.class));
+
+    Tracking tracking = mock(Tracking.class);
+    when(tracking.status()).thenReturn(EntryStatus.EXISTING);
+    when(tracking.firstRowId()).thenReturn(null);
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+    StructLike row = wrapper.wrap(manifest, tracking, FIRST_ROW_ID);
+
+    assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.FIRST_ROW_ID)).isEqualTo(FIRST_ROW_ID);
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = EntryStatus.class,
+      mode = EnumSource.Mode.EXCLUDE,
+      names = {"ADDED", "EXISTING"})
+  void rootRejectsMissingFirstRowIdForNonExistingManifest(EntryStatus status) {
+    TrackedFile manifest = mock(TrackedFile.class);
+    when(manifest.contentType()).thenReturn(FileContent.DATA_MANIFEST);
+    when(manifest.location()).thenReturn(MANIFEST_LOCATION);
+
+    Tracking tracking = mock(Tracking.class);
+    when(tracking.status()).thenReturn(status);
+    when(tracking.firstRowId()).thenReturn(null);
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID, COMMIT_SEQ, UNPARTITIONED_SPECS, UNPARTITIONED_TYPE, NO_STATS_TYPE);
+
+    assertThatThrownBy(() -> wrapper.wrap(manifest, tracking, FIRST_ROW_ID))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing first-row-id for %s file: %s", status, MANIFEST_LOCATION);
+  }
+
   @ParameterizedTest
   @EnumSource(
       value = FileContent.class,

@@ -28,6 +28,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestAppend extends AdaptiveMetadataTestBase {
   private static final List<String> BRANCHES = List.of("main", "branch");
@@ -228,6 +229,38 @@ public class TestAppend extends AdaptiveMetadataTestBase {
         ids(snapshotId, v3SnapshotId),
         locations(FILE_B.location(), v3Manifest.path()),
         statuses(EntryStatus.ADDED, EntryStatus.EXISTING));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  void appendToTableUpgradedFromPreV3(int formatVersion) throws IOException {
+    Table table = create("upgraded_table", SCHEMA, SPEC, formatVersion);
+    table.newAppend().appendFile(FILE_A).commit();
+    long preV3SnapshotId = table.currentSnapshot().snapshotId();
+    ManifestFile preV3Manifest = table.currentSnapshot().allManifests(io).get(0);
+    assertThat(preV3Manifest.firstRowId()).isNull();
+
+    InMemoryTables.Table upgraded = upgrade("upgraded_table", 4);
+    long firstRowId = upgraded.ops().current().nextRowId();
+    upgraded.newAppend().appendFile(FILE_B).commit();
+    Snapshot snapshot = upgraded.currentSnapshot();
+    assertThat(snapshot.firstRowId()).isEqualTo(firstRowId);
+    assertThat(upgraded.ops().current().nextRowId())
+        .isEqualTo(firstRowId + FILE_B.recordCount() + preV3Manifest.addedRowsCount());
+
+    List<TrackedFile> rootFiles = readRoot(upgraded, snapshot);
+    validateFiles(
+        rootFiles,
+        contents(FileContent.DATA, FileContent.DATA_MANIFEST),
+        dataSeqs(snapshot.sequenceNumber(), preV3Manifest.sequenceNumber()),
+        fileSeqs(snapshot.sequenceNumber(), preV3Manifest.sequenceNumber()),
+        ids(snapshot.snapshotId(), preV3SnapshotId),
+        locations(FILE_B.location(), preV3Manifest.path()),
+        statuses(EntryStatus.ADDED, EntryStatus.EXISTING));
+
+    assertThat(rootFiles)
+        .extracting(file -> file.tracking().firstRowId())
+        .containsExactly(firstRowId, firstRowId + FILE_B.recordCount());
   }
 
   @Test
