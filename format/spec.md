@@ -538,7 +538,7 @@ Row lineage does not track lineage for rows updated via [Equality Deletes](#equa
 
 ##### Row lineage assignment
 
-When a row is added or modified, the `_last_updated_sequence_number` field is set to `null` so that it is inherited when reading. Similarly, the `_row_id` field for an added row is set to `null` and assigned when reading.
+When a row is added or modified, the `_last_updated_sequence_number` and `_last_updated_timestamp` fields are set to `null` so that they are inherited when reading. Similarly, the `_row_id` field for an added row is set to `null` and assigned when reading.
 
 A data file with only new rows for the table may omit the `_last_updated_sequence_number` and `_row_id`. If the columns are missing, readers should treat both columns as if they exist and are set to null for all rows.
 
