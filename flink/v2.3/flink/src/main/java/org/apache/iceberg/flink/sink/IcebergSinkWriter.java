@@ -127,8 +127,8 @@ class IcebergSinkWriter implements CommittingSinkWriter<RowData, SinkWriteResult
     }
 
     List<List<SerializedEqualityValues>> deleteKeys =
-        split(Lists.newArrayList(dvOnlyWriter.deleteKeys()), maxEntries);
-    List<List<PkIndexEntry>> liveRows = split(dvOnlyWriter.liveRows(), maxEntries);
+        Lists.partition(Lists.newArrayList(dvOnlyWriter.deleteKeys()), maxEntries);
+    List<List<PkIndexEntry>> liveRows = Lists.partition(dvOnlyWriter.liveRows(), maxEntries);
 
     int count = Math.max(1, Math.max(deleteKeys.size(), liveRows.size()));
     List<SinkWriteResult> results = Lists.newArrayListWithCapacity(count);
@@ -141,14 +141,5 @@ class IcebergSinkWriter implements CommittingSinkWriter<RowData, SinkWriteResult
     }
 
     return results;
-  }
-
-  private static <T> List<List<T>> split(List<T> list, int maxEntries) {
-    List<List<T>> chunks = Lists.newArrayList();
-    for (List<T> chunk : Lists.partition(list, maxEntries)) {
-      chunks.add(Lists.newArrayList(chunk));
-    }
-
-    return chunks;
   }
 }

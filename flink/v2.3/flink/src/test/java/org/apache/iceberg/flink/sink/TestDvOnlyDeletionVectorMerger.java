@@ -25,9 +25,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.flink.api.connector.sink2.mocks.MockCommitRequest;
+import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
@@ -38,6 +42,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -66,6 +71,7 @@ class TestDvOnlyDeletionVectorMerger {
   private static final Set<Integer> EQUALITY_FIELD_IDS = ImmutableSet.of(1);
   private static final String SINK_ID = "sink";
   private static final String OPERATOR_ID = "operator";
+  private static final String JOB_ID = "job";
 
   @RegisterExtension
   private static final HadoopCatalogExtension CATALOG_EXTENSION =
@@ -102,6 +108,51 @@ class TestDvOnlyDeletionVectorMerger {
   }
 
   @Test
+  void mergesVectorsForAllFilesAcrossBatches() throws IOException {
+    int fileCount = 1_001;
+    Map<String, DataFile> files = Maps.newHashMapWithExpectedSize(fileCount);
+    Map<String, FilePositions> pendingPositions = Maps.newHashMapWithExpectedSize(fileCount);
+    Map<String, FilePositions> committedPositions = Maps.newHashMapWithExpectedSize(fileCount);
+    AppendFiles append = table.newAppend();
+    for (int i = 0; i < fileCount; i++) {
+      DataFile file =
+          DataFiles.builder(table.spec())
+              .withPath(table.location() + "/file-" + i + ".parquet")
+              .withFormat(FileFormat.PARQUET)
+              .withFileSizeInBytes(10L)
+              .withRecordCount(2L)
+              .build();
+      files.put(file.location(), file);
+      append.appendFile(file);
+      FilePositions pending = FilePositions.forPartition(file.specId(), file.partition());
+      pending.add(1L);
+      pendingPositions.put(file.location(), pending);
+      FilePositions committed = FilePositions.forPartition(file.specId(), file.partition());
+      committed.add(0L);
+      committedPositions.put(file.location(), committed);
+    }
+
+    append.commit();
+    long baseline = table.currentSnapshot().snapshotId();
+    WriteResult checkpoint =
+        checkpoint(deletionVectorHelper.write(fileFactory, pendingPositions, ImmutableMap.of()));
+    DeleteWriteResult concurrent =
+        deletionVectorHelper.write(fileFactory, committedPositions, ImmutableMap.of());
+    RowDelta rowDelta = table.newRowDelta();
+    concurrent.deleteFiles().forEach(rowDelta::addDeletes);
+    rowDelta.commit();
+
+    table.refresh();
+    DvOnlyDeletionVectorMerger.Change merged = merger.merge(checkpoint, baseline);
+
+    assertThat(merged.deletionVectors())
+        .extracting(DeleteFile::referencedDataFile)
+        .containsExactlyInAnyOrderElementsOf(files.keySet());
+    assertThat(merged.deletionVectors())
+        .allSatisfy(vector -> assertVector(vector, files.get(vector.referencedDataFile()), 0L, 1L));
+  }
+
+  @Test
   void mergesWithAVectorCommittedInTheMeantime() throws IOException {
     DataFile file = appendFile("file", row(1, "a"), row(2, "b"), row(3, "c"));
     long baseline = table.currentSnapshot().snapshotId();
@@ -112,7 +163,7 @@ class TestDvOnlyDeletionVectorMerger {
     commit(committed, null);
 
     table.refresh();
-    DvOnlyDeletionVectorMerger.Merged merged = merger.merge(checkpoint, baseline);
+    DvOnlyDeletionVectorMerger.Change merged = merger.merge(checkpoint, baseline);
 
     assertThat(merged.deletionVectors())
         .singleElement()
@@ -138,7 +189,7 @@ class TestDvOnlyDeletionVectorMerger {
     rewrite(ImmutableSet.of(file), compacted);
 
     table.refresh();
-    DvOnlyDeletionVectorMerger.Merged merged = merger.merge(checkpoint, baseline);
+    DvOnlyDeletionVectorMerger.Change merged = merger.merge(checkpoint, baseline);
 
     assertThat(merged.deletionVectors())
         .singleElement()
@@ -165,7 +216,7 @@ class TestDvOnlyDeletionVectorMerger {
     rewrite(ImmutableSet.of(file, reinserted), ImmutableSet.of(earlier), compacted);
 
     table.refresh();
-    DvOnlyDeletionVectorMerger.Merged merged = merger.merge(checkpoint, baseline);
+    DvOnlyDeletionVectorMerger.Change merged = merger.merge(checkpoint, baseline);
 
     assertThat(merged.deletionVectors())
         .as("The earlier delete of id 1 must not remove the row inserted after it")
@@ -190,7 +241,7 @@ class TestDvOnlyDeletionVectorMerger {
     commit(existing, null);
 
     table.refresh();
-    DvOnlyDeletionVectorMerger.Merged merged = merger.merge(checkpoint, baseline);
+    DvOnlyDeletionVectorMerger.Change merged = merger.merge(checkpoint, baseline);
 
     assertThat(merged.deletionVectors())
         .singleElement()
@@ -216,7 +267,7 @@ class TestDvOnlyDeletionVectorMerger {
     rewrite(ImmutableSet.of(rewritten), compacted);
 
     table.refresh();
-    DvOnlyDeletionVectorMerger.Merged merged = merger.merge(checkpoint, baseline);
+    DvOnlyDeletionVectorMerger.Change merged = merger.merge(checkpoint, baseline);
 
     assertThat(merged.deletionVectors()).hasSize(2);
     Map<String, DeleteFile> byDataFile = Maps.newHashMap();
@@ -240,7 +291,7 @@ class TestDvOnlyDeletionVectorMerger {
     rewrite(ImmutableSet.of(rewritten), compacted);
 
     table.refresh();
-    DvOnlyDeletionVectorMerger.Merged merged = merger.merge(checkpoint, baseline);
+    DvOnlyDeletionVectorMerger.Change merged = merger.merge(checkpoint, baseline);
 
     assertThat(merged.deletionVectors())
         .extracting(DeleteFile::location)
@@ -271,7 +322,7 @@ class TestDvOnlyDeletionVectorMerger {
     rewrite(ImmutableSet.of(rewritten), compacted);
 
     table.refresh();
-    DvOnlyDeletionVectorMerger.Merged merged = merger.merge(checkpoint, baseline);
+    DvOnlyDeletionVectorMerger.Change merged = merger.merge(checkpoint, baseline);
 
     assertThat(merged.deletionVectors()).hasSize(2);
     assertThat(merged.obsoleteFiles()).isEmpty();
@@ -292,7 +343,7 @@ class TestDvOnlyDeletionVectorMerger {
     commit(committed, null);
 
     table.refresh();
-    DvOnlyDeletionVectorMerger.Merged merged = merger.merge(checkpoint, baseline);
+    DvOnlyDeletionVectorMerger.Change merged = merger.merge(checkpoint, baseline);
 
     assertThat(merged.deletionVectors())
         .extracting(DeleteFile::location)
@@ -323,7 +374,7 @@ class TestDvOnlyDeletionVectorMerger {
     rewrite(ImmutableSet.of(first), second);
 
     table.refresh();
-    DvOnlyDeletionVectorMerger.Merged merged = merger.merge(checkpoint, baseline);
+    DvOnlyDeletionVectorMerger.Change merged = merger.merge(checkpoint, baseline);
 
     assertThat(merged.deletionVectors())
         .singleElement()
@@ -347,7 +398,7 @@ class TestDvOnlyDeletionVectorMerger {
     table.io().deleteFile(unrelated.location());
 
     table.refresh();
-    DvOnlyDeletionVectorMerger.Merged merged = merger.merge(checkpoint, baseline);
+    DvOnlyDeletionVectorMerger.Change merged = merger.merge(checkpoint, baseline);
 
     assertThat(merged.deletionVectors())
         .singleElement()
@@ -375,7 +426,7 @@ class TestDvOnlyDeletionVectorMerger {
     table.io().deleteFile(compactedB.location());
 
     table.refresh();
-    DvOnlyDeletionVectorMerger.Merged merged = merger.merge(checkpoint, baseline);
+    DvOnlyDeletionVectorMerger.Change merged = merger.merge(checkpoint, baseline);
 
     assertThat(merged.deletionVectors())
         .singleElement()
@@ -408,11 +459,11 @@ class TestDvOnlyDeletionVectorMerger {
     commitAsSink(previous);
 
     table.refresh();
-    DvOnlyDeletionVectorMerger.Merged rebased =
+    DvOnlyDeletionVectorMerger.Change rebased =
         merger.rebaseOnOwnCommits(checkpoint, baseline, this::committedBySink);
 
     assertThat(rebased).isNotNull();
-    assertThat(rebased.head().snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
+    assertThat(rebased.validateFromSnapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
     assertThat(rebased.deletionVectors())
         .singleElement()
         .satisfies(dv -> assertVector(dv, file, 0L, 1L));
@@ -436,7 +487,7 @@ class TestDvOnlyDeletionVectorMerger {
     commitAsSink(vector(writeVector(other, null, 0L)));
 
     table.refresh();
-    DvOnlyDeletionVectorMerger.Merged rebased =
+    DvOnlyDeletionVectorMerger.Change rebased =
         merger.rebaseOnOwnCommits(checkpoint, baseline, this::committedBySink);
 
     assertThat(rebased).isNotNull();
@@ -461,6 +512,82 @@ class TestDvOnlyDeletionVectorMerger {
 
     table.refresh();
     assertThat(merger.rebaseOnOwnCommits(checkpoint, baseline, this::committedBySink)).isNull();
+  }
+
+  @Test
+  void mergesAgainWhenTheVectorsWereMergedWithASnapshotOlderThanTheBaseline() throws Exception {
+    DataFile file = appendFile("file", row(1, "a"), row(2, "b"), row(3, "c"));
+    long mergedWith = table.currentSnapshot().snapshotId();
+    // Deletes id 2, merged with the vectors of a snapshot in which the file carried none.
+    WriteResult checkpoint = checkpoint(writeVector(file, null, 1L));
+
+    // Another writer deletes id 1 before the snapshot the deletes were resolved against.
+    commit(vector(writeVector(file, null, 0L)), null);
+    long baseline = table.currentSnapshot().snapshotId();
+
+    commitWithCommitter(checkpoint, baseline, mergedWith);
+
+    table.refresh();
+    assertRows(row(3, "c"));
+  }
+
+  @Test
+  void commitsTheVectorsAsWrittenWhenMergedWithALaterSnapshot() throws Exception {
+    DataFile file = appendFile("file", row(1, "a"), row(2, "b"), row(3, "c"));
+    long baseline = table.currentSnapshot().snapshotId();
+    appendFile("other", row(4, "d"));
+    long mergedWith = table.currentSnapshot().snapshotId();
+    DeleteWriteResult written = writeVector(file, null, 1L);
+
+    commitWithCommitter(checkpoint(written), baseline, mergedWith);
+
+    table.refresh();
+    assertThat(table.currentSnapshot().addedDeleteFiles(table.io()))
+        .singleElement()
+        .extracting(DeleteFile::location)
+        .isEqualTo(vector(written).location());
+    assertRows(row(1, "a"), row(3, "c"), row(4, "d"));
+  }
+
+  private void commitWithCommitter(WriteResult checkpoint, long baseline, Long mergedWith)
+      throws Exception {
+    long checkpointId = 1L;
+    ManifestOutputFileFactory manifestFactory =
+        FlinkManifestUtil.createOutputFileFactory(
+            () -> table, table.properties(), JOB_ID, OPERATOR_ID, 0, 0);
+    DeltaManifests manifests =
+        FlinkManifestUtil.writeCompletedFiles(
+            checkpoint,
+            () -> manifestFactory.create(checkpointId),
+            table.spec(),
+            table.specs(),
+            TableUtil.formatVersion(table),
+            baseline,
+            Lists.newArrayList(mergedWith));
+    IcebergCommittable committable =
+        new IcebergCommittable(
+            SimpleVersionedSerialization.writeVersionAndSerialize(
+                DeltaManifestsSerializer.DV_ONLY, manifests),
+            JOB_ID,
+            SINK_ID,
+            OPERATOR_ID,
+            checkpointId);
+
+    try (IcebergCommitter committer =
+        new IcebergCommitter(
+            CATALOG_EXTENSION.tableLoader(),
+            SnapshotRef.MAIN_BRANCH,
+            ImmutableMap.of(),
+            false,
+            1,
+            SINK_ID,
+            null,
+            false,
+            true,
+            EQUALITY_FIELD_IDS,
+            0)) {
+      committer.commit(List.of(new MockCommitRequest<>(committable)));
+    }
   }
 
   private boolean committedBySink(Snapshot snapshot) {
@@ -570,11 +697,11 @@ class TestDvOnlyDeletionVectorMerger {
   }
 
   /** Commits the merged vectors the way {@link IcebergCommitter} does. */
-  private void commit(DvOnlyDeletionVectorMerger.Merged merged) {
+  private void commit(DvOnlyDeletionVectorMerger.Change merged) {
     RowDelta rowDelta =
         table
             .newRowDelta()
-            .validateFromSnapshot(merged.head().snapshotId())
+            .validateFromSnapshot(merged.validateFromSnapshotId())
             .validateDataFilesExist(merged.referencedDataFiles())
             .validateDeletedFiles();
     merged.deletionVectors().forEach(rowDelta::addDeletes);

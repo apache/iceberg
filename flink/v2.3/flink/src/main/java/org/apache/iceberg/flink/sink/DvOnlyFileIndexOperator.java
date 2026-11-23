@@ -119,9 +119,14 @@ class DvOnlyFileIndexOperator extends AbstractStreamOperator<DvOnlyRecord>
     switch (record.type()) {
       case ADD_ROW -> {
         keys.put(record.key(), true);
-        checkpoint.update(max(checkpoint.value(), record.checkpointId()));
+        Long previousCheckpointId = checkpoint.value();
+        if (previousCheckpointId == null || record.checkpointId() > previousCheckpointId) {
+          checkpoint.update(record.checkpointId());
+        }
+
         output.collect(element);
       }
+
       case READ_FILE -> indexFile(record);
       case DROP_FILE -> dropFile(record.filePath());
       default -> output.collect(element);

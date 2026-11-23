@@ -69,7 +69,8 @@ public class DeltaManifestsSerializer implements SimpleVersionedSerializer<Delta
     Preconditions.checkArgument(
         deltaManifests.deleteManifests().size() <= 1
             && deltaManifests.rewrittenDeleteManifests().isEmpty()
-            && deltaManifests.baselineSnapshotId() == null,
+            && deltaManifests.baselineSnapshotId() == null
+            && deltaManifests.attachedVectorsSnapshotIds().isEmpty(),
         "Cannot serialize the manifests of the DV-only write path as version %s",
         VERSION_2);
 
@@ -92,11 +93,11 @@ public class DeltaManifestsSerializer implements SimpleVersionedSerializer<Delta
     writeManifests(out, deltaManifests.deleteManifests());
     writeReferencedDataFiles(out, deltaManifests.referencedDataFiles());
     writeManifests(out, deltaManifests.rewrittenDeleteManifests());
-
-    Long baselineSnapshotId = deltaManifests.baselineSnapshotId();
-    out.writeBoolean(baselineSnapshotId != null);
-    if (baselineSnapshotId != null) {
-      out.writeLong(baselineSnapshotId);
+    writeSnapshotId(out, deltaManifests.baselineSnapshotId());
+    List<Long> attachedVectorsSnapshotIds = deltaManifests.attachedVectorsSnapshotIds();
+    out.writeInt(attachedVectorsSnapshotIds.size());
+    for (Long snapshotId : attachedVectorsSnapshotIds) {
+      writeSnapshotId(out, snapshotId);
     }
 
     return binaryOut.toByteArray();
@@ -124,7 +125,12 @@ public class DeltaManifestsSerializer implements SimpleVersionedSerializer<Delta
     CharSequence[] referencedDataFiles = readReferencedDataFiles(in);
 
     return new DeltaManifests(
-        dataManifest, listOf(deleteManifest), ImmutableList.of(), referencedDataFiles, null);
+        dataManifest,
+        listOf(deleteManifest),
+        ImmutableList.of(),
+        referencedDataFiles,
+        null,
+        ImmutableList.of());
   }
 
   private DeltaManifests deserializeV3(byte[] serialized) throws IOException {
@@ -134,14 +140,32 @@ public class DeltaManifestsSerializer implements SimpleVersionedSerializer<Delta
     List<ManifestFile> deleteManifests = readManifests(in);
     CharSequence[] referencedDataFiles = readReferencedDataFiles(in);
     List<ManifestFile> rewrittenDeleteManifests = readManifests(in);
-    Long baselineSnapshotId = in.readBoolean() ? in.readLong() : null;
+    Long baselineSnapshotId = readSnapshotId(in);
+    int attachedVectorsSnapshotCount = in.readInt();
+    List<Long> attachedVectorsSnapshotIds =
+        Lists.newArrayListWithCapacity(attachedVectorsSnapshotCount);
+    for (int i = 0; i < attachedVectorsSnapshotCount; i++) {
+      attachedVectorsSnapshotIds.add(readSnapshotId(in));
+    }
 
     return new DeltaManifests(
         dataManifest,
         deleteManifests,
         rewrittenDeleteManifests,
         referencedDataFiles,
-        baselineSnapshotId);
+        baselineSnapshotId,
+        attachedVectorsSnapshotIds);
+  }
+
+  private static void writeSnapshotId(DataOutputStream out, Long snapshotId) throws IOException {
+    out.writeBoolean(snapshotId != null);
+    if (snapshotId != null) {
+      out.writeLong(snapshotId);
+    }
+  }
+
+  private static Long readSnapshotId(DataInputStream in) throws IOException {
+    return in.readBoolean() ? in.readLong() : null;
   }
 
   private static void writeReferencedDataFiles(

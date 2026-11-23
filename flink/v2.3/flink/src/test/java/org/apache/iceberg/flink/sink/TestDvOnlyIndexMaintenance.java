@@ -291,6 +291,7 @@ class TestDvOnlyIndexMaintenance {
         harness = fileIndexHarness()) {
       harness.open();
       harness.processElement1(DvOnlyRecord.addRow(entry(key(1), FILE_A, 0L), 1L), 1L);
+      harness.processElement1(DvOnlyRecord.addRow(entry(key(1), FILE_A, 0L), 1L), 1L);
       harness.processElement2(DvOnlyRecord.cleanup(1L, 1L), 1L);
 
       assertThat(harness.extractOutputValues())
@@ -310,6 +311,22 @@ class TestDvOnlyIndexMaintenance {
         harness = fileIndexHarness()) {
       harness.open();
       harness.processElement1(DvOnlyRecord.addRow(entry(key(1), FILE_A, 0L), 2L), 1L);
+      harness.processElement2(DvOnlyRecord.cleanup(1L, 1L), 1L);
+
+      assertThat(harness.extractOutputValues())
+          .noneMatch(record -> record.type() == DvOnlyRecord.Type.DROP_POSITIONS);
+    }
+  }
+
+  @Test
+  void keepsTheLatestCheckpointWhenRowsAreRepeatedOrOutOfOrder() throws Exception {
+    try (KeyedTwoInputStreamOperatorTestHarness<String, DvOnlyRecord, DvOnlyRecord, DvOnlyRecord>
+        harness = fileIndexHarness()) {
+      harness.open();
+      harness.processElement1(DvOnlyRecord.addRow(entry(key(1), FILE_A, 0L), 1L), 1L);
+      harness.processElement1(DvOnlyRecord.addRow(entry(key(2), FILE_A, 1L), 2L), 1L);
+      harness.processElement1(DvOnlyRecord.addRow(entry(key(2), FILE_A, 1L), 2L), 1L);
+      harness.processElement1(DvOnlyRecord.addRow(entry(key(3), FILE_A, 2L), 1L), 1L);
       harness.processElement2(DvOnlyRecord.cleanup(1L, 1L), 1L);
 
       assertThat(harness.extractOutputValues())
@@ -369,8 +386,8 @@ class TestDvOnlyIndexMaintenance {
               record -> {
                 SinkWriteResult baseline =
                     ((CommittableWithLineage<SinkWriteResult>) record.getValue()).getCommittable();
-                assertThat(baseline.isBaseline()).isTrue();
-                assertThat(baseline.baselineSnapshotId()).isEqualTo(head);
+                assertThat(baseline.kind()).isEqualTo(SinkWriteResult.Kind.BASELINE);
+                assertThat(baseline.snapshotId()).isEqualTo(head);
               });
 
       // Everything was reported already, so the final checkpoint requests nothing again.
@@ -529,7 +546,7 @@ class TestDvOnlyIndexMaintenance {
       fileIndexHarness() throws Exception {
     return new KeyedTwoInputStreamOperatorTestHarness<>(
         new DvOnlyFileIndexOperator(tableLoader, ImmutableSet.of(1)),
-        DvOnlyRecord::filePath,
+        DvOnlyRecord::dataFilePath,
         null,
         BasicTypeInfo.STRING_TYPE_INFO);
   }

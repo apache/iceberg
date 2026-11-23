@@ -46,6 +46,7 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -93,17 +94,11 @@ class DvOnlyDeletionVectorMerger {
    * @param baselineSnapshotId snapshot the deletes were resolved against, or null when the branch
    *     had none; has to be an ancestor of the branch head
    */
-  Merged merge(WriteResult result, Long baselineSnapshotId) {
+  Change merge(WriteResult result, Long baselineSnapshotId) {
     Snapshot head = table.snapshot(branch);
     Rewrites rewrites = rewritesSince(baselineSnapshotId, head);
-    Preconditions.checkState(
-        Arrays.stream(result.deleteFiles()).allMatch(ContentFileUtil::isDV),
-        "Expected deletion vectors only, but found other delete files");
-    Map<String, DeleteFile> vectors =
-        Maps.uniqueIndex(Arrays.asList(result.deleteFiles()), DeleteFile::referencedDataFile);
-    Map<String, DeleteFile> replaced =
-        Maps.uniqueIndex(
-            Arrays.asList(result.rewrittenDeleteFiles()), DeleteFile::referencedDataFile);
+    CheckpointVectors checkpoint = CheckpointVectors.of(result);
+    Map<String, DeleteFile> vectors = checkpoint.vectors();
 
     Map<String, DeleteFile> attached =
         deletionVectorHelper.collectExistingDVs(
@@ -113,21 +108,10 @@ class DvOnlyDeletionVectorMerger {
             workerPool);
     Set<String> affected =
         vectors.keySet().stream()
-            .filter(
-                path ->
-                    rewrites.wasRemoved(path)
-                        || !isSameVector(replaced.get(path), attached.get(path)))
+            .filter(path -> rewrites.wasRemoved(path) || checkpoint.isStale(path, attached))
             .collect(Collectors.toSet());
 
-    Map<String, FilePositions> positionsByFile = Maps.newConcurrentMap();
-    Tasks.foreach(affected)
-        .stopOnFailure()
-        .throwFailureWhenFinished()
-        .executeWith(workerPool)
-        .run(
-            path ->
-                positionsByFile.put(path, addedPositions(vectors.get(path), replaced.get(path))));
-
+    Map<String, FilePositions> positionsByFile = addedPositions(checkpoint, affected);
     Set<String> removedTargets =
         Sets.intersection(affected, rewrites.removedPaths()).immutableCopy();
     if (!removedTargets.isEmpty()) {
@@ -140,7 +124,8 @@ class DvOnlyDeletionVectorMerger {
             Maps.filterKeys(positionsByFile, path -> !vectors.containsKey(path)),
             workerPool));
 
-    return new Merged(head, result, vectors, replaced, affected, write(positionsByFile, attached));
+    return new Change(
+        snapshotIdOf(head), result, checkpoint, affected, write(positionsByFile, attached));
   }
 
   /**
@@ -159,12 +144,13 @@ class DvOnlyDeletionVectorMerger {
    *     had none; has to be an ancestor of the branch head
    * @param ownCommit tells whether a snapshot was committed by this sink
    * @return the deletion vectors to commit, validated from the branch head, or null when the branch
-   *     is empty or another writer committed since the baseline
+   *     is empty, the checkpoint has no deletion vectors or another writer committed since the
+   *     baseline
    */
-  Merged rebaseOnOwnCommits(
+  Change rebaseOnOwnCommits(
       WriteResult result, Long baselineSnapshotId, Predicate<Snapshot> ownCommit) {
     Snapshot head = table.snapshot(branch);
-    if (head == null) {
+    if (head == null || result.deleteFiles().length == 0) {
       return null;
     }
 
@@ -173,41 +159,26 @@ class DvOnlyDeletionVectorMerger {
       return null;
     }
 
-    Map<String, DeleteFile> vectors =
-        Maps.uniqueIndex(Arrays.asList(result.deleteFiles()), DeleteFile::referencedDataFile);
-    Map<String, DeleteFile> replaced =
-        Maps.uniqueIndex(
-            Arrays.asList(result.rewrittenDeleteFiles()), DeleteFile::referencedDataFile);
-    Map<String, DeleteFile> current = vectorsCommittedFor(since, vectors.keySet());
+    CheckpointVectors checkpoint = CheckpointVectors.of(result);
+    Map<String, DeleteFile> current = vectorsCommittedFor(since, checkpoint.vectors().keySet());
     Set<String> stale =
-        vectors.keySet().stream()
-            .filter(
-                path ->
-                    current.containsKey(path)
-                        && !isSameVector(replaced.get(path), current.get(path)))
+        current.keySet().stream()
+            .filter(path -> checkpoint.isStale(path, current))
             .collect(Collectors.toSet());
-
-    Map<String, FilePositions> positionsByFile = Maps.newConcurrentMap();
-    Tasks.foreach(stale)
-        .stopOnFailure()
-        .throwFailureWhenFinished()
-        .executeWith(workerPool)
-        .run(
-            path ->
-                positionsByFile.put(path, addedPositions(vectors.get(path), replaced.get(path))));
-
     if (!stale.isEmpty()) {
       LOG.info(
           "Rebased {} of {} deletion vector(s) onto {} commit(s) of this sink to branch '{}' of "
               + "table {}",
           stale.size(),
-          vectors.size(),
+          checkpoint.vectors().size(),
           since.size(),
           branch,
           table.name());
     }
 
-    return new Merged(head, result, vectors, replaced, stale, write(positionsByFile, current));
+    Map<String, FilePositions> positionsByFile = addedPositions(checkpoint, stale);
+    return new Change(
+        head.snapshotId(), result, checkpoint, stale, write(positionsByFile, current));
   }
 
   // The vector each data file was left with by the given snapshots, applied oldest first.
@@ -240,22 +211,37 @@ class DvOnlyDeletionVectorMerger {
         .throwFailureWhenFinished()
         .executeWith(workerPool)
         .run(
-            batch ->
-                written.add(
-                    deletionVectorHelper.write(
-                        fileFactory,
-                        Maps.filterKeys(positionsByFile, Sets.newHashSet(batch)::contains),
-                        attached)));
+            batch -> {
+              Map<String, FilePositions> batchPositions =
+                  Maps.newHashMapWithExpectedSize(batch.size());
+              for (String path : batch) {
+                batchPositions.put(path, positionsByFile.get(path));
+              }
+
+              written.add(deletionVectorHelper.write(fileFactory, batchPositions, attached));
+            });
     return written;
   }
 
-  private static boolean isSameVector(DeleteFile expected, DeleteFile actual) {
-    if (expected == null || actual == null) {
-      return expected == actual;
-    }
+  private static Long snapshotIdOf(Snapshot snapshot) {
+    return snapshot != null ? snapshot.snapshotId() : null;
+  }
 
-    return expected.location().equals(actual.location())
-        && Objects.equals(expected.contentOffset(), actual.contentOffset());
+  // The positions the checkpoint adds to each of the given data files.
+  private Map<String, FilePositions> addedPositions(
+      CheckpointVectors checkpoint, Set<String> dataFilePaths) {
+    Map<String, FilePositions> positionsByFile = Maps.newConcurrentMap();
+    Tasks.foreach(dataFilePaths)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(workerPool)
+        .run(
+            path ->
+                positionsByFile.put(
+                    path,
+                    addedPositions(
+                        checkpoint.vectors().get(path), checkpoint.replaced().get(path))));
+    return positionsByFile;
   }
 
   // The positions the checkpoint adds: the vector it wrote minus the one it replaces.
@@ -482,53 +468,94 @@ class DvOnlyDeletionVectorMerger {
   }
 
   /**
-   * The deletion vectors to commit for one checkpoint and the snapshot they were computed from.
-   * Vectors of the checkpoint that were still valid are committed as they were written; the others
+   * The deletion vectors a checkpoint wrote, by data file, and the vectors they replace.
+   *
+   * @param vectors the vector written for each data file
+   * @param replaced the vector each data file carried when the checkpoint wrote its own, if any
+   */
+  private record CheckpointVectors(
+      Map<String, DeleteFile> vectors, Map<String, DeleteFile> replaced) {
+
+    static CheckpointVectors of(WriteResult result) {
+      Preconditions.checkState(
+          Arrays.stream(result.deleteFiles()).allMatch(ContentFileUtil::isDV),
+          "Expected deletion vectors only, but found other delete files");
+      return new CheckpointVectors(
+          Maps.uniqueIndex(Arrays.asList(result.deleteFiles()), DeleteFile::referencedDataFile),
+          Maps.uniqueIndex(
+              Arrays.asList(result.rewrittenDeleteFiles()), DeleteFile::referencedDataFile));
+    }
+
+    /** Whether a data file carries another vector than the one the checkpoint replaced. */
+    boolean isStale(String dataFilePath, Map<String, DeleteFile> attached) {
+      DeleteFile expected = replaced.get(dataFilePath);
+      DeleteFile actual = attached.get(dataFilePath);
+      if (expected == null || actual == null) {
+        return expected != actual;
+      }
+
+      return !expected.location().equals(actual.location())
+          || !Objects.equals(expected.contentOffset(), actual.contentOffset());
+    }
+  }
+
+  /**
+   * The deletion vectors to commit for one checkpoint and the snapshot to validate the commit from.
+   * Vectors of the checkpoint that are still valid are committed as they were written; the others
    * were merged again and are listed in {@link #writtenFiles()}.
    */
-  static class Merged {
-    private final Snapshot head;
+  static class Change {
+    private final Long validateFromSnapshotId;
     private final List<DeleteFile> deletionVectors;
     private final List<DeleteFile> replacedDeletionVectors;
-    private final List<DeleteFile> newDeletionVectors;
     private final Set<String> writtenFiles;
     private final Set<String> obsoleteFiles;
 
-    private Merged(
-        Snapshot head,
-        WriteResult checkpoint,
-        Map<String, DeleteFile> vectors,
-        Map<String, DeleteFile> replaced,
-        Set<String> affected,
+    private Change(
+        Long validateFromSnapshotId,
+        WriteResult result,
+        CheckpointVectors checkpoint,
+        Set<String> mergedAgain,
         Collection<DeleteWriteResult> written) {
-      Map<String, DeleteFile> reused = Maps.filterKeys(vectors, path -> !affected.contains(path));
-      this.head = head;
-      this.newDeletionVectors =
+      Map<String, DeleteFile> reused =
+          Maps.filterKeys(checkpoint.vectors(), path -> !mergedAgain.contains(path));
+      List<DeleteFile> newDeletionVectors =
           written.stream()
-              .flatMap(result -> result.deleteFiles().stream())
+              .flatMap(writeResult -> writeResult.deleteFiles().stream())
               .collect(Collectors.toList());
+      this.validateFromSnapshotId = validateFromSnapshotId;
       this.deletionVectors = Lists.newArrayList(reused.values());
       this.deletionVectors.addAll(newDeletionVectors);
       this.replacedDeletionVectors =
           reused.keySet().stream()
-              .map(replaced::get)
+              .map(checkpoint.replaced()::get)
               .filter(Objects::nonNull)
               .collect(Collectors.toList());
-      written.forEach(result -> replacedDeletionVectors.addAll(result.rewrittenDeleteFiles()));
+      written.forEach(
+          writeResult -> replacedDeletionVectors.addAll(writeResult.rewrittenDeleteFiles()));
       this.writtenFiles =
           newDeletionVectors.stream().map(DeleteFile::location).collect(Collectors.toSet());
 
       Set<String> keptFiles =
           reused.values().stream().map(DeleteFile::location).collect(Collectors.toSet());
       this.obsoleteFiles =
-          Arrays.stream(checkpoint.deleteFiles())
+          Arrays.stream(result.deleteFiles())
               .map(DeleteFile::location)
               .filter(location -> !keptFiles.contains(location))
               .collect(Collectors.toSet());
     }
 
-    Snapshot head() {
-      return head;
+    static Change asWritten(WriteResult result, Long baselineSnapshotId) {
+      return new Change(
+          baselineSnapshotId,
+          result,
+          CheckpointVectors.of(result),
+          ImmutableSet.of(),
+          ImmutableList.of());
+    }
+
+    Long validateFromSnapshotId() {
+      return validateFromSnapshotId;
     }
 
     List<DeleteFile> deletionVectors() {

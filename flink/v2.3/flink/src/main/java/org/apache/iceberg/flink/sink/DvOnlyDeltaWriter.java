@@ -62,7 +62,7 @@ import org.apache.iceberg.util.Tasks;
  * <p>The reports are read through {@link #deleteKeys()} and {@link #liveRows()} once {@link
  * #complete()} returned.
  */
-class DvOnlyDeltaWriter extends BaseTaskWriter<RowData> implements BaseDeltaTaskWriter.RowChanges {
+class DvOnlyDeltaWriter extends BaseTaskWriter<RowData> {
 
   private final Schema deleteSchema;
   private final RowDataWrapper wrapper;
@@ -109,7 +109,38 @@ class DvOnlyDeltaWriter extends BaseTaskWriter<RowData> implements BaseDeltaTask
 
   @Override
   public void write(RowData row) throws IOException {
-    BaseDeltaTaskWriter.applyChange(row, upsert, keyProjection, this);
+    switch (row.getRowKind()) {
+      case INSERT:
+      case UPDATE_AFTER:
+        if (upsert) {
+          deleteKey(keyProjection.wrap(row));
+        }
+
+        insert(row);
+        break;
+
+      case UPDATE_BEFORE:
+        if (upsert) {
+          // UPDATE_BEFORE is not necessary for UPSERT, and deleting the row here would delete it
+          // twice
+          break;
+        }
+
+        delete(row);
+        break;
+
+      case DELETE:
+        if (upsert) {
+          deleteKey(keyProjection.wrap(row));
+        } else {
+          delete(row);
+        }
+
+        break;
+
+      default:
+        throw new UnsupportedOperationException("Unknown row kind: " + row.getRowKind());
+    }
   }
 
   Set<SerializedEqualityValues> deleteKeys() {
@@ -120,8 +151,7 @@ class DvOnlyDeltaWriter extends BaseTaskWriter<RowData> implements BaseDeltaTask
     return liveRows;
   }
 
-  @Override
-  public void insert(RowData row) throws IOException {
+  private void insert(RowData row) throws IOException {
     StructLike partition = partitionFor(row);
     RollingFileWriter writer = writerFor(partition);
     // Captured before the write so that it describes the row about to be appended. Rolling to a
@@ -138,13 +168,11 @@ class DvOnlyDeltaWriter extends BaseTaskWriter<RowData> implements BaseDeltaTask
     writer.write(row);
   }
 
-  @Override
-  public void delete(RowData row) {
+  private void delete(RowData row) {
     resolveOrCollect(structProjection.wrap(wrapper.wrap(row)));
   }
 
-  @Override
-  public void deleteKey(RowData key) {
+  private void deleteKey(RowData key) {
     resolveOrCollect(keyWrapper.wrap(key));
   }
 

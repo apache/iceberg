@@ -47,8 +47,8 @@ class TestSinkWriteResultSerializer {
           .build();
 
   @Test
-  void theDefaultWritePathWritesTheWriteResultOnly() throws IOException {
-    SinkWriteResultSerializer serializer = SinkWriteResultSerializer.filesOnly();
+  void theStandardWritePathWritesTheWriteResultOnly() throws IOException {
+    SinkWriteResultSerializer serializer = SinkWriteResultSerializer.standard();
     SinkWriteResult result =
         new SinkWriteResult(WriteResult.builder().addDataFiles(DATA_FILE).build());
 
@@ -66,12 +66,12 @@ class TestSinkWriteResultSerializer {
   }
 
   @Test
-  void theDefaultWritePathRejectsThePayloadOfTheDvOnlyWritePath() {
-    assertThatThrownBy(() -> SinkWriteResultSerializer.filesOnly().serialize(withPayload()))
+  void theStandardWritePathRejectsThePayloadOfTheDvOnlyWritePath() {
+    assertThatThrownBy(() -> SinkWriteResultSerializer.standard().serialize(withPayload()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("DV-only");
     assertThatThrownBy(
-            () -> SinkWriteResultSerializer.filesOnly().serialize(SinkWriteResult.baseline(1L)))
+            () -> SinkWriteResultSerializer.standard().serialize(SinkWriteResult.baseline(1L)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("DV-only");
   }
@@ -83,11 +83,11 @@ class TestSinkWriteResultSerializer {
 
     SinkWriteResult restored =
         SimpleVersionedSerialization.readVersionAndDeSerialize(
-            SinkWriteResultSerializer.filesOnly(),
+            SinkWriteResultSerializer.standard(),
             SimpleVersionedSerialization.writeVersionAndSerialize(serializer, original));
 
     assertThat(serializer.getVersion()).isEqualTo(2);
-    assertThat(restored.isBaseline()).isFalse();
+    assertThat(restored.kind()).isEqualTo(SinkWriteResult.Kind.WRITER);
     assertThat(restored.writeResult().dataFiles()).hasSize(1);
     assertThat(restored.deleteKeys()).isEqualTo(original.deleteKeys());
     assertThat(restored.liveRows()).isEqualTo(original.liveRows());
@@ -104,10 +104,34 @@ class TestSinkWriteResultSerializer {
         serializer.deserialize(
             serializer.getVersion(), serializer.serialize(SinkWriteResult.baseline(null)));
 
-    assertThat(withSnapshot.isBaseline()).isTrue();
-    assertThat(withSnapshot.baselineSnapshotId()).isEqualTo(42L);
-    assertThat(emptyBranch.isBaseline()).isTrue();
-    assertThat(emptyBranch.baselineSnapshotId()).isNull();
+    assertThat(withSnapshot.kind()).isEqualTo(SinkWriteResult.Kind.BASELINE);
+    assertThat(withSnapshot.snapshotId()).isEqualTo(42L);
+    assertThat(emptyBranch.kind()).isEqualTo(SinkWriteResult.Kind.BASELINE);
+    assertThat(emptyBranch.snapshotId()).isNull();
+  }
+
+  @Test
+  void theDvOnlyWritePathKeepsTheSnapshotTheDeletionVectorsWereMergedWith() throws IOException {
+    SinkWriteResultSerializer serializer = SinkWriteResultSerializer.dvOnly();
+    WriteResult vectors = WriteResult.builder().addDataFiles(DATA_FILE).build();
+
+    SinkWriteResult withSnapshot =
+        serializer.deserialize(
+            serializer.getVersion(),
+            serializer.serialize(SinkWriteResult.deletionVectors(vectors, 42L)));
+    SinkWriteResult emptyBranch =
+        serializer.deserialize(
+            serializer.getVersion(),
+            serializer.serialize(SinkWriteResult.deletionVectors(vectors, null)));
+    SinkWriteResult writerResult =
+        serializer.deserialize(serializer.getVersion(), serializer.serialize(withPayload()));
+
+    assertThat(withSnapshot.kind()).isEqualTo(SinkWriteResult.Kind.DELETION_VECTORS);
+    assertThat(withSnapshot.snapshotId()).isEqualTo(42L);
+    assertThat(withSnapshot.writeResult().dataFiles()).hasSize(1);
+    assertThat(emptyBranch.kind()).isEqualTo(SinkWriteResult.Kind.DELETION_VECTORS);
+    assertThat(emptyBranch.snapshotId()).isNull();
+    assertThat(writerResult.kind()).isEqualTo(SinkWriteResult.Kind.WRITER);
   }
 
   @Test

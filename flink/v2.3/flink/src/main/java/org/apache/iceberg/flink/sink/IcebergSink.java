@@ -399,7 +399,7 @@ public class IcebergSink
     SingleOutputStreamOperator<DvOnlyRecord> indexedRows =
         exploded
             .union(commands)
-            .keyBy(DvOnlyRecord::filePath)
+            .keyBy(DvOnlyRecord::dataFilePath)
             .connect(commands.getSideOutput(DvOnlyCoordinator.CLEANUP_STREAM).broadcast())
             .transform(
                 fileIndexUid,
@@ -434,7 +434,7 @@ public class IcebergSink
 
   @Override
   public SimpleVersionedSerializer<SinkWriteResult> getWriteResultSerializer() {
-    return dvOnlyMode ? SinkWriteResultSerializer.dvOnly() : SinkWriteResultSerializer.filesOnly();
+    return dvOnlyMode ? SinkWriteResultSerializer.dvOnly() : SinkWriteResultSerializer.standard();
   }
 
   public static class Builder implements IcebergSinkBuilder<Builder> {

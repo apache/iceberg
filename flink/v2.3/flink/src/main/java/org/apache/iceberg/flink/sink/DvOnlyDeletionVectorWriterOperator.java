@@ -26,6 +26,7 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.operator.DVPosition;
@@ -123,9 +124,9 @@ class DvOnlyDeletionVectorWriterOperator
 
   private void writeDeletionVectors(long checkpointId) {
     table.refresh();
+    Snapshot head = table.snapshot(branch);
     Map<String, DeleteFile> attachedVectors =
-        deletionVectorHelper.collectExistingDVs(
-            table.snapshot(branch), buffered, ThreadPools.getWorkerPool());
+        deletionVectorHelper.collectExistingDVs(head, buffered, ThreadPools.getWorkerPool());
     DeleteWriteResult result = deletionVectorHelper.write(fileFactory, buffered, attachedVectors);
     LOG.info(
         "Wrote {} deletion vector(s), superseding {}, for checkpoint {}",
@@ -139,10 +140,10 @@ class DvOnlyDeletionVectorWriterOperator
             .addRewrittenDeleteFiles(result.rewrittenDeleteFiles())
             .addReferencedDataFiles(result.referencedDataFiles())
             .build();
+    SinkWriteResult vectors =
+        SinkWriteResult.deletionVectors(writeResult, head != null ? head.snapshotId() : null);
     output.collect(
-        new StreamRecord<>(
-            new CommittableWithLineage<>(
-                new SinkWriteResult(writeResult), checkpointId, subtaskId)));
+        new StreamRecord<>(new CommittableWithLineage<>(vectors, checkpointId, subtaskId)));
   }
 
   @Override

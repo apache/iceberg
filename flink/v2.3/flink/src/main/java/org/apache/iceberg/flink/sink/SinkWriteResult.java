@@ -27,50 +27,57 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 /**
  * What a sink writer produced for one checkpoint: the files it created plus, when the sink resolves
- * equality deletes to deletion vectors itself, the unresolved deletes, the locations of the rows it
- * wrote and the positions of the rows it already knows to be deleted.
+ * equality deletes to deletion vectors itself, the unresolved deletes and the locations of the rows
+ * it wrote.
  *
  * <p>{@code deleteKeys} and {@code liveRows} are empty unless {@link
  * org.apache.iceberg.flink.FlinkWriteOptions#DV_ONLY_ENABLE} is set, so the default write path
  * carries no extra payload.
  *
- * <p>The DV-only write path also uses it downstream of the writer, to carry the deletion vectors it
- * writes as files, and to report the snapshot its primary key index reflects, see {@link
- * #baseline(Long)}.
+ * <p>The DV-only write path also uses it downstream of the writer, see {@link Kind}.
  */
 @Internal
 public class SinkWriteResult implements Serializable {
 
   private static final WriteResult EMPTY = WriteResult.builder().build();
 
+  enum Kind {
+    /** Files written by a sink writer, with the payload of the DV-only write path if any. */
+    WRITER,
+    /** No files, only the snapshot the primary key index reflected, see {@link #baseline}. */
+    BASELINE,
+    /** Deletion vectors and the snapshot they were merged with, see {@link #deletionVectors}. */
+    DELETION_VECTORS
+  }
+
+  private final Kind kind;
   private final WriteResult writeResult;
   private final List<SerializedEqualityValues> deleteKeys;
   private final List<PkIndexEntry> liveRows;
-  private final boolean baseline;
-  private final Long baselineSnapshotId;
+  private final Long snapshotId;
 
   public SinkWriteResult(WriteResult writeResult) {
-    this(writeResult, ImmutableList.of(), ImmutableList.of(), false, null);
+    this(writeResult, ImmutableList.of(), ImmutableList.of());
   }
 
   public SinkWriteResult(
       WriteResult writeResult,
       List<SerializedEqualityValues> deleteKeys,
       List<PkIndexEntry> liveRows) {
-    this(writeResult, deleteKeys, liveRows, false, null);
+    this(Kind.WRITER, writeResult, deleteKeys, liveRows, null);
   }
 
   private SinkWriteResult(
+      Kind kind,
       WriteResult writeResult,
       List<SerializedEqualityValues> deleteKeys,
       List<PkIndexEntry> liveRows,
-      boolean baseline,
-      Long baselineSnapshotId) {
+      Long snapshotId) {
+    this.kind = kind;
     this.writeResult = writeResult;
     this.deleteKeys = deleteKeys;
     this.liveRows = liveRows;
-    this.baseline = baseline;
-    this.baselineSnapshotId = baselineSnapshotId;
+    this.snapshotId = snapshotId;
   }
 
   /**
@@ -80,12 +87,23 @@ public class SinkWriteResult implements Serializable {
    * @param snapshotId the snapshot, or null when the branch had none
    */
   static SinkWriteResult baseline(Long snapshotId) {
-    return new SinkWriteResult(EMPTY, ImmutableList.of(), ImmutableList.of(), true, snapshotId);
+    return new SinkWriteResult(
+        Kind.BASELINE, EMPTY, ImmutableList.of(), ImmutableList.of(), snapshotId);
   }
 
-  /** Whether this result only reports the baseline snapshot, see {@link #baseline(Long)}. */
-  boolean isBaseline() {
-    return baseline;
+  /**
+   * Carries the deletion vectors written for a checkpoint, merged with the vectors their data files
+   * carried in the given snapshot.
+   *
+   * @param snapshotId the snapshot, or null when the branch had none
+   */
+  static SinkWriteResult deletionVectors(WriteResult result, Long snapshotId) {
+    return new SinkWriteResult(
+        Kind.DELETION_VECTORS, result, ImmutableList.of(), ImmutableList.of(), snapshotId);
+  }
+
+  Kind kind() {
+    return kind;
   }
 
   public WriteResult writeResult() {
@@ -106,10 +124,10 @@ public class SinkWriteResult implements Serializable {
   }
 
   /**
-   * Snapshot the primary key index reflected when this checkpoint's deletes were resolved, or null
-   * when the branch had none or this result does not carry one.
+   * The snapshot of a {@link Kind#BASELINE} or {@link Kind#DELETION_VECTORS} result, or null when
+   * the branch had none or the result is a {@link Kind#WRITER} one.
    */
-  Long baselineSnapshotId() {
-    return baselineSnapshotId;
+  Long snapshotId() {
+    return snapshotId;
   }
 }

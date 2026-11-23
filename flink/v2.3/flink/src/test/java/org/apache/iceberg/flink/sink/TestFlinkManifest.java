@@ -189,7 +189,8 @@ public class TestFlinkManifest {
             table.spec(),
             table.specs(),
             TableUtil.formatVersion(table),
-            42L);
+            42L,
+            List.of());
 
     assertThat(deltaManifests.deleteManifests())
         .extracting(ManifestFile::partitionSpecId)
@@ -226,6 +227,32 @@ public class TestFlinkManifest {
         .singleElement()
         .extracting(DeleteFile::location)
         .isEqualTo(replaced.location());
+  }
+
+  @Test
+  void keepsTheSnapshotsTheDeletionVectorsWereMergedWith() throws IOException {
+    ManifestOutputFileFactory factory =
+        FlinkManifestUtil.createOutputFileFactory(
+            () -> table, table.properties(), newFlinkJobId(), newOperatorUniqueId(), 1, 1);
+    DeltaManifests deltaManifests =
+        FlinkManifestUtil.writeCompletedFiles(
+            WriteResult.builder().build(),
+            () -> factory.create(1),
+            table.spec(),
+            table.specs(),
+            TableUtil.formatVersion(table),
+            42L,
+            Lists.newArrayList(7L, null));
+
+    DeltaManifests restored =
+        SimpleVersionedSerialization.readVersionAndDeSerialize(
+            DeltaManifestsSerializer.INSTANCE,
+            SimpleVersionedSerialization.writeVersionAndSerialize(
+                DeltaManifestsSerializer.DV_ONLY, deltaManifests));
+
+    assertThat(restored.attachedVectorsSnapshotIds())
+        .as("A null entry stands for a branch that had no snapshot")
+        .containsExactly(7L, null);
   }
 
   private DeleteFile metadataOnlyDelete(PartitionSpec spec, String partitionPath, String name) {

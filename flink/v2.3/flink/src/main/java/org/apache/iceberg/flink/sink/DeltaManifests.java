@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import java.util.Collections;
 import java.util.List;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.ManifestFile;
@@ -35,6 +36,7 @@ public class DeltaManifests {
   private final List<ManifestFile> rewrittenDeleteManifests;
   private final CharSequence[] referencedDataFiles;
   private final Long baselineSnapshotId;
+  private final List<Long> attachedVectorsSnapshotIds;
 
   DeltaManifests(ManifestFile dataManifest, ManifestFile deleteManifest) {
     this(dataManifest, deleteManifest, EMPTY_REF_DATA_FILES);
@@ -47,7 +49,8 @@ public class DeltaManifests {
         deleteManifest != null ? ImmutableList.of(deleteManifest) : ImmutableList.of(),
         ImmutableList.of(),
         referencedDataFiles,
-        null);
+        null,
+        ImmutableList.of());
   }
 
   DeltaManifests(
@@ -55,17 +58,23 @@ public class DeltaManifests {
       List<ManifestFile> deleteManifests,
       List<ManifestFile> rewrittenDeleteManifests,
       CharSequence[] referencedDataFiles,
-      Long baselineSnapshotId) {
+      Long baselineSnapshotId,
+      List<Long> attachedVectorsSnapshotIds) {
     Preconditions.checkNotNull(deleteManifests, "Delete manifests shouldn't be null.");
     Preconditions.checkNotNull(
         rewrittenDeleteManifests, "Rewritten delete manifests shouldn't be null.");
     Preconditions.checkNotNull(referencedDataFiles, "Referenced data files shouldn't be null.");
+    Preconditions.checkNotNull(
+        attachedVectorsSnapshotIds, "Attached vectors snapshot IDs shouldn't be null.");
 
     this.dataManifest = dataManifest;
     this.deleteManifests = ImmutableList.copyOf(deleteManifests);
     this.rewrittenDeleteManifests = ImmutableList.copyOf(rewrittenDeleteManifests);
     this.referencedDataFiles = referencedDataFiles;
     this.baselineSnapshotId = baselineSnapshotId;
+    // Holds null for a branch that had no snapshot, which immutable lists reject.
+    this.attachedVectorsSnapshotIds =
+        Collections.unmodifiableList(Lists.newArrayList(attachedVectorsSnapshotIds));
   }
 
   ManifestFile dataManifest() {
@@ -86,6 +95,10 @@ public class DeltaManifests {
 
   Long baselineSnapshotId() {
     return baselineSnapshotId;
+  }
+
+  List<Long> attachedVectorsSnapshotIds() {
+    return attachedVectorsSnapshotIds;
   }
 
   public List<ManifestFile> manifests() {

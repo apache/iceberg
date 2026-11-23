@@ -40,7 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  *
  * <ul>
  *   <li>Version 1: the {@link WriteResult} only, as {@link WriteResultSerializer} writes it. The
- *       default write path keeps writing this version, so that it stays readable by earlier
+ *       standard write path keeps writing this version, so that it stays readable by earlier
  *       releases, for instance from in-flight data of an unaligned checkpoint.
  *   <li>Version 2: the whole {@link SinkWriteResult}, written by the DV-only write path only. The
  *       rows refer to their data file by its index in a dictionary written ahead of them, so the
@@ -61,8 +61,8 @@ public class SinkWriteResultSerializer implements SimpleVersionedSerializer<Sink
     this.writeVersion = writeVersion;
   }
 
-  /** Serializer of the default write path, which only carries files. */
-  public static SinkWriteResultSerializer filesOnly() {
+  /** Serializer of the standard write path, which only carries the {@link WriteResult}. */
+  public static SinkWriteResultSerializer standard() {
     return new SinkWriteResultSerializer(VERSION_1);
   }
 
@@ -92,7 +92,9 @@ public class SinkWriteResultSerializer implements SimpleVersionedSerializer<Sink
 
   private static byte[] serializeV1(SinkWriteResult result) throws IOException {
     Preconditions.checkArgument(
-        result.deleteKeys().isEmpty() && result.liveRows().isEmpty() && !result.isBaseline(),
+        result.kind() == SinkWriteResult.Kind.WRITER
+            && result.deleteKeys().isEmpty()
+            && result.liveRows().isEmpty(),
         "Cannot serialize the payload of the DV-only write path as version %s",
         VERSION_1);
     return InstantiationUtil.serializeObject(result.writeResult());
@@ -106,17 +108,19 @@ public class SinkWriteResultSerializer implements SimpleVersionedSerializer<Sink
     ByteArrayOutputStream binaryOut = new ByteArrayOutputStream();
     DataOutputStream out = new DataOutputStream(binaryOut);
 
-    out.writeBoolean(result.isBaseline());
-    if (result.isBaseline()) {
-      Long snapshotId = result.baselineSnapshotId();
-      out.writeBoolean(snapshotId != null);
-      if (snapshotId != null) {
-        out.writeLong(snapshotId);
+    out.writeUTF(result.kind().name());
+    switch (result.kind()) {
+      case WRITER -> {
+        writeBytes(out, InstantiationUtil.serializeObject(result.writeResult()));
+        writeKeys(out, result.deleteKeys());
+        writeLiveRows(out, result.liveRows());
       }
-    } else {
-      writeBytes(out, InstantiationUtil.serializeObject(result.writeResult()));
-      writeKeys(out, result.deleteKeys());
-      writeLiveRows(out, result.liveRows());
+
+      case BASELINE -> writeSnapshotId(out, result.snapshotId());
+      case DELETION_VECTORS -> {
+        writeBytes(out, InstantiationUtil.serializeObject(result.writeResult()));
+        writeSnapshotId(out, result.snapshotId());
+      }
     }
 
     return binaryOut.toByteArray();
@@ -125,16 +129,32 @@ public class SinkWriteResultSerializer implements SimpleVersionedSerializer<Sink
   private static SinkWriteResult deserializeV2(byte[] serialized) throws IOException {
     DataInputStream in = new DataInputStream(new ByteArrayInputStream(serialized));
 
-    boolean baseline = in.readBoolean();
-    if (baseline) {
-      Long snapshotId = in.readBoolean() ? in.readLong() : null;
-      return SinkWriteResult.baseline(snapshotId);
-    }
+    SinkWriteResult.Kind kind = SinkWriteResult.Kind.valueOf(in.readUTF());
+    return switch (kind) {
+      case WRITER -> {
+        WriteResult writeResult = readWriteResult(readBytes(in));
+        List<SerializedEqualityValues> deleteKeys = readKeys(in);
+        List<PkIndexEntry> liveRows = readLiveRows(in);
+        yield new SinkWriteResult(writeResult, deleteKeys, liveRows);
+      }
 
-    WriteResult writeResult = readWriteResult(readBytes(in));
-    List<SerializedEqualityValues> deleteKeys = readKeys(in);
-    List<PkIndexEntry> liveRows = readLiveRows(in);
-    return new SinkWriteResult(writeResult, deleteKeys, liveRows);
+      case BASELINE -> SinkWriteResult.baseline(readSnapshotId(in));
+      case DELETION_VECTORS -> {
+        WriteResult writeResult = readWriteResult(readBytes(in));
+        yield SinkWriteResult.deletionVectors(writeResult, readSnapshotId(in));
+      }
+    };
+  }
+
+  private static void writeSnapshotId(DataOutputStream out, Long snapshotId) throws IOException {
+    out.writeBoolean(snapshotId != null);
+    if (snapshotId != null) {
+      out.writeLong(snapshotId);
+    }
+  }
+
+  private static Long readSnapshotId(DataInputStream in) throws IOException {
+    return in.readBoolean() ? in.readLong() : null;
   }
 
   private static void writeKeys(DataOutputStream out, List<SerializedEqualityValues> keys)

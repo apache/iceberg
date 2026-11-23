@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.runtime.checkpoint.CheckpointIDCounter;
 import org.apache.flink.runtime.state.StateInitializationContext;
@@ -38,6 +39,7 @@ import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,6 +65,9 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
 
   // Only reported when the sink resolves equality deletes itself, see SinkWriteResult#baseline.
   private Long baselineSnapshotId = null;
+
+  // Holds null for a branch that had no snapshot, see SinkWriteResult#deletionVectors.
+  private final Set<Long> attachedVectorsSnapshotIds = Sets.newHashSet();
 
   private transient ManifestOutputFileFactory icebergManifestOutputFileFactory;
   private transient Table table;
@@ -150,6 +155,7 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
     LOG.info("Emitted commit message to downstream committer operator");
     results.clear();
     baselineSnapshotId = null;
+    attachedVectorsSnapshotIds.clear();
   }
 
   /**
@@ -181,7 +187,8 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
             table.spec(),
             specsOf(result),
             TableUtil.formatVersion(table),
-            baselineSnapshotId);
+            baselineSnapshotId,
+            Lists.newArrayList(attachedVectorsSnapshotIds));
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.DV_ONLY, deltaManifests);
   }
@@ -204,13 +211,14 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
     if (element.isRecord() && element.getValue() instanceof CommittableWithLineage) {
       SinkWriteResult result =
           ((CommittableWithLineage<SinkWriteResult>) element.getValue()).getCommittable();
-      if (result.isBaseline()) {
-        // Carries no files, only the snapshot the deletes of this checkpoint were resolved against.
-        baselineSnapshotId = result.baselineSnapshotId();
-        return;
+      switch (result.kind()) {
+        case WRITER -> results.add(result.writeResult());
+        case BASELINE -> baselineSnapshotId = result.snapshotId();
+        case DELETION_VECTORS -> {
+          attachedVectorsSnapshotIds.add(result.snapshotId());
+          results.add(result.writeResult());
+        }
       }
-
-      results.add(result.writeResult());
     }
   }
 }

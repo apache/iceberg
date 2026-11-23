@@ -20,12 +20,20 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.Serializable;
 import java.util.List;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.flink.maintenance.operator.DVPosition;
 import org.apache.iceberg.flink.maintenance.operator.SerializedEqualityValues;
 
-record DvOnlyRecord(
+/**
+ * A record of the pre-commit topology of the DV-only write path.
+ *
+ * <p>Public so that Flink serializes it as a POJO rather than with Kryo. Rows carry their data file
+ * in {@link #position()} only, see {@link #dataFilePath()}.
+ */
+@Internal
+public record DvOnlyRecord(
     Type type,
     SerializedEqualityValues key,
     DVPosition position,
@@ -68,14 +76,7 @@ record DvOnlyRecord(
 
   static DvOnlyRecord addRow(PkIndexEntry entry, long checkpointId) {
     return new DvOnlyRecord(
-        Type.ADD_ROW,
-        entry.key(),
-        entry.position(),
-        entry.position().dataFilePath(),
-        null,
-        null,
-        checkpointId,
-        NO_GENERATION);
+        Type.ADD_ROW, entry.key(), entry.position(), null, null, null, checkpointId, NO_GENERATION);
   }
 
   static DvOnlyRecord bootstrapRow(PkIndexEntry entry) {
@@ -83,7 +84,7 @@ record DvOnlyRecord(
         Type.BOOTSTRAP_ROW,
         entry.key(),
         entry.position(),
-        entry.position().dataFilePath(),
+        null,
         null,
         null,
         NO_CHECKPOINT,
@@ -120,5 +121,9 @@ record DvOnlyRecord(
   static DvOnlyRecord cleanup(long generation, long committedCheckpointId) {
     return new DvOnlyRecord(
         Type.CLEANUP, null, null, null, null, null, committedCheckpointId, generation);
+  }
+
+  String dataFilePath() {
+    return position != null ? position.dataFilePath() : filePath;
   }
 }

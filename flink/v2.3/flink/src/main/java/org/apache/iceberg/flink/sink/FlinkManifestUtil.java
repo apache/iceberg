@@ -131,6 +131,8 @@ public class FlinkManifestUtil {
    * @param result the files of one checkpoint; the data files all belong to {@code dataSpec}
    * @param specsById every spec the delete files belong to
    * @param baselineSnapshotId snapshot the deletes were resolved against
+   * @param attachedVectorsSnapshotIds snapshots whose deletion vectors the written ones were merged
+   *     with, see {@link DeltaManifests#attachedVectorsSnapshotIds()}
    */
   static DeltaManifests writeCompletedFiles(
       WriteResult result,
@@ -138,7 +140,8 @@ public class FlinkManifestUtil {
       PartitionSpec dataSpec,
       Map<Integer, PartitionSpec> specsById,
       int formatVersion,
-      Long baselineSnapshotId)
+      Long baselineSnapshotId,
+      List<Long> attachedVectorsSnapshotIds)
       throws IOException {
     ManifestFile dataManifest = writeDataFiles(result, outputFileSupplier, dataSpec, formatVersion);
     List<ManifestFile> deleteManifests =
@@ -153,7 +156,8 @@ public class FlinkManifestUtil {
         deleteManifests,
         rewrittenDeleteManifests,
         result.referencedDataFiles(),
-        baselineSnapshotId);
+        baselineSnapshotId,
+        attachedVectorsSnapshotIds);
   }
 
   private static ManifestFile writeDataFiles(
