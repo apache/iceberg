@@ -235,32 +235,35 @@ public class TestAppend extends AdaptiveMetadataTestBase {
   @ValueSource(ints = {1, 2})
   void appendToTableUpgradedFromPreV3(int formatVersion) throws IOException {
     Table table = create("upgraded_table", SCHEMA, SPEC, formatVersion);
+    table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
     table.newAppend().appendFile(FILE_A).commit();
-    long preV3SnapshotId = table.currentSnapshot().snapshotId();
+    table.newAppend().appendFile(FILE_B).commit();
+
+    assertThat(table.currentSnapshot().allManifests(io)).hasSize(1);
     ManifestFile preV3Manifest = table.currentSnapshot().allManifests(io).get(0);
-    assertThat(preV3Manifest.firstRowId()).isNull();
 
     InMemoryTables.Table upgraded = upgrade("upgraded_table", 4);
     long firstRowId = upgraded.ops().current().nextRowId();
-    upgraded.newAppend().appendFile(FILE_B).commit();
+
+    upgraded.newAppend().commit();
     Snapshot snapshot = upgraded.currentSnapshot();
     assertThat(snapshot.firstRowId()).isEqualTo(firstRowId);
     assertThat(upgraded.ops().current().nextRowId())
-        .isEqualTo(firstRowId + FILE_B.recordCount() + preV3Manifest.addedRowsCount());
+        .isEqualTo(firstRowId + preV3Manifest.existingRowsCount() + preV3Manifest.addedRowsCount());
 
     List<TrackedFile> rootFiles = readRoot(upgraded, snapshot);
     validateFiles(
         rootFiles,
-        contents(FileContent.DATA, FileContent.DATA_MANIFEST),
-        dataSeqs(snapshot.sequenceNumber(), preV3Manifest.sequenceNumber()),
-        fileSeqs(snapshot.sequenceNumber(), preV3Manifest.sequenceNumber()),
-        ids(snapshot.snapshotId(), preV3SnapshotId),
-        locations(FILE_B.location(), preV3Manifest.path()),
-        statuses(EntryStatus.ADDED, EntryStatus.EXISTING));
+        contents(FileContent.DATA_MANIFEST),
+        dataSeqs(preV3Manifest.sequenceNumber()),
+        fileSeqs(preV3Manifest.sequenceNumber()),
+        ids(preV3Manifest.snapshotId()),
+        locations(preV3Manifest.path()),
+        statuses(EntryStatus.EXISTING));
 
     assertThat(rootFiles)
         .extracting(file -> file.tracking().firstRowId())
-        .containsExactly(firstRowId, firstRowId + FILE_B.recordCount());
+        .containsExactly(firstRowId);
   }
 
   @Test
