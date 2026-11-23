@@ -243,23 +243,28 @@ public class FlinkFilters {
       return false;
     }
 
-    if (fieldType == LogicalTypeRoot.BIGINT
-        && (literalType == LogicalTypeRoot.INTEGER
-            || literalType == LogicalTypeRoot.SMALLINT
-            || literalType == LogicalTypeRoot.TINYINT)) {
-      return false;
-    }
-
-    if (fieldType == LogicalTypeRoot.INTEGER
-        && (literalType == LogicalTypeRoot.SMALLINT || literalType == LogicalTypeRoot.TINYINT)) {
-      return false;
-    }
-
-    if (fieldType == LogicalTypeRoot.SMALLINT && literalType == LogicalTypeRoot.TINYINT) {
+    if (isSafeIntegerWidening(fieldType, literalType)) {
       return false;
     }
 
     return true;
+  }
+
+  private static boolean isSafeIntegerWidening(
+      LogicalTypeRoot fieldType, LogicalTypeRoot literalType) {
+    if (fieldType == LogicalTypeRoot.BIGINT) {
+      return literalType == LogicalTypeRoot.INTEGER
+          || literalType == LogicalTypeRoot.SMALLINT
+          || literalType == LogicalTypeRoot.TINYINT;
+    }
+
+    if (fieldType == LogicalTypeRoot.INTEGER) {
+      return literalType == LogicalTypeRoot.SMALLINT
+          || literalType == LogicalTypeRoot.TINYINT;
+    }
+
+    return fieldType == LogicalTypeRoot.SMALLINT
+        && literalType == LogicalTypeRoot.TINYINT;
   }
 
   private static boolean isNumeric(LogicalTypeRoot type) {
