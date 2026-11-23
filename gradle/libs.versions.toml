@@ -72,7 +72,7 @@ junit-pioneer = "2.3.0"
 kafka = "3.9.2"
 lz4Java = "1.14.0"
 microprofile-openapi-api = "4.2"
-mockito = "4.11.0"
+mockito = "5.24.0"
 mockserver = "5.15.0"
 nessie = "0.110.0"
 netty-buffer = "4.2.20.Final"
@@ -202,7 +202,6 @@ junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher
 junit-suite-api = { module = "org.junit.platform:junit-platform-suite-api", version.ref = "junit" }
 junit-suite-engine = { module = "org.junit.platform:junit-platform-suite-engine", version.ref = "junit" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
-mockito-inline = { module = "org.mockito:mockito-inline", version.ref = "mockito" }
 mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
 mockserver-netty = { module = "org.mock-server:mockserver-netty", version.ref = "mockserver" }
 nessie-jaxrs-testextension = { module = "org.projectnessie.nessie:nessie-jaxrs-testextension", version.ref = "nessie" }
