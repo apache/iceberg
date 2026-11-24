@@ -26,8 +26,8 @@ import org.apache.spark.sql.catalyst.analysis.IcebergAnalysisException
 import org.apache.spark.sql.catalyst.analysis.ResolvedIdentifier
 import org.apache.spark.sql.catalyst.analysis.ResolvedNamespace
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
-import org.apache.spark.sql.catalyst.plans.logical.ChangelogDistribution
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
+import org.apache.spark.sql.catalyst.plans.logical.ChangelogDistribution
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceBranch
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceTag
 import org.apache.spark.sql.catalyst.plans.logical.DescribeRelation
