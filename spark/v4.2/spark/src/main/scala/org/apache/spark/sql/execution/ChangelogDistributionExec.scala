@@ -47,8 +47,6 @@ case class ChangelogDistributionExec(keys: Seq[Expression], child: SparkPlan)
   override protected def withNewChildInternal(newChild: SparkPlan): SparkPlan =
     copy(child = newChild)
 
-  // An extra partition column can separate matching changelog rows, so only allow relaxed
-  // distribution matching when every partition column is a comparison key.
   private def safeGrouping(partitioning: Partitioning): Boolean = partitioning match {
     case p: KeyedPartitioning =>
       val partitionKeys = ExpressionSet(p.expressions.flatMap(_.collectLeaves()))
