@@ -41,6 +41,8 @@ import org.apache.iceberg.data.DeleteLoader;
 import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.formats.ReadBuilder;
@@ -79,7 +81,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
   // Generic records hold java.time values; the serializer expects Iceberg's internal
   // representation (e.g. days for DATE, micros for TIMESTAMP).
   private transient InternalRecordWrapper keyWrapper;
-  private transient DeleteLoader deleteLoader;
+  private transient EncryptingFileIO encryptingIO;
 
   public EqualityConvertReader(
       TableLoader tableLoader, Set<Integer> eqFieldIds, boolean stagingOnTargetBranch) {
@@ -107,7 +109,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
         eqFieldIds);
     fieldSerializer = new StructLikeSerializer();
     keyWrapper = new InternalRecordWrapper(keySchema.asStruct());
-    deleteLoader = new BaseDeleteLoader(deleteFile -> table.io().newInputFile(deleteFile));
+    encryptingIO = EncryptingFileIO.combine(table.io(), table.encryption());
   }
 
   @Override
@@ -152,7 +154,8 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
       throws IOException {
     ContentFile<?> file = task.file();
     Schema readSchema = appendRowPosition(keySchema);
-    PositionDeleteIndex existingDeletes = loadExistingDVs(task, file.location());
+    InputFilesDecryptor decryptor = InputFilesDecryptor.fromTasks(List.of(task), encryptingIO);
+    PositionDeleteIndex existingDeletes = loadExistingDVs(task, file.location(), decryptor);
 
     int specId = file.specId();
     StructLike partition = file.partition();
@@ -161,7 +164,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
     Types.StructType partitionType = task.spec().partitionType();
     byte[] partitionBytes = fieldSerializer.encodePartition(partition, partitionType);
 
-    InputFile input = table.io().newInputFile(file.location());
+    InputFile input = decryptor.getInputFile(file.location());
     ReadBuilder<Record, Schema> builder =
         FormatModelRegistry.readBuilder(file.format(), Record.class, input);
     try (CloseableIterable<Record> records =
@@ -219,7 +222,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
     // and may lack specs added after startup.
     int deleteSpecId = task.spec().isUnpartitioned() ? IndexCommand.GLOBAL_DELETE_SPEC_ID : specId;
 
-    InputFile input = table.io().newInputFile(file.location());
+    InputFile input = encryptingIO.newInputFile(task.file());
     ReadBuilder<Record, Schema> builder =
         FormatModelRegistry.readBuilder(file.format(), Record.class, input);
     try (CloseableIterable<Record> records = builder.project(keySchema).reuseContainers().build()) {
@@ -245,7 +248,8 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
     return new Schema(columns);
   }
 
-  private PositionDeleteIndex loadExistingDVs(FileScanTask task, String dataFilePath) {
+  private PositionDeleteIndex loadExistingDVs(
+      FileScanTask task, String dataFilePath, InputFilesDecryptor decryptor) {
     List<DeleteFile> dvs = Lists.newArrayList();
     for (DeleteFile deleteFile : task.deletes()) {
       if (ContentFileUtil.isDV(deleteFile)) {
@@ -273,6 +277,8 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
       return null;
     }
 
+    DeleteLoader deleteLoader =
+        new BaseDeleteLoader(deleteFile -> decryptor.getInputFile(deleteFile.location()));
     return deleteLoader.loadPositionDeletes(dvs, dataFilePath);
   }
 }
