@@ -369,6 +369,15 @@ class V4Metadata {
               assignedFirstRowId != null,
               "Missing first-row-id assignment for ADDED file: %s",
               file.location());
+        } else if (tracking.firstRowId() == null
+            && content == FileContent.DATA_MANIFEST
+            && tracking.status() == EntryStatus.EXISTING) {
+          // data manifests written before v3 have no first-row-id and are assigned one when
+          // they are first written to a root manifest
+          Preconditions.checkArgument(
+              assignedFirstRowId != null,
+              "Missing first-row-id assignment for EXISTING manifest: %s",
+              file.location());
         } else {
           Preconditions.checkArgument(
               tracking.firstRowId() != null,
