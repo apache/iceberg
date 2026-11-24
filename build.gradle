@@ -128,9 +128,6 @@ allprojects {
     }
     mavenCentral()
     mavenLocal()
-    maven {
-      url = uri("https://repository.apache.org/content/repositories/orgapachespark-1543/")
-    }
   }
 }
 
