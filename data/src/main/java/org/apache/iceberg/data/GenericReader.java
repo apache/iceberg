@@ -36,6 +36,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.PartitionUtil;
+import org.apache.iceberg.util.SerializableSupplier;
 
 class GenericReader implements Serializable {
   private final EncryptingFileIO io;
@@ -43,15 +44,18 @@ class GenericReader implements Serializable {
   private final Schema projection;
   private final boolean caseSensitive;
   private final boolean reuseContainers;
-  private final EqualityDeletes sharedEqDeletes;
+  private final SerializableSupplier<EqualityDeletes> sharedEqDeletesSupplier;
 
-  GenericReader(TableScan scan, boolean reuseContainers, boolean shareEqDeletes) {
+  GenericReader(
+      TableScan scan,
+      boolean reuseContainers,
+      SerializableSupplier<EqualityDeletes> sharedEqDeletesSupplier) {
     this.io = EncryptingFileIO.combine(scan.table().io(), scan.table().encryption());
     this.tableSchema = scan.table().schema();
     this.projection = scan.schema();
     this.caseSensitive = scan.isCaseSensitive();
     this.reuseContainers = reuseContainers;
-    this.sharedEqDeletes = shareEqDeletes ? new EqualityDeletes(scan.table().specs()) : null;
+    this.sharedEqDeletesSupplier = sharedEqDeletesSupplier;
   }
 
   CloseableIterator<Record> open(CloseableIterable<CombinedScanTask> tasks) {
@@ -62,7 +66,8 @@ class GenericReader implements Serializable {
     return new CombinedTaskIterable(task);
   }
 
-  private CloseableIterable<Record> open(FileScanTask task, InputFilesDecryptor decryptor) {
+  private CloseableIterable<Record> open(
+      FileScanTask task, InputFilesDecryptor decryptor, EqualityDeletes sharedEqDeletes) {
     DeleteFilter<Record> deletes =
         new GenericDeleteFilter(decryptor, task, sharedEqDeletes, tableSchema, projection);
     Schema readSchema = deletes.requiredSchema();
@@ -117,9 +122,11 @@ class GenericReader implements Serializable {
     @Override
     public CloseableIterator<Record> iterator() {
       InputFilesDecryptor decryptor = InputFilesDecryptor.fromTasks(task.files(), io);
+      EqualityDeletes sharedEqDeletes = sharedEqDeletesSupplier.get();
       CloseableIterator<Record> iter =
           CloseableIterable.concat(
-                  Iterables.transform(task.files(), fileTask -> open(fileTask, decryptor)))
+                  Iterables.transform(
+                      task.files(), fileTask -> open(fileTask, decryptor, sharedEqDeletes)))
               .iterator();
       addCloseable(iter);
       return iter;

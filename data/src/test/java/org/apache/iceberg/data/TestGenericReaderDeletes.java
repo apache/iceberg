@@ -42,9 +42,9 @@ public class TestGenericReaderDeletes extends DeleteReadTests {
   @TempDir private File tableDir;
 
   @Parameter(index = 2)
-  private boolean shareEqDeletes;
+  private boolean shareEqualityDeletes;
 
-  @Parameters(name = "fileFormat = {0}, formatVersion = {1}, shareEqDeletes = {2}")
+  @Parameters(name = "fileFormat = {0}, formatVersion = {1}, shareEqualityDeletes = {2}")
   public static Object[][] parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (Object[] params : DeleteReadTests.parameters()) {
@@ -69,7 +69,7 @@ public class TestGenericReaderDeletes extends DeleteReadTests {
     Types.StructType schema = table.schema().select(columns).asStruct();
     StructLikeSet set = StructLikeSet.create(schema);
     try (CloseableIterable<Record> reader =
-        new TableScanIterable(table.newScan().select(columns), false, shareEqDeletes)) {
+        new TableScanIterable(table.newScan().select(columns), false, shareEqualityDeletes)) {
       Iterables.addAll(
           set,
           CloseableIterable.transform(
