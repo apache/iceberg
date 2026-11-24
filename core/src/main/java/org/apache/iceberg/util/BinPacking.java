@@ -34,11 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class BinPacking {
 
-  /**
-   * Computes the weight an item contributes to a bin, with awareness of the bin's current contents.
-   * A new instance is created for each bin, allowing stateful deduplication of shared resources
-   * (e.g. equality delete files that apply to multiple data files in the same bin).
-   */
+  /** Computes the weight an item adds to a bin, given the items already in it. */
   interface BinWeighter<T> {
     /**
      * Returns the weight this item would add to the bin given its current contents. Must not modify
@@ -191,6 +187,7 @@ public class BinPacking {
     private final int lookback;
     private final long maxSize;
     private final Supplier<BinWeighter<T>> weighterSupplier;
+    private final StatelessBinWeighter<T> statelessWeighter;
     private final boolean largestBinFirst;
 
     private PackingIterator(
@@ -205,6 +202,8 @@ public class BinPacking {
       this.lookback = lookback;
       this.maxSize = maxSize;
       this.weighterSupplier = weighterSupplier;
+      this.statelessWeighter =
+          weighterSupplier instanceof StatelessBinWeighter<T> weighter ? weighter : null;
       this.largestBinFirst = largestBinFirst;
     }
 
@@ -218,14 +217,27 @@ public class BinPacking {
       while (items.hasNext()) {
         T item = items.next();
 
-        Bin<T> bin = findBin(item);
+        long weight = 0L;
+        Bin<T> bin = null;
+        if (statelessWeighter != null) {
+          weight = statelessWeighter.tentativeWeight(item);
+          bin = findBin(weight);
+        } else {
+          for (Bin<T> candidate : bins) {
+            weight = candidate.tentativeWeight(item);
+            if (candidate.canAdd(weight)) {
+              bin = candidate;
+              break;
+            }
+          }
+        }
 
         if (bin != null) {
-          bin.add(item);
+          bin.add(item, weight);
 
         } else {
           bin = newBin();
-          bin.add(item);
+          bin.add(item, statelessWeighter != null ? weight : bin.tentativeWeight(item));
           bins.addLast(bin);
 
           if (bins.size() > lookback) {
@@ -247,9 +259,9 @@ public class BinPacking {
       return ImmutableList.copyOf(bins.removeFirst().items());
     }
 
-    private Bin<T> findBin(T item) {
+    private Bin<T> findBin(long weight) {
       for (Bin<T> bin : bins) {
-        if (bin.canAdd(item)) {
+        if (bin.canAdd(weight)) {
           return bin;
         }
       }
@@ -291,12 +303,16 @@ public class BinPacking {
       return items;
     }
 
-    boolean canAdd(T item) {
-      return binWeight + weighter.tentativeWeight(item) <= targetWeight && binSize < maxSize;
+    long tentativeWeight(T item) {
+      return weighter.tentativeWeight(item);
     }
 
-    void add(T item) {
-      this.binWeight += weighter.tentativeWeight(item);
+    boolean canAdd(long weight) {
+      return binWeight + weight <= targetWeight && binSize < maxSize;
+    }
+
+    void add(T item, long weight) {
+      this.binWeight += weight;
       this.binSize++;
       items.add(item);
       weighter.commit(item);
