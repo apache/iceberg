@@ -24,7 +24,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.ScanTaskGroup;
@@ -112,12 +111,6 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         taskGroups(),
         projection,
         hashCode());
-  }
-
-  boolean hasOnlyInserts() {
-    return taskGroups().stream()
-        .flatMap(group -> group.tasks().stream())
-        .allMatch(task -> task.operation() == ChangelogOperation.INSERT);
   }
 
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups() {

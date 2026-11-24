@@ -25,16 +25,19 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.ChangelogIterator;
-import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
@@ -42,20 +45,17 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.OrderUtils;
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
-import org.apache.spark.sql.classic.SparkSession;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
 import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
 import org.apache.spark.sql.connector.read.Scan;
-import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.apache.spark.unsafe.types.UTF8String;
-import scala.collection.Seq;
 
 /**
  * A procedure that creates a view for changed rows.
@@ -172,12 +172,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
         "Identifier field is required as table contains unorderable columns: %s",
         unorderableColumnNames);
 
-    // Planning an unbounded range here would exclude snapshots committed before the view is read.
-    boolean canSkipProcessing =
-        !netChanges
-            && options.keySet().stream()
-                .anyMatch(SparkReadOptions.END_SNAPSHOT_ID::equalsIgnoreCase);
-    Dataset<Row> rawChanges = canSkipProcessing ? plannedRows(df) : df;
+    Dataset<Row> rawChanges = df;
 
     if (shouldComputeUpdateImages(input)) {
       Preconditions.checkArgument(!netChanges, "Not support net changes with update images");
@@ -186,11 +181,8 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
       df = removeCarryoverRows(rawChanges, netChanges);
     }
 
-    if (canSkipProcessing) {
-      df.queryExecution().assertAnalyzed();
-      if (hasOnlyInserts(rawChanges)) {
-        df = rawChanges;
-      }
+    if (!netChanges && hasOnlyAppends(tableIdent, options)) {
+      df = rawChanges;
     }
 
     String viewName = viewName(input, tableIdent.name());
@@ -347,15 +339,33 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return "CreateChangelogViewProcedure";
   }
 
-  private Dataset<Row> plannedRows(Dataset<Row> df) {
-    return org.apache.spark.sql.classic.Dataset.ofRows(
-        (SparkSession) spark(), df.queryExecution().optimizedPlan());
-  }
+  private boolean hasOnlyAppends(Identifier tableIdent, Map<String, String> options) {
+    Table table = loadSparkTable(tableIdent).table();
+    SparkReadConf readConf =
+        new SparkReadConf(spark(), table, new CaseInsensitiveStringMap(options));
+    Long endSnapshotId = readConf.endSnapshotId();
 
-  private boolean hasOnlyInserts(Dataset<Row> df) {
-    Seq<LogicalPlan> leaves = df.queryExecution().optimizedPlan().collectLeaves();
-    return leaves.size() == 1
-        && leaves.apply(0) instanceof DataSourceV2ScanRelation relation
-        && SparkChangelogTable.hasOnlyInserts(relation.scan());
+    // Unbounded and timestamp-based views may include snapshots committed after this call.
+    if (endSnapshotId == null
+        || readConf.startTimestamp() != null
+        || readConf.endTimestamp() != null) {
+      return false;
+    }
+
+    Long startSnapshotId = readConf.startSnapshotId();
+    if (table.snapshot(endSnapshotId) == null
+        || (startSnapshotId != null
+            && !SnapshotUtil.isParentAncestorOf(table, endSnapshotId, startSnapshotId))) {
+      return false;
+    }
+
+    for (Snapshot snapshot : SnapshotUtil.ancestorsBetween(table, endSnapshotId, startSnapshotId)) {
+      if (!DataOperations.APPEND.equals(snapshot.operation())
+          && !DataOperations.REPLACE.equals(snapshot.operation())) {
+        return false;
+      }
+    }
+
+    return true;
   }
 }
