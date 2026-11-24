@@ -27,6 +27,23 @@ import org.apache.iceberg.metrics.MetricsContext;
 class ADLSInputFile extends BaseADLSFile implements InputFile {
   private Long fileSize;
 
+  ADLSInputFile(String location, PrefixedADLSClient prefixedADLSClient, MetricsContext metrics) {
+    this(location, null, prefixedADLSClient, metrics);
+  }
+
+  ADLSInputFile(
+      String location,
+      Long fileSize,
+      PrefixedADLSClient prefixedADLSClient,
+      MetricsContext metrics) {
+    super(
+        location,
+        prefixedADLSClient.fileClient(location),
+        prefixedADLSClient.azureProperties(),
+        metrics);
+    this.fileSize = fileSize != null && fileSize > 0 ? fileSize : null;
+  }
+
   ADLSInputFile(
       String location,
       DataLakeFileClient fileClient,
