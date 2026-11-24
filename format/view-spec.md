@@ -145,6 +145,7 @@ For example:
 ```sql
 USE prod.default
 ```
+
 ```sql
 CREATE OR REPLACE VIEW event_agg (
     event_count COMMENT 'Count of events',
@@ -188,7 +189,6 @@ The table identifier for the storage table that stores the precomputed results.
 |-------------|----------------|-------------|
 | _required_  | `namespace`    | A list of strings for namespace levels |
 | _required_  | `name`         | A string specifying the name of the table |
-| _optional_  | `catalog`      | A string specifying the name of the catalog. When `null` or not set, the catalog in which the materialized view is stored is used |
 
 ### Storage table metadata
 
@@ -278,6 +278,7 @@ Imagine the following sequence of operations:
 ```sql
 USE prod.default
 ```
+
 ```sql
 CREATE OR REPLACE VIEW event_agg (
     event_count COMMENT 'Count of events',
@@ -297,6 +298,7 @@ The path is intentionally similar to the path for Iceberg tables and uses a `met
 ```
 s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
 ```
+
 ```json
 {
   "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
@@ -366,6 +368,7 @@ Updating the view produces a new metadata file that completely replaces the old:
 ```
 s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
 ```
+
 ```json
 {
   "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
