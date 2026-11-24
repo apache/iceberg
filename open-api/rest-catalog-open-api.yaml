@@ -4387,7 +4387,7 @@ components:
         Servers must populate `table-location` whenever `metadata.location` is absent.
 
 
-        When both `metadata.location` and `table-location` are present, `metadata.location` takes precedence.
+        Exactly one of `metadata.location` and `table-location` must be present.
 
 
         The `config` map returns table-specific configuration for the table's resources, including its HTTP client and FileIO. For example, config may contain a specific FileIO implementation class for the table depending on its underlying storage.
@@ -4704,7 +4704,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/TableLocation'
           description:
-            Follows the same presence and precedence rules as `table-location` in `LoadTableResult`.
+            Follows the same presence rules as `table-location` in `LoadTableResult`.
         metadata:
           $ref: '#/components/schemas/TableMetadata'
 
@@ -5484,7 +5484,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/TableLocation'
           description:
-            Follows the same presence and precedence rules as `table-location` in `LoadTableResult`.
+            Follows the same presence rules as `table-location` in `LoadTableResult`.
         metadata:
           $ref: '#/components/schemas/TableMetadata'
 

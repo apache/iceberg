@@ -2020,7 +2020,7 @@ class LoadTableResult(BaseModel):
     Servers must populate `table-location` whenever `metadata.location` is absent.
 
 
-    When both `metadata.location` and `table-location` are present, `metadata.location` takes precedence.
+    Exactly one of `metadata.location` and `table-location` must be present.
 
 
     The `config` map returns table-specific configuration for the table's resources, including its HTTP client and FileIO. For example, config may contain a specific FileIO implementation class for the table depending on its underlying storage.
@@ -2158,7 +2158,7 @@ class UnregisterTableResult(BaseModel):
     table_location: TableLocation | None = Field(
         None,
         alias='table-location',
-        description='Follows the same presence and precedence rules as `table-location` in `LoadTableResult`.',
+        description='Follows the same presence rules as `table-location` in `LoadTableResult`.',
     )
     metadata: TableMetadata
 
@@ -2354,7 +2354,7 @@ class CommitTableResponse(BaseModel):
     table_location: TableLocation | None = Field(
         None,
         alias='table-location',
-        description='Follows the same presence and precedence rules as `table-location` in `LoadTableResult`.',
+        description='Follows the same presence rules as `table-location` in `LoadTableResult`.',
     )
     metadata: TableMetadata
 
