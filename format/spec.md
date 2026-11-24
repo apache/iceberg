@@ -453,7 +453,7 @@ Struct evolution requires the following rules for default values:
 
 Columns in Iceberg data files are selected by field id. The table schema's column names and order may change after a data file is written, and projection must be done using field ids.
 
-Values for files with no field ids in a data file must be resolved according the following rules:
+In a data file with at least one field ID, fields without IDs, lists missing an element ID, and maps missing a key or value ID are treated as absent.
 
 Values for absent fields must be resolved according to the following rules:
 
