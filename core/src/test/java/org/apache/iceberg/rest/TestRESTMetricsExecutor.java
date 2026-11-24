@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.util;
+package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -26,12 +26,12 @@ import java.util.concurrent.ThreadPoolExecutor;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 
-class TestThreadPools {
+class TestRESTMetricsExecutor {
 
   @Test
-  void idleThreadsExit() {
+  void idleThreadExits() {
     ThreadPoolExecutor executor =
-        (ThreadPoolExecutor) ThreadPools.newFixedThreadPool("test", 1, Duration.ofMillis(10));
+        (ThreadPoolExecutor) RESTSessionCatalog.newMetricsExecutor(Duration.ofMillis(10));
     try {
       executor.execute(() -> {});
       Awaitility.await()
@@ -43,10 +43,10 @@ class TestThreadPools {
   }
 
   @Test
-  void threadsDoNotInheritThreadLocals() throws Exception {
+  void threadDoesNotInheritThreadLocals() throws Exception {
     InheritableThreadLocal<String> threadLocal = new InheritableThreadLocal<>();
     threadLocal.set("value");
-    ExecutorService executor = ThreadPools.newFixedThreadPool("test", 1, Duration.ofMinutes(1));
+    ExecutorService executor = RESTSessionCatalog.newMetricsExecutor(Duration.ofMinutes(1));
     try {
       assertThat(executor.submit(threadLocal::get).get()).isNull();
     } finally {
