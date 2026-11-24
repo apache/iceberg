@@ -231,24 +231,21 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
   }
 
   /**
-   * Commit the initial delta snapshot to iceberg transaction. It tries the snapshot starting from
-   * {@code startVersion} to {@code latestVersion} and commit the first constructable one.
+   * Commits the initial Delta snapshot to the Iceberg transaction. Tries snapshots starting from
+   * {@code startVersion} to {@code latestVersion} and commits the first constructable one.
    *
-   * <p>There are two cases that the delta snapshot is not constructable:
+   * <p>There are two cases where a Delta snapshot is not constructable:
    *
    * <ul>
    *   <li>the version is earlier than the earliest checkpoint
-   *   <li>the corresponding data files are deleted by {@code VACUUM}
+   *   <li>the corresponding data files were deleted by {@code VACUUM}
    * </ul>
    *
-   * <p>For more information, please refer to delta lake's <a
-   * href="https://docs.delta.io/latest/delta-batch.html#-data-retention">Data Retention</a>
-   *
-   * @param startVersion the earliest recreatable delta log version
-   * @param latestVersion the latest version of the delta lake table
-   * @param transaction the iceberg transaction
+   * @param startVersion the earliest recreatable Delta log version
+   * @param latestVersion the latest version of the Delta Lake table
+   * @param transaction the Iceberg transaction
    * @param processedDataFiles the set to collect processed data file paths
-   * @return the initial version of the delta lake table that is successfully committed to iceberg
+   * @return the initial version of the Delta Lake table committed to Iceberg
    */
   private long commitInitialDeltaSnapshotToIcebergTransaction(
       long startVersion,
@@ -348,14 +345,16 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
   }
 
   /**
-   * Convert each delta log {@code Row} iterator to Iceberg action and commit to the given {@code
-   * Transaction}. The complete <a
-   * href="https://github.com/delta-io/delta/blob/master/PROTOCOL.md#Actions">spec</a> of delta
-   * actions. <br>
-   * Supported:
-   * <li>Add
+   * Converts Delta log {@link Row} iterators into an Iceberg commit within the given {@link
+   * Transaction} according to the <a
+   * href="https://github.com/delta-io/delta/blob/master/PROTOCOL.md#Actions">Delta Transaction Log
+   * Protocol</a>.
    *
-   * @return commit timestamp
+   * @param deltaVersion the Delta log version being converted
+   * @param changes iterator of batches of Delta log action rows
+   * @param transaction the Iceberg transaction to commit to
+   * @param processedDataFiles the set to collect processed data file paths
+   * @return the commit timestamp from {@code commitInfo}, or {@code null} if not present
    */
   private Long commitDeltaRowsToIcebergTransaction(
       Long deltaVersion,
