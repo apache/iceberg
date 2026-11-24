@@ -133,6 +133,7 @@ public class VectorizedListReadBenchmark {
                 FileFormat.PARQUET,
                 ColumnarBatch.class,
                 org.apache.iceberg.Files.localInput(testFile))
+            .project(SCHEMA)
             .recordsPerBatch(BATCH_SIZE)
             .build()) {
       for (ColumnarBatch batch : batches) {
@@ -151,6 +152,7 @@ public class VectorizedListReadBenchmark {
   public void readRowByRow(Blackhole blackhole) throws IOException {
     try (CloseableIterable<Record> records =
         Parquet.read(org.apache.iceberg.Files.localInput(testFile))
+            .project(SCHEMA)
             .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(SCHEMA, fileSchema))
             .build()) {
       for (Record record : records) {

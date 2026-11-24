@@ -22,13 +22,21 @@ import java.util.Arrays;
 
 /** {@link NullabilityHolder} implementation that stores per-slot Parquet definition levels */
 final class DefinitionLevelHolder implements NullabilityHolder {
-  private final int[] definitionLevels;
+  private int[] definitionLevels;
   private final int nullThreshold;
   private int numNulls;
 
   DefinitionLevelHolder(int size, int nullThreshold) {
     this.definitionLevels = new int[size];
     this.nullThreshold = nullThreshold;
+  }
+
+  /** Grows the holder, keeping the stored levels, so that it can hold at least {@code size}. */
+  void ensureCapacity(int size) {
+    if (size > definitionLevels.length) {
+      this.definitionLevels =
+          Arrays.copyOf(definitionLevels, Math.max(size, definitionLevels.length * 2));
+    }
   }
 
   @Override

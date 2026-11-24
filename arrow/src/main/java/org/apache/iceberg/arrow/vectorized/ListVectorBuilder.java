@@ -20,9 +20,12 @@ package org.apache.iceberg.arrow.vectorized;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.BaseFixedWidthVector;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
@@ -53,13 +56,14 @@ class ListVectorBuilder implements AutoCloseable {
 
   private ListVector listVector;
   private int[] listRepetitionLevels;
-  private NullabilityHolder nullabilityHolder;
+  private DefinitionLevelHolder nullabilityHolder;
 
   // Per-batch state; reset by prepareBatch().
   private int listIndex;
   private int listSize;
   private int listDefinitionLevel;
   private int elementIndex;
+  private boolean fixedWidthElements;
 
   ListVectorBuilder(
       Types.NestedField icebergField,
@@ -78,19 +82,17 @@ class ListVectorBuilder implements AutoCloseable {
    * the {@link NullabilityHolder}, and resets all per-batch counters.
    *
    * @param numRowsToRead upper bound on top-level list rows this batch may produce
-   * @param estimatedSize estimated total number of lists in this batch (from the Parquet
-   *     repetition-level histogram); used to size the nullability holder and repetition-level
-   *     vector
+   * @param batchSize number of elements to read from the elements vector at once
    */
-  void prepareBatch(int numRowsToRead, int estimatedSize) {
-    if (nullabilityHolder == null || nullabilityHolder.size() < estimatedSize) {
-      this.nullabilityHolder = new DefinitionLevelHolder(estimatedSize, nullThreshold);
+  void prepareBatch(int numRowsToRead, int batchSize) {
+    if (nullabilityHolder == null || nullabilityHolder.size() < batchSize) {
+      this.nullabilityHolder = new DefinitionLevelHolder(batchSize, nullThreshold);
     } else {
       nullabilityHolder.reset();
     }
 
-    if (listRepetitionLevels == null || listRepetitionLevels.length < estimatedSize) {
-      this.listRepetitionLevels = new int[estimatedSize];
+    if (listRepetitionLevels == null || listRepetitionLevels.length < batchSize) {
+      this.listRepetitionLevels = new int[batchSize];
     }
 
     if (listVector != null) {
@@ -103,10 +105,23 @@ class ListVectorBuilder implements AutoCloseable {
       listVector.allocateNew();
     }
 
+    this.fixedWidthElements = listVector.getDataVector() instanceof BaseFixedWidthVector;
     this.listIndex = -1;
     this.listSize = 0;
     this.listDefinitionLevel = -1;
     this.elementIndex = 0;
+  }
+
+  boolean hasFixedWidthElements() {
+    return fixedWidthElements;
+  }
+
+  void ensureAdditionalElementCapacity(int additionalElements) {
+    FieldVector elementVector = listVector.getDataVector();
+    int required = elementIndex + additionalElements;
+    while (elementVector.getValueCapacity() < required) {
+      elementVector.reAlloc();
+    }
   }
 
   /**
@@ -118,11 +133,25 @@ class ListVectorBuilder implements AutoCloseable {
     this.listIndex++;
     this.listSize = 0;
     listVector.startNewValue(listIndex);
+    // A nested list opens a new list for every repetition level below its own, so the number of
+    // lists in a batch is not bounded by the batch size.
+    if (listIndex >= listRepetitionLevels.length) {
+      this.listRepetitionLevels =
+          Arrays.copyOf(listRepetitionLevels, Math.max(listIndex + 1, listIndex * 2));
+    }
+
+    nullabilityHolder.ensureCapacity(listIndex + 1);
     listRepetitionLevels[listIndex] = elementRepetitionLevel;
   }
 
   public void writeNull() {
-    listVector.getDataVector().setNull(elementIndex);
+    FieldVector elementVector = listVector.getDataVector();
+    if (fixedWidthElements) {
+      BitVectorHelper.unsetBit(elementVector.getValidityBuffer(), elementIndex);
+    } else {
+      elementVector.setNull(elementIndex);
+    }
+
     this.listSize++;
     this.elementIndex++;
   }
@@ -142,7 +171,12 @@ class ListVectorBuilder implements AutoCloseable {
   void writeNonNullElement(VectorHolder sourceBatch, int sourceOffset) {
     FieldVector targetVector = listVector.getDataVector();
     if (!sourceBatch.isDictionaryEncoded()) {
-      targetVector.copyFromSafe(sourceOffset, elementIndex, sourceBatch.vector());
+      if (fixedWidthElements) {
+        targetVector.copyFrom(sourceOffset, elementIndex, sourceBatch.vector());
+      } else {
+        targetVector.copyFromSafe(sourceOffset, elementIndex, sourceBatch.vector());
+      }
+
       this.listSize++;
       this.elementIndex++;
       return;
@@ -160,19 +194,18 @@ class ListVectorBuilder implements AutoCloseable {
       }
 
       // The child vector is always allocated as BigIntVector for Iceberg timestamp types.
-      ((BigIntVector) targetVector).setSafe(elementIndex, micros);
+      ((BigIntVector) targetVector).set(elementIndex, micros);
       return;
     }
 
     switch (primitive.getPrimitiveTypeName()) {
-      case INT32 ->
-          ((IntVector) targetVector).setSafe(elementIndex, dictionary.decodeToInt(dictId));
+      case INT32 -> ((IntVector) targetVector).set(elementIndex, dictionary.decodeToInt(dictId));
       case INT64 ->
-          ((BigIntVector) targetVector).setSafe(elementIndex, dictionary.decodeToLong(dictId));
+          ((BigIntVector) targetVector).set(elementIndex, dictionary.decodeToLong(dictId));
       case FLOAT ->
-          ((Float4Vector) targetVector).setSafe(elementIndex, dictionary.decodeToFloat(dictId));
+          ((Float4Vector) targetVector).set(elementIndex, dictionary.decodeToFloat(dictId));
       case DOUBLE ->
-          ((Float8Vector) targetVector).setSafe(elementIndex, dictionary.decodeToDouble(dictId));
+          ((Float8Vector) targetVector).set(elementIndex, dictionary.decodeToDouble(dictId));
       case BINARY -> {
         ByteBuffer buffer = dictionary.decodeToBinary(dictId).toByteBuffer();
         ((BaseVariableWidthVector) targetVector)
@@ -183,13 +216,12 @@ class ListVectorBuilder implements AutoCloseable {
         byte[] bytes = dictionary.decodeToBinary(dictId).getBytesUnsafe();
         byte[] slot = new byte[fixed.getByteWidth()];
         System.arraycopy(bytes, 0, slot, 0, fixed.getByteWidth());
-        fixed.setSafe(elementIndex, slot);
+        fixed.set(elementIndex, slot);
       }
       case INT96 -> {
         ByteBuffer int96 =
             dictionary.decodeToBinary(dictId).toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-        ((BigIntVector) targetVector)
-            .setSafe(elementIndex, ParquetUtil.extractTimestampInt96(int96));
+        ((BigIntVector) targetVector).set(elementIndex, ParquetUtil.extractTimestampInt96(int96));
       }
       default ->
           throw new UnsupportedOperationException(

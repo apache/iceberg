@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.arrow.vectorized;
 
-import java.util.List;
 import java.util.Map;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.parquet.TripleIterator;
@@ -86,6 +85,7 @@ public class VectorizedListReader extends VectorizedArrowReader {
   @Override
   public VectorHolder read(VectorHolder reuse, int numRowsToRead) {
     listBuilder.prepareBatch(numRowsToRead, batchSize);
+    elements.reserveCapacity();
     int rowsRemaining = numRowsToRead;
 
     while (rowsRemaining > 0 && elements.hasNext()) {
@@ -201,6 +201,29 @@ public class VectorizedListReader extends VectorizedArrowReader {
       this.currentBatch = elementReader.read(currentBatch, batchSize);
       this.currentBatchSize = currentBatch.numValues();
       this.currentOffset = 0;
+      reserveCapacity();
+    }
+
+    /**
+     * Reserves capacity in the list builder for every element that the unread triples of the
+     * current batch will write, so the builder can use unchecked writes.
+     */
+    public void reserveCapacity() {
+      if (currentBatch == null || !listBuilder.hasFixedWidthElements()) {
+        return;
+      }
+
+      NullabilityHolder definitionLevels = currentBatch.nullabilityHolder();
+      int nullElementDefinitionLevel = isElementRequired ? -1 : definitionLevel - 1;
+      int elementCount = 0;
+      for (int i = currentOffset; i < currentBatchSize; i += 1) {
+        int level = definitionLevels.definitionLevelAt(i);
+        if (level >= definitionLevel || level == nullElementDefinitionLevel) {
+          elementCount++;
+        }
+      }
+
+      listBuilder.ensureAdditionalElementCapacity(elementCount);
     }
   }
 }
