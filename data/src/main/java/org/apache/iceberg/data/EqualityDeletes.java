@@ -24,12 +24,12 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PartitionMap;
 import org.apache.iceberg.util.StructLikeMap;
 
+/** Equality deletes loaded once and shared by the data files of a task. Not thread-safe. */
 public class EqualityDeletes {
   private final Set<String> loadedEqDeletes;
   private final PartitionMap<Map<Set<Integer>, StructLikeMap<Long>>> sharedEqDeletes;
@@ -39,17 +39,17 @@ public class EqualityDeletes {
     this.sharedEqDeletes = PartitionMap.create(specs);
   }
 
-  public boolean contains(DeleteFile deleteFile) {
+  boolean contains(DeleteFile deleteFile) {
     return deleteFile.location() != null && loadedEqDeletes.contains(deleteFile.location());
   }
 
-  public StructLikeMap<Long> get(DeleteFile deleteFile, Set<Integer> ids) {
-    final Map<Set<Integer>, StructLikeMap<Long>> deleteMaps =
+  StructLikeMap<Long> get(DeleteFile deleteFile, Set<Integer> ids) {
+    Map<Set<Integer>, StructLikeMap<Long>> deleteMaps =
         sharedEqDeletes.get(deleteFile.specId(), deleteFile.partition());
     return deleteMaps == null ? null : deleteMaps.get(ids);
   }
 
-  public StructLikeMap<Long> merge(
+  StructLikeMap<Long> merge(
       DeleteFile deleteFile,
       Set<Integer> ids,
       Schema deleteSchema,
@@ -57,12 +57,9 @@ public class EqualityDeletes {
     if (deleteFile.location() != null && !loadedEqDeletes.add(deleteFile.location())) {
       return get(deleteFile, ids);
     }
-    Preconditions.checkArgument(
-        deleteFile.dataSequenceNumber() != null,
-        "Equality delete file has no data sequence number: %s",
-        deleteFile.location());
+
     long deleteSequenceNumber = deleteFile.dataSequenceNumber();
-    final StructLikeMap<Long> deleteMap =
+    StructLikeMap<Long> deleteMap =
         sharedEqDeletes
             .computeIfAbsent(deleteFile.specId(), deleteFile.partition(), Maps::newHashMap)
             .computeIfAbsent(ids, key -> StructLikeMap.create(deleteSchema.asStruct()));

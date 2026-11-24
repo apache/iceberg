@@ -38,7 +38,7 @@ public class GenericDeleteFilter extends DeleteFilter<Record> {
   @Deprecated
   public GenericDeleteFilter(
       FileIO io, FileScanTask task, Schema tableSchema, Schema requestedSchema) {
-    this(io::newInputFile, task, tableSchema, requestedSchema);
+    this(io::newInputFile, task, tableSchema, requestedSchema, null);
   }
 
   public GenericDeleteFilter(
@@ -46,35 +46,33 @@ public class GenericDeleteFilter extends DeleteFilter<Record> {
       FileScanTask task,
       Schema tableSchema,
       Schema requestedSchema) {
-    this(decryptor::getInputFile, task, tableSchema, requestedSchema);
+    this(decryptor::getInputFile, task, tableSchema, requestedSchema, null);
+  }
+
+  GenericDeleteFilter(
+      InputFilesDecryptor decryptor,
+      FileScanTask task,
+      Schema tableSchema,
+      Schema requestedSchema,
+      EqualityDeletes sharedEqDeletes) {
+    this(decryptor::getInputFile, task, tableSchema, requestedSchema, sharedEqDeletes);
   }
 
   private GenericDeleteFilter(
       Function<String, InputFile> inputFileProvider,
       FileScanTask task,
       Schema tableSchema,
-      Schema requestedSchema) {
-    super(task.file().location(), task.deletes(), tableSchema, requestedSchema);
-    this.inputFileProvider = inputFileProvider;
-    this.asStructLike = new InternalRecordWrapper(requiredSchema().asStruct());
-  }
-
-  public GenericDeleteFilter(
-      InputFilesDecryptor decryptor,
-      FileScanTask task,
-      EqualityDeletes sharedEqDeletes,
-      Schema tableSchema,
-      Schema requestedSchema) {
+      Schema requestedSchema,
+      EqualityDeletes sharedEqDeletes) {
     super(
         task.file().location(),
-        task.file().dataSequenceNumber(),
         task.deletes(),
         sharedEqDeletes,
         tableSchema::findField,
         requestedSchema,
         new DeleteCounter(),
         true);
-    this.inputFileProvider = decryptor::getInputFile;
+    this.inputFileProvider = inputFileProvider;
     this.asStructLike = new InternalRecordWrapper(requiredSchema().asStruct());
   }
 

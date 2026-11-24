@@ -69,7 +69,7 @@ class GenericReader implements Serializable {
   private CloseableIterable<Record> open(
       FileScanTask task, InputFilesDecryptor decryptor, EqualityDeletes sharedEqDeletes) {
     DeleteFilter<Record> deletes =
-        new GenericDeleteFilter(decryptor, task, sharedEqDeletes, tableSchema, projection);
+        new GenericDeleteFilter(decryptor, task, tableSchema, projection, sharedEqDeletes);
     Schema readSchema = deletes.requiredSchema();
 
     CloseableIterable<Record> records = openFile(task, readSchema, decryptor);

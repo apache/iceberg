@@ -119,9 +119,8 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
     InputFile inputFile = getInputFile(filePath);
     Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with FileScanTask");
 
-    Long fileSeq = task.file().dataSequenceNumber();
     SparkDeleteFilter deleteFilter =
-        new SparkDeleteFilter(filePath, fileSeq, task.deletes(), sharedEqDeletes, counter(), true);
+        new SparkDeleteFilter(filePath, task.deletes(), sharedEqDeletes, counter(), true);
 
     Map<Integer, ?> idToConstant = constantsMap(task, deleteFilter.requiredSchema());
 
