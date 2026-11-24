@@ -1091,12 +1091,19 @@ paths:
         Load a table from the catalog.
 
 
+        Servers MUST NOT return format version 4+ tables from this endpoint.
+        A request to load a format version 4+ table fails with a 422 `UnsupportedTableFormatVersionException`; clients must load v4+ tables through the `/v2` endpoint.
+
+
         The response contains both configuration and table metadata. The configuration, if non-empty is used
         as additional configuration for the table that overrides catalog configuration. For example, this
         configuration may change the FileIO implementation to be used for the table.
 
 
         The response also contains the table's full metadata, matching the table metadata JSON file.
+
+
+        If the `snapshots` query parameter is not provided, it defaults to `all`.
 
 
         The catalog configuration may contain credentials that should be used for subsequent requests for the
@@ -1115,27 +1122,8 @@ paths:
         authenticated scope.
       parameters:
         - $ref: '#/components/parameters/data-access'
-        - name: If-None-Match
-          in: header
-          description:
-            An optional header that allows the server to return 304 (Not Modified) if the metadata
-            is current. The content is the value of the ETag received in a CreateTableResponse,
-            LoadTableResponse or CommitTableResponse.
-          required: false
-          schema:
-            type: string
-        - in: query
-          name: snapshots
-          description:
-            The snapshots to return in the body of the metadata via the `snapshots` field. Setting
-            the value to `all` would return the full set of snapshots currently valid for the table.
-            Setting the value to `refs` would load all snapshots referenced by branches or tags.
-
-            Default if no param is provided is `all`.
-          required: false
-          schema:
-            type: string
-            enum: [ all, refs ]
+        - $ref: '#/components/parameters/if-none-match'
+        - $ref: '#/components/parameters/snapshots'
         - $ref: '#/components/parameters/referenced-by'
       responses:
         200:
@@ -1160,6 +1148,16 @@ paths:
               examples:
                 TableToLoadDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
+        422:
+          description:
+            Unprocessable Entity - The table is at format version 4+, which this endpoint does not serve.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                UnsupportedTableFormatVersion:
+                  $ref: '#/components/examples/UnsupportedTableFormatVersionError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -1347,6 +1345,62 @@ paths:
         404:
           description:
             Not Found - NoSuchTableException, Table not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableToLoadDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v2/{prefix}/namespaces/{namespace}/tables/{table}:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+
+    get:
+      tags:
+        - Catalog API
+      summary: Load a table from the catalog
+      operationId: loadTableV2
+      description:
+        Load a table from the catalog.
+
+
+        The response contains the table's metadata and table-specific configuration.
+        This endpoint may return tables at any format version, including format version 4.
+        Clients that support format version 4 should load tables through this endpoint.
+
+
+        If the `snapshots` query parameter is not provided, it defaults to `all`.
+      parameters:
+        - $ref: '#/components/parameters/data-access'
+        - $ref: '#/components/parameters/if-none-match'
+        - $ref: '#/components/parameters/snapshots'
+        - $ref: '#/components/parameters/referenced-by'
+      responses:
+        200:
+          $ref: '#/components/responses/LoadTableResponse'
+        304:
+          description:
+            Not Modified - Based on the content of the 'If-None-Match' header the table metadata has
+            not changed since.
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchTableException, table to load does not exist
           content:
             application/json:
               schema:
@@ -2286,6 +2340,28 @@ components:
       schema:
         type: string
 
+    if-none-match:
+      name: If-None-Match
+      in: header
+      description:
+        An optional header that allows the server to return 304 (Not Modified) if the metadata
+        is current. The content is the value of the ETag received in a response header.
+      required: false
+      schema:
+        type: string
+
+    snapshots:
+      name: snapshots
+      in: query
+      description:
+        The snapshots to return in the body of the metadata via the `snapshots` field. Setting
+        the value to `all` would return the full set of snapshots currently valid for the table.
+        Setting the value to `refs` would load all snapshots referenced by branches or tags.
+      required: false
+      schema:
+        type: string
+        enum: [ all, refs ]
+
     idempotency-key:
       name: Idempotency-Key
       in: header
@@ -3015,12 +3091,17 @@ components:
             type: string
 
     Snapshot:
+      description: A snapshot has exactly one of `manifest-list` or `root-manifest`.
       type: object
       required:
         - snapshot-id
         - timestamp-ms
-        - manifest-list
         - summary
+      oneOf:
+        - required:
+            - manifest-list
+        - required:
+            - root-manifest
       properties:
         snapshot-id:
           type: integer
@@ -3037,6 +3118,9 @@ components:
         manifest-list:
           type: string
           description: Location of the snapshot's manifest list file
+        root-manifest:
+          type: string
+          description: Location of the snapshot's root manifest
         first-row-id:
           type: integer
           format: int64
@@ -3122,7 +3206,7 @@ components:
         format-version:
           type: integer
           minimum: 1
-          maximum: 3
+          maximum: 4
         table-uuid:
           type: string
         location:
@@ -4270,13 +4354,37 @@ components:
           items:
             $ref: '#/components/schemas/FieldLabels'
 
+    TableLocation:
+      type: string
+      description:
+        The table's base location, used to resolve relative paths in metadata.
+        Must be an absolute location with a URI scheme.
+
     LoadTableResult:
       description: |
         Result used when a table is successfully loaded.
 
 
-        The table metadata JSON is returned in the `metadata` field. The corresponding file location of table metadata should be returned in the `metadata-location` field, unless the metadata is not yet committed. For example, a create transaction may return metadata that is staged but not committed.
-        Clients can check whether metadata has changed by comparing metadata locations after the table has been created.
+        The table metadata JSON is returned in the `metadata` field.
+        The location of the table metadata file is returned in the `metadata-location` field when the table has one, and the table's base location in the `table-location` field.
+
+
+        ## Metadata location
+
+
+        The `metadata-location` field is optional.
+        It is absent when the metadata is staged but not committed, as in a create transaction, and when the table has no client-visible metadata location.
+
+
+        When present, clients can check whether metadata has changed by comparing metadata locations.
+
+
+        ## Table location
+
+
+        The `table-location` field carries the table's base location.
+        Format version 4 allows location fields in metadata to be relative and makes `metadata.location` optional.
+        Exactly one of `metadata.location` and `table-location` must be present.
 
 
         The `config` map returns table-specific configuration for the table's resources, including its HTTP client and FileIO. For example, config may contain a specific FileIO implementation class for the table depending on its underlying storage.
@@ -4317,7 +4425,6 @@ components:
          - `signer.uri` **DEPRECATED**.: the base URI to resolve `signer.endpoint` against. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
         If any of these properties is present, clients SHOULD use them to compute the actual remote signing endpoint URI to contact.
         If none of these properties is present, clients SHOULD contact the default remote signing endpoint using the catalog's base URI.
-
       type: object
       required:
         - metadata
@@ -4326,6 +4433,8 @@ components:
           type: string
           description: May be null if the table is staged as part of a transaction
           nullable: true
+        table-location:
+          $ref: '#/components/schemas/TableLocation'
         metadata:
           $ref: '#/components/schemas/TableMetadata'
         config:
@@ -4588,6 +4697,11 @@ components:
           type: string
           description:
             The last metadata location for the table at the time it was unregistered.
+        table-location:
+          allOf:
+            - $ref: '#/components/schemas/TableLocation'
+          description:
+            Follows the same presence rules as `table-location` in `LoadTableResult`.
         metadata:
           $ref: '#/components/schemas/TableMetadata'
 
@@ -5358,11 +5472,16 @@ components:
     CommitTableResponse:
       type: object
       required:
-        - metadata-location
         - metadata
       properties:
         metadata-location:
           type: string
+          description: Location of the committed table metadata file.
+        table-location:
+          allOf:
+            - $ref: '#/components/schemas/TableLocation'
+          description:
+            Follows the same presence rules as `table-location` in `LoadTableResult`.
         metadata:
           $ref: '#/components/schemas/TableMetadata'
 
@@ -6221,7 +6340,7 @@ components:
       description:
         Response used when a table is successfully updated.
 
-        The table metadata JSON is returned in the metadata field. The corresponding file location of table metadata must be returned in the metadata-location field. Clients can check whether metadata has changed by comparing metadata locations.
+        The table metadata JSON is returned in the metadata field. The corresponding file location of table metadata is returned in the metadata-location field when the table has one. Clients can check whether metadata has changed by comparing metadata locations.
       content:
         application/json:
           schema:
@@ -6341,6 +6460,16 @@ components:
           "message": "The given table does not exist",
           "type": "NoSuchTableException",
           "code": 404
+        }
+      }
+
+    UnsupportedTableFormatVersionError:
+      summary: A format version 4 table was requested through the v1 loadTable endpoint
+      value: {
+        "error": {
+          "message": "Cannot load format version 4 table through /v1: use the /v2 loadTable endpoint",
+          "type": "UnsupportedTableFormatVersionException",
+          "code": 422
         }
       }
 

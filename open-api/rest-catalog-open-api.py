@@ -330,7 +330,11 @@ class Summary(BaseModel):
     operation: Literal['append', 'replace', 'overwrite', 'delete']
 
 
-class Snapshot(BaseModel):
+class Snapshot1(BaseModel):
+    """
+    A snapshot has exactly one of `manifest-list` or `root-manifest`.
+    """
+
     snapshot_id: int = Field(..., alias='snapshot-id')
     parent_snapshot_id: int | None = Field(None, alias='parent-snapshot-id')
     sequence_number: int | None = Field(None, alias='sequence-number')
@@ -339,6 +343,11 @@ class Snapshot(BaseModel):
         ...,
         alias='manifest-list',
         description="Location of the snapshot's manifest list file",
+    )
+    root_manifest: str | None = Field(
+        None,
+        alias='root-manifest',
+        description="Location of the snapshot's root manifest",
     )
     first_row_id: int | None = Field(
         None,
@@ -352,6 +361,46 @@ class Snapshot(BaseModel):
     )
     summary: Summary
     schema_id: int | None = Field(None, alias='schema-id')
+
+
+class Snapshot2(BaseModel):
+    """
+    A snapshot has exactly one of `manifest-list` or `root-manifest`.
+    """
+
+    snapshot_id: int = Field(..., alias='snapshot-id')
+    parent_snapshot_id: int | None = Field(None, alias='parent-snapshot-id')
+    sequence_number: int | None = Field(None, alias='sequence-number')
+    timestamp_ms: int = Field(..., alias='timestamp-ms')
+    manifest_list: str | None = Field(
+        None,
+        alias='manifest-list',
+        description="Location of the snapshot's manifest list file",
+    )
+    root_manifest: str = Field(
+        ...,
+        alias='root-manifest',
+        description="Location of the snapshot's root manifest",
+    )
+    first_row_id: int | None = Field(
+        None,
+        alias='first-row-id',
+        description='The first _row_id assigned to the first row in the first data file in the first manifest',
+    )
+    added_rows: int | None = Field(
+        None,
+        alias='added-rows',
+        description='The upper bound of the number of rows with assigned row IDs',
+    )
+    summary: Summary
+    schema_id: int | None = Field(None, alias='schema-id')
+
+
+class Snapshot(RootModel[Snapshot1 | Snapshot2]):
+    root: Snapshot1 | Snapshot2 = Field(
+        ...,
+        description='A snapshot has exactly one of `manifest-list` or `root-manifest`.',
+    )
 
 
 class SnapshotReference(BaseModel):
@@ -837,6 +886,13 @@ class Labels(BaseModel):
     fields: list[FieldLabels] | None = Field(
         None,
         description='Field-level labels. Each entry identifies its field by field-id.',
+    )
+
+
+class TableLocation(RootModel[str]):
+    root: str = Field(
+        ...,
+        description="The table's base location, used to resolve relative paths in metadata. Must be an absolute location with a URI scheme.",
     )
 
 
@@ -1851,7 +1907,7 @@ class Apply(BaseModel):
 
 
 class TableMetadata(BaseModel):
-    format_version: int = Field(..., alias='format-version', ge=1, le=3)
+    format_version: int = Field(..., alias='format-version', ge=1, le=4)
     table_uuid: str = Field(..., alias='table-uuid')
     location: str | None = None
     last_updated_ms: int | None = Field(None, alias='last-updated-ms')
@@ -1942,8 +1998,26 @@ class LoadTableResult(BaseModel):
     Result used when a table is successfully loaded.
 
 
-    The table metadata JSON is returned in the `metadata` field. The corresponding file location of table metadata should be returned in the `metadata-location` field, unless the metadata is not yet committed. For example, a create transaction may return metadata that is staged but not committed.
-    Clients can check whether metadata has changed by comparing metadata locations after the table has been created.
+    The table metadata JSON is returned in the `metadata` field.
+    The location of the table metadata file is returned in the `metadata-location` field when the table has one, and the table's base location in the `table-location` field.
+
+
+    ## Metadata location
+
+
+    The `metadata-location` field is optional.
+    It is absent when the metadata is staged but not committed, as in a create transaction, and when the table has no client-visible metadata location.
+
+
+    When present, clients can check whether metadata has changed by comparing metadata locations.
+
+
+    ## Table location
+
+
+    The `table-location` field carries the table's base location.
+    Format version 4 allows location fields in metadata to be relative and makes `metadata.location` optional.
+    Exactly one of `metadata.location` and `table-location` must be present.
 
 
     The `config` map returns table-specific configuration for the table's resources, including its HTTP client and FileIO. For example, config may contain a specific FileIO implementation class for the table depending on its underlying storage.
@@ -1992,6 +2066,7 @@ class LoadTableResult(BaseModel):
         alias='metadata-location',
         description='May be null if the table is staged as part of a transaction',
     )
+    table_location: TableLocation | None = Field(None, alias='table-location')
     metadata: TableMetadata
     config: dict[str, str] | None = None
     storage_credentials: list[StorageCredential] | None = Field(
@@ -2076,6 +2151,11 @@ class UnregisterTableResult(BaseModel):
         ...,
         alias='metadata-location',
         description='The last metadata location for the table at the time it was unregistered.',
+    )
+    table_location: TableLocation | None = Field(
+        None,
+        alias='table-location',
+        description='Follows the same presence rules as `table-location` in `LoadTableResult`.',
     )
     metadata: TableMetadata
 
@@ -2263,7 +2343,16 @@ class FunctionStructField(BaseModel):
 
 
 class CommitTableResponse(BaseModel):
-    metadata_location: str = Field(..., alias='metadata-location')
+    metadata_location: str | None = Field(
+        None,
+        alias='metadata-location',
+        description='Location of the committed table metadata file.',
+    )
+    table_location: TableLocation | None = Field(
+        None,
+        alias='table-location',
+        description='Follows the same presence rules as `table-location` in `LoadTableResult`.',
+    )
     metadata: TableMetadata
 
 
