@@ -280,11 +280,6 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
                 : ChangelogIterator.removeCarryovers(rows, schema));
   }
 
-  /**
-   * Repartitions and sorts the rows, then transforms each partition with the given changelog
-   * iterator. The rows stay as {@link InternalRow} throughout to avoid converting them to and from
-   * {@link Row} on either side of the iterator.
-   */
   private Dataset<Row> applyIterator(
       Dataset<Row> df,
       Column[] repartitionSpec,
@@ -312,18 +307,15 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
         CollectionConverters.asJava(
             df.select(repartitionSpec).queryExecution().analyzed().output());
 
-    Column[] partitionKeys = new Column[repartitionSpec.length];
     Column[] sortKeys = new Column[repartitionSpec.length];
     List<Column> projection = Lists.newArrayList(originalColumns);
     for (int index = 0; index < repartitionSpec.length; index++) {
       Attribute key = keys.get(index);
       DataType type = key.dataType();
       if (!ChangelogValueUtil.containsFloatingPoint(type)) {
-        partitionKeys[index] = repartitionSpec[index];
         sortKeys[index] = repartitionSpec[index];
       } else {
         Column canonicalized = ExpressionUtils.column(ChangelogValueUtil.canonicalize(key));
-        partitionKeys[index] = canonicalized;
         if (type.equals(DataTypes.FloatType) || type.equals(DataTypes.DoubleType)) {
           // the key is cheap to recompute, so the sort can evaluate it instead of reading a column
           sortKeys[index] = canonicalized;
@@ -339,7 +331,8 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     }
 
     boolean addedHelperColumns = projection.size() > originalColumns.length;
-    Dataset<Row> partitioned = df.repartition(partitionKeys);
+    // Spark's partition hash already treats signed zeros and NaN payloads as equal
+    Dataset<Row> partitioned = df.repartition(repartitionSpec);
     if (addedHelperColumns) {
       partitioned = partitioned.select(projection.toArray(new Column[0]));
     }

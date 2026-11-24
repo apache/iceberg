@@ -29,14 +29,8 @@ import org.apache.spark.sql.execution.RecordBinaryComparator
 import org.apache.spark.sql.types._
 
 private[sql] object ChangelogValueUtil {
-  def containsFloatingPoint(dataType: DataType): Boolean = dataType match {
-    case FloatType | DoubleType => true
-    case ArrayType(elementType, _) => containsFloatingPoint(elementType)
-    case MapType(keyType, valueType, _) =>
-      containsFloatingPoint(keyType) || containsFloatingPoint(valueType)
-    case struct: StructType => struct.fields.exists(field => containsFloatingPoint(field.dataType))
-    case _ => false
-  }
+  def containsFloatingPoint(dataType: DataType): Boolean =
+    dataType.existsRecursively(t => t == FloatType || t == DoubleType)
 
   /**
    * Identifies changelog values with distinct signed zeros, equal NaNs regardless of payload, and

@@ -379,15 +379,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
   @ParameterizedTest(name = "{0}")
   @MethodSource({"signedZeros", "nestedSignedZeros"})
   void retainChangesWithDifferentSignedZeros(DataType type, Object before, Object after) {
-    List<InternalRow> rows = List.of(row(type, before, DELETE, 0), row(type, after, INSERT, 0));
-    assertRows(type, ChangelogIterator.removeCarryovers(rows.iterator(), schema(type)), rows);
-  }
-
-  @ParameterizedTest(name = "{0}")
-  @MethodSource("signedZeros")
-  void retainNetChangesWithDifferentSignedZeros(DataType type, Object before, Object after) {
-    List<InternalRow> rows = List.of(row(type, before, DELETE, 0), row(type, after, INSERT, 1));
-    assertRows(type, ChangelogIterator.removeNetCarryovers(rows.iterator(), schema(type)), rows);
+    assertRetained(type, List.of(row(type, before, DELETE, 0), row(type, after, INSERT, 0)));
   }
 
   @ParameterizedTest(name = "{0}")

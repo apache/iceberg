@@ -74,7 +74,7 @@ public class ChangelogViewBenchmark {
   @Setup
   public void before() throws Exception {
     Preconditions.checkArgument(
-        rowCount % REVERT_INTERVAL == 0, "Row count must be divisible by 20");
+        rowCount % REVERT_INTERVAL == 0, "Row count must be divisible by %s", REVERT_INTERVAL);
     Preconditions.checkArgument(
         !payloadType.equals("map") || operation.equals("updates"),
         "Map payloads require the updates operation");
@@ -148,8 +148,6 @@ public class ChangelogViewBenchmark {
   public void after() throws Exception {
     if (spark != null) {
       try {
-        spark.sql("DROP VIEW IF EXISTS " + VIEW);
-        spark.sql("DROP TABLE IF EXISTS " + TABLE + " PURGE");
         FileSystem.get(warehouse, spark.sessionState().newHadoopConf())
             .delete(new Path(warehouse), true);
       } finally {

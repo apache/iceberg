@@ -140,7 +140,7 @@ public abstract class ChangelogIterator implements Iterator<InternalRow> {
       fields.add(
           index == changeTypeIndex
               ? Literal.create(changeType, DataTypes.StringType)
-              : boundReference(index));
+              : new BoundReference(index, rowType.fields()[index].dataType(), true));
     }
 
     return UnsafeProjection.create(CollectionConverters.asScala(fields).toSeq());
@@ -151,9 +151,5 @@ public abstract class ChangelogIterator implements Iterator<InternalRow> {
     return IntStream.range(0, totalColumnCount)
         .filter(index -> !metadataColumnIndices.contains(index))
         .toArray();
-  }
-
-  private BoundReference boundReference(int index) {
-    return new BoundReference(index, rowType.fields()[index].dataType(), true);
   }
 }

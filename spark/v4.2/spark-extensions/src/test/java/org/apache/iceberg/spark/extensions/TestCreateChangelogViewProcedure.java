@@ -712,20 +712,14 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
   void computeUpdatesWithMapValues() {
     sql("CREATE TABLE %s (id INT, data MAP<STRING,STRING>) USING iceberg", tableName);
     sql(
-        "INSERT INTO %s VALUES (1, map('a', 'same', 'b', 'value'))," + " (2, map('a', 'before'))",
+        "INSERT INTO %s VALUES (1, map('a', 'same', 'b', 'value')), (2, map('a', 'before'))",
         tableName);
     long startSnapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     sql(
-        "INSERT OVERWRITE %s VALUES (1, map('b', 'value', 'a', 'same')),"
-            + " (2, map('a', 'after'))",
+        "INSERT OVERWRITE %s VALUES (1, map('b', 'value', 'a', 'same')), (2, map('a', 'after'))",
         tableName);
 
-    List<Object[]> result =
-        sql(
-            "CALL %s.system.create_changelog_view(table => '%s',"
-                + " identifier_columns => array('id'), options => map('start-snapshot-id', '%s'))",
-            catalogName, tableName, startSnapshotId);
-    String viewName = (String) result.get(0)[0];
+    String viewName = createChangelog(startSnapshotId, "identifier_columns => array('id')");
 
     assertEquals(
         "Map columns should survive the repartition and sort, leaving only changed values as updates",
@@ -760,8 +754,8 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
     long startSnapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     sql("INSERT OVERWRITE %s VALUES (1, parse_json('1')), (2, parse_json('2'))", tableName);
 
-    withSQLConf(
-        Map.of("spark.sql.shuffle.partitions", "4", "spark.sql.adaptive.enabled", "false"),
+    withAdaptiveExecution(
+        false,
         () -> {
           String view = createChangelog(startSnapshotId, "identifier_columns => array('id')");
           assertEquals(
@@ -776,8 +770,8 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
   @TestTemplate
   void preserveSignedZeroChanges() {
     long startSnapshotId = createSignedZeroChanges();
-    withSQLConf(
-        Map.of("spark.sql.shuffle.partitions", "4", "spark.sql.adaptive.enabled", "false"),
+    withAdaptiveExecution(
+        false,
         () -> {
           String view = createChangelog(startSnapshotId, "compute_updates => false");
           assertSignedZeroChanges(view, "f, d", DELETE, INSERT);
@@ -787,8 +781,8 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
   @TestTemplate
   void computeUpdatesWithSignedZeroChanges() {
     long startSnapshotId = createSignedZeroChanges();
-    withSQLConf(
-        Map.of("spark.sql.shuffle.partitions", "4", "spark.sql.adaptive.enabled", "false"),
+    withAdaptiveExecution(
+        false,
         () -> {
           String view = createChangelog(startSnapshotId, "identifier_columns => array('id')");
           assertSignedZeroChanges(view, "f, d", UPDATE_BEFORE, UPDATE_AFTER);
@@ -808,8 +802,8 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
         "INSERT OVERWRITE %s VALUES (1, array(named_struct('f', -0.0F, 'd', 0.0D), null), 7), (2, null, 7), (3, array(null), 7)",
         tableName);
 
-    withSQLConf(
-        Map.of("spark.sql.shuffle.partitions", "4", "spark.sql.adaptive.enabled", "false"),
+    withAdaptiveExecution(
+        false,
         () -> {
           String view = createChangelog(startSnapshotId, "compute_updates => false");
           assertSignedZeroChanges(view, "data[0].f, data[0].d", DELETE, INSERT);
@@ -841,8 +835,8 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
         "INSERT OVERWRITE %s VALUES (1, map('a', named_struct('f', -0.0F, 'd', 0.0D))), (2, map('b', null, 'a', named_struct('f', -0.0F, 'd', -0.0D)))",
         tableName);
 
-    withSQLConf(
-        Map.of("spark.sql.shuffle.partitions", "4", "spark.sql.adaptive.enabled", "false"),
+    withAdaptiveExecution(
+        false,
         () -> {
           String view = createChangelog(startSnapshotId, "identifier_columns => array('id')");
           assertSignedZeroChanges(view, "data['a'].f, data['a'].d", UPDATE_BEFORE, UPDATE_AFTER);
@@ -853,12 +847,8 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
   void removeMixedSignedZeroCarryovers() {
     long startSnapshotId = createMixedSignedZeroCarryovers();
     for (boolean adaptive : List.of(false, true)) {
-      withSQLConf(
-          Map.of(
-              "spark.sql.shuffle.partitions",
-              "4",
-              "spark.sql.adaptive.enabled",
-              Boolean.toString(adaptive)),
+      withAdaptiveExecution(
+          adaptive,
           () -> {
             String view = createChangelog(startSnapshotId, "compute_updates => false");
             assertThat(sql("SELECT * FROM %s", view)).isEmpty();
@@ -869,8 +859,8 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
   @TestTemplate
   void removeMixedSignedZeroNetCarryovers() {
     long startSnapshotId = createMixedSignedZeroCarryovers();
-    withSQLConf(
-        Map.of("spark.sql.shuffle.partitions", "4", "spark.sql.adaptive.enabled", "false"),
+    withAdaptiveExecution(
+        false,
         () -> {
           String view = createChangelog(startSnapshotId, "net_changes => true");
           assertThat(sql("SELECT * FROM %s", view)).isEmpty();
@@ -918,6 +908,10 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
         "INSERT OVERWRITE %s VALUES (array(-0.0D)), (array(0.0D)), (array(-0.0D)), (array(0.0D))",
         tableName);
     return startSnapshotId;
+  }
+
+  private void withAdaptiveExecution(boolean enabled, Action action) {
+    withSQLConf(Map.of("spark.sql.adaptive.enabled", String.valueOf(enabled)), action);
   }
 
   private String createChangelog(long startSnapshotId, String options) {
