@@ -67,6 +67,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
+import org.apache.iceberg.spark.source.metrics.TaskScanDuration;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
@@ -527,6 +528,7 @@ class TestMergingSortedRowDataReader extends TestBase {
       assertThat(metrics)
           .containsEntry(new TaskNumSplits(0).name(), 3L)
           .containsEntry(new TaskNumDeletes(0).name(), 2L);
+      assertThat(metrics.get(new TaskScanDuration(0).name())).isPositive();
     }
   }
 
