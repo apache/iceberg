@@ -2345,7 +2345,7 @@ components:
       in: header
       description:
         An optional header that allows the server to return 304 (Not Modified) if the metadata
-        is current.
+        is current. The content is the value of the ETag received in a response header.
       required: false
       schema:
         type: string
@@ -4362,7 +4362,7 @@ components:
 
     LoadTableResult:
       description: |
-        Result used when a table is successfully loaded, for tables at any format version.
+        Result used when a table is successfully loaded.
 
 
         The table metadata JSON is returned in the `metadata` field.
@@ -4377,7 +4377,6 @@ components:
 
 
         When present, clients can check whether metadata has changed by comparing metadata locations.
-        To obtain a metadata location for a table that does not return one, use the `unregisterTable` endpoint, which returns the table's last metadata location at the point the table leaves catalog control and further commits are rejected.
 
 
         ## Table location
@@ -4435,9 +4434,7 @@ components:
       properties:
         metadata-location:
           type: string
-          description:
-            Location of the table metadata file.
-            Absent when the metadata is staged but not committed, as in a create transaction, and when the table has no client-visible metadata location.
+          description: May be null if the table is staged as part of a transaction
           nullable: true
         table-location:
           $ref: '#/components/schemas/TableLocation'
@@ -5476,23 +5473,18 @@ components:
           nullable: true
 
     CommitTableResponse:
-      description: |
-        Result used when a table is successfully updated, for tables at any format version.
-
-
-        The `table-location` field carries the table's base location, so that a client can resolve relative paths in the returned metadata.
-        It follows the same presence and precedence rules as `table-location` in `LoadTableResult`.
       type: object
       required:
         - metadata
       properties:
         metadata-location:
           type: string
-          description:
-            Location of the committed table metadata file.
-            Absent when the table has no client-visible metadata location.
+          description: Location of the committed table metadata file.
         table-location:
-          $ref: '#/components/schemas/TableLocation'
+          allOf:
+            - $ref: '#/components/schemas/TableLocation'
+          description:
+            Follows the same presence and precedence rules as `table-location` in `LoadTableResult`.
         metadata:
           $ref: '#/components/schemas/TableMetadata'
 

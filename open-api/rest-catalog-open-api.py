@@ -1995,7 +1995,7 @@ class ReadRestrictions(BaseModel):
 
 class LoadTableResult(BaseModel):
     """
-    Result used when a table is successfully loaded, for tables at any format version.
+    Result used when a table is successfully loaded.
 
 
     The table metadata JSON is returned in the `metadata` field.
@@ -2010,7 +2010,6 @@ class LoadTableResult(BaseModel):
 
 
     When present, clients can check whether metadata has changed by comparing metadata locations.
-    To obtain a metadata location for a table that does not return one, use the `unregisterTable` endpoint, which returns the table's last metadata location at the point the table leaves catalog control and further commits are rejected.
 
 
     ## Table location
@@ -2068,7 +2067,7 @@ class LoadTableResult(BaseModel):
     metadata_location: str | None = Field(
         None,
         alias='metadata-location',
-        description='Location of the table metadata file. Absent when the metadata is staged but not committed, as in a create transaction, and when the table has no client-visible metadata location.',
+        description='May be null if the table is staged as part of a transaction',
     )
     table_location: TableLocation | None = Field(None, alias='table-location')
     metadata: TableMetadata
@@ -2347,21 +2346,16 @@ class FunctionStructField(BaseModel):
 
 
 class CommitTableResponse(BaseModel):
-    """
-    Result used when a table is successfully updated, for tables at any format version.
-
-
-    The `table-location` field carries the table's base location, so that a client can resolve relative paths in the returned metadata.
-    It follows the same presence and precedence rules as `table-location` in `LoadTableResult`.
-
-    """
-
     metadata_location: str | None = Field(
         None,
         alias='metadata-location',
-        description='Location of the committed table metadata file. Absent when the table has no client-visible metadata location.',
+        description='Location of the committed table metadata file.',
     )
-    table_location: TableLocation | None = Field(None, alias='table-location')
+    table_location: TableLocation | None = Field(
+        None,
+        alias='table-location',
+        description='Follows the same presence and precedence rules as `table-location` in `LoadTableResult`.',
+    )
     metadata: TableMetadata
 
 
