@@ -62,7 +62,7 @@ public class FileScanTaskParser {
     if (fileScanTask.deletes() != null) {
       generator.writeArrayFieldStart(DELETE_FILES);
       for (DeleteFile deleteFile : fileScanTask.deletes()) {
-        ContentFileParser.toJson(deleteFile, spec, generator);
+        ContentFileParser.toJson(deleteFile, deleteFileSpec(spec, deleteFile.specId()), generator);
       }
       generator.writeEndArray();
     }
@@ -102,7 +102,10 @@ public class FileScanTaskParser {
       // parse the schema array
       ImmutableList.Builder<DeleteFile> builder = ImmutableList.builder();
       for (JsonNode deleteFileNode : deletesArray) {
-        DeleteFile deleteFile = (DeleteFile) ContentFileParser.fromJson(deleteFileNode, spec);
+        int deleteFileSpecId = JsonUtil.getInt(ContentFileParser.SPEC_ID, deleteFileNode);
+        DeleteFile deleteFile =
+            (DeleteFile)
+                ContentFileParser.fromJson(deleteFileNode, deleteFileSpec(spec, deleteFileSpecId));
         builder.add(deleteFile);
       }
 
@@ -118,5 +121,15 @@ public class FileScanTaskParser {
     BaseFileScanTask baseFileScanTask =
         new BaseFileScanTask(dataFile, deleteFiles, schemaString, specString, residualEvaluator);
     return new BaseFileScanTask.SplitScanTask(start, length, baseFileScanTask);
+  }
+
+  private static PartitionSpec deleteFileSpec(PartitionSpec taskSpec, int deleteSpecId) {
+    if (deleteSpecId == taskSpec.specId()) {
+      return taskSpec;
+    }
+
+    // only global equality deletes, which belong to an unpartitioned spec, apply to data files of
+    // another spec, so a delete file of another spec is written and read as unpartitioned
+    return PartitionSpec.builderFor(taskSpec.schema()).withSpecId(deleteSpecId).build();
   }
 }

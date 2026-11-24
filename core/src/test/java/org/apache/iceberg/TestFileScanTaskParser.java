@@ -74,6 +74,34 @@ public class TestFileScanTaskParser {
     assertFileScanTaskEquals(expected, deserializedTask, spec, caseSensitive);
   }
 
+  @Test
+  public void testFileScanTaskWithGlobalEqualityDeletesOfAnotherSpec() {
+    PartitionSpec unpartitioned = PartitionSpec.builderFor(TestBase.SCHEMA).withSpecId(1).build();
+    DeleteFile globalDeletes =
+        FileMetadata.deleteFileBuilder(unpartitioned)
+            .ofEqualityDeletes(1)
+            .withPath("/path/to/global-eq-deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    FileScanTask fileScanTask =
+        new BaseFileScanTask(
+            TestBase.FILE_A,
+            new DeleteFile[] {TestBase.FILE_A2_DELETES, globalDeletes},
+            SchemaParser.toJson(TestBase.SCHEMA),
+            PartitionSpecParser.toJson(TestBase.SPEC),
+            ResidualEvaluator.unpartitioned(Expressions.alwaysTrue()));
+
+    FileScanTask deserializedTask =
+        ScanTaskParser.fromJson(ScanTaskParser.toJson(fileScanTask), true);
+
+    assertThat(deserializedTask.deletes()).hasSize(2);
+    TestContentFileParser.assertContentFileEquals(
+        TestBase.FILE_A2_DELETES, deserializedTask.deletes().get(0), TestBase.SPEC);
+    TestContentFileParser.assertContentFileEquals(
+        globalDeletes, deserializedTask.deletes().get(1), unpartitioned);
+  }
+
   private FileScanTask createFileScanTask(PartitionSpec spec, boolean caseSensitive) {
     ResidualEvaluator residualEvaluator;
     if (spec.isUnpartitioned()) {
