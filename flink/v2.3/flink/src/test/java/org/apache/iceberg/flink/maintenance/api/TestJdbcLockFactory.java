@@ -279,21 +279,25 @@ class TestJdbcLockFactory extends TestLockFactoryBase {
         firstResult.get(30, TimeUnit.SECONDS);
         secondResult.get(30, TimeUnit.SECONDS);
 
-        Lock firstLock = first.createLock();
-        Lock secondLock = second.createLock();
-
-        try {
-          assertThat(firstLock.tryLock()).isTrue();
-          assertThat(secondLock.tryLock()).isTrue();
-        } finally {
-          firstLock.unlock();
-          secondLock.unlock();
-        }
+        checkConcurrentLocks(first, second);
       } finally {
         startSignal.countDown();
         executor.shutdownNow();
         assertThat(executor.awaitTermination(30, TimeUnit.SECONDS)).isTrue();
       }
+    }
+  }
+
+  private void checkConcurrentLocks(JdbcLockFactory first, JdbcLockFactory second) {
+    Lock firstLock = first.createLock();
+    Lock secondLock = second.createLock();
+
+    try {
+      assertThat(firstLock.tryLock()).isTrue();
+      assertThat(secondLock.tryLock()).isTrue();
+    } finally {
+      firstLock.unlock();
+      secondLock.unlock();
     }
   }
 }
