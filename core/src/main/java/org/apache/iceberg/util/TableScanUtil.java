@@ -21,10 +21,13 @@ package org.apache.iceberg.util;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.Set;
+import java.util.function.Supplier;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MergeableScanTask;
 import org.apache.iceberg.PartitionData;
@@ -41,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.types.Types;
 
@@ -49,6 +53,51 @@ public class TableScanUtil {
   private static final long MIN_SPLIT_SIZE = 16 * 1024 * 1024; // 16 MB
 
   private TableScanUtil() {}
+
+  static class ScanTaskBinWeighter<T extends ScanTask> implements BinPacking.BinWeighter<T> {
+    private final Set<String> seenEqualityDeletePaths = Sets.newHashSet();
+    private final long openFileCost;
+
+    ScanTaskBinWeighter(long openFileCost) {
+      this.openFileCost = openFileCost;
+    }
+
+    @Override
+    public long tentativeWeight(ScanTask task) {
+      long sizeWeight;
+      int filesCount;
+      if (task instanceof FileScanTask fileScanTask) {
+        sizeWeight = fileScanTask.length();
+        filesCount = 1;
+        // Check the size of delete file as well to avoid unbalanced bin-packing
+        for (DeleteFile delete : fileScanTask.deletes()) {
+          if (!isLoadedOncePerBin(delete) || !seenEqualityDeletePaths.contains(delete.location())) {
+            sizeWeight += ScanTaskUtil.contentSizeInBytes(delete);
+            filesCount++;
+          }
+        }
+      } else {
+        sizeWeight = task.sizeBytes();
+        filesCount = task.filesCount();
+      }
+      return Math.max(sizeWeight, filesCount * openFileCost);
+    }
+
+    @Override
+    public void commit(ScanTask task) {
+      if (task instanceof FileScanTask fileScanTask) {
+        for (DeleteFile delete : fileScanTask.deletes()) {
+          if (isLoadedOncePerBin(delete)) {
+            seenEqualityDeletePaths.add(delete.location());
+          }
+        }
+      }
+    }
+
+    private static boolean isLoadedOncePerBin(DeleteFile delete) {
+      return delete.location() != null && delete.content() == FileContent.EQUALITY_DELETES;
+    }
+  }
 
   public static boolean hasDeletes(FileScanTask task) {
     return !task.deletes().isEmpty();
@@ -66,32 +115,68 @@ public class TableScanUtil {
 
   public static CloseableIterable<CombinedScanTask> planTasks(
       CloseableIterable<FileScanTask> splitFiles, long splitSize, int lookback, long openFileCost) {
+    return planTasks(splitFiles, splitSize, lookback, openFileCost, false);
+  }
+
+  public static CloseableIterable<CombinedScanTask> planTasks(
+      CloseableIterable<FileScanTask> splitFiles,
+      long splitSize,
+      int lookback,
+      long openFileCost,
+      boolean shareEqualityDeletes) {
 
     validatePlanningArguments(splitSize, lookback, openFileCost);
 
     // Check the size of delete file as well to avoid unbalanced bin-packing
-    Function<FileScanTask, Long> weightFunc =
-        file ->
-            Math.max(
-                file.length() + ScanTaskUtil.contentSizeInBytes(file.deletes()),
-                (1 + file.deletes().size()) * openFileCost);
+    Supplier<BinPacking.BinWeighter<FileScanTask>> weighterSupplier =
+        shareEqualityDeletes
+            ? () -> new ScanTaskBinWeighter<>(openFileCost)
+            : new BinPacking.StatelessBinWeighter<>(
+                file ->
+                    Math.max(
+                        file.length() + ScanTaskUtil.contentSizeInBytes(file.deletes()),
+                        (1 + file.deletes().size()) * openFileCost));
 
     return CloseableIterable.transform(
         CloseableIterable.combine(
-            new BinPacking.PackingIterable<>(splitFiles, splitSize, lookback, weightFunc, true),
+            new BinPacking.PackingIterable<>(
+                splitFiles, splitSize, lookback, weighterSupplier, true),
             splitFiles),
         BaseCombinedScanTask::new);
   }
 
   public static <T extends ScanTask> List<ScanTaskGroup<T>> planTaskGroups(
       List<T> tasks, long splitSize, int lookback, long openFileCost) {
+    return planTaskGroups(tasks, splitSize, lookback, openFileCost, false);
+  }
+
+  public static <T extends ScanTask> List<ScanTaskGroup<T>> planTaskGroups(
+      List<T> tasks,
+      long splitSize,
+      int lookback,
+      long openFileCost,
+      boolean shareEqualityDeletes) {
     return Lists.newArrayList(
-        planTaskGroups(CloseableIterable.withNoopClose(tasks), splitSize, lookback, openFileCost));
+        planTaskGroups(
+            CloseableIterable.withNoopClose(tasks),
+            splitSize,
+            lookback,
+            openFileCost,
+            shareEqualityDeletes));
+  }
+
+  public static <T extends ScanTask> CloseableIterable<ScanTaskGroup<T>> planTaskGroups(
+      CloseableIterable<T> tasks, long splitSize, int lookback, long openFileCost) {
+    return planTaskGroups(tasks, splitSize, lookback, openFileCost, false);
   }
 
   @SuppressWarnings("unchecked")
   public static <T extends ScanTask> CloseableIterable<ScanTaskGroup<T>> planTaskGroups(
-      CloseableIterable<T> tasks, long splitSize, int lookback, long openFileCost) {
+      CloseableIterable<T> tasks,
+      long splitSize,
+      int lookback,
+      long openFileCost,
+      boolean shareEqualityDeletes) {
 
     validatePlanningArguments(splitSize, lookback, openFileCost);
 
@@ -109,14 +194,27 @@ public class TableScanUtil {
                     }),
             tasks);
 
-    Function<T, Long> weightFunc =
-        task -> Math.max(task.sizeBytes(), task.filesCount() * openFileCost);
+    Supplier<BinPacking.BinWeighter<T>> weighterSupplier =
+        shareEqualityDeletes
+            ? () -> new ScanTaskBinWeighter<>(openFileCost)
+            : new BinPacking.StatelessBinWeighter<>(
+                task -> Math.max(task.sizeBytes(), task.filesCount() * openFileCost));
 
     return CloseableIterable.transform(
         CloseableIterable.combine(
-            new BinPacking.PackingIterable<>(splitTasks, splitSize, lookback, weightFunc, true),
+            new BinPacking.PackingIterable<>(
+                splitTasks, splitSize, lookback, weighterSupplier, true),
             splitTasks),
         combinedTasks -> new BaseScanTaskGroup<>(mergeTasks(combinedTasks)));
+  }
+
+  public static <T extends PartitionScanTask> List<ScanTaskGroup<T>> planTaskGroups(
+      List<T> tasks,
+      long splitSize,
+      int lookback,
+      long openFileCost,
+      Types.StructType groupingKeyType) {
+    return planTaskGroups(tasks, splitSize, lookback, openFileCost, groupingKeyType, false);
   }
 
   @SuppressWarnings("unchecked")
@@ -125,12 +223,16 @@ public class TableScanUtil {
       long splitSize,
       int lookback,
       long openFileCost,
-      Types.StructType groupingKeyType) {
+      Types.StructType groupingKeyType,
+      boolean shareEqualityDeletes) {
 
     validatePlanningArguments(splitSize, lookback, openFileCost);
 
-    Function<T, Long> weightFunc =
-        task -> Math.max(task.sizeBytes(), task.filesCount() * openFileCost);
+    Supplier<BinPacking.BinWeighter<T>> weighterSupplier =
+        shareEqualityDeletes
+            ? () -> new ScanTaskBinWeighter<>(openFileCost)
+            : new BinPacking.StatelessBinWeighter<>(
+                task -> Math.max(task.sizeBytes(), task.filesCount() * openFileCost));
 
     Map<Integer, StructProjection> groupingKeyProjectionsBySpec = Maps.newHashMap();
     PartitionData groupingKeyTemplate = new PartitionData(groupingKeyType);
@@ -163,7 +265,8 @@ public class TableScanUtil {
       List<T> groupingKeyTasks = entry.getValue();
       Iterables.addAll(
           taskGroups,
-          toTaskGroupIterable(groupingKey, groupingKeyTasks, splitSize, lookback, weightFunc));
+          toTaskGroupIterable(
+              groupingKey, groupingKeyTasks, splitSize, lookback, weighterSupplier));
     }
 
     return taskGroups;
@@ -174,10 +277,10 @@ public class TableScanUtil {
       Iterable<T> tasks,
       long splitSize,
       int lookback,
-      Function<T, Long> weightFunc) {
+      Supplier<BinPacking.BinWeighter<T>> weighterSupplier) {
 
     return Iterables.transform(
-        new BinPacking.PackingIterable<>(tasks, splitSize, lookback, weightFunc, true),
+        new BinPacking.PackingIterable<>(tasks, splitSize, lookback, weighterSupplier, true),
         combinedTasks -> new BaseScanTaskGroup<>(groupingKey, mergeTasks(combinedTasks)));
   }
 

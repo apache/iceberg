@@ -254,6 +254,13 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
         context.options(), TableProperties.SPLIT_OPEN_FILE_COST, tableValue);
   }
 
+  protected boolean shareEqualityDeletes() {
+    return PropertyUtil.propertyAsBoolean(
+        context.options(),
+        TableProperties.SPLIT_SHARE_EQUALITY_DELETES_ENABLED,
+        TableProperties.SPLIT_SHARE_EQUALITY_DELETES_ENABLED_DEFAULT);
+  }
+
   /**
    * Resolve the schema to be projected lazily.
    *

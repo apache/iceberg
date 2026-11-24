@@ -32,6 +32,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MergeableScanTask;
 import org.apache.iceberg.MockFileScanTask;
@@ -52,6 +53,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 public class TestTableScanUtil {
@@ -130,6 +133,49 @@ public class TestTableScanUtil {
           .as("Scan tasks detail in combined task check failed")
           .isEqualTo(expectedCombinedTasks.get(i).files());
     }
+  }
+
+  @ParameterizedTest(name = "shareEqualityDeletes = {0}")
+  @ValueSource(booleans = {false, true})
+  public void testPlanSharedEqualityDeletes(boolean shareEqualityDeletes) {
+    DeleteFile sharedDelete =
+        FileMetadata.deleteFileBuilder(SPEC1)
+            .ofEqualityDeletes()
+            .withPath("/path/to/shared-delete.parquet")
+            .withFileSizeInBytes(10L)
+            .withRecordCount(2)
+            .build();
+    DataFile data1 =
+        DataFiles.builder(SPEC1)
+            .withPath("/path/to/data-1.parquet")
+            .withFileSizeInBytes(250L)
+            .withRecordCount(1)
+            .build();
+    DataFile data2 =
+        DataFiles.builder(SPEC1)
+            .withPath("/path/to/data-2.parquet")
+            .withFileSizeInBytes(250L)
+            .withRecordCount(1)
+            .build();
+
+    List<FileScanTask> tasks =
+        ImmutableList.of(
+            new MockFileScanTask(data1, new DeleteFile[] {sharedDelete}, TEST_SCHEMA, SPEC1),
+            new MockFileScanTask(data2, new DeleteFile[] {sharedDelete}, TEST_SCHEMA, SPEC1));
+
+    // counted per data file: 260 B + 260 B = 520 B > 512 B -> 2 bins
+    // counted once per bin:  260 B + 250 B = 510 B < 512 B -> 1 bin
+    int bins = shareEqualityDeletes ? 1 : 2;
+    assertThat(
+            TableScanUtil.planTasks(
+                CloseableIterable.withNoopClose(tasks), 512L, 1, 0L, shareEqualityDeletes))
+        .hasSize(bins);
+    assertThat(TableScanUtil.planTaskGroups(tasks, 512L, 1, 0L, shareEqualityDeletes))
+        .hasSize(bins);
+    assertThat(
+            TableScanUtil.planTaskGroups(
+                tasks, 512L, 1, 0L, SPEC1.partitionType(), shareEqualityDeletes))
+        .hasSize(bins);
   }
 
   @Test
