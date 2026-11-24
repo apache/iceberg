@@ -1091,8 +1091,8 @@ paths:
         Load a table from the catalog.
 
 
-        Servers MUST NOT return format version 4 tables from this endpoint.
-        A request to load a format version 4 table fails with a 422 `UnsupportedTableFormatVersionException`; clients must load v4 tables through the `/v2` endpoint.
+        Servers MUST NOT return format version 4+ tables from this endpoint.
+        A request to load a format version 4+ table fails with a 422 `UnsupportedTableFormatVersionException`; clients must load v4+ tables through the `/v2` endpoint.
 
 
         The response contains both configuration and table metadata. The configuration, if non-empty is used
@@ -1150,7 +1150,7 @@ paths:
                   $ref: '#/components/examples/NoSuchTableError'
         422:
           description:
-            Unprocessable Entity - The table is at format version 4, which this endpoint does not serve.
+            Unprocessable Entity - The table is at format version 4+, which this endpoint does not serve.
           content:
             application/json:
               schema:
@@ -4387,7 +4387,7 @@ components:
         Servers must populate `table-location` whenever `metadata.location` is absent.
 
 
-        When both `metadata.location` and `table-location` are present, `table-location` takes precedence.
+        When both `metadata.location` and `table-location` are present, `metadata.location` takes precedence.
 
 
         The `config` map returns table-specific configuration for the table's resources, including its HTTP client and FileIO. For example, config may contain a specific FileIO implementation class for the table depending on its underlying storage.

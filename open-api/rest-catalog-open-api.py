@@ -2020,7 +2020,7 @@ class LoadTableResult(BaseModel):
     Servers must populate `table-location` whenever `metadata.location` is absent.
 
 
-    When both `metadata.location` and `table-location` are present, `table-location` takes precedence.
+    When both `metadata.location` and `table-location` are present, `metadata.location` takes precedence.
 
 
     The `config` map returns table-specific configuration for the table's resources, including its HTTP client and FileIO. For example, config may contain a specific FileIO implementation class for the table depending on its underlying storage.
