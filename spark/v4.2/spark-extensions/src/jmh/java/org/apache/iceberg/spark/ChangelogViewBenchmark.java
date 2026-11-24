@@ -26,6 +26,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.internal.SQLConf;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -81,13 +82,13 @@ public class ChangelogViewBenchmark {
     this.spark =
         SparkSession.builder()
             .master("local[2]")
-            .config("spark.ui.enabled", "false")
+            .config(TestBase.DISABLE_UI)
             .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
             .config("spark.sql.catalog.bench", SparkCatalog.class.getName())
             .config("spark.sql.catalog.bench.type", "hadoop")
             .config("spark.sql.catalog.bench.warehouse", warehouse.toString())
-            .config("spark.sql.shuffle.partitions", "4")
-            .config("spark.sql.adaptive.enabled", "false")
+            .config(SQLConf.SHUFFLE_PARTITIONS().key(), "4")
+            .config(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false")
             .getOrCreate();
     spark.sparkContext().setLogLevel("WARN");
     spark.sql("CREATE NAMESPACE IF NOT EXISTS bench.default");
@@ -158,15 +159,21 @@ public class ChangelogViewBenchmark {
   }
 
   private String inputQuery(String revision) {
+    String value = "IF(id % 3 = 0, -0.0D, IF(id % 3 = 1, 0.0D, cast('NaN' AS DOUBLE)))";
     StringBuilder query = new StringBuilder("SELECT id, ").append(revision).append(" AS revision");
     for (int index = 0; index < payloadColumns; index++) {
-      String value = "IF(id % 3 = 0, -0.0D, IF(id % 3 = 1, 0.0D, cast('NaN' AS DOUBLE)))";
       String payload =
           switch (payloadType) {
             case "string" -> "sha2(concat(cast(id AS STRING), '" + index + "'), 256)";
             case "double" -> value;
             case "array" ->
                 "array(" + value + ", cast(id AS DOUBLE), cast(null AS DOUBLE), " + value + ")";
+            case "struct" ->
+                "named_struct('number', "
+                    + value
+                    + ", 'values', array("
+                    + value
+                    + ", cast(id AS DOUBLE), cast(null AS DOUBLE)))";
             case "map" -> "map('a', IF(id % 2 = 0, -0.0D, 0.0D), 'b', cast(id AS DOUBLE))";
             default -> throw new IllegalArgumentException("Unknown payload type: " + payloadType);
           };

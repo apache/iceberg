@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -778,20 +779,10 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
         "INSERT OVERWRITE %s VALUES (array(-0.0D)), (array(0.0D)), (array(-0.0D)), (array(0.0D))",
         tableName);
 
-    for (boolean adaptive : List.of(false, true)) {
-      withSQLConf(
-          Map.of(
-              "spark.sql.shuffle.partitions",
-              "1",
-              "spark.sql.adaptive.enabled",
-              Boolean.toString(adaptive)),
-          () -> {
-            for (String mode : List.of("carryovers", "net")) {
-              String view = createFloatingPointChangelog(startSnapshotId, mode);
-              assertThat(sql("SELECT * FROM %s", view)).isEmpty();
-            }
-          });
-    }
+    forEachChangelog(
+        startSnapshotId,
+        List.of("carryovers", "net"),
+        (mode, view) -> assertThat(sql("SELECT * FROM %s", view)).isEmpty());
   }
 
   private void createTableWithThreeColumns() {
@@ -822,6 +813,30 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
 
   private void assertSignedZeroChanges(
       long startSnapshotId, String projection, List<String> modes) {
+    forEachChangelog(
+        startSnapshotId,
+        modes,
+        (mode, view) -> {
+          List<Object[]> rows = sql("SELECT id, %s, _change_type FROM %s", projection, view);
+          assertThat(rows).hasSize(2);
+          List<String> changeTypes =
+              mode.equals("updates")
+                  ? List.of(UPDATE_BEFORE, UPDATE_AFTER)
+                  : List.of(DELETE, INSERT);
+          for (Object[] result : rows) {
+            assertThat(result[0]).isEqualTo(1);
+            assertThat(result[3]).isIn(changeTypes);
+            boolean before = result[3].equals(changeTypes.get(0));
+            assertThat(Float.floatToRawIntBits((Float) result[1]))
+                .isEqualTo(Float.floatToRawIntBits(before ? 0.0F : -0.0F));
+            assertThat(Double.doubleToRawLongBits((Double) result[2]))
+                .isEqualTo(Double.doubleToRawLongBits(before ? -0.0D : 0.0D));
+          }
+        });
+  }
+
+  private void forEachChangelog(
+      long startSnapshotId, List<String> modes, BiConsumer<String, String> assertion) {
     for (boolean adaptive : List.of(false, true)) {
       withSQLConf(
           Map.of(
@@ -831,22 +846,7 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
               Boolean.toString(adaptive)),
           () -> {
             for (String mode : modes) {
-              String view = createFloatingPointChangelog(startSnapshotId, mode);
-              List<Object[]> rows = sql("SELECT id, %s, _change_type FROM %s", projection, view);
-              assertThat(rows).hasSize(2);
-              for (Object[] result : rows) {
-                assertThat(result[0]).isEqualTo(1);
-                boolean before = result[3].equals(DELETE) || result[3].equals(UPDATE_BEFORE);
-                assertThat(result[3])
-                    .isEqualTo(
-                        mode.equals("updates")
-                            ? (before ? UPDATE_BEFORE : UPDATE_AFTER)
-                            : (before ? DELETE : INSERT));
-                assertThat(Float.floatToRawIntBits((Float) result[1]))
-                    .isEqualTo(Float.floatToRawIntBits(before ? 0.0F : -0.0F));
-                assertThat(Double.doubleToRawLongBits((Double) result[2]))
-                    .isEqualTo(Double.doubleToRawLongBits(before ? -0.0D : 0.0D));
-              }
+              assertion.accept(mode, createFloatingPointChangelog(startSnapshotId, mode));
             }
           });
     }

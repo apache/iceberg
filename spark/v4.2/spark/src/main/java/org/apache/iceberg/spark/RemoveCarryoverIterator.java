@@ -135,6 +135,9 @@ class RemoveCarryoverIterator extends ChangelogIterator {
   /**
    * The iterator returns a cached delete row if there are delete rows cached and the next row is
    * not the same record or there is no next row.
+   *
+   * <p>The order of the two checks matters: {@code cachedNextRecord} is not a copy, so the upstream
+   * iterator must not be probed while it is live.
    */
   private boolean returnCachedDeleteRow() {
     return hasCachedDeleteRow() && hitBoundary();

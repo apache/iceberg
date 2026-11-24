@@ -41,10 +41,10 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.Expression;
+import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.OrderUtils;
 import org.apache.spark.sql.catalyst.optimizer.ChangelogValueUtil;
-import org.apache.spark.sql.classic.ExpressionColumnNode;
+import org.apache.spark.sql.classic.ExpressionUtils;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
@@ -57,6 +57,7 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
+import scala.jdk.javaapi.CollectionConverters;
 
 /**
  * A procedure that creates a view for changed rows.
@@ -299,11 +300,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
       Column[] repartitionSpec,
       boolean netChanges,
       FlatMapFunction<Iterator<InternalRow>, InternalRow> transform) {
-    Dataset<Row> sorted =
-        ChangelogValueUtil.containsFloatingPoint(df.schema())
-            ? repartitionAndSort(df, repartitionSpec, netChanges)
-            : df.repartition(repartitionSpec)
-                .sortWithinPartitions(sortSpec(df, repartitionSpec, netChanges));
+    Dataset<Row> sorted = repartitionAndSort(df, repartitionSpec, netChanges);
     JavaRDD<InternalRow> changes =
         sorted.queryExecution().toRdd().toJavaRDD().mapPartitions(transform);
     return spark().internalCreateDataFrame(changes.rdd(), df.schema(), false /* isStreaming */);
@@ -311,51 +308,54 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
   private Dataset<Row> repartitionAndSort(
       Dataset<Row> df, Column[] repartitionSpec, boolean netChanges) {
-    Column[] partitionKeys = new Column[repartitionSpec.length];
-    Column[] sortKeys = new Column[repartitionSpec.length];
+    String[] columnNames = df.columns();
     Column[] originalColumns =
-        Arrays.stream(df.columns())
+        Arrays.stream(columnNames)
             .map(CreateChangelogViewProcedure::delimitedName)
             .map(df::col)
             .toArray(Column[]::new);
-    List<Column> projection = Lists.newArrayList(originalColumns);
     Set<String> names =
-        Arrays.stream(df.columns())
+        Arrays.stream(columnNames)
             .map(name -> name.toLowerCase(Locale.ROOT))
             .collect(Collectors.toSet());
+    List<Attribute> keys =
+        CollectionConverters.asJava(
+            df.select(repartitionSpec).queryExecution().analyzed().output());
+
+    Column[] partitionKeys = new Column[repartitionSpec.length];
+    Column[] sortKeys = new Column[repartitionSpec.length];
+    List<Column> projection = Lists.newArrayList(originalColumns);
     for (int index = 0; index < repartitionSpec.length; index++) {
-      Expression expression =
-          df.select(repartitionSpec[index]).queryExecution().analyzed().output().apply(0);
-      DataType type = expression.dataType();
-      if (ChangelogValueUtil.containsFloatingPoint(type)) {
-        Column key =
-            new Column(ExpressionColumnNode.apply(ChangelogValueUtil.canonicalize(expression)));
-        partitionKeys[index] = key;
+      Attribute key = keys.get(index);
+      DataType type = key.dataType();
+      if (!ChangelogValueUtil.containsFloatingPoint(type)) {
+        partitionKeys[index] = repartitionSpec[index];
+        sortKeys[index] = repartitionSpec[index];
+      } else {
+        Column canonicalized = ExpressionUtils.column(ChangelogValueUtil.canonicalize(key));
+        partitionKeys[index] = canonicalized;
         if (type.equals(DataTypes.FloatType) || type.equals(DataTypes.DoubleType)) {
-          sortKeys[index] = key;
+          // the key is cheap to recompute, so the sort can evaluate it instead of reading a column
+          sortKeys[index] = canonicalized;
         } else {
           String name = "__changelog_key_" + index;
           while (!names.add(name.toLowerCase(Locale.ROOT))) {
             name += "_";
           }
-          projection.add(key.as(name));
+          projection.add(canonicalized.as(name));
           sortKeys[index] = functions.col(name);
         }
-      } else {
-        partitionKeys[index] = repartitionSpec[index];
-        sortKeys[index] = repartitionSpec[index];
       }
     }
 
+    boolean addedHelperColumns = projection.size() > originalColumns.length;
     Dataset<Row> partitioned = df.repartition(partitionKeys);
-    if (projection.size() > originalColumns.length) {
+    if (addedHelperColumns) {
       partitioned = partitioned.select(projection.toArray(new Column[0]));
     }
+
     Dataset<Row> sorted = partitioned.sortWithinPartitions(sortSpec(df, sortKeys, netChanges));
-    if (projection.size() > originalColumns.length) {
-      sorted = sorted.select(originalColumns);
-    }
-    return sorted;
+    return addedHelperColumns ? sorted.select(originalColumns) : sorted;
   }
 
   /**

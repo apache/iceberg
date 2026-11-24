@@ -23,7 +23,6 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.codegen.CodegenFallback
 import org.apache.spark.sql.catalyst.expressions.objects.StaticInvoke
-import org.apache.spark.sql.catalyst.types.PhysicalDataType
 import org.apache.spark.sql.catalyst.util.ArrayData
 import org.apache.spark.sql.catalyst.util.GenericArrayData
 import org.apache.spark.sql.types._
@@ -38,176 +37,53 @@ private[sql] object ChangelogValueUtil {
     case _ => false
   }
 
-  def canonicalize(expression: Expression): Expression = expression.dataType match {
-    case FloatType =>
-      StaticInvoke(
-        classOf[JFloat],
-        IntegerType,
-        "floatToIntBits",
-        Seq(expression),
-        returnNullable = false)
-    case DoubleType =>
-      StaticInvoke(
-        classOf[JDouble],
-        LongType,
-        "doubleToLongBits",
-        Seq(expression),
-        returnNullable = false)
-    case _: ArrayType => transformArray(expression)
-    case _: MapType =>
-      MapSort(
-        MapFromArrays(transformArray(MapKeys(expression)), transformArray(MapValues(expression))))
-    case struct: StructType =>
-      val fields = struct.fields.zipWithIndex.flatMap { case (field, index) =>
-        Seq(Literal(field.name), canonicalize(GetStructField(expression, index)))
-      }
-      val result = CreateNamedStruct(fields.toSeq)
-      If(IsNull(expression), Literal.create(null, result.dataType), result)
-    case _ => expression
-  }
-
-  def createOrdering(schema: StructType, indices: Array[Int]): BaseOrdering = {
-    val (floating, other) =
-      indices.partition(index => containsFloatingPoint(schema(index).dataType))
-    val orders = other.map { index =>
-      SortOrder(
-        InsertMapSortExpression.insertMapSortRecursively(
-          BoundReference(index, schema(index).dataType, nullable = true)),
-        Ascending)
+  /**
+   * Identifies changelog values with distinct signed zeros, equal NaNs regardless of payload, and
+   * maps independent of entry order. Unlike signed zeros, NaNs also compare equal in Spark.
+   */
+  def canonicalize(expression: Expression): Expression = {
+    if (!containsFloatingPoint(expression.dataType)) {
+      return InsertMapSortExpression.insertMapSortRecursively(expression)
     }
-    val sparkOrdering = RowOrdering.create(orders.toSeq, Nil)
-    if (floating.isEmpty) {
-      sparkOrdering
-    } else {
-      val comparisons = floating.map(index => fieldOrdering(schema(index).dataType))
-      new BaseOrdering {
-        override def compare(left: InternalRow, right: InternalRow): Int = {
-          val result = sparkOrdering.compare(left, right)
-          if (result != 0) {
-            return result
-          }
 
-          var index = 0
-          while (index < floating.length) {
-            val compared = comparisons(index).compare(left, floating(index), right, floating(index))
-            if (compared != 0) {
-              return compared
-            }
-            index += 1
-          }
-          0
-        }
-      }
-    }
-  }
-
-  private trait FieldOrdering {
-    def compare(
-        left: SpecializedGetters,
-        leftIndex: Int,
-        right: SpecializedGetters,
-        rightIndex: Int): Int
-  }
-
-  private def fieldOrdering(dataType: DataType): FieldOrdering = {
-    val nonNull: FieldOrdering = dataType match {
+    expression.dataType match {
       case FloatType =>
-        (left, li, right, ri) => JFloat.compare(left.getFloat(li), right.getFloat(ri))
+        StaticInvoke(
+          classOf[JFloat],
+          IntegerType,
+          "floatToIntBits",
+          Seq(expression),
+          returnNullable = false)
       case DoubleType =>
-        (left, li, right, ri) => JDouble.compare(left.getDouble(li), right.getDouble(ri))
+        StaticInvoke(
+          classOf[JDouble],
+          LongType,
+          "doubleToLongBits",
+          Seq(expression),
+          returnNullable = false)
+      case _: ArrayType => ChangelogArrayKey(expression)
+      case _: MapType =>
+        MapSort(
+          MapFromArrays(canonicalize(MapKeys(expression)), canonicalize(MapValues(expression))))
       case struct: StructType =>
-        val fields = struct.fields.map(field => fieldOrdering(field.dataType))
-        (left, li, right, ri) =>
-          compareFields(
-            left.getStruct(li, fields.length),
-            right.getStruct(ri, fields.length),
-            fields)
-      case ArrayType(elementType, _) =>
-        val element = fieldOrdering(elementType)
-        (left, li, right, ri) => {
-          val a = left.getArray(li)
-          val b = right.getArray(ri)
-          compareElements(a, b, a.numElements(), b.numElements(), element)
+        val fields = struct.fields.zipWithIndex.flatMap { case (field, index) =>
+          Seq(Literal(field.name), canonicalize(GetStructField(expression, index)))
         }
-      case mapType: MapType =>
-        val input = BoundReference(0, mapType, nullable = true)
-        val sorted = if (containsFloatingPoint(mapType.keyType)) {
-          MapSort(MapFromArrays(transformArray(MapKeys(input)), MapValues(input)))
-        } else {
-          MapSort(input)
-        }
-        val key = fieldOrdering(sorted.dataType.asInstanceOf[MapType].keyType)
-        val value = fieldOrdering(mapType.valueType)
-        val inputRow = new GenericInternalRow(1)
-        val sortMap = MutableProjection.create(Seq(sorted))
-        (left, li, right, ri) => {
-          inputRow.update(0, left.getMap(li))
-          val a = sortMap(inputRow).getMap(0)
-          inputRow.update(0, right.getMap(ri))
-          val b = sortMap(inputRow).getMap(0)
-          val keys =
-            compareElements(a.keyArray(), b.keyArray(), a.numElements(), b.numElements(), key)
-          if (keys != 0) {
-            keys
-          } else {
-            compareElements(a.valueArray(), b.valueArray(), a.numElements(), b.numElements(), value)
-          }
-        }
-      case _ =>
-        val ordering = PhysicalDataType.ordering(dataType)
-        val accessor = InternalRow.getAccessor(dataType, nullable = false)
-        (left, li, right, ri) => ordering.compare(accessor(left, li), accessor(right, ri))
-    }
-    (left, li, right, ri) => {
-      if (left.isNullAt(li)) {
-        if (right.isNullAt(ri)) 0 else -1
-      } else if (right.isNullAt(ri)) {
-        1
-      } else {
-        nonNull.compare(left, li, right, ri)
-      }
+        val result = CreateNamedStruct(fields.toSeq)
+        If(IsNull(expression), Literal.create(null, result.dataType), result)
+      case _ => expression
     }
   }
 
-  private def compareFields(
-      left: InternalRow,
-      right: InternalRow,
-      fields: Array[FieldOrdering]): Int = {
-    var index = 0
-    while (index < fields.length) {
-      val result = fields(index).compare(left, index, right, index)
-      if (result != 0) {
-        return result
-      }
-      index += 1
+  /**
+   * Compares records with the same equality semantics as [[canonicalize]].
+   */
+  def createOrdering(schema: StructType, indices: Array[Int]): BaseOrdering = {
+    val orders = indices.map { index =>
+      val reference = BoundReference(index, schema(index).dataType, nullable = true)
+      SortOrder(canonicalize(reference), Ascending)
     }
-    0
-  }
-
-  private def compareElements(
-      left: SpecializedGetters,
-      right: SpecializedGetters,
-      leftSize: Int,
-      rightSize: Int,
-      element: FieldOrdering): Int = {
-    var index = 0
-    while (index < math.min(leftSize, rightSize)) {
-      val result = element.compare(left, index, right, index)
-      if (result != 0) {
-        return result
-      }
-      index += 1
-    }
-    JInteger.compare(leftSize, rightSize)
-  }
-
-  private def transformArray(expression: Expression): Expression = {
-    val arrayType = expression.dataType.asInstanceOf[ArrayType]
-    if (containsFloatingPoint(arrayType.elementType)) {
-      ChangelogArrayKey(expression)
-    } else {
-      InsertMapSortExpression.insertMapSortRecursively(expression)
-    }
+    RowOrdering.create(orders.toSeq, Nil)
   }
 }
 
@@ -219,12 +95,21 @@ private[sql] case class ChangelogArrayKey(child: Expression)
   private lazy val elementKey = ChangelogValueUtil.canonicalize(
     BoundReference(0, arrayType.elementType, arrayType.containsNull))
 
-  @transient private lazy val inputRow = new GenericInternalRow(1)
-  @transient private lazy val readElement =
-    InternalRow.getAccessor(arrayType.elementType, arrayType.containsNull)
-  @transient private lazy val projection = MutableProjection.create(Seq(elementKey))
-  @transient private lazy val readKey =
-    InternalRow.getAccessor(elementKey.dataType, arrayType.containsNull)
+  @transient private lazy val readKey: (ArrayData, Int) => Any = arrayType.elementType match {
+    case FloatType =>
+      (array, index) => JInteger.valueOf(JFloat.floatToIntBits(array.getFloat(index)))
+    case DoubleType =>
+      (array, index) => JLong.valueOf(JDouble.doubleToLongBits(array.getDouble(index)))
+    case elementType =>
+      val inputRow = new GenericInternalRow(1)
+      val readElement = InternalRow.getAccessor(elementType, arrayType.containsNull)
+      val projection = MutableProjection.create(Seq(elementKey))
+      val readProjected = InternalRow.getAccessor(elementKey.dataType, arrayType.containsNull)
+      (array, index) => {
+        inputRow.update(0, readElement(array, index))
+        InternalRow.copyValue(readProjected(projection(inputRow), 0))
+      }
+  }
 
   override lazy val dataType: DataType = ArrayType(elementKey.dataType, arrayType.containsNull)
 
@@ -232,17 +117,12 @@ private[sql] case class ChangelogArrayKey(child: Expression)
 
   override protected def nullSafeEval(value: Any): Any = {
     val array = value.asInstanceOf[ArrayData]
-    val keys = new Array[Any](array.numElements())
+    val numElements = array.numElements()
+    val keys = new Array[Any](numElements)
     var index = 0
-    while (index < array.numElements()) {
+    while (index < numElements) {
       if (!array.isNullAt(index)) {
-        keys(index) = arrayType.elementType match {
-          case FloatType => JInteger.valueOf(JFloat.floatToIntBits(array.getFloat(index)))
-          case DoubleType => JLong.valueOf(JDouble.doubleToLongBits(array.getDouble(index)))
-          case _ =>
-            inputRow.update(0, readElement(array, index))
-            InternalRow.copyValue(readKey(projection(inputRow), 0))
-        }
+        keys(index) = readKey(array, index)
       }
       index += 1
     }

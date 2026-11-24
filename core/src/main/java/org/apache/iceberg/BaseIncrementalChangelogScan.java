@@ -133,51 +133,45 @@ class BaseIncrementalChangelogScan
     return snapshotOrdinals;
   }
 
-  private static class CreateDataFileChangeTasks implements CreateTasksFunction<ChangelogScanTask> {
-    private static final DeleteFile[] NO_DELETES = new DeleteFile[0];
+  private record CreateDataFileChangeTasks(
+          Map<Long, Integer> snapshotOrdinals) implements CreateTasksFunction<ChangelogScanTask> {
+      private static final DeleteFile[] NO_DELETES = new DeleteFile[0];
 
-    private final Map<Long, Integer> snapshotOrdinals;
+      CreateDataFileChangeTasks(Deque<Snapshot> snapshots) {
+        this(computeSnapshotOrdinals(snapshots));
+      }
 
-    CreateDataFileChangeTasks(Deque<Snapshot> snapshots) {
-      this.snapshotOrdinals = computeSnapshotOrdinals(snapshots);
+      @Override
+      public CloseableIterable<ChangelogScanTask> apply(
+              CloseableIterable<ManifestEntry<DataFile>> entries, TaskContext context) {
+
+        return CloseableIterable.transform(
+                entries,
+                entry -> {
+                  long commitSnapshotId = entry.snapshotId();
+                  int changeOrdinal = snapshotOrdinals.get(commitSnapshotId);
+                  DataFile dataFile = entry.file().copy(context.shouldKeepStats());
+
+                    return switch (entry.status()) {
+                        case ADDED -> new BaseAddedRowsScanTask(
+                                changeOrdinal,
+                                commitSnapshotId,
+                                dataFile,
+                                NO_DELETES,
+                                context.schemaAsString(),
+                                context.specAsString(),
+                                context.residuals());
+                        case DELETED -> new BaseDeletedDataFileScanTask(
+                                changeOrdinal,
+                                commitSnapshotId,
+                                dataFile,
+                                NO_DELETES,
+                                context.schemaAsString(),
+                                context.specAsString(),
+                                context.residuals());
+                        default -> throw new IllegalArgumentException("Unexpected entry status: " + entry.status());
+                    };
+                });
+      }
     }
-
-    @Override
-    public CloseableIterable<ChangelogScanTask> apply(
-        CloseableIterable<ManifestEntry<DataFile>> entries, TaskContext context) {
-
-      return CloseableIterable.transform(
-          entries,
-          entry -> {
-            long commitSnapshotId = entry.snapshotId();
-            int changeOrdinal = snapshotOrdinals.get(commitSnapshotId);
-            DataFile dataFile = entry.file().copy(context.shouldKeepStats());
-
-            switch (entry.status()) {
-              case ADDED:
-                return new BaseAddedRowsScanTask(
-                    changeOrdinal,
-                    commitSnapshotId,
-                    dataFile,
-                    NO_DELETES,
-                    context.schemaAsString(),
-                    context.specAsString(),
-                    context.residuals());
-
-              case DELETED:
-                return new BaseDeletedDataFileScanTask(
-                    changeOrdinal,
-                    commitSnapshotId,
-                    dataFile,
-                    NO_DELETES,
-                    context.schemaAsString(),
-                    context.specAsString(),
-                    context.residuals());
-
-              default:
-                throw new IllegalArgumentException("Unexpected entry status: " + entry.status());
-            }
-          });
-    }
-  }
 }

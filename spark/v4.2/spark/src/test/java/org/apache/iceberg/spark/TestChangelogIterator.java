@@ -27,7 +27,6 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
 import org.apache.iceberg.ChangelogOperation;
@@ -387,8 +386,9 @@ public class TestChangelogIterator extends SparkTestHelperBase {
   }
 
   @ParameterizedTest(name = "{0}: {1} -> {2}")
-  @MethodSource("nanValues")
-  void removeCarryoversWithNaN(DataType type, Object before, Object after, boolean unsafe) {
+  @MethodSource("equalFloatingPointValues")
+  void removeCarryoversWithEqualFloatingPointValues(
+      DataType type, Object before, Object after, boolean unsafe) {
     assertRemoved(
         type, List.of(row(type, before, DELETE, 0, unsafe), row(type, after, INSERT, 0, unsafe)));
   }
@@ -397,14 +397,6 @@ public class TestChangelogIterator extends SparkTestHelperBase {
   @MethodSource("nanChanges")
   void retainChangesFromNaNToNonNaN(DataType type, Object before, Object after, boolean unsafe) {
     assertRetained(
-        type, List.of(row(type, before, DELETE, 0, unsafe), row(type, after, INSERT, 0, unsafe)));
-  }
-
-  @ParameterizedTest
-  @MethodSource("sameSignedZeros")
-  void removeCarryoversWithSameSignedZeros(
-      DataType type, Object before, Object after, boolean unsafe) {
-    assertRemoved(
         type, List.of(row(type, before, DELETE, 0, unsafe), row(type, after, INSERT, 0, unsafe)));
   }
 
@@ -531,41 +523,33 @@ public class TestChangelogIterator extends SparkTestHelperBase {
   }
 
   static Stream<Arguments> signedZeros() {
-    return Stream.of(
-            floatingPointValues(DataTypes.FloatType, -0.0F, 0.0F),
-            floatingPointValues(DataTypes.FloatType, 0.0F, -0.0F),
-            floatingPointValues(DataTypes.DoubleType, -0.0D, 0.0D),
-            floatingPointValues(DataTypes.DoubleType, 0.0D, -0.0D))
-        .flatMap(Function.identity());
+    return floatingPointCases(
+        Arguments.of(DataTypes.FloatType, -0.0F, 0.0F),
+        Arguments.of(DataTypes.FloatType, 0.0F, -0.0F),
+        Arguments.of(DataTypes.DoubleType, -0.0D, 0.0D),
+        Arguments.of(DataTypes.DoubleType, 0.0D, -0.0D));
   }
 
-  static Stream<Arguments> sameSignedZeros() {
-    return Stream.of(
-            floatingPointValues(DataTypes.FloatType, -0.0F, -0.0F),
-            floatingPointValues(DataTypes.FloatType, 0.0F, 0.0F),
-            floatingPointValues(DataTypes.DoubleType, -0.0D, -0.0D),
-            floatingPointValues(DataTypes.DoubleType, 0.0D, 0.0D))
-        .flatMap(Function.identity());
-  }
-
-  static Stream<Arguments> nanValues() {
-    return Stream.of(
-            floatingPointValues(DataTypes.FloatType, Float.NaN, Float.NaN),
-            floatingPointValues(DataTypes.FloatType, Float.NaN, FLOAT_NAN_WITH_PAYLOAD),
-            floatingPointValues(DataTypes.FloatType, Float.NaN, -FLOAT_NAN_WITH_PAYLOAD),
-            floatingPointValues(DataTypes.DoubleType, Double.NaN, Double.NaN),
-            floatingPointValues(DataTypes.DoubleType, Double.NaN, DOUBLE_NAN_WITH_PAYLOAD),
-            floatingPointValues(DataTypes.DoubleType, Double.NaN, -DOUBLE_NAN_WITH_PAYLOAD))
-        .flatMap(Function.identity());
+  static Stream<Arguments> equalFloatingPointValues() {
+    return floatingPointCases(
+        Arguments.of(DataTypes.FloatType, -0.0F, -0.0F),
+        Arguments.of(DataTypes.FloatType, 0.0F, 0.0F),
+        Arguments.of(DataTypes.DoubleType, -0.0D, -0.0D),
+        Arguments.of(DataTypes.DoubleType, 0.0D, 0.0D),
+        Arguments.of(DataTypes.FloatType, Float.NaN, Float.NaN),
+        Arguments.of(DataTypes.FloatType, Float.NaN, FLOAT_NAN_WITH_PAYLOAD),
+        Arguments.of(DataTypes.FloatType, Float.NaN, -FLOAT_NAN_WITH_PAYLOAD),
+        Arguments.of(DataTypes.DoubleType, Double.NaN, Double.NaN),
+        Arguments.of(DataTypes.DoubleType, Double.NaN, DOUBLE_NAN_WITH_PAYLOAD),
+        Arguments.of(DataTypes.DoubleType, Double.NaN, -DOUBLE_NAN_WITH_PAYLOAD));
   }
 
   static Stream<Arguments> nanChanges() {
-    return Stream.of(
-            floatingPointValues(DataTypes.FloatType, Float.NaN, 0.0F),
-            floatingPointValues(DataTypes.FloatType, Float.NaN, Float.POSITIVE_INFINITY),
-            floatingPointValues(DataTypes.DoubleType, Double.NaN, 0.0D),
-            floatingPointValues(DataTypes.DoubleType, Double.NaN, Double.POSITIVE_INFINITY))
-        .flatMap(Function.identity());
+    return floatingPointCases(
+        Arguments.of(DataTypes.FloatType, Float.NaN, 0.0F),
+        Arguments.of(DataTypes.FloatType, Float.NaN, Float.POSITIVE_INFINITY),
+        Arguments.of(DataTypes.DoubleType, Double.NaN, 0.0D),
+        Arguments.of(DataTypes.DoubleType, Double.NaN, Double.POSITIVE_INFINITY));
   }
 
   static Stream<Arguments> values() {
@@ -698,8 +682,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
   }
 
   private static InternalRow row(DataType type, Object value, String operation, int ordinal) {
-    return internalRow(
-        schema(type), RowFactory.create(1, value, operation, ordinal, (long) ordinal));
+    return row(type, value, operation, ordinal, true /* unsafe */);
   }
 
   private static InternalRow row(
@@ -724,6 +707,12 @@ public class TestChangelogIterator extends SparkTestHelperBase {
 
   private List<Object[]> internalRowsToJava(List<InternalRow> rows) {
     return rowsToJava(Lists.transform(rows, row -> (Row) TO_SCALA.apply(row)));
+  }
+
+  private static Stream<Arguments> floatingPointCases(Arguments... pairs) {
+    return Arrays.stream(pairs)
+        .flatMap(
+            pair -> floatingPointValues((DataType) pair.get()[0], pair.get()[1], pair.get()[2]));
   }
 
   private static Stream<Arguments> floatingPointValues(DataType type, Object before, Object after) {

@@ -25,6 +25,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.BaseOrdering;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.unsafe.types.UTF8String;
 
 /**
  * This class computes the net changes across multiple snapshots. It is different from {@link
@@ -115,8 +116,11 @@ public class RemoveNetCarryoverIterator extends ChangelogIterator {
   }
 
   private boolean oppositeChangeType(InternalRow currentRow, InternalRow nextRow) {
-    return (changeType(nextRow).equals(INSERT) && changeType(currentRow).equals(DELETE))
-        || (changeType(nextRow).equals(DELETE) && changeType(currentRow).equals(INSERT));
+    // read each change type once, as every read allocates a UTF8String wrapper
+    UTF8String current = changeType(currentRow);
+    UTF8String next = changeType(nextRow);
+    return (next.equals(INSERT) && current.equals(DELETE))
+        || (next.equals(DELETE) && current.equals(INSERT));
   }
 
   private int[] generateIndicesToIdentifySameRow() {
