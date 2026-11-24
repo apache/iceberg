@@ -41,6 +41,7 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.OrderUtils;
+import org.apache.spark.sql.catalyst.plans.logical.ChangelogDistribution;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
@@ -255,7 +256,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     Column[] sortSpec = sortSpec(df, repartitionSpec, false);
     StructType schema = df.schema();
 
-    return df.repartition(repartitionSpec)
+    return ChangelogDistribution.prepare(df, repartitionSpec)
         .sortWithinPartitions(sortSpec)
         .mapPartitions(
             (MapPartitionsFunction<Row, Row>)
@@ -269,7 +270,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     Column[] sortSpec = sortSpec(df, repartitionSpec, netChanges);
     StructType schema = df.schema();
 
-    return df.repartition(repartitionSpec)
+    return ChangelogDistribution.prepare(df, repartitionSpec)
         .sortWithinPartitions(sortSpec)
         .mapPartitions(
             (MapPartitionsFunction<Row, Row>)

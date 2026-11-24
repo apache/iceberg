@@ -26,6 +26,7 @@ import org.apache.spark.sql.catalyst.analysis.IcebergAnalysisException
 import org.apache.spark.sql.catalyst.analysis.ResolvedIdentifier
 import org.apache.spark.sql.catalyst.analysis.ResolvedNamespace
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
+import org.apache.spark.sql.catalyst.plans.logical.ChangelogDistribution
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceBranch
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceTag
@@ -55,6 +56,7 @@ import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.connector.catalog.TableSummary
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.errors.QueryCompilationErrors
+import org.apache.spark.sql.execution.ChangelogDistributionExec
 import org.apache.spark.sql.execution.OrderAwareCoalesceExec
 import org.apache.spark.sql.execution.SparkPlan
 import scala.jdk.CollectionConverters._
@@ -62,6 +64,9 @@ import scala.jdk.CollectionConverters._
 case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy with PredicateHelper {
 
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
+    case ChangelogDistribution(keys, child) =>
+      ChangelogDistributionExec(keys, planLater(child)) :: Nil
+
     case AddPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform, name) =>
       AddPartitionFieldExec(catalog, ident, transform, name) :: Nil
 

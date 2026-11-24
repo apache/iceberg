@@ -18,48 +18,21 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.IncrementalChangelogScan;
-import org.apache.iceberg.ScanTaskGroup;
+import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
-import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.types.Types;
-import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.read.Batch;
-import org.apache.spark.sql.connector.read.Scan;
-import org.apache.spark.sql.connector.read.Statistics;
-import org.apache.spark.sql.connector.read.SupportsReportStatistics;
-import org.apache.spark.sql.types.StructType;
 
-class SparkChangelogScan implements Scan, SupportsReportStatistics {
-
-  private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
-
-  private final JavaSparkContext sparkContext;
-  private final Table table;
-  private final IncrementalChangelogScan scan;
-  private final SparkReadConf readConf;
-  private final Schema projection;
-  private final List<Expression> filters;
+class SparkChangelogScan extends SparkPartitioningAwareScan<PartitionScanTask> {
   private final Long startSnapshotId;
   private final Long endSnapshotId;
-
-  // lazy variables
-  private List<ScanTaskGroup<ChangelogScanTask>> taskGroups = null;
-  private StructType expectedSparkType = null;
 
   SparkChangelogScan(
       SparkSession spark,
@@ -68,61 +41,24 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
       SparkReadConf readConf,
       Schema projection,
       List<Expression> filters) {
-
-    SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), projection);
-
-    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
-    this.table = table;
-    this.scan = scan;
-    this.readConf = readConf;
-    this.projection = projection;
-    this.filters = filters != null ? filters : Collections.emptyList();
+    super(
+        spark,
+        table,
+        table.schema(),
+        scan,
+        readConf,
+        projection,
+        filters,
+        Collections.emptyList(),
+        null);
     this.startSnapshotId = readConf.startSnapshotId();
     this.endSnapshotId = readConf.endSnapshotId();
-    if (scan == null) {
-      this.taskGroups = Collections.emptyList();
-    }
+    tasks();
   }
 
   @Override
-  public Statistics estimateStatistics() {
-    long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
-    long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
-    return new Stats(sizeInBytes, rowsCount, Collections.emptyMap());
-  }
-
-  @Override
-  public StructType readSchema() {
-    if (expectedSparkType == null) {
-      this.expectedSparkType = SparkSchemaUtil.convert(projection);
-    }
-
-    return expectedSparkType;
-  }
-
-  @Override
-  public Batch toBatch() {
-    return new SparkBatch(
-        sparkContext,
-        table,
-        null != scan ? scan.fileIO() : table::io,
-        readConf,
-        EMPTY_GROUPING_KEY_TYPE,
-        taskGroups(),
-        projection,
-        hashCode());
-  }
-
-  private List<ScanTaskGroup<ChangelogScanTask>> taskGroups() {
-    if (taskGroups == null) {
-      try (CloseableIterable<ScanTaskGroup<ChangelogScanTask>> groups = scan.planTasks()) {
-        this.taskGroups = Lists.newArrayList(groups);
-      } catch (IOException e) {
-        throw new UncheckedIOException("Failed to close changelog scan: " + scan, e);
-      }
-    }
-
-    return taskGroups;
+  protected Class<PartitionScanTask> taskJavaClass() {
+    return PartitionScanTask.class;
   }
 
   @Override
@@ -130,7 +66,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
     return String.format(
         Locale.ROOT,
         "IcebergChangelogScan(table=%s, fromSnapshotId=%d, toSnapshotId=%d, filters=%s)",
-        table,
+        table(),
         startSnapshotId,
         endSnapshotId,
         filtersDesc());
@@ -147,8 +83,8 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
     }
 
     SparkChangelogScan that = (SparkChangelogScan) o;
-    return table.name().equals(that.table.name())
-        && Objects.equals(table.uuid(), that.table.uuid())
+    return table().name().equals(that.table().name())
+        && Objects.equals(table().uuid(), that.table().uuid())
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field IDs
         && filtersDesc().equals(that.filtersDesc())
         && Objects.equals(startSnapshotId, that.startSnapshotId)
@@ -158,10 +94,11 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   @Override
   public int hashCode() {
     return Objects.hash(
-        table.name(), table.uuid(), readSchema(), filtersDesc(), startSnapshotId, endSnapshotId);
-  }
-
-  private String filtersDesc() {
-    return Spark3Util.describe(filters);
+        table().name(),
+        table().uuid(),
+        readSchema(),
+        filtersDesc(),
+        startSnapshotId,
+        endSnapshotId);
   }
 }
