@@ -37,7 +37,7 @@ public class InputFilesDecryptor {
   private volatile Map<String, InputFile> lazyInputFiles = null;
 
   /**
-   * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link #fromTasks(Iterable,
+   * @deprecated since 1.13.0, will be removed in 1.14.0; use {@link #fromTasks(Iterable,
    *     EncryptingFileIO)} instead.
    */
   @Deprecated
@@ -84,7 +84,7 @@ public class InputFilesDecryptor {
   }
 
   /**
-   * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link #getInputFile(String)} instead.
+   * @deprecated since 1.13.0, will be removed in 1.14.0; use {@link #getInputFile(String)} instead.
    */
   @Deprecated
   public InputFile getInputFile(FileScanTask task) {

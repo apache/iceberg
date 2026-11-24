@@ -111,6 +111,16 @@ public final class MetricsConfig implements Serializable {
     return from(table.properties(), table.schema(), table.sortOrder(), table.spec());
   }
 
+  /**
+   * Creates a metrics config from table metadata.
+   *
+   * @param meta a {@link TableMetadata}
+   * @return a metrics config for the given table
+   */
+  static MetricsConfig forTable(TableMetadata meta) {
+    return from(meta.properties(), meta.schema(), meta.sortOrder(), meta.spec());
+  }
+
   public Iterable<Integer> metricsFieldIds() {
     Preconditions.checkState(idToName != null, "Cannot resolve column mode by ID: missing schema");
     return Collections.unmodifiableSet(idToName.keySet());

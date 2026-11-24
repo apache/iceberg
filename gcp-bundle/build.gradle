@@ -35,6 +35,9 @@ project(":iceberg-gcp-bundle") {
     // Align the shaded Jackson to the project version; the Google libraries BOM
     // otherwise pulls in an older jackson-databind with known CVEs.
     implementation platform(libs.jackson.bom)
+    // Align the shaded Guava to the project version; the Google libraries BOM
+    // otherwise pulls in an older Guava with known CVEs.
+    implementation libs.guava.guava
     implementation "com.google.cloud:google-cloud-storage"
     implementation "com.google.cloud:google-cloud-bigquery"
     implementation "com.google.cloud:google-cloud-core"

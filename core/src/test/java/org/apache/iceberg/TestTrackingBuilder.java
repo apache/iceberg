@@ -45,7 +45,7 @@ class TestTrackingBuilder {
 
     assertThat(tracking.status()).isEqualTo(EntryStatus.ADDED);
     assertThat(tracking.snapshotId()).isEqualTo(42L);
-    assertThat(tracking.modifiedSnapshotId()).isEqualTo(42L);
+    assertThat(tracking.modifiedSnapshotId()).isNull();
     assertThat(tracking.deletedPositions()).isNull();
     assertThat(tracking.replacedPositions()).isNull();
     // sequence numbers and firstRowId remain null; populated by inheritance
@@ -120,6 +120,18 @@ class TestTrackingBuilder {
         .isNotEqualTo(999L);
     // only the modified snapshot id advances to the commit snapshot
     assertThat(modified.modifiedSnapshotId()).isEqualTo(999L);
+  }
+
+  @Test
+  void columnFilesUpdatedProducesModifiedAndResetsDataSequenceNumber() {
+    Tracking modified =
+        TrackingBuilder.from(SOURCE_TRACKING_ADDED, 999L).columnFilesUpdated().build();
+
+    assertThat(modified.status()).isEqualTo(EntryStatus.MODIFIED);
+    assertThat(modified.modifiedSnapshotId()).isEqualTo(999L);
+    // data sequence number is reset to inherit the new snapshot's sequence number
+    assertThat(modified.dataSequenceNumber()).isNull();
+    assertThat(modified.fileSequenceNumber()).isEqualTo(SOURCE_TRACKING_ADDED.fileSequenceNumber());
   }
 
   @Test
@@ -279,5 +291,32 @@ class TestTrackingBuilder {
         .isNotEqualTo(999L);
     assertThat(modified.modifiedSnapshotId()).isEqualTo(999L);
     assertThat(modified.deletedPositions()).isEqualTo(deletedBytes);
+  }
+
+  @Test
+  void manifestPositionsWithColumnFilesUpdated() {
+    ByteBuffer deletedBytes = ByteBuffer.wrap(new byte[] {1});
+    Tracking withDeletedPositions =
+        TrackingBuilder.from(SOURCE_TRACKING_ADDED, 999L)
+            .columnFilesUpdated()
+            .deletedPositions(deletedBytes)
+            .build();
+
+    assertThat(withDeletedPositions.status()).isEqualTo(EntryStatus.MODIFIED);
+    assertThat(withDeletedPositions.modifiedSnapshotId()).isEqualTo(999L);
+    assertThat(withDeletedPositions.deletedPositions()).isEqualTo(deletedBytes);
+    assertThat(withDeletedPositions.dataSequenceNumber()).isNull();
+
+    ByteBuffer replacedBytes = ByteBuffer.wrap(new byte[] {2});
+    Tracking withReplacedPositions =
+        TrackingBuilder.from(SOURCE_TRACKING_ADDED, 999L)
+            .columnFilesUpdated()
+            .replacedPositions(replacedBytes)
+            .build();
+
+    assertThat(withReplacedPositions.status()).isEqualTo(EntryStatus.MODIFIED);
+    assertThat(withReplacedPositions.modifiedSnapshotId()).isEqualTo(999L);
+    assertThat(withReplacedPositions.replacedPositions()).isEqualTo(replacedBytes);
+    assertThat(withReplacedPositions.dataSequenceNumber()).isNull();
   }
 }

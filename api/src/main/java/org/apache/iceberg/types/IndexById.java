@@ -66,6 +66,12 @@ class IndexById extends TypeUtil.SchemaVisitor<Map<Integer, Types.NestedField>> 
   }
 
   @Override
+  public Map<Integer, Types.NestedField> file(
+      Types.FileType file, List<Map<Integer, Types.NestedField>> fieldResults) {
+    return struct(file.asStruct(), fieldResults);
+  }
+
+  @Override
   public Map<Integer, Types.NestedField> variant(Types.VariantType variant) {
     return null;
   }

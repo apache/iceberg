@@ -93,6 +93,7 @@ nav:
         - RisingWave: integrations/risingwave.md
         - Ryft: https://docs.ryft.io/platform
         - Sail: https://docs.lakesail.com/sail/latest/guide/sources/iceberg
+        - Singdata: https://www.singdata.com/documents/managed-iceberg-overview
         - Snowflake: https://docs.snowflake.com/en/user-guide/tables-iceberg
         - Stackable: https://stackable.tech/en/data-lakehouse/
         - Starburst: https://docs.starburst.io/latest/connector/iceberg.html

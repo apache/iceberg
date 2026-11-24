@@ -233,11 +233,13 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
   @Override
   protected synchronized List<ScanTaskGroup<T>> taskGroups() {
     if (taskGroups == null) {
+      long splitSize = adjustSplitSize(tasks(), scan.targetSplitSize());
+
       if (groupingKeyType().fields().isEmpty()) {
         CloseableIterable<ScanTaskGroup<T>> plannedTaskGroups =
             TableScanUtil.planTaskGroups(
                 CloseableIterable.withNoopClose(tasks()),
-                adjustSplitSize(tasks(), scan.targetSplitSize()),
+                splitSize,
                 scan.splitLookback(),
                 scan.splitOpenFileCost());
         this.taskGroups = Lists.newArrayList(plannedTaskGroups);
@@ -251,7 +253,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
         List<ScanTaskGroup<T>> plannedTaskGroups =
             TableScanUtil.planTaskGroups(
                 tasks(),
-                adjustSplitSize(tasks(), scan.targetSplitSize()),
+                splitSize,
                 scan.splitLookback(),
                 scan.splitOpenFileCost(),
                 groupingKeyType());
@@ -266,6 +268,8 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
         this.taskGroups = plannedTaskGroups;
       }
+
+      setEffectiveSplitTargetSize(taskGroups, splitSize);
     }
 
     return taskGroups;
@@ -276,6 +280,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
   protected synchronized void resetTasks(List<T> filteredTasks) {
     this.taskGroups = null;
     this.tasks = filteredTasks;
+    resetEffectiveSplitTargetSize();
   }
 
   private StructLikeSet collectGroupingKeys(Iterable<ScanTaskGroup<T>> taskGroupIterable) {
@@ -304,6 +309,18 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
         evaluatorsBySpecId.computeIfAbsent(
             task.spec().specId(), ignored -> new PartitionPredicateEvaluator(task.spec()));
     return evaluator.eval(task.partition());
+  }
+
+  /**
+   * Returns the planned tasks that match all partition predicates in the scan.
+   *
+   * <p>Tasks from specs where a predicate cannot be evaluated are kept.
+   */
+  protected synchronized List<T> tasksMatchingPartitionPredicates() {
+    Map<Integer, PartitionPredicateEvaluator> evaluatorsBySpecId = Maps.newHashMap();
+    return tasks().stream()
+        .filter(task -> matchesPartitionPredicates(task, evaluatorsBySpecId))
+        .collect(Collectors.toList());
   }
 
   private static List<PartitionField> activePartitionFields(PartitionSpec spec) {

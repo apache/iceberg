@@ -36,6 +36,8 @@ class StatsTestUtil {
         0,
         null,
         stats,
+        false, // tightStats
+        null,
         null,
         null,
         null,
@@ -53,22 +55,36 @@ class StatsTestUtil {
   }
 
   /** Returns the stats for a field, where a null metric is one that the column does not track. */
-  static FieldStats<Object> fieldStats(
+  static <T> FieldStats<T> fieldStats(
       Types.StructType statsType,
       int fieldId,
-      Object lower,
-      Object upper,
+      T lower,
+      T upper,
       Long valueCount,
       Long nullCount,
       Long nanCount) {
+    return fieldStats(statsType, fieldId, lower, upper, valueCount, nullCount, nanCount, null);
+  }
+
+  static <T> FieldStats<T> fieldStats(
+      Types.StructType statsType,
+      int fieldId,
+      T lower,
+      T upper,
+      Long valueCount,
+      Long nullCount,
+      Long nanCount,
+      Long totalSize) {
     Types.StructType type = statsType.field(StatsUtil.toBaseId(fieldId)).type().asStructType();
     validateTrackedMetric(type, StatsUtil.LOWER_BOUND_NAME, lower);
     validateTrackedMetric(type, StatsUtil.UPPER_BOUND_NAME, upper);
     validateTrackedMetric(type, "value_count", valueCount);
     validateTrackedMetric(type, "null_value_count", nullCount);
     validateTrackedMetric(type, "nan_value_count", nanCount);
+    validateTrackedMetric(type, "total_bytes", totalSize);
 
-    return new TestFieldStats(fieldId, type, lower, upper, valueCount, nullCount, nanCount, null);
+    return new TestFieldStats<>(
+        fieldId, type, lower, upper, valueCount, nullCount, nanCount, totalSize);
   }
 
   private static void validateTrackedMetric(Types.StructType type, String metric, Object value) {
@@ -79,11 +95,11 @@ class StatsTestUtil {
         type);
   }
 
-  private static class TestFieldStats implements FieldStats<Object> {
+  private static class TestFieldStats<T> implements FieldStats<T> {
     private final int fieldId;
     private final Types.StructType type;
-    private final Object lowerBound;
-    private final Object upperBound;
+    private final T lowerBound;
+    private final T upperBound;
     private final Long valueCount;
     private final Long nullValueCount;
     private final Long nanValueCount;
@@ -92,8 +108,8 @@ class StatsTestUtil {
     private TestFieldStats(
         int fieldId,
         Types.StructType type,
-        Object lowerBound,
-        Object upperBound,
+        T lowerBound,
+        T upperBound,
         Long valueCount,
         Long nullValueCount,
         Long nanValueCount,
@@ -119,18 +135,13 @@ class StatsTestUtil {
     }
 
     @Override
-    public Object lowerBound() {
+    public T lowerBound() {
       return lowerBound;
     }
 
     @Override
-    public Object upperBound() {
+    public T upperBound() {
       return upperBound;
-    }
-
-    @Override
-    public boolean tightBounds() {
-      return false;
     }
 
     @Override
@@ -174,7 +185,7 @@ class StatsTestUtil {
     }
 
     @Override
-    public FieldStats<Object> copy() {
+    public FieldStats<T> copy() {
       return this;
     }
   }

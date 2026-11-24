@@ -151,10 +151,9 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
           e);
       output.collect(TaskResultAggregator.ERROR_STREAM, new StreamRecord<>(e));
       errorCounter.inc();
+    } finally {
+      this.commitService = null;
     }
-
-    // Cleanup
-    this.commitService = null;
 
     super.processWatermark(mark);
   }

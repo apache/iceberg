@@ -19,11 +19,16 @@
 package org.apache.iceberg.mumbling;
 
 import java.nio.ByteBuffer;
+import org.apache.iceberg.ManifestBitmap;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class MumblingTestUtil {
   private MumblingTestUtil() {}
+
+  public static ManifestBitmap onlyFirstBitSet() {
+    return bitmap(sparse(0));
+  }
 
   /** Returns the serialized bytes of a Mumbling bitmap with only the first bit set. */
   public static byte[] onlyFirstBitSetBytes() {
@@ -131,6 +136,10 @@ public class MumblingTestUtil {
       } else {
         throw new IllegalArgumentException("Invalid container: longer than 32 bytes");
       }
+    }
+
+    public ByteBuffer buffer() {
+      return ByteBuffer.wrap(bytes);
     }
   }
 }
