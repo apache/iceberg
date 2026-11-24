@@ -187,16 +187,6 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return asScanIterator(OUTPUT_TYPE, toOutputRows(viewName));
   }
 
-  @Override
-  public String name() {
-    return NAME;
-  }
-
-  @Override
-  public String description() {
-    return "CreateChangelogViewProcedure";
-  }
-
   private Dataset<Row> computeUpdateImages(String[] identifierColumns, Dataset<Row> df) {
     Preconditions.checkArgument(
         identifierColumns.length > 0,
@@ -393,5 +383,15 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   private InternalRow[] toOutputRows(String viewName) {
     InternalRow row = newInternalRow(UTF8String.fromString(viewName));
     return new InternalRow[] {row};
+  }
+
+  @Override
+  public String name() {
+    return NAME;
+  }
+
+  @Override
+  public String description() {
+    return "CreateChangelogViewProcedure";
   }
 }

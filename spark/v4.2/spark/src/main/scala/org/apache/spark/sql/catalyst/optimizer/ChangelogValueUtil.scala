@@ -25,6 +25,7 @@ import org.apache.spark.sql.catalyst.expressions.codegen.CodegenFallback
 import org.apache.spark.sql.catalyst.expressions.objects.StaticInvoke
 import org.apache.spark.sql.catalyst.util.ArrayData
 import org.apache.spark.sql.catalyst.util.GenericArrayData
+import org.apache.spark.sql.execution.RecordBinaryComparator
 import org.apache.spark.sql.types._
 
 private[sql] object ChangelogValueUtil {
@@ -79,11 +80,32 @@ private[sql] object ChangelogValueUtil {
    * Compares records with the same equality semantics as [[canonicalize]].
    */
   def createOrdering(schema: StructType, indices: Array[Int]): BaseOrdering = {
-    val orders = indices.map { index =>
+    val keys = indices.map { index =>
       val reference = BoundReference(index, schema(index).dataType, nullable = true)
-      SortOrder(canonicalize(reference), Ascending)
+      canonicalize(reference)
+    }.toSeq
+    // Variants support binary equality but not Spark ordering.
+    if (keys.exists(_.dataType.existsRecursively(_ == VariantType))) {
+      new BaseOrdering {
+        private val leftProjection = UnsafeProjection.create(keys)
+        private val rightProjection = UnsafeProjection.create(keys)
+        private val comparator = new RecordBinaryComparator
+
+        override def compare(left: InternalRow, right: InternalRow): Int = {
+          val leftKey = leftProjection(left)
+          val rightKey = rightProjection(right)
+          comparator.compare(
+            leftKey.getBaseObject,
+            leftKey.getBaseOffset,
+            leftKey.getSizeInBytes,
+            rightKey.getBaseObject,
+            rightKey.getBaseOffset,
+            rightKey.getSizeInBytes)
+        }
+      }
+    } else {
+      RowOrdering.create(keys.map(SortOrder(_, Ascending)), Nil)
     }
-    RowOrdering.create(orders.toSeq, Nil)
   }
 }
 
