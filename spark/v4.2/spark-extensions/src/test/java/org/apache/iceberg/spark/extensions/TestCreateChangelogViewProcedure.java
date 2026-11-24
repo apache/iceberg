@@ -32,6 +32,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSQLProperties;
@@ -39,7 +40,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.execution.SparkPlan;
-import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructField;
 import org.junit.jupiter.api.AfterEach;
@@ -65,6 +65,13 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
           "false",
           SQLConf.PARTITION_OVERWRITE_MODE().key(),
           "static");
+
+  private static final Map<String, String> AQE_ENABLED =
+      Map.of(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true");
+
+  private static final Map<String, String> SINGLE_SPLIT_TABLE_PROPERTIES =
+      Map.of(
+          TableProperties.SPLIT_SIZE, "16777216", TableProperties.SPLIT_OPEN_FILE_COST, "16777216");
 
   private static final String UPDATE_OPTIONS =
       "compute_updates => true, identifier_columns => array('id')";
@@ -756,90 +763,56 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
 
   @TestTemplate
   void createChangelogView_bucketedUpdatesAvoidShuffle() {
-    withSQLConf(
-        CHANGELOG_GROUPING_CONF,
-        () -> {
-          long startSnapshotId = createChangelogHistory("bucket(8, id)");
-          assertChangelog(startSnapshotId, UPDATE_OPTIONS, UPDATE_ROWS, 0);
-        });
+    assertGroupedChangelog(Map.of(), "bucket(8, id)", UPDATE_OPTIONS, UPDATE_ROWS, 0);
   }
 
   @TestTemplate
   void createChangelogView_bucketedUpdatesWithAqeAvoidShuffle() {
-    Map<String, String> conf = Maps.newHashMap(CHANGELOG_GROUPING_CONF);
-    conf.put(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true");
-    withSQLConf(
-        conf,
-        () -> {
-          long startSnapshotId = createChangelogHistory("bucket(8, id)");
-          assertChangelog(startSnapshotId, UPDATE_OPTIONS, UPDATE_ROWS, 0);
-        });
+    assertGroupedChangelog(AQE_ENABLED, "bucket(8, id)", UPDATE_OPTIONS, UPDATE_ROWS, 0);
   }
 
   @TestTemplate
   void createChangelogView_bucketedCarryoversAvoidShuffle() {
-    withSQLConf(
-        CHANGELOG_GROUPING_CONF,
-        () -> {
-          long startSnapshotId = createChangelogHistory("bucket(8, id)");
-          assertChangelog(
-              startSnapshotId,
-              "compute_updates => false",
-              List.of(
-                  RowFactory.create(1, "a", DELETE, 0),
-                  RowFactory.create(1, "c", INSERT, 0),
-                  RowFactory.create(1, "c", DELETE, 1),
-                  RowFactory.create(1, "d", INSERT, 1)),
-              0);
-        });
+    assertGroupedChangelog(
+        Map.of(),
+        "bucket(8, id)",
+        "compute_updates => false",
+        List.of(
+            RowFactory.create(1, "a", DELETE, 0),
+            RowFactory.create(1, "c", INSERT, 0),
+            RowFactory.create(1, "c", DELETE, 1),
+            RowFactory.create(1, "d", INSERT, 1)),
+        0);
   }
 
   @TestTemplate
   void createChangelogView_bucketedNetChangesAvoidShuffle() {
-    withSQLConf(
-        CHANGELOG_GROUPING_CONF,
-        () -> {
-          long startSnapshotId = createChangelogHistory("bucket(8, id)");
-          assertChangelog(
-              startSnapshotId,
-              "net_changes => true",
-              List.of(RowFactory.create(1, "a", DELETE, 0), RowFactory.create(1, "d", INSERT, 1)),
-              0);
-        });
+    assertGroupedChangelog(
+        Map.of(),
+        "bucket(8, id)",
+        "net_changes => true",
+        List.of(RowFactory.create(1, "a", DELETE, 0), RowFactory.create(1, "d", INSERT, 1)),
+        0);
   }
 
   @TestTemplate
   void createChangelogView_disabledGroupingRetainsShuffle() {
-    Map<String, String> conf = Maps.newHashMap(CHANGELOG_GROUPING_CONF);
-    conf.put(SparkSQLProperties.PRESERVE_DATA_GROUPING, "false");
-    withSQLConf(
-        conf,
-        () -> {
-          long startSnapshotId = createChangelogHistory("bucket(8, id)");
-          assertChangelog(startSnapshotId, UPDATE_OPTIONS, UPDATE_ROWS, 1);
-        });
+    assertGroupedChangelog(
+        Map.of(SparkSQLProperties.PRESERVE_DATA_GROUPING, "false"),
+        "bucket(8, id)",
+        UPDATE_OPTIONS,
+        UPDATE_ROWS,
+        1);
   }
 
   @TestTemplate
   void createChangelogView_mutablePartitionColumnRetainsShuffle() {
-    withSQLConf(
-        CHANGELOG_GROUPING_CONF,
-        () -> {
-          long startSnapshotId = createChangelogHistory("bucket(8, id), data");
-          assertChangelog(startSnapshotId, UPDATE_OPTIONS, UPDATE_ROWS, 1);
-        });
+    assertGroupedChangelog(Map.of(), "bucket(8, id), data", UPDATE_OPTIONS, UPDATE_ROWS, 1);
   }
 
   @TestTemplate
   void createChangelogView_mutablePartitionColumnWithAqeRetainsShuffle() {
-    Map<String, String> conf = Maps.newHashMap(CHANGELOG_GROUPING_CONF);
-    conf.put(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true");
-    withSQLConf(
-        conf,
-        () -> {
-          long startSnapshotId = createChangelogHistory("bucket(8, id), data");
-          assertChangelog(startSnapshotId, UPDATE_OPTIONS, UPDATE_ROWS, 1);
-        });
+    assertGroupedChangelog(AQE_ENABLED, "bucket(8, id), data", UPDATE_OPTIONS, UPDATE_ROWS, 1);
   }
 
   @TestTemplate
@@ -851,27 +824,82 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
           sql(
               "ALTER TABLE %s REPLACE PARTITION FIELD bucket(8, id) WITH bucket(16, id)",
               tableName);
-          sql("INSERT OVERWRITE %s VALUES (1, 'c'), (2, 'b')", tableName);
-          sql("INSERT OVERWRITE %s VALUES (1, 'd'), (2, 'b')", tableName);
+          overwriteChangelogRows();
           assertChangelog(startSnapshotId, UPDATE_OPTIONS, UPDATE_ROWS, 1);
         });
   }
 
-  private long createChangelogHistory(String partitioning) {
-    long startSnapshotId = createInitialChangelogSnapshot(partitioning);
-    sql("INSERT OVERWRITE %s VALUES (1, 'c'), (2, 'b')", tableName);
-    sql("INSERT OVERWRITE %s VALUES (1, 'd'), (2, 'b')", tableName);
-    return startSnapshotId;
+  @TestTemplate
+  void createChangelogView_preservesSnapshotAtCreation() {
+    withSQLConf(
+        CHANGELOG_GROUPING_CONF,
+        () -> {
+          long startSnapshotId = createInitialChangelogSnapshot("bucket(8, id)");
+          overwriteChangelogRows();
+          List<Object[]> result =
+              sql(
+                  "CALL %s.system.create_changelog_view(table => '%s', "
+                      + "options => map('start-snapshot-id', '%s'), %s)",
+                  catalogName, tableName, startSnapshotId, UPDATE_OPTIONS);
+          String viewName = (String) result.get(0)[0];
+
+          sql("INSERT INTO %s VALUES (3, 'e')", tableName);
+
+          assertThat(
+                  spark
+                      .sql("SELECT id, data, _change_type, _change_ordinal FROM " + viewName)
+                      .collectAsList())
+              .containsExactlyInAnyOrderElementsOf(UPDATE_ROWS);
+        });
+  }
+
+  @TestTemplate
+  void createChangelogView_emptyTableRemainsEmpty() {
+    withSQLConf(
+        CHANGELOG_GROUPING_CONF,
+        () -> {
+          sql(
+              "CREATE TABLE %s (id INT, data STRING) USING iceberg PARTITIONED BY (bucket(8, id))",
+              tableName);
+          List<Object[]> result =
+              sql("CALL %s.system.create_changelog_view(table => '%s')", catalogName, tableName);
+          String viewName = (String) result.get(0)[0];
+
+          sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+
+          assertThat(spark.table(viewName).collectAsList()).isEmpty();
+        });
+  }
+
+  private void assertGroupedChangelog(
+      Map<String, String> confOverrides,
+      String partitioning,
+      String options,
+      List<Row> expectedRows,
+      int expectedShuffles) {
+    Map<String, String> conf = Maps.newHashMap(CHANGELOG_GROUPING_CONF);
+    conf.putAll(confOverrides);
+    withSQLConf(
+        conf,
+        () -> {
+          long startSnapshotId = createInitialChangelogSnapshot(partitioning);
+          overwriteChangelogRows();
+          assertChangelog(startSnapshotId, options, expectedRows, expectedShuffles);
+        });
   }
 
   private long createInitialChangelogSnapshot(String partitioning) {
     // Matching rows must cross input partitions to exercise grouping before comparison.
     sql(
-        "CREATE TABLE %s (id INT, data STRING) USING iceberg PARTITIONED BY (%s) "
-            + "TBLPROPERTIES ('%s'='16777216', '%s'='16777216')",
-        tableName, partitioning, TableProperties.SPLIT_SIZE, TableProperties.SPLIT_OPEN_FILE_COST);
+        "CREATE TABLE %s (id INT, data STRING) USING iceberg PARTITIONED BY (%s) TBLPROPERTIES (%s)",
+        tableName, partitioning, tablePropsAsString(SINGLE_SPLIT_TABLE_PROPERTIES));
     sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
     return validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+  }
+
+  private void overwriteChangelogRows() {
+    sql("INSERT OVERWRITE %s VALUES (1, 'c'), (2, 'b')", tableName);
+    sql("INSERT OVERWRITE %s VALUES (1, 'd'), (2, 'b')", tableName);
   }
 
   private void assertChangelog(
@@ -885,16 +913,10 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
     Dataset<Row> changes =
         spark.sql("SELECT id, data, _change_type, _change_ordinal FROM " + viewName);
 
-    assertThat(changes.collectAsList()).containsExactlyInAnyOrderElementsOf(expectedRows);
-    SparkPlan plan = changes.queryExecution().executedPlan();
-    assertThat(plan instanceof AdaptiveSparkPlanExec)
-        .isEqualTo(spark.sessionState().conf().adaptiveExecutionEnabled());
-    if (plan instanceof AdaptiveSparkPlanExec) {
-      AdaptiveSparkPlanExec adaptivePlan = (AdaptiveSparkPlanExec) plan;
-      assertThat(adaptivePlan.isFinalPlan()).isTrue();
-      plan = adaptivePlan.executedPlan();
-    }
+    List<Row> actualRows = Lists.newArrayList();
+    SparkPlan plan = executeAndKeepPlan(() -> actualRows.addAll(changes.collectAsList()));
 
+    assertThat(actualRows).containsExactlyInAnyOrderElementsOf(expectedRows);
     assertThat(StringUtils.countMatches(plan.toString(), "Exchange"))
         .as("Number of changelog shuffles in %s", plan)
         .isEqualTo(expectedShuffles);

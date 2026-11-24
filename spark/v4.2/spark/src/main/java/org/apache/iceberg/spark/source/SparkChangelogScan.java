@@ -53,6 +53,7 @@ class SparkChangelogScan extends SparkPartitioningAwareScan<PartitionScanTask> {
         null);
     this.startSnapshotId = readConf.startSnapshotId();
     this.endSnapshotId = readConf.endSnapshotId();
+    // Freeze the snapshot range when the scan is built.
     tasks();
   }
 
