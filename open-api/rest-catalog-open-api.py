@@ -2017,9 +2017,6 @@ class LoadTableResult(BaseModel):
 
     The `table-location` field carries the table's base location.
     Format version 4 allows location fields in metadata to be relative and makes `metadata.location` optional.
-    Servers must populate `table-location` whenever `metadata.location` is absent.
-
-
     Exactly one of `metadata.location` and `table-location` must be present.
 
 
