@@ -441,12 +441,25 @@ class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
     }
   }
 
-  // TODO: Also run with the JDBC lock once JdbcLockFactory creates the lock table safely. The
-  // trigger manager and the lock remover both create it on open, and the second CREATE TABLE
-  // fails with "table already exists" when they race.
   @Test
   public void testConvertEqualityDeletesWithRewriteEnabledE2e() throws Exception {
-    setupLockConfig("");
+    checkConvertEqualityDeletesWithRewriteEnabledE2e("");
+  }
+
+  @Test
+  public void testConvertEqualityDeletesWithRewriteEnabledJdbcE2e() throws Exception {
+    checkConvertEqualityDeletesWithRewriteEnabledE2e(LockConfig.JdbcLockConfig.JDBC);
+  }
+
+  private void checkConvertEqualityDeletesWithRewriteEnabledE2e(String lockType) throws Exception {
+    setupLockConfig(lockType);
+    if (LockConfig.JdbcLockConfig.JDBC.equals(lockType)) {
+      flinkConf.put(
+          LockConfig.JdbcLockConfig.JDBC_URI_OPTION.key(),
+          "jdbc:sqlite:file:maintenance-"
+              + UUID.randomUUID().toString().replace("-", "")
+              + "?mode=memory&cache=shared");
+    }
     setupCompactionConfig();
     setupConvertEqualityDeletesConfig();
     upgradeToFormatV3();
@@ -486,7 +499,7 @@ class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
                     table, ImmutableList.of(SimpleDataUtil.createRecord(1, "bbb")));
               });
     } finally {
-      jobClient.cancel();
+      jobClient.cancel().get(30, java.util.concurrent.TimeUnit.SECONDS);
     }
   }
 

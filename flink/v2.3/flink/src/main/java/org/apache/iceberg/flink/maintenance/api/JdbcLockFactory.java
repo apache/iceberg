@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import java.io.IOException;
+import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -124,26 +125,7 @@ public class JdbcLockFactory implements TriggerLockFactory {
   private void initializeLockTables() {
     LOG.debug("Creating database tables (if missing) to store table maintenance locks");
     try {
-      pool.run(
-          conn -> {
-            DatabaseMetaData dbMeta = conn.getMetaData();
-            if (lockTableExists(dbMeta)) {
-              LOG.debug("Flink maintenance lock table already exists");
-              return true;
-            }
-            LOG.info("Creating Flink maintenance lock table {}", LOCK_TABLE_NAME);
-            try (PreparedStatement ps = conn.prepareStatement(CREATE_LOCK_TABLE_SQL)) {
-              ps.execute();
-            } catch (SQLException e) {
-              if (lockTableExists(dbMeta)) {
-                return true;
-              }
-
-              throw e;
-            }
-
-            return true;
-          });
+      pool.run(JdbcLockFactory::initializeLockTable);
     } catch (SQLTimeoutException e) {
       throw new UncheckedSQLException(
           e, "Cannot initialize JDBC table maintenance lock: Query timed out");
@@ -156,6 +138,28 @@ public class JdbcLockFactory implements TriggerLockFactory {
       Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted in call to initialize");
     }
+  }
+
+  @VisibleForTesting
+  static boolean initializeLockTable(Connection conn) throws SQLException {
+    DatabaseMetaData dbMeta = conn.getMetaData();
+    if (lockTableExists(dbMeta)) {
+      LOG.debug("Flink maintenance lock table already exists");
+      return true;
+    }
+
+    LOG.info("Creating Flink maintenance lock table {}", LOCK_TABLE_NAME);
+    try (PreparedStatement ps = conn.prepareStatement(CREATE_LOCK_TABLE_SQL)) {
+      ps.execute();
+    } catch (SQLException e) {
+      if (lockTableExists(dbMeta)) {
+        return true;
+      }
+
+      throw e;
+    }
+
+    return true;
   }
 
   private static boolean lockTableExists(DatabaseMetaData metadata) throws SQLException {
