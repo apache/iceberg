@@ -19,15 +19,12 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.Types.MinorType;
@@ -36,22 +33,19 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.encryption.EncryptedFiles;
-import org.apache.iceberg.encryption.EncryptedInputFile;
-import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
@@ -119,8 +113,7 @@ public class ArrowReader extends CloseableGroup {
           TypeID.TIMESTAMP_NANO);
 
   private final Schema schema;
-  private final FileIO io;
-  private final EncryptionManager encryption;
+  private final EncryptingFileIO io;
   private final int batchSize;
   private final boolean reuseContainers;
 
@@ -139,8 +132,7 @@ public class ArrowReader extends CloseableGroup {
    */
   public ArrowReader(TableScan scan, int batchSize, boolean reuseContainers) {
     this.schema = scan.schema();
-    this.io = scan.table().io();
-    this.encryption = scan.table().encryption();
+    this.io = EncryptingFileIO.combine(scan.table().io(), scan.table().encryption());
     this.batchSize = batchSize;
     // start planning tasks in the background
     this.reuseContainers = reuseContainers;
@@ -175,7 +167,7 @@ public class ArrowReader extends CloseableGroup {
   public CloseableIterator<ColumnarBatch> open(CloseableIterable<CombinedScanTask> tasks) {
     CloseableIterator<ColumnarBatch> itr =
         new VectorizedCombinedScanIterator(
-            tasks, schema, null, io, encryption, true, batchSize, reuseContainers);
+            tasks, schema, null, io, true, batchSize, reuseContainers);
     addCloseable(itr);
     return itr;
   }
@@ -192,7 +184,7 @@ public class ArrowReader extends CloseableGroup {
   static final class VectorizedCombinedScanIterator implements CloseableIterator<ColumnarBatch> {
 
     private final Iterator<FileScanTask> fileItr;
-    private final Map<String, InputFile> inputFiles;
+    private final InputFilesDecryptor decryptor;
     private final Schema expectedSchema;
     private final String nameMapping;
     private final boolean caseSensitive;
@@ -207,8 +199,7 @@ public class ArrowReader extends CloseableGroup {
      * @param tasks Combined file scan tasks.
      * @param expectedSchema Read schema. The returned data will have this schema.
      * @param nameMapping Mapping from external schema names to Iceberg type IDs.
-     * @param io File I/O.
-     * @param encryptionManager Encryption manager.
+     * @param io File I/O that decrypts the files of the tasks.
      * @param caseSensitive If {@code true}, column names are case sensitive. If {@code false},
      *     column names are not case sensitive.
      * @param batchSize Batch size in number of rows. Each Arrow batch contains a maximum of {@code
@@ -225,8 +216,7 @@ public class ArrowReader extends CloseableGroup {
         CloseableIterable<CombinedScanTask> tasks,
         Schema expectedSchema,
         String nameMapping,
-        FileIO io,
-        EncryptionManager encryptionManager,
+        EncryptingFileIO io,
         boolean caseSensitive,
         int batchSize,
         boolean reuseContainers) {
@@ -258,25 +248,7 @@ public class ArrowReader extends CloseableGroup {
             "Cannot read unsupported column types: " + unsupportedTypes);
       }
 
-      Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
-      fileTasks.stream()
-          .map(FileScanTask::file)
-          .forEach(file -> keyMetadata.put(file.location(), file.keyMetadata()));
-
-      Stream<EncryptedInputFile> encrypted =
-          keyMetadata.entrySet().stream()
-              .map(
-                  entry ->
-                      EncryptedFiles.encryptedInput(
-                          io.newInputFile(entry.getKey()), entry.getValue()));
-
-      // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
-      @SuppressWarnings("StreamToIterable")
-      Iterable<InputFile> decryptedFiles = encryptionManager.decrypt(encrypted::iterator);
-
-      Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(fileTasks.size());
-      decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
-      this.inputFiles = ImmutableMap.copyOf(files);
+      this.decryptor = InputFilesDecryptor.fromTasks(fileTasks, io);
       this.currentIterator = CloseableIterator.empty();
       this.expectedSchema = expectedSchema;
       this.nameMapping = nameMapping;
@@ -302,7 +274,7 @@ public class ArrowReader extends CloseableGroup {
         }
       } catch (IOException | RuntimeException e) {
         if (currentTask != null && !currentTask.isDataTask()) {
-          LOG.error("Error reading file: {}", getInputFile(currentTask).location(), e);
+          LOG.error("Error reading file: {}", currentTask.file().location(), e);
         }
         ExceptionUtil.castAndThrow(e, RuntimeException.class);
         return false;
@@ -321,7 +293,6 @@ public class ArrowReader extends CloseableGroup {
     CloseableIterator<ColumnarBatch> open(FileScanTask task) {
       CloseableIterable<ColumnarBatch> iter;
       InputFile location = getInputFile(task);
-      Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       if (task.file().format() == FileFormat.PARQUET) {
         ReadBuilder<ColumnarBatch, ?> builder =
             FormatModelRegistry.readBuilder(FileFormat.PARQUET, ColumnarBatch.class, location);
@@ -361,7 +332,7 @@ public class ArrowReader extends CloseableGroup {
 
     private InputFile getInputFile(FileScanTask task) {
       Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
-      return inputFiles.get(task.file().location());
+      return decryptor.getInputFile(task.file().location());
     }
 
     /**
