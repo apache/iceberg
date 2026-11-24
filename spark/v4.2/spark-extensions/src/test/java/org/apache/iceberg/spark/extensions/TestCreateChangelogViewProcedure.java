@@ -23,13 +23,22 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.spark.sql.AnalysisException;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
+import org.apache.spark.sql.execution.SparkPlan;
+import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructField;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -230,11 +239,12 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
             "CALL %s.system.create_changelog_view(table => '%s'," + "options => map('%s', '%s'))",
             catalogName, tableName, SparkReadOptions.END_SNAPSHOT_ID, snap1.snapshotId());
 
-    assertEquals(
-        "Rows should match",
-        ImmutableList.of(
-            row(1, "a", INSERT, 0, snap0.snapshotId()), row(2, "b", INSERT, 1, snap1.snapshotId())),
-        sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
+    assertChangelogPlan(
+        (String) returns.get(0)[0],
+        List.of(
+            RowFactory.create(1, "a", INSERT, 0, snap0.snapshotId()),
+            RowFactory.create(2, "b", INSERT, 1, snap1.snapshotId())),
+        0);
   }
 
   @TestTemplate
@@ -718,5 +728,176 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "Identifier field is required as table contains unorderable columns: [data]");
+  }
+
+  @TestTemplate
+  void createChangelogView_insertOnlyAvoidsShuffleAndSort() {
+    assertInsertOnlyChanges("", "compute_updates => false", "false");
+  }
+
+  @TestTemplate
+  void createChangelogView_insertOnlyUpdatesWithAqeAvoidShuffleAndSort() {
+    assertInsertOnlyChanges(
+        "PARTITIONED BY (bucket(8, id))", "identifier_columns => array('id')", "true");
+  }
+
+  @TestTemplate
+  void createChangelogView_unboundedEmptyInputIncludesLaterAppend() {
+    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+    List<Object[]> result =
+        sql("CALL %s.system.create_changelog_view(table => '%s')", catalogName, tableName);
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    assertEquals(
+        "An unbounded view must include snapshots committed before it is read",
+        ImmutableList.of(row(1, "a", INSERT, 0, snapshotId)),
+        sql("SELECT * FROM %s", result.get(0)[0]));
+  }
+
+  @TestTemplate
+  void createChangelogView_boundedEmptyInput() {
+    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.newAppend().commit();
+    spark.catalog().refreshTable(tableName);
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', "
+                + "options => map('end-snapshot-id', '%s'))",
+            catalogName, tableName, table.currentSnapshot().snapshotId());
+
+    assertChangelogPlan((String) result.get(0)[0], List.of(), 0);
+  }
+
+  @TestTemplate
+  void createChangelogView_netChangesPreserveDuplicateMetadata() {
+    withSQLConf(
+        Map.of(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false"),
+        () -> {
+          sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+          sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+          long firstSnapshotId =
+              validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+          sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+          List<Object[]> result =
+              sql(
+                  "CALL %s.system.create_changelog_view(table => '%s', net_changes => true, "
+                      + "options => map('end-snapshot-id', '%s'))",
+                  catalogName,
+                  tableName,
+                  validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId());
+
+          assertChangelogPlan(
+              (String) result.get(0)[0],
+              List.of(
+                  RowFactory.create(1, "a", INSERT, 0, firstSnapshotId),
+                  RowFactory.create(1, "a", INSERT, 0, firstSnapshotId)),
+              1);
+        });
+  }
+
+  @TestTemplate
+  void createChangelogView_mixedChangesRetainShuffleAndSort() {
+    withSQLConf(
+        Map.of(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false"),
+        () -> {
+          sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+          sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+          Table table = validationCatalog.loadTable(tableIdent);
+          long startSnapshotId = table.currentSnapshot().snapshotId();
+          sql("INSERT OVERWRITE %s VALUES (1, 'b')", tableName);
+          table.refresh();
+          long endSnapshotId = table.currentSnapshot().snapshotId();
+          List<Object[]> result =
+              sql(
+                  "CALL %s.system.create_changelog_view(table => '%s', "
+                      + "options => map('start-snapshot-id', '%s', 'end-snapshot-id', '%s'))",
+                  catalogName, tableName, startSnapshotId, endSnapshotId);
+
+          assertChangelogPlan(
+              (String) result.get(0)[0],
+              List.of(
+                  RowFactory.create(1, "a", DELETE, 0, endSnapshotId),
+                  RowFactory.create(1, "b", INSERT, 0, endSnapshotId)),
+              1);
+        });
+  }
+
+  @TestTemplate
+  void createChangelogView_insertOnlyRejectsUnknownIdentifier() {
+    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('missing'), "
+                        + "options => map('end-snapshot-id', '%s'))",
+                    catalogName,
+                    tableName,
+                    validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId()))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("UNRESOLVED_COLUMN");
+  }
+
+  @TestTemplate
+  void createChangelogView_insertOnlyRejectsUnorderableIdentifier() {
+    sql("CREATE TABLE %s (id INT, data MAP<STRING, STRING>) USING iceberg", tableName);
+    sql("INSERT INTO %s VALUES (1, map('a', 'b'))", tableName);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('data'), "
+                        + "options => map('end-snapshot-id', '%s'))",
+                    catalogName,
+                    tableName,
+                    validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId()))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("MAP");
+  }
+
+  private void assertInsertOnlyChanges(String partitioning, String options, String aqe) {
+    withSQLConf(
+        Map.of(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), aqe),
+        () -> {
+          sql("CREATE TABLE %s (id INT, data STRING) USING iceberg %s", tableName, partitioning);
+          sql("INSERT INTO %s VALUES (1, 'a'), (1, 'a')", tableName);
+          Table table = validationCatalog.loadTable(tableIdent);
+          long firstSnapshotId = table.currentSnapshot().snapshotId();
+          sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+          table.refresh();
+          long secondSnapshotId = table.currentSnapshot().snapshotId();
+          List<Object[]> result =
+              sql(
+                  "CALL %s.system.create_changelog_view(table => '%s', %s, "
+                      + "options => map('end-snapshot-id', '%s'))",
+                  catalogName, tableName, options, secondSnapshotId);
+          sql("INSERT INTO %s VALUES (3, 'c')", tableName);
+
+          assertChangelogPlan(
+              (String) result.get(0)[0],
+              List.of(
+                  RowFactory.create(1, "a", INSERT, 0, firstSnapshotId),
+                  RowFactory.create(1, "a", INSERT, 0, firstSnapshotId),
+                  RowFactory.create(1, "a", INSERT, 1, secondSnapshotId),
+                  RowFactory.create(2, "b", INSERT, 1, secondSnapshotId)),
+              0);
+        });
+  }
+
+  private void assertChangelogPlan(String view, List<Row> expectedRows, int expectedOperators) {
+    Dataset<Row> changes = spark.table(view);
+    List<Row> actualRows = Lists.newArrayList();
+    SparkPlan plan = executeAndKeepPlan(() -> actualRows.addAll(changes.collectAsList()));
+
+    assertThat(actualRows).containsExactlyInAnyOrderElementsOf(expectedRows);
+    assertThat(StringUtils.countMatches(plan.toString(), "Exchange"))
+        .as("Changelog shuffles in %s", plan)
+        .isEqualTo(expectedOperators);
+    assertThat(StringUtils.countMatches(plan.toString(), "Sort ["))
+        .as("Changelog sorts in %s", plan)
+        .isEqualTo(expectedOperators);
   }
 }

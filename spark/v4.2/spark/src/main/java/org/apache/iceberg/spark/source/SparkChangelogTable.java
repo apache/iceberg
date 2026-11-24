@@ -29,6 +29,7 @@ import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.connector.catalog.SupportsMetadataColumns;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.TableCapability;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -50,6 +51,11 @@ public class SparkChangelogTable
   public SparkChangelogTable(Table table) {
     this.table = table;
     this.schema = ChangelogUtil.changelogSchema(table.schema());
+  }
+
+  /** Returns whether the scan produces only inserts, or no rows. */
+  public static boolean hasOnlyInserts(Scan scan) {
+    return scan instanceof SparkChangelogScan changelogScan && changelogScan.hasOnlyInserts();
   }
 
   @Override

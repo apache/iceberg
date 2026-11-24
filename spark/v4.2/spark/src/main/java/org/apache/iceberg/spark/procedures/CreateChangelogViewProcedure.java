@@ -32,6 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.ChangelogIterator;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
@@ -41,16 +42,20 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.OrderUtils;
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
+import org.apache.spark.sql.classic.SparkSession;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
 import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
 import org.apache.spark.sql.connector.read.Scan;
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
+import scala.collection.Seq;
 
 /**
  * A procedure that creates a view for changed rows.
@@ -151,7 +156,8 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
     // load insert and deletes from the changelog table
     Identifier changelogTableIdent = changelogTableIdent(tableIdent);
-    Dataset<Row> df = loadRows(changelogTableIdent, options(input));
+    Map<String, String> options = options(input);
+    Dataset<Row> df = loadRows(changelogTableIdent, options);
 
     boolean netChanges = input.asBoolean(NET_CHANGES, false);
     String[] identifierColumns = identifierColumns(input, tableIdent);
@@ -166,11 +172,25 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
         "Identifier field is required as table contains unorderable columns: %s",
         unorderableColumnNames);
 
+    // Planning an unbounded range here would exclude snapshots committed before the view is read.
+    boolean canSkipProcessing =
+        !netChanges
+            && options.keySet().stream()
+                .anyMatch(SparkReadOptions.END_SNAPSHOT_ID::equalsIgnoreCase);
+    Dataset<Row> rawChanges = canSkipProcessing ? plannedRows(df) : df;
+
     if (shouldComputeUpdateImages(input)) {
       Preconditions.checkArgument(!netChanges, "Not support net changes with update images");
-      df = computeUpdateImages(identifierColumns, df);
+      df = computeUpdateImages(identifierColumns, rawChanges);
     } else {
-      df = removeCarryoverRows(df, netChanges);
+      df = removeCarryoverRows(rawChanges, netChanges);
+    }
+
+    if (canSkipProcessing) {
+      df.queryExecution().assertAnalyzed();
+      if (hasOnlyInserts(rawChanges)) {
+        df = rawChanges;
+      }
     }
 
     String viewName = viewName(input, tableIdent.name());
@@ -325,5 +345,17 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   @Override
   public String description() {
     return "CreateChangelogViewProcedure";
+  }
+
+  private Dataset<Row> plannedRows(Dataset<Row> df) {
+    return org.apache.spark.sql.classic.Dataset.ofRows(
+        (SparkSession) spark(), df.queryExecution().optimizedPlan());
+  }
+
+  private boolean hasOnlyInserts(Dataset<Row> df) {
+    Seq<LogicalPlan> leaves = df.queryExecution().optimizedPlan().collectLeaves();
+    return leaves.size() == 1
+        && leaves.apply(0) instanceof DataSourceV2ScanRelation relation
+        && SparkChangelogTable.hasOnlyInserts(relation.scan());
   }
 }
