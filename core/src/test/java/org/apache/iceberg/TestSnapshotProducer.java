@@ -36,6 +36,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -232,6 +233,68 @@ public class TestSnapshotProducer extends TestBase {
           this.current = metadataToReturnOnNextRefresh;
           this.metadataToReturnOnNextRefresh = null;
           return current;
+        }
+
+        return super.refresh();
+      }
+    };
+  }
+
+  @TestTemplate
+  public void cleanupUsesRefreshWhenCurrentMissesCommittedSnapshot() {
+    // Uses a custom TableOps whose current() returns stale metadata (without the new snapshot)
+    // after commit, while refresh() returns the committed metadata. Verifies that SnapshotProducer
+    // falls back to refresh(), finds the committed snapshot, and runs cleanup
+    String tableName = "stale-current-fresh-refresh";
+    AtomicInteger refreshesAfterCommit = new AtomicInteger();
+    TestTables.TestTableOperations ops =
+        opsWithStaleCurrentAfterCommit(tableName, tableDir, refreshesAfterCommit);
+    TestTables.TestTable tableWithStaleCurrent =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, ops);
+
+    // force one retry so that two manifest lists are written; the unused one is only deleted if
+    // the committed snapshot is found after commit
+    ops.failCommits(1);
+    tableWithStaleCurrent.newFastAppend().appendFile(FILE_A).commit();
+
+    assertThat(refreshesAfterCommit)
+        .as("current() does not contain the committed snapshot, so refresh() must be used")
+        .hasValue(1);
+    assertThat(listManifestLists(tableDir))
+        .as("Unused manifest list must be cleaned up")
+        .hasSize(1);
+
+    tableWithStaleCurrent.ops().refresh();
+    assertThat(tableWithStaleCurrent.currentSnapshot().manifestListLocation())
+        .isEqualTo(listManifestLists(tableDir).get(0).getPath());
+  }
+
+  /**
+   * Creates a TableOperations whose current() returns stale metadata (without the newly committed
+   * snapshot) after a commit, while refresh() returns the committed metadata. Used to verify that
+   * SnapshotProducer falls back to refresh() when current() does not contain the committed
+   * snapshot.
+   */
+  private static TestTables.TestTableOperations opsWithStaleCurrentAfterCommit(
+      String name, File location, AtomicInteger refreshesAfterCommit) {
+    return new TestTables.TestTableOperations(name, location) {
+      private boolean committed = false;
+
+      @Override
+      public void commit(TableMetadata base, TableMetadata updatedMetadata) {
+        super.commit(base, updatedMetadata);
+        if (base != null) {
+          // return stale metadata from current() until the next refresh()
+          this.current = base;
+          this.committed = true;
+        }
+      }
+
+      @Override
+      public TableMetadata refresh() {
+        if (committed) {
+          refreshesAfterCommit.incrementAndGet();
         }
 
         return super.refresh();

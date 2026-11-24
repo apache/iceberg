@@ -553,8 +553,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         LOG.info("Committed snapshot {} ({})", newSnapshotId.get(), getClass().getSimpleName());
 
         // at this point, the commit must have succeeded. the snapshot is loaded by id in case
-        // another commit was added after this one, and the table is refreshed only if the current
-        // metadata does not contain it.
+        // another commit was added after this one.
+        // some TableOperations implementations reflect the commit in current() immediately, while
+        // others need a refresh() before the committed snapshot is visible, so refresh only if
+        // current() does not contain it.
         // it might not be known which commit attempt succeeded in some cases, so this only cleans
         // up the one that actually did succeed.
         Snapshot saved = ops.current().snapshot(newSnapshotId.get());
