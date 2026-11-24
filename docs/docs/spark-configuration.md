@@ -213,6 +213,7 @@ val spark = SparkSession.builder()
 | spark.sql.iceberg.report-column-stats                  | true                                                           | Report Puffin Table Statistics if available to Spark's Cost Based Optimizer. CBO must be enabled for this to be effective       |
 | spark.sql.iceberg.read.adaptive-split-size.enabled     | Table default                                                  | Enables adaptive split sizing for read operations. When enabled, split size is automatically adjusted based on scan size and parallelism |
 | spark.sql.iceberg.read.adaptive-split-size.parallelism | max(spark.default.parallelism, spark.sql.shuffle.partitions)                                    | Overrides the parallelism used for adaptive split sizing. Must be greater than 0                                                |
+| spark.sql.iceberg.read.share-equality-deletes.enabled  | false                                                          | Loads each equality delete file once per task instead of once per data file, and plans tasks to match. Loaded equality deletes are kept in memory until the task finishes |
 | spark.sql.iceberg.async-micro-batch-planning-enabled   | false                                                          | Enables asynchronous microbatch planning to reduce planning latency by pre-fetching file scan tasks                             |
 
 ### Read options

@@ -348,6 +348,14 @@ public class SparkReadConf {
         .parse();
   }
 
+  public boolean shareEqualityDeletes() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.READ_SHARE_EQUALITY_DELETES_ENABLED)
+        .defaultValue(SparkSQLProperties.READ_SHARE_EQUALITY_DELETES_ENABLED_DEFAULT)
+        .parse();
+  }
+
   public boolean cacheDeleteFilesOnExecutors() {
     return executorCacheEnabled() && cacheDeleteFilesOnExecutorsInternal();
   }

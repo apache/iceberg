@@ -47,9 +47,7 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
 
   private final long numSplits;
 
-  // Shared across every data file in this task group so an equality delete file referenced by
-  // more than one of them is read and materialized only once. Not thread-safe because open()
-  // is called sequentially by the single task thread, so these are mutated by one thread.
+  // Shared by the data files of this task group, or null to load equality deletes per file
   private final EqualityDeletes sharedEqDeletes;
 
   RowDataReader(SparkInputPartition partition) {
@@ -59,7 +57,8 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
         partition.taskGroup(),
         partition.projection(),
         partition.isCaseSensitive(),
-        partition.cacheDeleteFilesOnExecutors());
+        partition.cacheDeleteFilesOnExecutors(),
+        partition.shareEqualityDeletes() ? new EqualityDeletes(partition.table().specs()) : null);
   }
 
   RowDataReader(
@@ -68,14 +67,15 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
       ScanTaskGroup<FileScanTask> taskGroup,
       Schema expectedSchema,
       boolean caseSensitive,
-      boolean cacheDeleteFilesOnExecutors) {
+      boolean cacheDeleteFilesOnExecutors,
+      EqualityDeletes sharedEqDeletes) {
 
     super(table, fileIO, taskGroup, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
 
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
 
-    sharedEqDeletes = new EqualityDeletes(table.specs());
+    this.sharedEqDeletes = sharedEqDeletes;
   }
 
   @Override

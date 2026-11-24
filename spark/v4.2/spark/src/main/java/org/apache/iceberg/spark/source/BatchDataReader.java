@@ -49,9 +49,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
 
   private final long numSplits;
 
-  // Shared across every data file in this task group so an equality delete file referenced by
-  // more than one of them is read and materialized only once. Not thread-safe because open()
-  // is called sequentially by the single task thread, so these are mutated by one thread.
+  // Shared by the data files of this task group, or null to load equality deletes per file
   private final EqualityDeletes sharedEqDeletes;
 
   BatchDataReader(
@@ -66,7 +64,8 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
         partition.isCaseSensitive(),
         parquetBatchReadConf,
         orcBatchReadConf,
-        partition.cacheDeleteFilesOnExecutors());
+        partition.cacheDeleteFilesOnExecutors(),
+        partition.shareEqualityDeletes() ? new EqualityDeletes(partition.table().specs()) : null);
   }
 
   BatchDataReader(
@@ -77,7 +76,8 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
       boolean caseSensitive,
       ParquetBatchReadConf parquetConf,
       OrcBatchReadConf orcConf,
-      boolean cacheDeleteFilesOnExecutors) {
+      boolean cacheDeleteFilesOnExecutors,
+      EqualityDeletes sharedEqDeletes) {
     super(
         table,
         fileIO,
@@ -91,7 +91,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
 
-    sharedEqDeletes = new EqualityDeletes(table.specs());
+    this.sharedEqDeletes = sharedEqDeletes;
   }
 
   @Override

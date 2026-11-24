@@ -394,7 +394,7 @@ class TestMergingSortedRowDataReader extends TestBase {
     assertThatThrownBy(
             () ->
                 new MergingSortedRowDataReader(
-                    table, table.io(), taskGroup, table.schema(), true, false))
+                    table, table.io(), taskGroup, table.schema(), true, false, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot find sort order 99");
   }
@@ -407,7 +407,7 @@ class TestMergingSortedRowDataReader extends TestBase {
     assertThatThrownBy(
             () ->
                 new MergingSortedRowDataReader(
-                    table, table.io(), taskGroup, table.schema(), true, false))
+                    table, table.io(), taskGroup, table.schema(), true, false, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Merging reader requires sorted files");
   }
@@ -430,7 +430,7 @@ class TestMergingSortedRowDataReader extends TestBase {
     assertThatThrownBy(
             () ->
                 new MergingSortedRowDataReader(
-                    table, table.io(), taskGroup, table.schema(), true, false))
+                    table, table.io(), taskGroup, table.schema(), true, false, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot find sort field id");
   }
@@ -447,7 +447,7 @@ class TestMergingSortedRowDataReader extends TestBase {
     assertThatThrownBy(
             () ->
                 new MergingSortedRowDataReader(
-                    table, table.io(), taskGroup, table.schema(), true, false))
+                    table, table.io(), taskGroup, table.schema(), true, false, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Merging reader requires at least two tasks, got 1");
   }
@@ -468,7 +468,7 @@ class TestMergingSortedRowDataReader extends TestBase {
     assertThatThrownBy(
             () ->
                 new MergingSortedRowDataReader(
-                    table, table.io(), taskGroup, table.schema(), true, false))
+                    table, table.io(), taskGroup, table.schema(), true, false, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Merging reader requires sorted files");
   }
@@ -516,7 +516,8 @@ class TestMergingSortedRowDataReader extends TestBase {
 
     BaseScanTaskGroup<FileScanTask> taskGroup = new BaseScanTaskGroup<>(planFiles(table));
     try (MergingSortedRowDataReader reader =
-        new MergingSortedRowDataReader(table, table.io(), taskGroup, table.schema(), true, false)) {
+        new MergingSortedRowDataReader(
+            table, table.io(), taskGroup, table.schema(), true, false, null)) {
       while (reader.next()) {
         // drain
       }
@@ -553,7 +554,7 @@ class TestMergingSortedRowDataReader extends TestBase {
     assertThatThrownBy(
             () ->
                 new MergingSortedRowDataReader(
-                    table, io, new BaseScanTaskGroup<>(tasks), table.schema(), true, false))
+                    table, io, new BaseScanTaskGroup<>(tasks), table.schema(), true, false, null))
         .hasMessageContaining("Failed to open " + failing);
 
     assertThat(io.opened()).isPositive();
@@ -639,7 +640,8 @@ class TestMergingSortedRowDataReader extends TestBase {
     List<Long> lengths = Lists.newArrayList();
     List<Integer> ids = Lists.newArrayList();
     try (MergingSortedRowDataReader reader =
-        new MergingSortedRowDataReader(table, table.io(), taskGroup, table.schema(), true, false)) {
+        new MergingSortedRowDataReader(
+            table, table.io(), taskGroup, table.schema(), true, false, null)) {
       while (reader.next()) {
         paths.add(InputFileBlockHolder.getInputFilePath().toString());
         starts.add(InputFileBlockHolder.getStartOffset());
@@ -713,7 +715,7 @@ class TestMergingSortedRowDataReader extends TestBase {
 
     assertThat(tasks).hasSize(5);
     return new MergingSortedRowDataReader(
-        table, table.io(), new BaseScanTaskGroup<>(tasks), table.schema(), true, false);
+        table, table.io(), new BaseScanTaskGroup<>(tasks), table.schema(), true, false, null);
   }
 
   @Test
@@ -722,7 +724,8 @@ class TestMergingSortedRowDataReader extends TestBase {
 
     List<InternalRow> rows = Lists.newArrayList();
     try (MergingSortedRowDataReader reader =
-        new MergingSortedRowDataReader(table, table.io(), taskGroup, table.schema(), true, false)) {
+        new MergingSortedRowDataReader(
+            table, table.io(), taskGroup, table.schema(), true, false, null)) {
       while (reader.next()) {
         rows.add(reader.get().copy());
       }
@@ -739,7 +742,9 @@ class TestMergingSortedRowDataReader extends TestBase {
     Schema idOnly = table.schema().select("id");
 
     assertThatThrownBy(
-            () -> new MergingSortedRowDataReader(table, table.io(), taskGroup, idOnly, true, false))
+            () ->
+                new MergingSortedRowDataReader(
+                    table, table.io(), taskGroup, idOnly, true, false, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot merge on nested sort key location.city");
   }
@@ -758,7 +763,7 @@ class TestMergingSortedRowDataReader extends TestBase {
     assertThatThrownBy(
             () ->
                 new MergingSortedRowDataReader(
-                    table, table.io(), taskGroup, table.schema(), true, false))
+                    table, table.io(), taskGroup, table.schema(), true, false, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot merge on UUID sort key key");
   }
@@ -798,7 +803,7 @@ class TestMergingSortedRowDataReader extends TestBase {
     assertThatThrownBy(
             () ->
                 new MergingSortedRowDataReader(
-                    table, table.io(), taskGroup, table.schema(), true, false))
+                    table, table.io(), taskGroup, table.schema(), true, false, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "Cannot merge on floating point sort key score followed by other sort keys");
@@ -873,7 +878,7 @@ class TestMergingSortedRowDataReader extends TestBase {
 
     List<InternalRow> rows = Lists.newArrayList();
     try (MergingSortedRowDataReader reader =
-        new MergingSortedRowDataReader(tbl, tbl.io(), taskGroup, projection, true, false)) {
+        new MergingSortedRowDataReader(tbl, tbl.io(), taskGroup, projection, true, false, null)) {
       while (reader.next()) {
         rows.add(reader.get().copy());
       }
