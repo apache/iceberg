@@ -38,6 +38,8 @@ import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
+import org.apache.spark.sql.execution.SparkPlan;
+import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructField;
 import org.junit.jupiter.api.AfterEach;
@@ -763,6 +765,18 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  void createChangelogView_bucketedUpdatesWithAqeAvoidShuffle() {
+    Map<String, String> conf = Maps.newHashMap(CHANGELOG_GROUPING_CONF);
+    conf.put(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true");
+    withSQLConf(
+        conf,
+        () -> {
+          long startSnapshotId = createChangelogHistory("bucket(8, id)");
+          assertChangelog(startSnapshotId, UPDATE_OPTIONS, UPDATE_ROWS, 0);
+        });
+  }
+
+  @TestTemplate
   void createChangelogView_bucketedCarryoversAvoidShuffle() {
     withSQLConf(
         CHANGELOG_GROUPING_CONF,
@@ -817,6 +831,18 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  void createChangelogView_mutablePartitionColumnWithAqeRetainsShuffle() {
+    Map<String, String> conf = Maps.newHashMap(CHANGELOG_GROUPING_CONF);
+    conf.put(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true");
+    withSQLConf(
+        conf,
+        () -> {
+          long startSnapshotId = createChangelogHistory("bucket(8, id), data");
+          assertChangelog(startSnapshotId, UPDATE_OPTIONS, UPDATE_ROWS, 1);
+        });
+  }
+
+  @TestTemplate
   void createChangelogView_incompatibleBucketsRetainShuffle() {
     withSQLConf(
         CHANGELOG_GROUPING_CONF,
@@ -860,8 +886,16 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
         spark.sql("SELECT id, data, _change_type, _change_ordinal FROM " + viewName);
 
     assertThat(changes.collectAsList()).containsExactlyInAnyOrderElementsOf(expectedRows);
-    String plan = changes.queryExecution().executedPlan().toString();
-    assertThat(StringUtils.countMatches(plan, "Exchange"))
+    SparkPlan plan = changes.queryExecution().executedPlan();
+    assertThat(plan instanceof AdaptiveSparkPlanExec)
+        .isEqualTo(spark.sessionState().conf().adaptiveExecutionEnabled());
+    if (plan instanceof AdaptiveSparkPlanExec) {
+      AdaptiveSparkPlanExec adaptivePlan = (AdaptiveSparkPlanExec) plan;
+      assertThat(adaptivePlan.isFinalPlan()).isTrue();
+      plan = adaptivePlan.executedPlan();
+    }
+
+    assertThat(StringUtils.countMatches(plan.toString(), "Exchange"))
         .as("Number of changelog shuffles in %s", plan)
         .isEqualTo(expectedShuffles);
   }
