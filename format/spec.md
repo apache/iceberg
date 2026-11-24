@@ -1815,7 +1815,7 @@ A column file can use any supported Iceberg file format and must have the same r
 
 A column file stores fields identified by field ID. If a field's ID is in a column file's `field_ids`, that column file is _responsible_ for the field and all fields nested in it. A field ID may be in the `field_ids` of at most one of a base file's column files, and `_row_id` must not be in any column file's `field_ids`. For example, a column file with `field_ids = [3, 5]`, where both fields are primitive, is responsible for fields 3 and 5.
 
-List, map, variant, and file type fields are identified by their own ID. IDs of fields nested in these types, such as a list's element ID or a map's key and value IDs, must not be in `field_ids`. For example, for `8: tags list<9: string>`, `field_ids` may have 8 but not 9.
+List, map, and file type fields are identified by their own ID. IDs of fields nested in these types, such as a list's element ID or a map's key and value IDs, must not be in `field_ids`. For example, for `8: tags list<9: string>`, `field_ids` may have 8 but not 9.
 
 A field nested in a struct may have its ID in another column file's `field_ids`. That column file is then responsible for the nested field instead. For example, for `4: address struct<5: street, 6: city>`, if one column file's `field_ids` is `[4]` and another's is `[5]`, the second file is responsible for `street` and the first for `address` and `city`.
 
