@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.source.reader;
 import java.io.IOException;
 import java.util.Collections;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.Schema;
@@ -31,9 +30,9 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
+import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.util.StructLikeSet;
 
 class TestRowDataReaderFunctionEncryption extends EncryptedTableReadTestBase {
@@ -56,18 +55,10 @@ class TestRowDataReaderFunctionEncryption extends EncryptedTableReadTestBase {
     StructLikeSet actual = StructLikeSet.create(schema.asStruct());
     try (CloseableIterable<CombinedScanTask> tasks = encryptedTable.newScan().planTasks()) {
       for (CombinedScanTask task : tasks) {
-        try (CloseableIterator<RecordsWithSplitIds<RecordAndPosition<RowData>>> batches =
-            readerFunction.apply(IcebergSourceSplit.fromCombinedScanTask(task))) {
-          while (batches.hasNext()) {
-            RecordsWithSplitIds<RecordAndPosition<RowData>> batch = batches.next();
-            while (batch.nextSplit() != null) {
-              RecordAndPosition<RowData> row;
-              while ((row = batch.nextRecordFromSplit()) != null) {
-                actual.add(toRecord(schema, wrapper.wrap(row.record())));
-              }
-            }
-
-            batch.recycle();
+        try (DataIterator<RowData> rows =
+            readerFunction.createDataIterator(IcebergSourceSplit.fromCombinedScanTask(task))) {
+          while (rows.hasNext()) {
+            actual.add(toRecord(schema, wrapper.wrap(rows.next())));
           }
         }
       }
