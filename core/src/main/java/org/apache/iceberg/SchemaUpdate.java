@@ -48,12 +48,14 @@ import org.slf4j.LoggerFactory;
 
 /** Schema evolution API implementation. */
 class SchemaUpdate implements UpdateSchema {
+  private static final int MIN_FORMAT_VERSION_V3_PROMOTIONS = 3;
   private static final Logger LOG = LoggerFactory.getLogger(SchemaUpdate.class);
   private static final int TABLE_ROOT_ID = -1;
 
   private final TableOperations ops;
   private final TableMetadata base;
   private final Schema schema;
+  private final int formatVersion;
   private final Map<Integer, Integer> idToParent;
   private final List<Integer> deletes = Lists.newArrayList();
   private final Map<Integer, Types.NestedField> updates = Maps.newHashMap();
@@ -73,17 +75,24 @@ class SchemaUpdate implements UpdateSchema {
 
   @VisibleForTesting
   SchemaUpdate(Schema schema, int lastColumnId) {
-    this(null, null, schema, lastColumnId);
+    this(schema, lastColumnId, TableMetadata.DEFAULT_TABLE_FORMAT_VERSION);
+  }
+
+  @VisibleForTesting
+  SchemaUpdate(Schema schema, int lastColumnId, int formatVersion) {
+    this(null, null, schema, lastColumnId, formatVersion);
   }
 
   private SchemaUpdate(TableOperations ops, TableMetadata base) {
-    this(ops, base, base.schema(), base.lastColumnId());
+    this(ops, base, base.schema(), base.lastColumnId(), base.formatVersion());
   }
 
-  private SchemaUpdate(TableOperations ops, TableMetadata base, Schema schema, int lastColumnId) {
+  private SchemaUpdate(
+      TableOperations ops, TableMetadata base, Schema schema, int lastColumnId, int formatVersion) {
     this.ops = ops;
     this.base = base;
     this.schema = schema;
+    this.formatVersion = formatVersion;
     this.lastColumnId = lastColumnId;
     this.idToParent = Maps.newHashMap(TypeUtil.indexParents(schema.asStruct()));
     this.identifierFieldNames = schema.identifierFieldNames();
@@ -281,6 +290,22 @@ class SchemaUpdate implements UpdateSchema {
       return this;
     }
 
+    if (isV3Promotion(field.type(), newType)) {
+      Preconditions.checkArgument(
+          formatVersion >= MIN_FORMAT_VERSION_V3_PROMOTIONS,
+          "Cannot change column type: %s: %s -> %s is only allowed in format version %s or later, but table is format version %s",
+          name,
+          field.type(),
+          newType,
+          MIN_FORMAT_VERSION_V3_PROMOTIONS,
+          formatVersion);
+      // TODO: remove once v3 type promotions are supported
+      throw new UnsupportedOperationException(
+          String.format(
+              "Unsupported type promotion for format version %s: %s: %s -> %s",
+              formatVersion, name, field.type(), newType));
+    }
+
     Preconditions.checkArgument(
         TypeUtil.isPromotionAllowed(field.type(), newType),
         "Cannot change column type: %s: %s -> %s",
@@ -389,6 +414,16 @@ class SchemaUpdate implements UpdateSchema {
   public UpdateSchema caseSensitive(boolean caseSensitivity) {
     this.caseSensitive = caseSensitivity;
     return this;
+  }
+
+  private static boolean isV3Promotion(Type from, Type.PrimitiveType to) {
+    return switch (from.typeId()) {
+      case UNKNOWN -> true;
+      case DATE ->
+          to.equals(Types.TimestampType.withoutZone())
+              || to.equals(Types.TimestampNanoType.withoutZone());
+      default -> false;
+    };
   }
 
   private boolean isAdded(String name) {
