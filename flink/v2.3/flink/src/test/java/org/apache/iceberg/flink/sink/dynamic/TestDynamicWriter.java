@@ -706,6 +706,23 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
     dynamicWriter.close();
   }
 
+  @Test
+  void testUpsertReplacesRowWrittenWithoutUpsertModeInSameCheckpoint() throws Exception {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    Table table = catalog.createTable(TABLE1, SimpleDataUtil.SCHEMA);
+    DynamicWriter dynamicWriter = createDynamicWriter(catalog);
+
+    dynamicWriter.write(
+        cdcRecord(table, table.schema(), SimpleDataUtil.createInsert(1, "before")), null);
+    dynamicWriter.write(
+        upsertRecord(table, table.schema(), SimpleDataUtil.createInsert(1, "after")), null);
+    commit(table, dynamicWriter.prepareCommit());
+
+    assertTableRows(table, SimpleDataUtil.createRecord(1, "after"));
+
+    dynamicWriter.close();
+  }
+
   private static DynamicRecordInternal upsertRecord(Table table, Schema schema, RowData row) {
     DynamicRecordInternal record = cdcRecord(table, schema, row);
     record.setUpsertMode(true);

@@ -1186,7 +1186,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
   @ParameterizedTest
   @ValueSource(ints = {2, 3})
-  void upsertAfterSchemaEvolution(int formatVersion) throws Exception {
+  void testUpsertAfterSchemaEvolution(int formatVersion) throws Exception {
     // A restart replays the records against the already created table, which hides failures
     Configuration configuration = new Configuration();
     configuration.set(RestartStrategyOptions.RESTART_STRATEGY, "none");
@@ -1195,13 +1195,16 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     Map<String, String> tableProps =
         ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
     DynamicIcebergSink.forInput(env.fromData(1))
-        // Both versions of the key come from one input element, so no checkpoint barrier
+        // All versions of the key come from one input element, so no checkpoint barrier
         // separates them
         .generator(
             (Integer id, Collector<DynamicRecord> out) -> {
               out.collect(
                   upsertById(
                       SimpleDataUtil.SCHEMA, GenericRowData.of(id, StringData.fromString("a"))));
+              out.collect(
+                  upsertById(
+                      SimpleDataUtil.SCHEMA, GenericRowData.of(id, StringData.fromString("a2"))));
               out.collect(
                   upsertById(
                       SimpleDataUtil.SCHEMA2,
