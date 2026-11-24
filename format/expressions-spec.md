@@ -232,6 +232,8 @@ Note that `year`, `month`, and `hour` transforms produce ordinal values and not 
 
 Both functions produce `null` for a `null` or empty input value.
 
+Code points are Unicode scalar values, not UTF-16 code units. For example, U+10000 is larger than U+FFFF.
+
 | Function name           | Description                              | Source types | Result type |
 |-------------------------|------------------------------------------|--------------|-------------|
 | `min_code_point(value)` | Smallest Unicode code point in the value | `string`     | `int`       |

@@ -404,14 +404,13 @@ Default values are attributes of fields in schemas and serialized with fields in
 
 A `string` field may have a collation that defines how its values are compared and ordered, for example case-insensitive, accent-insensitive, or locale-aware. A collation does not change how values are stored: a value written as `'appLE'` is read as `'appLE'`.
 
-Any `string` field may have a collation, including nested fields. A struct field uses the `collation` attribute; a list or map uses `element-collation`, `key-collation`, or `value-collation` (see [Appendix C](#appendix-c-json-serialization)). A string field without a collation uses UTF-8 byte order.
+Any `string` field may have a collation, including nested fields, except map keys. A struct field uses the `collation` attribute, a list uses `element-collation`, and a map uses `value-collation` (see [Appendix C](#appendix-c-json-serialization)). A string field without a collation uses UTF-8 byte order.
 
 A collation changes comparison only. The rest of the format stays byte-based, because collation order differs between implementations and versions:
 
-* Partition transforms, `bucket`, and byte-order bounds use UTF-8 bytes. Values that are equal under a collation can be in different partitions or buckets, so readers must not use partition values to prune a predicate evaluated under a collation.
-* Identifier fields compare bytes.
-* Map keys are distinct by bytes: `map['ABC']` and `map['abc']` are separate entries under a case-insensitive key collation. A lookup under the collation can match both, and the result is engine-defined.
-* Sort orders do not use collations.
+* A collated field must not be a source field of a partition field or a sort field, and must not be an identifier field. A collation must not be added to a field that is used in one of these ways.
+* Map keys must not have a collation.
+* Bounds of the collated field itself use UTF-8 byte order.
 
 SQL comparison, equality, ordering, grouping, and distinctness are the engine's responsibility.
 
@@ -424,16 +423,25 @@ specifier  = icu-spec | utf8-spec
 icu-spec   = "icu" "." locale [ "-" case-mod ] [ "-" accent-mod ] [ "-" trim-mod ]
 utf8-spec  = "utf8" [ "-" trim-mod ]
 locale     = language [ "_" region ]       ; e.g. en, de, en_US, de_DE
-case-mod   = "cs" | "ci"                    ; case sensitive (default) / insensitive
-accent-mod = "as" | "ai"                    ; accent sensitive (default) / insensitive
+case-mod   = "ci"                           ; case-insensitive (default is case-sensitive)
+accent-mod = "ai"                           ; accent-insensitive (default is accent-sensitive)
 trim-mod   = "ltrim" | "rtrim" | "trim"     ; trim leading / trailing / both spaces (U+0020)
 ```
 
-Modifier order and case are fixed, so equal collations have equal names. Case- and accent-insensitive collations require a locale: `ł` and `l` are equal under `icu.en-ai` but not under `icu.pl-ai`.
+Modifier order and case are fixed, and defaults have no modifier, so each collation has exactly one name. Case- and accent-insensitive collations require a locale: `ł` and `l` are equal under `icu.en-ai` but not under `icu.pl-ai`.
 
-Without a trim modifier, trailing spaces are significant (NO PAD). `rtrim` gives PAD SPACE behavior, for example `icu.en_US-ci-rtrim`.
+Without a trim modifier, leading and trailing spaces are significant. A trim modifier removes leading, trailing, or both leading and trailing spaces (U+0020) before values are compared, for example `icu.en_US-ci-rtrim`.
 
 `utf8` without a modifier is UTF-8 byte order, the same as no collation.
+
+For `icu`, the locale is the ICU locale ID, and the modifiers map to ICU collator settings as follows. All other settings use the locale's defaults. Trim modifiers are applied to values before comparison and do not change collator settings.
+
+| Modifiers | ICU strength | ICU case level |
+|-----------|--------------|----------------|
+| none      | tertiary     | off            |
+| `ci`      | secondary    | off            |
+| `ai`      | primary      | on             |
+| `ci-ai`   | primary      | off            |
 
 ##### Collation Versions
 
@@ -443,20 +451,20 @@ Collation order can change between versions of a provider's data ([UTS #10](http
 
 Byte-order bounds cannot prune a collated field: under a case-insensitive collation `'a' < 'B'`, but in byte order `'a' > 'B'`. Collation bounds are kept in [stats-only fields](#stats-only-fields), outside the schema. A collated field has:
 
-* One `collation-value` stats-only field per collation version. Its type-specific fields are `source-id`, the id of the collated field; `collation`, the collation name; and `version`, the collation version. Its bounds are original string values, compared under that collation and version. The bound type is `string` and `data-type` is omitted.
+* One `collation-value` stats-only field per collation version. Its type-specific fields are `source-id`, the id of the collated field; `collation`, the collation name; and `version`, the collation version. Its bounds are original string values, compared under that collation and version. Its `data-type` must be `string`.
 * Two `expr-value` stats-only fields with `data-type` `int`, for `min_code_point(ref)` and `max_code_point(ref)` (see [Iceberg functions](expressions-spec.md#appendix-a-iceberg-functions)). The lower bound of the first and the upper bound of the second give the file's code-point range. They do not depend on the collation or its version.
 
 For example, for a field `city` with id `5` and collation `icu.de_DE` (`expr` in short form):
 
 ```
-{ "field-id": 101, "type": "collation-value", "source-id": 5, "collation": "icu.de_DE", "version": "153.120.0.0" }
+{ "field-id": 101, "type": "collation-value", "source-id": 5, "collation": "icu.de_DE", "version": "153.120.0.0", "data-type": "string" }
 { "field-id": 102, "type": "expr-value", "expr": min_code_point(ref(5)), "data-type": "int" }
 { "field-id": 103, "type": "expr-value", "expr": max_code_point(ref(5)), "data-type": "int" }
 ```
 
 `collation-value` bounds must be valid but need not be tight: under the collation and version, `lower_bound` sorts at or before every value in the file, and `upper_bound` at or after.
 
-A writer should write byte-order bounds for a collated field, so readers without collation support can still prune. A writer that supports the collation should also write `collation-value` bounds for its version and code-point bounds, and adds these stats-only fields when they do not exist. It must not add a second `collation-value` field with the same `source-id`, `collation`, and `version`, and must not write `collation-value` bounds for a version it does not support.
+Bounds a writer stores for a collated field itself must use UTF-8 byte order. Writers should store them, so readers without collation support can still prune. A writer that supports the collation should also write `collation-value` bounds for its version and code-point bounds, and adds these stats-only fields when they do not exist. It must not add a second `collation-value` field with the same `source-id`, `collation`, and `version`, and must not write `collation-value` bounds for a version it does not support.
 
 A reader must not use byte-order bounds to prune comparison, equality, or prefix predicates on a collated field. It may prune with `collation-value` bounds when their collation is the field's collation and their version is the reader's version. It may also use bounds from another version of the same collation when both versions order the file's code-point range the same way. Otherwise it scans the file.
 
@@ -464,7 +472,7 @@ Collation bounds prune comparison and equality predicates. They do not prune pre
 
 A `collation-value` field that is no longer written can be removed. Files with stats for it lose that pruning.
 
-A reader that does not support a field's collation ignores its `collation-value` fields and reads its values as UTF-8 strings.
+A reader that does not support a field's collation must not use its `collation-value` fields. It may fail, or read the values as UTF-8 strings.
 
 ##### Collation Evolution
 
@@ -2141,7 +2149,7 @@ Types are serialized according to this table:
 |**`decimal(P, S)`**|`JSON string: "decimal(<P>, <S>)"`|`"decimal(9, 2)"`|
 |**`struct`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": <field id int>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": <boolean>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": <type JSON>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"doc": <comment string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": <JSON encoding of default value>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": <JSON encoding of default value or value expression>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"collation": <collation name string>`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}, ...`<br />&nbsp;&nbsp;`] }`|`{`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 1,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "id",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": true,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": "uuid",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": "0db3e2a8-9d1d-42b9-aa7b-74ebe558dceb",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": "ec5911be-b0a7-458c-8438-c9a3e53cffae"`<br />&nbsp;&nbsp;`}, {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 2,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "data",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": false,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`} ]`<br />`}`|
 |**`list`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": <id int>,`<br />&nbsp;&nbsp;`"element-required": <bool>`<br />&nbsp;&nbsp;`"element": <type JSON>,`<br />&nbsp;&nbsp;`"element-collation": <collation name string>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": 3,`<br />&nbsp;&nbsp;`"element-required": true,`<br />&nbsp;&nbsp;`"element": "string"`<br />`}`|
-|**`map`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": <key id int>,`<br />&nbsp;&nbsp;`"key": <type JSON>,`<br />&nbsp;&nbsp;`"key-collation": <collation name string>,`<br />&nbsp;&nbsp;`"value-id": <val id int>,`<br />&nbsp;&nbsp;`"value-required": <bool>`<br />&nbsp;&nbsp;`"value": <type JSON>,`<br />&nbsp;&nbsp;`"value-collation": <collation name string>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": 4,`<br />&nbsp;&nbsp;`"key": "string",`<br />&nbsp;&nbsp;`"value-id": 5,`<br />&nbsp;&nbsp;`"value-required": false,`<br />&nbsp;&nbsp;`"value": "double"`<br />`}`|
+|**`map`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": <key id int>,`<br />&nbsp;&nbsp;`"key": <type JSON>,`<br />&nbsp;&nbsp;`"value-id": <val id int>,`<br />&nbsp;&nbsp;`"value-required": <bool>`<br />&nbsp;&nbsp;`"value": <type JSON>,`<br />&nbsp;&nbsp;`"value-collation": <collation name string>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": 4,`<br />&nbsp;&nbsp;`"key": "string",`<br />&nbsp;&nbsp;`"value-id": 5,`<br />&nbsp;&nbsp;`"value-required": false,`<br />&nbsp;&nbsp;`"value": "double"`<br />`}`|
 | **`variant`**| `JSON string: "variant"`|`"variant"`|
 | **`geometry(C)`** |`JSON string: "geometry(<C>)"`|`"geometry(srid:4326)"`|
 | **`geography(C, A)`** |`JSON string: "geography(<C>, <A>)"`|`"geography(srid:4326, spherical)"`|
@@ -2397,10 +2405,10 @@ Constraints are added in v4:
 
 Collation changes:
 
-* String fields may have a `collation` (see [Collations](#collations))
+* String fields may have a `collation` (see [Collations](#collations)), except map keys; collated fields cannot be partition sources, sort fields, or identifier fields
 * Collation bounds are stored in stats-only fields: one `collation-value` field per collation version, and code-point fields per collated field
 * Readers must not prune collated fields with byte-order bounds
-* Readers without collation support ignore the `collation` attribute and `collation-value` fields
+* Readers without collation support must not use `collation-value` fields; they may fail or read collated fields as UTF-8 strings
 
 ### Version 3
 
