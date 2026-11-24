@@ -166,7 +166,7 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
           metadata.putAll(EnvironmentContext.get());
           ScanReport scanReport =
               ImmutableScanReport.builder()
-                  .schemaId(schema().schemaId())
+                  .schemaId(tableSchema().schemaId())
                   .projectedFieldIds(projectedFieldIds)
                   .projectedFieldNames(projectedFieldNames)
                   .tableName(table().name())
