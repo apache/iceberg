@@ -417,6 +417,28 @@ class TestIcebergLookup {
   }
 
   @Test
+  void lookupFunctionAppliesDeltaForAlreadyCachedKey() throws Exception {
+    Table table = createTableWithRecords();
+    ManualCacheReloadTrigger reloadTrigger = new ManualCacheReloadTrigger();
+
+    lookupFunction = newLookupFunction(ID_KEY_INDEXES, true, reloadTrigger);
+    lookupFunction.open(new FunctionContext(null));
+
+    deleteDataFilesFromStorage(table);
+    appendRecords(table, ImmutableList.of(record(1L, "alice-2", "A")));
+    reloadTrigger.triggerReload().join();
+
+    assertThat(lookupFunction.lookup(keyRow(1L)))
+        .as("An incremental reload must return both the cached and the appended row")
+        .extracting(row -> row.getString(1).toString())
+        .containsExactlyInAnyOrder("alice", "alice-2");
+    assertThat(lookupFunction.lookup(keyRow(2L)))
+        .as("An incremental reload must keep the rows of keys it did not touch")
+        .singleElement()
+        .satisfies(row -> assertRow(row, 2L, "bob", "B"));
+  }
+
+  @Test
   void lookupFunctionReloadsFullyWhenRowsAreDeleted() throws Exception {
     Table table = createTableWithRecords();
     ManualCacheReloadTrigger reloadTrigger = new ManualCacheReloadTrigger();
