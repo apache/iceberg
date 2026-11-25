@@ -22,11 +22,13 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
@@ -36,7 +38,10 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PrefixListingPage;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -155,6 +160,43 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
         throw new UncheckedIOException(e);
       }
     };
+  }
+
+  @Override
+  public Iterable<PrefixListingPage> listDirectory(String prefix) {
+    Preconditions.checkArgument(
+        prefix != null && prefix.endsWith("/"), "Directory prefix must end with '/': %s", prefix);
+    Path directory = new Path(prefix);
+    FileSystem fs = Util.getFs(directory, getConf());
+
+    return () -> {
+      try {
+        if (!fs.getFileStatus(directory).isDirectory()) {
+          throw new FileNotFoundException("Not a directory: " + prefix);
+        }
+
+        List<FileInfo> files = Lists.newArrayList();
+        List<String> subPrefixes = Lists.newArrayList();
+        for (FileStatus status : fs.listStatus(directory)) {
+          if (status.isDirectory()) {
+            subPrefixes.add(status.getPath() + "/");
+          } else {
+            files.add(
+                new FileInfo(
+                    status.getPath().toString(), status.getLen(), status.getModificationTime()));
+          }
+        }
+
+        return List.of(PrefixListingPage.of(files, subPrefixes)).iterator();
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+    };
+  }
+
+  @Override
+  public boolean supportsDirectoryListing(String prefix) {
+    return prefix != null && prefix.endsWith("/");
   }
 
   @Override

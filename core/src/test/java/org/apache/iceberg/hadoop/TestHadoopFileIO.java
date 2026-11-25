@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -38,6 +39,7 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOParser;
+import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -47,6 +49,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestHadoopFileIO {
   private final Random random = new Random(1);
@@ -84,6 +88,62 @@ public class TestHadoopFileIO {
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
     assertThat(Streams.stream(hadoopFileIO.listPrefix(parent.toUri().toString())).count())
         .isEqualTo(totalFiles);
+  }
+
+  @Test
+  void listDirectory() throws IOException {
+    Path parent = new Path(tempDir.toURI());
+    Path child = new Path(parent, "sub");
+    Path nested = new Path(child, "nested.txt");
+    Path immediate = new Path(parent, "file.txt");
+    fs.mkdirs(child);
+    fs.createNewFile(nested);
+    fs.createNewFile(immediate);
+
+    String prefix = parent + "/";
+    assertThat(hadoopFileIO.supportsDirectoryListing(prefix)).isTrue();
+    PrefixListingPage page = hadoopFileIO.listDirectory(prefix).iterator().next();
+
+    assertThat(page.files())
+        .extracting(file -> new Path(file.location()))
+        .containsExactly(immediate);
+    assertThat(page.subPrefixes()).containsExactly(child + "/");
+    PrefixListingPage childPage =
+        hadoopFileIO.listDirectory(page.subPrefixes().iterator().next()).iterator().next();
+    assertThat(childPage.files())
+        .extracting(file -> new Path(file.location()))
+        .containsExactly(nested);
+    assertThat(childPage.subPrefixes()).isEmpty();
+  }
+
+  @Test
+  void rejectFileAsDirectory() throws IOException {
+    Path file = new Path(new Path(tempDir.toURI()), "file.txt");
+    fs.createNewFile(file);
+
+    assertThatThrownBy(() -> hadoopFileIO.listDirectory(file + "/").iterator())
+        .isInstanceOf(UncheckedIOException.class)
+        .hasCauseInstanceOf(FileNotFoundException.class)
+        .hasMessageContaining("Not a directory: %s/", file);
+  }
+
+  @Test
+  void listEmptyDirectory() {
+    PrefixListingPage page =
+        hadoopFileIO.listDirectory(tempDir.toURI().toString()).iterator().next();
+
+    assertThat(page.files()).isEmpty();
+    assertThat(page.subPrefixes()).isEmpty();
+  }
+
+  @ParameterizedTest
+  @NullAndEmptySource
+  @ValueSource(strings = {"file:/table", "file:/table/file.parquet"})
+  void rejectInvalidDirectoryPrefix(String prefix) {
+    assertThat(hadoopFileIO.supportsDirectoryListing(prefix)).isFalse();
+    assertThatThrownBy(() -> hadoopFileIO.listDirectory(prefix))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Directory prefix must end with '/': %s", prefix);
   }
 
   @Test

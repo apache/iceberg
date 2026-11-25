@@ -275,6 +275,18 @@ public class ResolvingFileIO
   }
 
   @Override
+  public Iterable<PrefixListingPage> listDirectory(String prefix) {
+    Preconditions.checkArgument(
+        prefix != null && prefix.endsWith("/"), "Directory prefix must end with '/': %s", prefix);
+    return io(prefix).listDirectory(prefix);
+  }
+
+  @Override
+  public boolean supportsDirectoryListing(String prefix) {
+    return prefix != null && prefix.endsWith("/") && io(prefix).supportsDirectoryListing(prefix);
+  }
+
+  @Override
   public void deletePrefix(String prefix) {
     io(prefix).deletePrefix(prefix);
   }
