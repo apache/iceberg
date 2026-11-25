@@ -456,7 +456,7 @@ Columns in Iceberg data files are selected by field id. The table schema's colum
 Values for files with no field ids in a data file must be resolved according the following rules:
 
 * Return the value from partition metadata if an [Identity Transform](#partition-transforms) exists for the field and the partition value is present in the `partition` struct on `data_file` object in the manifest. This allows for metadata only migrations of Hive tables.
-* If the data file contains no field IDs and the table defines `schema.name-mapping.default`, use the name mapping described below to resolve the field ID and return the value if the field is present.
+* Use `schema.name-mapping.default` metadata to map field id to columns without field id as described below and use the column if it is present.
 * Return the default value if it has a defined `initial-default` (See [Default values](#default-values) section for more details).
 * Return `null` in all other cases.
 
