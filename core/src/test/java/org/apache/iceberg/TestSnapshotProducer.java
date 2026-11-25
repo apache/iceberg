@@ -60,44 +60,44 @@ public class TestSnapshotProducer extends TestBase {
 
     assertManifestWriterCount(
         4 /* worker pool size */,
-        SnapshotProducer.MIN_FILE_GROUP_SIZE /* file count */,
+        ManifestWriteManager.MIN_FILE_GROUP_SIZE /* file count */,
         1 /* manifest writer count */,
         "Must use 1 writer if file count matches min group size");
 
     assertManifestWriterCount(
         4 /* worker pool size */,
-        SnapshotProducer.MIN_FILE_GROUP_SIZE + 1 /* file count */,
+        ManifestWriteManager.MIN_FILE_GROUP_SIZE + 1 /* file count */,
         1 /* manifest writer count */,
         "Must use 1 writer if file count is slightly above min group size");
 
     assertManifestWriterCount(
         4 /* worker pool size */,
-        (int) (1.25 * SnapshotProducer.MIN_FILE_GROUP_SIZE) /* file count */,
+        (int) (1.25 * ManifestWriteManager.MIN_FILE_GROUP_SIZE) /* file count */,
         1 /* manifest writer count */,
         "Must use 1 writer when file count is < 1.5 * min group size");
 
     assertManifestWriterCount(
         4 /* worker pool size */,
-        (int) (1.5 * SnapshotProducer.MIN_FILE_GROUP_SIZE) /* file count */,
+        (int) (1.5 * ManifestWriteManager.MIN_FILE_GROUP_SIZE) /* file count */,
         2 /* manifest writer count */,
         "Must use 2 writers when file count is >= 1.5 * min group size");
 
     assertManifestWriterCount(
         3 /* worker pool size */,
-        100 * SnapshotProducer.MIN_FILE_GROUP_SIZE /* file count */,
+        100 * ManifestWriteManager.MIN_FILE_GROUP_SIZE /* file count */,
         3 /* manifest writer count */,
         "Must limit parallelism to worker pool size when file count is large");
 
     assertManifestWriterCount(
         32 /* worker pool size */,
-        5 * SnapshotProducer.MIN_FILE_GROUP_SIZE /* file count */,
+        5 * ManifestWriteManager.MIN_FILE_GROUP_SIZE /* file count */,
         5 /* manifest writer count */,
         "Must limit parallelism to avoid tiny manifests");
   }
 
   private void assertManifestWriterCount(
       int workerPoolSize, int fileCount, int expectedManifestWriterCount, String errMsg) {
-    int writerCount = SnapshotProducer.manifestWriterCount(workerPoolSize, fileCount);
+    int writerCount = ManifestWriteManager.manifestWriterCount(workerPoolSize, fileCount);
     assertThat(writerCount).as(errMsg).isEqualTo(expectedManifestWriterCount);
   }
 

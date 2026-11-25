@@ -311,7 +311,7 @@ public class TestReplacePartitions extends TestBase {
 
     assertThatThrownBy(() -> commit(table, replace, branch))
         .isInstanceOf(ValidationException.class)
-        .hasMessageStartingWith("Cannot commit file that conflicts with existing partition");
+        .hasMessageStartingWith("Operation would delete existing data");
 
     assertThat(latestSnapshot(readMetadata(), branch).snapshotId()).isEqualTo(baseId);
   }

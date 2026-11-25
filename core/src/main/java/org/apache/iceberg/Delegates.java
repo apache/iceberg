@@ -148,6 +148,37 @@ class Delegates {
     return file;
   }
 
+  static DataFile pendingDataFile(DataFile file, Long dataSequenceNumber) {
+    return new PendingDataFile(file, dataSequenceNumber);
+  }
+
+  /**
+   * Data file to write to a manifest. Suppresses first row ID and replaces data sequence number.
+   */
+  static class PendingDataFile extends DelegatingDataFile {
+    private final Long dataSequenceNumber;
+
+    PendingDataFile(DataFile file, Long dataSequenceNumber) {
+      super(file);
+      this.dataSequenceNumber = dataSequenceNumber;
+    }
+
+    @Override
+    DataFile wrap(DataFile file) {
+      return new PendingDataFile(file, dataSequenceNumber);
+    }
+
+    @Override
+    public Long dataSequenceNumber() {
+      return dataSequenceNumber;
+    }
+
+    @Override
+    public Long firstRowId() {
+      return null;
+    }
+  }
+
   static DeleteFile pendingDeleteFile(DeleteFile file, Long dataSequenceNumber) {
     return new PendingDeleteFile(file, dataSequenceNumber);
   }

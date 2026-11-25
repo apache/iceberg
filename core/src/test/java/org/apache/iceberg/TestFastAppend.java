@@ -45,7 +45,7 @@ public class TestFastAppend extends TestBase {
 
     List<DataFile> dataFiles = Lists.newArrayList();
 
-    for (int ordinal = 0; ordinal < 2 * SnapshotProducer.MIN_FILE_GROUP_SIZE; ordinal++) {
+    for (int ordinal = 0; ordinal < 2 * ManifestWriteManager.MIN_FILE_GROUP_SIZE; ordinal++) {
       StructLike partition = TestHelpers.Row.of(ordinal % 2);
       DataFile dataFile = FileGenerationUtil.generateDataFile(table, partition);
       dataFiles.add(dataFile);

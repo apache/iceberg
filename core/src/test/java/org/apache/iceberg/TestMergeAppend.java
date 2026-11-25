@@ -72,7 +72,7 @@ public class TestMergeAppend extends TestBase {
 
     List<DataFile> dataFiles = Lists.newArrayList();
 
-    for (int ordinal = 0; ordinal < 2 * SnapshotProducer.MIN_FILE_GROUP_SIZE; ordinal++) {
+    for (int ordinal = 0; ordinal < 2 * ManifestWriteManager.MIN_FILE_GROUP_SIZE; ordinal++) {
       StructLike partition = Row.of(ordinal % 2);
       DataFile dataFile = FileGenerationUtil.generateDataFile(table, partition);
       dataFiles.add(dataFile);
@@ -90,7 +90,7 @@ public class TestMergeAppend extends TestBase {
     assertThat(listManifestFiles()).as("Table should start empty").isEmpty();
 
     int multiplier = 3;
-    int groupSize = SnapshotProducer.MIN_FILE_GROUP_SIZE;
+    int groupSize = ManifestWriteManager.MIN_FILE_GROUP_SIZE;
     List<DataFile> dataFiles = Lists.newArrayList();
 
     for (int ordinal = 0; ordinal < multiplier * groupSize; ordinal++) {
