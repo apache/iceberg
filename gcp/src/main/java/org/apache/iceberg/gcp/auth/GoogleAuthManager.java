@@ -63,6 +63,7 @@ public class GoogleAuthManager implements AuthManager {
   public static final String GCP_CREDENTIALS_PATH_PROPERTY = "gcp.auth.credentials-path";
   public static final String GCP_CREDENTIALS_JSON_PROPERTY = "gcp.auth.credentials-json";
   public static final String GCP_SCOPES_PROPERTY = "gcp.auth.scopes";
+
   private final String name;
 
   private volatile GoogleCredentials credentials;
