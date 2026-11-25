@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.runtime.jobgraph.JobVertex;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -454,12 +455,15 @@ class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
   private void checkConvertEqualityDeletesWithRewriteEnabledE2e(String lockType) throws Exception {
     setupLockConfig(lockType);
     if (LockConfig.JdbcLockConfig.JDBC.equals(lockType)) {
+      // Use a named shared in-memory database so maintenance operators
+      // using separate JDBC connections access the same lock table.
       flinkConf.put(
           LockConfig.JdbcLockConfig.JDBC_URI_OPTION.key(),
           "jdbc:sqlite:file:maintenance-"
               + UUID.randomUUID().toString().replace("-", "")
               + "?mode=memory&cache=shared");
     }
+
     setupCompactionConfig();
     setupConvertEqualityDeletesConfig();
     upgradeToFormatV3();
@@ -499,7 +503,7 @@ class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
                     table, ImmutableList.of(SimpleDataUtil.createRecord(1, "bbb")));
               });
     } finally {
-      jobClient.cancel().get(30, java.util.concurrent.TimeUnit.SECONDS);
+      jobClient.cancel().get(30, TimeUnit.SECONDS);
     }
   }
 
