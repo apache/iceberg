@@ -453,9 +453,7 @@ Struct evolution requires the following rules for default values:
 
 Columns in Iceberg data files are selected by field id. The table schema's column names and order may change after a data file is written, and projection must be done using field ids.
 
-In a data file with at least one field ID, fields without IDs, lists missing an element ID, and maps missing a key or value ID are treated as absent.
-
-Values for absent fields must be resolved according to the following rules:
+Values for files with no field ids in a data file must be resolved according the following rules:
 
 * Return the value from partition metadata if an [Identity Transform](#partition-transforms) exists for the field and the partition value is present in the `partition` struct on `data_file` object in the manifest. This allows for metadata only migrations of Hive tables.
 * If the data file contains no field IDs and the table defines `schema.name-mapping.default`, use the name mapping described below to resolve the field ID and return the value if the field is present.
