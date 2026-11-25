@@ -57,13 +57,12 @@ public interface SupportsPrefixOperations extends FileIO {
   /**
    * Returns whether directory listing is supported for the given prefix.
    *
-   * <p>Support can vary by prefix when a FileIO selects a storage implementation from the location.
-   * Implementations may also restrict supported location forms. Callers must check each prefix they
-   * intend to list.
+   * <p>Support can vary by prefix and location form. Callers must check each prefix they intend to
+   * list.
    *
    * @param prefix directory prefix ending in {@code /}
    * @return {@code true} if directory listing is supported for this prefix, or {@code false} if the
-   *     prefix is null or does not end in {@code /}
+   *     prefix is null, does not end in {@code /}, or is unsupported
    */
   default boolean supportsDirectoryListing(String prefix) {
     return false;
