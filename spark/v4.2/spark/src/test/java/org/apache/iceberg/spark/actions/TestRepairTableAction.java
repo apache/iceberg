@@ -368,7 +368,8 @@ class TestRepairTableAction extends TestBase {
   void repairPreservesDeletionVectorFields() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned(), 3, DEFAULT_FILE_FORMAT);
     DataFile dataFile = writeDataFile(table);
-    table.newFastAppend().appendFile(dataFile).commit();
+    // also corrupt, so the totals combine a repaired data manifest and a repaired delete manifest
+    table.newFastAppend().appendFile(corruptCounts(table, dataFile)).commit();
     DeleteFile dv = FileGenerationUtil.generateDV(table, dataFile);
     DeleteFile eqDelete = writeEqDeletes(table, DEFAULT_FILE_FORMAT, "c1", 1);
     table.newRowDelta().addDeletes(dv).addDeletes(corruptDeleteCounts(table, eqDelete)).commit();
@@ -376,8 +377,17 @@ class TestRepairTableAction extends TestBase {
 
     RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
 
-    assertThat(result.repairedEntryCount()).isEqualTo(1);
+    assertThat(result.repairedEntryCount()).isEqualTo(2);
     table.refresh();
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, String.valueOf(dataFile.recordCount()))
+        .containsEntry(SnapshotSummary.TOTAL_POS_DELETES_PROP, String.valueOf(dv.recordCount()))
+        .containsEntry(
+            SnapshotSummary.TOTAL_EQ_DELETES_PROP, String.valueOf(eqDelete.recordCount()))
+        .containsEntry(
+            SnapshotSummary.TOTAL_FILE_SIZE_PROP,
+            String.valueOf(
+                dataFile.fileSizeInBytes() + dv.contentSizeInBytes() + eqDelete.fileSizeInBytes()));
     assertThat(readDeleteFiles(table, table.currentSnapshot().deleteManifests(table.io()).get(0)))
         .filteredOn(file -> file.location().equals(dv.location()))
         .singleElement()
