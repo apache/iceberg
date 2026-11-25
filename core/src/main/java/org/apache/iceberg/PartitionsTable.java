@@ -292,6 +292,17 @@ public class PartitionsTable extends BaseMetadataTable {
         if (cmp != 0) {
           return cmp;
         }
+
+        // Distinguish missing partition fields from fields with actual null values.
+        StructProjection projection1 = (StructProjection) o1;
+        StructProjection projection2 = (StructProjection) o2;
+        for (int pos = 0; pos < projection1.size(); pos += 1) {
+          cmp =
+              Boolean.compare(projection1.isFieldProjected(pos), projection2.isFieldProjected(pos));
+          if (cmp != 0) {
+            return cmp;
+          }
+        }
       }
 
       return comparator.compare(o1, o2);

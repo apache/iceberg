@@ -293,6 +293,61 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   }
 
   @TestTemplate
+  public void partitionSpecEvolutionReplacedNullField() throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "p", Types.StringType.get()), optional(2, "q", Types.StringType.get()));
+
+    table =
+        TestTables.create(
+            tableDir,
+            metadataDir,
+            "replacednulltest",
+            schema,
+            PartitionSpec.builderFor(schema).identity("p").build(),
+            SortOrder.unsorted(),
+            formatVersion);
+
+    table.newFastAppend().appendFile(newDataFile(TestHelpers.Row.of(new Object[] {null}))).commit();
+
+    table.updateSpec().removeField("p").commit();
+    table.updateSpec().addField("q").commit();
+
+    PartitionData partition = new PartitionData(table.spec().partitionType());
+    DataFile dataFile =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/replaced-null-field.parquet")
+            .withPartition(partition)
+            .withRecordCount(1)
+            .withFileSizeInBytes(10)
+            .build();
+
+    table.newFastAppend().appendFile(dataFile).commit();
+
+    try (CloseableIterable<FileScanTask> files = table.newScan().planFiles()) {
+      assertThat(Lists.newArrayList(files))
+          .extracting(task -> task.file().specId())
+          .containsExactlyInAnyOrder(0, table.spec().specId());
+    }
+
+    PartitionsTable partitionsTable = new PartitionsTable(table);
+
+    try (CloseableIterable<FileScanTask> tasks = partitionsTable.newScan().planFiles()) {
+      assertThat(
+              allRows(tasks)
+                  .map(
+                      row ->
+                          TestHelpers.Row.of(
+                              row.get(1, Integer.class),
+                              row.get(2, Long.class),
+                              row.get(3, Integer.class)))
+                  .toList())
+          .containsExactlyInAnyOrder(
+              TestHelpers.Row.of(0, 1L, 1), TestHelpers.Row.of(table.spec().specId(), 1L, 1));
+    }
+  }
+
+  @TestTemplate
   public void partitionSpecRenameFields() throws IOException {
     Schema schema =
         new Schema(
