@@ -434,6 +434,38 @@ class TestBinPackRewriteFilePlanner {
   }
 
   @Test
+  void testGroupNotRewrittenWhenFileCountDoesNotDecrease() {
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    List<FileScanTask> tasks =
+        ImmutableList.of(new MockFileScanTask(60L), new MockFileScanTask(60L));
+
+    planner.init(
+        ImmutableMap.of(
+            BinPackRewriteFilePlanner.MIN_FILE_SIZE_BYTES, "75",
+            BinPackRewriteFilePlanner.TARGET_FILE_SIZE_BYTES, "100",
+            BinPackRewriteFilePlanner.MAX_FILE_SIZE_BYTES, "180"));
+
+    assertThat(planner.planFileGroups(tasks))
+        .as("Must not plan a rewrite that cannot reduce the file count")
+        .isEmpty();
+  }
+
+  @Test
+  void testGroupRewrittenWhenFileCountDecreases() {
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    List<FileScanTask> tasks =
+        ImmutableList.of(new MockFileScanTask(52L), new MockFileScanTask(52L));
+
+    planner.init(
+        ImmutableMap.of(
+            BinPackRewriteFilePlanner.MIN_FILE_SIZE_BYTES, "75",
+            BinPackRewriteFilePlanner.TARGET_FILE_SIZE_BYTES, "100",
+            BinPackRewriteFilePlanner.MAX_FILE_SIZE_BYTES, "180"));
+
+    assertThat(planner.planFileGroups(tasks)).hasSize(1);
+  }
+
+  @Test
   void testFileSizeAboveTarget() {
     BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
     List<FileScanTask> tasks = ImmutableList.of(new MockFileScanTask(2000L));
