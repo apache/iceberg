@@ -405,6 +405,21 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
     return propsField.get();
   }
 
+  @Test
+  void closesTaskWritersWhenClosingCatalogFails() {
+    CloseCountingCatalog catalog = new CloseCountingCatalog().failOnClose();
+    DynamicWriter dynamicWriter = createDynamicWriter(catalog);
+    CloseTrackingTaskWriter taskWriter = new CloseTrackingTaskWriter();
+    DynFields.BoundField<Map<WriteTarget, TaskWriter<RowData>>> writers =
+        DynFields.builder().hiddenImpl(DynamicWriter.class, "writers").build(dynamicWriter);
+    writers.get().put(new WriteTarget(TABLE1.name(), null, 0, 0, false, Set.of()), taskWriter);
+
+    assertThatThrownBy(dynamicWriter::close)
+        .isInstanceOf(IOException.class)
+        .hasMessage("Failed to close catalog");
+    assertThat(taskWriter.closed()).isTrue();
+  }
+
   private static class FailingCloseTaskWriter implements TaskWriter<RowData> {
     @Override
     public void write(RowData row) {}
@@ -420,6 +435,30 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
     @Override
     public void close() throws IOException {
       throw new IOException("Failed to close task writer");
+    }
+  }
+
+  private static class CloseTrackingTaskWriter implements TaskWriter<RowData> {
+    private boolean closed = false;
+
+    boolean closed() {
+      return closed;
+    }
+
+    @Override
+    public void write(RowData row) {}
+
+    @Override
+    public void abort() {}
+
+    @Override
+    public WriteResult complete() {
+      return WriteResult.builder().build();
+    }
+
+    @Override
+    public void close() {
+      closed = true;
     }
   }
 }

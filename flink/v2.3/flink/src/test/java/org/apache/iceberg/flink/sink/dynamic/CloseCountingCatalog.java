@@ -26,15 +26,24 @@ import org.apache.iceberg.inmemory.InMemoryCatalog;
 
 class CloseCountingCatalog extends InMemoryCatalog {
   private int closeCount = 0;
+  private boolean failOnClose = false;
 
   CloseCountingCatalog() {
     initialize("close-counting", Map.of());
+  }
+
+  CloseCountingCatalog failOnClose() {
+    this.failOnClose = true;
+    return this;
   }
 
   @Override
   public void close() throws IOException {
     closeCount += 1;
     super.close();
+    if (failOnClose) {
+      throw new IOException("Failed to close catalog");
+    }
   }
 
   int closeCount() {

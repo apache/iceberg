@@ -28,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.connector.sink2.Committer.CommitRequest;
 import org.apache.flink.api.connector.sink2.mocks.MockCommitRequest;
@@ -50,6 +51,7 @@ import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.sink.CommitSummary;
 import org.apache.iceberg.io.WriteResult;
@@ -1183,6 +1185,18 @@ class TestDynamicCommitter {
     createCommitter(closeCountingCatalog).close();
 
     assertThat(closeCountingCatalog.closeCount()).isEqualTo(1);
+  }
+
+  @Test
+  void shutsDownWorkerPoolWhenClosingCatalogFails() {
+    DynamicCommitter committer = createCommitter(new CloseCountingCatalog().failOnClose());
+
+    assertThatThrownBy(committer::close)
+        .isInstanceOf(IOException.class)
+        .hasMessage("Failed to close catalog");
+    DynFields.BoundField<ExecutorService> workerPool =
+        DynFields.builder().hiddenImpl(DynamicCommitter.class, "workerPool").build(committer);
+    assertThat(workerPool.get().isShutdown()).isTrue();
   }
 
   private DynamicWriteResultAggregator openAggregator() throws Exception {

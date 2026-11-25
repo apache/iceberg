@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -89,8 +88,8 @@ class DynamicSinkUtil {
   }
 
   @Nullable
-  static Closeable closeable(@Nullable Catalog catalog) {
-    return catalog instanceof Closeable closeable ? closeable : null;
+  static Closeable closeable(@Nullable Object obj) {
+    return obj instanceof Closeable closeable ? closeable : null;
   }
 
   static int safeAbs(int input) {
