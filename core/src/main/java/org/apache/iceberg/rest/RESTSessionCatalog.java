@@ -641,7 +641,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       trackFileIO(ops);
 
-      RESTTable table = restTableForScanPlanning(ops, identifier, tableClient, tableConf, labels);
+      RESTTable table =
+          restTableForScanPlanning(ops, identifier, context, tableClient, tableConf, labels);
       if (table != null) {
         return table;
       }
@@ -657,6 +658,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private RESTTable restTableForScanPlanning(
       TableOperations ops,
       TableIdentifier finalIdentifier,
+      SessionContext context,
       RESTClient restClient,
       Map<String, String> tableConf,
       Labels labels) {
@@ -704,7 +706,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           paths,
           endpoints,
           properties(),
-          conf,
+          (scanProperties, storageCredentials) ->
+              newFileIO(context, scanProperties, storageCredentials),
           labels);
     }
 
@@ -800,7 +803,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     trackFileIO(ops);
 
     RESTTable restTable =
-        restTableForScanPlanning(ops, ident, tableClient, tableConf, response.labels());
+        restTableForScanPlanning(ops, ident, context, tableClient, tableConf, response.labels());
     if (restTable != null) {
       return restTable;
     }
@@ -1114,7 +1117,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       trackFileIO(ops);
 
       RESTTable restTable =
-          restTableForScanPlanning(ops, ident, tableClient, tableConf, response.labels());
+          restTableForScanPlanning(ops, ident, context, tableClient, tableConf, response.labels());
       if (restTable != null) {
         return restTable;
       }

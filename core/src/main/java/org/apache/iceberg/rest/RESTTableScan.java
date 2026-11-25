@@ -26,10 +26,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataTableScan;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
@@ -41,7 +40,6 @@ import org.apache.iceberg.TableScanContext;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -62,7 +60,6 @@ class RESTTableScan extends DataTableScan {
   private static final long MIN_SLEEP_MS = 1000; // Initial delay
   private static final long MAX_SLEEP_MS = 60 * 1000; // Max backoff delay (1 minute)
   private static final double SCALE_FACTOR = 2.0; // Exponential scale factor
-  private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
   private static final Cache<RESTTableScan, FileIO> FILEIO_TRACKER =
       Caffeine.newBuilder()
           .weakKeys()
@@ -83,7 +80,7 @@ class RESTTableScan extends DataTableScan {
   private final Set<Endpoint> supportedEndpoints;
   private final ParserContext parserContext;
   private final Map<String, String> catalogProperties;
-  private final Object hadoopConf;
+  private final BiFunction<Map<String, String>, List<Credential>, FileIO> scanFileIOBuilder;
   private String planId = null;
   private FileIO scanFileIO = null;
   private boolean useSnapshotSchema = false;
@@ -99,7 +96,7 @@ class RESTTableScan extends DataTableScan {
       ResourcePaths resourcePaths,
       Set<Endpoint> supportedEndpoints,
       Map<String, String> catalogProperties,
-      Object hadoopConf) {
+      BiFunction<Map<String, String>, List<Credential>, FileIO> scanFileIOBuilder) {
     super(table, schema, context);
     this.client = client;
     this.headers = headers;
@@ -113,7 +110,7 @@ class RESTTableScan extends DataTableScan {
             .add("caseSensitive", context().caseSensitive())
             .build();
     this.catalogProperties = catalogProperties;
-    this.hadoopConf = hadoopConf;
+    this.scanFileIOBuilder = scanFileIOBuilder;
   }
 
   @Override
@@ -131,7 +128,7 @@ class RESTTableScan extends DataTableScan {
             resourcePaths,
             supportedEndpoints,
             catalogProperties,
-            hadoopConf);
+            scanFileIOBuilder);
     scan.useSnapshotSchema = useSnapshotSchema;
     return scan;
   }
@@ -232,15 +229,7 @@ class RESTTableScan extends DataTableScan {
       builder.put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId);
     }
 
-    Map<String, String> properties = builder.buildKeepingLast();
-    FileIO ioForScan =
-        CatalogUtil.loadFileIO(
-            catalogProperties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL),
-            properties,
-            hadoopConf,
-            storageCredentials.stream()
-                .map(c -> StorageCredential.create(c.prefix(), c.config()))
-                .collect(Collectors.toList()));
+    FileIO ioForScan = scanFileIOBuilder.apply(builder.buildKeepingLast(), storageCredentials);
     FILEIO_TRACKER.put(this, ioForScan);
     return ioForScan;
   }
