@@ -20,10 +20,17 @@ package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.File;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 
@@ -68,6 +75,33 @@ class TestRESTMetricsExecutor {
     } finally {
       executor.shutdownNow();
       threadLocal.remove();
+    }
+  }
+
+  @Test
+  void threadUsesIcebergClassLoader() throws Exception {
+    // Load the catalog through a non-system class loader, like how Apache Spark does for
+    // '--jars' and '--packages'. Otherwise, the thread falls back to the system class loader.
+    List<URL> classpath = Lists.newArrayList();
+    for (String entry :
+        Splitter.on(File.pathSeparator).split(System.getProperty("java.class.path"))) {
+      classpath.add(new File(entry).toURI().toURL());
+    }
+
+    try (URLClassLoader icebergLoader =
+        new URLClassLoader(classpath.toArray(new URL[0]), ClassLoader.getPlatformClassLoader())) {
+      Method newMetricsExecutor =
+          Class.forName(RESTSessionCatalog.class.getName(), true, icebergLoader)
+              .getDeclaredMethod("newMetricsExecutor", Duration.class);
+      newMetricsExecutor.setAccessible(true);
+      ExecutorService executor =
+          (ExecutorService) newMetricsExecutor.invoke(null, Duration.ofMinutes(1));
+      try {
+        assertThat(executor.submit(() -> Thread.currentThread().getContextClassLoader()).get())
+            .isSameAs(icebergLoader);
+      } finally {
+        executor.shutdownNow();
+      }
     }
   }
 }
