@@ -936,6 +936,47 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testNonFiniteColumnDefaults() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TBL.namespace());
+    }
+
+    catalog
+        .buildTable(TBL, SCHEMA)
+        .withLocation(baseTableLocation(TBL))
+        .withProperty(TableProperties.FORMAT_VERSION, "3")
+        .create();
+
+    catalog
+        .loadTable(TBL)
+        .updateSchema()
+        .addColumn("float_col", Types.FloatType.get(), Literal.of(Float.NaN))
+        .addColumn("double_col", Types.DoubleType.get(), Literal.of(Double.NEGATIVE_INFINITY))
+        .commit();
+
+    Schema added = catalog.loadTable(TBL).schema();
+    assertThat((Float) added.findField("float_col").initialDefault()).isNaN();
+    assertThat((Float) added.findField("float_col").writeDefault()).isNaN();
+    assertThat(added.findField("double_col").initialDefault()).isEqualTo(Double.NEGATIVE_INFINITY);
+    assertThat(added.findField("double_col").writeDefault()).isEqualTo(Double.NEGATIVE_INFINITY);
+
+    catalog
+        .loadTable(TBL)
+        .updateSchema()
+        .updateColumnDefault("float_col", Literal.of(Float.POSITIVE_INFINITY))
+        .commit();
+
+    Schema updated = catalog.loadTable(TBL).schema();
+    assertThat((Float) updated.findField("float_col").initialDefault()).isNaN();
+    assertThat(updated.findField("float_col").writeDefault()).isEqualTo(Float.POSITIVE_INFINITY);
+    assertThat(updated.findField("double_col").initialDefault())
+        .isEqualTo(Double.NEGATIVE_INFINITY);
+    assertThat(updated.findField("double_col").writeDefault()).isEqualTo(Double.NEGATIVE_INFINITY);
+  }
+
+  @Test
   public void testLoadTable() {
     C catalog = catalog();
 

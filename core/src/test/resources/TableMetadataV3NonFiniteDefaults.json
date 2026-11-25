@@ -1,0 +1,202 @@
+{
+  "format-version": 3,
+  "table-uuid": "b42cb96f-6bb6-44b5-9079-4822748e26c4",
+  "location": "/db/t",
+  "last-sequence-number": 0,
+  "last-updated-ms": 1795605542048,
+  "last-column-id": 9,
+  "current-schema-id": 2,
+  "schemas": [
+    {
+      "type": "struct",
+      "schema-id": 0,
+      "fields": [
+        {
+          "id": 1,
+          "name": "id",
+          "required": true,
+          "type": "long"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "schema-id": 1,
+      "fields": [
+        {
+          "id": 1,
+          "name": "id",
+          "required": true,
+          "type": "long"
+        },
+        {
+          "id": 2,
+          "name": "f_nan",
+          "required": false,
+          "type": "float",
+          "initial-default": "NaN",
+          "write-default": "NaN"
+        },
+        {
+          "id": 3,
+          "name": "f_pos_inf",
+          "required": false,
+          "type": "float",
+          "initial-default": "Infinity",
+          "write-default": "Infinity"
+        },
+        {
+          "id": 4,
+          "name": "f_neg_inf",
+          "required": false,
+          "type": "float",
+          "initial-default": "-Infinity",
+          "write-default": "-Infinity"
+        },
+        {
+          "id": 5,
+          "name": "d_nan",
+          "required": false,
+          "type": "double",
+          "initial-default": "NaN",
+          "write-default": "NaN"
+        },
+        {
+          "id": 6,
+          "name": "d_pos_inf",
+          "required": false,
+          "type": "double",
+          "initial-default": "Infinity",
+          "write-default": "Infinity"
+        },
+        {
+          "id": 7,
+          "name": "d_neg_inf",
+          "required": false,
+          "type": "double",
+          "initial-default": "-Infinity",
+          "write-default": "-Infinity"
+        },
+        {
+          "id": 8,
+          "name": "f_finite",
+          "required": false,
+          "type": "float",
+          "initial-default": 1.5,
+          "write-default": 1.5
+        },
+        {
+          "id": 9,
+          "name": "d_no_default",
+          "required": false,
+          "type": "double"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "schema-id": 2,
+      "fields": [
+        {
+          "id": 1,
+          "name": "id",
+          "required": true,
+          "type": "long"
+        },
+        {
+          "id": 2,
+          "name": "f_nan",
+          "required": false,
+          "type": "float",
+          "initial-default": "NaN",
+          "write-default": "-Infinity"
+        },
+        {
+          "id": 3,
+          "name": "f_pos_inf",
+          "required": false,
+          "type": "float",
+          "initial-default": "Infinity",
+          "write-default": "Infinity"
+        },
+        {
+          "id": 4,
+          "name": "f_neg_inf",
+          "required": false,
+          "type": "float",
+          "initial-default": "-Infinity",
+          "write-default": "-Infinity"
+        },
+        {
+          "id": 5,
+          "name": "d_nan",
+          "required": false,
+          "type": "double",
+          "initial-default": "NaN",
+          "write-default": "NaN"
+        },
+        {
+          "id": 6,
+          "name": "d_pos_inf",
+          "required": false,
+          "type": "double",
+          "initial-default": "Infinity",
+          "write-default": "Infinity"
+        },
+        {
+          "id": 7,
+          "name": "d_neg_inf",
+          "required": false,
+          "type": "double",
+          "initial-default": "-Infinity",
+          "write-default": "-Infinity"
+        },
+        {
+          "id": 8,
+          "name": "f_finite",
+          "required": false,
+          "type": "float",
+          "initial-default": 1.5,
+          "write-default": 1.5
+        },
+        {
+          "id": 9,
+          "name": "d_no_default",
+          "required": false,
+          "type": "double"
+        }
+      ]
+    }
+  ],
+  "default-spec-id": 0,
+  "partition-specs": [
+    {
+      "spec-id": 0,
+      "fields": []
+    }
+  ],
+  "last-partition-id": 999,
+  "default-sort-order-id": 0,
+  "sort-orders": [
+    {
+      "order-id": 0,
+      "fields": []
+    }
+  ],
+  "properties": {
+    "write.parquet.compression-codec": "zstd"
+  },
+  "current-snapshot-id": null,
+  "next-row-id": 0,
+  "refs": {},
+  "snapshots": [],
+  "statistics": [],
+  "partition-statistics": [],
+  "snapshot-log": [],
+  "metadata-log": [
+    {
+      "timestamp-ms": 1795605541983,
+      "metadata-file": "/db/t/metadata/00000-318ae3ff-d3cd-4ec3-81b8-02a8f26ea3b6.metadata.json"
+    }
+  ]
+}

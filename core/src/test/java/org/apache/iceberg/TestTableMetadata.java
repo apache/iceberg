@@ -1274,6 +1274,62 @@ public class TestTableMetadata {
         .hasMessage("schemas must exist in format v2");
   }
 
+  @Test
+  public void parseNonFiniteDefaultsWrittenAsStrings() throws Exception {
+    String json = readTableMetadataInputFile("TableMetadataV3NonFiniteDefaults.json");
+    Schema schema = TableMetadataParser.fromJson(json).schema();
+
+    assertThat((Float) schema.findField("f_nan").initialDefault()).isNaN();
+    assertThat(schema.findField("f_nan").writeDefault()).isEqualTo(Float.NEGATIVE_INFINITY);
+    assertThat(schema.findField("f_pos_inf").initialDefault()).isEqualTo(Float.POSITIVE_INFINITY);
+    assertThat(schema.findField("f_pos_inf").writeDefault()).isEqualTo(Float.POSITIVE_INFINITY);
+    assertThat(schema.findField("f_neg_inf").initialDefault()).isEqualTo(Float.NEGATIVE_INFINITY);
+    assertThat(schema.findField("f_neg_inf").writeDefault()).isEqualTo(Float.NEGATIVE_INFINITY);
+    assertThat((Double) schema.findField("d_nan").initialDefault()).isNaN();
+    assertThat((Double) schema.findField("d_nan").writeDefault()).isNaN();
+    assertThat(schema.findField("d_pos_inf").initialDefault()).isEqualTo(Double.POSITIVE_INFINITY);
+    assertThat(schema.findField("d_pos_inf").writeDefault()).isEqualTo(Double.POSITIVE_INFINITY);
+    assertThat(schema.findField("d_neg_inf").initialDefault()).isEqualTo(Double.NEGATIVE_INFINITY);
+    assertThat(schema.findField("d_neg_inf").writeDefault()).isEqualTo(Double.NEGATIVE_INFINITY);
+    assertThat(schema.findField("f_finite").initialDefault()).isEqualTo(1.5F);
+    assertThat(schema.findField("f_finite").writeDefault()).isEqualTo(1.5F);
+    assertThat(schema.findField("d_no_default").initialDefault()).isNull();
+    assertThat(schema.findField("d_no_default").writeDefault()).isNull();
+  }
+
+  @Test
+  public void nonFiniteDefaultSchemaHistorySurvivesSerialization() throws Exception {
+    TableMetadata parsed =
+        TableMetadataParser.fromJson(
+            readTableMetadataInputFile("TableMetadataV3NonFiniteDefaults.json"));
+    TableMetadata reparsed = TableMetadataParser.fromJson(TableMetadataParser.toJson(parsed));
+
+    assertThat(reparsed.schemasById()).containsOnlyKeys(0, 1, 2);
+    assertThat(reparsed.currentSchemaId()).isEqualTo(2);
+    Types.NestedField historical = reparsed.schemasById().get(1).findField("f_nan");
+    assertThat((Float) historical.initialDefault()).isNaN();
+    assertThat((Float) historical.writeDefault()).isNaN();
+    Types.NestedField current = reparsed.schemasById().get(2).findField("f_nan");
+    assertThat((Float) current.initialDefault()).isNaN();
+    assertThat(current.writeDefault()).isEqualTo(Float.NEGATIVE_INFINITY);
+  }
+
+  @Test
+  public void reuseSchemaWithNonFiniteDefaults() throws Exception {
+    String json = readTableMetadataInputFile("TableMetadataV3NonFiniteDefaults.json");
+    TableMetadata metadata = TableMetadataParser.fromJson(json);
+    Schema equivalent = TableMetadataParser.fromJson(json).schema();
+    assertThat(equivalent).isNotSameAs(metadata.schema());
+
+    TableMetadata updated =
+        TableMetadata.buildFrom(metadata)
+            .setCurrentSchema(equivalent, metadata.lastColumnId())
+            .build();
+
+    assertThat(updated.currentSchemaId()).isEqualTo(metadata.currentSchemaId());
+    assertThat(updated.schemas()).hasSameSizeAs(metadata.schemas());
+  }
+
   private String readTableMetadataInputFile(String fileName) throws Exception {
     Path path = Paths.get(getClass().getClassLoader().getResource(fileName).toURI());
     return String.join("", java.nio.file.Files.readAllLines(path));

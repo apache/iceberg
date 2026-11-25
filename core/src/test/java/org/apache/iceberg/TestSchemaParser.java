@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -39,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestSchemaParser extends DataTestBase {
   @Override
@@ -154,5 +156,120 @@ public class TestSchemaParser extends DataTestBase {
         .isEqualTo(defaultValue.value());
     assertThat(serialized.findField("col_with_default").writeDefault())
         .isEqualTo(defaultValue.value());
+  }
+
+  private static Stream<Arguments> nonFiniteDefaults() {
+    return Stream.of(
+        Arguments.of(Types.FloatType.get(), "NaN", Float.NaN, "Infinity", Float.POSITIVE_INFINITY),
+        Arguments.of(
+            Types.FloatType.get(),
+            "Infinity",
+            Float.POSITIVE_INFINITY,
+            "-Infinity",
+            Float.NEGATIVE_INFINITY),
+        Arguments.of(Types.FloatType.get(), "-Infinity", Float.NEGATIVE_INFINITY, "NaN", Float.NaN),
+        Arguments.of(
+            Types.DoubleType.get(), "NaN", Double.NaN, "Infinity", Double.POSITIVE_INFINITY),
+        Arguments.of(
+            Types.DoubleType.get(),
+            "Infinity",
+            Double.POSITIVE_INFINITY,
+            "-Infinity",
+            Double.NEGATIVE_INFINITY),
+        Arguments.of(
+            Types.DoubleType.get(), "-Infinity", Double.NEGATIVE_INFINITY, "NaN", Double.NaN));
+  }
+
+  @ParameterizedTest
+  @MethodSource("nonFiniteDefaults")
+  public void nonFiniteDefaultValues(
+      Type.PrimitiveType type,
+      String initialDefaultJson,
+      Object initialDefault,
+      String writeDefaultJson,
+      Object writeDefault) {
+    String json =
+        schemaJsonWithDefaults(
+            type,
+            String.format(
+                "\"initial-default\":\"%s\",\"write-default\":\"%s\"",
+                initialDefaultJson, writeDefaultJson));
+
+    Types.NestedField parsed = SchemaParser.fromJson(json).findField("col");
+    assertThat(parsed.type()).isEqualTo(type);
+    assertThat(parsed.initialDefault()).isEqualTo(initialDefault);
+    assertThat(parsed.writeDefault()).isEqualTo(writeDefault);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"initial-default", "write-default"})
+  public void nonFiniteDefaultWithSingleAttribute(String attribute) {
+    String json =
+        schemaJsonWithDefaults(Types.FloatType.get(), String.format("\"%s\":\"NaN\"", attribute));
+
+    Types.NestedField parsed = SchemaParser.fromJson(json).findField("col");
+    Object presentDefault =
+        attribute.equals("initial-default") ? parsed.initialDefault() : parsed.writeDefault();
+    Object absentDefault =
+        attribute.equals("initial-default") ? parsed.writeDefault() : parsed.initialDefault();
+    assertThat((Float) presentDefault).isNaN();
+    assertThat(absentDefault).isNull();
+  }
+
+  @Test
+  public void nonFiniteStringDefaultForStringField() {
+    String json =
+        schemaJsonWithDefaults(
+            Types.StringType.get(), "\"initial-default\":\"NaN\",\"write-default\":\"Infinity\"");
+
+    Types.NestedField parsed = SchemaParser.fromJson(json).findField("col");
+    assertThat(parsed.initialDefault()).isEqualTo("NaN");
+    assertThat(parsed.writeDefault()).isEqualTo("Infinity");
+  }
+
+  private static Stream<Arguments> invalidFloatingPointDefaults() {
+    return Stream.of("initial-default", "write-default")
+        .flatMap(
+            attribute ->
+                Stream.of(Types.FloatType.get(), Types.DoubleType.get())
+                    .flatMap(
+                        type ->
+                            Stream.of(
+                                    "nan",
+                                    "NAN",
+                                    "infinity",
+                                    "+Infinity",
+                                    "-infinity",
+                                    "Inf",
+                                    "1.25",
+                                    "")
+                                .map(value -> Arguments.of(attribute, type, value))));
+  }
+
+  @ParameterizedTest
+  @MethodSource("invalidFloatingPointDefaults")
+  public void invalidFloatingPointDefaultStrings(
+      String attribute, Type.PrimitiveType type, String value) {
+    String json = schemaJsonWithDefaults(type, String.format("\"%s\":\"%s\"", attribute, value));
+
+    assertThatThrownBy(() -> SchemaParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse default as a %s value: \"%s\"", type, value);
+  }
+
+  @Test
+  public void nonFiniteDefaultStringForIntegerField() {
+    String json = schemaJsonWithDefaults(Types.IntegerType.get(), "\"initial-default\":\"NaN\"");
+
+    assertThatThrownBy(() -> SchemaParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse default as a int value: \"NaN\"");
+  }
+
+  private static String schemaJsonWithDefaults(Type type, String defaults) {
+    return String.format(
+        "{\"type\":\"struct\",\"schema-id\":0,\"fields\":[{\"id\":1,\"name\":\"col\","
+            + "\"required\":false,\"type\":\"%s\",%s}]}",
+        type, defaults);
   }
 }

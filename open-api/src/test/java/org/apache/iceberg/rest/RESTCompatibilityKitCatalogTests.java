@@ -179,4 +179,10 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
   public void createTableInUniqueLocation() {
     super.createTableInUniqueLocation();
   }
+
+  @Disabled("JSON encoding of non-finite float and double defaults is not yet in the REST spec")
+  @Test
+  public void testNonFiniteColumnDefaults() {
+    super.testNonFiniteColumnDefaults();
+  }
 }
