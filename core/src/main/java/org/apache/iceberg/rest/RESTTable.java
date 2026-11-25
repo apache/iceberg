@@ -44,7 +44,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
   private final TableIdentifier tableIdentifier;
   private final Set<Endpoint> supportedEndpoints;
   private final Map<String, String> catalogProperties;
-  private final BiFunction<Map<String, String>, List<Credential>, FileIO> scanFileIOBuilder;
+  private final BiFunction<List<Credential>, String, FileIO> scanFileIOBuilder;
 
   RESTTable(
       TableOperations ops,
@@ -56,7 +56,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
       ResourcePaths resourcePaths,
       Set<Endpoint> supportedEndpoints,
       Map<String, String> catalogProperties,
-      BiFunction<Map<String, String>, List<Credential>, FileIO> scanFileIOBuilder,
+      BiFunction<List<Credential>, String, FileIO> scanFileIOBuilder,
       Labels labels) {
     super(ops, name, reporter, labels);
     this.reporter = reporter;

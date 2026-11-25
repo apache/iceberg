@@ -42,7 +42,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
@@ -80,7 +79,7 @@ class RESTTableScan extends DataTableScan {
   private final Set<Endpoint> supportedEndpoints;
   private final ParserContext parserContext;
   private final Map<String, String> catalogProperties;
-  private final BiFunction<Map<String, String>, List<Credential>, FileIO> scanFileIOBuilder;
+  private final BiFunction<List<Credential>, String, FileIO> scanFileIOBuilder;
   private String planId = null;
   private FileIO scanFileIO = null;
   private boolean useSnapshotSchema = false;
@@ -96,7 +95,7 @@ class RESTTableScan extends DataTableScan {
       ResourcePaths resourcePaths,
       Set<Endpoint> supportedEndpoints,
       Map<String, String> catalogProperties,
-      BiFunction<Map<String, String>, List<Credential>, FileIO> scanFileIOBuilder) {
+      BiFunction<List<Credential>, String, FileIO> scanFileIOBuilder) {
     super(table, schema, context);
     this.client = client;
     this.headers = headers;
@@ -223,13 +222,7 @@ class RESTTableScan extends DataTableScan {
   }
 
   private FileIO scanFileIO(List<Credential> storageCredentials) {
-    ImmutableMap.Builder<String, String> builder =
-        ImmutableMap.<String, String>builder().putAll(catalogProperties);
-    if (null != planId) {
-      builder.put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId);
-    }
-
-    FileIO ioForScan = scanFileIOBuilder.apply(builder.buildKeepingLast(), storageCredentials);
+    FileIO ioForScan = scanFileIOBuilder.apply(storageCredentials, planId);
     FILEIO_TRACKER.put(this, ioForScan);
     return ioForScan;
   }
