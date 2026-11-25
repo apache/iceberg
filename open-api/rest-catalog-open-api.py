@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Any, Dict, Literal
+from typing import Dict, Literal
 from uuid import UUID
 
 from pydantic import Base64Str, BaseModel, ConfigDict, Field, RootModel
@@ -1049,7 +1049,7 @@ class CreateNamespaceResponse(BaseModel):
 
 class GetNamespaceResponse(BaseModel):
     namespace: Namespace
-    properties: dict[str, Any] | None = Field(
+    properties: dict[str, str] | None = Field(
         {},
         description='Properties stored on the namespace, if supported by the server. If the server does not support namespace properties, it should return null for this field. If namespace properties are supported, but none are set, it should return an empty object.',
         examples=[{'owner': 'Ralph', 'transient_lastDdlTime': '1452120468'}],
