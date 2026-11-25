@@ -550,7 +550,7 @@ class RemoveEncryptionKeyUpdate(BaseUpdate):
 class OperationType(RootModel[str]):
     root: str = Field(
         ...,
-        description='The type of an operation. The standard operation types defined by this specification are listed below. This set may grow in future versions of the specification, so clients should ignore (discard) events with unknown operation types.\nImplementation-specific operation types SHOULD use an `x-` prefix (for example, `x-mycatalog.archive-snapshot`) to avoid colliding with current or future standard operation types. This mirrors the `X-` convention for HTTP headers and is a naming convention rather than a schema constraint.\nKnown standard operation types: `create-table`, `register-table`, `drop-table`, `update-table`, `rename-table`, `create-view`, `drop-view`, `update-view`, `rename-view`, `create-namespace`, `update-namespace-properties`, `drop-namespace`.\n',
+        description='The type of an operation. The standard operation types defined by this specification are listed below. This set may grow in future versions of the specification, so clients should ignore (discard) events with unknown operation types.\nImplementation-specific operation types SHOULD use an `x-` prefix (for example, `x-mycatalog.archive-snapshot`) to avoid colliding with current or future standard operation types. This mirrors the `X-` convention for HTTP headers and is a naming convention rather than a schema constraint.\nKnown standard operation types: `create-table`, `register-table`, `unregister-table`, `drop-table`, `update-table`, `rename-table`, `create-view`, `register-view`, `drop-view`, `update-view`, `rename-view`, `create-namespace`, `update-namespace-properties`, `drop-namespace`.\n',
     )
 
 
@@ -980,6 +980,17 @@ class BaseOperation(BaseModel):
     """
 
     operation_type: OperationType = Field(..., alias='operation-type')
+
+
+class UnregisterTableOperation(BaseOperation):
+    operation_type: Literal['unregister-table'] = Field(..., alias='operation-type')
+    identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
+    metadata_location: str | None = Field(
+        None,
+        alias='metadata-location',
+        description='The last metadata location of the table at the time it was unregistered. MUST be present if the catalog returned a `metadata-location` for the table before it was unregistered.\n',
+    )
 
 
 class DropTableOperation(BaseOperation):
@@ -2189,10 +2200,12 @@ class Event(BaseModel):
     operation: (
         CreateTableOperation
         | RegisterTableOperation
+        | UnregisterTableOperation
         | DropTableOperation
         | UpdateTableOperation
         | RenameTableOperation
         | CreateViewOperation
+        | RegisterViewOperation
         | DropViewOperation
         | UpdateViewOperation
         | RenameViewOperation
@@ -2214,21 +2227,45 @@ class CreateTableOperation(BaseOperation):
     operation_type: Literal['create-table'] = Field(..., alias='operation-type')
     identifier: TableIdentifier
     table_uuid: UUID = Field(..., alias='table-uuid')
-    updates: list[TableUpdate]
+    metadata_location: str | None = Field(
+        None,
+        alias='metadata-location',
+        description='Location of the table metadata after the change described by this event. MUST be present if, after this change, the catalog returns a `metadata-location` for the table in `LoadTableResult`.\n',
+    )
+    updates: list[TableUpdate] = Field(
+        ...,
+        description='The changes the catalog applied to create the table. The rules for `updates` in `UpdateTableOperation` apply.\n',
+    )
 
 
 class RegisterTableOperation(BaseOperation):
     operation_type: Literal['register-table'] = Field(..., alias='operation-type')
     identifier: TableIdentifier
     table_uuid: UUID = Field(..., alias='table-uuid')
-    updates: list[TableUpdate] | None = None
+    metadata_location: str | None = Field(
+        None,
+        alias='metadata-location',
+        description='Location of the table metadata after the change described by this event. MUST be present if, after this change, the catalog returns a `metadata-location` for the table in `LoadTableResult`.\n',
+    )
+    updates: list[TableUpdate] | None = Field(
+        None,
+        description="Optional. If not present, consumers that need the table's metadata must load the table from the catalog. If present, the rules for `updates` in `UpdateTableOperation` apply.\n",
+    )
 
 
 class UpdateTableOperation(BaseOperation):
     operation_type: Literal['update-table'] = Field(..., alias='operation-type')
     identifier: TableIdentifier
     table_uuid: UUID = Field(..., alias='table-uuid')
-    updates: list[TableUpdate]
+    metadata_location: str | None = Field(
+        None,
+        alias='metadata-location',
+        description='Location of the table metadata after the change described by this event. MUST be present if, after this change, the catalog returns a `metadata-location` for the table in `LoadTableResult`.\n',
+    )
+    updates: list[TableUpdate] = Field(
+        ...,
+        description='The changes the catalog applied to the table. These can differ from the changes the client sent: they include values the catalog assigned or chose itself, such as IDs and defaults the client left out, and changes the catalog added, such as properties it sets on commit.\nUpdates that add a schema, partition spec or sort order MUST carry the ID the catalog assigned. Updates that set the current schema, the default partition spec or the default sort order MUST use an explicit ID and MUST NOT use `-1` to refer to the last added one.\n',
+    )
     requirements: (
         list[
             AssertCreate
@@ -2248,14 +2285,45 @@ class CreateViewOperation(BaseOperation):
     operation_type: Literal['create-view'] = Field(..., alias='operation-type')
     identifier: TableIdentifier
     view_uuid: UUID = Field(..., alias='view-uuid')
-    updates: list[ViewUpdate]
+    metadata_location: str | None = Field(
+        None,
+        alias='metadata-location',
+        description='Location of the view metadata after the change described by this event. MUST be present if, after this change, the catalog returns a `metadata-location` for the view in `LoadViewResult`.\n',
+    )
+    updates: list[ViewUpdate] = Field(
+        ...,
+        description='The changes the catalog applied to create the view. The rules for `updates` in `UpdateViewOperation` apply.\n',
+    )
+
+
+class RegisterViewOperation(BaseOperation):
+    operation_type: Literal['register-view'] = Field(..., alias='operation-type')
+    identifier: TableIdentifier
+    view_uuid: UUID = Field(..., alias='view-uuid')
+    metadata_location: str | None = Field(
+        None,
+        alias='metadata-location',
+        description='Location of the view metadata after the change described by this event. MUST be present if, after this change, the catalog returns a `metadata-location` for the view in `LoadViewResult`.\n',
+    )
+    updates: list[ViewUpdate] | None = Field(
+        None,
+        description="Optional. If not present, consumers that need the view's metadata must load the view from the catalog. If present, the rules for `updates` in `UpdateViewOperation` apply.\n",
+    )
 
 
 class UpdateViewOperation(BaseOperation):
     operation_type: Literal['update-view'] = Field(..., alias='operation-type')
     identifier: TableIdentifier
     view_uuid: UUID = Field(..., alias='view-uuid')
-    updates: list[ViewUpdate]
+    metadata_location: str | None = Field(
+        None,
+        alias='metadata-location',
+        description='Location of the view metadata after the change described by this event. MUST be present if, after this change, the catalog returns a `metadata-location` for the view in `LoadViewResult`.\n',
+    )
+    updates: list[ViewUpdate] = Field(
+        ...,
+        description='The changes the catalog applied to the view. These can differ from the changes the client sent: they include values the catalog assigned or chose itself, such as IDs and defaults the client left out, and changes the catalog added, such as properties it sets on commit.\nUpdates that add a schema or a view version MUST carry the ID the catalog assigned. The `schema-id` of an added view version and the update that sets the current view version MUST use an explicit ID and MUST NOT use `-1` to refer to the last added one.\n',
+    )
     requirements: list[ViewRequirement] | None = None
 
 
@@ -2546,6 +2614,7 @@ CreateTableOperation.model_rebuild()
 RegisterTableOperation.model_rebuild()
 UpdateTableOperation.model_rebuild()
 CreateViewOperation.model_rebuild()
+RegisterViewOperation.model_rebuild()
 UpdateViewOperation.model_rebuild()
 PlanTableScanRequest.model_rebuild()
 FileScanTask.model_rebuild()

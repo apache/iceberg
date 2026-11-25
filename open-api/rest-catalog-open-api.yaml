@@ -2094,7 +2094,11 @@ paths:
 
         Consumers should be prepared to handle 410 Gone responses when requested sequences are
         outside the server's retention window. Consumers should also de-duplicate received events based
-        on their `event-id`. Consistency guarantees vary between server implementations.
+        on their `event-id`.
+
+        Events that refer to the same identifier or the same table or view UUID MUST be returned
+        in the order in which their changes were committed. Other consistency guarantees vary
+        between server implementations.
       operationId: getEvents
       requestBody:
         content:
@@ -3727,9 +3731,10 @@ components:
         operation types. This mirrors the `X-` convention for HTTP headers and is a naming
         convention rather than a schema constraint.
 
-        Known standard operation types: `create-table`, `register-table`, `drop-table`,
-        `update-table`, `rename-table`, `create-view`, `drop-view`, `update-view`, `rename-view`,
-        `create-namespace`, `update-namespace-properties`, `drop-namespace`.
+        Known standard operation types: `create-table`, `register-table`, `unregister-table`,
+        `drop-table`, `update-table`, `rename-table`, `create-view`, `register-view`, `drop-view`,
+        `update-view`, `rename-view`, `create-namespace`, `update-namespace-properties`,
+        `drop-namespace`.
 
     TableRequirement:
       type: object
@@ -5169,10 +5174,12 @@ components:
           anyOf:
             - $ref: "#/components/schemas/CreateTableOperation"
             - $ref: "#/components/schemas/RegisterTableOperation"
+            - $ref: "#/components/schemas/UnregisterTableOperation"
             - $ref: "#/components/schemas/DropTableOperation"
             - $ref: "#/components/schemas/UpdateTableOperation"
             - $ref: "#/components/schemas/RenameTableOperation"
             - $ref: "#/components/schemas/CreateViewOperation"
+            - $ref: "#/components/schemas/RegisterViewOperation"
             - $ref: "#/components/schemas/DropViewOperation"
             - $ref: "#/components/schemas/UpdateViewOperation"
             - $ref: "#/components/schemas/RenameViewOperation"
@@ -5192,10 +5199,12 @@ components:
         mapping:
           create-table: "#/components/schemas/CreateTableOperation"
           register-table: "#/components/schemas/RegisterTableOperation"
+          unregister-table: "#/components/schemas/UnregisterTableOperation"
           drop-table: "#/components/schemas/DropTableOperation"
           update-table: "#/components/schemas/UpdateTableOperation"
           rename-table: "#/components/schemas/RenameTableOperation"
           create-view: "#/components/schemas/CreateViewOperation"
+          register-view: "#/components/schemas/RegisterViewOperation"
           drop-view: "#/components/schemas/DropViewOperation"
           update-view: "#/components/schemas/UpdateViewOperation"
           rename-view: "#/components/schemas/RenameViewOperation"
@@ -5227,7 +5236,16 @@ components:
         table-uuid:
           type: string
           format: uuid
+        metadata-location:
+          type: string
+          description: >
+            Location of the table metadata after the change described by this event. MUST be present
+            if, after this change, the catalog returns a `metadata-location` for the table in
+            `LoadTableResult`.
         updates:
+          description: >
+            The changes the catalog applied to create the table. The rules for `updates` in
+            `UpdateTableOperation` apply.
           type: array
           items:
             $ref: "#/components/schemas/TableUpdate"
@@ -5248,10 +5266,42 @@ components:
         table-uuid:
           type: string
           format: uuid
+        metadata-location:
+          type: string
+          description: >
+            Location of the table metadata after the change described by this event. MUST be present
+            if, after this change, the catalog returns a `metadata-location` for the table in
+            `LoadTableResult`.
         updates:
+          description: >
+            Optional. If not present, consumers that need the table's metadata must load the table
+            from the catalog. If present, the rules for `updates` in `UpdateTableOperation` apply.
           type: array
           items:
             $ref: "#/components/schemas/TableUpdate"
+
+    UnregisterTableOperation:
+      allOf:
+        - $ref: "#/components/schemas/BaseOperation"
+      required:
+        - operation-type
+        - identifier
+        - table-uuid
+      properties:
+        operation-type:
+          type: string
+          const: "unregister-table"
+        identifier:
+          $ref: "#/components/schemas/TableIdentifier"
+        table-uuid:
+          type: string
+          format: uuid
+        metadata-location:
+          type: string
+          description: >
+            The last metadata location of the table at the time it was unregistered. MUST be
+            present if the catalog returned a `metadata-location` for the table before it was
+            unregistered.
 
     DropTableOperation:
       allOf:
@@ -5292,7 +5342,22 @@ components:
         table-uuid:
           type: string
           format: uuid
+        metadata-location:
+          type: string
+          description: >
+            Location of the table metadata after the change described by this event. MUST be present
+            if, after this change, the catalog returns a `metadata-location` for the table in
+            `LoadTableResult`.
         updates:
+          description: >
+            The changes the catalog applied to the table. These can differ from the changes the
+            client sent: they include values the catalog assigned or chose itself, such as IDs and
+            defaults the client left out, and changes the catalog added, such as properties it sets
+            on commit.
+
+            Updates that add a schema, partition spec or sort order MUST carry the ID the catalog
+            assigned. Updates that set the current schema, the default partition spec or the default
+            sort order MUST use an explicit ID and MUST NOT use `-1` to refer to the last added one.
           type: array
           items:
             $ref: "#/components/schemas/TableUpdate"
@@ -5348,7 +5413,46 @@ components:
         view-uuid:
           type: string
           format: uuid
+        metadata-location:
+          type: string
+          description: >
+            Location of the view metadata after the change described by this event. MUST be present
+            if, after this change, the catalog returns a `metadata-location` for the view in
+            `LoadViewResult`.
         updates:
+          description: >
+            The changes the catalog applied to create the view. The rules for `updates` in
+            `UpdateViewOperation` apply.
+          type: array
+          items:
+            $ref: "#/components/schemas/ViewUpdate"
+
+    RegisterViewOperation:
+      allOf:
+        - $ref: "#/components/schemas/BaseOperation"
+      required:
+        - operation-type
+        - identifier
+        - view-uuid
+      properties:
+        operation-type:
+          type: string
+          const: "register-view"
+        identifier:
+          $ref: "#/components/schemas/TableIdentifier"
+        view-uuid:
+          type: string
+          format: uuid
+        metadata-location:
+          type: string
+          description: >
+            Location of the view metadata after the change described by this event. MUST be present
+            if, after this change, the catalog returns a `metadata-location` for the view in
+            `LoadViewResult`.
+        updates:
+          description: >
+            Optional. If not present, consumers that need the view's metadata must load the view
+            from the catalog. If present, the rules for `updates` in `UpdateViewOperation` apply.
           type: array
           items:
             $ref: "#/components/schemas/ViewUpdate"
@@ -5387,7 +5491,22 @@ components:
         view-uuid:
           type: string
           format: uuid
+        metadata-location:
+          type: string
+          description: >
+            Location of the view metadata after the change described by this event. MUST be present
+            if, after this change, the catalog returns a `metadata-location` for the view in
+            `LoadViewResult`.
         updates:
+          description: >
+            The changes the catalog applied to the view. These can differ from the changes the
+            client sent: they include values the catalog assigned or chose itself, such as IDs and
+            defaults the client left out, and changes the catalog added, such as properties it sets
+            on commit.
+
+            Updates that add a schema or a view version MUST carry the ID the catalog assigned. The
+            `schema-id` of an added view version and the update that sets the current view version
+            MUST use an explicit ID and MUST NOT use `-1` to refer to the last added one.
           type: array
           items:
             $ref: "#/components/schemas/ViewUpdate"
