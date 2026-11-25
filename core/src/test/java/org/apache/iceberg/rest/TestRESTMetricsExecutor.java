@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 
@@ -37,6 +38,21 @@ class TestRESTMetricsExecutor {
       Awaitility.await()
           .atMost(Duration.ofSeconds(10))
           .untilAsserted(() -> assertThat(executor.getPoolSize()).isZero());
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
+  void runTaskAfterIdleThreadExits() throws Exception {
+    ThreadPoolExecutor executor =
+        (ThreadPoolExecutor) RESTSessionCatalog.newMetricsExecutor(Duration.ofMillis(10));
+    try {
+      executor.submit(() -> {}).get();
+      Awaitility.await()
+          .atMost(Duration.ofSeconds(10))
+          .untilAsserted(() -> assertThat(executor.getPoolSize()).isZero());
+      assertThat(executor.submit(() -> "sent").get(10, TimeUnit.SECONDS)).isEqualTo("sent");
     } finally {
       executor.shutdownNow();
     }

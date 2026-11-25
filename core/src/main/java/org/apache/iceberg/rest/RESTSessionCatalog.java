@@ -126,7 +126,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     implements Configurable<Object>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
-  private static final Duration METRICS_EXECUTOR_IDLE_TIMEOUT = Duration.ofSeconds(60);
 
   // these default endpoints must not be updated in order to maintain backwards compatibility with
   // legacy servers
@@ -291,7 +290,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
 
     if (reportingViaRestEnabled) {
-      this.metricsExecutor = newMetricsExecutor(METRICS_EXECUTOR_IDLE_TIMEOUT);
+      this.metricsExecutor = newMetricsExecutor(Duration.ofSeconds(60));
       this.closeables.addCloseable(metricsExecutor::shutdown);
     }
 
