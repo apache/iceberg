@@ -128,7 +128,11 @@ LEFT JOIN iceberg_catalog.db.user_dim /*+ OPTIONS('lookup.full-cache.reload-stra
   ON o.user_id = u.user_id;
 ```
 
-A reload reads the current snapshot of the dimension table and replaces the loaded cache atomically, so lookups observe either the previous cache or the new one, never a partially loaded cache. A reload that finds no new snapshot is a no-op, and the reload strategies also run once when the lookup function is opened, which is a no-op as well when the cache has not been loaded yet or the snapshot has not changed. Reloads run on the trigger's own thread while lookups keep being served from the previous cache, so they do not block the job; both caches are held in memory until the reload finishes, so peak memory is about twice the cache size. A reload never falls back to the previous cache: if a reload fails, the next lookup fails the job, so a stale cache is never served silently.
+A reload replaces the loaded cache atomically, so lookups see either the previous cache or the new one, never a partial one. Lookups keep being served from the previous cache while a reload runs. A reload that finds no new snapshot is a no-op. If a reload fails, the next lookup fails the job, so a stale cache is never served silently.
+
+A reload is incremental when all snapshots committed since the loaded one are appends or replaces (for example compactions): only the appended rows are read and merged into the cache. Any other snapshot, such as a delete or an overwrite, triggers a full reload. If an incremental reload fails, it is retried as a full reload.
+
+Plan for the cache to be held in memory twice during a reload: the previous cache keeps serving lookups while the new one is built.
 
 No reload is configured unless `lookup.full-cache.reload-strategy` is set. The other reload options only configure the strategy selected by it, so setting an interval or a time of day without the strategy has no effect.
 
