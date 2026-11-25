@@ -283,6 +283,10 @@ public class SparkWriteConf {
   public Map<String, String> extraSnapshotMetadata() {
     Map<String, String> extraSnapshotMetadata = Maps.newHashMap();
 
+    // Add session configuration properties with SNAPSHOT_PROPERTY_PREFIX if necessary
+    extraSnapshotMetadata.putAll(SparkUtil.sessionSnapshotProperties(spark));
+
+    // Add write options, overriding session configuration if necessary
     writeOptions.forEach(
         (key, value) -> {
           if (key.startsWith(SnapshotSummary.EXTRA_METADATA_PREFIX)) {

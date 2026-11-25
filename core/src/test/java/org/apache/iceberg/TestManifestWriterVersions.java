@@ -169,7 +169,7 @@ public class TestManifestWriterVersions {
   }
 
   @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @FieldSource("org.apache.iceberg.TestHelpers#V3_AND_BELOW")
   public void testV2PlusWriteDelete(int formatVersion) throws IOException {
     assumeThat(formatVersion).isNotEqualTo(1);
 
@@ -184,7 +184,7 @@ public class TestManifestWriterVersions {
   }
 
   @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @FieldSource("org.apache.iceberg.TestHelpers#V3_AND_BELOW")
   public void testV2WriteDeleteWithInheritance(int formatVersion) throws IOException {
     assumeThat(formatVersion).isNotEqualTo(1);
 
@@ -318,7 +318,7 @@ public class TestManifestWriterVersions {
   }
 
   @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @FieldSource("org.apache.iceberg.TestHelpers#V3_AND_BELOW")
   public void testDefaultManifestCompression(int formatVersion) throws IOException {
     File manifestFile = temp.resolve("default-v" + formatVersion + ".avro").toFile();
     OutputFile outputFile = Files.localOutput(manifestFile);
@@ -332,7 +332,7 @@ public class TestManifestWriterVersions {
   }
 
   @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @FieldSource("org.apache.iceberg.TestHelpers#V3_AND_BELOW")
   public void testCustomManifestCompression(int formatVersion) throws IOException {
     Map<String, String> props = ImmutableMap.of(TableProperties.AVRO_COMPRESSION, "snappy");
     File manifestFile = temp.resolve("snappy-v" + formatVersion + ".avro").toFile();
@@ -344,100 +344,6 @@ public class TestManifestWriterVersions {
     }
 
     assertThat(readAvroCodec(manifestFile)).isEqualTo("snappy");
-  }
-
-  @ParameterizedTest
-  @FieldSource("V4_FORMATS")
-  public void testV4WritePartitioned(FileFormat fileFormat) throws IOException {
-    ManifestFile manifest = writeManifest(4, fileFormat, SPEC, DATA_FILE);
-    checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
-    checkEntry(
-        readManifest(manifest),
-        ManifestWriter.UNASSIGNED_SEQ,
-        ManifestWriter.UNASSIGNED_SEQ,
-        FileContent.DATA,
-        FIRST_ROW_ID);
-  }
-
-  @ParameterizedTest
-  @FieldSource("V4_FORMATS")
-  public void testV4WriteUnpartitioned(FileFormat fileFormat) throws IOException {
-    DataFile unpartitionedFile =
-        DataFiles.builder(PartitionSpec.unpartitioned())
-            .withPath(PATH)
-            .withFormat(FORMAT)
-            .withFileSizeInBytes(150972L)
-            .withMetrics(METRICS)
-            .withSplitOffsets(OFFSETS)
-            .withSortOrderId(SORT_ORDER_ID)
-            .withFirstRowId(FIRST_ROW_ID)
-            .build();
-
-    ManifestFile manifest =
-        writeManifest(4, fileFormat, PartitionSpec.unpartitioned(), unpartitionedFile);
-    checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
-
-    Map<Integer, PartitionSpec> unpartitionedSpecs =
-        ImmutableMap.of(PartitionSpec.unpartitioned().specId(), PartitionSpec.unpartitioned());
-    try (CloseableIterable<ManifestEntry<DataFile>> reader =
-        ManifestFiles.read(manifest, io, unpartitionedSpecs).entries()) {
-      ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader);
-      assertThat(entry.status()).isEqualTo(ManifestEntry.Status.ADDED);
-      assertThat(entry.file().location()).isEqualTo(PATH);
-      assertThat(entry.file().recordCount()).isEqualTo(METRICS.recordCount());
-      assertThat(entry.file().firstRowId()).isEqualTo(FIRST_ROW_ID);
-    }
-  }
-
-  @ParameterizedTest
-  @FieldSource("V4_FORMATS")
-  public void testV4WriteDeletePartitioned(FileFormat fileFormat) throws IOException {
-    ManifestFile manifest = writeDeleteManifest(4, fileFormat, SPEC);
-    checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
-    assertThat(manifest.content()).isEqualTo(ManifestContent.DELETES);
-    checkEntry(
-        readDeleteManifest(manifest),
-        ManifestWriter.UNASSIGNED_SEQ,
-        ManifestWriter.UNASSIGNED_SEQ,
-        FileContent.EQUALITY_DELETES);
-  }
-
-  @ParameterizedTest
-  @FieldSource("V4_FORMATS")
-  public void testV4WriteDeleteUnpartitioned(FileFormat fileFormat) throws IOException {
-    DeleteFile unpartitionedDelete =
-        new GenericDeleteFile(
-            0,
-            FileContent.EQUALITY_DELETES,
-            PATH,
-            FORMAT,
-            new PartitionData(PartitionSpec.unpartitioned().partitionType()),
-            22905L,
-            METRICS,
-            EQUALITY_ID_ARR,
-            SORT_ORDER_ID,
-            null,
-            null,
-            null,
-            null,
-            null);
-
-    ManifestFile manifest =
-        writeDeleteManifest(4, fileFormat, PartitionSpec.unpartitioned(), unpartitionedDelete);
-    checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
-    assertThat(manifest.content()).isEqualTo(ManifestContent.DELETES);
-
-    Map<Integer, PartitionSpec> unpartitionedSpecs =
-        ImmutableMap.of(PartitionSpec.unpartitioned().specId(), PartitionSpec.unpartitioned());
-    try (CloseableIterable<ManifestEntry<DeleteFile>> reader =
-        ManifestFiles.readDeleteManifest(manifest, io, unpartitionedSpecs).entries()) {
-      ManifestEntry<DeleteFile> entry = Iterables.getOnlyElement(reader);
-      assertThat(entry.status()).isEqualTo(ManifestEntry.Status.ADDED);
-      assertThat(entry.file().content()).isEqualTo(FileContent.EQUALITY_DELETES);
-      assertThat(entry.file().location()).isEqualTo(PATH);
-      assertThat(entry.file().recordCount()).isEqualTo(METRICS.recordCount());
-      assertThat(entry.file().equalityFieldIds()).isEqualTo(EQUALITY_IDS);
-    }
   }
 
   void checkEntry(

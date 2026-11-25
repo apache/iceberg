@@ -189,9 +189,19 @@ class TestTrackingStruct {
     assertThat(tracking.fileSequenceNumber()).isEqualTo(60L);
   }
 
+  @Test
+  void inheritanceModifiedEntriesInheritDataSequenceNumber() {
+    TrackingStruct tracking =
+        new TrackingStruct(EntryStatus.MODIFIED, 42L, null, null, null, null, null, null);
+
+    tracking.inherit(100L, 60L);
+
+    assertThat(tracking.dataSequenceNumber()).isEqualTo(60L);
+    assertThat(tracking.fileSequenceNumber()).isNull();
+  }
+
   private static final List<EntryStatus> NON_INHERITING_STATUSES =
-      List.of(
-          EntryStatus.EXISTING, EntryStatus.MODIFIED, EntryStatus.DELETED, EntryStatus.REPLACED);
+      List.of(EntryStatus.EXISTING, EntryStatus.DELETED, EntryStatus.REPLACED);
 
   @ParameterizedTest
   @FieldSource("NON_INHERITING_STATUSES")

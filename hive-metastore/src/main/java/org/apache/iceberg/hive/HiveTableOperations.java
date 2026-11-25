@@ -22,7 +22,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
@@ -58,7 +57,7 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -213,22 +212,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               ? Integer.parseInt(dekLengthFromHMS)
               : TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT;
 
-      encryptedKeys =
-          Optional.ofNullable(current().encryptionKeys())
-              .map(Lists::newLinkedList)
-              .orElseGet(Lists::newLinkedList);
-
-      // Active transactions may still need keys that are not in committed metadata.
-      if (encryptionManager != null) {
-        Set<String> keyIdsFromMetadata =
-            encryptedKeys.stream().map(EncryptedKey::keyId).collect(Collectors.toSet());
-
-        for (EncryptedKey keyFromEM : EncryptionUtil.encryptionKeys(encryptionManager).values()) {
-          if (!keyIdsFromMetadata.contains(keyFromEM.keyId())) {
-            encryptedKeys.add(keyFromEM);
-          }
-        }
-      }
+      // Open transactions may still need keys that are not in committed metadata. After an
+      // earlier refresh discarded the manager, those keys are only in encryptedKeys.
+      Iterable<EncryptedKey> knownKeys =
+          encryptionManager != null
+              ? EncryptionUtil.encryptionKeys(encryptionManager).values()
+              : encryptedKeys;
+      Map<String, EncryptedKey> keysById = Maps.newLinkedHashMap();
+      current().encryptionKeys().forEach(key -> keysById.put(key.keyId(), key));
+      knownKeys.forEach(key -> keysById.putIfAbsent(key.keyId(), key));
+      encryptedKeys = List.copyOf(keysById.values());
 
       // Force re-creation of encryption manager with updated keys
       encryptingFileIO = null;
@@ -343,7 +336,23 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
                 + "iceberg.hive.lock-heartbeat-interval-ms.",
             le);
       } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
-        throw new AlreadyExistsException(e, "Table already exists: %s.%s", database, tableName);
+        // The HMS client can incorrectly retry a successful create_table and trigger this
+        // exception, so double-check whether the existing table is the one this commit created
+        commitStatus = BaseMetastoreOperations.CommitStatus.UNKNOWN;
+        commitStatus =
+            checkCommitStatusStrict(
+                tableName(),
+                newMetadataLocation,
+                metadata.properties(),
+                () -> checkCurrentTable(metadata.uuid(), newMetadataLocation));
+        switch (commitStatus) {
+          case SUCCESS:
+            break;
+          case FAILURE:
+            throw new AlreadyExistsException(e, "Table already exists: %s.%s", database, tableName);
+          case UNKNOWN:
+            throw new CommitStateUnknownException(e);
+        }
 
       } catch (InvalidObjectException e) {
         throw new ValidationException(e, "Invalid Hive object for %s.%s", database, tableName);
@@ -412,6 +421,27 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
     LOG.info(
         "Committed to table {} with the new metadata location {}", fullName, newMetadataLocation);
+  }
+
+  private boolean checkCurrentTable(String uuid, String newMetadataLocation) {
+    try {
+      TableMetadata refreshed = refresh();
+      if (refreshed == null) {
+        return false;
+      }
+
+      if (uuid != null) {
+        return uuid.equals(refreshed.uuid());
+      }
+
+      // Format v1 metadata may have no UUID
+      return refreshed.metadataFileLocation().equals(newMetadataLocation)
+          || refreshed.previousFiles().stream()
+              .anyMatch(log -> log.file().equals(newMetadataLocation));
+    } catch (NoSuchTableException e) {
+      // A view or a table that is not an Iceberg table holds the name
+      return false;
+    }
   }
 
   @Override

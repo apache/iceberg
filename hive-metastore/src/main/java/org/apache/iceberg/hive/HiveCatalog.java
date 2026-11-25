@@ -260,7 +260,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
-    if (!isValidIdentifier(identifier)) {
+    if (!isValidIdentifier(identifier) || viewExists(identifier)) {
       return false;
     }
 
@@ -340,7 +340,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
       LOG.info("Dropped view: {}", identifier);
       return true;
-    } catch (NoSuchObjectException e) {
+    } catch (NoSuchViewException | NoSuchObjectException e) {
       LOG.info("Skipping drop, view does not exist: {}", identifier, e);
       return false;
     } catch (TException e) {

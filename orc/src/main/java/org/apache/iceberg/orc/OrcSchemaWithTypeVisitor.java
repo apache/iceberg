@@ -90,11 +90,7 @@ public abstract class OrcSchemaWithTypeVisitor<T> {
         "Invalid variant metadata fields: %s",
         String.join(", ", names));
 
-    List<TypeDescription> children = variant.getChildren();
-    T metadataResult = visit((Type) null, children.get(0), visitor);
-    T valueResult = visit((Type) null, children.get(1), visitor);
-
-    return visitor.variant(iVariant, variant, metadataResult, valueResult);
+    return visitor.variant(iVariant, variant, null, null);
   }
 
   public T record(

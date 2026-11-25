@@ -470,7 +470,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testStatisticsMappedWithSnapshotSchema() throws NoSuchTableException {
+  public void testStatisticsMappedWithScanSchema() throws NoSuchTableException {
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
 
@@ -490,8 +490,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
                     1,
                     ImmutableList.of(1),
                     ImmutableMap.of("ndv", "4")),
-                // Blob for field ID 2 ('data') which is in the snapshot schema but later dropped
-                // from table
+                // Blob for field ID 2 ('data')
                 new GenericBlobMetadata(
                     APACHE_DATASKETCHES_THETA_V1,
                     snapshotId,
@@ -504,8 +503,12 @@ public class TestSparkScan extends TestBaseWithCatalog {
 
     table.updateStatistics().setStatistics(statisticsFile).commit();
 
-    // Drop column 'data' (field ID 2) to simulate real schema evolution
-    table.updateSchema().deleteColumn("data").commit();
+    // Rename 'data' to 'data_renamed' and add new column 'data' (field ID 3) without new snapshot
+    table.updateSchema().renameColumn("data", "data_renamed").commit();
+    table
+        .updateSchema()
+        .addColumn("data", org.apache.iceberg.types.Types.StringType.get())
+        .commit();
 
     Table updatedTable = validationCatalog.loadTable(tableIdent);
     SparkScanBuilder scanBuilder =
@@ -515,9 +518,34 @@ public class TestSparkScan extends TestBaseWithCatalog {
     Map<String, String> reportColStatsEnabled =
         ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
 
+    Map<String, Long> expectedNDVs = Maps.newHashMap();
+    expectedNDVs.put("id", 4L);
+    expectedNDVs.put("data_renamed", 2L);
+
     withSQLConf(
         reportColStatsEnabled,
-        () -> assertThatCode(scan::estimateStatistics).doesNotThrowAnyException());
+        () -> {
+          assertThatCode(scan::estimateStatistics).doesNotThrowAnyException();
+          checkColStatisticsReported(scan, 1L, expectedNDVs);
+        });
+
+    // Drop column 'data_renamed' (field ID 2) to simulate dropped column handling
+    table.updateSchema().deleteColumn("data_renamed").commit();
+
+    Table droppedColTable = validationCatalog.loadTable(tableIdent);
+    SparkScanBuilder droppedColScanBuilder =
+        new SparkScanBuilder(spark, droppedColTable, CaseInsensitiveStringMap.empty());
+    SparkScan droppedColScan = (SparkScan) droppedColScanBuilder.build();
+
+    Map<String, Long> expectedDroppedNDVs = Maps.newHashMap();
+    expectedDroppedNDVs.put("id", 4L);
+
+    withSQLConf(
+        reportColStatsEnabled,
+        () -> {
+          assertThatCode(droppedColScan::estimateStatistics).doesNotThrowAnyException();
+          checkColStatisticsReported(droppedColScan, 1L, expectedDroppedNDVs);
+        });
   }
 
   @TestTemplate

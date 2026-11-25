@@ -62,7 +62,6 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
         metrics.nanValueCounts(),
         metrics.lowerBounds(),
         metrics.upperBounds(),
-        metrics.totalBytes(),
         splitOffsets,
         null /* no equality field IDs */,
         sortOrderId,
