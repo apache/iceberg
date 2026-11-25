@@ -706,7 +706,7 @@ class QueryEventsRequest(BaseModel):
     catalog_objects_by_name: list[CatalogObjectIdentifier] | None = Field(
         None,
         alias='catalog-objects-by-name',
-        description='Filter events by catalog object name. Each entry is a `CatalogObjectIdentifier`: an array of name levels - e.g. `["a","b","t1"]` is the table `a.b.t1`. The filter matches an event when the entry\'s levels equal the event object\'s path, or form a leading prefix of it. Comparison is level-by-level: each array element is one path segment, so `["acc"]` is a prefix of `["acc","tax"]` but does not match `["accounting"]`.\nMatching is by name only, independent of object kind. Tables and views are leaves of the name tree, so a leaf entry matches a single object - `["a","b","t1"]` matches only the table or view `a.b.t1`. A namespace entry expands recursively: `["a","b"]` matches the namespace object `a.b` itself plus every descendant (`a.b.t1`, `a.b.v1`, sub-namespace `a.b.c`, and every object under it). It does not match the sibling namespace `a.c`.\nIf a path exists as more than one kind (e.g. a namespace and a same-named table), the filter matches events for all of them; combine with `object-types` to narrow. If not provided, events for all objects must be returned subject to other filters.\n',
+        description='Filter events by catalog object name. Each entry is a `CatalogObjectIdentifier`: an array of name levels - e.g. `["a","b","t1"]` is the table `a.b.t1`. The filter matches an event when the entry\'s levels equal the event object\'s path, or form a leading prefix of it. Comparison is level-by-level: each array element is one path segment, so `["acc"]` is a prefix of `["acc","tax"]` but does not match `["accounting"]`. A rename event matches if its `source` or `destination` matches.\nMatching is by name only, independent of object kind. Tables and views are leaves of the name tree, so a leaf entry matches a single object - `["a","b","t1"]` matches only the table or view `a.b.t1`. A namespace entry expands recursively: `["a","b"]` matches the namespace object `a.b` itself plus every descendant (`a.b.t1`, `a.b.v1`, sub-namespace `a.b.c`, and every object under it). It does not match the sibling namespace `a.c`.\nIf a path exists as more than one kind (e.g. a namespace and a same-named table), the filter matches events for all of them; combine with `object-types` to narrow. If not provided, events for all objects must be returned subject to other filters.\n',
     )
     catalog_objects_by_uuid: list[UUID] | None = Field(
         None,
@@ -957,7 +957,7 @@ class UpdateNamespacePropertiesResponse(BaseModel):
 
 class Actor(BaseModel):
     """
-    The actor who performed the operation, such as a user or service account. Implementations may add arbitrary additional fields; the optional `id` field is recommended as a portable identifier that consumers can render and key on.
+    The actor who performed the operation, such as a user or service account. Implementations may add other string fields; the optional `id` field is recommended as a portable identifier that consumers can render and key on.
 
     """
 
@@ -2167,7 +2167,7 @@ class QueryEventsResponse(BaseModel):
     continuation_token: str = Field(
         ...,
         alias='continuation-token',
-        description="An opaque continuation token to fetch the next page of events. This token encodes the server's cursor position and filter state. Clients should treat this as an opaque value and pass it unmodified in subsequent requests. When no more events are currently available, the server returns an empty `events` array and a `continuation-token` that the client can re-issue later to receive events that occur after this point.\n",
+        description="An opaque continuation token to fetch the next page of events. This token encodes the server's cursor position. Clients should treat this as an opaque value and pass it unmodified in subsequent requests. When no more events are currently available, the server returns an empty `events` array and a `continuation-token` that the client can re-issue later to receive events that occur after this point.\n",
     )
     events: list[Event]
 
@@ -2181,12 +2181,12 @@ class Event(BaseModel):
     request_id: str = Field(
         ...,
         alias='request-id',
-        description='Opaque identifier of the catalog request that produced this event. Some catalog endpoints (e.g. updateTable, commitTransaction) apply multiple updates atomically and emit one event per update; all such events share the same `request-id`, allowing clients to group them.\n',
+        description='Opaque identifier of the catalog request that produced this event. Some catalog endpoints (e.g. commitTransaction) change multiple tables atomically and emit one event per table changed; all such events share the same `request-id`, allowing clients to group them.\n',
     )
     request_event_count: int = Field(
         ...,
         alias='request-event-count',
-        description='Number of events produced by the originating catalog request (e.g. updateTable or commitTransaction) that generated this event. Such requests can apply multiple updates atomically, each surfaced as a separate event sharing the same `request-id`; this count reports how many events that originating request produced in total.\n',
+        description='Number of events produced by the originating catalog request (e.g. commitTransaction) that generated this event. Such requests can change multiple tables atomically, each surfaced as a separate event sharing the same `request-id`; this count reports how many events that originating request produced in total.\n',
     )
     timestamp_ms: int = Field(
         ...,
@@ -2195,7 +2195,7 @@ class Event(BaseModel):
     )
     actor: Actor | None = Field(
         None,
-        description='The actor who performed the operation, such as a user or service account. Implementations may add arbitrary additional fields; the optional `id` field is recommended as a portable identifier that consumers can render and key on.\n',
+        description='The actor who performed the operation, such as a user or service account. Implementations may add other string fields; the optional `id` field is recommended as a portable identifier that consumers can render and key on.\n',
     )
     operation: (
         CreateTableOperation
@@ -2220,7 +2220,7 @@ class Event(BaseModel):
 
 class CreateTableOperation(BaseOperation):
     """
-    Operation to create a new table in the catalog.
+    Operation to create a new table in the catalog. A create with `stage-create` set to true is reported as `create-table` when it is committed.
 
     """
 

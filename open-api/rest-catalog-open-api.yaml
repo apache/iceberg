@@ -2090,11 +2090,14 @@ paths:
 
         The server encodes all necessary state within the continuation-token. The client should
         treat this token as a required opaque value and pass it unchanged in subsequent requests
-        to resume consumption of events.
+        to resume consumption of events. The server applies the filters sent with each request.
 
-        Consumers should be prepared to handle 410 Gone responses when requested sequences are
-        outside the server's retention window. Consumers should also de-duplicate received events based
-        on their `event-id`.
+        Server implementations are required to fail with a 400 status code if the request contains
+        a field they do not support, including unknown `custom-filters` keys.
+
+        Consumers should be prepared to handle 410 Gone responses when the continuation-token is
+        outside the server's retention window. Consumers should also de-duplicate received events
+        based on their `event-id`.
 
         Events that refer to the same identifier or the same table or view UUID MUST be returned
         in the order in which their changes were committed. Other consistency guarantees vary
@@ -2120,11 +2123,13 @@ paths:
         403:
           $ref: '#/components/responses/ForbiddenResponse'
         410:
-          description: Gone - The requested offset is no longer available
+          description: Gone - The `continuation-token` is outside the server's retention window
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorModel'
+                $ref: '#/components/schemas/IcebergErrorResponse'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -4185,7 +4190,7 @@ components:
             matches an event when the entry's levels equal the event object's path, or form a
             leading prefix of it. Comparison is level-by-level: each array element is one path
             segment, so `["acc"]` is a prefix of `["acc","tax"]` but does not match
-            `["accounting"]`.
+            `["accounting"]`. A rename event matches if its `source` or `destination` matches.
 
             Matching is by name only, independent of object kind. Tables and views are leaves
             of the name tree, so a leaf entry matches a single object - `["a","b","t1"]`
@@ -5108,7 +5113,7 @@ components:
           type: string
           description: >
             An opaque continuation token to fetch the next page of events.
-            This token encodes the server's cursor position and filter state.
+            This token encodes the server's cursor position.
             Clients should treat this as an opaque value and pass it unmodified in subsequent requests.
             When no more events are currently available, the server returns an empty `events` array
             and a `continuation-token` that the client can re-issue later to receive events that
@@ -5133,17 +5138,17 @@ components:
         request-id:
           description: >
             Opaque identifier of the catalog request that produced this event. Some catalog
-            endpoints (e.g. updateTable, commitTransaction) apply multiple updates atomically
-            and emit one event per update; all such events share the same `request-id`,
-            allowing clients to group them.
+            endpoints (e.g. commitTransaction) change multiple tables atomically and emit one
+            event per table changed; all such events share the same `request-id`, allowing
+            clients to group them.
           type: string
         request-event-count:
           type: integer
           description: >
-            Number of events produced by the originating catalog request (e.g. updateTable
-            or commitTransaction) that generated this event. Such requests can apply multiple
-            updates atomically, each surfaced as a separate event sharing the same `request-id`;
-            this count reports how many events that originating request produced in total.
+            Number of events produced by the originating catalog request (e.g. commitTransaction)
+            that generated this event. Such requests can change multiple tables atomically, each
+            surfaced as a separate event sharing the same `request-id`; this count reports how many
+            events that originating request produced in total.
         timestamp-ms:
           type: integer
           format: int64
@@ -5155,7 +5160,7 @@ components:
           type: object
           description: >
             The actor who performed the operation, such as a user or service account.
-            Implementations may add arbitrary additional fields; the optional `id` field is
+            Implementations may add other string fields; the optional `id` field is
             recommended as a portable identifier that consumers can render and key on.
           properties:
             id:
@@ -5219,7 +5224,8 @@ components:
 
     CreateTableOperation:
       description: >
-        Operation to create a new table in the catalog.
+        Operation to create a new table in the catalog. A create with `stage-create` set to true
+        is reported as `create-table` when it is committed.
       allOf:
         - $ref: "#/components/schemas/BaseOperation"
       required:
