@@ -25,6 +25,7 @@ import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -46,6 +47,14 @@ public class PartitionUtil {
   public static Map<Integer, ?> constantsMap(
       ContentScanTask<?> task,
       Types.StructType partitionType,
+      BiFunction<Type, Object, Object> convertConstant) {
+    return constantsMap(task, partitionType, null, convertConstant);
+  }
+
+  public static Map<Integer, ?> constantsMap(
+      ContentScanTask<?> task,
+      Types.StructType partitionType,
+      Schema readSchema,
       BiFunction<Type, Object, Object> convertConstant) {
     PartitionSpec spec = task.spec();
     StructLike partitionData = task.file().partition();
@@ -92,9 +101,18 @@ public class PartitionUtil {
     for (int pos = 0; pos < fields.size(); pos += 1) {
       PartitionField field = fields.get(pos);
       if (field.transform().isIdentity()) {
-        Object converted =
-            convertConstant.apply(
-                partitionFields.get(pos).type(), partitionData.get(pos, Object.class));
+        Type type = partitionFields.get(pos).type();
+
+        // A historical read may include a partition source field
+        // that is no longer present in the current table schema.
+        if (type.typeId() == Type.TypeID.UNKNOWN && readSchema != null) {
+          Type readType = readSchema.findType(field.sourceId());
+          if (readType != null) {
+            type = readType;
+          }
+        }
+
+        Object converted = convertConstant.apply(type, partitionData.get(pos, Object.class));
         idToConstant.put(field.sourceId(), converted);
       }
     }

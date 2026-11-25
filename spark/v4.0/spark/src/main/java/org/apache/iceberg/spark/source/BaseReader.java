@@ -194,9 +194,10 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   protected Map<Integer, ?> constantsMap(ContentScanTask<?> task, Schema readSchema) {
     if (readSchema.findField(MetadataColumns.PARTITION_COLUMN_ID) != null) {
       StructType partitionType = Partitioning.partitionType(table);
-      return PartitionUtil.constantsMap(task, partitionType, SparkUtil::internalToSpark);
+      return PartitionUtil.constantsMap(
+          task, partitionType, readSchema, SparkUtil::internalToSpark);
     } else {
-      return PartitionUtil.constantsMap(task, SparkUtil::internalToSpark);
+      return PartitionUtil.constantsMap(task, null, readSchema, SparkUtil::internalToSpark);
     }
   }
 

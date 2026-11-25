@@ -347,6 +347,56 @@ public class TestSelect extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testTimeTravelWithDroppedPartitionColumn() {
+    checkTimeTravelWithDroppedPartitionColumn(false);
+  }
+
+  @TestTemplate
+  public void testTimeTravelWithDroppedPartitionColumnAndDataGrouping() {
+    checkTimeTravelWithDroppedPartitionColumn(true);
+  }
+
+  private void checkTimeTravelWithDroppedPartitionColumn(boolean preserveDataGrouping) {
+    String groupingKey = "spark.sql.iceberg.planning.preserve-data-grouping";
+    String previousValue = spark.conf().get(groupingKey, null);
+
+    try {
+      spark.conf().set(groupingKey, Boolean.toString(preserveDataGrouping));
+
+      sql("DROP TABLE %s", tableName);
+      sql(
+          "CREATE TABLE %s (id INT, p STRING, v INT) USING iceberg "
+              + "PARTITIONED BY (p) TBLPROPERTIES ('write.format.default'='parquet')",
+          tableName);
+
+      sql("INSERT INTO %s VALUES (1, 'a', 10)", tableName);
+
+      Table table = validationCatalog.loadTable(tableIdent);
+      table.manageSnapshots().createTag("hist", table.currentSnapshot().snapshotId()).commit();
+
+      table.updateSpec().removeField("p").commit();
+      sql("REFRESH TABLE %s", tableName);
+
+      assertThat(sql("SELECT id, p, v FROM %s VERSION AS OF 'hist'", tableName))
+          .containsExactly(row(1, "a", 10));
+
+      sql("ALTER TABLE %s DROP COLUMN p", tableName);
+
+      assertThat(sql("SELECT id, v FROM %s VERSION AS OF 'hist'", tableName))
+          .containsExactly(row(1, 10));
+
+      assertThat(sql("SELECT id, p, v FROM %s VERSION AS OF 'hist'", tableName))
+          .containsExactly(row(1, "a", 10));
+    } finally {
+      if (previousValue == null) {
+        spark.conf().unset(groupingKey);
+      } else {
+        spark.conf().set(groupingKey, previousValue);
+      }
+    }
+  }
+
+  @TestTemplate
   public void testUseSnapshotIdForTagReferenceAsOf() {
     Table table = validationCatalog.loadTable(tableIdent);
     long snapshotId1 = table.currentSnapshot().snapshotId();
