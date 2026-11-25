@@ -127,6 +127,11 @@ class IdToOrcName extends TypeUtil.SchemaVisitor<Map<Integer, String>> {
   }
 
   @Override
+  public Map<Integer, String> variant(Types.VariantType variant) {
+    return idToName;
+  }
+
+  @Override
   public Map<Integer, String> primitive(Type.PrimitiveType primitive) {
     return idToName;
   }

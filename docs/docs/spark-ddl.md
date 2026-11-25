@@ -44,7 +44,20 @@ Table create commands, including CTAS and RTAS, support the full range of Spark 
 
 Create commands may also set the default format with the `USING` clause. This is only supported for `SparkCatalog` because Spark handles the `USING` clause differently for the built-in catalog.
 
-`CREATE TABLE ... LIKE ...` syntax is not supported.
+Spark 4.2 and later can create an Iceberg table from an existing table:
+
+```sql
+CREATE TABLE prod.db.sample_copy LIKE prod.db.sample;
+```
+
+`CREATE TABLE ... LIKE ...` copies the source schema, partitioning, sort order, and
+table properties. The new table does not copy snapshots, data, metadata history,
+or the source table location. Unless `LOCATION` is specified for the new table,
+the target catalog assigns its default location.
+
+Copying column default values from a source that is not an Iceberg table is not
+supported yet, so `CREATE TABLE ... LIKE ...` fails if such a source has a column
+with a default value.
 
 ### `PARTITIONED BY`
 

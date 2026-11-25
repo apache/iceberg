@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.function.Predicate;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -44,6 +45,18 @@ final class JdbcUtil {
   // property to control if catalog tables are created during initialization
   static final String INIT_CATALOG_TABLES_PROPERTY =
       JdbcCatalog.PROPERTY_PREFIX + "init-catalog-tables";
+  // property to control how many times reading table or view metadata is retried during a refresh
+  static final String METADATA_REFRESH_MAX_RETRIES_PROPERTY =
+      JdbcCatalog.PROPERTY_PREFIX + "metadata-refresh-max-retries";
+  static final int METADATA_REFRESH_MAX_RETRIES_DEFAULT = 20;
+  // Catalog properties that must not be passed to the JDBC driver. New catalog properties that use
+  // JdbcCatalog.PROPERTY_PREFIX must be added to this set.
+  private static final Set<String> CATALOG_PROPERTIES =
+      Set.of(
+          STRICT_MODE_PROPERTY,
+          SCHEMA_VERSION_PROPERTY,
+          INIT_CATALOG_TABLES_PROPERTY,
+          METADATA_REFRESH_MAX_RETRIES_PROPERTY);
 
   static final String RETRYABLE_STATUS_CODES = "retryable_status_codes";
   private static final String POSTGRES_UNIQUE_VIOLATION_SQLSTATE = "23505";
@@ -321,6 +334,8 @@ final class JdbcUtil {
           + " OR "
           + RECORD_TYPE
           + " IS NULL)";
+  static final String V1_UNREGISTER_TABLE_SQL =
+      V1_DROP_TABLE_SQL + " AND " + BaseMetastoreTableOperations.METADATA_LOCATION_PROP + " = ?";
   static final String V0_DROP_TABLE_SQL =
       "DELETE FROM "
           + CATALOG_TABLE_VIEW_NAME
@@ -331,6 +346,8 @@ final class JdbcUtil {
           + "  = ? AND "
           + TABLE_NAME
           + " = ?";
+  static final String V0_UNREGISTER_TABLE_SQL =
+      V0_DROP_TABLE_SQL + " AND " + BaseMetastoreTableOperations.METADATA_LOCATION_PROP + " = ?";
   private static final String GET_NAMESPACE_SQL =
       "SELECT "
           + TABLE_NAMESPACE
@@ -518,10 +535,27 @@ final class JdbcUtil {
     return TableIdentifier.of(JdbcUtil.stringToNamespace(tableNamespace), tableName);
   }
 
-  static Properties filterAndRemovePrefix(Map<String, String> properties, String prefix) {
+  static Properties driverProperties(Map<String, String> properties) {
     Properties result = new Properties();
-    result.putAll(PropertyUtil.propertiesWithPrefix(properties, prefix));
+    result.putAll(
+        PropertyUtil.propertiesWithPrefix(
+            PropertyUtil.filterProperties(properties, Predicate.not(CATALOG_PROPERTIES::contains)),
+            JdbcCatalog.PROPERTY_PREFIX));
     return result;
+  }
+
+  static int metadataRefreshMaxRetries(Map<String, String> properties) {
+    int maxRetries =
+        PropertyUtil.propertyAsInt(
+            properties,
+            METADATA_REFRESH_MAX_RETRIES_PROPERTY,
+            METADATA_REFRESH_MAX_RETRIES_DEFAULT);
+    Preconditions.checkArgument(
+        maxRetries >= 0,
+        "Invalid %s: %s (must be >= 0)",
+        METADATA_REFRESH_MAX_RETRIES_PROPERTY,
+        maxRetries);
+    return maxRetries;
   }
 
   static boolean isConstraintViolation(SQLException ex) {

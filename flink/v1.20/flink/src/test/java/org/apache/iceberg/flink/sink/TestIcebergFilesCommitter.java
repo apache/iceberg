@@ -69,13 +69,11 @@ import org.apache.iceberg.TestBase;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.TestTableLoader;
-import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.ThreadPools;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -1092,14 +1090,6 @@ public class TestIcebergFilesCommitter extends TestBase {
       FileWriterFactory<RowData> writerFactory, String filename, List<RowData> deletes)
       throws IOException {
     return SimpleDataUtil.writeEqDeleteFile(table, table.spec(), filename, writerFactory, deletes);
-  }
-
-  private DeleteFile writePosDeleteFile(
-      FileAppenderFactory<RowData> appenderFactory,
-      String filename,
-      List<Pair<CharSequence, Long>> positions)
-      throws IOException {
-    return SimpleDataUtil.writePosDeleteFile(table, format, filename, appenderFactory, positions);
   }
 
   private FileWriterFactory<RowData> createWriterFactory() {

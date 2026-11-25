@@ -81,14 +81,12 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
   @Parameter(index = 2)
   private Boolean isPartition;
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}, isPartition={2}")
+  @Parameters(name = "catalogType={0}, baseNamespace={1}, isPartition={2}")
   protected static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
 
     for (Boolean isPartition : new Boolean[] {true, false}) {
-      String catalogName = "testhadoop";
-      Namespace baseNamespace = Namespace.of("default");
-      parameters.add(new Object[] {catalogName, baseNamespace, isPartition});
+      parameters.add(new Object[] {CatalogType.HADOOP, Namespace.of("default"), isPartition});
     }
     return parameters;
   }

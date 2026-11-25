@@ -34,6 +34,8 @@ import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
@@ -92,11 +94,12 @@ import org.apache.iceberg.encryption.NativeEncryptionInputFile;
 import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.hadoop.HadoopInputFile;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
+import org.apache.iceberg.io.EagerInputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -116,6 +119,8 @@ import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.avro.AvroWriteSupport;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
+import org.apache.parquet.conf.HadoopParquetConfiguration;
+import org.apache.parquet.conf.ParquetConfiguration;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.crypto.FileEncryptionProperties;
@@ -144,6 +149,9 @@ public class Parquet {
           "parquet.read.support.class",
           "parquet.crypto.factory.class");
 
+  // Size threshold (bytes) at or below which a Parquet file is fetched eagerly on the first read.
+  private static final long EAGER_FETCH_THRESHOLD_BYTES = 1024 * 1024;
+
   public static WriteBuilder write(OutputFile file) {
     if (file instanceof EncryptedOutputFile) {
       return write((EncryptedOutputFile) file);
@@ -165,7 +173,7 @@ public class Parquet {
 
   public static class WriteBuilder implements InternalData.WriteBuilder {
     private final OutputFile file;
-    private final Configuration conf;
+    private final ParquetConfiguration conf;
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private Schema schema = null;
@@ -182,9 +190,10 @@ public class Parquet {
     private WriteBuilder(OutputFile file) {
       this.file = file;
       if (file instanceof HadoopOutputFile) {
-        this.conf = new Configuration(((HadoopOutputFile) file).getConf());
+        this.conf =
+            new HadoopParquetConfiguration(new Configuration(((HadoopOutputFile) file).getConf()));
       } else {
-        this.conf = new Configuration();
+        this.conf = new PlainParquetConfiguration();
       }
     }
 
@@ -367,6 +376,46 @@ public class Parquet {
               });
     }
 
+    private void setColumnCompressionConfig(
+        Context context,
+        Map<String, String> colNameToParquetPathMap,
+        BiConsumer<String, CompressionCodecName> withCompressionCodec,
+        BiConsumer<String, Integer> withCompressionLevel) {
+
+      Map<String, String> columnCompressionCodec = context.columnCompressionCodec();
+      Map<String, String> columnCompressionLevel = context.columnCompressionLevel();
+
+      Sets.union(columnCompressionCodec.keySet(), columnCompressionLevel.keySet())
+          .forEach(
+              colName -> {
+                String parquetColumnPath = colNameToParquetPathMap.get(colName);
+                if (parquetColumnPath == null) {
+                  LOG.warn("Skipping per-column compression config for missing field: {}", colName);
+                  return;
+                }
+
+                String codecStr = columnCompressionCodec.get(colName);
+                if (codecStr != null) {
+                  withCompressionCodec.accept(parquetColumnPath, Context.toCodec(codecStr));
+                }
+
+                String level = columnCompressionLevel.get(colName);
+                if (level != null) {
+                  withCompressionLevel.accept(
+                      parquetColumnPath, parseCompressionLevel(colName, level));
+                }
+              });
+    }
+
+    private static int parseCompressionLevel(String colName, String level) {
+      try {
+        return Integer.parseInt(level);
+      } catch (NumberFormatException e) {
+        throw new IllegalArgumentException(
+            String.format("Invalid compression level for column %s: %s", colName, level), e);
+      }
+    }
+
     private void setDictionaryEncodingConfig(
         Context context,
         Map<String, String> colNameToParquetPathMap,
@@ -385,6 +434,25 @@ public class Parquet {
               });
     }
 
+    private void applyCompressionLevel(CompressionCodecName codec, String compressionLevel) {
+      if (compressionLevel == null) {
+        return;
+      }
+
+      switch (codec) {
+        case GZIP -> config.put("zlib.compress.level", compressionLevel);
+        case BROTLI -> config.put("compression.brotli.quality", compressionLevel);
+        case ZSTD -> {
+          // keep "io.compression.codec.zstd.level" for backwards compatibility
+          config.put("io.compression.codec.zstd.level", compressionLevel);
+          config.put("parquet.compression.codec.zstd.level", compressionLevel);
+        }
+        default -> {
+          // compression level is not supported; ignore it
+        }
+      }
+    }
+
     @Override
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
@@ -396,7 +464,7 @@ public class Parquet {
       // Map Iceberg properties to pass down to the Parquet writer
       Context context = createContextFunc.apply(config);
 
-      int rowGroupSize = context.rowGroupSize();
+      long rowGroupSize = context.rowGroupSize();
       int pageSize = context.pageSize();
       int pageRowLimit = context.pageRowLimit();
       int dictionaryPageSize = context.dictionaryPageSize();
@@ -408,23 +476,7 @@ public class Parquet {
       boolean dictionaryEnabled = context.dictionaryEnabled();
       boolean trackUncompressedRowGroupSize = context.trackUncompressedRowGroupSize();
 
-      if (compressionLevel != null) {
-        switch (codec) {
-          case GZIP:
-            config.put("zlib.compress.level", compressionLevel);
-            break;
-          case BROTLI:
-            config.put("compression.brotli.quality", compressionLevel);
-            break;
-          case ZSTD:
-            // keep "io.compression.codec.zstd.level" for backwards compatibility
-            config.put("io.compression.codec.zstd.level", compressionLevel);
-            config.put("parquet.compression.codec.zstd.level", compressionLevel);
-            break;
-          default:
-            // compression level is not supported; ignore it
-        }
-      }
+      applyCompressionLevel(codec, compressionLevel);
 
       set("parquet.avro.write-old-list-structure", "false");
       MessageType type = ParquetSchemaUtil.convert(schema, name, variantShreddingFunc);
@@ -484,6 +536,12 @@ public class Parquet {
 
         setColumnStatsConfig(context, colNameToParquetPathMap, propsBuilder::withStatisticsEnabled);
 
+        setColumnCompressionConfig(
+            context,
+            colNameToParquetPathMap,
+            propsBuilder::withCompressionCodec,
+            propsBuilder::withCompressionLevel);
+
         setDictionaryEncodingConfig(
             context, colNameToParquetPathMap, propsBuilder::withDictionaryEncoding);
 
@@ -513,7 +571,7 @@ public class Parquet {
                 .setWriteSupport(getWriteSupport(type))
                 .withCompressionCodec(codec)
                 .withWriteMode(writeMode)
-                .withRowGroupSize((long) rowGroupSize)
+                .withRowGroupSize(rowGroupSize)
                 .withPageSize(pageSize)
                 .withPageRowCountLimit(pageRowLimit)
                 .withDictionaryEncoding(dictionaryEnabled)
@@ -530,6 +588,12 @@ public class Parquet {
         setColumnStatsConfig(
             context, colNameToParquetPathMap, parquetWriteBuilder::withStatisticsEnabled);
 
+        setColumnCompressionConfig(
+            context,
+            colNameToParquetPathMap,
+            parquetWriteBuilder::withCompressionCodec,
+            parquetWriteBuilder::withCompressionLevel);
+
         setDictionaryEncodingConfig(
             context, colNameToParquetPathMap, parquetWriteBuilder::withDictionaryEncoding);
 
@@ -538,7 +602,7 @@ public class Parquet {
     }
 
     static class Context {
-      private final int rowGroupSize;
+      private final long rowGroupSize;
       private final int pageSize;
       private final int pageRowLimit;
       private final int dictionaryPageSize;
@@ -553,12 +617,14 @@ public class Parquet {
       private final Map<String, String> columnBloomFilterNdv;
       private final Map<String, String> columnBloomFilterEnabled;
       private final Map<String, String> columnStatsEnabled;
+      private final Map<String, String> columnCompressionCodec;
+      private final Map<String, String> columnCompressionLevel;
       private final boolean dictionaryEnabled;
       private final Map<String, String> columnDictionaryEncodingEnabled;
       private final boolean trackUncompressedRowGroupSize;
 
       private Context(
-          int rowGroupSize,
+          long rowGroupSize,
           int pageSize,
           int pageRowLimit,
           int dictionaryPageSize,
@@ -573,6 +639,8 @@ public class Parquet {
           Map<String, String> columnBloomFilterNdv,
           Map<String, String> columnBloomFilterEnabled,
           Map<String, String> columnStatsEnabled,
+          Map<String, String> columnCompressionCodec,
+          Map<String, String> columnCompressionLevel,
           boolean dictionaryEnabled,
           Map<String, String> columnDictionaryEncodingEnabled,
           boolean trackUncompressedRowGroupSize) {
@@ -591,14 +659,16 @@ public class Parquet {
         this.columnBloomFilterNdv = columnBloomFilterNdv;
         this.columnBloomFilterEnabled = columnBloomFilterEnabled;
         this.columnStatsEnabled = columnStatsEnabled;
+        this.columnCompressionCodec = columnCompressionCodec;
+        this.columnCompressionLevel = columnCompressionLevel;
         this.dictionaryEnabled = dictionaryEnabled;
         this.columnDictionaryEncodingEnabled = columnDictionaryEncodingEnabled;
         this.trackUncompressedRowGroupSize = trackUncompressedRowGroupSize;
       }
 
       static Context dataContext(Map<String, String> config) {
-        int rowGroupSize =
-            PropertyUtil.propertyAsInt(
+        long rowGroupSize =
+            PropertyUtil.propertyAsLong(
                 config, PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
         Preconditions.checkArgument(rowGroupSize > 0, "Row group size must be > 0");
 
@@ -670,6 +740,12 @@ public class Parquet {
         Map<String, String> columnStatsEnabled =
             PropertyUtil.propertiesWithPrefix(config, PARQUET_COLUMN_STATS_ENABLED_PREFIX);
 
+        Map<String, String> columnCompressionCodec =
+            PropertyUtil.propertiesWithPrefix(config, PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX);
+
+        Map<String, String> columnCompressionLevel =
+            PropertyUtil.propertiesWithPrefix(config, PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX);
+
         boolean dictionaryEnabled =
             PropertyUtil.propertyAsBoolean(config, ParquetOutputFormat.ENABLE_DICTIONARY, true);
 
@@ -698,6 +774,8 @@ public class Parquet {
             columnBloomFilterNdv,
             columnBloomFilterEnabled,
             columnStatsEnabled,
+            columnCompressionCodec,
+            columnCompressionLevel,
             dictionaryEnabled,
             columnDictionaryEncodingEnabled,
             trackUncompressedRowGroupSize);
@@ -707,8 +785,8 @@ public class Parquet {
         // default delete config using data config
         Context dataContext = dataContext(config);
 
-        int rowGroupSize =
-            PropertyUtil.propertyAsInt(
+        long rowGroupSize =
+            PropertyUtil.propertyAsLong(
                 config, DELETE_PARQUET_ROW_GROUP_SIZE_BYTES, dataContext.rowGroupSize());
         Preconditions.checkArgument(rowGroupSize > 0, "Row group size must be > 0");
 
@@ -778,6 +856,8 @@ public class Parquet {
             ImmutableMap.of(),
             ImmutableMap.of(),
             ImmutableMap.of(),
+            ImmutableMap.of(),
+            ImmutableMap.of(),
             dictionaryEnabled,
             ImmutableMap.of(),
             dataContext.trackUncompressedRowGroupSize());
@@ -800,7 +880,7 @@ public class Parquet {
         }
       }
 
-      int rowGroupSize() {
+      long rowGroupSize() {
         return rowGroupSize;
       }
 
@@ -858,6 +938,14 @@ public class Parquet {
 
       Map<String, String> columnStatsEnabled() {
         return columnStatsEnabled;
+      }
+
+      Map<String, String> columnCompressionCodec() {
+        return columnCompressionCodec;
+      }
+
+      Map<String, String> columnCompressionLevel() {
+        return columnCompressionLevel;
       }
 
       boolean dictionaryEnabled() {
@@ -1028,7 +1116,6 @@ public class Parquet {
     private EncryptionKeyMetadata keyMetadata = null;
     private int[] equalityFieldIds = null;
     private SortOrder sortOrder;
-    private Function<CharSequence, ?> pathTransformFunc = Function.identity();
 
     private DeleteWriteBuilder(OutputFile file) {
       this.appenderBuilder = write(file);
@@ -1124,11 +1211,6 @@ public class Parquet {
       return this;
     }
 
-    public DeleteWriteBuilder transformPaths(Function<CharSequence, ?> newPathTransformFunc) {
-      this.pathTransformFunc = newPathTransformFunc;
-      return this;
-    }
-
     public DeleteWriteBuilder withSortOrder(SortOrder newSortOrder) {
       this.sortOrder = newSortOrder;
       return this;
@@ -1179,39 +1261,20 @@ public class Parquet {
       Preconditions.checkArgument(
           spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
-      Preconditions.checkArgument(
-          rowSchema == null || createWriterFunc != null,
-          "Create function should be provided if we write row data");
+      if (rowSchema != null) {
+        throw new UnsupportedOperationException("Position delete writer does not support row data");
+      }
 
       meta("delete-type", "position");
 
-      if (rowSchema != null && createWriterFunc != null) {
-        // the appender uses the row schema wrapped with position fields
-        appenderBuilder.schema(DeleteSchemaUtil.posDeleteSchema(rowSchema));
+      appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
 
-        appenderBuilder.createWriterFunc(
-            (schema, parquetSchema) -> {
-              ParquetValueWriter<?> writer = createWriterFunc.apply(schema, parquetSchema);
-              if (writer instanceof StructWriter) {
-                return new PositionDeleteStructWriter<T>(
-                    (StructWriter<?>) writer, pathTransformFunc);
-              } else {
-                throw new UnsupportedOperationException(
-                    "Cannot wrap writer for position deletes: " + writer.getClass());
-              }
-            });
-
-      } else {
-        appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
-
-        // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not
-        // write row data itself
-        appenderBuilder.createWriterFunc(
-            (schema, parquetSchema) ->
-                new PositionDeleteStructWriter<T>(
-                    (StructWriter<?>) GenericParquetWriter.create(schema, parquetSchema),
-                    Function.identity()));
-      }
+      // the createWriterFunc is ignored, since only the path and position are written
+      appenderBuilder.createWriterFunc(
+          (schema, parquetSchema) ->
+              new PositionDeleteStructWriter<T>(
+                  (StructWriter<?>) GenericParquetWriter.create(schema, parquetSchema),
+                  Function.identity()));
 
       appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
 
@@ -1352,7 +1415,12 @@ public class Parquet {
     }
 
     private ReadBuilder(InputFile file) {
-      this.file = file;
+      long fileLength = file.getLength();
+      this.file = canEagerFetch(fileLength) ? EagerInputFile.of(file, fileLength) : file;
+    }
+
+    private static boolean canEagerFetch(long fileLength) {
+      return fileLength > 0 && fileLength <= EAGER_FETCH_THRESHOLD_BYTES;
     }
 
     /**
@@ -1545,9 +1613,9 @@ public class Parquet {
           || batchedReaderFuncWithSchema != null
           || readerFunction != null) {
         ParquetReadOptions.Builder optionsBuilder;
-        if (file instanceof HadoopInputFile) {
+        if (file instanceof HadoopConfigurable) {
           // remove read properties already set that may conflict with this read
-          Configuration conf = new Configuration(((HadoopInputFile) file).getConf());
+          Configuration conf = new Configuration(((HadoopConfigurable) file).getConf());
           for (String property : READ_PROPERTIES_TO_REMOVE) {
             conf.unset(property);
           }

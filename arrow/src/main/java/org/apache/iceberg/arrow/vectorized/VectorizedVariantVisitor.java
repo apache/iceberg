@@ -32,7 +32,7 @@ import org.apache.parquet.schema.PrimitiveType;
 
 /** Creates Arrow readers for a variant column's metadata and value leaves. */
 class VectorizedVariantVisitor extends ParquetVariantVisitor<VectorizedReader<?>> {
-  private static final int UNUSED_FIELD_ID = -1;
+  static final int UNUSED_FIELD_ID = -1;
 
   private final String[] variantGroupPath;
   private final MessageType parquetSchema;
@@ -92,6 +92,7 @@ class VectorizedVariantVisitor extends ParquetVariantVisitor<VectorizedReader<?>
     return null;
   }
 
+  // the typed_value throws below are not reached; shredded variants use RowBasedVariantReader
   @Override
   public VectorizedReader<?> primitive(PrimitiveType primitive) {
     throw new UnsupportedOperationException("Unsupported variant: shredded typed_value primitive");

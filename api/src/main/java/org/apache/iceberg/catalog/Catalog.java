@@ -326,6 +326,20 @@ public interface Catalog {
   Table loadTable(TableIdentifier identifier);
 
   /**
+   * Load a table, passing the context it is being loaded with.
+   *
+   * <p>The default implementation ignores the context.
+   *
+   * @param identifier a table identifier
+   * @param context context for this load
+   * @return instance of {@link Table} implementation referred by {@code identifier}
+   * @throws NoSuchTableException if the table does not exist
+   */
+  default Table loadTable(TableIdentifier identifier, LoadContext context) {
+    return loadTable(identifier);
+  }
+
+  /**
    * Invalidate cached table metadata from current catalog.
    *
    * <p>If the table is already loaded or cached, drop cached data. If the table does not exist or
@@ -366,6 +380,21 @@ public interface Catalog {
     }
 
     throw new UnsupportedOperationException("Registering tables with overwrite is not supported");
+  }
+
+  /**
+   * Unregister a table without deleting its data or metadata files.
+   *
+   * <p>The returned table is fixed at the last metadata file registered with the catalog and cannot
+   * be modified. Its metadata file location can be used to {@link #registerTable(TableIdentifier,
+   * String) register} the table again.
+   *
+   * @param identifier a table identifier
+   * @return a read-only table fixed at the metadata current when it was unregistered
+   * @throws NoSuchTableException if the table does not exist
+   */
+  default Table unregisterTable(TableIdentifier identifier) {
+    throw new UnsupportedOperationException("Unregistering tables is not supported");
   }
 
   /**

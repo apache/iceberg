@@ -72,6 +72,7 @@ public class TestContentFileParser {
     // ensure nan counts are present and null counts are not emitted
     assertThat(jsonStr).contains("\"nan-value-counts\"");
     assertThat(jsonStr).doesNotContain("\"null-value-counts\"");
+    assertThat(jsonStr).doesNotContain("\"content-stats\"");
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
     ContentFile<?> deserialized =
         ContentFileParser.fromJson(jsonNode, Map.of(TestBase.SPEC.specId(), spec));
@@ -393,8 +394,7 @@ public class TestContentFileParser {
                         3,
                         Conversions.toByteBuffer(Types.IntegerType.get(), 5),
                         4,
-                        Conversions.toByteBuffer(Types.IntegerType.get(), 10)) // upperbounds
-                    ))
+                        Conversions.toByteBuffer(Types.IntegerType.get(), 10)))) // upper bounds
             .withFileSizeInBytes(350)
             .withSplitOffsets(Arrays.asList(128L, 256L))
             .withEncryptionKeyMetadata(ByteBuffer.wrap(new byte[16]))
@@ -533,8 +533,7 @@ public class TestContentFileParser {
                 3,
                 Conversions.toByteBuffer(Types.IntegerType.get(), 5),
                 4,
-                Conversions.toByteBuffer(Types.IntegerType.get(), 10)) // upperbounds
-            );
+                Conversions.toByteBuffer(Types.IntegerType.get(), 10))); // upper bounds
 
     return new GenericDeleteFile(
         spec.specId(),

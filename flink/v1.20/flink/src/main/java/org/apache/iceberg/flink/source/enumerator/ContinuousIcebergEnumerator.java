@@ -58,7 +58,7 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
   /** Track enumeration result history for split discovery throttling. */
   private final EnumerationHistory enumerationHistory;
 
-  /** Count the consecutive failures and throw exception if the max allowed failres are reached */
+  /** Count the consecutive failures and throw exception if the max allowed failures are reached */
   private transient int consecutiveFailures = 0;
 
   private final ElapsedTimeGauge elapsedSecondsSinceLastSplitDiscovery;

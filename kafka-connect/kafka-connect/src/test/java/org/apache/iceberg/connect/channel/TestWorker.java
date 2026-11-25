@@ -37,6 +37,7 @@ import org.apache.iceberg.connect.events.DataWritten;
 import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.PayloadType;
 import org.apache.iceberg.connect.events.StartCommit;
+import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -67,7 +68,7 @@ public class TestWorker extends ChannelTestBase {
 
       IcebergWriterResult writeResult =
           new IcebergWriterResult(
-              TableIdentifier.parse(TABLE_NAME),
+              TableReference.of("unknown", TableIdentifier.parse(TABLE_NAME), null),
               ImmutableList.of(EventTestUtil.createDataFile()),
               ImmutableList.of(),
               StructType.of());

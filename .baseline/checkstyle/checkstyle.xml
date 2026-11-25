@@ -274,7 +274,7 @@
         <module name="IllegalImport">
             <property name="id" value="BanHadoopUtils"/>
             <property name="regexp" value="true"/>
-            <property name="illegalClasses" value="^org\.apache\.hadoop\.util\.(Sets|Lists|Preconditions)"/>
+            <property name="illegalClasses" value="^org\.apache\.hadoop\.(util\.(Sets|Lists|Preconditions)|classification\.VisibleForTesting)"/>
             <message key="import.illegal" value="Use org.apache.iceberg.relocated.* classes from bundled-guava module instead."/>
         </module>
         <module name="IllegalImport">
@@ -363,6 +363,12 @@
             <property name="id" value="BanJacksonFindAndRegisterModulesMethod"/>
             <property name="format" value="findAndRegisterModules"/>
             <property name="message" value="Use ObjectMapper#registerModule(&lt;yourModule&gt;) explicitly. ObjectMapper#findAndRegisterModules() is dangerous because it will change behaviour depending on which modules are on your classpath (including transitive dependencies)."/>
+        </module>
+        <module name="RegexpSinglelineJava">
+            <property name="id" value="LiteralStringReplaceAll"/>
+            <property name="ignoreComments" value="true"/>
+            <property name="format" value="\.replaceAll\(\s*&quot;([^&quot;\\\\.*+?^$()\[\]{}|]*)&quot;"/>
+            <property name="message" value="Use String.replace for literal replacements; replaceAll compiles a regex on every call."/>
         </module>
         <module name="RegexpSinglelineJava"> <!-- Java Coding Guidelines: Avoid Generics clutter where possible -->
             <property name="format" value="ImmutableList\.Builder.*new ImmutableList\.Builder"/>

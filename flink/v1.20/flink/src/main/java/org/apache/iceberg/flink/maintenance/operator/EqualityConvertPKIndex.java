@@ -52,27 +52,32 @@ import org.slf4j.LoggerFactory;
  * phase precedes the delete, so the delete's watermark only advances once every main row has
  * arrived.
  *
+ * <p>Between rebuilds, external commits on the target branch arrive as {@link
+ * IndexCommand.Type#ADD_DATA_ROW} and {@link IndexCommand.Type#REMOVE_DATA_ROW}, both applied on
+ * arrival in the phase before the delete. A removal matches an entry by file path and position.
+ *
  * <p>On a shared staging/target branch, resolution is sequence-number aware: an equality delete
  * deletes an indexed row only when the row's data sequence number is below the delete's. A
  * re-insert of the same key with a higher sequence survives and stays indexed for a later delete.
  * On a separate target branch the committer reassigns data sequence numbers, so every match is
  * deleted; event-time ordering prevents over-deletion.
  *
- * <p>Stale-index protection runs on two levels. Each key tracks the main sequence number its stored
- * positions were indexed against. The sequence number is unique and monotonic per snapshot, so it
- * serves both the equality test below and the ordering test:
+ * <p>Stale-index protection runs on two levels. Each key tracks the generation the commands
+ * carrying its stored positions were stamped with. The planner hands out a strictly higher
+ * generation on every rebuild of the index, so it serves both the equality test below and the
+ * ordering test:
  *
  * <ul>
  *   <li><b>Lazy (per-key)</b>: any keyed command at the top of {@link #processElement} whose {@link
- *       IndexCommand#mainSequenceNumber()} differs from the stored one clears stale state and
- *       adopts the command's sequence number. Equality suffices here. Required because the
- *       broadcast and keyed inputs are independent streams with no ordering guarantee; without it,
- *       an ADD_DATA_ROW that arrived before the broadcast would be wrongly evicted.
+ *       IndexCommand#indexGeneration()} differs from the stored one clears stale state and adopts
+ *       the command's generation. Equality suffices here. Required because the broadcast and keyed
+ *       inputs are independent streams with no ordering guarantee; without it, an ADD_DATA_ROW that
+ *       arrived before the broadcast would be wrongly evicted.
  *   <li><b>Eager (all keys)</b>: a CLEAR_INDEX broadcast iterates all keys on the subtask via
  *       {@link KeyedBroadcastProcessFunction.Context#applyToKeyedState} and clears any whose stored
- *       sequence number is older than the broadcast's. Staleness is ordered by sequence number.
- *       Bounds state size for PKs that were removed from main by an external CoW commit and won't
- *       receive any keyed command next cycle.
+ *       generation is older than the broadcast's. Staleness is ordered by generation. Bounds state
+ *       size for PKs that were removed from main by an external CoW commit and won't receive any
+ *       keyed command next cycle.
  * </ul>
  */
 @Internal
@@ -89,8 +94,8 @@ public class EqualityConvertPKIndex
   public static final MapStateDescriptor<Void, Void> CLEAR_BROADCAST_DESCRIPTOR =
       new MapStateDescriptor<>("eq-convert-clear-broadcast", Types.VOID, Types.VOID);
 
-  private static final ValueStateDescriptor<Long> MAIN_SEQUENCE_VERSION_DESCRIPTOR =
-      new ValueStateDescriptor<>("mainSequenceVersion", Types.LONG);
+  private static final ValueStateDescriptor<Long> INDEX_GENERATION_DESCRIPTOR =
+      new ValueStateDescriptor<>("indexGeneration", Types.LONG);
   private static final ListStateDescriptor<DVPosition> DATA_ROW_POSITIONS_DESCRIPTOR =
       new ListStateDescriptor<>("filePositions", TypeInformation.of(DVPosition.class));
   private static final ListStateDescriptor<DVPosition> BUFFERED_ROWS_DESCRIPTOR =
@@ -102,7 +107,7 @@ public class EqualityConvertPKIndex
   private static final ListStateDescriptor<Integer> RESOLVE_SPEC_IDS_DESCRIPTOR =
       new ListStateDescriptor<>("resolveSpecIds", Types.INT);
 
-  private transient ValueState<Long> mainSequenceVersion;
+  private transient ValueState<Long> indexGeneration;
   // Resolvable rows for this key. Populated immediately for main data, or from onTimer for
   // staging rows once their phase watermark passes, so a delete never resolves against a row from a
   // later phase.
@@ -132,7 +137,7 @@ public class EqualityConvertPKIndex
   @Override
   public void open(OpenContext context) throws Exception {
     super.open(context);
-    mainSequenceVersion = getRuntimeContext().getState(MAIN_SEQUENCE_VERSION_DESCRIPTOR);
+    indexGeneration = getRuntimeContext().getState(INDEX_GENERATION_DESCRIPTOR);
     dataRowPositions = getRuntimeContext().getListState(DATA_ROW_POSITIONS_DESCRIPTOR);
     bufferedRows = getRuntimeContext().getListState(BUFFERED_ROWS_DESCRIPTOR);
     resolveTimestamp = getRuntimeContext().getState(RESOLVE_TIMESTAMP_DESCRIPTOR);
@@ -149,15 +154,21 @@ public class EqualityConvertPKIndex
   public void processElement(IndexCommand cmd, ReadOnlyContext ctx, Collector<DVPosition> out)
       throws Exception {
     try {
-      Long storedSequence = mainSequenceVersion.value();
-      if (!Objects.equals(storedSequence, cmd.mainSequenceNumber())) {
+      Long storedGeneration = indexGeneration.value();
+      if (!Objects.equals(storedGeneration, cmd.indexGeneration())) {
+        if (cmd.type() == IndexCommand.Type.REMOVE_DATA_ROW) {
+          // No entry of this generation to remove. Adopting the generation would keep a key
+          // without entries in state.
+          return;
+        }
+
         LOG.info(
-            "Main sequence changed from {} to {} (snapshot {}), clearing state",
-            storedSequence,
-            cmd.mainSequenceNumber(),
+            "Index generation changed from {} to {} (snapshot {}), clearing state",
+            storedGeneration,
+            cmd.indexGeneration(),
             cmd.mainSnapshotId());
         clearKeyState();
-        mainSequenceVersion.update(cmd.mainSequenceNumber());
+        indexGeneration.update(cmd.indexGeneration());
       }
 
       long ts = ctx.timestamp();
@@ -171,6 +182,8 @@ public class EqualityConvertPKIndex
         // re-inserted key survives. Applied by the event-time timer at this phase.
         bufferedRows.add(cmd.rowPosition());
         ctx.timerService().registerEventTimeTimer(ts);
+      } else if (cmd.type() == IndexCommand.Type.REMOVE_DATA_ROW) {
+        removeFromIndex(cmd.rowPosition());
       } else if (cmd.type() == IndexCommand.Type.RESOLVE_DELETE) {
         Long resolveTs = resolveTimestamp.value();
         if (resolveTs == null || ts > resolveTs) {
@@ -204,15 +217,15 @@ public class EqualityConvertPKIndex
         "Broadcast element must be %s",
         IndexCommand.Type.CLEAR_INDEX);
 
-    final long broadcastSequenceNumber = cmd.mainSequenceNumber();
+    final long broadcastGeneration = cmd.indexGeneration();
     try {
       ctx.applyToKeyedState(
-          MAIN_SEQUENCE_VERSION_DESCRIPTOR,
-          (key, sequenceState) -> {
-            Long storedSequenceNumber = sequenceState.value();
-            if (storedSequenceNumber != null && storedSequenceNumber < broadcastSequenceNumber) {
+          INDEX_GENERATION_DESCRIPTOR,
+          (key, generationState) -> {
+            Long storedGeneration = generationState.value();
+            if (storedGeneration != null && storedGeneration < broadcastGeneration) {
               clearKeyState();
-              sequenceState.update(broadcastSequenceNumber);
+              generationState.clear();
               eagerlyEvictedKeyNumCounter.inc();
             }
           });
@@ -236,6 +249,7 @@ public class EqualityConvertPKIndex
         resolveTimestamp.clear();
         resolveSequenceNumber.clear();
         resolveSpecIds.clear();
+        clearGenerationIfEmpty();
       } else {
         applyBufferedRows();
       }
@@ -253,6 +267,26 @@ public class EqualityConvertPKIndex
     }
 
     bufferedRows.clear();
+  }
+
+  private void removeFromIndex(DVPosition removed) throws Exception {
+    // Only dataRowPositions is scanned: the maintenance lock serializes cycles, so the staging rows
+    // a previous cycle buffered have joined the index before this cycle's commands arrive.
+    List<DVPosition> kept = Lists.newArrayList();
+    boolean found = false;
+    for (DVPosition position : dataRowPositions.get()) {
+      if (position.position() == removed.position()
+          && position.dataFilePath().equals(removed.dataFilePath())) {
+        found = true;
+      } else {
+        kept.add(position);
+      }
+    }
+
+    if (found) {
+      dataRowPositions.update(kept);
+      clearGenerationIfEmpty();
+    }
   }
 
   private void resolveDeletes(Collector<DVPosition> out) throws Exception {
@@ -292,5 +326,16 @@ public class EqualityConvertPKIndex
     resolveTimestamp.clear();
     resolveSequenceNumber.clear();
     resolveSpecIds.clear();
+  }
+
+  // Drops the generation of a key without rows, to prevent leaking state. Buffered rows and a
+  // pending resolve are still needed in this cycle, and without the generation, the next command
+  // clears them as stale.
+  private void clearGenerationIfEmpty() throws Exception {
+    if (!dataRowPositions.get().iterator().hasNext()
+        && !bufferedRows.get().iterator().hasNext()
+        && resolveTimestamp.value() == null) {
+      indexGeneration.clear();
+    }
   }
 }

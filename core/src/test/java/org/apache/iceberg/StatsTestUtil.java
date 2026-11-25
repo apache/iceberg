@@ -18,11 +18,177 @@
  */
 package org.apache.iceberg;
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 import org.mockito.Mockito;
 
 class StatsTestUtil {
   private StatsTestUtil() {}
+
+  static TrackedFile trackedFile(String location, long recordCount, ContentStats stats) {
+    return new TrackedFileStruct(
+        null,
+        FileContent.DATA,
+        location,
+        FileFormat.fromFileName(location),
+        recordCount,
+        1024L,
+        0,
+        null,
+        stats,
+        false, // tightStats
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
+  }
+
+  static ContentStats contentStats(Types.StructType statsType, FieldStats<?>... fieldStats) {
+    ContentStatsStruct stats = new ContentStatsStruct(statsType);
+    for (FieldStats<?> field : fieldStats) {
+      stats.setStats(field.fieldId(), field);
+    }
+
+    return stats;
+  }
+
+  /** Returns the stats for a field, where a null metric is one that the column does not track. */
+  static <T> FieldStats<T> fieldStats(
+      Types.StructType statsType,
+      int fieldId,
+      T lower,
+      T upper,
+      Long valueCount,
+      Long nullCount,
+      Long nanCount) {
+    return fieldStats(statsType, fieldId, lower, upper, valueCount, nullCount, nanCount, null);
+  }
+
+  static <T> FieldStats<T> fieldStats(
+      Types.StructType statsType,
+      int fieldId,
+      T lower,
+      T upper,
+      Long valueCount,
+      Long nullCount,
+      Long nanCount,
+      Long totalSize) {
+    Types.StructType type = statsType.field(StatsUtil.toBaseId(fieldId)).type().asStructType();
+    validateTrackedMetric(type, StatsUtil.LOWER_BOUND_NAME, lower);
+    validateTrackedMetric(type, StatsUtil.UPPER_BOUND_NAME, upper);
+    validateTrackedMetric(type, "value_count", valueCount);
+    validateTrackedMetric(type, "null_value_count", nullCount);
+    validateTrackedMetric(type, "nan_value_count", nanCount);
+    validateTrackedMetric(type, "total_bytes", totalSize);
+
+    return new TestFieldStats<>(
+        fieldId, type, lower, upper, valueCount, nullCount, nanCount, totalSize);
+  }
+
+  private static void validateTrackedMetric(Types.StructType type, String metric, Object value) {
+    Preconditions.checkArgument(
+        value == null || type.field(metric) != null,
+        "Cannot set %s: not tracked by %s",
+        metric,
+        type);
+  }
+
+  private static class TestFieldStats<T> implements FieldStats<T> {
+    private final int fieldId;
+    private final Types.StructType type;
+    private final T lowerBound;
+    private final T upperBound;
+    private final Long valueCount;
+    private final Long nullValueCount;
+    private final Long nanValueCount;
+    private final Long totalBytes;
+
+    private TestFieldStats(
+        int fieldId,
+        Types.StructType type,
+        T lowerBound,
+        T upperBound,
+        Long valueCount,
+        Long nullValueCount,
+        Long nanValueCount,
+        Long totalBytes) {
+      this.fieldId = fieldId;
+      this.type = type;
+      this.lowerBound = lowerBound;
+      this.upperBound = upperBound;
+      this.valueCount = valueCount;
+      this.nullValueCount = nullValueCount;
+      this.nanValueCount = nanValueCount;
+      this.totalBytes = totalBytes;
+    }
+
+    @Override
+    public int fieldId() {
+      return fieldId;
+    }
+
+    @Override
+    public Types.StructType type() {
+      return type;
+    }
+
+    @Override
+    public T lowerBound() {
+      return lowerBound;
+    }
+
+    @Override
+    public T upperBound() {
+      return upperBound;
+    }
+
+    @Override
+    public boolean hasValueCount() {
+      return valueCount != null;
+    }
+
+    @Override
+    public long valueCount() {
+      return valueCount;
+    }
+
+    @Override
+    public boolean hasNullValueCount() {
+      return nullValueCount != null;
+    }
+
+    @Override
+    public long nullValueCount() {
+      return nullValueCount;
+    }
+
+    @Override
+    public boolean hasNanValueCount() {
+      return nanValueCount != null;
+    }
+
+    @Override
+    public long nanValueCount() {
+      return nanValueCount;
+    }
+
+    @Override
+    public boolean hasTotalBytes() {
+      return totalBytes != null;
+    }
+
+    @Override
+    public long totalBytes() {
+      return totalBytes;
+    }
+
+    @Override
+    public FieldStats<T> copy() {
+      return this;
+    }
+  }
 
   /**
    * Mocks a {@link FieldStats} for a stats struct type, stubbing the bounds and only the counts
@@ -38,6 +204,19 @@ class StatsTestUtil {
       Long valueCount,
       Long nullCount,
       Long nanCount) {
+    return mockFieldStats(type, id, lower, upper, valueCount, nullCount, nanCount, null);
+  }
+
+  @SuppressWarnings("unchecked")
+  static FieldStats<Object> mockFieldStats(
+      Types.StructType type,
+      int id,
+      Object lower,
+      Object upper,
+      Long valueCount,
+      Long nullCount,
+      Long nanCount,
+      Long totalBytes) {
     FieldStats<Object> stats = Mockito.mock(FieldStats.class);
     Mockito.when(stats.fieldId()).thenReturn(id);
     Mockito.when(stats.type()).thenReturn(type);
@@ -56,6 +235,11 @@ class StatsTestUtil {
 
     if (nanCount != null) {
       Mockito.when(stats.nanValueCount()).thenReturn(nanCount);
+    }
+
+    Mockito.when(stats.hasTotalBytes()).thenReturn(totalBytes != null);
+    if (totalBytes != null) {
+      Mockito.when(stats.totalBytes()).thenReturn(totalBytes);
     }
 
     return stats;

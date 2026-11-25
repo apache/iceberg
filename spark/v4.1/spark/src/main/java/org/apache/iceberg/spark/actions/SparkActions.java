@@ -23,6 +23,7 @@ import org.apache.iceberg.actions.ActionsProvider;
 import org.apache.iceberg.actions.ComputePartitionStats;
 import org.apache.iceberg.actions.ComputeTableStats;
 import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.spark.sql.SparkSession;
@@ -86,6 +87,11 @@ public class SparkActions implements ActionsProvider {
   }
 
   @Override
+  public RepairTableSparkAction repairTable(Table table) {
+    return new RepairTableSparkAction(spark, table);
+  }
+
+  @Override
   public ExpireSnapshotsSparkAction expireSnapshots(Table table) {
     return new ExpireSnapshotsSparkAction(spark, table);
   }
@@ -112,7 +118,7 @@ public class SparkActions implements ActionsProvider {
 
   @Override
   public RemoveDanglingDeleteFiles removeDanglingDeleteFiles(Table table) {
-    return new RemoveDanglingDeletesSparkAction(spark, table);
+    return new RemoveDanglingDeletesSparkAction(spark, table, ImmutableMap.of());
   }
 
   @Override

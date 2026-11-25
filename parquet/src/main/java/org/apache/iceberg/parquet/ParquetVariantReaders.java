@@ -23,8 +23,6 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
-import org.apache.commons.lang3.stream.Streams;
 import org.apache.iceberg.parquet.ParquetValueReaders.PrimitiveReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -485,7 +483,6 @@ public class ParquetVariantReaders {
     return ImmutableList.copyOf(
         Iterables.concat(
             Iterables.transform(
-                Streams.of(readers).filter(Objects::nonNull).collect(Collectors.toList()),
-                ParquetValueReader::columns)));
+                Iterables.filter(readers, Objects::nonNull), ParquetValueReader::columns)));
   }
 }

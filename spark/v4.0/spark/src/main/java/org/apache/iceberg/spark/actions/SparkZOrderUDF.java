@@ -256,6 +256,9 @@ class SparkZOrderUDF implements Serializable {
         functions
             .udf(
                 (Boolean value) -> {
+                  if (value == null) {
+                    return PRIMITIVE_EMPTY;
+                  }
                   ByteBuffer buffer = inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE);
                   buffer.put(0, (byte) (value ? -127 : 0));
                   return buffer.array();

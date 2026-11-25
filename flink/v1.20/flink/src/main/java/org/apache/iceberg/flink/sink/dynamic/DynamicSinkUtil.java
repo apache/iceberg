@@ -57,11 +57,33 @@ class DynamicSinkUtil {
    */
   static Set<String> resolveEqualityFieldNames(
       @Nullable Set<String> equalityFields, Schema schema) {
+    // Early return for the empty case to avoid calling identifierFieldNames(), which allocates
+    // per record.
+    if ((equalityFields == null || equalityFields.isEmpty())
+        && schema.identifierFieldIds().isEmpty()) {
+      return Collections.emptySet();
+    }
+
     if (equalityFields != null && !equalityFields.isEmpty()) {
       return equalityFields;
     }
 
     return schema.identifierFieldNames();
+  }
+
+  static Set<Integer> distributionFieldIds(Set<String> distributionFields, Schema schema) {
+    Set<Integer> distributionFieldIds = Sets.newHashSetWithExpectedSize(distributionFields.size());
+    for (String distributionField : distributionFields) {
+      Types.NestedField field = schema.findField(distributionField);
+      Preconditions.checkNotNull(
+          field,
+          "Missing distribution field '%s'. Expected distribution field '%s' to exist in the table schema.",
+          distributionField,
+          distributionField);
+      distributionFieldIds.add(field.fieldId());
+    }
+
+    return distributionFieldIds;
   }
 
   static int safeAbs(int input) {

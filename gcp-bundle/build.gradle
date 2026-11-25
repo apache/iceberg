@@ -35,6 +35,9 @@ project(":iceberg-gcp-bundle") {
     // Align the shaded Jackson to the project version; the Google libraries BOM
     // otherwise pulls in an older jackson-databind with known CVEs.
     implementation platform(libs.jackson.bom)
+    // Align the shaded Guava to the project version; the Google libraries BOM
+    // otherwise pulls in an older Guava with known CVEs.
+    implementation libs.guava.guava
     implementation "com.google.cloud:google-cloud-storage"
     implementation "com.google.cloud:google-cloud-bigquery"
     implementation "com.google.cloud:google-cloud-core"
@@ -45,12 +48,6 @@ project(":iceberg-gcp-bundle") {
   shadowJar {
     archiveClassifier.set(null)
     zip64 true
-
-    // include the LICENSE and NOTICE files for the shaded Jar
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
 
     // relocate GCP-specific versions
     relocate 'com.fasterxml.jackson', 'org.apache.iceberg.gcp.shaded.com.fasterxml.jackson'

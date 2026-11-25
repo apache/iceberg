@@ -121,10 +121,11 @@ public class TestParquetDataWriter {
             Types.NestedField.optional(3, "geog", Types.GeographyType.crs84()));
 
     GenericRecord record = GenericRecord.create(schema);
+    ByteBuffer geom = wkbPoint(30, 10);
+    ByteBuffer geog = wkbPoint(-5, 40);
     List<Record> geoRecords =
         ImmutableList.of(
-            record.copy(
-                ImmutableMap.of("id", 1L, "geom", wkbPoint(30, 10), "geog", wkbPoint(-5, 40))),
+            record.copy(ImmutableMap.of("id", 1L, "geom", geom, "geog", geog)),
             // geog is left null
             record.copy(ImmutableMap.of("id", 2L, "geom", wkbPoint(0, 0))),
             // both geo columns are left null
@@ -144,7 +145,8 @@ public class TestParquetDataWriter {
       }
     }
 
-    assertThat(dataWriter.toDataFile().recordCount()).isEqualTo(geoRecords.size());
+    DataFile dataFile = dataWriter.toDataFile();
+    assertThat(dataFile.recordCount()).isEqualTo(geoRecords.size());
 
     List<Record> writtenRecords;
     try (CloseableIterable<Record> reader =

@@ -204,11 +204,13 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
   @Override
   protected synchronized List<ScanTaskGroup<T>> taskGroups() {
     if (taskGroups == null) {
+      long splitSize = adjustSplitSize(tasks(), scan.targetSplitSize());
+
       if (groupingKeyType().fields().isEmpty()) {
         CloseableIterable<ScanTaskGroup<T>> plannedTaskGroups =
             TableScanUtil.planTaskGroups(
                 CloseableIterable.withNoopClose(tasks()),
-                adjustSplitSize(tasks(), scan.targetSplitSize()),
+                splitSize,
                 scan.splitLookback(),
                 scan.splitOpenFileCost());
         this.taskGroups = Lists.newArrayList(plannedTaskGroups);
@@ -222,7 +224,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
         List<ScanTaskGroup<T>> plannedTaskGroups =
             TableScanUtil.planTaskGroups(
                 tasks(),
-                adjustSplitSize(tasks(), scan.targetSplitSize()),
+                splitSize,
                 scan.splitLookback(),
                 scan.splitOpenFileCost(),
                 groupingKeyType());
@@ -237,6 +239,8 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
         this.taskGroups = plannedTaskGroups;
       }
+
+      setEffectiveSplitTargetSize(taskGroups, splitSize);
     }
 
     return taskGroups;
@@ -244,9 +248,10 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
   // only task groups can be reset while resetting tasks
   // the set of scanned specs and grouping key type must never change
-  protected void resetTasks(List<T> filteredTasks) {
+  protected synchronized void resetTasks(List<T> filteredTasks) {
     this.taskGroups = null;
     this.tasks = filteredTasks;
+    resetEffectiveSplitTargetSize();
   }
 
   private StructLikeSet collectGroupingKeys(Iterable<ScanTaskGroup<T>> taskGroupIterable) {

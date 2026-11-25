@@ -491,6 +491,25 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
+  public void allManifestsTablePreservesSnapshotPruningWhenIgnoringResiduals() throws IOException {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    Table allManifestsTable = new AllManifestsTable(table);
+    TableScan scan =
+        allManifestsTable
+            .newScan()
+            .filter(Expressions.equal("reference_snapshot_id", 2L))
+            .ignoreResiduals();
+
+    assertThat(scannedPaths(scan))
+        .as("Snapshot pruning should be preserved when residuals are ignored")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 2L));
+
+    validateTaskScanResiduals(scan, true);
+  }
+
+  @TestTemplate
   public void allManifestsTableNegatedPredicateOnNonSnapshotColumn() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();

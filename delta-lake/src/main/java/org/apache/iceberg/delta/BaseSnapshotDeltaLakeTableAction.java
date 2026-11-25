@@ -24,7 +24,6 @@ import io.delta.standalone.actions.Action;
 import io.delta.standalone.actions.AddFile;
 import io.delta.standalone.actions.RemoveFile;
 import io.delta.standalone.exceptions.DeltaStandaloneException;
-import java.io.File;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -342,13 +341,11 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     Long nullableFileSize;
     Map<String, String> partitionValues;
 
-    if (action instanceof AddFile) {
-      AddFile addFile = (AddFile) action;
+    if (action instanceof AddFile addFile) {
       path = addFile.getPath();
       nullableFileSize = addFile.getSize();
       partitionValues = addFile.getPartitionValues();
-    } else if (action instanceof RemoveFile) {
-      RemoveFile removeFile = (RemoveFile) action;
+    } else if (action instanceof RemoveFile removeFile) {
       path = removeFile.getPath();
       nullableFileSize = removeFile.getSize().orElse(null);
       partitionValues = removeFile.getPartitionValues();
@@ -454,7 +451,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     if (dataFileUri.isAbsolute()) {
       return decodedPath;
     } else {
-      return tableRoot + File.separator + decodedPath;
+      return tableRoot + "/" + decodedPath;
     }
   }
 }

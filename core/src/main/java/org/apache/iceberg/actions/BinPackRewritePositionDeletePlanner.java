@@ -27,6 +27,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
+import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.PositionDeletesTable;
@@ -187,18 +188,20 @@ public class BinPackRewritePositionDeletePlanner
       Types.StructType partitionType, Iterable<PositionDeletesScanTask> tasks) {
     StructLikeMap<List<PositionDeletesScanTask>> filesByPartition =
         StructLikeMap.create(partitionType);
+    PartitionData partitionKeyTemplate = new PartitionData(partitionType);
 
     for (PositionDeletesScanTask task : tasks) {
       StructLike coerced =
           PartitionUtil.coercePartition(partitionType, task.spec(), task.partition());
+      StructLike partitionKey = partitionKeyTemplate.copyFor(coerced);
 
-      List<PositionDeletesScanTask> partitionTasks = filesByPartition.get(coerced);
+      List<PositionDeletesScanTask> partitionTasks = filesByPartition.get(partitionKey);
       if (partitionTasks == null) {
         partitionTasks = Lists.newArrayList();
       }
 
       partitionTasks.add(task);
-      filesByPartition.put(coerced, partitionTasks);
+      filesByPartition.put(partitionKey, partitionTasks);
     }
 
     return filesByPartition;

@@ -126,7 +126,7 @@ public interface ManifestFile {
   /** Returns length of the manifest file. */
   long length();
 
-  /** Returns iD of the {@link PartitionSpec} used to write the manifest file. */
+  /** Returns ID of the {@link PartitionSpec} used to write the manifest file. */
   int partitionSpecId();
 
   /** Returns the content stored in the manifest; either DATA or DELETES. */
@@ -138,7 +138,7 @@ public interface ManifestFile {
   /** Returns the lowest data sequence number of any live file in the manifest. */
   long minSequenceNumber();
 
-  /** Returns iD of the snapshot that added the manifest file to table metadata. */
+  /** Returns ID of the snapshot that added the manifest file to table metadata. */
   Long snapshotId();
 
   /**
@@ -186,6 +186,26 @@ public interface ManifestFile {
   /** Returns the total number of rows in all files with status DELETED in the manifest file. */
   Long deletedRowsCount();
 
+  /** Returns the number of files with status REPLACED in the manifest file. */
+  default Integer replacedFilesCount() {
+    return 0;
+  }
+
+  /** Returns the total number of rows in all files with status REPLACED in the manifest file. */
+  default Long replacedRowsCount() {
+    return 0L;
+  }
+
+  /** Returns the number of files with status MODIFIED in the manifest file. */
+  default Integer modifiedFilesCount() {
+    return 0;
+  }
+
+  /** Returns the total number of rows in all files with status MODIFIED in the manifest file. */
+  default Long modifiedRowsCount() {
+    return 0L;
+  }
+
   /**
    * Returns a list of {@link PartitionFieldSummary partition field summaries}.
    *
@@ -208,6 +228,16 @@ public interface ManifestFile {
   /** Returns the starting row ID to assign to new rows in ADDED data files. */
   default Long firstRowId() {
     return null;
+  }
+
+  /** Returns the manifest deletion vector, or null if absent. */
+  default ManifestBitmap manifestDeletionVector() {
+    return null;
+  }
+
+  /** Returns the writer format version of the manifest, or 0 if it predates format tracking. */
+  default int formatVersion() {
+    return 0;
   }
 
   /**

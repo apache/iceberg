@@ -25,9 +25,61 @@ info:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0.html
   version: 0.0.1
-  description:
+  description: |
     Defines the specification for the first version of the REST Catalog API.
     Implementations should ideally support all Iceberg table spec versions.
+
+    ## Client Identification
+
+    Clients SHOULD identify themselves to the catalog with the standard HTTP
+    `User-Agent` header (RFC 9110, Section 10.1.5). A consistent, parseable
+    format gives catalog operators usable telemetry for observability,
+    debugging, and support across the many engines and libraries that speak
+    this protocol.
+
+    The header is a whitespace-separated list of `product/version` tokens,
+    optionally followed by a parenthesized comment:
+
+    - When the header is sent, the token of the Iceberg client library SHOULD be
+      present, for example `iceberg-java`, `pyiceberg`, `iceberg-rust`,
+      `iceberg-go`, or `iceberg-cpp`. This list is illustrative, not
+      exhaustive: any other Iceberg library, or a proprietary or custom
+      implementation, uses its own descriptive product token.
+    - Product tokens SHOULD be ordered from the outermost component to the
+      innermost, so the most specific caller appears first: the engine or
+      application, then any integration or connector, then the Iceberg
+      library. The library token is therefore the last product token, which
+      lets a server identify the library and its version whatever other
+      tokens come before it.
+    - The optional comment carries lower-value context such as build
+      identifiers, the HTTP library, the language runtime, or the operating
+      system. These items SHOULD be grouped into a single comment after all
+      product tokens and separated by `; `, for example
+      `(jvm 17.0.9; ubuntu 26.04)` or `(cpython 3.11.4; urllib3 2.2.1; macos 15.1)`.
+      The comment is free-form: servers SHOULD treat it as opaque and MUST NOT
+      depend on its contents.
+
+    Examples:
+
+    - `pyiceberg/0.11.0 (cpython 3.11.4)`: a client library used directly.
+    - `Trino/438 iceberg-java/1.9.0 (jvm 17.0.9)`: an engine embedding the
+      Iceberg Java library.
+    - `Trino/438 iceberg-java/1.9.0 (jvm 17.0.9; ubuntu 26.04)`: the same
+      engine reporting both the language runtime and the operating system.
+    - `Spark/4.0.0 iceberg-spark/1.9.0 iceberg-java/1.9.0 (scala 2.13.16)`: an
+      engine with a connector layer on top of the library.
+
+    Client identification is advisory:
+
+    - Servers SHOULD NOT reject a request only because the header is absent,
+      incomplete, or malformed. Clients that do not send it remain fully
+      functional.
+    - The value is client-asserted and can be spoofed, so servers MUST NOT use
+      it for authentication or authorization.
+    - It is not a capability negotiation mechanism. Clients MUST NOT use it to
+      advertise the protocol features they support, and servers MUST NOT infer
+      from it which features a client supports. Servers advertise the
+      endpoints they support in the `endpoints` field of the config response.
 servers:
   - url: "{scheme}://{host}/{basePath}"
     description: Server URL when the port can be inferred from the scheme
@@ -1051,6 +1103,16 @@ paths:
         table. The configuration key "token" is used to pass an access token to be used as a bearer token
         for table requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
         key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
+
+
+        The response may include a read-restrictions field. A reader that supports read
+        restrictions must fail any read against the loaded table that cannot apply a returned
+        restriction in full. This includes unrecognized action or expression types, and actions
+        whose definition cannot be loaded, parsed, or evaluated. These restrictions apply to every
+        read performed using this response (including subsequent planTableScan and fetchScanTasks
+        calls), but subsequent requests or requests made from a different authentication scope
+        may have different restrictions. The response should not be cached outside of the
+        authenticated scope.
       parameters:
         - $ref: '#/components/parameters/data-access'
         - name: If-None-Match
@@ -2210,6 +2272,10 @@ components:
         to supply access via any or none of the requested mechanisms.
 
 
+        The value `none` signals that the client is able to operate without any
+        access delegation mechanism.
+
+
         Specific properties and handling for `vended-credentials` and `remote-signing`
         are documented in the `LoadTableResult` schema section of this spec document.
 
@@ -2221,6 +2287,7 @@ components:
           enum:
             - vended-credentials
             - remote-signing
+            - none
       style: simple
       explode: false
       example: "vended-credentials,remote-signing"
@@ -2291,7 +2358,8 @@ components:
         format: uuid
         minLength: 36
         maxLength: 36
-        example: "017F22E2-79B0-7CC3-98C4-DC0C0C07398F"
+        examples:
+          - "017F22E2-79B0-7CC3-98C4-DC0C0C07398F"
       description: |
         Optional client-provided idempotency key for safe request retries.
 
@@ -2331,13 +2399,15 @@ components:
         type:
           type: string
           description: Internal type definition of the error
-          example: NoSuchNamespaceException
+          examples:
+            - NoSuchNamespaceException
         code:
           type: integer
           minimum: 400
           maximum: 600
           description: HTTP response code
-          example: 404
+          examples:
+            - 404
         stack:
           type: array
           items:
@@ -2368,13 +2438,14 @@ components:
             type: string
           description: A list of endpoints that the server supports. The format of each endpoint must be "<HTTP verb> <resource path from OpenAPI REST spec>".
             The HTTP verb and the resource path must be separated by a space character.
-          example: [
-            "GET /v1/{prefix}/namespaces/{namespace}",
-            "GET /v1/{prefix}/namespaces",
-            "POST /v1/{prefix}/namespaces",
-            "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
-            "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
-          ]
+          examples:
+            - [
+              "GET /v1/{prefix}/namespaces/{namespace}",
+              "GET /v1/{prefix}/namespaces",
+              "POST /v1/{prefix}/namespaces",
+              "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
+              "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
+            ]
         idempotency-key-lifetime:
           type: string
           format: duration
@@ -2386,7 +2457,8 @@ components:
             reuse an Idempotency-Key after this window elapses; they SHOULD generate a new key for any
             subsequent attempt. Presence of this field indicates the server supports Idempotency-Key
             semantics for mutation endpoints. If absent, clients MUST assume idempotency is not supported.
-          example: PT30M
+          examples:
+            - PT30M
 
     CreateNamespaceRequest:
       type: object
@@ -2398,7 +2470,8 @@ components:
         properties:
           type: object
           description: Configured string to string map of properties for the namespace
-          example: { "owner": "Hank Bendickson" }
+          examples:
+            - { "owner": "Hank Bendickson" }
           default: { }
           additionalProperties:
             type: string
@@ -2411,10 +2484,12 @@ components:
           uniqueItems: true
           items:
             type: string
-          example: [ "department", "access_group" ]
+          examples:
+            - [ "department", "access_group" ]
         updates:
           type: object
-          example: { "owner": "Hank Bendickson" }
+          examples:
+            - { "owner": "Hank Bendickson" }
           additionalProperties:
             type: string
 
@@ -2434,7 +2509,8 @@ components:
       type: array
       items:
         type: string
-      example: [ "accounting", "tax" ]
+      examples:
+        - [ "accounting", "tax" ]
 
     PageToken:
       description:
@@ -2482,11 +2558,12 @@ components:
       type: array
       items:
         type: string
-      example: [ "accounting", "tax", "paid" ]
+      examples:
+        - [ "accounting", "tax", "paid" ]
 
     PrimitiveType:
       type: string
-      example:
+      examples:
         - "long"
         - "string"
         - "fixed[16]"
@@ -2610,7 +2687,7 @@ components:
 
     ExpressionType:
       type: string
-      example:
+      examples:
         - "true"
         - "false"
         - "eq"
@@ -2890,7 +2967,7 @@ components:
         Deprecated string-form field reference used in older REST predicates.
         Use Reference (IdReference or NamedReference) instead.
       type: string
-      example:
+      examples:
         - "column-name"
 
     TransformTerm:
@@ -2914,7 +2991,7 @@ components:
 
     Transform:
       type: string
-      example:
+      examples:
         - "identity"
         - "year"
         - "month"
@@ -3893,6 +3970,7 @@ components:
         - $ref: '#/components/schemas/AssertViewUUID'
 
     AssertViewUUID:
+      type: object
       description: The view UUID must match the requirement's `uuid`
       required:
         - type
@@ -3919,6 +3997,317 @@ components:
           additionalProperties:
             type: string
 
+    ReadRestrictions:
+      type: object
+      description: >
+          Read restrictions for a table.
+
+          A reader evaluates the row filter against original, untransformed column
+          values, then applies required-column-projections to the surviving rows.
+          Each action must produce a value of the same type as the input column.
+          If a reader that supports read-restrictions cannot apply any returned
+          restriction (a filter expression or an action), it must fail the query
+          and must not silently return raw, partial, or empty results.
+
+          A missing or empty ReadRestrictions object (no required-column-projections and no
+          required-row-filter) imposes no restrictions.
+      examples:
+        - required-column-projections:
+            - field-id: 4
+              action: show-last-4
+            - field-id: 6
+              action: replace-with-null
+            - field-id: 8
+              action: truncate-to-year
+            - field-id: 10
+              action: sha-256-global
+            - field-id: 12
+              action: mask-alphanum
+          required-row-filter:
+            type: eq
+            left:
+              type: reference
+              id: 14
+            right:
+              type: literal
+              value: "US"
+      properties:
+        required-column-projections:
+          description: >
+            A list of columns that require specific actions to be applied when reading.
+            A server must not return an action for a column whose type is not listed in
+            that action's "Applicable to" set. If absent or empty, no required actions
+            apply; columns not listed are not subject to any required action.
+
+            1. For each column listed, the reader must apply the specified action before
+              returning values for that column.
+
+            2. The reader must replace all output references to the column with the result
+              of the action, presenting the result under the original field-id. For
+              example, if the action for field-id `9` is mask-alphanum, the reader must
+              return the masked value as field-id `9` in the query output.
+
+            3. A server must not return more than one projection for the same field-id
+              in required-column-projections. If a duplicate field-id appears, the reader
+              must fail the query.
+
+            4. A server must not return a projection that targets a map's key field-id;
+              a reader that receives one must fail the query. Applying an action to keys
+              can produce duplicate or null keys, which readers silently coalesce or
+              reject, causing data loss.
+
+            5. A reader must enforce projections on the columns it is actually reading.
+              Projections referencing columns that are not being read do not apply.
+
+            6. A server must not return projections on both a nested-typed field
+              (struct, list, or map) and any field-id nested within it at any depth.
+              A reader that receives such a response must fail the query.
+          type: array
+          items:
+            $ref: '#/components/schemas/Action'
+        required-row-filter:
+          description: >
+            An expression that limits which rows the reader may return.
+
+            1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg predicates
+              never produce NULL). A reader must discard any row for which the filter
+              evaluates to FALSE, and no information derived from discarded rows may be
+              included in the query result.
+
+            2. If this property is absent, null, or always true then no mandatory filtering is required.
+
+            3. Column references within the expression must use field IDs (IdReference),
+              not column names. This ensures the filter remains valid across column renames,
+              consistent with required-column-projections which also reference columns by field-id.
+          allOf:
+            - $ref: '#/components/schemas/Predicate'
+
+    Action:
+      discriminator:
+        propertyName: action
+        mapping:
+          mask-alphanum: '#/components/schemas/MaskAlphanum'
+          mask-to-fixed-value: '#/components/schemas/MaskToFixedValue'
+          replace-with-null: '#/components/schemas/ReplaceWithNull'
+          show-first-4: '#/components/schemas/ShowFirst4'
+          show-last-4: '#/components/schemas/ShowLast4'
+          truncate-to-year: '#/components/schemas/TruncateToYear'
+          truncate-to-month: '#/components/schemas/TruncateToMonth'
+          sha-256-global: '#/components/schemas/Sha256Global'
+          sha-256-query-local: '#/components/schemas/Sha256QueryLocal'
+      type: object
+      required:
+        - action
+        - field-id
+      properties:
+        action:
+          type: string
+        field-id:
+          type: integer
+          description: Field ID of the column being projected.
+
+    MaskAlphanum:
+      description: >
+        Redacts the column value using the following rules to transform Unicode code points:
+
+        - Digits (U+0030–U+0039, 0-9) are replaced with 'n'
+        - The following punctuation characters are kept as-is:
+            U+0028 '('  LEFT PARENTHESIS
+            U+0029 ')'  RIGHT PARENTHESIS
+            U+002C ','  COMMA
+            U+002E '.'  FULL STOP
+            U+002D '-'  HYPHEN-MINUS
+            U+0040 '@'  COMMERCIAL AT
+        - All other Unicode characters (including letters, whitespace, and any punctuation
+          not listed above) are replaced with 'x'
+
+        For example: "iceberg16112018@apache.org" -> "xxxxxxxnnnnnnnn@xxxxxx.xxx"
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: string
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "mask-alphanum"
+
+    MaskToFixedValue:
+      description: >
+        Replaces the column value with a type-specific fixed value.
+        Readers must use exactly the values listed below to ensure consistency
+        across implementations.
+
+        Fixed values by type:
+        - boolean: false
+        - int: 0
+        - long: 0
+        - float: 0.0
+        - double: 0.0
+        - decimal(p, s): 0 (the unscaled value is 0)
+        - string: "XXXXXXXX"
+        - date: 1970-01-01
+        - time: 00:00:00
+        - timestamp: 1970-01-01T00:00:00
+        - timestamptz: 1970-01-01T00:00:00+00:00
+        - timestamp_ns: 1970-01-01T00:00:00.000000000
+        - timestamptz_ns: 1970-01-01T00:00:00.000000000+00:00
+        - uuid: 00000000-0000-0000-0000-000000000000
+        - fixed(n): n zero bytes
+        - binary: empty byte sequence
+        - variant: an empty variant object
+        - list: empty list []
+        - map: empty map {}
+        - struct: struct with each field set to its type-specific default (applied recursively)
+
+        NULL input is also replaced with the type-specific fixed value; NULL is not preserved.
+
+        Applicable to: the types with a fixed value defined above. A server must not
+        return mask-to-fixed-value for any other type.
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "mask-to-fixed-value"
+
+    ReplaceWithNull:
+      description: >
+        Replaces the column value with NULL. NULL input is preserved (NULL -> NULL).
+
+        Applicable to: all optional types. A server must not return replace-with-null for
+        a required (non-nullable) field; a reader that receives one must fail the query.
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "replace-with-null"
+
+    ShowFirst4:
+      description: >
+        Preserves the first 4 Unicode code points of the column value and redacts the remainder
+        using mask-alphanum rules (see MaskAlphanum for the exact character rules).
+        Values with 4 or fewer Unicode code points are returned unchanged.
+
+        For example: "iceberg16112018@apache.org" -> "icebxxxnnnnnnnn@xxxxxx.xxx"
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: string
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "show-first-4"
+
+    ShowLast4:
+      description: >
+        Redacts all Unicode code points except the last 4 using mask-alphanum rules
+        (see MaskAlphanum for the exact character rules).
+        Values with 4 or fewer Unicode code points are returned unchanged.
+
+        For example: "4111-1111-1111-4444" -> "nnnn-nnnn-nnnn-4444"
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: string
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "show-last-4"
+
+    TruncateToYear:
+      description: >
+        Truncates the column value to year precision, setting month, day, and time components
+        to their minimum values. The output type matches the input type.
+
+        For example: 2024-07-15 -> 2024-01-01
+        For timestamptz and timestamptz_ns, truncation is performed in UTC.
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "truncate-to-year"
+
+    TruncateToMonth:
+      description: >
+        Truncates the column value to year and month precision, setting day and time components
+        to their minimum values. The output type matches the input type.
+
+        For example: 2024-07-15 -> 2024-07-01
+        For timestamptz and timestamptz_ns, truncation is performed in UTC.
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "truncate-to-month"
+
+    Sha256Global:
+      description: |
+        Applies SHA-256. Deterministic across all queries
+        and readers: the same input always produces the same output.
+
+        Input-to-bytes encoding by type:
+        - string: UTF-8 encoded bytes
+        - int: 4 bytes, little-endian
+        - long: 8 bytes, little-endian
+        - binary: raw bytes as-is
+
+        Output encoding by type:
+        - string: 64-character lowercase hexadecimal string
+        - int: first 4 bytes of the digest, read as a little-endian int
+        - long: first 8 bytes of the digest, read as a little-endian long
+        - binary: the full 32-byte raw SHA-256 digest
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: string, int, long, binary
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "sha-256-global"
+
+    Sha256QueryLocal:
+      description: |
+        Applies SHA-256 with a per-query random salt, making the output non-deterministic
+        across queries while remaining consistent within a single query. The definition
+        of a query is left to the implementation.
+
+        The reader must generate a cryptographically random salt of at least 16 bytes for each query.
+
+        For each column value, the reader must encode the value to bytes using
+        sha-256-global's input rules, prepend the per-query salt, and compute
+        SHA-256 over the result.
+
+        Output encoding follows the same rules as sha-256-global.
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: string, int, long, binary
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "sha-256-query-local"
+
     LoadCredentialsResponse:
       type: object
       required:
@@ -3928,6 +4317,48 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StorageCredential'
+
+    CatalogObjectLabels:
+      type: object
+      description: Flat key-value labels attached to the object (table, view, ...) as a whole.
+      additionalProperties:
+        type: string
+
+    FieldLabels:
+      type: object
+      description: Labels attached to a single field, identified by field-id.
+      required:
+        - field-id
+        - labels
+      properties:
+        field-id:
+          type: integer
+          description: Field ID from the schema of the table or view
+        labels:
+          type: object
+          description: Flat key-value labels for this field
+          additionalProperties:
+            type: string
+
+    Labels:
+      type: object
+      description: |
+        Catalog-provided metadata enrichment (for example ownership,
+        classification, or cost attribution) returned with a table or view.
+        Labels are catalog-provided and optional; clients may ignore them, and
+        may cache them following the response ETag.
+        The spec does not require how a catalog produces or stores labels, nor
+        whether they are persisted or versioned. `object-labels` carries
+        labels for the object as a whole; `fields` carries per-field labels,
+        each identified by field-id.
+      properties:
+        object-labels:
+          $ref: '#/components/schemas/CatalogObjectLabels'
+        fields:
+          type: array
+          description: Field-level labels. Each entry identifies its field by field-id.
+          items:
+            $ref: '#/components/schemas/FieldLabels'
 
     LoadTableResult:
       description: |
@@ -3997,6 +4428,10 @@ components:
             $ref: '#/components/schemas/StorageCredential'
         remote-signing-config:
           $ref: '#/components/schemas/RemoteSigningConfig'
+        read-restrictions:
+          $ref: '#/components/schemas/ReadRestrictions'
+        labels:
+          $ref: '#/components/schemas/Labels'
 
     ScanTasks:
       type: object
@@ -4380,6 +4815,8 @@ components:
           type: object
           additionalProperties:
             type: string
+        labels:
+          $ref: '#/components/schemas/Labels'
 
     RegisterViewRequest:
       type: object
@@ -4529,47 +4966,48 @@ components:
       type: object
       additionalProperties:
         $ref: '#/components/schemas/MetricResult'
-      example: {
-        "metrics": {
-          "total-planning-duration": {
-            "count": 1,
-            "time-unit": "nanoseconds",
-            "total-duration": 2644235116
-          },
-          "result-data-files": {
-            "unit": "count",
-            "value": 1,
-          },
-          "result-delete-files": {
-            "unit": "count",
-            "value": 0,
-          },
-          "total-data-manifests": {
-            "unit": "count",
-            "value": 1,
-          },
-          "total-delete-manifests": {
-            "unit": "count",
-            "value": 0,
-          },
-          "scanned-data-manifests": {
-            "unit": "count",
-            "value": 1,
-          },
-          "skipped-data-manifests": {
-            "unit": "count",
-            "value": 0,
-          },
-          "total-file-size-bytes": {
-            "unit": "bytes",
-            "value": 10,
-          },
-          "total-delete-file-size-bytes": {
-            "unit": "bytes",
-            "value": 0,
+      examples:
+        - {
+          "metrics": {
+            "total-planning-duration": {
+              "count": 1,
+              "time-unit": "nanoseconds",
+              "total-duration": 2644235116
+            },
+            "result-data-files": {
+              "unit": "count",
+              "value": 1,
+            },
+            "result-delete-files": {
+              "unit": "count",
+              "value": 0,
+            },
+            "total-data-manifests": {
+              "unit": "count",
+              "value": 1,
+            },
+            "total-delete-manifests": {
+              "unit": "count",
+              "value": 0,
+            },
+            "scanned-data-manifests": {
+              "unit": "count",
+              "value": 1,
+            },
+            "skipped-data-manifests": {
+              "unit": "count",
+              "value": 0,
+            },
+            "total-file-size-bytes": {
+              "unit": "bytes",
+              "value": 10,
+            },
+            "total-delete-file-size-bytes": {
+              "unit": "bytes",
+              "value": 0,
+            }
           }
         }
-      }
 
     ReportMetricsRequest:
       anyOf:
@@ -4712,8 +5150,8 @@ components:
         error:
           $ref: '#/components/schemas/ErrorModel'
       additionalProperties: false
-      example:
-        {
+      examples:
+        - {
           "error": {
             "message": "The server does not support this operation",
             "type": "UnsupportedOperationException",
@@ -4734,7 +5172,8 @@ components:
             type: string
           description:
             Properties stored on the namespace, if supported by the server.
-          example: { "owner": "Ralph", "created_at": "1452120468" }
+          examples:
+            - { "owner": "Ralph", "created_at": "1452120468" }
           default: { }
 
     GetNamespaceResponse:
@@ -4752,7 +5191,8 @@ components:
             If namespace properties are supported, but none are set, it should return an empty object.
           additionalProperties:
             type: string
-          example: { "owner": "Ralph", 'transient_lastDdlTime': '1452120468' }
+          examples:
+            - { "owner": "Ralph", 'transient_lastDdlTime': '1452120468' }
           default: { }
           nullable: true
 
@@ -5627,26 +6067,31 @@ components:
 
     BooleanTypeValue:
       type: boolean
-      example: true
+      examples:
+        - true
 
     IntegerTypeValue:
       type: integer
-      example: 42
+      examples:
+        - 42
 
     LongTypeValue:
       type: integer
       format: int64
-      example: 9223372036854775807
+      examples:
+        - 9223372036854775807
 
     FloatTypeValue:
       type: number
       format: float
-      example: 3.14
+      examples:
+        - 3.14
 
     DoubleTypeValue:
       type: number
       format: double
-      example: 123.456
+      examples:
+        - 123.456
 
     DecimalTypeValue:
       type: string
@@ -5655,11 +6100,13 @@ components:
         text, while decimals with a negative scale use scientific notation and the exponent will be equal to the
         negated scale. For instance, a decimal with a positive scale is '123.4500', with zero scale is '2',
         and with a negative scale is '2E+20'"
-      example: "123.4500"
+      examples:
+        - "123.4500"
 
     StringTypeValue:
       type: string
-      example: "hello"
+      examples:
+        - "hello"
 
     UUIDTypeValue:
       type: string
@@ -5670,59 +6117,68 @@ components:
       description:
         "UUID type values are serialized as a 36-character lowercase string in standard UUID format as specified
         by RFC-4122"
-      example: "eb26bdb1-a1d8-4aa6-990e-da940875492c"
+      examples:
+        - "eb26bdb1-a1d8-4aa6-990e-da940875492c"
 
     DateTypeValue:
       type: string
       format: date
       description:
         "Date type values follow the 'YYYY-MM-DD' ISO-8601 standard date format"
-      example: "2007-12-03"
+      examples:
+        - "2007-12-03"
 
     TimeTypeValue:
       type: string
       description:
         "Time type values follow the 'HH:MM:SS.ssssss' ISO-8601 format with microsecond precision"
-      example: "22:31:08.123456"
+      examples:
+        - "22:31:08.123456"
 
     TimestampTypeValue:
       type: string
       description:
         "Timestamp type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss' ISO-8601 format with microsecond precision"
-      example: "2007-12-03T10:15:30.123456"
+      examples:
+        - "2007-12-03T10:15:30.123456"
 
     TimestampTzTypeValue:
       type: string
       description:
         "TimestampTz type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss+00:00' ISO-8601 format with microsecond precision,
         and a timezone offset (+00:00 for UTC)"
-      example: "2007-12-03T10:15:30.123456+00:00"
+      examples:
+        - "2007-12-03T10:15:30.123456+00:00"
 
     TimestampNanoTypeValue:
       type: string
       description:
         "Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss' ISO-8601 format with nanosecond precision"
-      example: "2007-12-03T10:15:30.123456789"
+      examples:
+        - "2007-12-03T10:15:30.123456789"
 
     TimestampTzNanoTypeValue:
       type: string
       description:
         "Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss+00:00' ISO-8601 format with nanosecond
         precision, and a timezone offset (+00:00 for UTC)"
-      example: "2007-12-03T10:15:30.123456789+00:00"
+      examples:
+        - "2007-12-03T10:15:30.123456789+00:00"
 
     FixedTypeValue:
       type: string
       description:
         "Fixed length type values are stored and serialized as an uppercase hexadecimal string
         preserving the fixed length"
-      example: "78797A"
+      examples:
+        - "78797A"
 
     BinaryTypeValue:
       type: string
       description:
         "Binary type values are stored and serialized as an uppercase hexadecimal string"
-      example: "78797A"
+      examples:
+        - "78797A"
 
     CountMap:
       type: object
@@ -5737,11 +6193,23 @@ components:
           items:
             $ref: '#/components/schemas/LongTypeValue'
           description: "List of Long values, matched to 'keys' by index"
-      example:
-        {
+      examples:
+        - {
           "keys": [ 1, 2 ],
           "values": [ 100, 200 ]
         }
+
+    FieldStatistics:
+      type: object
+      properties:
+        total-bytes:
+          type: integer
+          format: int64
+          description:
+            Estimated uncompressed bytes in memory of non-null values. The
+            estimate depends on the in-memory representation
+      examples:
+        - { "total-bytes": 8 }
 
     ValueMap:
       type: object
@@ -5756,8 +6224,8 @@ components:
           items:
             $ref: '#/components/schemas/PrimitiveTypeValue'
           description: "List of primitive type values, matched to 'keys' by index"
-      example:
-        {
+      examples:
+        - {
           "keys": [ 1, 2 ],
           "values": [ 100, "test" ]
         }
@@ -5821,7 +6289,8 @@ components:
           description:
             A list of partition field values ordered based on the fields of
             the partition spec specified by the `spec-id`
-          example: [1, "bar"]
+          examples:
+            - [ 1, "bar" ]
         file-size-in-bytes:
           type: integer
           format: int64
@@ -5842,6 +6311,11 @@ components:
           description: "List of splittable offsets"
         sort-order-id:
           type: integer
+        content-stats:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/FieldStatistics'
+          description: Container struct for per-field metrics structs
 
     DataFile:
       allOf:

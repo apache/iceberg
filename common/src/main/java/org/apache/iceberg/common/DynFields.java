@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Throwables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
+/** Utility for dynamically resolving a field and building accessors for it. */
 public class DynFields {
 
   private DynFields() {}
@@ -48,6 +49,12 @@ public class DynFields {
       this.name = name;
     }
 
+    /**
+     * Returns the value of this field in the given object.
+     *
+     * @param target the object to read the field from
+     * @return the value of the field in the given object
+     */
     @SuppressWarnings({"unchecked", "deprecation"})
     public T get(Object target) {
       try {
@@ -57,6 +64,12 @@ public class DynFields {
       }
     }
 
+    /**
+     * Sets the value of this field in the given object.
+     *
+     * @param target the object to set the field in
+     * @param value the value to set
+     */
     @SuppressWarnings("deprecation")
     public void set(Object target, T value) {
       try {
@@ -106,12 +119,20 @@ public class DynFields {
       return new StaticField<>(this);
     }
 
-    /** Returns whether the field is a static field. */
+    /**
+     * Returns whether the field is a static field.
+     *
+     * @return true if the field is static, false otherwise
+     */
     public boolean isStatic() {
       return Modifier.isStatic(field.getModifiers());
     }
 
-    /** Returns whether the field is always null. */
+    /**
+     * Returns whether the field is always null.
+     *
+     * @return true if the field is always null, false otherwise
+     */
     public boolean isAlwaysNull() {
       return this == AlwaysNull.INSTANCE;
     }
@@ -148,6 +169,7 @@ public class DynFields {
     }
   }
 
+  /** A handle to a static field, providing access without a target instance. */
   public static class StaticField<T> {
     private final UnboundField<T> field;
 
@@ -155,15 +177,26 @@ public class DynFields {
       this.field = field;
     }
 
+    /**
+     * Returns the value of this static field.
+     *
+     * @return the value of the field
+     */
     public T get() {
       return field.get(null);
     }
 
+    /**
+     * Sets the value of this static field.
+     *
+     * @param value the value to set
+     */
     public void set(T value) {
       field.set(null, value);
     }
   }
 
+  /** A field bound to a target object, providing access without passing the target. */
   public static class BoundField<T> {
     private final UnboundField<T> field;
     private final Object target;
@@ -173,19 +206,35 @@ public class DynFields {
       this.target = target;
     }
 
+    /**
+     * Returns the value of this field in the bound object.
+     *
+     * @return the value of the field
+     */
     public T get() {
       return field.get(target);
     }
 
+    /**
+     * Sets the value of this field in the bound object.
+     *
+     * @param value the value to set
+     */
     public void set(T value) {
       field.set(target, value);
     }
   }
 
+  /**
+   * Constructs a new builder for finding a field dynamically.
+   *
+   * @return a Builder for finding a field
+   */
   public static Builder builder() {
     return new Builder();
   }
 
+  /** Builder for resolving a field from candidate implementations. */
   public static class Builder {
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
     private UnboundField<?> field = null;

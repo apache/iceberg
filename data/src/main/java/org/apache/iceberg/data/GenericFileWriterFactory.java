@@ -22,69 +22,15 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.DELETE_DEFAULT_FILE_FORMAT;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.MetricsConfig;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.avro.DataWriter;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.deletes.PositionDeleteWriter;
-import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.formats.FormatModelRegistry;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Schema> {
-  private static final Logger LOG = LoggerFactory.getLogger(GenericFileWriterFactory.class);
-
-  private Table table;
-  private FileFormat format;
-  private Schema positionDeleteRowSchema;
-  private Map<String, String> writerProperties;
-
-  GenericFileWriterFactory(
-      Table table,
-      FileFormat dataFileFormat,
-      Schema dataSchema,
-      SortOrder dataSortOrder,
-      FileFormat deleteFileFormat,
-      int[] equalityFieldIds,
-      Schema equalityDeleteRowSchema,
-      SortOrder equalityDeleteSortOrder) {
-    super(
-        table,
-        dataFileFormat,
-        Record.class,
-        dataSchema,
-        dataSortOrder,
-        deleteFileFormat,
-        equalityFieldIds,
-        equalityDeleteRowSchema,
-        equalityDeleteSortOrder,
-        ImmutableMap.of(),
-        null,
-        null);
-  }
-
-  /**
-   * @deprecated This constructor is deprecated as of version 1.11.0 and will be removed in 1.12.0.
-   *     Position deletes that include row data are no longer supported. Use {@link
-   *     #GenericFileWriterFactory(Table, FileFormat, Schema, SortOrder, FileFormat, int[], Schema,
-   *     SortOrder)} instead.
-   */
-  @Deprecated
   GenericFileWriterFactory(
       Table table,
       FileFormat dataFileFormat,
@@ -94,7 +40,6 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
       int[] equalityFieldIds,
       Schema equalityDeleteRowSchema,
       SortOrder equalityDeleteSortOrder,
-      Schema positionDeleteRowSchema,
       Map<String, String> writerProperties) {
     super(
         table,
@@ -109,186 +54,10 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
         writerProperties,
         null,
         null);
-    this.table = table;
-    this.format = dataFileFormat;
-    this.positionDeleteRowSchema = positionDeleteRowSchema;
-    this.writerProperties = writerProperties != null ? writerProperties : ImmutableMap.of();
-  }
-
-  /**
-   * @deprecated as of 1.11.0; it will be removed in 1.12.0
-   */
-  @Deprecated
-  GenericFileWriterFactory(
-      Table table,
-      FileFormat dataFileFormat,
-      Schema dataSchema,
-      SortOrder dataSortOrder,
-      FileFormat deleteFileFormat,
-      int[] equalityFieldIds,
-      Schema equalityDeleteRowSchema,
-      SortOrder equalityDeleteSortOrder,
-      Schema positionDeleteRowSchema) {
-    super(
-        table,
-        dataFileFormat,
-        Record.class,
-        dataSchema,
-        dataSortOrder,
-        deleteFileFormat,
-        equalityFieldIds,
-        equalityDeleteRowSchema,
-        equalityDeleteSortOrder,
-        ImmutableMap.of(),
-        dataSchema,
-        equalityDeleteRowSchema);
-    this.table = table;
-    this.format = dataFileFormat;
-    this.positionDeleteRowSchema = positionDeleteRowSchema;
   }
 
   static Builder builderFor(Table table) {
     return new Builder(table);
-  }
-
-  /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
-   *     the configuration is done by the {@link FormatModelRegistry}.
-   */
-  @Deprecated
-  protected void configureDataWrite(Avro.DataWriteBuilder builder) {
-    builder.createWriterFunc(DataWriter::create);
-  }
-
-  /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
-   *     the configuration is done by the {@link FormatModelRegistry}.
-   */
-  @Deprecated
-  protected void configureEqualityDelete(Avro.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(DataWriter::create);
-  }
-
-  /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
-   *     the configuration is done by the {@link FormatModelRegistry}.
-   */
-  @Deprecated
-  protected void configurePositionDelete(Avro.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(DataWriter::create);
-  }
-
-  /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
-   *     the configuration is done by the {@link FormatModelRegistry}.
-   */
-  @Deprecated
-  protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
-    builder.createWriterFunc(GenericParquetWriter::create);
-  }
-
-  /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
-   *     the configuration is done by the {@link FormatModelRegistry}.
-   */
-  @Deprecated
-  protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericParquetWriter::create);
-  }
-
-  /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
-   *     the configuration is done by the {@link FormatModelRegistry}.
-   */
-  @Deprecated
-  protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericParquetWriter::create);
-  }
-
-  /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
-   *     the configuration is done by the {@link FormatModelRegistry}.
-   */
-  @Deprecated
-  protected void configureDataWrite(ORC.DataWriteBuilder builder) {
-    builder.createWriterFunc(GenericOrcWriter::buildWriter);
-  }
-
-  /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
-   *     the configuration is done by the {@link FormatModelRegistry}.
-   */
-  @Deprecated
-  protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericOrcWriter::buildWriter);
-  }
-
-  /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
-   *     the configuration is done by the {@link FormatModelRegistry}.
-   */
-  @Deprecated
-  protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericOrcWriter::buildWriter);
-  }
-
-  @Override
-  public PositionDeleteWriter<Record> newPositionDeleteWriter(
-      EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
-    if (positionDeleteRowSchema == null) {
-      return super.newPositionDeleteWriter(file, spec, partition);
-    } else {
-      LOG.warn(
-          "Deprecated feature used. Position delete row schema is used to create the position delete writer.");
-      Map<String, String> properties = table == null ? ImmutableMap.of() : table.properties();
-      MetricsConfig metricsConfig = MetricsConfig.forPositionDelete();
-
-      try {
-        return switch (format) {
-          case AVRO ->
-              Avro.writeDeletes(file)
-                  .setAll(properties)
-                  .setAll(writerProperties)
-                  .metricsConfig(metricsConfig)
-                  .createWriterFunc(DataWriter::create)
-                  .withPartition(partition)
-                  .overwrite()
-                  .rowSchema(positionDeleteRowSchema)
-                  .withSpec(spec)
-                  .withKeyMetadata(file.keyMetadata())
-                  .buildPositionWriter();
-          case ORC ->
-              ORC.writeDeletes(file)
-                  .setAll(properties)
-                  .setAll(writerProperties)
-                  .metricsConfig(metricsConfig)
-                  .createWriterFunc(GenericOrcWriter::buildWriter)
-                  .withPartition(partition)
-                  .overwrite()
-                  .rowSchema(positionDeleteRowSchema)
-                  .withSpec(spec)
-                  .withKeyMetadata(file.keyMetadata())
-                  .buildPositionWriter();
-          case PARQUET ->
-              Parquet.writeDeletes(file)
-                  .setAll(properties)
-                  .setAll(writerProperties)
-                  .metricsConfig(metricsConfig)
-                  .createWriterFunc(GenericParquetWriter::create)
-                  .withPartition(partition)
-                  .overwrite()
-                  .rowSchema(positionDeleteRowSchema)
-                  .withSpec(spec)
-                  .withKeyMetadata(file.keyMetadata())
-                  .buildPositionWriter();
-          default ->
-              throw new UnsupportedOperationException(
-                  "Cannot write pos-deletes for unsupported file format: " + format);
-        };
-      } catch (IOException e) {
-        throw new UncheckedIOException("Failed to create new position delete writer", e);
-      }
-    }
   }
 
   public static class Builder {
@@ -300,7 +69,6 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
     private int[] equalityFieldIds;
     private Schema equalityDeleteRowSchema;
     private SortOrder equalityDeleteSortOrder;
-    private Schema positionDeleteRowSchema;
     private Map<String, String> writerProperties = ImmutableMap.of();
 
     public Builder() {
@@ -357,16 +125,6 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
       return this;
     }
 
-    /**
-     * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
-     *     Position deletes that include row data are no longer supported.
-     */
-    @Deprecated
-    Builder positionDeleteRowSchema(Schema newPositionDeleteRowSchema) {
-      this.positionDeleteRowSchema = newPositionDeleteRowSchema;
-      return this;
-    }
-
     /** Sets default writer properties. */
     public Builder writerProperties(Map<String, String> newWriterProperties) {
       this.writerProperties = newWriterProperties;
@@ -389,7 +147,6 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
           equalityFieldIds,
           equalityDeleteRowSchema,
           equalityDeleteSortOrder,
-          positionDeleteRowSchema,
           writerProperties);
     }
   }

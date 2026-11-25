@@ -27,19 +27,20 @@ import org.apache.flink.annotation.Internal;
  * <p>{@link Type#ADD_DATA_ROW} adds an existing main-data row to the worker's PK index shard
  * immediately, so this cycle's delete can remove it. {@link Type#ADD_STAGING_DATA_ROW} adds a
  * staging snapshot's new data row; the index applies it only after this cycle's delete resolves, so
- * a re-inserted key survives a same-cycle delete. Both carry the row location as {@link
- * #rowPosition}. {@link Type#RESOLVE_DELETE} resolves an equality delete key against the index and
- * emits {@link DVPosition}s for all matching rows. All three flow through the keyed stream and
- * route via {@link #key}.
+ * a re-inserted key survives a same-cycle delete. {@link Type#REMOVE_DATA_ROW} evicts the row of a
+ * data file an external commit removed from the target branch, matched by file path and position.
+ * All three carry the row location as {@link #rowPosition}. {@link Type#RESOLVE_DELETE} resolves an
+ * equality delete key against the index and emits {@link DVPosition}s for all matching rows. All
+ * flow through the keyed stream and route via {@link #key}.
  *
- * <p>{@link Type#CLEAR_INDEX} is emitted on the broadcast side when an external commit has advanced
- * the main branch and the worker must evict keyed entries that won't be re-added by the upcoming
- * reindex (e.g. PKs whose data file was removed by CoW). Has no {@link #key} or row position.
- * Carries the new {@link #mainSequenceNumber} as the staleness threshold.
+ * <p>{@link Type#CLEAR_INDEX} is emitted on the broadcast side when the index is rebuilt and the
+ * worker must evict keyed entries that won't be re-added by that rebuild (e.g. PKs whose data file
+ * was removed by CoW). Has no {@link #key} or row position. Carries the new {@link
+ * #indexGeneration} as the staleness threshold.
  *
- * <p>{@link #rowPosition} is the data row's location, set for the two add types and null otherwise;
- * the data sequence number it carries lets the worker apply a delete only to older rows. {@code
- * deleteSequenceNumber} is the equality delete's sequence number, set for {@link
+ * <p>{@link #rowPosition} is the data row's location, set for the add and remove types and null
+ * otherwise; the data sequence number it carries lets the worker apply a delete only to older rows.
+ * {@code deleteSequenceNumber} is the equality delete's sequence number, set for {@link
  * Type#RESOLVE_DELETE} and unused (-1) otherwise. {@code deleteSpecId} is the partition spec id of
  * the delete file, used to scope a partitioned delete to data rows of the same spec; {@link
  * #GLOBAL_DELETE_SPEC_ID} marks an unpartitioned delete that applies to every spec. Set for {@link
@@ -49,7 +50,7 @@ import org.apache.flink.annotation.Internal;
 public record IndexCommand(
     Type type,
     Long mainSnapshotId,
-    Long mainSequenceNumber,
+    Long indexGeneration,
     SerializedEqualityValues key,
     DVPosition rowPosition,
     long deleteSequenceNumber,
@@ -62,13 +63,14 @@ public record IndexCommand(
   public enum Type {
     ADD_DATA_ROW,
     ADD_STAGING_DATA_ROW,
+    REMOVE_DATA_ROW,
     RESOLVE_DELETE,
     CLEAR_INDEX
   }
 
   public static IndexCommand addDataRow(
       Long mainSnapshotId,
-      Long mainSequenceNumber,
+      Long indexGeneration,
       SerializedEqualityValues key,
       String filePath,
       long position,
@@ -79,7 +81,26 @@ public record IndexCommand(
     return new IndexCommand(
         staging ? Type.ADD_STAGING_DATA_ROW : Type.ADD_DATA_ROW,
         mainSnapshotId,
-        mainSequenceNumber,
+        indexGeneration,
+        key,
+        new DVPosition(filePath, position, specId, partition, dataSequenceNumber),
+        -1,
+        -1);
+  }
+
+  public static IndexCommand removeDataRow(
+      Long mainSnapshotId,
+      Long indexGeneration,
+      SerializedEqualityValues key,
+      String filePath,
+      long position,
+      int specId,
+      byte[] partition,
+      long dataSequenceNumber) {
+    return new IndexCommand(
+        Type.REMOVE_DATA_ROW,
+        mainSnapshotId,
+        indexGeneration,
         key,
         new DVPosition(filePath, position, specId, partition, dataSequenceNumber),
         -1,
@@ -88,22 +109,21 @@ public record IndexCommand(
 
   public static IndexCommand resolveDelete(
       Long mainSnapshotId,
-      Long mainSequenceNumber,
+      Long indexGeneration,
       SerializedEqualityValues key,
       long deleteSequenceNumber,
       int deleteSpecId) {
     return new IndexCommand(
         Type.RESOLVE_DELETE,
         mainSnapshotId,
-        mainSequenceNumber,
+        indexGeneration,
         key,
         null,
         deleteSequenceNumber,
         deleteSpecId);
   }
 
-  public static IndexCommand clearBeforeReindex(long mainSnapshotId, long mainSequenceNumber) {
-    return new IndexCommand(
-        Type.CLEAR_INDEX, mainSnapshotId, mainSequenceNumber, null, null, -1, -1);
+  public static IndexCommand clearBeforeReindex(long mainSnapshotId, long indexGeneration) {
+    return new IndexCommand(Type.CLEAR_INDEX, mainSnapshotId, indexGeneration, null, null, -1, -1);
   }
 }

@@ -64,10 +64,27 @@ public interface HTTPRequest {
       fullPath = RESTUtil.stripTrailingSlash(String.format("%s/%s", baseUri, path()));
     }
 
+    String referencedBy =
+        queryParameters().get(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER);
     try {
       URIBuilder builder = new URIBuilder(fullPath);
-      queryParameters().forEach(builder::addParameter);
-      return builder.build();
+      queryParameters()
+          .forEach(
+              (key, value) -> {
+                // addParameter would re-encode referenced-by, turning %1F into %251F
+                if (!RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER.equals(key)) {
+                  builder.addParameter(key, value);
+                }
+              });
+
+      URI uri = builder.build();
+      if (referencedBy == null) {
+        return uri;
+      }
+
+      String prefix = uri.getRawQuery() == null ? "?" : "&";
+      return new URI(
+          uri + prefix + RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER + "=" + referencedBy);
     } catch (URISyntaxException e) {
       throw new RESTException(
           "Failed to create request URI from base %s, params %s", fullPath, queryParameters());

@@ -41,12 +41,28 @@ public class Metrics implements Serializable {
   // this is not serialized with all the other fields
   private Map<Integer, Type> originalTypes = null;
 
+  /** Creates an empty metrics instance with no statistics set. */
   public Metrics() {}
 
+  /**
+   * Creates a new metrics instance with only the row count set.
+   *
+   * @param rowCount the number of rows (records) in the file
+   */
   public Metrics(long rowCount) {
     this.rowCount = rowCount;
   }
 
+  /**
+   * Creates a new metrics instance.
+   *
+   * @param rowCount the number of rows (records) in the file, or null if unknown
+   * @param columnSizes a map of field id to the size in bytes of the column, or null if unknown
+   * @param valueCounts a map of field id to the number of all values (including nulls, NaN, and
+   *     repeated), or null if unknown
+   * @param nullValueCounts a map of field id to the number of null values, or null if unknown
+   * @param nanValueCounts a map of field id to the number of NaN values, or null if unknown
+   */
   public Metrics(
       Long rowCount,
       Map<Integer, Long> columnSizes,
@@ -56,6 +72,18 @@ public class Metrics implements Serializable {
     this(rowCount, columnSizes, valueCounts, nullValueCounts, nanValueCounts, null, null, null);
   }
 
+  /**
+   * Creates a new metrics instance.
+   *
+   * @param rowCount the number of rows (records) in the file, or null if unknown
+   * @param columnSizes a map of field id to the size in bytes of the column, or null if unknown
+   * @param valueCounts a map of field id to the number of all values (including nulls, NaN, and
+   *     repeated), or null if unknown
+   * @param nullValueCounts a map of field id to the number of null values, or null if unknown
+   * @param nanValueCounts a map of field id to the number of NaN values, or null if unknown
+   * @param lowerBounds a map of field id to the lower bound of the column, or null if unknown
+   * @param upperBounds a map of field id to the upper bound of the column, or null if unknown
+   */
   public Metrics(
       Long rowCount,
       Map<Integer, Long> columnSizes,
@@ -75,6 +103,20 @@ public class Metrics implements Serializable {
         null);
   }
 
+  /**
+   * Creates a new metrics instance.
+   *
+   * @param rowCount the number of rows (records) in the file, or null if unknown
+   * @param columnSizes a map of field id to the size in bytes of the column, or null if unknown
+   * @param valueCounts a map of field id to the number of all values (including nulls, NaN, and
+   *     repeated), or null if unknown
+   * @param nullValueCounts a map of field id to the number of null values, or null if unknown
+   * @param nanValueCounts a map of field id to the number of NaN values, or null if unknown
+   * @param lowerBounds a map of field id to the lower bound of the column, or null if unknown
+   * @param upperBounds a map of field id to the upper bound of the column, or null if unknown
+   * @param originalTypes a map of field id to the original type of the lower/upper bound, or null
+   *     if unknown
+   */
   public Metrics(
       Long rowCount,
       Map<Integer, Long> columnSizes,
@@ -92,6 +134,45 @@ public class Metrics implements Serializable {
     this.lowerBounds = lowerBounds;
     this.upperBounds = upperBounds;
     this.originalTypes = originalTypes;
+  }
+
+  /**
+   * Creates a new metrics instance.
+   *
+   * @param rowCount the number of rows (records) in the file, or null if unknown
+   * @param columnSizes a map of field id to the size in bytes of the column, or null if unknown
+   * @param valueCounts a map of field id to the number of all values (including nulls, NaN, and
+   *     repeated), or null if unknown
+   * @param nullValueCounts a map of field id to the number of null values, or null if unknown
+   * @param nanValueCounts a map of field id to the number of NaN values, or null if unknown
+   * @param lowerBounds a map of field id to the lower bound of the column, or null if unknown
+   * @param upperBounds a map of field id to the upper bound of the column, or null if unknown
+   * @param avgValueSizes ignored
+   * @param originalTypes a map of field id to the original type of the lower/upper bound, or null
+   *     if unknown
+   * @deprecated will be removed in 2.0.0; use the constructor without {@code avgValueSizes}
+   *     instead.
+   */
+  @Deprecated
+  public Metrics(
+      Long rowCount,
+      Map<Integer, Long> columnSizes,
+      Map<Integer, Long> valueCounts,
+      Map<Integer, Long> nullValueCounts,
+      Map<Integer, Long> nanValueCounts,
+      Map<Integer, ByteBuffer> lowerBounds,
+      Map<Integer, ByteBuffer> upperBounds,
+      Map<Integer, Integer> avgValueSizes,
+      Map<Integer, Type> originalTypes) {
+    this(
+        rowCount,
+        columnSizes,
+        valueCounts,
+        nullValueCounts,
+        nanValueCounts,
+        lowerBounds,
+        upperBounds,
+        originalTypes);
   }
 
   /**
@@ -160,6 +241,17 @@ public class Metrics implements Serializable {
    */
   public Map<Integer, ByteBuffer> upperBounds() {
     return upperBounds;
+  }
+
+  /**
+   * Returns {@code null} because average value sizes are no longer collected.
+   *
+   * @return null
+   * @deprecated will be removed in 2.0.0
+   */
+  @Deprecated
+  public Map<Integer, Integer> avgValueSizes() {
+    return null;
   }
 
   /**

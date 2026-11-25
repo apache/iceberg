@@ -62,19 +62,19 @@ public class TestDataTaskParser {
   @Test
   public void nullCheck() throws Exception {
     StringWriter writer = new StringWriter();
-    JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+    try (JsonGenerator generator = JsonUtil.factory().createGenerator(writer)) {
+      assertThatThrownBy(() -> DataTaskParser.toJson(null, generator))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Invalid data task: null");
 
-    assertThatThrownBy(() -> DataTaskParser.toJson(null, generator))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid data task: null");
+      assertThatThrownBy(() -> DataTaskParser.toJson((StaticDataTask) createDataTask(), null))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Invalid JSON generator: null");
 
-    assertThatThrownBy(() -> DataTaskParser.toJson((StaticDataTask) createDataTask(), null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid JSON generator: null");
-
-    assertThatThrownBy(() -> DataTaskParser.fromJson(null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid JSON node for data task: null");
+      assertThatThrownBy(() -> DataTaskParser.fromJson(null))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Invalid JSON node for data task: null");
+    }
   }
 
   @Test
@@ -219,6 +219,7 @@ public class TestDataTaskParser {
                 summary1,
                 1,
                 "file:/tmp/manifest1.avro",
+                null /* rootManifest */,
                 null,
                 null,
                 null),
@@ -231,6 +232,7 @@ public class TestDataTaskParser {
                 summary2,
                 1,
                 "file:/tmp/manifest2.avro",
+                null /* rootManifest */,
                 null,
                 null,
                 null));

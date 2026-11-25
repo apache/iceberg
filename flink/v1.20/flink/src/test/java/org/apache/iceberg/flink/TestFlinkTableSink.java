@@ -54,18 +54,18 @@ public class TestFlinkTableSink extends CatalogTestBase {
   private boolean useV2Sink;
 
   @Parameters(
-      name = "catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}, useV2Sink={4}")
+      name = "catalogType={0}, baseNamespace={1}, format={2}, isStreaming={3}, useV2Sink={4}")
   public static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
         new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {
       for (Boolean isStreaming : new Boolean[] {true, false}) {
         for (Object[] catalogParams : CatalogTestBase.parameters()) {
-          String catalogName = (String) catalogParams[0];
+          CatalogType catalogType = (CatalogType) catalogParams[0];
           Namespace baseNamespace = (Namespace) catalogParams[1];
           parameters.add(
               new Object[] {
-                catalogName, baseNamespace, format, isStreaming, false /* don't use v2 sink */
+                catalogType, baseNamespace, format, isStreaming, false /* don't use v2 sink */
               });
         }
       }
@@ -74,10 +74,14 @@ public class TestFlinkTableSink extends CatalogTestBase {
     for (FileFormat format :
         new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {
       for (Boolean isStreaming : new Boolean[] {true, false}) {
-        String catalogName = "testhadoop_basenamespace";
-        Namespace baseNamespace = Namespace.of("l0", "l1");
         parameters.add(
-            new Object[] {catalogName, baseNamespace, format, isStreaming, true /* use v2 sink */});
+            new Object[] {
+              CatalogType.HADOOP,
+              Namespace.of("l0", "l1"),
+              format,
+              isStreaming,
+              true /* use v2 sink */
+            });
       }
     }
 

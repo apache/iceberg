@@ -69,12 +69,15 @@ import org.apache.iceberg.util.Tasks;
  */
 class DeleteFileIndex {
   private static final DeleteFile[] EMPTY_DELETES = new DeleteFile[0];
+  private static final Set<Integer> DELETE_FILE_PATH_COLUMN =
+      Set.of(MetadataColumns.DELETE_FILE_PATH.fieldId());
 
   private final EqualityDeletes globalDeletes;
   private final PartitionMap<EqualityDeletes> eqDeletesByPartition;
   private final PartitionMap<PositionDeletes> posDeletesByPartition;
   private final Map<String, PositionDeletes> posDeletesByPath;
   private final Map<String, DeleteFile> dvByPath;
+  private final LoadingCache<Integer, Comparator<StructLike>> partitionComparatorsBySpecId;
   private final boolean hasEqDeletes;
   private final boolean hasPosDeletes;
   private final boolean isEmpty;
@@ -84,12 +87,18 @@ class DeleteFileIndex {
       PartitionMap<EqualityDeletes> eqDeletesByPartition,
       PartitionMap<PositionDeletes> posDeletesByPartition,
       Map<String, PositionDeletes> posDeletesByPath,
-      Map<String, DeleteFile> dvByPath) {
+      Map<String, DeleteFile> dvByPath,
+      Map<Integer, PartitionSpec> specsById) {
     this.globalDeletes = globalDeletes;
     this.eqDeletesByPartition = eqDeletesByPartition;
     this.posDeletesByPartition = posDeletesByPartition;
     this.posDeletesByPath = posDeletesByPath;
     this.dvByPath = dvByPath;
+    this.partitionComparatorsBySpecId =
+        specsById == null
+            ? null
+            : Caffeine.newBuilder()
+                .build(specId -> Comparators.forType(specsById.get(specId).partitionType()));
     this.hasEqDeletes = globalDeletes != null || eqDeletesByPartition != null;
     this.hasPosDeletes =
         posDeletesByPartition != null || posDeletesByPath != null || dvByPath != null;
@@ -196,7 +205,15 @@ class DeleteFileIndex {
     }
 
     PositionDeletes deletes = posDeletesByPath.get(dataFile.location());
-    return deletes == null ? EMPTY_DELETES : deletes.filter(seq);
+    if (deletes == null) {
+      return EMPTY_DELETES;
+    }
+
+    DeleteFile[] matchingDeletes = deletes.filter(seq);
+    for (DeleteFile deleteFile : matchingDeletes) {
+      validatePartitionMatch(deleteFile, dataFile);
+    }
+    return matchingDeletes;
   }
 
   private DeleteFile findDV(long seq, DataFile dataFile) {
@@ -211,8 +228,32 @@ class DeleteFileIndex {
           "DV data sequence number (%s) must be greater than or equal to data file sequence number (%s)",
           dv.dataSequenceNumber(),
           seq);
+      validatePartitionMatch(dv, dataFile);
     }
     return dv;
+  }
+
+  private void validatePartitionMatch(DeleteFile deleteFile, DataFile dataFile) {
+    ValidationException.check(
+        deleteFile.specId() == dataFile.specId(),
+        "Mismatched partition specs (%s, %s) for delete file %s and data file %s:"
+            + " metadata is corrupted",
+        deleteFile.specId(),
+        dataFile.specId(),
+        deleteFile.location(),
+        dataFile.location());
+    if (partitionComparatorsBySpecId != null) {
+      Comparator<StructLike> partitionComparator =
+          partitionComparatorsBySpecId.get(deleteFile.specId());
+      ValidationException.check(
+          partitionComparator.compare(deleteFile.partition(), dataFile.partition()) == 0,
+          "Mismatched partition tuples (%s, %s) for delete file %s and data file %s:"
+              + " metadata is corrupted",
+          deleteFile.partition(),
+          dataFile.partition(),
+          deleteFile.location(),
+          dataFile.location());
+    }
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -454,6 +495,8 @@ class DeleteFileIndex {
       // read all of the matching delete manifests in parallel and accumulate the matching files in
       // a queue
       Queue<DeleteFile> files = new ConcurrentLinkedQueue<>();
+      // share one location instance across deletes that reference the same data file
+      Map<String, String> referencedDataFiles = Maps.newConcurrentMap();
       Tasks.foreach(deleteManifestReaders())
           .stopOnFailure()
           .throwFailureWhenFinished()
@@ -463,14 +506,7 @@ class DeleteFileIndex {
                 try (CloseableIterable<ManifestEntry<DeleteFile>> reader = deleteFile) {
                   for (ManifestEntry<DeleteFile> entry : reader) {
                     if (entry.dataSequenceNumber() > minSequenceNumber) {
-                      DeleteFile file = entry.file();
-                      // keep minimum stats to avoid memory pressure
-                      Set<Integer> columns =
-                          file.content() == FileContent.POSITION_DELETES
-                              ? Set.of(MetadataColumns.DELETE_FILE_PATH.fieldId())
-                              : Set.copyOf(file.equalityFieldIds());
-                      // copy with stats for better filtering against data file stats
-                      files.add(ContentFileUtil.copy(file, true, columns));
+                      files.add(copyWithMinStats(entry.file(), referencedDataFiles));
                     }
                   }
                 } catch (IOException e) {
@@ -478,6 +514,30 @@ class DeleteFileIndex {
                 }
               });
       return files;
+    }
+
+    private static DeleteFile copyWithMinStats(
+        DeleteFile file, Map<String, String> referencedDataFiles) {
+      if (file.content() == FileContent.EQUALITY_DELETES) {
+        // copy with stats for better filtering against data file stats
+        return file.copyWithStats(Set.copyOf(file.equalityFieldIds()));
+      }
+
+      if (ContentFileUtil.isDV(file)) {
+        // a DV already records its referenced data file
+        return file.copyWithoutStats();
+      }
+
+      String referencedDataFile = ContentFileUtil.referencedDataFileLocation(file);
+      if (referencedDataFile != null && file instanceof GenericDeleteFile genericFile) {
+        // a file-scoped position delete is matched by location and needs no stats
+        String location = referencedDataFiles.computeIfAbsent(referencedDataFile, key -> key);
+        return genericFile.copyAsFileScoped(location);
+      }
+
+      // keep the file_path bounds for position deletes that span multiple data files and for
+      // other DeleteFile implementations
+      return file.copyWithStats(DELETE_FILE_PATH_COLUMN);
     }
 
     private Collection<Schema> schemas() {
@@ -522,7 +582,8 @@ class DeleteFileIndex {
           eqDeletesByPartition.isEmpty() ? null : eqDeletesByPartition,
           posDeletesByPartition.isEmpty() ? null : posDeletesByPartition,
           posDeletesByPath.isEmpty() ? null : posDeletesByPath,
-          dvByPath.isEmpty() ? null : dvByPath);
+          dvByPath.isEmpty() ? null : dvByPath,
+          specsById.isEmpty() ? null : specsById);
     }
 
     private void add(Map<String, DeleteFile> dvByPath, DeleteFile dv) {

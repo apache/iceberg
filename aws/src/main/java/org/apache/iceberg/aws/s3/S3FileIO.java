@@ -36,6 +36,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.S3FileIOAwsClientFactories;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
@@ -429,7 +430,7 @@ public class S3FileIO
 
           this.clientByPrefix = localClientByPrefix;
           // Note: the s3 clients separately refresh via the VendedCredentialsProvider but are
-          // not directly referencable from the FileIO
+          // not directly referenceable from the FileIO
           scheduleCredentialRefresh();
         }
       }
@@ -439,6 +440,11 @@ public class S3FileIO
   }
 
   private void scheduleCredentialRefresh() {
+    if (!PropertyUtil.propertyAsBoolean(
+        properties, AwsClientProperties.REFRESH_CREDENTIALS_ENABLED, true)) {
+      return;
+    }
+
     storageCredentials.stream()
         .map(
             storageCredential ->

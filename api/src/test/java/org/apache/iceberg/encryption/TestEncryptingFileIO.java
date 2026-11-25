@@ -19,20 +19,26 @@
 package org.apache.iceberg.encryption;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
 import java.io.Closeable;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 public class TestEncryptingFileIO {
 
@@ -152,6 +158,58 @@ public class TestEncryptingFileIO {
   }
 
   @Test
+  public void bulkDecryptRoutesFilesByKeyMetadata() {
+    EncryptionManager em = mock(EncryptionManager.class);
+    FileIO io = mock(FileIO.class);
+
+    ContentFile<?> plaintextFile = mockContentFile("s3://bucket/plaintext.parquet", 100L, null);
+    ContentFile<?> encryptedFile =
+        mockContentFile(
+            "s3://bucket/encrypted.parquet", 200L, ByteBuffer.wrap(new byte[] {1, 2, 3}));
+
+    InputFile plaintextInputFile = mockInputFile(io, plaintextFile);
+    InputFile encryptedRawInputFile = mockInputFile(io, encryptedFile);
+
+    InputFile decryptedInputFile = mock(InputFile.class);
+    when(decryptedInputFile.location()).thenReturn("s3://bucket/encrypted.parquet");
+    ArgumentCaptor<Iterable<EncryptedInputFile>> captor = ArgumentCaptor.forClass(Iterable.class);
+    when(em.decrypt(captor.capture())).thenReturn(List.of(decryptedInputFile));
+
+    Map<String, InputFile> result =
+        EncryptingFileIO.combine(io, em).bulkDecrypt(List.of(plaintextFile, encryptedFile));
+
+    assertThat(result)
+        .containsEntry("s3://bucket/plaintext.parquet", plaintextInputFile)
+        .containsEntry("s3://bucket/encrypted.parquet", decryptedInputFile)
+        .hasSize(2);
+
+    assertThat(captor.getValue())
+        .singleElement()
+        .satisfies(
+            encrypted -> {
+              assertThat(encrypted.encryptedInputFile()).isEqualTo(encryptedRawInputFile);
+              assertThat(encrypted.keyMetadata().buffer())
+                  .isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
+            });
+  }
+
+  @Test
+  public void bulkDecryptSkipsEncryptionManagerWhenAllFilesArePlaintext() {
+    EncryptionManager em = mock(EncryptionManager.class);
+    FileIO io = mock(FileIO.class);
+
+    ContentFile<?> plaintextFile = mockContentFile("s3://bucket/plaintext.parquet", 100L, null);
+    InputFile plaintextInputFile = mockInputFile(io, plaintextFile);
+
+    Map<String, InputFile> result =
+        EncryptingFileIO.combine(io, em).bulkDecrypt(List.of(plaintextFile));
+
+    assertThat(result)
+        .containsExactly(Map.entry("s3://bucket/plaintext.parquet", plaintextInputFile));
+    verify(em, never()).decrypt(any(Iterable.class));
+  }
+
+  @Test
   public void properties() {
     EncryptionManager em = mock(EncryptionManager.class);
     FileIO io = mock(FileIO.class);
@@ -159,5 +217,20 @@ public class TestEncryptingFileIO {
 
     assertThat(EncryptingFileIO.combine(io, em).properties())
         .containsExactly(Map.entry("key", "value"));
+  }
+
+  private static ContentFile<?> mockContentFile(
+      String location, long size, ByteBuffer keyMetadata) {
+    ContentFile<?> file = mock(ContentFile.class);
+    when(file.location()).thenReturn(location);
+    when(file.fileSizeInBytes()).thenReturn(size);
+    when(file.keyMetadata()).thenReturn(keyMetadata);
+    return file;
+  }
+
+  private static InputFile mockInputFile(FileIO io, ContentFile<?> file) {
+    InputFile inputFile = mock(InputFile.class);
+    when(io.newInputFile(file.location(), file.fileSizeInBytes())).thenReturn(inputFile);
+    return inputFile;
   }
 }

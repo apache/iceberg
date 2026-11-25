@@ -45,7 +45,6 @@ import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
@@ -354,8 +353,6 @@ public class BaseTransaction implements Transaction {
       return;
     }
 
-    Set<Long> startingSnapshots =
-        base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
     try {
       Tasks.foreach(ops)
           .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
@@ -393,24 +390,23 @@ public class BaseTransaction implements Transaction {
       // committed manifests to ensure that no committed manifest is deleted.
       // A manifest could be deleted in one successful operation commit, but reused in another
       // successful commit of that operation if the whole transaction is retried.
-      Set<Long> newSnapshots = Sets.newHashSet();
+      // only snapshots added on top of the committed base can reference this transaction's files
+      Set<Long> startingSnapshots =
+          base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+      Set<Snapshot> newSnapshots = Sets.newHashSet();
       for (Snapshot snapshot : current.snapshots()) {
         if (!startingSnapshots.contains(snapshot.snapshotId())) {
-          newSnapshots.add(snapshot.snapshotId());
+          newSnapshots.add(snapshot);
         }
       }
 
-      Set<String> committedFiles = committedFiles(ops, newSnapshots);
-      if (committedFiles != null) {
-        // delete all the files that were deleted in the most recent set of operation commits
-        Set<String> uncommittedFiles =
-            deletedFiles.stream()
-                .filter(f -> !committedFiles.contains(f))
-                .collect(Collectors.toSet());
-        deleteUncommittedFiles(uncommittedFiles);
-      } else {
-        LOG.warn("Failed to load metadata for a committed snapshot, skipping clean-up");
-      }
+      Set<String> committedFiles = committedFiles(newSnapshots);
+      // delete all the files that were deleted in the most recent set of operation commits
+      Set<String> uncommittedFiles =
+          deletedFiles.stream()
+              .filter(f -> !committedFiles.contains(f))
+              .collect(Collectors.toSet());
+      deleteUncommittedFiles(uncommittedFiles);
 
     } catch (RuntimeException e) {
       LOG.warn("Failed to load committed metadata, skipping clean-up", e);
@@ -458,26 +454,32 @@ public class BaseTransaction implements Transaction {
     }
   }
 
-  // committedFiles returns null whenever the set of committed files
-  // cannot be determined from the provided snapshots
-  private static Set<String> committedFiles(TableOperations ops, Set<Long> snapshotIds) {
-    if (snapshotIds.isEmpty()) {
-      return ImmutableSet.of();
-    }
-
+  // returns the manifest lists and manifests referenced by the given committed snapshots
+  private Set<String> committedFiles(Set<Snapshot> snapshots) {
     Set<String> committedFiles = Sets.newHashSet();
 
-    for (long snapshotId : snapshotIds) {
-      Snapshot snap = ops.current().snapshot(snapshotId);
-      if (snap != null) {
-        committedFiles.add(snap.manifestListLocation());
-        snap.allManifests(ops.io()).forEach(manifest -> committedFiles.add(manifest.path()));
-      } else {
-        return null;
-      }
+    for (Snapshot snap : snapshots) {
+      committedFiles.add(snap.manifestListLocation());
+      committedFiles.addAll(committedManifestPaths(snap));
     }
 
     return committedFiles;
+  }
+
+  /** Returns this snapshot's manifest paths. */
+  private Set<String> committedManifestPaths(Snapshot snapshot) {
+    for (PendingUpdate update : updates) {
+      if (update instanceof SnapshotProducer<?> producer) {
+        Set<String> paths = producer.writtenManifestPaths(snapshot.manifestListLocation());
+        if (paths != null) {
+          return paths;
+        }
+      }
+    }
+
+    return snapshot.allManifests(ops.io()).stream()
+        .map(ManifestFile::path)
+        .collect(Collectors.toSet());
   }
 
   public class TransactionTableOperations implements TableOperations {

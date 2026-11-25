@@ -49,7 +49,9 @@ class ContentStatsStruct implements ContentStats, StructLike, Serializable {
       }
     } else {
       for (Map.Entry<Integer, FieldStats<?>> entry : toCopy.idToFieldStats.entrySet()) {
-        idToFieldStats.put(entry.getKey(), entry.getValue().copy());
+        if (entry.getValue() != null) {
+          idToFieldStats.put(entry.getKey(), entry.getValue().copy());
+        }
       }
     }
   }
@@ -112,7 +114,7 @@ class ContentStatsStruct implements ContentStats, StructLike, Serializable {
     return new ContentStatsStruct(this, fieldIds);
   }
 
-  private static int[] posToId(Types.StructType struct) {
+  static int[] posToId(Types.StructType struct) {
     List<Types.NestedField> fields = struct.fields();
     int[] posToId = new int[fields.size()];
     for (int i = 0; i < posToId.length; i += 1) {

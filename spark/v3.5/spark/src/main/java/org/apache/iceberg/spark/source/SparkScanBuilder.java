@@ -40,6 +40,7 @@ import org.apache.iceberg.SparkDistributedDataScan;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.AggregateEvaluator;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundAggregate;
@@ -225,7 +226,7 @@ public class SparkScanBuilder
               aggregateFunc);
           return false;
         }
-      } catch (IllegalArgumentException e) {
+      } catch (IllegalArgumentException | ValidationException e) {
         LOG.info("Skipping aggregate pushdown: Bind failed for AggregateFunc {}", aggregateFunc, e);
         return false;
       }

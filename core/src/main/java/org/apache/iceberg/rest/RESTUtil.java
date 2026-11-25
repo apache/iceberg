@@ -21,8 +21,14 @@ package org.apache.iceberg.rest;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.hc.core5.net.PercentCodec;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -39,20 +45,6 @@ public class RESTUtil {
 
   /** The namespace separator as url encoded UTF-8 character */
   static final String NAMESPACE_SEPARATOR_URLENCODED_UTF_8 = "%1F";
-
-  /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
-   *     RESTUtil#namespaceToQueryParam(Namespace)}} instead.
-   */
-  @Deprecated
-  public static final Joiner NAMESPACE_JOINER = Joiner.on(NAMESPACE_SEPARATOR_AS_UNICODE);
-
-  /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
-   *     RESTUtil#namespaceFromQueryParam(String)} instead.
-   */
-  @Deprecated
-  public static final Splitter NAMESPACE_SPLITTER = Splitter.on(NAMESPACE_SEPARATOR_AS_UNICODE);
 
   public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
@@ -144,12 +136,17 @@ public class RESTUtil {
   }
 
   /**
-   * Encodes a string using URL encoding
+   * Encodes a string using application/x-www-form-urlencoded encoding, where spaces are encoded as
+   * {@code +}.
+   *
+   * <p>This method is suitable for encoding form data (e.g. OAuth2 token requests) but <b>not</b>
+   * for URL path segments, where {@code +} is a literal character. Use {@link
+   * #encodePathSegment(String)} for path segments.
    *
    * <p>{@link #decodeString(String)} should be used to decode.
    *
    * @param toEncode string to encode
-   * @return UTF-8 encoded string, suitable for use as a URL parameter
+   * @return form-encoded string, suitable for use in application/x-www-form-urlencoded content
    */
   public static String encodeString(String toEncode) {
     Preconditions.checkArgument(toEncode != null, "Invalid string to encode: null");
@@ -157,9 +154,13 @@ public class RESTUtil {
   }
 
   /**
-   * Decodes a URL-encoded string.
+   * Decodes a string that was encoded using application/x-www-form-urlencoded encoding, where
+   * {@code +} is decoded as a space.
    *
-   * <p>See also {@link #encodeString(String)} for URL encoding.
+   * <p>This method is suitable for decoding form data but <b>not</b> for URL path segments. Use
+   * {@link #decodePathSegment(String)} for path segments.
+   *
+   * <p>See also {@link #encodeString(String)} for form encoding.
    *
    * @param encoded a string to decode
    * @return a decoded string
@@ -170,10 +171,37 @@ public class RESTUtil {
   }
 
   /**
+   * Encodes a string for use as a URL path segment per RFC 3986. Spaces are encoded as {@code %20}
+   * (not {@code +}), and other non-unreserved characters are percent-encoded.
+   *
+   * <p>{@link #decodePathSegment(String)} should be used to decode.
+   *
+   * @param segment string to encode
+   * @return percent-encoded string suitable for use in URL path segments
+   */
+  public static String encodePathSegment(String segment) {
+    Preconditions.checkArgument(segment != null, "Invalid string to encode: null");
+    return PercentCodec.RFC3986.encode(segment);
+  }
+
+  /**
+   * Decodes a URL path segment per RFC 3986. Unlike {@link #decodeString(String)}, this method does
+   * <b>not</b> treat {@code +} as a space — it is left as a literal {@code +} character.
+   *
+   * <p>See also {@link #encodePathSegment(String)} for encoding.
+   *
+   * @param encoded a percent-encoded path segment
+   * @return a decoded string
+   */
+  public static String decodePathSegment(String encoded) {
+    Preconditions.checkArgument(encoded != null, "Invalid string to decode: null");
+    return PercentCodec.RFC3986.decode(encoded);
+  }
+
+  /**
    * This converts the given namespace to a string and separates each part in a multipart namespace
    * using the unicode character '\u001f'. Note that this method is different from {@link
-   * RESTUtil#encodeNamespace(Namespace)}, which uses the UTF-8 escaped version of '\u001f', which
-   * is '0x1F'.
+   * RESTUtil#encodeNamespace(Namespace, String)}, which URL-encodes each part of the namespace.
    *
    * <p>{@link #namespaceFromQueryParam(String)} should be used to convert the namespace string back
    * to a {@link Namespace} instance.
@@ -188,8 +216,7 @@ public class RESTUtil {
 
   /**
    * This converts the given namespace to a string and separates each part in a multipart namespace
-   * using the provided unicode separator. Note that this method is different from {@link
-   * RESTUtil#encodeNamespace(Namespace)}, which uses a UTF-8 escaped separator.
+   * using the provided unicode separator.
    *
    * <p>{@link #namespaceFromQueryParam(String, String)} should be used to convert the namespace
    * string back to a {@link Namespace} instance.
@@ -254,31 +281,14 @@ public class RESTUtil {
   }
 
   /**
-   * Returns a String representation of a namespace that is suitable for use in a URL / URI.
+   * Returns a String representation of a namespace that is suitable for use with
+   * application/x-www-form-urlencoded encoding.
    *
-   * <p>This function needs to be called when a namespace is used as a path variable (or query
-   * parameter etc.), to format the namespace per the spec.
-   *
-   * <p>{@link #decodeNamespace} should be used to parse the namespace from a URL parameter.
-   *
-   * @param ns namespace to encode
-   * @return UTF-8 encoded string representing the namespace, suitable for use as a URL parameter
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
-   *     RESTUtil#encodeNamespace(Namespace, String)} instead.
-   */
-  @Deprecated
-  public static String encodeNamespace(Namespace ns) {
-    return encodeNamespace(ns, NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
-  }
-
-  /**
-   * Returns a String representation of a namespace that is suitable for use in a URL / URI.
-   *
-   * <p>This function needs to be called when a namespace is used as a path variable (or query
-   * parameter etc.), to format the namespace per the spec.
+   * <p>This function needs to be called when a namespace is used in a POST request body, to format
+   * the namespace per the spec.
    *
    * <p>{@link RESTUtil#decodeNamespace(String, String)} should be used to parse the namespace from
-   * a URL parameter.
+   * a request body.
    *
    * @param namespace namespace to encode
    * @param separator The namespace separator to be used for encoding. The separator will be used
@@ -300,26 +310,10 @@ public class RESTUtil {
   }
 
   /**
-   * Takes in a string representation of a namespace as used for a URL parameter and returns the
-   * corresponding namespace.
+   * Takes in a string representation of a namespace encoded with application/x-www-form-urlencoded
+   * encoding, and returns the corresponding namespace.
    *
-   * <p>See also {@link #encodeNamespace} for generating correctly formatted URLs.
-   *
-   * @param encodedNs a namespace to decode
-   * @return a namespace
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
-   *     RESTUtil#decodeNamespace(String, String)} instead.
-   */
-  @Deprecated
-  public static Namespace decodeNamespace(String encodedNs) {
-    return decodeNamespace(encodedNs, NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
-  }
-
-  /**
-   * Takes in a string representation of a namespace as used for a URL parameter and returns the
-   * corresponding namespace.
-   *
-   * <p>See also {@link #encodeNamespace} for generating correctly formatted URLs.
+   * <p>See also {@link #encodeNamespace} for generating correctly formatted POST requests.
    *
    * @param encodedNamespace a namespace to decode
    * @param separator The namespace separator to be used as-is for decoding. This should be the same
@@ -343,6 +337,67 @@ public class RESTUtil {
     // Decode levels in place
     for (int i = 0; i < levels.length; i++) {
       levels[i] = decodeString(levels[i]);
+    }
+
+    return Namespace.of(levels);
+  }
+
+  /**
+   * Returns a String representation of a namespace that is suitable for use in a URL path segment
+   * per RFC 3986. Spaces are encoded as {@code %20} (not {@code +}).
+   *
+   * <p>This method should be used instead of {@link #encodeNamespace(Namespace, String)} when the
+   * result is placed into a URL path.
+   *
+   * <p>{@link #decodeNamespaceAsPathSegment(String, String)} should be used to decode the result.
+   *
+   * @param namespace namespace to encode
+   * @param separator The namespace separator to be used for encoding. The separator will be used
+   *     as-is and won't be encoded.
+   * @return percent-encoded string representing the namespace, suitable for use in URL path
+   *     segments
+   */
+  public static String encodeNamespaceAsPathSegment(Namespace namespace, String separator) {
+    Preconditions.checkArgument(namespace != null, "Invalid namespace: null");
+    Preconditions.checkArgument(
+        !Strings.isNullOrEmpty(separator), "Invalid separator: null or empty");
+    String[] levels = namespace.levels();
+    String[] encodedLevels = new String[levels.length];
+
+    for (int i = 0; i < levels.length; i++) {
+      encodedLevels[i] = encodePathSegment(levels[i]);
+    }
+
+    return Joiner.on(separator).join(encodedLevels);
+  }
+
+  /**
+   * Decodes a URL path segment per RFC 3986 into a namespace. Unlike {@link
+   * #decodeNamespace(String, String)}, this method does <b>not</b> treat {@code +} as a space.
+   *
+   * <p>{@link #encodeNamespaceAsPathSegment(Namespace, String)} should be used for encoding path
+   * segments.
+   *
+   * @param encodedNamespace a percent-encoded namespace path segment
+   * @param separator The namespace separator used during encoding
+   * @return a namespace
+   */
+  public static Namespace decodeNamespaceAsPathSegment(String encodedNamespace, String separator) {
+    Preconditions.checkArgument(encodedNamespace != null, "Invalid namespace: null");
+    Preconditions.checkArgument(
+        !Strings.isNullOrEmpty(separator), "Invalid separator: null or empty");
+
+    // use legacy splitter for backwards compatibility in case an old client encoded the namespace
+    // with %1F
+    Splitter splitter =
+        Splitter.on(
+            encodedNamespace.contains(NAMESPACE_SEPARATOR_URLENCODED_UTF_8)
+                ? NAMESPACE_SEPARATOR_URLENCODED_UTF_8
+                : separator);
+    String[] levels = Iterables.toArray(splitter.split(encodedNamespace), String.class);
+
+    for (int i = 0; i < levels.length; i++) {
+      levels[i] = decodePathSegment(levels[i]);
     }
 
     return Namespace.of(levels);
@@ -385,5 +440,48 @@ public class RESTUtil {
    */
   public static Map<String, String> idempotencyHeaders() {
     return ImmutableMap.of(IDEMPOTENCY_KEY_HEADER, UUIDUtil.generateUuidV7().toString());
+  }
+
+  /** Query parameters for the loadCredentials endpoint, from client-side request context. */
+  public static Map<String, String> credentialsQueryParams(Map<String, String> properties) {
+    ImmutableMap.Builder<String, String> queryParams = ImmutableMap.builder();
+    String planId = properties.get(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    if (planId != null) {
+      queryParams.put(RESTCatalogProperties.PLAN_ID_QUERY_PARAMETER, planId);
+    }
+
+    String referencedBy = properties.get(RESTCatalogProperties.REST_REFERENCED_BY);
+    if (referencedBy != null) {
+      queryParams.put(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, referencedBy);
+    }
+
+    return queryParams.build();
+  }
+
+  /**
+   * Encodes a view chain (outermost first) as the {@code referenced-by} value.
+   *
+   * <p>Within an entry, the namespace levels and the view name are encoded like the {@code parent}
+   * query parameter, as the spec requires, and joined by the encoded namespace separator; entries
+   * are joined by a literal comma. The result is already percent-encoded and must reach the wire
+   * verbatim, see {@link HTTPRequest#requestUri()}.
+   */
+  static String encodeReferencedBy(List<TableIdentifier> referencedBy, String namespaceSeparator) {
+    if (referencedBy == null || referencedBy.isEmpty()) {
+      return null;
+    }
+
+    Preconditions.checkArgument(
+        !Strings.isNullOrEmpty(namespaceSeparator), "Invalid separator: null or empty");
+
+    String separator = encodePathSegment(decodeString(namespaceSeparator));
+
+    return referencedBy.stream()
+        .map(
+            ident ->
+                Stream.concat(Arrays.stream(ident.namespace().levels()), Stream.of(ident.name()))
+                    .map(RESTUtil::encodePathSegment)
+                    .collect(Collectors.joining(separator)))
+        .collect(Collectors.joining(","));
   }
 }

@@ -149,7 +149,8 @@ public abstract class SizeBasedFileRewritePlanner<
         MAX_FILE_SIZE_BYTES,
         MIN_INPUT_FILES,
         REWRITE_ALL,
-        MAX_FILE_GROUP_SIZE_BYTES);
+        MAX_FILE_GROUP_SIZE_BYTES,
+        MAX_FILE_GROUP_INPUT_FILES);
   }
 
   @Override

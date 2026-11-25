@@ -25,6 +25,7 @@ import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
 import org.apache.iceberg.encryption.StandardEncryptionManager;
+import org.apache.iceberg.encryption.StandardEncryptionManager.FileEncryptionKeys;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -35,19 +36,21 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   private final FileAppender<ManifestFile> writer;
   private final StandardEncryptionManager standardEncryptionManager;
   private final NativeEncryptionKeyMetadata manifestListKeyMetadata;
-  private final OutputFile outputFile;
+  private boolean closed = false;
+  private FileEncryptionKeys encryptionKeys;
 
   private ManifestListWriter(
       OutputFile file, EncryptionManager encryptionManager, Map<String, String> meta) {
+    OutputFile outputFile;
     if (encryptionManager instanceof StandardEncryptionManager) {
       // ability to encrypt the manifest list key is introduced for standard encryption.
       this.standardEncryptionManager = (StandardEncryptionManager) encryptionManager;
       EncryptedOutputFile encryptedFile = this.standardEncryptionManager.encrypt(file);
-      this.outputFile = encryptedFile.encryptingOutputFile();
+      outputFile = encryptedFile.encryptingOutputFile();
       this.manifestListKeyMetadata = (NativeEncryptionKeyMetadata) encryptedFile.keyMetadata();
     } else {
       this.standardEncryptionManager = null;
-      this.outputFile = file;
+      outputFile = file;
       this.manifestListKeyMetadata = null;
     }
 
@@ -82,6 +85,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   @Override
   public void close() throws IOException {
     writer.close();
+    this.closed = true;
   }
 
   @Override
@@ -93,75 +97,17 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     return null;
   }
 
-  public ManifestListFile toManifestListFile() {
-    if (manifestListKeyMetadata != null && manifestListKeyMetadata.encryptionKey() != null) {
-      String manifestListKeyID =
-          standardEncryptionManager.addManifestListKeyMetadata(
+  FileEncryptionKeys encryptionKeys() {
+    Preconditions.checkState(closed, "Cannot build encryption keys, writer is not closed");
+    if (encryptionKeys == null
+        && manifestListKeyMetadata != null
+        && manifestListKeyMetadata.encryptionKey() != null) {
+      this.encryptionKeys =
+          standardEncryptionManager.registerKeyMetadata(
               manifestListKeyMetadata.copyWithLength(writer.length()));
-      return new BaseManifestListFile(outputFile.location(), manifestListKeyID);
-    } else {
-      return new BaseManifestListFile(outputFile.location(), null);
-    }
-  }
-
-  static class V4Writer extends ManifestListWriter {
-    private final V4Metadata.ManifestFileWrapper wrapper;
-    private Long nextRowId;
-
-    V4Writer(
-        OutputFile snapshotFile,
-        EncryptionManager encryptionManager,
-        long snapshotId,
-        Long parentSnapshotId,
-        long sequenceNumber,
-        long firstRowId) {
-      super(
-          snapshotFile,
-          encryptionManager,
-          ImmutableMap.of(
-              "snapshot-id", String.valueOf(snapshotId),
-              "parent-snapshot-id", String.valueOf(parentSnapshotId),
-              "sequence-number", String.valueOf(sequenceNumber),
-              "first-row-id", String.valueOf(firstRowId),
-              "format-version", "4"));
-      this.wrapper = new V4Metadata.ManifestFileWrapper(snapshotId, sequenceNumber);
-      this.nextRowId = firstRowId;
     }
 
-    @Override
-    protected ManifestFile prepare(ManifestFile manifest) {
-      if (manifest.content() != ManifestContent.DATA || manifest.firstRowId() != null) {
-        return wrapper.wrap(manifest, null);
-      } else {
-        // assign first-row-id and update the next to assign
-        wrapper.wrap(manifest, nextRowId);
-        // leave space for existing and added rows, in case any of the existing data files do not
-        // have an assigned first-row-id (this is the case with manifests from pre-v3 snapshots)
-        this.nextRowId += manifest.existingRowsCount() + manifest.addedRowsCount();
-        return wrapper;
-      }
-    }
-
-    @Override
-    protected FileAppender<ManifestFile> newAppender(OutputFile file, Map<String, String> meta) {
-      try {
-        return InternalData.write(FileFormat.AVRO, file)
-            .schema(V4Metadata.MANIFEST_LIST_SCHEMA)
-            .named("manifest_file")
-            .meta(meta)
-            .overwrite()
-            .build();
-
-      } catch (IOException e) {
-        throw new RuntimeIOException(
-            e, "Failed to create snapshot list writer for path: %s", file.location());
-      }
-    }
-
-    @Override
-    public Long nextRowId() {
-      return nextRowId;
-    }
+    return encryptionKeys;
   }
 
   static class V3Writer extends ManifestListWriter {

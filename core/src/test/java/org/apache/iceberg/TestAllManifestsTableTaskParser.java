@@ -38,19 +38,19 @@ public class TestAllManifestsTableTaskParser {
   @Test
   public void nullCheck() throws Exception {
     StringWriter writer = new StringWriter();
-    JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+    try (JsonGenerator generator = JsonUtil.factory().createGenerator(writer)) {
+      assertThatThrownBy(() -> AllManifestsTableTaskParser.toJson(null, generator))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Invalid manifest task: null");
 
-    assertThatThrownBy(() -> AllManifestsTableTaskParser.toJson(null, generator))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid manifest task: null");
+      assertThatThrownBy(() -> AllManifestsTableTaskParser.toJson(createTask(), null))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Invalid JSON generator: null");
 
-    assertThatThrownBy(() -> AllManifestsTableTaskParser.toJson(createTask(), null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid JSON generator: null");
-
-    assertThatThrownBy(() -> AllManifestsTableTaskParser.fromJson(null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid JSON node for manifest task: null");
+      assertThatThrownBy(() -> AllManifestsTableTaskParser.fromJson(null))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Invalid JSON node for manifest task: null");
+    }
   }
 
   @Test

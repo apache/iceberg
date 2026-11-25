@@ -190,9 +190,9 @@ public class ViewMetadataParser {
     boolean isGzip = Codec.fromFileName(outputFile.location()) == Codec.GZIP;
     OutputStream stream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
     try (OutputStreamWriter writer =
-        new OutputStreamWriter(
-            isGzip ? new GZIPOutputStream(stream) : stream, StandardCharsets.UTF_8)) {
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+            new OutputStreamWriter(
+                isGzip ? new GZIPOutputStream(stream) : stream, StandardCharsets.UTF_8);
+        JsonGenerator generator = JsonUtil.factory().createGenerator(writer)) {
       toJson(metadata, generator);
       generator.flush();
     } catch (IOException e) {

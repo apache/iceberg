@@ -1,0 +1,1142 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.flink.maintenance.operator;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Predicate;
+import org.apache.flink.annotation.Internal;
+import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.typeinfo.Types;
+import org.apache.flink.metrics.Counter;
+import org.apache.flink.metrics.MetricGroup;
+import org.apache.flink.runtime.state.StateInitializationContext;
+import org.apache.flink.runtime.state.StateSnapshotContext;
+import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
+import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.api.watermark.Watermark;
+import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.util.OutputTag;
+import org.apache.iceberg.ContentFile;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
+import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.maintenance.api.Trigger;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.ContentFileUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * Planner for the equality delete conversion pipeline. For each trigger, it picks the oldest
+ * staging snapshot that hasn't been converted yet and emits {@link ReadCommand}s describing the
+ * files its downstream readers and workers must process.
+ *
+ * <p>Each trigger runs three steps in order:
+ *
+ * <ol>
+ *   <li>{@link #refreshStagingCursor}: updates {@link #lastStagingSnapshotId} from the most recent
+ *       committer marker on the target branch.
+ *   <li>{@link #ensureIndexCurrent}: applies the external commits (e.g. compaction) since the
+ *       indexed snapshot to the worker index, or rebuilds it, see {@link
+ *       #externalCommitsSinceIndex} and {@link #deltaReadsMoreThanRebuild}.
+ *   <li>{@link #processStagingSnapshot}: resolve the chosen staging snapshot's eq deletes against
+ *       the (now-current) index, pass through any DV files, and index the snapshot's new data files
+ *       for the next cycle.
+ * </ol>
+ *
+ * Watermarks separate phases that gate the worker's keyed state. The contract is documented on
+ * {@link #advancePhase()}.
+ *
+ * <p>An {@link EqualityConvertPlan} with the current cycle's metadata is emitted via the {@link
+ * #METADATA_STREAM} side output after the read commands. The planner emits phase watermarks before
+ * that plan. A {@link EqualityConvertPlan#cycleStart} marker is emitted first, before any phase
+ * watermark. The marker tells the committer a cycle has started, and the committer holds watermarks
+ * until the commit.
+ *
+ * <p>Assumes a single equality-field set supplied via the builder; staging eq-deletes with a
+ * different {@code equalityFieldIds} fail fast in {@link #retrieveStagingFiles}. Concurrent writes
+ * on the target branch are handled by {@link #ensureIndexCurrent} reindexing the new main commits;
+ * commit-time conflicts are caught by {@code RowDelta.validateFromSnapshot}.
+ */
+@Internal
+public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
+    implements OneInputStreamOperator<Trigger, ReadCommand> {
+
+  private static final Logger LOG = LoggerFactory.getLogger(EqualityConvertPlanner.class);
+
+  public static final OutputTag<EqualityConvertPlan> METADATA_STREAM =
+      new OutputTag<>("metadata-stream") {};
+
+  public static final OutputTag<IndexCommand> CLEAR_BROADCAST_STREAM =
+      new OutputTag<>("clear-broadcast-stream") {};
+
+  private static final String PROCESSED_EQ_DELETE_FILE_NUM_METRIC = "processedEqDeleteFileNum";
+  private static final String PROCESSED_STAGING_SNAPSHOT_NUM_METRIC = "processedStagingSnapshotNum";
+  private static final String SKIPPED_NO_OP_CYCLES_METRIC = "skippedNoOpCycles";
+  private static final String REINDEX_COUNT_METRIC = "reindexCount";
+  private static final String INCREMENTAL_REINDEX_COUNT_METRIC = "incrementalReindexCount";
+
+  private static final int STATE_VERSION = 1;
+
+  private final String tableName;
+  private final String taskName;
+  private final TableLoader tableLoader;
+  private final String stagingBranch;
+  private final String targetBranch;
+  private final boolean stagingOnTargetBranch;
+  // Equality-field-id set the worker keys on. Supplied via the builder; every staging
+  // eq-delete's equalityFieldIds() must match exactly.
+  private final Set<Integer> eqFieldIds;
+
+  // Main snapshot id the worker's index reflects.
+  private transient ListState<Long> indexSnapshotState;
+  // Generation of the worker's current index build.
+  private transient ListState<Long> indexGenerationState;
+  // Staging snapshot the index changed for until its conversion commit shows up on the target.
+  private transient ListState<Long> pendingStagingSnapshotState;
+  // Equality field IDs the index was built with, allows to detect reconfiguration.
+  private transient ListState<Integer> eqFieldIdsState;
+  // Absent in state of a version that recorded the index as current before it was complete.
+  private transient ListState<Integer> stateVersionState;
+
+  private transient Table table;
+
+  private transient Long lastMainSnapshotId;
+  private transient Long lastStagingSnapshotId;
+  private transient Long indexSnapshotId;
+  private transient long indexGeneration;
+  // Staging snapshot the index changed for until its conversion commit shows up on the target
+  // branch, checkpointed so it survives a restore taken mid-cycle.
+  private transient Long pendingStagingSnapshotId;
+
+  private transient long nextPhaseTs;
+
+  private transient Counter processedEqDeleteFileNumCounter;
+  private transient Counter processedStagingSnapshotNumCounter;
+  private transient Counter skippedNoOpCyclesCounter;
+  private transient Counter reindexCounter;
+  private transient Counter incrementalReindexCounter;
+  private transient Counter errorCounter;
+
+  public EqualityConvertPlanner(
+      String tableName,
+      String taskName,
+      TableLoader tableLoader,
+      String stagingBranch,
+      String targetBranch,
+      Set<Integer> eqFieldIds) {
+    this.tableName = tableName;
+    this.taskName = taskName;
+    this.tableLoader = tableLoader;
+    this.stagingBranch = stagingBranch;
+    this.targetBranch = targetBranch;
+    this.stagingOnTargetBranch = stagingBranch.equals(targetBranch);
+    Preconditions.checkArgument(
+        eqFieldIds != null && !eqFieldIds.isEmpty(), "eqFieldIds must not be null or empty");
+    this.eqFieldIds = ImmutableSet.copyOf(eqFieldIds);
+  }
+
+  @Override
+  public void open() throws Exception {
+    super.open();
+    if (!tableLoader.isOpen()) {
+      tableLoader.open();
+    }
+
+    table = tableLoader.loadTable();
+
+    MetricGroup taskMetricGroup =
+        TableMaintenanceMetrics.groupFor(getRuntimeContext(), tableName, taskName, 0);
+    this.processedEqDeleteFileNumCounter =
+        taskMetricGroup.counter(PROCESSED_EQ_DELETE_FILE_NUM_METRIC);
+    this.processedStagingSnapshotNumCounter =
+        taskMetricGroup.counter(PROCESSED_STAGING_SNAPSHOT_NUM_METRIC);
+    this.skippedNoOpCyclesCounter = taskMetricGroup.counter(SKIPPED_NO_OP_CYCLES_METRIC);
+    this.reindexCounter = taskMetricGroup.counter(REINDEX_COUNT_METRIC);
+    this.incrementalReindexCounter = taskMetricGroup.counter(INCREMENTAL_REINDEX_COUNT_METRIC);
+    this.errorCounter = taskMetricGroup.counter(TableMaintenanceMetrics.ERROR_COUNTER);
+  }
+
+  @Override
+  public void initializeState(StateInitializationContext context) throws Exception {
+    super.initializeState(context);
+    indexSnapshotState =
+        context
+            .getOperatorStateStore()
+            .getListState(new ListStateDescriptor<>("indexSnapshotId", Types.LONG));
+
+    indexSnapshotId = null;
+    for (Long stateValue : indexSnapshotState.get()) {
+      Preconditions.checkState(
+          indexSnapshotId == null, "indexSnapshotId state should hold at most one value");
+      indexSnapshotId = stateValue;
+    }
+
+    indexGenerationState =
+        context
+            .getOperatorStateStore()
+            .getListState(new ListStateDescriptor<>("indexGeneration", Types.LONG));
+
+    Long restoredGeneration = null;
+    for (Long stateValue : indexGenerationState.get()) {
+      Preconditions.checkState(
+          restoredGeneration == null, "indexGeneration state should hold at most one value");
+      restoredGeneration = stateValue;
+    }
+
+    indexGeneration = restoredGeneration != null ? restoredGeneration : 0L;
+
+    eqFieldIdsState =
+        context
+            .getOperatorStateStore()
+            .getListState(new ListStateDescriptor<>("eqFieldIds", Types.INT));
+    Set<Integer> restoredEqFieldIds = Sets.newHashSet(eqFieldIdsState.get());
+    Preconditions.checkState(
+        restoredEqFieldIds.isEmpty() || restoredEqFieldIds.equals(eqFieldIds),
+        "Equality field IDs changed across restart: restored=%s, configured=%s. "
+            + "Reconfiguring equality-field columns is not supported; "
+            + "restart from a clean state (no savepoint).",
+        restoredEqFieldIds,
+        eqFieldIds);
+
+    pendingStagingSnapshotState =
+        context
+            .getOperatorStateStore()
+            .getListState(new ListStateDescriptor<>("pendingStagingSnapshotId", Types.LONG));
+
+    pendingStagingSnapshotId = null;
+    for (Long stateValue : pendingStagingSnapshotState.get()) {
+      Preconditions.checkState(
+          pendingStagingSnapshotId == null,
+          "pendingStagingSnapshotId state should hold at most one value");
+      pendingStagingSnapshotId = stateValue;
+    }
+
+    stateVersionState =
+        context
+            .getOperatorStateStore()
+            .getListState(new ListStateDescriptor<>("stateVersion", Types.INT));
+
+    // The index recorded by an older version can be incomplete while it looks current.
+    if (context.isRestored() && !stateVersionState.get().iterator().hasNext()) {
+      LOG.info(
+          "Restored state of an older version for table {} task {}, rebuilding the worker index.",
+          tableName,
+          taskName);
+      indexSnapshotId = null;
+    }
+  }
+
+  @Override
+  public void snapshotState(StateSnapshotContext context) throws Exception {
+    super.snapshotState(context);
+    indexSnapshotState.clear();
+    if (indexSnapshotId != null) {
+      indexSnapshotState.add(indexSnapshotId);
+    }
+
+    indexGenerationState.clear();
+    indexGenerationState.add(indexGeneration);
+
+    eqFieldIdsState.clear();
+    for (int id : eqFieldIds) {
+      eqFieldIdsState.add(id);
+    }
+
+    pendingStagingSnapshotState.clear();
+    if (pendingStagingSnapshotId != null) {
+      pendingStagingSnapshotState.add(pendingStagingSnapshotId);
+    }
+
+    stateVersionState.clear();
+    stateVersionState.add(STATE_VERSION);
+  }
+
+  @Override
+  public void processElement(StreamRecord<Trigger> element) throws Exception {
+    long triggerTs = element.getTimestamp();
+    nextPhaseTs = Math.max(triggerTs, nextPhaseTs + 1);
+
+    // Mark cycle start before the first phase watermark. The committer holds back watermarks from
+    // here until the plan arrives; without the marker it cannot tell a phase watermark emitted
+    // before the plan from an idle watermark that must be forwarded, and forwarding the former
+    // would release the maintenance lock before the commit.
+    output.collect(METADATA_STREAM, new StreamRecord<>(EqualityConvertPlan.cycleStart(triggerTs)));
+
+    Long currentMainSnapshotId = lastMainSnapshotId;
+    try {
+      table.refresh();
+      Snapshot mainSnapshot = table.snapshot(targetBranch);
+      currentMainSnapshotId = mainSnapshot != null ? mainSnapshot.snapshotId() : null;
+
+      refreshStagingCursor(mainSnapshot);
+
+      Snapshot nextToProcess =
+          nextUnprocessedStagingSnapshot(table.snapshot(stagingBranch), mainSnapshot);
+
+      ensureIndexCurrent(mainSnapshot);
+
+      if (nextToProcess == null) {
+        LOG.info("Nothing new to convert on staging branch '{}'.", stagingBranch);
+        emitNoOpResult(triggerTs, currentMainSnapshotId);
+        return;
+      }
+
+      processStagingSnapshot(nextToProcess, triggerTs, currentMainSnapshotId);
+    } catch (Exception e) {
+      LOG.error("Error processing equality deletes for table {} task {}", tableName, taskName, e);
+      output.collect(TaskResultAggregator.ERROR_STREAM, new StreamRecord<>(e));
+      errorCounter.inc();
+      emitDrainResult(triggerTs, currentMainSnapshotId);
+    }
+  }
+
+  /**
+   * Updates {@link #lastStagingSnapshotId} from the most recent committer marker on the target
+   * branch. Does nothing when the target has not moved since the last trigger and the cursor
+   * therefore cannot have changed.
+   */
+  private void refreshStagingCursor(Snapshot mainSnapshot) {
+    Long currentMainSnapshotId = mainSnapshot != null ? mainSnapshot.snapshotId() : null;
+
+    if (Objects.equals(lastMainSnapshotId, currentMainSnapshotId)) {
+      return;
+    }
+
+    updateLastStagingSnapshotId(discoverLastCommittedWork(mainSnapshot));
+  }
+
+  /** Brings the worker index up to date with {@code mainSnapshot} by a delta or a rebuild. */
+  private void ensureIndexCurrent(Snapshot mainSnapshot) {
+    if (mainSnapshot == null) {
+      // The target branch has no rows, so the index must not have any either. A new generation
+      // makes the worker drop the rows indexed so far, e.g. by a cycle that did not commit.
+      indexGeneration++;
+      indexSnapshotId = null;
+      pendingStagingSnapshotId = null;
+      lastMainSnapshotId = null;
+      return;
+    }
+
+    List<Snapshot> externalCommits = externalCommitsSinceIndex(mainSnapshot);
+    // If anything goes wrong, the index will be rebuilt.
+    indexSnapshotId = null;
+    if (externalCommits == null || deltaReadsMoreThanRebuild(mainSnapshot, externalCommits)) {
+      rebuildIndex(mainSnapshot);
+    } else {
+      emitIncrementalReindex(mainSnapshot, externalCommits);
+    }
+
+    indexSnapshotId = mainSnapshot.snapshotId();
+    pendingStagingSnapshotId = null;
+    lastMainSnapshotId = mainSnapshot.snapshotId();
+  }
+
+  /**
+   * Returns the commits after the indexed snapshot that this converter did not make, newest first,
+   * or {@code null} if the index needs a rebuild. The conversion commit of the planned staging
+   * snapshot is not among them, as its cycle already updated the index.
+   *
+   * <p>After a restore, the conversion commit can come from a retry that ran on an index rebuilt at
+   * a later head. The restored index plus the delta then also holds the rows the external commits
+   * added and the retry's eq deletes matched. The conversion commit deleted those rows, so
+   * resolving them again only adds a position the DV already holds. A rebuild that fails part way
+   * clears {@link #indexSnapshotId}, and the committer does not commit a conversion on a generation
+   * whose update failed downstream.
+   */
+  private List<Snapshot> externalCommitsSinceIndex(Snapshot mainSnapshot) {
+    if (indexSnapshotId == null) {
+      return null;
+    }
+
+    List<Snapshot> externalCommits = Lists.newArrayList();
+    boolean plannedSnapshotCommitted = false;
+    Snapshot current = mainSnapshot;
+    while (current != null && current.snapshotId() != indexSnapshotId) {
+      String committedStaging =
+          current.summary().get(EqualityConvertCommitter.COMMITTED_STAGING_SNAPSHOT_PROPERTY);
+      if (committedStaging == null) {
+        externalCommits.add(current);
+      } else if (pendingStagingSnapshotId != null
+          && Long.parseLong(committedStaging) == pendingStagingSnapshotId) {
+        plannedSnapshotCommitted = true;
+      } else {
+        return null;
+      }
+
+      current = parentOf(current);
+    }
+
+    // A null current means the walk passed the root, or an expired parent, without reaching the
+    // indexed snapshot.
+    if (current == null || (pendingStagingSnapshotId != null && !plannedSnapshotCommitted)) {
+      return null;
+    }
+
+    return externalCommits;
+  }
+
+  private boolean deltaReadsMoreThanRebuild(Snapshot mainSnapshot, List<Snapshot> externalCommits) {
+    // The manifest list counts bound the delta before any manifest is read or any DataFile is held.
+    // A file added and removed within the range counts twice, although the delta reads it once.
+    long deltaRows = 0L;
+    for (Snapshot snapshot : externalCommits) {
+      for (ManifestFile manifest : snapshot.dataManifests(table.io())) {
+        if (Objects.equals(manifest.snapshotId(), snapshot.snapshotId())) {
+          if (!hasRowCounts(manifest)) {
+            logMissingRowCounts(manifest, mainSnapshot);
+            return true;
+          }
+
+          deltaRows += manifest.addedRowsCount() + manifest.deletedRowsCount();
+        }
+      }
+    }
+
+    if (deltaRows == 0L) {
+      return false;
+    }
+
+    long rebuildRows = 0L;
+    for (ManifestFile manifest : mainSnapshot.dataManifests(table.io())) {
+      if (!hasRowCounts(manifest)) {
+        logMissingRowCounts(manifest, mainSnapshot);
+        return true;
+      }
+
+      rebuildRows += manifest.addedRowsCount() + manifest.existingRowsCount();
+    }
+
+    if (deltaRows <= rebuildRows) {
+      return false;
+    }
+
+    LOG.info(
+        "The external commits since the indexed snapshot change {} rows, more than the {} rows of "
+            + "main snapshot {}. Rebuilding the worker index instead of applying them.",
+        deltaRows,
+        rebuildRows,
+        mainSnapshot.snapshotId());
+    return true;
+  }
+
+  // The row counts are required by the spec, but a writer may leave them out.
+  private static boolean hasRowCounts(ManifestFile manifest) {
+    return manifest.addedRowsCount() != null
+        && manifest.existingRowsCount() != null
+        && manifest.deletedRowsCount() != null;
+  }
+
+  private static void logMissingRowCounts(ManifestFile manifest, Snapshot mainSnapshot) {
+    LOG.warn(
+        "Manifest {} of snapshot {} has no row counts. "
+            + "Rebuilding the worker index instead of applying the external commits to main snapshot {}.",
+        manifest.path(),
+        manifest.snapshotId(),
+        mainSnapshot.snapshotId());
+  }
+
+  /** Applies the data-file changes of {@code externalCommits} to the worker index in one phase. */
+  private void emitIncrementalReindex(Snapshot mainSnapshot, List<Snapshot> externalCommits) {
+    int addedFileNum = 0;
+    int removedFileNum = 0;
+    Set<String> removedLater = Sets.newHashSet();
+    Set<String> addedLater = Sets.newHashSet();
+
+    // Traverse from latest to oldest to figure out which files have been added-then-deleted.
+    // We don't have a defined ordering in the parallel reader tasks, which is why we need to
+    // prevent the same file being added and removed. We can simply skip processing it in that case.
+    for (Snapshot snapshot : externalCommits) {
+      if (!hasFileChanges(
+          snapshot,
+          manifest -> manifest.hasAddedFiles() || manifest.hasDeletedFiles(),
+          SnapshotSummary.ADDED_FILES_PROP,
+          SnapshotSummary.ADDED_DELETE_FILES_PROP,
+          SnapshotSummary.DELETED_FILES_PROP)) {
+        // No data added or removed, e.g. a manifest rewrite, for which SnapshotChanges would read
+        // every manifest to find no file change. Skip.
+        continue;
+      }
+
+      SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+      validateTargetDeleteFiles(snapshot, changes);
+
+      for (DataFile dataFile : changes.addedDataFiles()) {
+        // Make sure to not index a file which has already been removed.
+        if (!removedLater.remove(dataFile.location())) {
+          addedLater.add(dataFile.location());
+          emitAddedDataFile(
+              mainSnapshot, // Column stats cost memory and the reader doesn't need them.
+              dataFile.copyWithoutStats());
+          addedFileNum++;
+        }
+      }
+
+      for (DataFile dataFile : changes.removedDataFiles()) {
+        // The worker could apply this removal after the newer add of the same file and lose its
+        // rows. Failing makes the next trigger rebuild the index.
+        Preconditions.checkState(
+            !addedLater.contains(dataFile.location()),
+            "Data file %s is removed and added again within the delta to main snapshot %s. The next trigger rebuilds the worker index",
+            dataFile.location(),
+            mainSnapshot.snapshotId());
+        removedLater.add(dataFile.location());
+        // We need to emit the removed file even if an earlier snapshot in the range adds the
+        // file, which we will detect and skip. Removing a file which is never added will not change
+        // the index. Otherwise, we would have to traverse the snapshot chain twice.
+        emitRemovedDataFile(mainSnapshot, dataFile);
+        removedFileNum++;
+      }
+    }
+
+    if (addedFileNum == 0 && removedFileNum == 0) {
+      return;
+    }
+
+    incrementalReindexCounter.inc();
+    LOG.info(
+        "Incrementally reindexing worker index to main snapshot {} for field IDs {}: {} added and "
+            + "{} removed data files.",
+        mainSnapshot.snapshotId(),
+        eqFieldIds,
+        addedFileNum,
+        removedFileNum);
+    advancePhase();
+  }
+
+  private void emitRemovedDataFile(Snapshot mainSnapshot, DataFile dataFile) {
+    output.collect(
+        new StreamRecord<>(
+            ReadCommand.removedDataFile(
+                reindexTask(dataFile),
+                mainSnapshot.snapshotId(),
+                indexGeneration,
+                dataSequenceNumber(dataFile)),
+            nextPhaseTs));
+  }
+
+  private void emitAddedDataFile(Snapshot mainSnapshot, DataFile dataFile) {
+    output.collect(
+        new StreamRecord<>(
+            ReadCommand.dataFile(
+                reindexTask(dataFile),
+                mainSnapshot.snapshotId(),
+                indexGeneration,
+                dataSequenceNumber(dataFile)),
+            nextPhaseTs));
+  }
+
+  // Mirrors the reader's check on the delete files of a rebuild.
+  private void validateTargetDeleteFiles(Snapshot snapshot, SnapshotChanges changes) {
+    if (stagingOnTargetBranch) {
+      // On a shared branch, equality deletes on the target are the converter's input.
+      return;
+    }
+
+    for (DeleteFile deleteFile : changes.addedDeleteFiles()) {
+      Preconditions.checkState(
+          deleteFile.content() != FileContent.EQUALITY_DELETES,
+          "Snapshot %s on target branch '%s' adds an equality delete file %s; the converter "
+              + "expects equality deletes only on the staging branch, converted to DVs on the "
+              + "target.",
+          snapshot.snapshotId(),
+          targetBranch,
+          deleteFile.location());
+    }
+  }
+
+  private FileScanTask reindexTask(DataFile dataFile) {
+    // The task carries no DVs, and a DV added to a retained file is ignored, so the positions these
+    // DVs delete stay indexed. A Flink writer adds such a DV for rows it updates within one
+    // checkpoint. Resolving one only adds a position the DV already holds.
+    return new FlinkAddedRowsScanTask(dataFile, table.specs().get(dataFile.specId()));
+  }
+
+  /**
+   * Re-emits every data row on {@code mainSnapshot} so the worker's index holds all their positions
+   * again, preceded by a CLEAR_INDEX broadcast that evicts keyed entries the re-emission will not
+   * re-add (e.g. a PK whose data file was removed by a CoW commit). The broadcast also goes out
+   * when the index is not trusted, as restored state of an older version, an emptied target, or a
+   * rebuild or delta that failed part way can leave such entries.
+   *
+   * <p>The worker detects stale state by comparing the generation stamped on the commands it
+   * receives with the one it stored, so every rebuild hands out a higher generation, including a
+   * rebuild while the target branch stands still.
+   *
+   * <p>Clears {@link #indexSnapshotId} before emitting anything, and the caller records the head
+   * only after this returns. Neither the next trigger nor a restore from a checkpoint taken after a
+   * rebuild that failed part way trusts the index it left.
+   */
+  private void rebuildIndex(Snapshot mainSnapshot) {
+    LOG.info(
+        "Reindexing worker index from main snapshot {} for field IDs {}.",
+        mainSnapshot.snapshotId(),
+        eqFieldIds);
+
+    indexSnapshotId = null;
+    long generation = indexGeneration + 1;
+    output.collect(
+        CLEAR_BROADCAST_STREAM,
+        new StreamRecord<>(IndexCommand.clearBeforeReindex(mainSnapshot.snapshotId(), generation)));
+    reindexCounter.inc();
+
+    indexGeneration = generation;
+    emitMainDataReadCommands(mainSnapshot);
+  }
+
+  private void updateLastStagingSnapshotId(LastCommittedWork info) {
+    if (info.lastCommittedStaging() != null) {
+      lastStagingSnapshotId = info.lastCommittedStaging();
+      return;
+    }
+
+    Preconditions.checkState(
+        lastMainSnapshotId == null || lastStagingSnapshotId == null || info.reachedLastInspected(),
+        "No COMMITTED_STAGING_SNAPSHOT marker reachable on target branch '%s' for table %s, "
+            + "but a prior marker was seen (lastStagingSnapshotId=%s). Target may have been "
+            + "rewritten (rollback, replace_main, or snapshot expiration). "
+            + "Manual intervention required.",
+        targetBranch,
+        tableName,
+        lastStagingSnapshotId);
+  }
+
+  /**
+   * Walks main back from head looking for the most recent snapshot tagged with {@link
+   * EqualityConvertCommitter#COMMITTED_STAGING_SNAPSHOT_PROPERTY}. Returns the staging snapshot id
+   * recorded there, or {@code null} if not reached.
+   *
+   * <p>The walk stops at whichever comes first:
+   *
+   * <ul>
+   *   <li>The first snapshot carrying the committer marker.
+   *   <li>{@link #lastMainSnapshotId} — anything older was inspected on a previous trigger.
+   * </ul>
+   */
+  private LastCommittedWork discoverLastCommittedWork(Snapshot mainSnapshot) {
+    Long lastCommittedStaging = null;
+    boolean reachedLastInspected = false;
+    Snapshot current = mainSnapshot;
+    while (current != null) {
+      if (lastMainSnapshotId != null && current.snapshotId() == lastMainSnapshotId) {
+        reachedLastInspected = true;
+        break;
+      }
+
+      String prop =
+          current.summary().get(EqualityConvertCommitter.COMMITTED_STAGING_SNAPSHOT_PROPERTY);
+      if (prop != null) {
+        lastCommittedStaging = Long.parseLong(prop);
+        break;
+      }
+
+      current = parentOf(current);
+    }
+
+    return new LastCommittedWork(lastCommittedStaging, reachedLastInspected);
+  }
+
+  private record LastCommittedWork(Long lastCommittedStaging, boolean reachedLastInspected) {}
+
+  /**
+   * Walks staging history from head back to the stop point and returns the oldest unprocessed
+   * snapshot to convert this cycle, or {@code null} if there's nothing new.
+   *
+   * <p>The stop point is:
+   *
+   * <ul>
+   *   <li>the last-processed staging snapshot, if known;
+   *   <li>otherwise, on cold start with {@code stagingBranch != targetBranch}, the common ancestor
+   *       with target;
+   *   <li>otherwise, on cold start with {@code stagingBranch == targetBranch}, the root of history
+   *       ({@code null}). {@link #shouldSkip} filters already-converted snapshots in O(1) via the
+   *       {@code COMMITTED_STAGING_SNAPSHOT_PROPERTY} marker, and pure-insert snapshots via the
+   *       same-branch eq-delete predicate.
+   * </ul>
+   *
+   * <p>When {@code stagingBranch == targetBranch}, the writer commits eq-deletes and data files
+   * directly to target; the converter performs in-place eq-delete-to-DV compaction. On cold start
+   * we walk the full history so eq-deletes committed before the converter started are still picked
+   * up.
+   */
+  private Snapshot nextUnprocessedStagingSnapshot(Snapshot stagingHead, Snapshot mainSnapshot) {
+    if (stagingHead == null) {
+      return null;
+    }
+
+    Long stopAt;
+    if (lastStagingSnapshotId != null) {
+      stopAt = lastStagingSnapshotId;
+    } else if (stagingOnTargetBranch) {
+      stopAt = null;
+    } else {
+      stopAt = findCommonAncestor(stagingHead, mainSnapshot);
+    }
+
+    List<Snapshot> unprocessed = Lists.newArrayList();
+    Snapshot current = stagingHead;
+    while (current != null) {
+      if (stopAt != null && current.snapshotId() == stopAt) {
+        break;
+      }
+
+      unprocessed.add(current);
+      current = parentOf(current);
+    }
+
+    for (Snapshot snapshot : Lists.reverse(unprocessed)) {
+      if (!shouldSkip(snapshot)) {
+        return snapshot;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolves the eq deletes in {@code stagingSnapshot} against the current index and emits the
+   * cycle's metadata. Phase ordering (separated by watermarks):
+   *
+   * <ol>
+   *   <li>Eq delete read commands. Eq deletes resolve in the worker.
+   *   <li>Staging data files. Indexed for the NEXT cycle's eq-delete resolution.
+   * </ol>
+   *
+   * Cold-start bootstrap of the index from main data is handled separately in {@link
+   * #processElement}, which runs once before the first cycle.
+   */
+  private void processStagingSnapshot(
+      Snapshot stagingSnapshot, long triggerTs, Long currentMainSnapshotId) {
+
+    StagingInputs inputs = retrieveStagingFiles(stagingSnapshot);
+    Preconditions.checkState(
+        !inputs.isEmpty(),
+        "Staging snapshot %s has no convertible inputs; shouldSkip should have filtered it.",
+        stagingSnapshot.snapshotId());
+
+    // Recorded only once the inputs are known to be convertible: a snapshot that fails validation
+    // consumes no index entries, so it must not make later triggers rebuild the index.
+    pendingStagingSnapshotId = stagingSnapshot.snapshotId();
+
+    emitDeletePhase(inputs.eqDeleteFiles());
+    emitSnapshotDataPhase(inputs.newDataFiles());
+
+    LOG.info(
+        "Emitted read commands for {} new data files from staging branch '{}'.",
+        inputs.newDataFiles().size(),
+        stagingBranch);
+
+    processedStagingSnapshotNumCounter.inc();
+
+    output.collect(
+        METADATA_STREAM,
+        new StreamRecord<>(
+            new EqualityConvertPlan(
+                inputs.newDataFiles(),
+                inputs.stagingDVFiles(),
+                inputs.eqDeleteFiles(),
+                stagingSnapshot.snapshotId(),
+                currentMainSnapshotId,
+                triggerTs,
+                nextPhaseTs,
+                indexGeneration)));
+
+    advancePhase();
+  }
+
+  /**
+   * Classifies the files added by {@code stagingSnapshot} into data files, eq delete files, and DV
+   * files. Throws if the snapshot:
+   *
+   * <ul>
+   *   <li>Removes data files (rewrites on the staging branch aren't supported).
+   *   <li>Contains V2 positional delete files (the converter expects a V3 staging branch written by
+   *       Flink, which produces only deletion vectors for deletes).
+   *   <li>Contains an eq-delete file whose {@code equalityFieldIds()} doesn't match the
+   *       builder-configured set (silent wrong-key serialization otherwise).
+   * </ul>
+   */
+  private StagingInputs retrieveStagingFiles(Snapshot stagingSnapshot) {
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(stagingSnapshot).build();
+
+    // Rewrites on the staging branch would require rewriting the corresponding DVs against new
+    // data files on target. Not implemented; fail fast instead of silently dropping work.
+    if (changes.removedDataFiles().iterator().hasNext()) {
+      throw new IllegalStateException(
+          String.format(
+              "Staging snapshot %s on branch '%s' removes data files; "
+                  + "equality delete conversion does not support rewrites on the staging branch. "
+                  + "Run compaction on the target branch instead.",
+              stagingSnapshot.snapshotId(), stagingBranch));
+    }
+
+    List<DataFile> newDataFiles = Lists.newArrayList();
+    List<DeleteFile> stagingDVFiles = Lists.newArrayList();
+    List<DeleteFile> eqDeleteFiles = Lists.newArrayList();
+
+    for (DataFile dataFile : changes.addedDataFiles()) {
+      newDataFiles.add(dataFile);
+    }
+
+    for (DeleteFile deleteFile : changes.addedDeleteFiles()) {
+      if (deleteFile.content() == FileContent.EQUALITY_DELETES) {
+        Set<Integer> deleteFieldIds = Sets.newHashSet(deleteFile.equalityFieldIds());
+        Preconditions.checkState(
+            deleteFieldIds.equals(eqFieldIds),
+            "Staging snapshot %s on branch '%s' contains an equality delete file %s with "
+                + "equalityFieldIds=%s, which does not match the configured eqFieldIds=%s. "
+                + "The writer must use the same equality field IDs as the converter.",
+            stagingSnapshot.snapshotId(),
+            stagingBranch,
+            deleteFile.location(),
+            deleteFieldIds,
+            eqFieldIds);
+        validateDeleteSpecPartitionColumns(stagingSnapshot, deleteFile);
+        eqDeleteFiles.add(deleteFile);
+      } else if (ContentFileUtil.isDV(deleteFile)) {
+        stagingDVFiles.add(deleteFile);
+      } else {
+        throw new IllegalStateException(
+            String.format(
+                "Staging snapshot %s on branch '%s' contains a V2 positional delete file (%s); "
+                    + "equality delete conversion expects a V3 staging branch written by Flink, "
+                    + "which produces only deletion vectors for deletes.",
+                stagingSnapshot.snapshotId(), stagingBranch, deleteFile.location()));
+      }
+    }
+
+    return new StagingInputs(newDataFiles, stagingDVFiles, eqDeleteFiles);
+  }
+
+  private void validateDeleteSpecPartitionColumns(Snapshot stagingSnapshot, DeleteFile deleteFile) {
+    PartitionSpec spec = table.specs().get(deleteFile.specId());
+    for (PartitionField field : spec.fields()) {
+      Preconditions.checkState(
+          eqFieldIds.contains(field.sourceId()),
+          "Staging snapshot %s on branch '%s' contains an equality delete file %s under spec %s, "
+              + "which partitions by field '%s' (source id %s) that is not an equality field %s. "
+              + "Partition columns must be a subset of the equality fields.",
+          stagingSnapshot.snapshotId(),
+          stagingBranch,
+          deleteFile.location(),
+          spec.specId(),
+          field.name(),
+          field.sourceId(),
+          eqFieldIds);
+    }
+  }
+
+  /** Files added by one staging snapshot, classified for cycle emission. */
+  private record StagingInputs(
+      List<DataFile> newDataFiles,
+      List<DeleteFile> stagingDVFiles,
+      List<DeleteFile> eqDeleteFiles) {
+
+    boolean isEmpty() {
+      return newDataFiles.isEmpty() && eqDeleteFiles.isEmpty() && stagingDVFiles.isEmpty();
+    }
+  }
+
+  private void emitDeletePhase(List<DeleteFile> eqDeleteFiles) {
+    for (DeleteFile deleteFile : eqDeleteFiles) {
+      PartitionSpec spec = table.specs().get(deleteFile.specId());
+      output.collect(
+          new StreamRecord<>(
+              ReadCommand.eqDeleteFile(
+                  deleteFile,
+                  spec,
+                  indexSnapshotId,
+                  indexGeneration,
+                  dataSequenceNumber(deleteFile)),
+              nextPhaseTs));
+      processedEqDeleteFileNumCounter.inc();
+    }
+
+    advancePhase();
+  }
+
+  private void emitSnapshotDataPhase(List<DataFile> snapshotDataFiles) {
+    // Shared-branch skip: when stagingBranch == targetBranch, these files are already on target
+    // and were indexed by bootstrap/reindex. Re-emitting would duplicate entries in
+    // dataRowPositions.
+    if (!stagingOnTargetBranch) {
+      for (DataFile dataFile : snapshotDataFiles) {
+        PartitionSpec spec = table.specs().get(dataFile.specId());
+        output.collect(
+            new StreamRecord<>(
+                ReadCommand.stagingDataFile(
+                    new FlinkAddedRowsScanTask(dataFile, spec),
+                    indexSnapshotId,
+                    indexGeneration,
+                    dataSequenceNumber(dataFile)),
+                nextPhaseTs));
+      }
+    }
+
+    advancePhase();
+  }
+
+  private void emitNoOpResult(long triggerTimestamp, Long currentMainSnapshotId) {
+    skippedNoOpCyclesCounter.inc();
+    emitDrainResult(triggerTimestamp, currentMainSnapshotId);
+  }
+
+  /** Emits an empty plan result and advances the phase so the pipeline drains. */
+  private void emitDrainResult(long triggerTimestamp, Long currentMainSnapshotId) {
+    output.collect(
+        METADATA_STREAM,
+        new StreamRecord<>(
+            EqualityConvertPlan.noOp(
+                currentMainSnapshotId, triggerTimestamp, nextPhaseTs, indexGeneration)));
+    advancePhase();
+  }
+
+  /**
+   * Emits {@link ReadCommand}s for every data file on {@code mainSnapshot} so the worker indexes
+   * them for the configured equality-field set. Existing DVs attached to a data file are loaded by
+   * the reader and their positions are skipped. V2 positional deletes are not expected on main; the
+   * reader throws if it encounters one. Equality deletes attached to the scan task are skipped
+   * during indexing (they are processed via the planner's eq-delete read commands).
+   */
+  private void emitMainDataReadCommands(Snapshot mainSnapshot) {
+    long commitSnapshotId = mainSnapshot.snapshotId();
+
+    try (CloseableIterable<FileScanTask> tasks =
+        table.newScan().useSnapshot(commitSnapshotId).planFiles()) {
+      for (FileScanTask task : tasks) {
+        output.collect(
+            new StreamRecord<>(
+                ReadCommand.dataFile(
+                    task, commitSnapshotId, indexGeneration, dataSequenceNumber(task.file())),
+                nextPhaseTs));
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to plan files for main index", e);
+    }
+
+    LOG.info(
+        "Emitted main data read commands for field IDs {} from snapshot {}.",
+        eqFieldIds,
+        commitSnapshotId);
+
+    advancePhase();
+  }
+
+  /**
+   * Emits a phase-end watermark and bumps the phase timestamp. Every phase-emitting method must
+   * call this exactly once after its records; the worker uses these watermarks to gate keyed-state
+   * transitions. Missing or extra calls silently break ordering.
+   */
+  private void advancePhase() {
+    output.emitWatermark(new Watermark(nextPhaseTs));
+    nextPhaseTs++;
+  }
+
+  /**
+   * Returns {@code true} if {@code snapshot} can be skipped:
+   *
+   * <ul>
+   *   <li>It was already committed by us (carries {@link
+   *       EqualityConvertCommitter#COMMITTED_STAGING_SNAPSHOT_PROPERTY}), OR
+   *   <li>it adds no data or delete files (e.g. delete-file-only removals), OR
+   *   <li>{@code stagingBranch == targetBranch} and the snapshot adds no equality-delete files.
+   *       Pure-insert (and data-file-only) commits on the shared branch don't need a conversion
+   *       cycle: their data is already on target, and the worker's index stays fresh via {@link
+   *       #ensureIndexCurrent} when the next eq-delete arrives.
+   * </ul>
+   *
+   * <p>The checks use the summary counts of the snapshot when it reports them. Otherwise they read
+   * the manifest list of the snapshot and, on a shared branch, the delete manifests the snapshot
+   * wrote. Reading the data files happens later in {@link #retrieveStagingFiles} only for the
+   * chosen snapshot.
+   */
+  private boolean shouldSkip(Snapshot snapshot) {
+    if (snapshot
+        .summary()
+        .containsKey(EqualityConvertCommitter.COMMITTED_STAGING_SNAPSHOT_PROPERTY)) {
+      return true;
+    }
+
+    if (!hasFileChanges(
+        snapshot,
+        ManifestFile::hasAddedFiles,
+        SnapshotSummary.ADDED_FILES_PROP,
+        SnapshotSummary.ADDED_DELETE_FILES_PROP)) {
+      LOG.info(
+          "Skipping staging snapshot {}: no added data or delete files.", snapshot.snapshotId());
+      return true;
+    }
+
+    if (stagingOnTargetBranch && !addsEqualityDeletes(snapshot)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Iceberg Java leaves out zero counts, and other writers may leave out counts of any value, so a
+   * missing count falls back to the manifest list.
+   */
+  private boolean hasFileChanges(
+      Snapshot snapshot, Predicate<ManifestFile> manifestCheck, String... countProperties) {
+    boolean allReported = true;
+    for (String property : countProperties) {
+      String count = snapshot.summary().get(property);
+      if (count == null) {
+        allReported = false;
+      } else if (Long.parseLong(count) > 0) {
+        return true;
+      }
+    }
+
+    return !allReported && checkManifestList(snapshot, manifestCheck);
+  }
+
+  private boolean checkManifestList(Snapshot snapshot, Predicate<ManifestFile> predicate) {
+    for (ManifestFile manifest : snapshot.allManifests(table.io())) {
+      if (Objects.equals(manifest.snapshotId(), snapshot.snapshotId())
+          && predicate.test(manifest)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private boolean addsEqualityDeletes(Snapshot snapshot) {
+    String count = snapshot.summary().get(SnapshotSummary.ADD_EQ_DELETE_FILES_PROP);
+    if (count != null) {
+      return Long.parseLong(count) > 0;
+    }
+
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+    for (DeleteFile deleteFile : changes.addedDeleteFiles()) {
+      if (deleteFile.content() == FileContent.EQUALITY_DELETES) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Returns the id of the newest snapshot that is reachable from both the staging and target branch
+   * heads (i.e. the most recent common ancestor where the two branches last matched), or {@code
+   * null} if they share no history. Used on cold start to know where staging diverged from target
+   * so we can skip converting snapshots that already exist on target.
+   */
+  private Long findCommonAncestor(Snapshot stagingHead, Snapshot mainHead) {
+    if (mainHead == null) {
+      return null;
+    }
+
+    Set<Long> stagingSeen = Sets.newHashSet();
+    Set<Long> mainSeen = Sets.newHashSet();
+    Snapshot stagingCurrent = stagingHead;
+    Snapshot mainCurrent = mainHead;
+
+    while (stagingCurrent != null || mainCurrent != null) {
+      if (stagingCurrent != null) {
+        long id = stagingCurrent.snapshotId();
+        if (mainSeen.contains(id)) {
+          return id;
+        }
+
+        stagingSeen.add(id);
+        stagingCurrent = parentOf(stagingCurrent);
+      }
+
+      if (mainCurrent != null) {
+        long id = mainCurrent.snapshotId();
+        if (stagingSeen.contains(id)) {
+          return id;
+        }
+
+        mainSeen.add(id);
+        mainCurrent = parentOf(mainCurrent);
+      }
+    }
+
+    return null;
+  }
+
+  /** Returns the parent snapshot, or {@code null} if {@code snapshot} has no parent. */
+  private Snapshot parentOf(Snapshot snapshot) {
+    Long parentId = snapshot.parentId();
+    return parentId != null ? table.snapshot(parentId) : null;
+  }
+
+  private static long dataSequenceNumber(ContentFile<?> file) {
+    Long sequenceNumber = file.dataSequenceNumber();
+    Preconditions.checkNotNull(
+        sequenceNumber, "Missing data sequence number for committed file %s", file.location());
+    return sequenceNumber;
+  }
+
+  @Override
+  public void close() throws Exception {
+    super.close();
+    tableLoader.close();
+  }
+
+  @VisibleForTesting
+  long reindexCount() {
+    return reindexCounter.getCount();
+  }
+
+  @VisibleForTesting
+  long incrementalReindexCount() {
+    return incrementalReindexCounter.getCount();
+  }
+
+  @VisibleForTesting
+  long skippedNoOpCycles() {
+    return skippedNoOpCyclesCounter.getCount();
+  }
+
+  @VisibleForTesting
+  long processedStagingSnapshotNum() {
+    return processedStagingSnapshotNumCounter.getCount();
+  }
+
+  @VisibleForTesting
+  long processedEqDeleteFileNum() {
+    return processedEqDeleteFileNumCounter.getCount();
+  }
+}

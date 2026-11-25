@@ -43,7 +43,6 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     compileOnly libs.flink120.connector.base
     compileOnly libs.flink120.connector.files
 
-    compileOnly libs.hadoop3.hdfs
     compileOnly libs.hadoop3.common
     compileOnly(libs.hadoop3.minicluster) {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -73,9 +72,6 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     testImplementation libs.flink120.connector.test.utils
     testImplementation libs.flink120.core
     testImplementation libs.flink120.runtime
-    testImplementation(libs.flink120.test.utilsjunit) {
-      exclude group: 'junit'
-    }
     testImplementation(libs.flink120.test.utils) {
       exclude group: "org.apache.curator", module: 'curator-test'
       exclude group: 'junit'
@@ -87,6 +83,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-orc', configuration: 'testArtifacts')
     testImplementation(testFixtures(project(':iceberg-parquet')))
+    testImplementation (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements'))
 
     // By default, hive-exec is a fat/uber jar and it exports a guava library
     // that's really old. We use the core classifier to be able to override our guava
@@ -122,7 +119,6 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     }
 
     testImplementation libs.awaitility
-    testImplementation libs.assertj.core
     testImplementation libs.sqlite.jdbc
   }
 
@@ -189,7 +185,6 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     integrationImplementation "org.apache.flink:flink-table-planner_${scalaVersion}:${libs.versions.flink120.get()}"
 
     integrationImplementation libs.hadoop3.common
-    integrationImplementation libs.hadoop3.hdfs
     integrationImplementation(libs.hadoop3.minicluster) {
       exclude group: 'org.apache.avro', module: 'avro'
     }
@@ -228,12 +223,6 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     configurations = [project.configurations.runtimeClasspath]
 
     zip64 true
-
-    // include the LICENSE and NOTICE files for the shaded Jar
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
 
     // Relocate dependencies to avoid conflicts
     relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'

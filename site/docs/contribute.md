@@ -46,7 +46,7 @@ The Iceberg community prefers to receive contributions as [Github pull requests]
 
 ### Merging Pull Requests
 
-Most pull requests can be merged once a single [committer](https://www.apache.org/foundation/how-it-works/#committers) other than the author is satisfied with the code in the PR (exceptions that require additional input from the community are detailed below). [Committers are trusted](https://infra.apache.org/new-committers-guide.html#the-committers-way) to act in the best [interest of the project](https://community.apache.org/projectIndependence.html#apache-projects-are-managed-independently).
+Most pull requests can be merged once a single [committer](https://www.apache.org/foundation/how-it-works/#committers) other than the author is satisfied with the code in the PR (exceptions that require additional input from the community are detailed below). [Committers are trusted](https://infra.apache.org/new-committers-guide.html#the-committers-way) to act in the best [interest of the project](https://community.apache.org/projectIndependence.html#apache-projects-are-managed-independently), and are expected to merge changes only in [areas and Iceberg implementations where they are knowledgeable](community.md#what-are-the-responsibilities-of-a-committer).
 
 Before merging all review comments should be addressed either by making changes or agreeing the request is out of scope for the PR. For additions to public APIs committers should wait at least 24 hours before merging to ensure there is no additional feedback from members of the community.
 
@@ -111,7 +111,7 @@ Iceberg is built using Gradle with Java 17 or 21.
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test -x integrationTest`
 * To fix code style: `./gradlew spotlessApply`
-* To build particular Spark/Flink Versions: `./gradlew build -DsparkVersions=3.5,4.0 -DflinkVersions=1.20,2.0`
+* To build particular Spark/Flink Versions: `./gradlew build -DsparkVersions=3.5,4.0,4.1 -DflinkVersions=1.20,2.2,2.3`
 
 Iceberg table support is organized in library modules:
 
@@ -126,7 +126,7 @@ Iceberg table support is organized in library modules:
 
 This project Iceberg also has modules for adding Iceberg support to processing engines:
 
-* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each spark versions (use runtime jars for a shaded version)
+* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each Spark version (use runtime jars for a shaded version)
 * `iceberg-flink` contains classes for integrating with Apache Flink (use iceberg-flink-runtime for a shaded version)
 * `iceberg-mr` contains an InputFormat and other classes for integrating with Apache Hive
 
@@ -299,9 +299,9 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
 Java code adheres to the [Google style](https://google.github.io/styleguide/javaguide.html), which will be verified via `./gradlew spotlessCheck` during builds.
 In order to automatically fix Java code style issues, please use `./gradlew spotlessApply`.
 
-**NOTE**: The **google-java-format** plugin will always use the latest version of the **google-java-format**. However, `spotless` itself is configured to use **google-java-format** 1.7
-since that version is compatible with JDK 8. When formatting the code in the IDE, there is a slight chance that it will produce slightly different results. In such a case please run `./gradlew spotlessApply`
-as CI will check the style against **google-java-format** 1.7.
+**NOTE**: The **google-java-format** plugin will always use the latest version of the **google-java-format**. However, `spotless` itself is configured to use **google-java-format** 1.22.0
+to produce consistent results on JDK 17 and 21. When formatting the code in the IDE, there is a slight chance that it will produce slightly different results. In such a case please run `./gradlew spotlessApply`
+as CI will check the style against **google-java-format** 1.22.0.
 
 ### Copyright
 

@@ -34,6 +34,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.variants.Variant;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
@@ -81,6 +82,7 @@ public class InternalRowConverter {
       case UUID -> UTF8String.fromString(value.toString());
       case FIXED, BINARY -> toByteArray(value);
       case DECIMAL -> Decimal.apply((BigDecimal) value);
+      case VARIANT -> SparkVariantTestUtil.toVariantVal((Variant) value);
       case STRUCT -> convert((Types.StructType) type, (Record) value);
       case LIST ->
           new GenericArrayData(
@@ -100,7 +102,7 @@ public class InternalRowConverter {
                       .values().stream()
                           .map(o -> convert(type.asMapType().valueType(), o))
                           .toArray()));
-        // TIME is not supported by Spark, VARIANT not yet implemented
+        // TIME is not supported by Spark
       default ->
           throw new UnsupportedOperationException(
               "Unsupported type for conversion to InternalRow: " + type);

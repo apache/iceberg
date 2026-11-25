@@ -177,12 +177,18 @@ public class OperatorTestBase {
   }
 
   protected static Table createTableWithDelete(int formatVersion) {
+    return createTableWithDelete(
+        formatVersion, SCHEMA_WITH_PRIMARY_KEY, PartitionSpec.unpartitioned());
+  }
+
+  protected static Table createTableWithDelete(
+      int formatVersion, Schema schema, PartitionSpec spec) {
     return CATALOG_EXTENSION
         .catalog()
         .createTable(
             TestFixtures.TABLE_IDENTIFIER,
-            SCHEMA_WITH_PRIMARY_KEY,
-            PartitionSpec.unpartitioned(),
+            schema,
+            spec,
             null,
             ImmutableMap.of(
                 "format-version", String.valueOf(formatVersion), "write.upsert.enabled", "true"));
@@ -473,7 +479,7 @@ public class OperatorTestBase {
     GenericRecord nested = GenericRecord.create(table.schema());
     nested.set(0, 1);
     nested.set(1, "a");
-    posDelete.set(dataFilePath, pos, nested);
+    posDelete.set(dataFilePath, pos);
     return FileHelpers.writePosDeleteFile(
         table, Files.localOutput(file), null, Lists.newArrayList(posDelete), 2);
   }
@@ -487,7 +493,7 @@ public class OperatorTestBase {
     GenericRecord nested = GenericRecord.create(table.schema());
     nested.set(0, id);
     nested.set(1, oldData);
-    posDelete.set(path, pos, nested);
+    posDelete.set(path, pos);
     return FileHelpers.writePosDeleteFile(
         table, Files.localOutput(file), null, Lists.newArrayList(posDelete), formatVersion);
   }

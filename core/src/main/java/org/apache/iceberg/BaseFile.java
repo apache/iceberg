@@ -199,6 +199,14 @@ abstract class BaseFile<F> extends SupportsIndexProjection
    *     column stat is kept.
    */
   BaseFile(BaseFile<F> toCopy, boolean copyStats, Set<Integer> requestedColumnIds) {
+    this(toCopy, copyStats, requestedColumnIds, toCopy.referencedDataFile);
+  }
+
+  BaseFile(
+      BaseFile<F> toCopy,
+      boolean copyStats,
+      Set<Integer> requestedColumnIds,
+      String referencedDataFile) {
     super(toCopy);
     this.fileOrdinal = toCopy.fileOrdinal;
     this.manifestLocation = toCopy.manifestLocation;
@@ -241,7 +249,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.dataSequenceNumber = toCopy.dataSequenceNumber;
     this.fileSequenceNumber = toCopy.fileSequenceNumber;
     this.firstRowId = toCopy.firstRowId;
-    this.referencedDataFile = toCopy.referencedDataFile;
+    this.referencedDataFile = referencedDataFile;
     this.contentOffset = toCopy.contentOffset;
     this.contentSizeInBytes = toCopy.contentSizeInBytes;
   }

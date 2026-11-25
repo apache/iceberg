@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.TestHelpers.ALL_VERSIONS;
 import static org.apache.iceberg.TestHelpers.V3_AND_ABOVE;
+import static org.apache.iceberg.TestHelpers.V3_AND_BELOW;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
@@ -58,7 +58,7 @@ public class TestScansAndSchemaEvolution {
 
   @Parameters(name = "formatVersion = {0}")
   protected static List<Integer> formatVersions() {
-    return ALL_VERSIONS;
+    return V3_AND_BELOW;
   }
 
   @Parameter private int formatVersion;

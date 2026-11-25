@@ -538,6 +538,53 @@ public class TestVendedCredentialsProvider {
     mockServer.verify(mockRequest, VerificationTimes.exactly(2));
   }
 
+  @Test
+  public void planIdAndReferencedByQueryParamsAreSent() {
+    String planId = "randomPlanId";
+    String encodedChain = "prod%1Fanalytics%1Fquarterly_view,prod%1Fanalytics%1Fmonthly_view";
+    String decodedChain =
+        "prod\u001Fanalytics\u001Fquarterly_view,prod\u001Fanalytics\u001Fmonthly_view";
+    HttpRequest mockRequest =
+        request("/v1/credentials")
+            .withMethod(HttpMethod.GET.name())
+            .withQueryStringParameter(RESTCatalogProperties.PLAN_ID_QUERY_PARAMETER, planId)
+            .withQueryStringParameter(
+                RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, decodedChain);
+    Credential credential =
+        ImmutableCredential.builder()
+            .prefix("s3")
+            .config(
+                ImmutableMap.of(
+                    S3FileIOProperties.ACCESS_KEY_ID,
+                    "randomAccessKey",
+                    S3FileIOProperties.SECRET_ACCESS_KEY,
+                    "randomSecretAccessKey",
+                    S3FileIOProperties.SESSION_TOKEN,
+                    "sessionToken",
+                    S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                    Long.toString(Instant.now().plus(1, ChronoUnit.MINUTES).toEpochMilli())))
+            .build();
+    LoadCredentialsResponse response =
+        ImmutableLoadCredentialsResponse.builder().addCredentials(credential).build();
+
+    mockServer
+        .when(mockRequest)
+        .respond(response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200));
+
+    Map<String, String> properties =
+        ImmutableMap.<String, String>builder()
+            .putAll(PROPERTIES)
+            .put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId)
+            .put(RESTCatalogProperties.REST_REFERENCED_BY, encodedChain)
+            .build();
+
+    try (VendedCredentialsProvider provider = VendedCredentialsProvider.create(properties)) {
+      verifyCredentials(provider.resolveCredentials(), credential);
+    }
+
+    mockServer.verify(mockRequest, VerificationTimes.once());
+  }
+
   private void verifyCredentials(AwsCredentials awsCredentials, Credential credential) {
     assertThat(awsCredentials).isInstanceOf(AwsSessionCredentials.class);
     AwsSessionCredentials creds = (AwsSessionCredentials) awsCredentials;

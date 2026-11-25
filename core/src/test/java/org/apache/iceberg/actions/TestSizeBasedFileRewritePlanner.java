@@ -103,7 +103,8 @@ class TestSizeBasedFileRewritePlanner {
                 BinPackRewriteFilePlanner.MAX_FILE_SIZE_BYTES,
                 BinPackRewriteFilePlanner.MIN_INPUT_FILES,
                 BinPackRewriteFilePlanner.REWRITE_ALL,
-                BinPackRewriteFilePlanner.MAX_FILE_GROUP_SIZE_BYTES));
+                BinPackRewriteFilePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                BinPackRewriteFilePlanner.MAX_FILE_GROUP_INPUT_FILES));
   }
 
   @Test
