@@ -1019,6 +1019,7 @@ project(':iceberg-vortex') {
   dependencies {
     api project(':iceberg-api')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation libs.caffeine
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
     // Compile against the shaded artifact so Vortex APIs use relocated Arrow signatures.
@@ -1044,6 +1045,10 @@ project(':iceberg-vortex') {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
     runtimeOnly libs.netty.buffer
+    // VortexIO opens Hadoop streams with the known file length. Engines that use Hadoop supply it.
+    compileOnly(libs.hadoop3.client) {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
 
     annotationProcessor libs.immutables.value
     compileOnly libs.immutables.value

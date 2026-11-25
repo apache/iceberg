@@ -24,6 +24,7 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.broadcast.Broadcast;
@@ -40,6 +41,7 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
   private final boolean caseSensitive;
   private final transient String[] preferredLocations;
   private final boolean cacheDeleteFilesOnExecutors;
+  private final Expression runtimeFilter;
 
   private transient Schema projection = null;
 
@@ -51,7 +53,8 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
       String projectionString,
       boolean caseSensitive,
       String[] preferredLocations,
-      boolean cacheDeleteFilesOnExecutors) {
+      boolean cacheDeleteFilesOnExecutors,
+      Expression runtimeFilter) {
     this.groupingKeyType = groupingKeyType;
     this.taskGroup = taskGroup;
     this.tableBroadcast = tableBroadcast;
@@ -60,6 +63,7 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
     this.caseSensitive = caseSensitive;
     this.preferredLocations = preferredLocations;
     this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
+    this.runtimeFilter = runtimeFilter;
   }
 
   @Override
@@ -95,6 +99,11 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
 
   public boolean cacheDeleteFilesOnExecutors() {
     return cacheDeleteFilesOnExecutors;
+  }
+
+  /** The runtime filter that readers apply to every file of this partition, with its residual. */
+  public Expression runtimeFilter() {
+    return runtimeFilter;
   }
 
   public Schema projection() {

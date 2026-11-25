@@ -20,6 +20,8 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -52,6 +54,7 @@ import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkAggregates;
@@ -63,8 +66,11 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.vortex.VortexLikeFilters;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.expressions.LiteralValue;
+import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.aggregate.AggregateFunc;
 import org.apache.spark.sql.connector.expressions.aggregate.Aggregation;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
@@ -79,6 +85,7 @@ import org.apache.spark.sql.connector.read.SupportsReportStatistics;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.apache.spark.unsafe.types.UTF8String;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -96,8 +103,11 @@ public class SparkScanBuilder
 
   private final SparkSession spark;
   private final Table table;
+  private final String branch;
   private final CaseInsensitiveStringMap options;
-  private final SparkReadConf readConf;
+  private final List<VortexLikeFilters.Like> vortexLikeFilters = Lists.newArrayList();
+  private SparkReadConf readConf;
+  private boolean dataColumnRuntimeFilters = true;
   private final List<String> metaColumns = Lists.newArrayList();
   private final InMemoryMetricsReporter metricsReporter;
 
@@ -116,6 +126,7 @@ public class SparkScanBuilder
     this.spark = spark;
     this.table = table;
     this.schema = schema;
+    this.branch = branch;
     this.options = options;
     this.readConf = new SparkReadConf(spark, table, branch, options);
     this.caseSensitive = readConf.caseSensitive();
@@ -175,6 +186,10 @@ public class SparkScanBuilder
           pushableFilters.add(predicate);
         }
 
+        if (expr == null) {
+          vortexLikeFilter(predicate).ifPresent(vortexLikeFilters::add);
+        }
+
         if (expr == null
             || unpartitioned()
             || !ExpressionUtil.selectsPartitions(expr, table, caseSensitive)) {
@@ -192,7 +207,52 @@ public class SparkScanBuilder
     this.filterExpressions = expressions;
     this.pushedPredicates = pushableFilters.toArray(new Predicate[0]);
 
+    if (!vortexLikeFilters.isEmpty()) {
+      Map<String, String> withLikeFilters = Maps.newHashMap(options.asCaseSensitiveMap());
+      withLikeFilters.put(
+          SparkReadOptions.VORTEX_LIKE_FILTERS, VortexLikeFilters.encode(vortexLikeFilters));
+      this.readConf =
+          new SparkReadConf(spark, table, branch, new CaseInsensitiveStringMap(withLikeFilters));
+    }
+
     return postScanFilters.toArray(new Predicate[0]);
+  }
+
+  /**
+   * Converts a string match that Iceberg expressions cannot state into a filter for the Vortex
+   * reader. Spark still evaluates the predicate after the scan, so the reader only uses it to skip
+   * rows early.
+   */
+  private Optional<VortexLikeFilters.Like> vortexLikeFilter(Predicate predicate) {
+    boolean negated = false;
+    Predicate match = predicate;
+    if ("NOT".equals(match.name()) && match.children()[0] instanceof Predicate child) {
+      negated = true;
+      match = child;
+    }
+
+    if (match.children().length != 2
+        || !(match.children()[0] instanceof NamedReference reference)
+        || reference.fieldNames().length != 1
+        || !(match.children()[1] instanceof LiteralValue<?> literal)
+        || !(literal.value() instanceof UTF8String value)) {
+      return Optional.empty();
+    }
+
+    String name = reference.fieldNames()[0];
+    Types.NestedField field =
+        caseSensitive ? schema.findField(name) : schema.caseInsensitiveFindField(name);
+    if (field == null || !field.type().equals(Types.StringType.get())) {
+      return Optional.empty();
+    }
+
+    return switch (match.name()) {
+      case "CONTAINS" ->
+          Optional.of(VortexLikeFilters.contains(field.fieldId(), value.toString(), negated));
+      case "ENDS_WITH" ->
+          Optional.of(VortexLikeFilters.endsWith(field.fieldId(), value.toString(), negated));
+      default -> Optional.empty();
+    };
   }
 
   private boolean unpartitioned() {
@@ -416,13 +476,14 @@ public class SparkScanBuilder
         readConf,
         expectedSchema,
         filterExpressions,
-        metricsReporter::scanReport);
+        metricsReporter::scanReport,
+        offersDataColumns());
   }
 
   private org.apache.iceberg.Scan buildIcebergBatchScan(boolean withStats, Schema expectedSchema) {
     Long snapshotId = readConf.snapshotId();
     Long asOfTimestamp = readConf.asOfTimestamp();
-    String branch = readConf.branch();
+    String scanBranch = readConf.branch();
     String tag = readConf.tag();
 
     Preconditions.checkArgument(
@@ -462,14 +523,14 @@ public class SparkScanBuilder
     if (startSnapshotId != null) {
       return buildIncrementalAppendScan(startSnapshotId, endSnapshotId, withStats, expectedSchema);
     } else {
-      return buildBatchScan(snapshotId, asOfTimestamp, branch, tag, withStats, expectedSchema);
+      return buildBatchScan(snapshotId, asOfTimestamp, scanBranch, tag, withStats, expectedSchema);
     }
   }
 
   private org.apache.iceberg.Scan buildBatchScan(
       Long snapshotId,
       Long asOfTimestamp,
-      String branch,
+      String scanBranch,
       String tag,
       boolean withStats,
       Schema expectedSchema) {
@@ -480,8 +541,6 @@ public class SparkScanBuilder
             .project(expectedSchema)
             .metricsReporter(metricsReporter);
 
-    scan = includeStats(scan, expectedSchema, withStats);
-
     if (snapshotId != null) {
       scan = scan.useSnapshot(snapshotId);
     }
@@ -490,13 +549,26 @@ public class SparkScanBuilder
       scan = scan.asOfTime(asOfTimestamp);
     }
 
-    if (branch != null) {
-      scan = scan.useRef(branch);
+    if (scanBranch != null) {
+      scan = scan.useRef(scanBranch);
     }
 
     if (tag != null) {
       scan = scan.useRef(tag);
     }
+
+    // the schema that the scan reads with, as SnapshotScan chooses it
+    String ref = scanBranch != null ? scanBranch : tag;
+    Schema scanSchema =
+        ref != null
+            ? SnapshotUtil.schemaFor(table, ref)
+            : SnapshotUtil.schemaFor(table, snapshotId, asOfTimestamp);
+    // a REST catalog plans the scan with the schema of the snapshot that it reads
+    Schema snapshotSchema =
+        scan.snapshot() != null
+            ? SnapshotUtil.schemaFor(table, scan.snapshot().snapshotId())
+            : scanSchema;
+    scan = includeStats(scan, scanSchema, snapshotSchema, expectedSchema, withStats);
 
     return configureSplitPlanning(scan);
   }
@@ -512,7 +584,7 @@ public class SparkScanBuilder
             .project(expectedSchema)
             .metricsReporter(metricsReporter);
 
-    scan = includeStats(scan, expectedSchema, withStats);
+    scan = includeStats(scan, table.schema(), table.schema(), expectedSchema, withStats);
 
     if (endSnapshotId != null) {
       scan = scan.toSnapshot(endSnapshotId);
@@ -521,13 +593,61 @@ public class SparkScanBuilder
     return configureSplitPlanning(scan);
   }
 
+  /**
+   * Asks {@code scan} for the column stats that the Spark scan uses. The scan finds each stats
+   * column by its name in {@code scanSchema}, the schema that it reads with, and a REST catalog
+   * finds it in {@code snapshotSchema}, the schema of the snapshot that the scan reads.
+   */
   private <S extends org.apache.iceberg.Scan<S, ?, ?>> S includeStats(
-      S scan, Schema projection, boolean withStats) {
+      S scan, Schema scanSchema, Schema snapshotSchema, Schema projection, boolean withStats) {
     if (withStats) {
       return scan.includeColumnStats();
     }
-    List<String> variantColumns = variantColumnNames(projection);
-    return variantColumns.isEmpty() ? scan : scan.includeColumnStats(variantColumns);
+
+    // runtime filters on data columns drop files by the metrics of those columns. A column can
+    // have a different name in each schema, or no field at all when it was added after the
+    // snapshot that the scan reads, so find each name by the field ID.
+    List<String> statsColumns = Lists.newArrayList(variantColumnNames(projection));
+    if (readConf.columnAwareSplitSizeEnabled() && readConf.adaptiveSplitSizeEnabled()) {
+      // adaptive split sizing counts the bytes of the projected columns, see SparkScan
+      projection.columns().stream()
+          .map(field -> statsColumnName(scanSchema, snapshotSchema, field.fieldId()))
+          .filter(Objects::nonNull)
+          .forEach(statsColumns::add);
+    }
+
+    if (offersDataColumns()) {
+      SparkBatchQueryScan.dataFilterColumns(projection).stream()
+          .map(field -> statsColumnName(scanSchema, snapshotSchema, field.fieldId()))
+          .filter(Objects::nonNull)
+          .forEach(statsColumns::add);
+    }
+
+    List<String> distinct = statsColumns.stream().distinct().collect(Collectors.toList());
+    return distinct.isEmpty() ? scan : scan.includeColumnStats(distinct);
+  }
+
+  /**
+   * Returns the name of a stats column that both schemas hold under the same name, or null. A
+   * column renamed or added after the snapshot has a name that only one of them can find.
+   */
+  private static String statsColumnName(Schema scanSchema, Schema snapshotSchema, int fieldId) {
+    String name = scanSchema.findColumnName(fieldId);
+    return name != null && name.equals(snapshotSchema.findColumnName(fieldId)) ? name : null;
+  }
+
+  /**
+   * Keeps the scans this builder builds from offering data columns to runtime filtering. A
+   * row-level operation turns every filter attribute of its scan into a key of the groups it
+   * rewrites, and a data column cannot be such a key: its nulls match no key.
+   */
+  void withoutDataColumnRuntimeFilters() {
+    this.dataColumnRuntimeFilters = false;
+  }
+
+  private boolean offersDataColumns() {
+    return dataColumnRuntimeFilters
+        && SparkBatchQueryScan.offersDataColumns(spark, table, readConf);
   }
 
   private List<String> variantColumnNames(Schema projection) {
@@ -663,7 +783,8 @@ public class SparkScanBuilder
           readConf,
           schemaWithMetadataColumns(),
           filterExpressions,
-          metricsReporter::scanReport);
+          metricsReporter::scanReport,
+          offersDataColumns());
     }
 
     // remember the current snapshot ID for commit validation
@@ -693,7 +814,8 @@ public class SparkScanBuilder
         adjustedReadConf,
         expectedSchema,
         filterExpressions,
-        metricsReporter::scanReport);
+        metricsReporter::scanReport,
+        offersDataColumns());
   }
 
   public Scan buildCopyOnWriteScan() {

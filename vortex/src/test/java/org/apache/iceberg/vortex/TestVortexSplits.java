@@ -53,11 +53,15 @@ public class TestVortexSplits {
 
   private static final int ROWS = 10_000;
 
+  // Splits start and end at chunk boundaries, so the file must hold several chunks. The writer
+  // puts about 87,000 rows of this schema into a chunk.
+  private static final int MULTI_CHUNK_ROWS = 400_000;
+
   @TempDir private Path temp;
 
   @Test
   public void testContiguousByteSplitsCoverAllRowsExactlyOnce() throws IOException {
-    InputFile file = writeRows(ROWS);
+    InputFile file = writeRows(MULTI_CHUNK_ROWS);
     long fileLength = file.getLength();
 
     List<Integer> allIds = Lists.newArrayList();
@@ -78,7 +82,7 @@ public class TestVortexSplits {
 
     assertThat(allIds)
         .as("Contiguous byte splits must cover every row exactly once")
-        .hasSize(ROWS)
+        .hasSize(MULTI_CHUNK_ROWS)
         .doesNotHaveDuplicates();
     assertThat(nonEmptySplits).as("Uniform byte splits should map to rows").isEqualTo(4);
   }
@@ -104,8 +108,7 @@ public class TestVortexSplits {
 
   @Test
   public void testRowPositionIsFileAbsoluteWithinSplit() throws IOException {
-    int rows = 1000;
-    InputFile file = writeRows(rows);
+    InputFile file = writeRows(MULTI_CHUNK_ROWS);
     long fileLength = file.getLength();
     long half = fileLength / 2;
 

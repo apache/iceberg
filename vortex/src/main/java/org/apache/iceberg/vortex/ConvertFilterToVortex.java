@@ -111,6 +111,48 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
   }
 
   /**
+   * Converts the LIKE filters of {@link VortexLikeFilters} for a file, resolving each column the
+   * same way {@link #convert(Schema, Schema, org.apache.arrow.vector.types.pojo.Schema,
+   * org.apache.iceberg.expressions.Expression, boolean)} does. A filter on a column that the file
+   * does not have, or that is not a string, converts to {@link #ALWAYS_TRUE}: the engine still
+   * evaluates every one of these filters.
+   */
+  static Expression convertLikes(
+      Schema expectedSchema,
+      Schema fileSchema,
+      org.apache.arrow.vector.types.pojo.Schema fileArrowSchema,
+      List<VortexLikeFilters.Like> likes,
+      boolean caseSensitive) {
+    Map<Integer, Types.NestedField> fileFields = Maps.newHashMap();
+    indexFileFields(
+        expectedSchema.asStruct(), fileArrowSchema.getFields(), fileSchema.asStruct(), fileFields);
+    ConvertFilterToVortex visitor =
+        new ConvertFilterToVortex(expectedSchema, fileSchema, fileFields, caseSensitive);
+
+    List<Expression> converted = Lists.newArrayList();
+    for (VortexLikeFilters.Like like : likes) {
+      Types.NestedField fileField = fileFields.get(like.fieldId());
+      if (fileField == null || fileField.type().typeId() != Type.TypeID.STRING) {
+        continue;
+      }
+
+      Expression term = visitor.column(fileField.fieldId());
+      if (term != UNCONVERTIBLE) {
+        converted.add(
+            Expression.like(term, Expression.literal(like.pattern()), like.negated(), false));
+      }
+    }
+
+    if (converted.isEmpty()) {
+      return ALWAYS_TRUE;
+    }
+
+    return converted.size() == 1
+        ? converted.get(0)
+        : Expression.and(converted.toArray(Expression[]::new));
+  }
+
+  /**
    * Maps each expected field id to the matching field of the converted file schema. The converted
    * schema has the file's names and types but synthesized ids, so the match goes through the Arrow
    * fields, which carry the real ids.
@@ -472,6 +514,37 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
   }
 
   /**
+   * The list literal of an integer or string set, built in one native call, or null for other
+   * types. A runtime join filter holds thousands of values, and each task converts it, so a Vortex
+   * expression per value costs much more than the scan reads.
+   */
+  private static <T> Expression bulkList(Expression elementType, Set<T> literalSet, Type termType) {
+    switch (termType.typeId()) {
+      case INTEGER, LONG -> {
+        long[] values = new long[literalSet.size()];
+        int index = 0;
+        for (T value : literalSet) {
+          values[index++] = ((Number) value).longValue();
+        }
+
+        return Expression.literalLongList(elementType, false, values);
+      }
+      case STRING -> {
+        String[] values = new String[literalSet.size()];
+        int index = 0;
+        for (T value : literalSet) {
+          values[index++] = ((CharSequence) value).toString();
+        }
+
+        return Expression.literalStringList(elementType, false, values);
+      }
+      default -> {
+        return null;
+      }
+    }
+  }
+
+  /**
    * Translates IN / NOT_IN into a Vortex list membership test against a list literal.
    *
    * <p>Vortex NOT IN uses SQL null rules and does not match null, but Iceberg's {@code notIn} does
@@ -483,6 +556,15 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
     Expression elementType = toVortexNullLiteral(termType);
     if (elementType == UNCONVERTIBLE) {
       return UNCONVERTIBLE;
+    }
+
+    Expression bulk = bulkList(elementType, literalSet, termType);
+    if (bulk != null) {
+      return switch (op) {
+        case IN -> Expression.in(term, bulk);
+        case NOT_IN -> Expression.or(Expression.isNull(term), Expression.notIn(term, bulk));
+        default -> UNCONVERTIBLE;
+      };
     }
 
     Expression[] elements = new Expression[literalSet.size()];

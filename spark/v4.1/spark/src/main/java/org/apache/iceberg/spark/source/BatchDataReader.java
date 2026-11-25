@@ -25,6 +25,8 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -48,6 +50,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
   private static final Logger LOG = LoggerFactory.getLogger(BatchDataReader.class);
 
   private final long numSplits;
+  private final Expression runtimeFilter;
 
   BatchDataReader(
       SparkInputPartition partition,
@@ -63,7 +66,8 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
         parquetBatchReadConf,
         orcBatchReadConf,
         vortexBatchReadConf,
-        partition.cacheDeleteFilesOnExecutors());
+        partition.cacheDeleteFilesOnExecutors(),
+        partition.runtimeFilter());
   }
 
   BatchDataReader(
@@ -76,6 +80,30 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
       OrcBatchReadConf orcConf,
       VortexBatchReadConf vortexConf,
       boolean cacheDeleteFilesOnExecutors) {
+    this(
+        table,
+        fileIO,
+        taskGroup,
+        expectedSchema,
+        caseSensitive,
+        parquetConf,
+        orcConf,
+        vortexConf,
+        cacheDeleteFilesOnExecutors,
+        Expressions.alwaysTrue());
+  }
+
+  private BatchDataReader(
+      Table table,
+      FileIO fileIO,
+      ScanTaskGroup<FileScanTask> taskGroup,
+      Schema expectedSchema,
+      boolean caseSensitive,
+      ParquetBatchReadConf parquetConf,
+      OrcBatchReadConf orcConf,
+      VortexBatchReadConf vortexConf,
+      boolean cacheDeleteFilesOnExecutors,
+      Expression runtimeFilter) {
     super(
         table,
         fileIO,
@@ -88,6 +116,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
         cacheDeleteFilesOnExecutors);
 
     numSplits = taskGroup.tasks().size();
+    this.runtimeFilter = runtimeFilter;
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
   }
 
@@ -126,7 +155,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
             task.file().format(),
             task.start(),
             task.length(),
-            task.residual(),
+            Expressions.and(task.residual(), runtimeFilter),
             idToConstant,
             deleteFilter)
         .iterator();

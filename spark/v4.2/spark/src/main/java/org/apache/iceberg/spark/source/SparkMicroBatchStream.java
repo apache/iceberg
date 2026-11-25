@@ -26,6 +26,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -161,7 +162,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
               projection,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
-              cacheDeleteFilesOnExecutors);
+              cacheDeleteFilesOnExecutors,
+              Expressions.alwaysTrue());
     }
 
     return partitions;

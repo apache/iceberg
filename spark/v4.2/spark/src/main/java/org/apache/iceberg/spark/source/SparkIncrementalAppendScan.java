@@ -45,7 +45,8 @@ class SparkIncrementalAppendScan extends SparkRuntimeFilterableScan {
       Schema projection,
       List<Expression> filters,
       List<PartitionPredicate> partitionPredicates,
-      Supplier<ScanReport> scanReportSupplier) {
+      Supplier<ScanReport> scanReportSupplier,
+      boolean dataColumnFilters) {
     super(
         spark,
         table,
@@ -55,7 +56,8 @@ class SparkIncrementalAppendScan extends SparkRuntimeFilterableScan {
         projection,
         filters,
         partitionPredicates,
-        scanReportSupplier);
+        scanReportSupplier,
+        dataColumnFilters);
     this.startSnapshotId = startSnapshotId;
     this.endSnapshotId = endSnapshotId;
   }
@@ -102,7 +104,7 @@ class SparkIncrementalAppendScan extends SparkRuntimeFilterableScan {
         startSnapshotId,
         endSnapshotId,
         filtersDesc(),
-        runtimeFiltersDesc(),
+        runtimeFiltersSummary(),
         groupingKeyDesc());
   }
 }

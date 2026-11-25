@@ -281,7 +281,7 @@ public class TableProperties {
   // synthetic byte positions (vortex readers approximate them to row ranges), recorded every
   // split-size bytes so scan planning can split files along them.
   public static final String WRITE_VORTEX_SPLIT_SIZE = "write.vortex.split-size-bytes";
-  public static final long WRITE_VORTEX_SPLIT_SIZE_DEFAULT = 64L * 1024 * 1024; // 64 MB
+  public static final long WRITE_VORTEX_SPLIT_SIZE_DEFAULT = 16L * 1024 * 1024; // 16 MB
 
   public static final String DATA_PLANNING_MODE = "read.data-planning-mode";
   public static final String DELETE_PLANNING_MODE = "read.delete-planning-mode";

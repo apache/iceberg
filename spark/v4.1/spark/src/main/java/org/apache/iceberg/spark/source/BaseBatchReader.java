@@ -49,6 +49,7 @@ import org.apache.iceberg.spark.data.vectorized.DeletedColumnVector;
 import org.apache.iceberg.spark.data.vectorized.UpdatableDeletedColumnVector;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.vortex.VortexLikeFilters;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
@@ -91,6 +92,9 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       readBuilder = readBuilder.recordsPerBatch(orcConf.batchSize());
     } else if (vortexConf != null) {
       readBuilder = readBuilder.recordsPerBatch(vortexConf.batchSize());
+      if (format == FileFormat.VORTEX && vortexConf.likeFilters().isPresent()) {
+        readBuilder = readBuilder.set(VortexLikeFilters.PROPERTY, vortexConf.likeFilters().get());
+      }
     }
 
     if (readBuilder.supportsPositionDeletes()) {
