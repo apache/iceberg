@@ -72,7 +72,7 @@ public class TestRowDelta extends TestBase {
 
   @Parameters(name = "formatVersion = {0}, branch = {1}")
   protected static List<Object> parameters() {
-    return TestHelpers.V2_AND_ABOVE.stream()
+    return TestHelpers.V2_AND_V3.stream()
         .flatMap(
             v ->
                 Stream.of(

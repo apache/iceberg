@@ -20,6 +20,7 @@ package org.apache.iceberg.mumbling;
 
 import java.nio.ByteBuffer;
 import org.apache.iceberg.ManifestBitmap;
+import org.apache.iceberg.util.ArrayUtil;
 
 public class MumblingBitmaps {
   private MumblingBitmaps() {}
@@ -32,5 +33,36 @@ public class MumblingBitmaps {
    */
   public static ManifestBitmap read(ByteBuffer buffer) {
     return new MumblingBitmap(buffer);
+  }
+
+  /**
+   * Create a new empty mutable bitmap.
+   *
+   * @return a new mutable bitmap with no bits set
+   */
+  public static MutableBitmap newMutableBitmap() {
+    return MumblingBitmap.newMutableBitmap();
+  }
+
+  /**
+   * Create a new mutable bitmap with {@code positions} set.
+   *
+   * @param positions positions to set in the bitmap
+   * @return a new bitmap with the positions set
+   */
+  public static MutableBitmap newMutableBitmap(int... positions) {
+    return newMutableBitmap(ArrayUtil.toIntList(positions));
+  }
+
+  /**
+   * Create a new mutable bitmap with {@code positions} set.
+   *
+   * @param positions positions to set in the bitmap
+   * @return a new bitmap with the positions set
+   */
+  public static MutableBitmap newMutableBitmap(Iterable<Integer> positions) {
+    MutableBitmap bitmap = MumblingBitmap.newMutableBitmap();
+    bitmap.setAll(positions);
+    return bitmap;
   }
 }

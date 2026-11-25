@@ -26,6 +26,8 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -34,20 +36,18 @@ import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.PartitionUtil;
 
 class GenericReader implements Serializable {
-  private final FileIO io;
+  private final EncryptingFileIO io;
   private final Schema tableSchema;
   private final Schema projection;
   private final boolean caseSensitive;
   private final boolean reuseContainers;
 
   GenericReader(TableScan scan, boolean reuseContainers) {
-    this.io = scan.table().io();
+    this.io = EncryptingFileIO.combine(scan.table().io(), scan.table().encryption());
     this.tableSchema = scan.table().schema();
     this.projection = scan.schema();
     this.caseSensitive = scan.isCaseSensitive();
@@ -55,20 +55,19 @@ class GenericReader implements Serializable {
   }
 
   CloseableIterator<Record> open(CloseableIterable<CombinedScanTask> tasks) {
-    Iterable<FileScanTask> fileTasks =
-        Iterables.concat(Iterables.transform(tasks, CombinedScanTask::files));
-    return CloseableIterable.concat(Iterables.transform(fileTasks, this::open)).iterator();
+    return CloseableIterable.concat(Iterables.transform(tasks, this::open)).iterator();
   }
 
   public CloseableIterable<Record> open(CombinedScanTask task) {
     return new CombinedTaskIterable(task);
   }
 
-  public CloseableIterable<Record> open(FileScanTask task) {
-    DeleteFilter<Record> deletes = new GenericDeleteFilter(io, task, tableSchema, projection);
+  private CloseableIterable<Record> open(FileScanTask task, InputFilesDecryptor decryptor) {
+    DeleteFilter<Record> deletes =
+        new GenericDeleteFilter(decryptor, task, tableSchema, projection);
     Schema readSchema = deletes.requiredSchema();
 
-    CloseableIterable<Record> records = openFile(task, readSchema, deletes);
+    CloseableIterable<Record> records = openFile(task, readSchema, decryptor, deletes);
     records = deletes.filter(records);
     records = applyResidual(records, readSchema, task.residual());
 
@@ -87,13 +86,17 @@ class GenericReader implements Serializable {
   }
 
   private CloseableIterable<Record> openFile(
-      FileScanTask task, Schema fileProjection, DeleteFilter<Record> deletes) {
-    InputFile input = io.newInputFile(task.file());
+      FileScanTask task,
+      Schema fileProjection,
+      InputFilesDecryptor decryptor,
+      DeleteFilter<Record> deletes) {
     Map<Integer, ?> partition =
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 
     ReadBuilder<Record, ?> builder =
-        FormatModelRegistry.readBuilder(task.file().format(), Record.class, input);
+        FormatModelRegistry.readBuilder(
+            task.file().format(), Record.class, decryptor.getInputFile(task.file().location()));
+
     if (reuseContainers) {
       builder = builder.reuseContainers();
     }
@@ -126,8 +129,10 @@ class GenericReader implements Serializable {
 
     @Override
     public CloseableIterator<Record> iterator() {
+      InputFilesDecryptor decryptor = InputFilesDecryptor.fromTasks(task.files(), io);
       CloseableIterator<Record> iter =
-          CloseableIterable.concat(Iterables.transform(task.files(), GenericReader.this::open))
+          CloseableIterable.concat(
+                  Iterables.transform(task.files(), fileTask -> open(fileTask, decryptor)))
               .iterator();
       addCloseable(iter);
       return iter;

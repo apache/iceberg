@@ -39,6 +39,7 @@ class BaseSnapshot implements Snapshot {
   private final long sequenceNumber;
   private final long timestampMillis;
   private final String manifestListLocation;
+  private final String rootManifestLocation;
   private final String operation;
   private final Map<String, String> summary;
   private final Integer schemaId;
@@ -48,13 +49,13 @@ class BaseSnapshot implements Snapshot {
   private final String keyId;
 
   // lazily initialized
-  private transient List<ManifestFile> allManifests = null;
-  private transient List<ManifestFile> dataManifests = null;
-  private transient List<ManifestFile> deleteManifests = null;
-  private transient List<DataFile> addedDataFiles = null;
-  private transient List<DataFile> removedDataFiles = null;
-  private transient List<DeleteFile> addedDeleteFiles = null;
-  private transient List<DeleteFile> removedDeleteFiles = null;
+  private transient volatile List<ManifestFile> allManifests = null;
+  private transient volatile List<ManifestFile> dataManifests = null;
+  private transient volatile List<ManifestFile> deleteManifests = null;
+  private transient volatile List<DataFile> addedDataFiles = null;
+  private transient volatile List<DataFile> removedDataFiles = null;
+  private transient volatile List<DeleteFile> addedDeleteFiles = null;
+  private transient volatile List<DeleteFile> removedDeleteFiles = null;
 
   BaseSnapshot(
       long sequenceNumber,
@@ -65,9 +66,18 @@ class BaseSnapshot implements Snapshot {
       Map<String, String> summary,
       Integer schemaId,
       String manifestList,
+      String rootManifest,
       Long firstRowId,
       Long addedRows,
       String keyId) {
+    Preconditions.checkArgument(
+        manifestList == null || rootManifest == null,
+        "Snapshot %s cannot have both a manifest list and a root manifest",
+        snapshotId);
+    Preconditions.checkArgument(
+        manifestList != null || rootManifest != null,
+        "Snapshot %s must have a manifest list or a root manifest",
+        snapshotId);
     Preconditions.checkArgument(
         firstRowId == null || firstRowId >= 0,
         "Invalid first-row-id (cannot be negative): %s",
@@ -87,6 +97,7 @@ class BaseSnapshot implements Snapshot {
     this.summary = summary;
     this.schemaId = schemaId;
     this.manifestListLocation = manifestList;
+    this.rootManifestLocation = rootManifest;
     this.v1ManifestLocations = null;
     this.firstRowId = firstRowId;
     this.addedRows = firstRowId != null ? addedRows : null;
@@ -110,6 +121,7 @@ class BaseSnapshot implements Snapshot {
     this.summary = summary;
     this.schemaId = schemaId;
     this.manifestListLocation = null;
+    this.rootManifestLocation = null;
     this.v1ManifestLocations = v1ManifestLocations;
     this.firstRowId = null;
     this.addedRows = null;
@@ -166,7 +178,12 @@ class BaseSnapshot implements Snapshot {
     return keyId;
   }
 
-  private void cacheManifests(FileIO fileIO) {
+  private synchronized void cacheManifests(FileIO fileIO) {
+    Preconditions.checkState(
+        rootManifestLocation == null,
+        "Cannot read manifests from snapshot %s: root manifests are not supported",
+        snapshotId);
+
     if (fileIO == null) {
       throw new IllegalArgumentException("Cannot cache changes: FileIO is null");
     }
@@ -181,7 +198,7 @@ class BaseSnapshot implements Snapshot {
     }
 
     if (allManifests == null) {
-      // if manifests isn't set, then the snapshotFile is set and should be read to get the list
+      // if manifests isn't set, then the manifest list must be read
       this.allManifests =
           ManifestLists.read(
               ManifestLists.newInputFile(
@@ -261,8 +278,17 @@ class BaseSnapshot implements Snapshot {
     return manifestListLocation;
   }
 
-  private void cacheDeleteFileChanges(FileIO fileIO) {
+  @Override
+  public String rootManifestLocation() {
+    return rootManifestLocation;
+  }
+
+  private synchronized void cacheDeleteFileChanges(FileIO fileIO) {
     Preconditions.checkArgument(fileIO != null, "Cannot cache delete file changes: FileIO is null");
+
+    if (addedDeleteFiles != null && removedDeleteFiles != null) {
+      return;
+    }
 
     ImmutableList.Builder<DeleteFile> adds = ImmutableList.builder();
     ImmutableList.Builder<DeleteFile> deletes = ImmutableList.builder();
@@ -295,8 +321,12 @@ class BaseSnapshot implements Snapshot {
     this.removedDeleteFiles = deletes.build();
   }
 
-  private void cacheDataFileChanges(FileIO fileIO) {
+  private synchronized void cacheDataFileChanges(FileIO fileIO) {
     Preconditions.checkArgument(fileIO != null, "Cannot cache data file changes: FileIO is null");
+
+    if (addedDataFiles != null && removedDataFiles != null) {
+      return;
+    }
 
     ImmutableList.Builder<DataFile> adds = ImmutableList.builder();
     ImmutableList.Builder<DataFile> deletes = ImmutableList.builder();
@@ -370,6 +400,7 @@ class BaseSnapshot implements Snapshot {
         .add("operation", operation)
         .add("summary", summary)
         .add("manifest-list", manifestListLocation)
+        .add("root-manifest", rootManifestLocation)
         .add("schema-id", schemaId)
         .add("first-row-id", firstRowId)
         .add("added-rows", addedRows)

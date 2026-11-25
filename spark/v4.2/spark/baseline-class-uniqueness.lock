@@ -8,6 +8,8 @@
   - com.google.thirdparty.publicsuffix.PublicSuffixTrie$ChunksCharSequence
   - com.google.thirdparty.publicsuffix.PublicSuffixType
 [dev.vortex:vortex-jni (classifier=all), io.netty:netty-buffer]
+  - io.netty.buffer.AbstractAllocatorEvent
+  - io.netty.buffer.AbstractByteBuf
   - io.netty.buffer.AbstractPooledDerivedByteBuf$PooledNonRetainedDuplicateByteBuf
   - io.netty.buffer.AbstractPooledDerivedByteBuf$PooledNonRetainedSlicedByteBuf
   - io.netty.buffer.AdaptivePoolingAllocator
@@ -38,7 +40,13 @@
   - io.netty.buffer.ByteBufUtil$ThreadLocalUnsafeDirectByteBuf
   - io.netty.buffer.ByteBufUtil$ThreadLocalUnsafeDirectByteBuf$1
   - io.netty.buffer.PooledByteBufAllocator
+  - io.netty.buffer.PooledByteBufAllocator$PoolThreadLocalCache
   - io.netty.buffer.PooledDirectByteBuf
+  - io.netty.buffer.PooledHeapByteBuf
+  - io.netty.buffer.ReadOnlyByteBufferBuf
+  - io.netty.buffer.Unpooled
+  - io.netty.buffer.UnpooledDirectByteBuf
+  - io.netty.buffer.UnpooledHeapByteBuf
 [dev.vortex:vortex-jni (classifier=all), io.netty:netty-common]
   - io.netty.util.AsciiString
   - io.netty.util.AsciiString$AsciiCaseInsensitiveCharEqualityComparator
@@ -52,6 +60,46 @@
   - io.netty.util.Recycler$GuardedLocalPool
   - io.netty.util.Recycler$LocalPool
   - io.netty.util.Recycler$UnguardedLocalPool
+  - io.netty.util.collection.ByteObjectHashMap
+  - io.netty.util.collection.ByteObjectHashMap$1
+  - io.netty.util.collection.ByteObjectHashMap$2
+  - io.netty.util.collection.ByteObjectHashMap$2$1
+  - io.netty.util.collection.ByteObjectHashMap$KeySet$1
+  - io.netty.util.collection.ByteObjectHashMap$MapEntry
+  - io.netty.util.collection.ByteObjectHashMap$MapIterator
+  - io.netty.util.collection.ByteObjectHashMap$PrimitiveIterator
+  - io.netty.util.collection.CharObjectHashMap
+  - io.netty.util.collection.CharObjectHashMap$1
+  - io.netty.util.collection.CharObjectHashMap$2
+  - io.netty.util.collection.CharObjectHashMap$2$1
+  - io.netty.util.collection.CharObjectHashMap$KeySet$1
+  - io.netty.util.collection.CharObjectHashMap$MapEntry
+  - io.netty.util.collection.CharObjectHashMap$MapIterator
+  - io.netty.util.collection.CharObjectHashMap$PrimitiveIterator
+  - io.netty.util.collection.IntObjectHashMap
+  - io.netty.util.collection.IntObjectHashMap$1
+  - io.netty.util.collection.IntObjectHashMap$2
+  - io.netty.util.collection.IntObjectHashMap$2$1
+  - io.netty.util.collection.IntObjectHashMap$KeySet$1
+  - io.netty.util.collection.IntObjectHashMap$MapEntry
+  - io.netty.util.collection.IntObjectHashMap$MapIterator
+  - io.netty.util.collection.IntObjectHashMap$PrimitiveIterator
+  - io.netty.util.collection.LongObjectHashMap
+  - io.netty.util.collection.LongObjectHashMap$1
+  - io.netty.util.collection.LongObjectHashMap$2
+  - io.netty.util.collection.LongObjectHashMap$2$1
+  - io.netty.util.collection.LongObjectHashMap$KeySet$1
+  - io.netty.util.collection.LongObjectHashMap$MapEntry
+  - io.netty.util.collection.LongObjectHashMap$MapIterator
+  - io.netty.util.collection.LongObjectHashMap$PrimitiveIterator
+  - io.netty.util.collection.ShortObjectHashMap
+  - io.netty.util.collection.ShortObjectHashMap$1
+  - io.netty.util.collection.ShortObjectHashMap$2
+  - io.netty.util.collection.ShortObjectHashMap$2$1
+  - io.netty.util.collection.ShortObjectHashMap$KeySet$1
+  - io.netty.util.collection.ShortObjectHashMap$MapEntry
+  - io.netty.util.collection.ShortObjectHashMap$MapIterator
+  - io.netty.util.collection.ShortObjectHashMap$PrimitiveIterator
   - io.netty.util.concurrent.AutoScalingEventExecutorChooserFactory$AutoScalingEventExecutorChooser$UtilizationMonitor
   - io.netty.util.concurrent.GlobalEventExecutor
   - io.netty.util.concurrent.GlobalEventExecutor$2
@@ -63,6 +111,10 @@
   - io.netty.util.concurrent.SingleThreadEventExecutor$4
   - io.netty.util.concurrent.SingleThreadEventExecutor$5
   - io.netty.util.concurrent.SingleThreadEventExecutor$DefaultThreadProperties
+  - io.netty.util.internal.CleanerJava24Linker
+  - io.netty.util.internal.CleanerJava24Linker$CleanableDirectBufferImpl
+  - io.netty.util.internal.CleanerJava25
+  - io.netty.util.internal.CleanerJava25$CleanableDirectBufferImpl
   - io.netty.util.internal.Hidden$NettyBlockHoundIntegration
   - io.netty.util.internal.Hidden$NettyBlockHoundIntegration$1
   - io.netty.util.internal.Hidden$NettyBlockHoundIntegration$1$1
@@ -87,6 +139,7 @@
   - io.netty.util.internal.PlatformDependent0$7
   - io.netty.util.internal.PlatformDependent0$8
   - io.netty.util.internal.PlatformDependent0$9
+  - io.netty.util.internal.StringUtil
   - io.netty.util.internal.ThrowableUtil
   - io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueue
   - io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueue$WeakIterator
@@ -120,6 +173,7 @@
   - org.roaringbitmap.ReverseIntIteratorFlyweight
   - org.roaringbitmap.ReverseRunContainerCharIterator
   - org.roaringbitmap.RoaringArray
+  - org.roaringbitmap.RoaringArray$1
   - org.roaringbitmap.RoaringBitmap
   - org.roaringbitmap.RoaringBitmap$1
   - org.roaringbitmap.RoaringBitmap$2
@@ -132,6 +186,8 @@
   - org.roaringbitmap.art.AbstractShuttle
   - org.roaringbitmap.art.AbstractShuttle$1
   - org.roaringbitmap.art.AbstractShuttle$NodeEntry
+  - org.roaringbitmap.art.Art
+  - org.roaringbitmap.art.Containers
   - org.roaringbitmap.buffer.BufferFastAggregation
   - org.roaringbitmap.buffer.BufferFastAggregation$2
   - org.roaringbitmap.buffer.BufferFastAggregation$3
@@ -141,11 +197,13 @@
   - org.roaringbitmap.buffer.BufferUtil
   - org.roaringbitmap.buffer.CopyOnWriteRoaringBitmap
   - org.roaringbitmap.buffer.ImmutableRoaringArray
+  - org.roaringbitmap.buffer.ImmutableRoaringArray$1
   - org.roaringbitmap.buffer.ImmutableRoaringBitmap
   - org.roaringbitmap.buffer.ImmutableRoaringBitmap$1
   - org.roaringbitmap.buffer.ImmutableRoaringBitmap$2
   - org.roaringbitmap.buffer.ImmutableRoaringBitmap$ImmutableRoaringReverseIntIterator
   - org.roaringbitmap.buffer.MappeableArrayContainer
+  - org.roaringbitmap.buffer.MappeableArrayContainer$1
   - org.roaringbitmap.buffer.MappeableArrayContainerCharIterator
   - org.roaringbitmap.buffer.MappeableBitmapContainer
   - org.roaringbitmap.buffer.MappeableBitmapContainerCharIterator
@@ -154,6 +212,7 @@
   - org.roaringbitmap.buffer.MappeableRunContainer$1
   - org.roaringbitmap.buffer.MappeableRunContainerCharIterator
   - org.roaringbitmap.buffer.MutableRoaringArray
+  - org.roaringbitmap.buffer.MutableRoaringArray$1
   - org.roaringbitmap.buffer.MutableRoaringBitmap
   - org.roaringbitmap.buffer.MutableRoaringBitmap$1
   - org.roaringbitmap.buffer.RawArrayContainerCharIterator
@@ -163,9 +222,17 @@
   - org.roaringbitmap.buffer.ReverseMappeableArrayContainerCharIterator
   - org.roaringbitmap.buffer.ReverseMappeableBitmapContainerCharIterator
   - org.roaringbitmap.buffer.ReverseMappeableRunContainerCharIterator
+  - org.roaringbitmap.longlong.HighLowContainer
   - org.roaringbitmap.longlong.Roaring64Bitmap
   - org.roaringbitmap.longlong.Roaring64Bitmap$1
   - org.roaringbitmap.longlong.Roaring64Bitmap$ForwardPeekableIterator
   - org.roaringbitmap.longlong.Roaring64Bitmap$PeekableIterator
   - org.roaringbitmap.longlong.Roaring64Bitmap$ReversePeekableIterator
+  - org.roaringbitmap.longlong.Roaring64NavigableMap
   - org.roaringbitmap.longlong.Roaring64NavigableMap$3
+  - org.roaringbitmap.longlong.RoaringIntPacking
+[dev.vortex:vortex-jni (classifier=all), org.slf4j:slf4j-api]
+  - org.slf4j.Marker
+  - org.slf4j.helpers.BasicMarker
+  - org.slf4j.spi.DefaultLoggingEventBuilder
+  - org.slf4j.spi.DefaultLoggingEventBuilder$1

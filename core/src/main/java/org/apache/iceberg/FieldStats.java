@@ -38,10 +38,14 @@ public interface FieldStats<T> {
   T upperBound();
 
   /**
-   * Whether {@link #lowerBound()} and {@link #upperBound()} are equal to the min and max values for
-   * the column.
+   * Returns whether the bounds are known to be exact.
+   *
+   * @deprecated will be removed in 1.14.0; use {@link DataFile#tightStats()} instead.
    */
-  boolean tightBounds();
+  @Deprecated
+  default boolean tightBounds() {
+    return false;
+  }
 
   /** Whether a value count is tracked for this field. */
   boolean hasValueCount();
@@ -75,20 +79,13 @@ public interface FieldStats<T> {
   }
 
   /**
-   * The avg value size in memory (uncompressed) in bytes for variable-length types (string, binary,
-   * variant, geometry, geography)
+   * Returns {@code null}.
    *
    * @deprecated since 1.13.0, will be removed in 1.14.0; use {@link #totalBytes()} instead.
    */
   @Deprecated
   default Integer avgValueSizeInBytes() {
-    if (!hasTotalBytes() || !hasValueCount()) {
-      return null;
-    }
-
-    long nulls = hasNullValueCount() ? nullValueCount() : 0L;
-    long nonNullValueCount = valueCount() - nulls;
-    return nonNullValueCount > 0 ? Math.toIntExact(totalBytes() / nonNullValueCount) : null;
+    return null;
   }
 
   /** Returns a copy of this {@link FieldStats}. */

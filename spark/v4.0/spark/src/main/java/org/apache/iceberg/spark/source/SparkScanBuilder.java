@@ -607,7 +607,7 @@ public class SparkScanBuilder
     // runtime filters on data columns drop files by the metrics of those columns. A column can
     // have a different name in each schema, or no field at all when it was added after the
     // snapshot that the scan reads, so find each name by the field ID.
-    List<String> statsColumns = Lists.newArrayList(variantColumnNames(projection));
+    List<String> statsColumns = Lists.newArrayList();
     if (readConf.columnAwareSplitSizeEnabled() && readConf.adaptiveSplitSizeEnabled()) {
       // adaptive split sizing counts the bytes of the projected columns, see SparkScan
       projection.columns().stream()
@@ -648,13 +648,6 @@ public class SparkScanBuilder
   private boolean offersDataColumns() {
     return dataColumnRuntimeFilters
         && SparkBatchQueryScan.offersDataColumns(spark, table, readConf);
-  }
-
-  private List<String> variantColumnNames(Schema projection) {
-    return projection.columns().stream()
-        .filter(field -> field.type().isVariantType())
-        .map(Types.NestedField::name)
-        .collect(Collectors.toList());
   }
 
   @SuppressWarnings("CyclomaticComplexity")

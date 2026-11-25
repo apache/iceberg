@@ -18,22 +18,17 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.MetricsConfig;
-import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.spark.ImmutableOrcBatchReadConf;
@@ -47,7 +42,6 @@ import org.apache.iceberg.spark.VortexBatchReadConf;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.connector.read.Batch;
@@ -169,7 +163,7 @@ class SparkBatch implements Batch {
 
   // conditions for using Parquet batch reads:
   // - Parquet vectorization is enabled
-  // - only primitives, unshredded variant, or metadata columns are projected, excluding geometry
+  // - only primitives, variant, or metadata columns are projected, excluding geometry
   //   and geography which are primitives with no Arrow vector yet
   // - all tasks are of FileScanTask type and read only Parquet files
   private boolean useParquetBatchReads() {
@@ -185,18 +179,7 @@ class SparkBatch implements Batch {
 
     } else if (task.isFileScanTask() && !task.isDataTask()) {
       FileScanTask fileScanTask = task.asFileScanTask();
-      if (fileScanTask.file().format() != FileFormat.PARQUET) {
-        return false;
-      }
-      Map<Integer, ByteBuffer> lowerBounds = fileScanTask.file().lowerBounds();
-      if (lowerBounds != null) {
-        for (Types.NestedField field : projection.columns()) {
-          if (field.type().isVariantType() && lowerBounds.containsKey(field.fieldId())) {
-            return false;
-          }
-        }
-      }
-      return true;
+      return fileScanTask.file().format() == FileFormat.PARQUET;
 
     } else {
       return false;
@@ -213,23 +196,6 @@ class SparkBatch implements Batch {
     // read through the non-vectorized reader.
     if (type.typeId() == Type.TypeID.GEOMETRY || type.typeId() == Type.TypeID.GEOGRAPHY) {
       return false;
-    }
-
-    if (type.isVariantType()) {
-      boolean shredVariants =
-          PropertyUtil.propertyAsBoolean(
-              table.properties(),
-              TableProperties.PARQUET_SHRED_VARIANTS,
-              TableProperties.PARQUET_SHRED_VARIANTS_DEFAULT);
-      if (shredVariants) {
-        return false;
-      }
-
-      MetricsConfig metricsConfig = MetricsConfig.forTable(table);
-      MetricsModes.MetricsMode mode = metricsConfig.columnMode(field.fieldId());
-      if (mode == MetricsModes.None.get() || mode == MetricsModes.Counts.get()) {
-        return false;
-      }
     }
 
     return type.isPrimitiveType() || type.isVariantType();

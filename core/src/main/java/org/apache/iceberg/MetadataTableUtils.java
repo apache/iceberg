@@ -19,10 +19,20 @@
 package org.apache.iceberg;
 
 import java.util.Locale;
+import java.util.Set;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class MetadataTableUtils {
+  private static final int MIN_FORMAT_VERSION_WITH_ROOT_MANIFESTS = 4;
+  private static final Set<MetadataTableType> MANIFEST_INDEPENDENT_TABLES =
+      Sets.immutableEnumSet(
+          MetadataTableType.HISTORY,
+          MetadataTableType.SNAPSHOTS,
+          MetadataTableType.METADATA_LOG_ENTRIES,
+          MetadataTableType.REFS);
+
   private MetadataTableUtils() {}
 
   public static boolean hasMetadataTableName(TableIdentifier identifier) {
@@ -55,6 +65,18 @@ public class MetadataTableUtils {
 
   private static Table createMetadataTableInstance(
       Table baseTable, String metadataTableName, MetadataTableType type) {
+    if (!MANIFEST_INDEPENDENT_TABLES.contains(type)) {
+      TableMetadata metadata = ((BaseTable) baseTable).operations().current();
+      if (metadata.formatVersion() >= MIN_FORMAT_VERSION_WITH_ROOT_MANIFESTS
+          && metadata.snapshots().stream()
+              .anyMatch(snapshot -> snapshot.rootManifestLocation() != null)) {
+        throw new UnsupportedOperationException(
+            String.format(
+                "Metadata tables are not supported for tables with v4 root manifests: %s",
+                metadataTableName));
+      }
+    }
+
     switch (type) {
       case ENTRIES:
         return new ManifestEntriesTable(baseTable, metadataTableName);

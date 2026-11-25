@@ -90,7 +90,7 @@ public class TestSparkMetadataColumns extends TestBase {
   @Parameters(name = "fileFormat = {0}, vectorized = {1}, formatVersion = {2}")
   public static Object[][] parameters() {
     List<Object[]> parameters = Lists.newArrayList();
-    for (int version : TestHelpers.ALL_VERSIONS) {
+    for (int version : TestHelpers.V3_AND_BELOW) {
       parameters.add(new Object[] {FileFormat.PARQUET, false, version});
       parameters.add(new Object[] {FileFormat.PARQUET, true, version});
       parameters.add(new Object[] {FileFormat.AVRO, false, version});

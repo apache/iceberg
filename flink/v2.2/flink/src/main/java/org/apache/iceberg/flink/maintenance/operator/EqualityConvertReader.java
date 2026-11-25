@@ -57,9 +57,9 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Parallel reader that processes {@link ReadCommand}s from the planner and emits {@link
- * IndexCommand}s. Dispatches on the wrapped {@link ContentScanTask} subtype: {@link FileScanTask}
- * (data file) emits {@code ADD_DATA_ROW} per row, our equality-delete task emits {@code
- * RESOLVE_DELETE} per row.
+ * IndexCommand}s, one per row: {@code ADD_DATA_ROW} or {@code ADD_STAGING_DATA_ROW} for a data
+ * file, {@code REMOVE_DATA_ROW} for a removed data file, {@code RESOLVE_DELETE} for an equality
+ * delete file.
  */
 @Internal
 public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCommand> {
@@ -116,20 +116,24 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
     ContentScanTask<?> task = cmd.task();
     ContentFile<?> file = task.file();
     try {
-      if (task instanceof FileScanTask dataTask) {
-        processDataFile(
-            dataTask,
-            cmd.mainSnapshotId(),
-            cmd.indexGeneration(),
-            cmd.dataSequenceNumber(),
-            cmd.staging(),
-            out);
-      } else if (task instanceof EqualityDeleteFileScanTask deleteTask) {
-        processDeleteFile(
-            deleteTask, cmd.mainSnapshotId(), cmd.indexGeneration(), cmd.dataSequenceNumber(), out);
-      } else {
-        throw new IllegalStateException(
-            "Unexpected ContentScanTask type: " + task.getClass().getName());
+      // The task subtype is paired with the command type in ReadCommand's constructor.
+      switch (cmd.type()) {
+        case DATA_FILE, STAGING_DATA_FILE, REMOVED_DATA_FILE ->
+            processDataFile(
+                (FileScanTask) task,
+                cmd.type(),
+                cmd.mainSnapshotId(),
+                cmd.indexGeneration(),
+                cmd.dataSequenceNumber(),
+                out);
+        case EQ_DELETE_FILE ->
+            processDeleteFile(
+                (EqualityDeleteFileScanTask) task,
+                cmd.mainSnapshotId(),
+                cmd.indexGeneration(),
+                cmd.dataSequenceNumber(),
+                out);
+        default -> throw new IllegalStateException("Unexpected read command type: " + cmd.type());
       }
     } catch (Exception e) {
       LOG.error("Reader failed to process command for file={}", file.location(), e);
@@ -140,10 +144,10 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
 
   private void processDataFile(
       FileScanTask task,
+      ReadCommand.Type type,
       Long mainSnapshotId,
       Long indexGeneration,
       long dataSequenceNumber,
-      boolean staging,
       Collector<IndexCommand> out)
       throws IOException {
     ContentFile<?> file = task.file();
@@ -172,17 +176,30 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
 
         SerializedEqualityValues key =
             fieldSerializer.serializeKey(keyWrapper.wrap(record), keySchema.asStruct());
-        out.collect(
-            IndexCommand.addDataRow(
-                mainSnapshotId,
-                indexGeneration,
-                key,
-                file.location(),
-                position,
-                specId,
-                partitionBytes,
-                dataSequenceNumber,
-                staging));
+        if (type == ReadCommand.Type.REMOVED_DATA_FILE) {
+          out.collect(
+              IndexCommand.removeDataRow(
+                  mainSnapshotId,
+                  indexGeneration,
+                  key,
+                  file.location(),
+                  position,
+                  specId,
+                  partitionBytes,
+                  dataSequenceNumber));
+        } else {
+          out.collect(
+              IndexCommand.addDataRow(
+                  mainSnapshotId,
+                  indexGeneration,
+                  key,
+                  file.location(),
+                  position,
+                  specId,
+                  partitionBytes,
+                  dataSequenceNumber,
+                  type == ReadCommand.Type.STAGING_DATA_FILE));
+        }
       }
     }
   }

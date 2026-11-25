@@ -19,11 +19,37 @@
 package org.apache.iceberg.mumbling;
 
 import org.apache.iceberg.ManifestBitmap;
+import org.apache.iceberg.util.ArrayUtil;
 
 /** Mutation methods for ManifestBitmap. */
 public interface MutableBitmap extends ManifestBitmap {
   /** Set the bit at {@code position}. */
   boolean set(int position);
+
+  /**
+   * Set multiple {@code positions} in the bitmap.
+   *
+   * @param positions positions to set in the bitmap
+   * @return true if any position was set, false otherwise
+   */
+  default boolean setAll(int... positions) {
+    return setAll(ArrayUtil.toIntList(positions));
+  }
+
+  /**
+   * Set multiple {@code positions} in the bitmap.
+   *
+   * @param positions positions to set in the bitmap
+   * @return true if any position was set, false otherwise
+   */
+  default boolean setAll(Iterable<Integer> positions) {
+    boolean result = false;
+    for (int position : positions) {
+      result |= set(position);
+    }
+
+    return result;
+  }
 
   /** Set all bits in this bitmap that are set in {@code bitmap}. */
   void merge(ManifestBitmap bitmap);

@@ -49,7 +49,6 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.TimeTravel;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
@@ -386,7 +385,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
     }
     // A column can have a different name in the scan schema, or no field at all when it was added
     // after the snapshot that the scan reads, so find each name by the field ID.
-    List<String> statsColumns = Lists.newArrayList(variantColumnNames(projection));
+    List<String> statsColumns = Lists.newArrayList();
     if (readConf().columnAwareSplitSizeEnabled() && readConf().adaptiveSplitSizeEnabled()) {
       // adaptive split sizing counts the bytes of the projected columns, see SparkScan
       projection.columns().stream()
@@ -405,13 +404,6 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
 
     List<String> distinct = statsColumns.stream().distinct().collect(Collectors.toList());
     return distinct.isEmpty() ? scan : scan.includeColumnStats(distinct);
-  }
-
-  private List<String> variantColumnNames(Schema projection) {
-    return projection.columns().stream()
-        .filter(field -> field.type().isVariantType())
-        .map(Types.NestedField::name)
-        .collect(Collectors.toList());
   }
 
   /**

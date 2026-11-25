@@ -47,6 +47,7 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
   private static final Logger LOG = LoggerFactory.getLogger(RowDataReader.class);
 
   private final long numSplits;
+  private final InheritedTaskMetrics inheritedMetrics = new InheritedTaskMetrics();
   private final Expression runtimeFilter;
 
   RowDataReader(SparkInputPartition partition) {
@@ -94,11 +95,15 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
 
   @Override
   public CustomTaskMetric[] currentMetricsValues() {
-    return new CustomTaskMetric[] {
-      new TaskNumSplits(numSplits),
-      new TaskNumDeletes(counter().get()),
-      new TaskScanDuration(scanDurationNanos())
-    };
+    return inheritedMetrics.addTo(
+        new TaskNumSplits(numSplits),
+        new TaskNumDeletes(counter().get()),
+        new TaskScanDuration(scanDurationNanos()));
+  }
+
+  @Override
+  public void initMetricsValues(CustomTaskMetric[] metrics) {
+    inheritedMetrics.inherit(metrics);
   }
 
   @Override
