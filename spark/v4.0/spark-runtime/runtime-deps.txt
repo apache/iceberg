@@ -10,7 +10,7 @@ com.google.guava:guava:33.7
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava
 com.google.j2objc:j2objc-annotations:3.1
 dev.failsafe:failsafe:3.3
-dev.vortex:vortex-jni:0.93
+dev.vortex:vortex-jni:0.94
 io.airlift:aircompressor:2.0
 io.netty:netty-buffer:4.2
 io.netty:netty-common:4.2

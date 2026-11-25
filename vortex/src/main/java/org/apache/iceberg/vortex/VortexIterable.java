@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.vortex;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import dev.vortex.api.DataSource;
 import dev.vortex.api.ImmutableScanOptions;
 import dev.vortex.api.Partition;
@@ -30,6 +32,7 @@ import dev.vortex.jni.NativeRuntime;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -60,8 +63,19 @@ import org.slf4j.LoggerFactory;
 public class VortexIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private static final Logger LOG = LoggerFactory.getLogger(VortexIterable.class);
 
+  // Bounds the cached name mappings by the size of their JSON text.
+  private static final long MAX_CACHED_MAPPING_CHARS = 16L * 1024 * 1024;
+
+  // Data files never change, so the name mapping of a file read once serves all later splits.
+  private static final Cache<String, FileNameMapping> FILE_MAPPINGS =
+      Caffeine.newBuilder()
+          .maximumWeight(MAX_CACHED_MAPPING_CHARS)
+          .weigher((String location, FileNameMapping mapping) -> mapping.weight())
+          .build();
+
   private final InputFile inputFile;
   private final Optional<Expression> filterPredicate;
+  private final List<VortexLikeFilters.Like> likeFilters;
   private final long[] splitByteRange;
   private final byte[] posDeleteBitmap;
   private final boolean includeRowPosition;
@@ -83,6 +97,7 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
       Schema expectedSchema,
       List<Types.NestedField> projection,
       Optional<Expression> filterPredicate,
+      List<VortexLikeFilters.Like> likeFilters,
       long[] splitByteRange,
       byte[] posDeleteBitmap,
       boolean includeRowPosition,
@@ -98,6 +113,7 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     this.expectedSchema = expectedSchema;
     this.projection = projection;
     this.filterPredicate = filterPredicate;
+    this.likeFilters = likeFilters;
     this.splitByteRange = splitByteRange;
     this.posDeleteBitmap = posDeleteBitmap;
     this.includeRowPosition = includeRowPosition;
@@ -136,23 +152,11 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
   }
 
   private CloseableIterator<T> open(Session session, NativeReadable readable) {
+    // Read the name mapping before the data source opens the file. The first open of a file reads
+    // its tail, which usually holds the mapping too; a later open finds the footer in the session
+    // cache and must read the mapping separately.
+    NameMapping fileMapping = fileNameMapping(session, readable);
     DataSource dataSource = DataSource.open(session, readable);
-
-    long[] rowRange = null;
-    if (splitByteRange != null) {
-      rowRange = toRowRange(splitByteRange, readable.length(), dataSource);
-      if (rowRange[0] >= rowRange[1]) {
-        // The byte range maps to zero rows: skip the scan entirely. An all-zero range must not
-        // reach the native scan, which interprets it as "no range set".
-        try {
-          readable.close();
-        } catch (IOException e) {
-          throw new org.apache.iceberg.exceptions.RuntimeIOException(
-              e, "Failed to close input source for %s", inputFile.location());
-        }
-        return CloseableIterator.empty();
-      }
-    }
 
     dev.vortex.relocated.org.apache.arrow.memory.BufferAllocator vortexAllocator =
         VortexArrowBridge.vortexAllocator();
@@ -165,24 +169,13 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     // A file whose writer stored a name mapping in Vortex file metadata carries field ids: tag the
     // Arrow fields with them so readers bind columns by id. A file that stores none falls back to
     // the table's name mapping; without either, binding falls back to by name.
-    NameMapping fileMapping = readNameMapping(session, readable);
     NameMapping mapping = fileMapping != null ? fileMapping : nameMapping;
     if (mapping != null) {
       fileArrowSchema = VortexSchemas.withFieldIds(fileArrowSchema, mapping);
     }
 
-    // The filter binds to the expected schema and resolves columns against the id-tagged file
-    // schema, the same way the projection below does.
-    org.apache.arrow.vector.types.pojo.Schema filterArrowSchema = fileArrowSchema;
     Optional<dev.vortex.api.Expression> scanFilter =
-        filterPredicate.map(
-            icebergExpression ->
-                ConvertFilterToVortex.convert(
-                    expectedSchema,
-                    VortexSchemas.convert(vortexArrowSchema),
-                    filterArrowSchema,
-                    icebergExpression,
-                    caseSensitive));
+        scanFilter(VortexSchemas.convert(vortexArrowSchema), fileArrowSchema);
 
     // Vortex resolves projected columns by name and errors on any name not in the file. Each
     // expected column is bound to the file column with the same Iceberg id (so a column renamed
@@ -197,6 +190,27 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     ImmutableList.Builder<String> fieldNames = ImmutableList.builder();
     ImmutableList.Builder<dev.vortex.api.Expression> expressions = ImmutableList.builder();
     addColumnProjections(fileArrowSchema, fieldNames, expressions);
+
+    long[] rowRange = null;
+    if (splitByteRange != null) {
+      rowRange =
+          toRowRange(
+              splitByteRange,
+              readable.length(),
+              dataSource,
+              NativeFiles.splits(
+                  session, readable, splitColumns(fieldNames.build(), fileArrowSchema)));
+      if (rowRange[0] >= rowRange[1]) {
+        // The byte range maps to zero rows: skip the scan entirely.
+        try {
+          readable.close();
+        } catch (IOException e) {
+          throw new org.apache.iceberg.exceptions.RuntimeIOException(
+              e, "Failed to close input source for %s", inputFile.location());
+        }
+        return CloseableIterator.empty();
+      }
+    }
 
     // Row position is not a stored column. When requested, materialize it from Vortex's `row_idx`
     // scan expression packed under the _pos metadata-column name, and append a matching _pos field
@@ -217,29 +231,7 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
             expressions.build().toArray(dev.vortex.api.Expression[]::new),
             false);
 
-    ImmutableScanOptions.Builder optionsBuilder = ScanOptions.builder().projection(scanProjection);
-    // Vortex scans resolve partitions concurrently and yield them out of order by default. Row
-    // readers surface records positionally (like every other iceberg file format reader), so the
-    // row path must preserve file order. The batch path stays unordered: Spark derives row
-    // positions from the scan's row_idx values rather than emission order.
-    if (rowReaderFunc != null) {
-      optionsBuilder.ordered(true);
-    }
-    scanFilter.ifPresent(optionsBuilder::filter);
-    if (rowRange != null) {
-      optionsBuilder.rowRangeBegin(rowRange[0]).rowRangeEnd(rowRange[1]);
-    }
-
-    // Apply position deletes natively: the bitmap holds file-relative row positions of deleted rows
-    // (portable 64-bit Roaring), and Vortex drops them from the scan so they are never
-    // materialized.
-    if (posDeleteBitmap != null) {
-      optionsBuilder
-          .selectionRoaringBitmap(posDeleteBitmap)
-          .selectionMode(ScanOptions.SelectionMode.EXCLUDE_ROARING);
-    }
-
-    Scan scan = dataSource.scan(optionsBuilder.build());
+    Scan scan = dataSource.scan(scanOptions(scanProjection, scanFilter, rowRange));
     Preconditions.checkNotNull(scan, "scan");
 
     PartitionBatchIterator batchIterator =
@@ -257,6 +249,76 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     }
   }
 
+  /**
+   * The scan filter: the Iceberg filter and the LIKE filters. The filter binds to the expected
+   * schema and resolves columns against the id-tagged file schema, the same way the projection
+   * does.
+   */
+  private Optional<dev.vortex.api.Expression> scanFilter(
+      Schema fileSchema, org.apache.arrow.vector.types.pojo.Schema fileArrowSchema) {
+    Optional<dev.vortex.api.Expression> filter =
+        filterPredicate.map(
+            icebergExpression ->
+                ConvertFilterToVortex.convert(
+                    expectedSchema, fileSchema, fileArrowSchema, icebergExpression, caseSensitive));
+    if (likeFilters.isEmpty()) {
+      return filter;
+    }
+
+    dev.vortex.api.Expression likes =
+        ConvertFilterToVortex.convertLikes(
+            expectedSchema, fileSchema, fileArrowSchema, likeFilters, caseSensitive);
+    if (likes == ConvertFilterToVortex.ALWAYS_TRUE) {
+      return filter;
+    }
+
+    return Optional.of(
+        filter.map(predicate -> dev.vortex.api.Expression.and(predicate, likes)).orElse(likes));
+  }
+
+  private ScanOptions scanOptions(
+      dev.vortex.api.Expression scanProjection,
+      Optional<dev.vortex.api.Expression> filter,
+      long[] rowRange) {
+    ImmutableScanOptions.Builder builder = ScanOptions.builder().projection(scanProjection);
+    // Vortex scans resolve partitions concurrently and yield them out of order by default. Row
+    // readers surface records positionally (like every other iceberg file format reader), so the
+    // row path must preserve file order. The batch path stays unordered: Spark derives row
+    // positions from the scan's row_idx values rather than emission order.
+    if (rowReaderFunc != null) {
+      builder.ordered(true);
+    }
+    filter.ifPresent(builder::filter);
+    if (rowRange != null) {
+      builder.rowRangeBegin(rowRange[0]).rowRangeEnd(rowRange[1]);
+    }
+
+    // Apply position deletes natively: the bitmap holds file-relative row positions of deleted rows
+    // (portable 64-bit Roaring), and Vortex drops them from the scan so they are never
+    // materialized.
+    if (posDeleteBitmap != null) {
+      builder
+          .selectionRoaringBitmap(posDeleteBitmap)
+          .selectionMode(ScanOptions.SelectionMode.EXCLUDE_ROARING);
+    }
+
+    return builder.build();
+  }
+
+  /**
+   * The file columns whose chunks the split follows: the projected columns. Finding the chunks of
+   * every column of a wide file costs much more than of the few columns a scan reads. A scan that
+   * projects no column, such as a count, follows the first file column.
+   */
+  private static List<String> splitColumns(
+      List<String> projected, org.apache.arrow.vector.types.pojo.Schema fileArrowSchema) {
+    if (!projected.isEmpty() || fileArrowSchema.getFields().isEmpty()) {
+      return projected;
+    }
+
+    return ImmutableList.of(fileArrowSchema.getFields().get(0).getName());
+  }
+
   private void addColumnProjections(
       org.apache.arrow.vector.types.pojo.Schema fileArrowSchema,
       ImmutableList.Builder<String> fieldNames,
@@ -272,30 +334,46 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
   }
 
   /**
-   * Reads the name mapping the file was written with from Vortex file metadata, or returns null
-   * when the file carries none. A file that has no entry is not an error, and neither is one whose
-   * entry will not parse: both fall back to binding by name rather than failing the scan.
+   * Returns the name mapping the file was written with, or null when the file carries none. A file
+   * that has no entry is not an error, and neither is one whose entry will not parse: both fall
+   * back to binding by name rather than failing the scan.
    */
-  private NameMapping readNameMapping(Session session, NativeReadable readable) {
+  private NameMapping fileNameMapping(Session session, NativeReadable readable) {
+    FileNameMapping cached = FILE_MAPPINGS.getIfPresent(inputFile.location());
+    if (cached != null) {
+      return cached.mapping();
+    }
+
     byte[] json;
     try {
       json = NativeFiles.readMetadata(session, readable).get(VortexSchemas.NAME_MAPPING_KEY);
     } catch (RuntimeException e) {
+      // The read can fail for a transient reason, so the result is not cached.
       LOG.warn("Failed to read Vortex file metadata for {}", inputFile.location(), e);
       return null;
     }
 
+    FileNameMapping mapping = parseNameMapping(json);
+    FILE_MAPPINGS.put(inputFile.location(), mapping);
+    return mapping.mapping();
+  }
+
+  private FileNameMapping parseNameMapping(byte[] json) {
     if (json == null) {
-      return null;
+      return new FileNameMapping(null, 0);
     }
 
     try {
-      return NameMappingParser.fromJson(new String(json, StandardCharsets.UTF_8));
+      String text = new String(json, StandardCharsets.UTF_8);
+      return new FileNameMapping(NameMappingParser.fromJson(text), text.length());
     } catch (RuntimeException e) {
       LOG.warn("Ignoring unreadable name mapping in {}", inputFile.location(), e);
-      return null;
+      return new FileNameMapping(null, 0);
     }
   }
+
+  /** The name mapping a file was written with, or null when it has none, and its cache weight. */
+  private record FileNameMapping(NameMapping mapping, int weight) {}
 
   /**
    * Row lineage: projects {@code _row_id} as a nested pack of the stored column (when the file has
@@ -340,16 +418,47 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
    * exact row count. Because every boundary maps through the same function, the contiguous byte
    * splits of a file map to contiguous, non-overlapping row ranges that cover every row exactly
    * once.
+   *
+   * <p>Each boundary then moves to the nearest natural split of the file, so a scan reads whole
+   * chunks: a boundary inside a chunk makes both neighbouring scans decode that chunk. Rounding is
+   * monotonic, so the ranges stay contiguous and still cover every row exactly once. A file with a
+   * single natural split keeps the boundaries where they are, because rounding would put all of its
+   * rows into one scan.
    */
-  private static long[] toRowRange(long[] byteRange, long fileLength, DataSource dataSource) {
+  private static long[] toRowRange(
+      long[] byteRange, long fileLength, DataSource dataSource, long[] chunkBoundaries) {
     Preconditions.checkState(
         dataSource.rowCount() instanceof DataSource.RowCount.Exact,
         "Cannot map a byte-range split to rows without an exact row count: %s",
         dataSource.rowCount());
     long totalRows = ((DataSource.RowCount.Exact) dataSource.rowCount()).value();
-    long begin = rowAt(byteRange[0], fileLength, totalRows);
-    long end = rowAt(byteRange[0] + byteRange[1], fileLength, totalRows);
+    long begin = nearestBoundary(rowAt(byteRange[0], fileLength, totalRows), chunkBoundaries);
+    long end =
+        nearestBoundary(rowAt(byteRange[0] + byteRange[1], fileLength, totalRows), chunkBoundaries);
     return new long[] {begin, end};
+  }
+
+  private static long nearestBoundary(long row, long[] boundaries) {
+    if (boundaries.length <= 2) {
+      return row;
+    }
+
+    int index = Arrays.binarySearch(boundaries, row);
+    if (index >= 0) {
+      return row;
+    }
+
+    int above = -index - 1;
+    if (above == 0) {
+      return boundaries[0];
+    }
+
+    if (above == boundaries.length) {
+      return boundaries[boundaries.length - 1];
+    }
+
+    long below = boundaries[above - 1];
+    return row - below <= boundaries[above] - row ? below : boundaries[above];
   }
 
   private static long rowAt(long byteOffset, long fileLength, long totalRows) {

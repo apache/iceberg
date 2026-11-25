@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark;
 
 import java.io.Serializable;
+import java.util.Optional;
 import org.immutables.value.Value;
 
 @Value.Immutable
@@ -29,4 +30,7 @@ public interface VortexBatchReadConf extends Serializable {
    * <p>This is advisory and may not be respected by the implementation.
    */
   int batchSize();
+
+  /** String match filters for the reader, encoded by {@code VortexLikeFilters}. */
+  Optional<String> likeFilters();
 }

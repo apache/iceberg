@@ -329,6 +329,7 @@ public class VortexFormatModel<D, S, R>
     private int workerThreads = TableProperties.VORTEX_WORKER_THREADS_DEFAULT;
     private boolean reuseContainers = false;
     private NameMapping nameMapping;
+    private List<VortexLikeFilters.Like> likeFilters = List.of();
 
     private ReadBuilderWrapper(
         InputFile inputFile,
@@ -386,7 +387,10 @@ public class VortexFormatModel<D, S, R>
     public ReadBuilder<D, S> set(String key, String value) {
       if (TableProperties.READ_VORTEX_WORKER_THREADS.equals(key)) {
         workerThreads = Integer.parseInt(value);
+      } else if (VortexLikeFilters.PROPERTY.equals(key)) {
+        likeFilters = VortexLikeFilters.decode(value);
       }
+
       return this;
     }
 
@@ -473,6 +477,7 @@ public class VortexFormatModel<D, S, R>
           schema,
           projection,
           filterPredicate,
+          likeFilters,
           splitByteRange,
           posDeleteBitmap,
           includeRowPosition,

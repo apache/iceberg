@@ -30,6 +30,7 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
@@ -111,6 +112,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         EMPTY_GROUPING_KEY_TYPE,
         taskGroups(),
         expectedSchema,
+        Expressions.alwaysTrue(),
         hashCode());
   }
 

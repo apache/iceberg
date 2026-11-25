@@ -89,7 +89,7 @@ spark41 = "4.1.4"
 spark42 = "4.2.1"
 sqlite-jdbc = "3.54.1.0"
 testcontainers = "2.0.5"
-vortex = "0.93.0"
+vortex = "0.94.0"
 
 [libraries]
 activation = { module = "javax.activation:activation", version.ref = "activation" }

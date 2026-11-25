@@ -20,6 +20,12 @@ package org.apache.iceberg.spark;
 
 import static org.apache.iceberg.PlanningMode.LOCAL;
 
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.SupportsDistributedScanPlanning;
 import org.apache.iceberg.Table;
@@ -115,6 +121,11 @@ public class SparkReadConf {
         .tableProperty(TableProperties.PARQUET_VECTORIZATION_ENABLED)
         .defaultValue(TableProperties.PARQUET_VECTORIZATION_ENABLED_DEFAULT)
         .parse();
+  }
+
+  public Optional<String> vortexLikeFilters() {
+    return Optional.ofNullable(
+        confParser.stringConf().option(SparkReadOptions.VORTEX_LIKE_FILTERS).parseOptional());
   }
 
   public int parquetBatchSize() {
@@ -271,6 +282,38 @@ public class SparkReadConf {
         .parse();
   }
 
+  public boolean dataColumnRuntimeFilteringEnabled() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.DATA_COLUMN_RUNTIME_FILTERING_ENABLED)
+        .defaultValue(SparkSQLProperties.DATA_COLUMN_RUNTIME_FILTERING_ENABLED_DEFAULT)
+        .parse();
+  }
+
+  /** The file formats whose scans offer data columns to runtime filtering. */
+  public Set<FileFormat> dataColumnRuntimeFilteringFormats() {
+    String formats =
+        confParser
+            .stringConf()
+            .sessionConf(SparkSQLProperties.DATA_COLUMN_RUNTIME_FILTERING_FORMATS)
+            .defaultValue(SparkSQLProperties.DATA_COLUMN_RUNTIME_FILTERING_FORMATS_DEFAULT)
+            .parse();
+
+    return Arrays.stream(formats.split(","))
+        .map(String::trim)
+        .filter(format -> !format.isEmpty())
+        .map(format -> FileFormat.fromString(format.toLowerCase(Locale.ROOT)))
+        .collect(Collectors.toSet());
+  }
+
+  public int runtimeFilterMaxValues() {
+    return confParser
+        .intConf()
+        .sessionConf(SparkSQLProperties.RUNTIME_FILTER_MAX_VALUES)
+        .defaultValue(SparkSQLProperties.RUNTIME_FILTER_MAX_VALUES_DEFAULT)
+        .parse();
+  }
+
   public boolean adaptiveSplitSizeEnabled() {
     return confParser
         .booleanConf()
@@ -284,6 +327,22 @@ public class SparkReadConf {
     int defaultParallelism = spark.sparkContext().defaultParallelism();
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
     return Math.max(defaultParallelism, numShufflePartitions);
+  }
+
+  public boolean columnAwareSplitSizeEnabled() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.COLUMN_AWARE_SPLIT_SIZE_ENABLED)
+        .defaultValue(SparkSQLProperties.COLUMN_AWARE_SPLIT_SIZE_ENABLED_DEFAULT)
+        .parse();
+  }
+
+  public long minFileSplitSize() {
+    return confParser
+        .longConf()
+        .sessionConf(SparkSQLProperties.MIN_FILE_SPLIT_SIZE)
+        .defaultValue(SparkSQLProperties.MIN_FILE_SPLIT_SIZE_DEFAULT)
+        .parse();
   }
 
   public int splitParallelism() {

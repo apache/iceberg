@@ -29,6 +29,7 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.spark.ImmutableOrcBatchReadConf;
 import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
@@ -62,6 +63,7 @@ class SparkBatch implements Batch {
   private final boolean executorCacheLocalityEnabled;
   private final int scanHashCode;
   private final boolean cacheDeleteFilesOnExecutors;
+  private final Expression runtimeFilter;
 
   SparkBatch(
       JavaSparkContext sparkContext,
@@ -71,6 +73,7 @@ class SparkBatch implements Batch {
       Types.StructType groupingKeyType,
       List<? extends ScanTaskGroup<?>> taskGroups,
       Schema expectedSchema,
+      Expression runtimeFilter,
       int scanHashCode) {
     this.sparkContext = sparkContext;
     this.table = table;
@@ -85,6 +88,7 @@ class SparkBatch implements Batch {
     this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
     this.scanHashCode = scanHashCode;
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
+    this.runtimeFilter = runtimeFilter;
   }
 
   @Override
@@ -110,7 +114,8 @@ class SparkBatch implements Batch {
               expectedSchemaString,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
-              cacheDeleteFilesOnExecutors);
+              cacheDeleteFilesOnExecutors,
+              runtimeFilter);
     }
 
     return partitions;
@@ -153,7 +158,10 @@ class SparkBatch implements Batch {
   }
 
   private VortexBatchReadConf vortexBatchReadConf() {
-    return ImmutableVortexBatchReadConf.builder().batchSize(readConf.parquetBatchSize()).build();
+    return ImmutableVortexBatchReadConf.builder()
+        .batchSize(readConf.parquetBatchSize())
+        .likeFilters(readConf.vortexLikeFilters())
+        .build();
   }
 
   // conditions for using Parquet batch reads:

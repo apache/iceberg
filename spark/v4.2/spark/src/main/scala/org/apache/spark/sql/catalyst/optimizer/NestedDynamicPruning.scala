@@ -30,11 +30,13 @@ import org.apache.spark.sql.catalyst.rules.Rule
 /**
  * Drops each dynamic pruning filter whose filtering plan holds dynamic pruning filters of its own.
  *
- * Spark adds one pruning subquery per join that can prune a scan, holding the plan of the join's
- * other side. When that side holds pruned scans too, as a common table expression joined with
- * itself does, each subquery copies their subqueries, and the physical plan grows exponentially
- * with the depth of the joins. A filtering side that big is no broadcast dimension either, so its
- * pruning would not run.
+ * When the session runs this rule, Iceberg scans offer their data columns to Spark's dynamic
+ * pruning, so a join on any key can prune them, not only a join on a partition source column.
+ * Spark adds one pruning subquery per such join, holding the plan of the join's other side. When
+ * that side holds pruned scans too, as a common table expression joined with itself does, each
+ * subquery copies their subqueries, and the physical plan grows exponentially with the depth of
+ * the joins. A filtering side that big is no broadcast dimension either, so its pruning would not
+ * run.
  *
  * A dynamic pruning filter only skips rows the join drops anyway, so dropping the filter leaves
  * the result as it is.
@@ -56,7 +58,7 @@ object NestedDynamicPruning extends Rule[LogicalPlan] with PredicateHelper {
     }
   }
 
-  /** Whether `session` runs the rule. */
+  /** Whether `session` runs the rule, so its scans can offer their data columns to dynamic pruning. */
   def installed(session: SparkSession): Boolean =
     session.experimental.extraOptimizations.contains(this)
 

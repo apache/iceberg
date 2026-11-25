@@ -20,12 +20,17 @@ package org.apache.iceberg.vortex;
 
 import dev.vortex.io.NativeReadable;
 import dev.vortex.io.NativeWritable;
+import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Locale;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.util.functional.FutureIO;
+import org.apache.iceberg.hadoop.HadoopInputFile;
+import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
@@ -39,7 +44,15 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * instead of Vortex's own storage clients.
  */
 final class VortexIO {
-  private static final int COPY_CHUNK_SIZE = 1 << 20;
+  // Largest staging array that a pooled stream keeps for later reads. Larger reads get an array of
+  // their own.
+  private static final int SCRATCH_RETAIN_LIMIT = 1 << 20;
+
+  // The Hadoop openFile options that give the file length and the read policy. Names from
+  // org.apache.hadoop.fs.Options.OpenFileOptions, which Hadoop 3.3.4 does not have.
+  private static final String OPEN_FILE_LENGTH = "fs.option.openfile.length";
+  private static final String OPEN_FILE_READ_POLICY = "fs.option.openfile.read.policy";
+  private static final String RANDOM_READ_POLICY = "random";
 
   private VortexIO() {}
 
@@ -84,13 +97,17 @@ final class VortexIO {
   }
 
   /**
-   * Serves each native read from a pooled {@link SeekableInputStream}, opening a new stream when
-   * all pooled streams are checked out by concurrent reads.
+   * Serves each native read from a pooled stream of the file, opening a new stream when all pooled
+   * streams are checked out by concurrent reads.
+   *
+   * <p>Vortex coalesces neighbouring reads before it calls {@link #readFully}, so each call reads
+   * its whole range in one request to the stream. On object stores, each request to a new position
+   * is a separate GET.
    */
   private static final class InputFileReadable implements NativeReadable {
     private final InputFile inputFile;
     private final long length;
-    private final Queue<SeekableInputStream> pool = new ConcurrentLinkedQueue<>();
+    private final Queue<PooledStream> pool = new ConcurrentLinkedQueue<>();
     private volatile boolean closed = false;
 
     private InputFileReadable(InputFile inputFile) {
@@ -122,51 +139,49 @@ final class VortexIO {
                 length));
       }
 
-      SeekableInputStream stream = pool.poll();
-      if (stream == null) {
-        stream = inputFile.newStream();
+      PooledStream pooled = pool.poll();
+      if (pooled == null) {
+        pooled = new PooledStream(openStream());
       }
 
       try {
-        copy(stream, position, buffer);
+        pooled.copy(position, buffer);
       } catch (IOException | RuntimeException e) {
         try {
-          stream.close();
+          pooled.close();
         } catch (IOException suppressed) {
           e.addSuppressed(suppressed);
         }
         throw e;
       }
 
-      pool.add(stream);
+      pool.add(pooled);
       if (closed) {
         // Racing with close(): make sure nothing this read returned to the pool leaks.
         closeAllPooled();
       }
     }
 
-    private void copy(SeekableInputStream stream, long position, ByteBuffer buffer)
-        throws IOException {
-      byte[] chunk = new byte[Math.min(buffer.remaining(), COPY_CHUNK_SIZE)];
-      if (stream instanceof RangeReadable range) {
-        long pos = position;
-        while (buffer.hasRemaining()) {
-          int len = Math.min(chunk.length, buffer.remaining());
-          range.readFully(pos, chunk, 0, len);
-          buffer.put(chunk, 0, len);
-          pos += len;
-        }
-      } else {
-        stream.seek(position);
-        while (buffer.hasRemaining()) {
-          int read = stream.read(chunk, 0, Math.min(chunk.length, buffer.remaining()));
-          if (read < 0) {
-            throw new EOFException(
-                "Unexpected end of stream reading " + inputFile.location() + " at " + position);
-          }
-          buffer.put(chunk, 0, read);
-        }
+    /**
+     * Opens one more stream. A plain Hadoop {@code open} asks the store for the file status first,
+     * which is one HEAD request on S3 for each stream. The length is known, so give it to the file
+     * system and skip that request. Vortex reads ranges at random positions, so ask for the random
+     * read policy too.
+     */
+    private PositionalStream openStream() throws IOException {
+      if (!(inputFile instanceof HadoopInputFile hadoopFile)) {
+        return new SeekableStream(inputFile.newStream());
       }
+
+      FSDataInputStream stream =
+          FutureIO.awaitFuture(
+              hadoopFile
+                  .getFileSystem()
+                  .openFile(hadoopFile.getPath())
+                  .opt(OPEN_FILE_LENGTH, Long.toString(length))
+                  .opt(OPEN_FILE_READ_POLICY, RANDOM_READ_POLICY)
+                  .build());
+      return new HadoopStream(stream);
     }
 
     @Override
@@ -176,15 +191,102 @@ final class VortexIO {
     }
 
     private void closeAllPooled() {
-      SeekableInputStream stream;
-      while ((stream = pool.poll()) != null) {
+      PooledStream pooled;
+      while ((pooled = pool.poll()) != null) {
         try {
-          stream.close();
+          pooled.close();
         } catch (IOException e) {
           throw new org.apache.iceberg.exceptions.RuntimeIOException(
               e, "Failed to close stream for %s", inputFile.location());
         }
       }
+    }
+  }
+
+  /** One stream of a {@link InputFileReadable}, used by at most one read at a time. */
+  private static final class PooledStream implements Closeable {
+    private final PositionalStream stream;
+    private byte[] scratch = new byte[0];
+
+    private PooledStream(PositionalStream stream) {
+      this.stream = stream;
+    }
+
+    /** Fills {@code buffer} from {@code position} with one request to the stream. */
+    private void copy(long position, ByteBuffer buffer) throws IOException {
+      int remaining = buffer.remaining();
+      byte[] bytes = scratch(remaining);
+      stream.readFully(position, bytes, remaining);
+      buffer.put(bytes, 0, remaining);
+    }
+
+    /** An array of at least {@code size} bytes. Arrays larger than the limit are not kept. */
+    private byte[] scratch(int size) {
+      if (scratch.length >= size) {
+        return scratch;
+      }
+
+      if (size > SCRATCH_RETAIN_LIMIT) {
+        return new byte[size];
+      }
+
+      scratch = new byte[size];
+      return scratch;
+    }
+
+    @Override
+    public void close() throws IOException {
+      stream.close();
+    }
+  }
+
+  /** A stream that reads a range of the file in one request. */
+  private interface PositionalStream extends Closeable {
+    /** Fills the first {@code length} bytes of {@code bytes} from {@code position}. */
+    void readFully(long position, byte[] bytes, int length) throws IOException;
+  }
+
+  /** A Hadoop stream, which reads a range with one positional read. */
+  private static final class HadoopStream implements PositionalStream {
+    private final FSDataInputStream stream;
+
+    private HadoopStream(FSDataInputStream stream) {
+      this.stream = stream;
+    }
+
+    @Override
+    public void readFully(long position, byte[] bytes, int length) throws IOException {
+      stream.readFully(position, bytes, 0, length);
+    }
+
+    @Override
+    public void close() throws IOException {
+      stream.close();
+    }
+  }
+
+  /** A stream of another {@link org.apache.iceberg.io.FileIO}. */
+  private static final class SeekableStream implements PositionalStream {
+    private final SeekableInputStream stream;
+
+    private SeekableStream(SeekableInputStream stream) {
+      this.stream = stream;
+    }
+
+    @Override
+    public void readFully(long position, byte[] bytes, int length) throws IOException {
+      if (stream instanceof RangeReadable range) {
+        range.readFully(position, bytes, 0, length);
+        return;
+      }
+
+      stream.seek(position);
+      IOUtil.readFully(stream, bytes, 0, length);
+    }
+
+    @Override
+    public void close() throws IOException {
+      stream.close();
     }
   }
 }

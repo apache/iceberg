@@ -39,7 +39,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectResolutionRule { spark => ResolveViews(spark) }
     extensions.injectPostHocResolutionRule { spark => ResolveBranch(spark) }
     extensions.injectCheckRule(_ => CheckViews)
-    // keeps dynamic pruning subqueries from nesting into each other
+    // lets scans offer data columns to dynamic pruning without nesting pruning subqueries
     extensions.injectPostHocResolutionRule { spark => InstallNestedDynamicPruning(spark) }
 
     // optimizer extensions

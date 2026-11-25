@@ -45,6 +45,24 @@ public class SparkSQLProperties {
       "spark.sql.iceberg.aggregate-push-down.enabled";
   public static final boolean AGGREGATE_PUSH_DOWN_ENABLED_DEFAULT = true;
 
+  // Controls whether scans offer data columns, not only partition source columns, to runtime
+  // filtering such as dynamic pruning. Scans offer data columns only in a session that runs the
+  // nested dynamic pruning rule of the Iceberg session extensions.
+  public static final String DATA_COLUMN_RUNTIME_FILTERING_ENABLED =
+      "spark.sql.iceberg.runtime-filtering.data-columns.enabled";
+  public static final boolean DATA_COLUMN_RUNTIME_FILTERING_ENABLED_DEFAULT = true;
+
+  // Controls which file formats offer data columns to runtime filtering, as a comma-separated list
+  public static final String DATA_COLUMN_RUNTIME_FILTERING_FORMATS =
+      "spark.sql.iceberg.runtime-filtering.data-columns.formats";
+  public static final String DATA_COLUMN_RUNTIME_FILTERING_FORMATS_DEFAULT = "vortex";
+
+  // Controls how many values of a runtime IN filter reach the file readers as a set. A larger set
+  // reaches them as the range between its smallest and largest value.
+  public static final String RUNTIME_FILTER_MAX_VALUES =
+      "spark.sql.iceberg.runtime-filtering.max-values";
+  public static final int RUNTIME_FILTER_MAX_VALUES_DEFAULT = 10_000;
+
   // Controls write distribution mode
   public static final String DISTRIBUTION_MODE = "spark.sql.iceberg.distribution-mode";
 
@@ -139,4 +157,13 @@ public class SparkSQLProperties {
   // This determines how many rows are buffered before inferring shredded schema
   public static final String VARIANT_INFERENCE_BUFFER_SIZE =
       "spark.sql.iceberg.variant-inference-buffer-size";
+
+  // Whether adaptive split sizing counts only the bytes of the columns that a scan reads
+  public static final String COLUMN_AWARE_SPLIT_SIZE_ENABLED =
+      "spark.sql.iceberg.read.column-aware-split-size.enabled";
+  public static final boolean COLUMN_AWARE_SPLIT_SIZE_ENABLED_DEFAULT = true;
+
+  // The smallest split in file bytes that adaptive split sizing makes while each core has work
+  public static final String MIN_FILE_SPLIT_SIZE = "spark.sql.iceberg.read.min-file-split-size";
+  public static final long MIN_FILE_SPLIT_SIZE_DEFAULT = 64L * 1024 * 1024;
 }

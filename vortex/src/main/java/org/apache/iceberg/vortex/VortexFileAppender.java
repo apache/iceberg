@@ -184,14 +184,17 @@ class VortexFileAppender<D> implements FileAppender<D> {
       return summary.fileSize();
     }
 
-    // The native writer compresses and flushes asynchronously, so the bytes that reached the sink
-    // lag the rows accepted by this appender. Estimate the volume of rows still buffered (in the
-    // current Arrow batch and the native writer) from the uncompressed Arrow bytes handed over so
-    // far, so that rolling writers see the file grow as rows are appended.
+    // The native writer compresses and flushes asynchronously, so the bytes in the sink lag far
+    // behind the rows accepted by this appender. The writer estimates the size of the file from
+    // the bytes in the sink, the compressed data that it holds, and the data that it did not
+    // compress yet, scaled by the compression ratios that it measured. The rows in the current
+    // Arrow batch are not in the writer yet. Scale their Arrow size by the overall ratio of the
+    // writer, so that rolling writers compare the target file size with an estimate of the
+    // compressed file.
     long avgRowSize =
         flushedRows > 0 ? flushedArrowBytes / flushedRows : PRE_FLUSH_ROW_SIZE_ESTIMATE;
-    long bufferedEstimate = flushedArrowBytes + (currentBatchIndex * avgRowSize);
-    return Math.max(writer.bytesWritten(), bufferedEstimate);
+    long pending = currentBatchIndex * avgRowSize;
+    return writer.estimatedSize() + (long) (pending * writer.compressionRatio());
   }
 
   @Override

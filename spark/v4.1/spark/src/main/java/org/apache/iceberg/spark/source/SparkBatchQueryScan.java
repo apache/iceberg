@@ -48,8 +48,18 @@ class SparkBatchQueryScan extends SparkRuntimeFilterableScan {
       SparkReadConf readConf,
       Schema projection,
       List<Expression> filters,
-      Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, schema, scan, readConf, projection, filters, scanReportSupplier);
+      Supplier<ScanReport> scanReportSupplier,
+      boolean dataColumnFilters) {
+    super(
+        spark,
+        table,
+        schema,
+        scan,
+        readConf,
+        projection,
+        filters,
+        scanReportSupplier,
+        dataColumnFilters);
     this.snapshot = snapshot;
     this.branch = branch;
   }
@@ -104,7 +114,7 @@ class SparkBatchQueryScan extends SparkRuntimeFilterableScan {
         snapshotId(),
         branch,
         filtersDesc(),
-        runtimeFiltersDesc(),
+        runtimeFiltersSummary(),
         groupingKeyDesc());
   }
 }

@@ -74,6 +74,10 @@ class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
     if (lazyScanBuilder == null) {
       this.lazyScanBuilder =
           new SparkScanBuilder(spark, table, table.schema(), snapshot, branch, options) {
+            {
+              withoutDataColumnRuntimeFilters();
+            }
+
             @Override
             public Scan build() {
               Scan scan = super.build();

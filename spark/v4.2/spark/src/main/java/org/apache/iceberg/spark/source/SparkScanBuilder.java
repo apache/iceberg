@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
@@ -49,6 +50,7 @@ import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.TimeTravel;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.expressions.aggregate.AggregateFunc;
@@ -77,6 +79,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
   private final Long startSnapshotId;
   private final Long endSnapshotId;
   private Scan localScan;
+  private boolean dataColumnRuntimeFilters = true;
 
   SparkScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
     this(
@@ -271,7 +274,8 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
         projection,
         filters(),
         partitionPredicates(),
-        metricsReporter()::scanReport);
+        metricsReporter()::scanReport,
+        offersDataColumns());
   }
 
   private Scan buildIncrementalAppendScan() {
@@ -286,7 +290,8 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
         projection,
         filters(),
         partitionPredicates(),
-        metricsReporter()::scanReport);
+        metricsReporter()::scanReport,
+        offersDataColumns());
   }
 
   public Scan buildCopyOnWriteScan() {
@@ -334,9 +339,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
             .project(projection)
             .metricsReporter(metricsReporter());
 
-    if (withStats) {
-      scan = scan.includeColumnStats();
-    }
+    scan = includeStats(scan, table().schema(), projection, withStats);
 
     if (endSnapshotId != null) {
       scan = scan.toSnapshot(endSnapshotId);
@@ -358,8 +361,10 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
             .project(projection)
             .metricsReporter(metricsReporter());
 
+    Schema scanSchema = table().schema();
     if (shouldPinSnapshot() || timeTravel != null) {
       scan = scan.useSnapshot(snapshot.snapshotId());
+      scanSchema = SnapshotUtil.schemaFor(table(), snapshot.snapshotId());
     }
 
     Preconditions.checkState(
@@ -372,11 +377,55 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
       scan = scan.ignoreResiduals();
     }
 
-    if (withStats) {
-      scan = scan.includeColumnStats();
-    }
+    scan = includeStats(scan, scanSchema, projection, withStats);
 
     return configureSplitPlanning(scan);
+  }
+
+  /**
+   * Asks {@code scan} for the column stats that the Spark scan uses. The scan finds each stats
+   * column by its name in {@code scanSchema}, the schema that it reads with.
+   */
+  private <S extends org.apache.iceberg.Scan<S, ?, ?>> S includeStats(
+      S scan, Schema scanSchema, Schema projection, boolean withStats) {
+    if (withStats) {
+      return scan.includeColumnStats();
+    }
+    // A column can have a different name in the scan schema, or no field at all when it was added
+    // after the snapshot that the scan reads, so find each name by the field ID.
+    List<String> statsColumns = Lists.newArrayList();
+    if (readConf().columnAwareSplitSizeEnabled() && readConf().adaptiveSplitSizeEnabled()) {
+      // adaptive split sizing counts the bytes of the projected columns, see SparkScan
+      projection.columns().stream()
+          .map(field -> scanSchema.findColumnName(field.fieldId()))
+          .filter(Objects::nonNull)
+          .forEach(statsColumns::add);
+    }
+
+    // runtime filters on data columns drop files by the metrics of those columns
+    if (offersDataColumns()) {
+      SparkRuntimeFilterableScan.dataFilterColumns(projection).stream()
+          .map(field -> scanSchema.findColumnName(field.fieldId()))
+          .filter(Objects::nonNull)
+          .forEach(statsColumns::add);
+    }
+
+    List<String> distinct = statsColumns.stream().distinct().collect(Collectors.toList());
+    return distinct.isEmpty() ? scan : scan.includeColumnStats(distinct);
+  }
+
+  /**
+   * Keeps the scans this builder builds from offering data columns to runtime filtering. A
+   * row-level operation turns every filter attribute of its scan into a key of the groups it
+   * rewrites, and a data column cannot be such a key: its nulls match no key.
+   */
+  void withoutDataColumnRuntimeFilters() {
+    this.dataColumnRuntimeFilters = false;
+  }
+
+  private boolean offersDataColumns() {
+    return dataColumnRuntimeFilters
+        && SparkRuntimeFilterableScan.offersDataColumns(spark(), table(), readConf());
   }
 
   private BatchScan newIcebergBatchScan() {
