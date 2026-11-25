@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -429,6 +430,62 @@ public class TestManifestReader extends TestBase {
     assertThat(openStreams.get()).isEqualTo(0);
     assertThat(maxOpen.get()).isEqualTo(1);
     assertThat(openedPaths).containsExactlyInAnyOrder(m1.path(), m2.path());
+  }
+
+  @TestTemplate
+  void closingStatusIterableDoesNotCloseSiblingIterable() throws IOException {
+    long seq = formatVersion == 1 ? 0L : 1L;
+    ManifestFile manifest =
+        writeManifest(
+            1000L,
+            manifestEntry(Status.ADDED, 1000L, seq, seq, FILE_A),
+            manifestEntry(Status.ADDED, 1000L, seq, seq, FILE_B),
+            manifestEntry(Status.DELETED, 1000L, seq, seq, FILE_C),
+            manifestEntry(Status.DELETED, 1000L, seq, seq, FILE_D));
+
+    AtomicInteger openStreams = new AtomicInteger();
+    FileIO trackingIO =
+        trackingFileIO(FILE_IO, openStreams, new AtomicInteger(), ConcurrentHashMap.newKeySet());
+
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, trackingIO, table.specs())) {
+      CloseableIterable<DataFile> added = reader.addedFiles();
+      CloseableIterable<DataFile> deleted = reader.deletedFiles();
+
+      CloseableIterator<DataFile> addedIter = added.iterator();
+      CloseableIterator<DataFile> deletedIter = deleted.iterator();
+
+      assertThat(addedIter.next().location()).isEqualTo(FILE_A.location());
+      assertThat(deletedIter.next().location()).isEqualTo(FILE_C.location());
+
+      added.close();
+      if (formatVersion < TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS) {
+        assertThat(openStreams.get()).isEqualTo(1);
+      }
+
+      assertThat(deletedIter.next().location()).isEqualTo(FILE_D.location());
+      deleted.close();
+      assertThat(openStreams.get()).isEqualTo(0);
+    }
+  }
+
+  @TestTemplate
+  void repeatedAddedFilesIterationPreservesFirstRowId() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    ManifestFile committedManifest = table.currentSnapshot().dataManifests(FILE_IO).get(0);
+    assertThat(committedManifest.firstRowId()).isEqualTo(0L);
+
+    try (CloseableIterable<DataFile> added =
+        ManifestFiles.read(committedManifest, FILE_IO, table.specs()).addedFiles()) {
+      assertThat(Lists.newArrayList(added))
+          .extracting(DataFile::firstRowId)
+          .containsExactly(0L, 1L);
+      assertThat(Lists.newArrayList(added))
+          .extracting(DataFile::firstRowId)
+          .containsExactly(0L, 1L);
+    }
   }
 
   private static FileIO trackingFileIO(

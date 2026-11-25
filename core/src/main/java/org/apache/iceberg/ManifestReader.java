@@ -398,11 +398,28 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   private CloseableIterable<F> filesByStatus(ManifestEntry.Status status) {
-    boolean dropStats = dropStats(columns);
-    CloseableIterable<ManifestEntry<F>> matching =
-        CloseableIterable.filter(entries(), entry -> entry != null && entry.status() == status);
-    return CloseableIterable.combine(
-        CloseableIterable.transform(matching, entry -> entry.file().copy(!dropStats)), this);
+    return new StatusFilterIterable(status);
+  }
+
+  private class StatusFilterIterable extends CloseableGroup implements CloseableIterable<F> {
+    private final ManifestEntry.Status status;
+
+    private StatusFilterIterable(ManifestEntry.Status status) {
+      this.status = status;
+    }
+
+    @Override
+    public CloseableIterator<F> iterator() {
+      boolean dropStats = dropStats(columns);
+      CloseableIterable<ManifestEntry<F>> entries = entries();
+      addCloseable(entries);
+      CloseableIterable<ManifestEntry<F>> matching =
+          CloseableIterable.filter(entries, entry -> entry != null && entry.status() == status);
+      CloseableIterator<F> iter =
+          CloseableIterable.transform(matching, entry -> entry.file().copy(!dropStats)).iterator();
+      addCloseable(iter);
+      return iter;
+    }
   }
 
   /**
