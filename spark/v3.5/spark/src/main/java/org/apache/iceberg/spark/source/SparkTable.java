@@ -317,6 +317,10 @@ public class SparkTable
 
   @Override
   public RowLevelOperationBuilder newRowLevelOperationBuilder(RowLevelOperationInfo info) {
+    Preconditions.checkArgument(
+        snapshotId == null,
+        "Cannot update or merge into a table at a specific snapshot: %s",
+        snapshotId);
     return new SparkRowLevelOperationBuilder(sparkSession(), icebergTable, branch, info);
   }
 
