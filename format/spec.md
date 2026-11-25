@@ -326,7 +326,9 @@ E must be one of the following vector element types:
 
 Vector element types are valid only inside a `vector`; `float16` is not a primitive type and cannot be used as the type of a field. Element values follow the rules of the value type, including JSON single-value serialization. Vector equality is element-wise, using the equality rules of the value type. Floating-point elements must be finite: `NaN`, `+Infinity`, and `-Infinity` are invalid.
 
-Type promotion is not allowed for `vector(E, D)`. The element type E, dimension D, and vector field ID must not change. A `vector` must not be promoted to a non-vector type. A non-vector type other than `unknown` must not be promoted to `vector`. A `list` is not a `vector(E, D)`, even if every list instance contains exactly D elements that satisfy the vector element requirements.
+`float16` element values must be finite IEEE 754 binary16 values. When stored or serialized using the `float` value type, the value must be exactly representable as binary16; writers must not produce other values and readers must reject them.
+
+A `list` is not a `vector(E, D)`, even if every list instance contains exactly D elements that satisfy the vector element requirements.
 
 ##### CRS
 
@@ -748,8 +750,6 @@ For details on how to serialize a sort order to JSON, see Appendix C.
 Order id `0` is reserved for the unsorted order.
 
 Sorting floating-point numbers should produce the following behavior: `-NaN` < `-Infinity` < `-value` < `-0` < `0` < `value` < `Infinity` < `NaN`. This aligns with the implementation of Java floating-point types comparisons.
-
-Vector values of the same `vector(E, D)` type must be sorted lexicographically using the [comparison rules](expressions-spec.md#comparisons) of E's value type.
 
 A data or delete file is associated with a sort order by the sort order's id within [a manifest](#manifests). Therefore, the table must declare all the sort orders for lookup. A table could also be configured with a default sort order id, indicating how the new data should be sorted by default. Writers should use this default sort order to sort the data on write, but are not required to if the default order is prohibitively expensive, as it would be for streaming writes.
 
@@ -1901,7 +1901,7 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`binary`**|`bytes`||
 |**`struct`**|`record`||
 |**`list`**|`array`||
-|**`vector(E, D)`**|`array`|When writing, array elements must use the Avro mapping for E's value type and must not be null. The array must not have an `element-id` property. Readers and writers must enforce the vector dimension and element requirements.|
+|**`vector(E, D)`**|`array`|Array elements must use the Avro mapping for E's value type and must not be null. The array must not have an `element-id` property. Readers and writers must enforce the vector dimension and element requirements.|
 |**`map`**|`array` of key-value records, or `map` when keys are strings (optional).|Array storage must use logical type name `map` and must store elements that are 2-field records. The first field is a non-null key and the second field is the value.|
 |**`variant`**|`record` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names. |Shredding is not supported in Avro.|
 |**`geometry`**|`bytes`|WKB format, see [Appendix G](#appendix-g-geospatial-notes)|
@@ -1960,7 +1960,7 @@ Vectors must use the [`FINITE_VECTOR` representation](https://github.com/apache/
 | **`binary`**       | `binary`                                                                                                                                     |                                             |                                                                |
 | **`struct`**       | `group`                                                                                                                                      |                                             |                                                                |
 | **`list`**         | `3-level list`                                                                                                                               | `LIST`                                      | See Parquet docs for 3-level representation.                   |
-| **`vector(E, D)`** | `3-level list`                                                                                                                               | `FINITE_VECTOR(D)`                          | The outer group carries the field ID of the vector. When writing, the `element` field must use the Parquet type for E listed in the vector element table below. Writing and reading an element must preserve its value exactly. The ConvertedType must be `LIST`. The `list` and `element` fields must not be assigned field IDs. |
+| **`vector(E, D)`** | `3-level list`                                                                                                                               | `FINITE_VECTOR(D)`                          | The outer group carries the field ID of the vector. The `element` field must use the Parquet type for E listed in the vector element table below. The ConvertedType must be `LIST`. The `list` and `element` fields must not be assigned field IDs. |
 | **`map`**          | `3-level map`                                                                                                                                | `MAP`                                       | See Parquet docs for 3-level representation.                   |
 | **`variant`**      | `group` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names. | `VARIANT`                                   | See Parquet docs for [Variant encoding](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md) and [Variant shredding encoding](https://github.com/apache/parquet-format/blob/master/VariantShredding.md). |
 | **`geometry`**     | `binary`                                                                                                                                     | `GEOMETRY`                                  | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                             |
@@ -1976,8 +1976,6 @@ Vector elements must be written to Parquet using the following types:
 | **`float16`** | `fixed_len_byte_array[2]` | `FLOAT16`    |
 | **`float`**   | `float`                   |              |
 | **`double`**  | `double`                  |              |
-
-When reading `vector(E, D)`, the `element` field must use the Parquet mapping for E. The `FINITE_VECTOR` `num_elements` parameter must equal D.
 
 When reading an `unknown` column, any corresponding column must be ignored and replaced with `null` values.
 
