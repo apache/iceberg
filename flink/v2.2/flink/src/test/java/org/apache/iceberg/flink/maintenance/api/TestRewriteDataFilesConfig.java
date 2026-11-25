@@ -50,6 +50,7 @@ public class TestRewriteDataFilesConfig extends OperatorTestBase {
     input.put(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_COUNT, "20");
     input.put(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_SIZE, "30");
     input.put(RewriteDataFilesConfig.SCHEDULE_ON_INTERVAL_SECOND, "60");
+    input.put(RewriteDataFilesConfig.BRANCH, "custom");
     input.put("other.config", "should-be-ignored");
   }
 
@@ -100,6 +101,7 @@ public class TestRewriteDataFilesConfig extends OperatorTestBase {
     assertThat(config.partialProgressEnable()).isTrue();
     assertThat(config.partialProgressMaxCommits()).isEqualTo(5);
     assertThat(config.maxRewriteBytes()).isEqualTo(1024L);
+    assertThat(config.branch()).isEqualTo("custom");
 
     // check the config about the schedule
     assertThat(config.scheduleOnCommitCount()).isEqualTo(10);

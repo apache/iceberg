@@ -291,7 +291,7 @@ public class SnapshotUtil {
     Preconditions.checkArgument(
         table.snapshot(snapshotId) != null, "Cannot find parent snapshot: %s", snapshotId);
     for (Snapshot current : currentAncestors(table)) {
-      if (current.parentId() == snapshotId) {
+      if (current.parentId() != null && current.parentId() == snapshotId) {
         return current;
       }
     }

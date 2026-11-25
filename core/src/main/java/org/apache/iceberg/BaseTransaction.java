@@ -400,7 +400,7 @@ public class BaseTransaction implements Transaction {
         }
       }
 
-      Set<String> committedFiles = committedFiles(ops.io(), newSnapshots);
+      Set<String> committedFiles = committedFiles(newSnapshots);
       // delete all the files that were deleted in the most recent set of operation commits
       Set<String> uncommittedFiles =
           deletedFiles.stream()
@@ -455,15 +455,31 @@ public class BaseTransaction implements Transaction {
   }
 
   // returns the manifest lists and manifests referenced by the given committed snapshots
-  private static Set<String> committedFiles(FileIO io, Set<Snapshot> snapshots) {
+  private Set<String> committedFiles(Set<Snapshot> snapshots) {
     Set<String> committedFiles = Sets.newHashSet();
 
     for (Snapshot snap : snapshots) {
       committedFiles.add(snap.manifestListLocation());
-      snap.allManifests(io).forEach(manifest -> committedFiles.add(manifest.path()));
+      committedFiles.addAll(committedManifestPaths(snap));
     }
 
     return committedFiles;
+  }
+
+  /** Returns this snapshot's manifest paths. */
+  private Set<String> committedManifestPaths(Snapshot snapshot) {
+    for (PendingUpdate update : updates) {
+      if (update instanceof SnapshotProducer<?> producer) {
+        Set<String> paths = producer.writtenManifestPaths(snapshot.manifestListLocation());
+        if (paths != null) {
+          return paths;
+        }
+      }
+    }
+
+    return snapshot.allManifests(ops.io()).stream()
+        .map(ManifestFile::path)
+        .collect(Collectors.toSet());
   }
 
   public class TransactionTableOperations implements TableOperations {

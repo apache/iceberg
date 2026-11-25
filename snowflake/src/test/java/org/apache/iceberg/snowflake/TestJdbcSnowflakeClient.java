@@ -42,7 +42,6 @@ import org.apache.iceberg.jdbc.UncheckedSQLException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -75,7 +74,7 @@ public class TestJdbcSnowflakeClient {
             any(Connection.class),
             any(String.class),
             any(JdbcSnowflakeClient.ResultSetParser.class),
-            ArgumentMatchers.<String>any());
+            any(String[].class));
   }
 
   @Test
@@ -337,8 +336,7 @@ public class TestJdbcSnowflakeClient {
         .query(
             eq(mockConnection),
             eq("SHOW SCHEMAS IN ACCOUNT"),
-            any(JdbcSnowflakeClient.ResultSetParser.class),
-            eq(null));
+            any(JdbcSnowflakeClient.ResultSetParser.class));
 
     assertThat(actualList)
         .containsExactly(
@@ -496,8 +494,7 @@ public class TestJdbcSnowflakeClient {
         .query(
             eq(mockConnection),
             eq("SHOW ICEBERG TABLES IN ACCOUNT"),
-            any(JdbcSnowflakeClient.ResultSetParser.class),
-            eq(null));
+            any(JdbcSnowflakeClient.ResultSetParser.class));
 
     assertThat(actualList)
         .containsExactly(

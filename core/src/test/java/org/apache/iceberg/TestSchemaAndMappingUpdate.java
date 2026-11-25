@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
-import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -40,6 +38,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSchemaAndMappingUpdate extends TestBase {
+  private static final Types.StructType LOCATION_TYPE =
+      Types.StructType.of(
+          Types.NestedField.optional(1, "lat", Types.DoubleType.get()),
+          Types.NestedField.optional(2, "long", Types.DoubleType.get()));
 
   @TestTemplate
   public void testAddPrimitiveColumn() {
@@ -175,35 +177,56 @@ public class TestSchemaAndMappingUpdate extends TestBase {
   }
 
   @TestTemplate
-  public void testModificationWithParquetBloomConfig() {
+  public void testRenameStructWithNestedColumnProperties() {
+    table.updateSchema().addColumn("location", LOCATION_TYPE).commit();
     table
         .updateProperties()
-        .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id", "true")
+        .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "location.lat", "full")
         .commit();
 
-    table.updateSchema().renameColumn("id", "ID").commit();
-    assertThat(table.properties())
-        .containsEntry(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "ID", "true")
-        .doesNotContainKey(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id");
+    table.updateSchema().renameColumn("location", "loc").commit();
 
-    table.updateSchema().deleteColumn("ID").commit();
     assertThat(table.properties())
-        .doesNotContainKey(
-            table.properties().get(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "ID"));
+        .containsEntry(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "loc.lat", "full")
+        .doesNotContainKey(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "location.lat");
   }
 
   @TestTemplate
-  public void testModificationWithParquetColumnStats() {
-    table.updateProperties().set(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "id", "true").commit();
+  public void testDeleteStructWithNestedColumnProperties() {
+    table.updateSchema().addColumn("location", LOCATION_TYPE).commit();
+    table
+        .updateProperties()
+        .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "location.lat", "full")
+        .commit();
 
-    table.updateSchema().renameColumn("id", "ID").commit();
+    table.updateSchema().deleteColumn("location").commit();
     assertThat(table.properties())
-        .containsEntry(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "ID", "true")
-        .doesNotContainKey(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "id");
+        .doesNotContainKey(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "location.lat");
 
-    table.updateSchema().deleteColumn("ID").commit();
+    table.updateSchema().addColumn("location", LOCATION_TYPE).commit();
     assertThat(table.properties())
-        .doesNotContainKey(table.properties().get(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "ID"));
+        .doesNotContainKey(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "location.lat");
+  }
+
+  @TestTemplate
+  void renameAndDeleteListWithElementColumnProperties() {
+    table
+        .updateSchema()
+        .addColumn("points", Types.ListType.ofOptional(1000, LOCATION_TYPE))
+        .commit();
+    table
+        .updateProperties()
+        .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "points.element.lat", "full")
+        .commit();
+
+    table.updateSchema().renameColumn("points", "pts").commit();
+    assertThat(table.properties())
+        .containsEntry(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "pts.element.lat", "full")
+        .doesNotContainKey(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "points.element.lat");
+
+    table.updateSchema().deleteColumn("pts").commit();
+    assertThat(table.properties())
+        .doesNotContainKey(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "pts.element.lat");
   }
 
   @TestTemplate

@@ -21,13 +21,30 @@ package org.apache.iceberg;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.LocationUtil;
 
 /** A {@link ManifestFile} for the root manifest of an adaptive metadata tree. */
 class RootManifestFile implements ManifestFile {
   private static final int FORMAT_VERSION = 4;
+
+  static RootManifestFile from(Snapshot snapshot, String tableLocation, FileIO io) {
+    if (snapshot.keyId() != null) {
+      throw new UnsupportedOperationException("Encrypted v4 root manifests are not supported");
+    }
+
+    String location = LocationUtil.resolveLocation(tableLocation, snapshot.rootManifestLocation());
+    return new RootManifestFile(
+        location,
+        io.newInputFile(location).getLength(),
+        snapshot.snapshotId(),
+        snapshot.sequenceNumber(),
+        snapshot.firstRowId(),
+        /* keyMetadata= */ null);
+  }
 
   private final String location;
   private final long length;

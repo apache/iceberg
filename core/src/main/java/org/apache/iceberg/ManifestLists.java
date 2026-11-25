@@ -85,14 +85,6 @@ class ManifestLists {
             parentSnapshotId,
             sequenceNumber,
             firstRowId);
-      case 4:
-        return new ManifestListWriter.V4Writer(
-            manifestListFile,
-            encryptionManager,
-            snapshotId,
-            parentSnapshotId,
-            sequenceNumber,
-            firstRowId);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest list for table version: " + formatVersion);

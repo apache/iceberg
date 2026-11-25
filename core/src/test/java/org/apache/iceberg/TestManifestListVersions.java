@@ -391,7 +391,7 @@ public class TestManifestListVersions {
   }
 
   @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @FieldSource("org.apache.iceberg.TestHelpers#V3_AND_BELOW")
   public void testManifestsPartitionSummary(int formatVersion) throws IOException {
     ByteBuffer firstSummaryLowerBound = Conversions.toByteBuffer(Types.IntegerType.get(), 10);
     ByteBuffer firstSummaryUpperBound = Conversions.toByteBuffer(Types.IntegerType.get(), 100);
