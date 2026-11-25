@@ -2096,10 +2096,9 @@ paths:
         outside the server's retention window. Consumers should also de-duplicate received events based
         on their `event-id`.
 
-        Events for the same catalog object MUST be returned in the order in which their changes
-        were committed. Within its retention window, the server MUST NOT omit events for committed
-        changes that match the request's filters. The order of events for different objects may
-        vary between server implementations.
+        Events that refer to the same identifier or the same table or view UUID MUST be returned
+        in the order in which their changes were committed. Other consistency guarantees vary
+        between server implementations.
       operationId: getEvents
       requestBody:
         content:
@@ -5359,10 +5358,6 @@ components:
             Updates that add a schema, partition spec or sort order MUST carry the ID the catalog
             assigned. Updates that set the current schema, the default partition spec or the default
             sort order MUST use an explicit ID and MUST NOT use `-1` to refer to the last added one.
-
-            Consumers that apply these updates to their own copy of the table MUST check that the
-            resulting IDs match the IDs in the event. If they do not match, the consumer's copy has
-            diverged and the consumer should load the table from the catalog.
           type: array
           items:
             $ref: "#/components/schemas/TableUpdate"
@@ -5512,10 +5507,6 @@ components:
             Updates that add a schema or a view version MUST carry the ID the catalog assigned. The
             `schema-id` of an added view version and the update that sets the current view version
             MUST use an explicit ID and MUST NOT use `-1` to refer to the last added one.
-
-            Consumers that apply these updates to their own copy of the view MUST check that the
-            resulting IDs match the IDs in the event. If they do not match, the consumer's copy has
-            diverged and the consumer should load the view from the catalog.
           type: array
           items:
             $ref: "#/components/schemas/ViewUpdate"

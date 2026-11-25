@@ -2264,7 +2264,7 @@ class UpdateTableOperation(BaseOperation):
     )
     updates: list[TableUpdate] = Field(
         ...,
-        description="The changes the catalog applied to the table. These can differ from the changes the client sent: they include values the catalog assigned or chose itself, such as IDs and defaults the client left out, and changes the catalog added, such as properties it sets on commit.\nUpdates that add a schema, partition spec or sort order MUST carry the ID the catalog assigned. Updates that set the current schema, the default partition spec or the default sort order MUST use an explicit ID and MUST NOT use `-1` to refer to the last added one.\nConsumers that apply these updates to their own copy of the table MUST check that the resulting IDs match the IDs in the event. If they do not match, the consumer's copy has diverged and the consumer should load the table from the catalog.\n",
+        description='The changes the catalog applied to the table. These can differ from the changes the client sent: they include values the catalog assigned or chose itself, such as IDs and defaults the client left out, and changes the catalog added, such as properties it sets on commit.\nUpdates that add a schema, partition spec or sort order MUST carry the ID the catalog assigned. Updates that set the current schema, the default partition spec or the default sort order MUST use an explicit ID and MUST NOT use `-1` to refer to the last added one.\n',
     )
     requirements: (
         list[
@@ -2322,7 +2322,7 @@ class UpdateViewOperation(BaseOperation):
     )
     updates: list[ViewUpdate] = Field(
         ...,
-        description="The changes the catalog applied to the view. These can differ from the changes the client sent: they include values the catalog assigned or chose itself, such as IDs and defaults the client left out, and changes the catalog added, such as properties it sets on commit.\nUpdates that add a schema or a view version MUST carry the ID the catalog assigned. The `schema-id` of an added view version and the update that sets the current view version MUST use an explicit ID and MUST NOT use `-1` to refer to the last added one.\nConsumers that apply these updates to their own copy of the view MUST check that the resulting IDs match the IDs in the event. If they do not match, the consumer's copy has diverged and the consumer should load the view from the catalog.\n",
+        description='The changes the catalog applied to the view. These can differ from the changes the client sent: they include values the catalog assigned or chose itself, such as IDs and defaults the client left out, and changes the catalog added, such as properties it sets on commit.\nUpdates that add a schema or a view version MUST carry the ID the catalog assigned. The `schema-id` of an added view version and the update that sets the current view version MUST use an explicit ID and MUST NOT use `-1` to refer to the last added one.\n',
     )
     requirements: list[ViewRequirement] | None = None
 
