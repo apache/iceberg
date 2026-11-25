@@ -45,7 +45,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /** The planned groups are sent from the planner to the runner, serialized by Flink with Kryo. */
-class TestPlannedGroupSerialization extends OperatorTestBase {
+public class TestPlannedGroupSerialization extends OperatorTestBase {
 
   @TempDir private Path lambdaWarehouse;
 
