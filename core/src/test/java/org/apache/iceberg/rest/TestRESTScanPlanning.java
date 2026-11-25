@@ -1604,15 +1604,19 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
     adapter.setPlanningBehavior(planMode.apply(TestPlanningBehavior.builder()).build());
 
+    SessionCatalog.SessionContext userContext =
+        new SessionCatalog.SessionContext("scan-session", "scan-user", Map.of(), Map.of());
+    List<SessionCatalog.SessionContext> ioBuilderContexts = Lists.newCopyOnWriteArrayList();
     List<Map<String, String>> ioBuilderProperties = Lists.newCopyOnWriteArrayList();
     RESTCatalog catalog =
-        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter) {
+        new RESTCatalog(userContext, (config) -> adapter) {
           @Override
           protected RESTSessionCatalog newSessionCatalog(
               Function<Map<String, String>, RESTClient> clientBuilder) {
             return new RESTSessionCatalog(
                 clientBuilder,
                 (context, properties) -> {
+                  ioBuilderContexts.add(context);
                   ioBuilderProperties.add(properties);
                   return CatalogUtil.loadFileIO(InMemoryFileIO.class.getName(), properties, null);
                 });
@@ -1633,6 +1637,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
     Map<String, String> scanFileIOProperties =
         ioBuilderProperties.get(ioBuilderProperties.size() - 1);
+    assertThat(ioBuilderContexts.get(ioBuilderContexts.size() - 1)).isSameAs(userContext);
     assertThat(tableScan.fileIO().get().properties()).isEqualTo(scanFileIOProperties);
     assertThat(scanFileIOProperties)
         .containsAllEntriesOf(tableFileIOProperties)
