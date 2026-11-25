@@ -402,6 +402,7 @@ class TestIcebergLookup {
     lookupFunction = newLookupFunction(ID_KEY_INDEXES, true, reloadTrigger);
     lookupFunction.open(new FunctionContext(null));
 
+    deleteDataFilesFromStorage(table);
     appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
     reloadTrigger.triggerReload().join();
 
@@ -447,6 +448,7 @@ class TestIcebergLookup {
     lookupFunction.open(new FunctionContext(null));
 
     compactDataFiles(table);
+    deleteDataFilesFromStorage(table);
     reloadTrigger.triggerReload().join();
 
     appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
@@ -529,6 +531,7 @@ class TestIcebergLookup {
         .singleElement()
         .satisfies(row -> assertRow(row, 1L, "alice", "A"));
 
+    deleteDataFilesFromStorage(table);
     appendRecords(table, ImmutableList.of(record(7L, "grace", "E")));
     reloadTrigger.triggerReload().join();
     assertThat(lookupFunction.lookup(keyRow(7L)))
@@ -644,6 +647,14 @@ class TestIcebergLookup {
     GenericAppenderHelper helper =
         new GenericAppenderHelper(table, FileFormat.PARQUET, temporaryFolder);
     table.newOverwrite().deleteFile(oldFile).addFile(helper.writeFile(records)).commit();
+  }
+
+  private void deleteDataFilesFromStorage(Table table) throws Exception {
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      for (FileScanTask task : tasks) {
+        table.io().deleteFile(task.file().location());
+      }
+    }
   }
 
   private void compactDataFiles(Table table) throws Exception {
