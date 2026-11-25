@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -67,6 +68,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
+import org.apache.iceberg.spark.source.metrics.TaskScanDuration;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
@@ -527,6 +529,37 @@ class TestMergingSortedRowDataReader extends TestBase {
       assertThat(metrics)
           .containsEntry(new TaskNumSplits(0).name(), 3L)
           .containsEntry(new TaskNumDeletes(0).name(), 2L);
+      assertThat(metrics.get(new TaskScanDuration(0).name())).isPositive();
+    }
+  }
+
+  @Test
+  void metricsIncludeValuesFromPreviousReader() throws IOException {
+    DataFile file1 = writeDataFile(record(1, "a"), record(3, "c"));
+    DataFile file2 = writeDataFile(record(2, "b"), record(4, "d"));
+
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    long inheritedNanos = TimeUnit.SECONDS.toNanos(1);
+    BaseScanTaskGroup<FileScanTask> taskGroup = new BaseScanTaskGroup<>(planFiles(table));
+    try (MergingSortedRowDataReader reader =
+        new MergingSortedRowDataReader(table, table.io(), taskGroup, table.schema(), true, false)) {
+      // Spark passes the previous reader's metrics when a task reads several input partitions
+      reader.initMetricsValues(
+          new CustomTaskMetric[] {
+            new TaskNumSplits(3), new TaskNumDeletes(4), new TaskScanDuration(inheritedNanos)
+          });
+      while (reader.next()) {
+        // drain
+      }
+
+      Map<String, Long> metrics =
+          Arrays.stream(reader.currentMetricsValues())
+              .collect(Collectors.toMap(CustomTaskMetric::name, CustomTaskMetric::value));
+      assertThat(metrics)
+          .containsEntry(new TaskNumSplits(0).name(), 5L)
+          .containsEntry(new TaskNumDeletes(0).name(), 4L);
+      assertThat(metrics.get(new TaskScanDuration(0).name())).isGreaterThan(inheritedNanos);
     }
   }
 

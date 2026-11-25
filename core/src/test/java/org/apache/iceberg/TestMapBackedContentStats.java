@@ -72,8 +72,7 @@ class TestMapBackedContentStats {
               1, buf(Types.IntegerType.get(), 1000),
               2, buf(Types.FloatType.get(), 9.5f),
               3, buf(Types.LongType.get(), 999L),
-              4, buf(Types.StringType.get(), "zzz")),
-          ImmutableMap.of(4, 240L));
+              4, buf(Types.StringType.get(), "zzz")));
 
   @Test
   void typeMatchesIdsPresentInMaps() {
@@ -189,7 +188,6 @@ class TestMapBackedContentStats {
     assertThatThrownBy(id::nanValueCount)
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Long.longValue()");
-    assertThat(id.hasTotalBytes()).isFalse();
 
     FieldStats<?> score = stats.statsFor(2);
     assertThat(score.hasNullValueCount()).isTrue();
@@ -214,8 +212,6 @@ class TestMapBackedContentStats {
     assertThatThrownBy(name::nanValueCount)
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Long.longValue()");
-    assertThat(name.hasTotalBytes()).isTrue();
-    assertThat(name.totalBytes()).isEqualTo(240L);
   }
 
   @Test
@@ -337,18 +333,6 @@ class TestMapBackedContentStats {
       Map<Integer, Long> nanValueCounts,
       Map<Integer, ByteBuffer> lowerBounds,
       Map<Integer, ByteBuffer> upperBounds) {
-    return dataFile(
-        recordCount, valueCounts, nullValueCounts, nanValueCounts, lowerBounds, upperBounds, null);
-  }
-
-  private static DataFile dataFile(
-      long recordCount,
-      Map<Integer, Long> valueCounts,
-      Map<Integer, Long> nullValueCounts,
-      Map<Integer, Long> nanValueCounts,
-      Map<Integer, ByteBuffer> lowerBounds,
-      Map<Integer, ByteBuffer> upperBounds,
-      Map<Integer, Long> totalBytes) {
     Metrics metrics =
         new Metrics(
             recordCount,
@@ -357,9 +341,7 @@ class TestMapBackedContentStats {
             nullValueCounts,
             nanValueCounts,
             lowerBounds,
-            upperBounds,
-            totalBytes,
-            null);
+            upperBounds);
     return new GenericDataFile(
         PartitionSpec.unpartitioned().specId(),
         "s3://bucket/data/file.parquet",

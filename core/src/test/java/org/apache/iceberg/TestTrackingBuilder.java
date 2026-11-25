@@ -45,7 +45,7 @@ class TestTrackingBuilder {
 
     assertThat(tracking.status()).isEqualTo(EntryStatus.ADDED);
     assertThat(tracking.snapshotId()).isEqualTo(42L);
-    assertThat(tracking.modifiedSnapshotId()).isEqualTo(42L);
+    assertThat(tracking.modifiedSnapshotId()).isNull();
     assertThat(tracking.deletedPositions()).isNull();
     assertThat(tracking.replacedPositions()).isNull();
     // sequence numbers and firstRowId remain null; populated by inheritance

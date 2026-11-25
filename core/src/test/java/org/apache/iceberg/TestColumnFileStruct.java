@@ -92,7 +92,7 @@ class TestColumnFileStruct {
 
     assertThat(columnFile.get(0, String.class)).isEqualTo(LOCATION);
     assertThat(columnFile.get(1, List.class)).containsExactlyElementsOf(FIELD_IDS);
-    assertThat(columnFile.get(2, String.class)).isEqualTo(FILE_FORMAT.toString());
+    assertThat(columnFile.get(2, String.class)).isEqualTo("parquet");
     assertThat(columnFile.get(3, Long.class)).isEqualTo(FILE_SIZE_IN_BYTES);
     assertThat(columnFile.get(4, ByteBuffer.class)).isEqualTo(KEY_METADATA);
   }

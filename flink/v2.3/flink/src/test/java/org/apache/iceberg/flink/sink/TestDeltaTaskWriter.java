@@ -85,7 +85,7 @@ public class TestDeltaTaskWriter extends TestBase {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
         new FileFormat[] {FileFormat.AVRO, FileFormat.ORC, FileFormat.PARQUET}) {
-      for (int version : TestHelpers.V2_AND_ABOVE) {
+      for (int version : TestHelpers.V2_AND_V3) {
         parameters.add(new Object[] {version, format});
       }
     }

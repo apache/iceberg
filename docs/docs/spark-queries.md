@@ -498,6 +498,7 @@ Note:
 1. For unpartitioned tables, the partitions table will not contain the partition and spec_id fields.
 
 2. The partitions metadata table shows partitions with data files or delete files in the current snapshot. However, delete files are not applied, and so in some cases partitions may be shown even though all their data rows are marked deleted by delete files.
+
 ### Positional Delete Files
 
 To show all positional delete files from the current snapshot of table:

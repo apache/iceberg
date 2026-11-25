@@ -22,11 +22,11 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
-import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.StructLikeUtil;
 
 class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
   private final Types.StructType struct;
@@ -211,7 +211,7 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
     return new FieldStatsStruct<>(this);
   }
 
-  private static int[] posToOffset(Types.StructType struct) {
+  static int[] posToOffset(Types.StructType struct) {
     List<Types.NestedField> fields = struct.fields();
     int[] posToOffset = new int[fields.size()];
     for (int i = 0; i < posToOffset.length; i += 1) {
@@ -224,9 +224,8 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
   private static Object copyBound(Object bound) {
     if (bound instanceof byte[] bytes) {
       return copyOf(bytes);
-    } else if (bound instanceof GeospatialBound geo) {
-      // readers reuse one bound instance
-      return geo.copy();
+    } else if (bound instanceof StructLike struct) {
+      return StructLikeUtil.copy(struct);
     }
 
     return bound;

@@ -39,11 +39,25 @@ class TrackedFileAdapters {
         file.contentType() == FileContent.DATA,
         "Invalid content type for DataFile: %s",
         file.contentType());
+    List<ColumnFile> columnFiles = file.columnFiles();
+    if (columnFiles != null && !columnFiles.isEmpty()) {
+      throw new UnsupportedOperationException(
+          "Cannot convert data file with column updates: " + file.location());
+    }
+
     return new TrackedDataFile(file, resolveSpecId(file, specsById));
   }
 
-  static TrackedFile asTrackedFile(DataFile file) {
+  static TrackedFile asTrackedFileUnchecked(DataFile file) {
     return ((TrackedDataFile) file).file();
+  }
+
+  static TrackedFile asTrackedFile(DataFile file, Schema tableSchema) {
+    if (file instanceof TrackedDataFile wrapped) {
+      return wrapped.file();
+    }
+
+    return forDataFile(tableSchema).wrap(file);
   }
 
   static DeleteFile asDVDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
@@ -61,6 +75,14 @@ class TrackedFileAdapters {
         "Invalid content type for ManifestFile: %s",
         file.contentType());
     return new TrackedManifestFile(file);
+  }
+
+  static TrackedFile asTrackedFile(ManifestFile file) {
+    if (file instanceof TrackedManifestFile wrapper) {
+      return wrapper.file();
+    }
+
+    return forManifestFile().wrap(file);
   }
 
   /** Returns a reusable adapter from {@link DataFile} to {@link TrackedFile}. */
@@ -196,11 +218,6 @@ class TrackedFileAdapters {
     @Override
     public Map<Integer, Long> nanValueCounts() {
       return ContentStatsBackedMap.nanValueCounts(file().contentStats());
-    }
-
-    @Override
-    public Map<Integer, Long> totalBytes() {
-      return ContentStatsBackedMap.totalBytes(file().contentStats());
     }
 
     @Override
@@ -436,7 +453,9 @@ class TrackedFileAdapters {
 
     @Override
     public long sequenceNumber() {
-      return file.tracking().dataSequenceNumber();
+      return file.tracking() != null
+          ? file.tracking().dataSequenceNumber()
+          : ManifestWriter.UNASSIGNED_SEQ;
     }
 
     @Override
@@ -446,7 +465,7 @@ class TrackedFileAdapters {
 
     @Override
     public Long snapshotId() {
-      return file.tracking().snapshotId();
+      return file.tracking() != null ? file.tracking().snapshotId() : null;
     }
 
     @Override
@@ -511,7 +530,7 @@ class TrackedFileAdapters {
 
     @Override
     public Long firstRowId() {
-      return file.tracking().firstRowId();
+      return file.tracking() != null ? file.tracking().firstRowId() : null;
     }
 
     @Override
@@ -1032,7 +1051,6 @@ class TrackedFileAdapters {
     return isPresent(file.valueCounts())
         || isPresent(file.nullValueCounts())
         || isPresent(file.nanValueCounts())
-        || isPresent(file.totalBytes())
         || isPresent(file.lowerBounds())
         || isPresent(file.upperBounds());
   }

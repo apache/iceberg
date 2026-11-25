@@ -104,7 +104,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       long recordCount,
       long fileSizeInBytes,
       Integer specId,
-      PartitionData partition,
+      StructLike partition,
       ContentStats contentStats,
       boolean tightStats,
       Integer sortOrderId,
@@ -295,7 +295,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       case 0 -> tracking;
       case 1 -> contentType != null ? contentType.id() : null;
       case 2 -> location;
-      case 3 -> fileFormat != null ? fileFormat.toString() : null;
+      case 3 -> fileFormat != null ? fileFormat.metadataValue() : null;
       case 4 -> recordCount;
       case 5 -> fileSizeInBytes;
       case 6 -> specId;

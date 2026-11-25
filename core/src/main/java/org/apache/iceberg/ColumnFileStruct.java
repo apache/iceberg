@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -98,7 +98,7 @@ class ColumnFileStruct extends SupportsIndexProjection implements ColumnFile, Se
 
   @Override
   public Set<Integer> fieldIds() {
-    return fieldIds != null ? ImmutableSet.copyOf(Ints.asList(fieldIds)) : null;
+    return fieldIds != null ? Sets.newLinkedHashSet(Ints.asList(fieldIds)) : null;
   }
 
   @Override
@@ -130,7 +130,7 @@ class ColumnFileStruct extends SupportsIndexProjection implements ColumnFile, Se
     return switch (pos) {
       case 0 -> location;
       case 1 -> ArrayUtil.toUnmodifiableIntList(fieldIds);
-      case 2 -> fileFormat != null ? fileFormat.toString() : null;
+      case 2 -> fileFormat != null ? fileFormat.metadataValue() : null;
       case 3 -> fileSizeInBytes;
       case 4 -> keyMetadata();
       default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);

@@ -2632,10 +2632,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               UpdateTableRequest body = (UpdateTableRequest) req.body();
               MetadataUpdate.AddSnapshot addSnapshot =
                   (MetadataUpdate.AddSnapshot) body.updates().get(0);
-              assertThatThrownBy(
-                      () -> table.io().newInputFile(addSnapshot.snapshot().manifestListLocation()))
-                  .isInstanceOf(NotFoundException.class)
-                  .hasMessageContaining("No in-memory file found");
+              assertThat(
+                      table
+                          .io()
+                          .newInputFile(addSnapshot.snapshot().manifestListLocation())
+                          .exists())
+                  .isFalse();
             });
   }
 
@@ -2710,14 +2712,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               assertThat(appendSnapshot).isPresent();
               MetadataUpdate.AddSnapshot addSnapshot =
                   (MetadataUpdate.AddSnapshot) appendSnapshot.get();
-              assertThatThrownBy(
-                      () ->
-                          catalog
-                              .loadTable(TABLE)
-                              .io()
-                              .newInputFile(addSnapshot.snapshot().manifestListLocation()))
-                  .isInstanceOf(NotFoundException.class)
-                  .hasMessageContaining("No in-memory file found");
+              assertThat(
+                      catalog
+                          .loadTable(TABLE)
+                          .io()
+                          .newInputFile(addSnapshot.snapshot().manifestListLocation())
+                          .exists())
+                  .isFalse();
             });
   }
 
@@ -2870,10 +2871,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               MetadataUpdate.AddSnapshot addSnapshot =
                   (MetadataUpdate.AddSnapshot) appendSnapshot.get();
               String manifestListLocation = addSnapshot.snapshot().manifestListLocation();
-              assertThatThrownBy(
-                      () -> catalog.loadTable(TABLE).io().newInputFile(manifestListLocation))
-                  .isInstanceOf(NotFoundException.class)
-                  .hasMessageContaining("No in-memory file found");
+              assertThat(
+                      catalog
+                          .loadTable(TABLE)
+                          .io()
+                          .newInputFile(addSnapshot.snapshot().manifestListLocation())
+                          .exists())
+                  .isFalse();
             });
   }
 
