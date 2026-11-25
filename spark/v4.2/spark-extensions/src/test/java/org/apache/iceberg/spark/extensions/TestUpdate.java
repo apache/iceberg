@@ -265,6 +265,25 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
   }
 
   @TestTemplate
+  public void updateAfterDroppingPartitionFieldAndSourceColumn() {
+    createAndInitTable(
+        "id INT, dep STRING, value INT",
+        "PARTITIONED BY (dep)",
+        "{ \"id\": 1, \"dep\": \"hr\", \"value\": 10 }\n"
+            + "{ \"id\": 2, \"dep\": \"it\", \"value\": 20 }");
+
+    sql("ALTER TABLE %s DROP PARTITION FIELD dep", tableName);
+    sql("ALTER TABLE %s DROP COLUMN dep", tableName);
+
+    sql("UPDATE %s SET value = value + 100 WHERE id = 1", commitTarget());
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, 110), row(2, 20)),
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
   public void testExplain() {
     createAndInitTable("id INT, dep STRING");
 

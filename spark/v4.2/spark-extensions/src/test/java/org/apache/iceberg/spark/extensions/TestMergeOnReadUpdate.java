@@ -32,6 +32,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotChanges;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.deletes.DeleteGranularity;
@@ -62,6 +63,36 @@ public class TestMergeOnReadUpdate extends TestUpdate {
   public void testUpdatePartitionGranularity() {
     assumeThat(formatVersion).isEqualTo(2);
     checkUpdateFileGranularity(DeleteGranularity.PARTITION);
+  }
+
+  @TestTemplate
+  public void updateUsesMergeOnReadOnceFilesWithDroppedPartitionSourceAreRewritten() {
+    createAndInitTable(
+        "id INT, dep STRING, value INT",
+        "PARTITIONED BY (dep)",
+        "{ \"id\": 1, \"dep\": \"hr\", \"value\": 10 }\n"
+            + "{ \"id\": 2, \"dep\": \"it\", \"value\": 20 }");
+
+    sql("ALTER TABLE %s DROP PARTITION FIELD dep", tableName);
+    sql("ALTER TABLE %s DROP COLUMN dep", tableName);
+
+    sql("UPDATE %s SET value = value + 100", commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot rewriteSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    assertThat(rewriteSnapshot.summary())
+        .doesNotContainKey(SnapshotSummary.ADDED_DELETE_FILES_PROP);
+
+    sql("UPDATE %s SET value = value + 1 WHERE id = 1", commitTarget());
+
+    table.refresh();
+    Snapshot deltaSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    validateProperty(deltaSnapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "1");
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, 111), row(2, 120)),
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @TestTemplate

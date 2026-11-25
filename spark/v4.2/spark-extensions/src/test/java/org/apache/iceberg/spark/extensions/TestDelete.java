@@ -1324,6 +1324,26 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   }
 
   @TestTemplate
+  public void deleteAfterDroppingPartitionFieldAndSourceColumn() {
+    createAndInitTable(
+        "id INT, dep STRING, category STRING",
+        "PARTITIONED BY (dep)",
+        "{ \"id\": 1, \"dep\": \"hr\", \"category\": \"c1\" }\n"
+            + "{ \"id\": 2, \"dep\": \"hr\", \"category\": \"c2\" }\n"
+            + "{ \"id\": 3, \"dep\": \"it\", \"category\": \"c1\" }");
+
+    sql("ALTER TABLE %s DROP PARTITION FIELD dep", tableName);
+    sql("ALTER TABLE %s DROP COLUMN dep", tableName);
+
+    sql("DELETE FROM %s WHERE id = 1", commitTarget());
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(2, "c2"), row(3, "c1")),
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
   public void testDeleteToWapBranch() throws NoSuchTableException {
     assumeThat(branch).as("WAP branch only works for table identifier without branch").isNull();
 
