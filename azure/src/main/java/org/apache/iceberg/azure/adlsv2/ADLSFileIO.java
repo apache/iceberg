@@ -205,7 +205,7 @@ public class ADLSFileIO implements DelegateFileIO {
               failureCount.incrementAndGet();
               LOG.warn("Failed to delete file {}", file, exc);
             })
-        .run(this::deleteFile);
+        .run(path -> fileClient(path).deleteIfExists());
 
     if (failureCount.get() > 0) {
       throw new BulkDeletionFailureException(failureCount.get());
@@ -227,7 +227,7 @@ public class ADLSFileIO implements DelegateFileIO {
             .map(
                 pathItem ->
                     new FileInfo(
-                        pathItem.getName(),
+                        fullyQualifiedLocation(location, pathItem.getName()),
                         pathItem.getContentLength(),
                         pathItem.getCreationTime().toInstant().toEpochMilli()))
             .iterator();
@@ -265,5 +265,11 @@ public class ADLSFileIO implements DelegateFileIO {
     }
 
     DelegateFileIO.super.close();
+  }
+
+  private static String fullyQualifiedLocation(ADLSLocation location, String path) {
+    String host = location.host();
+    String authority = location.container().map(container -> container + "@" + host).orElse(host);
+    return String.format("%s://%s/%s", location.scheme(), authority, path);
   }
 }

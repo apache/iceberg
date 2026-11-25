@@ -239,12 +239,11 @@ public class TestIncrementallyConstructedQueries extends ExtensionsTestBase {
     // join two DataFrames (QueryExecution #3)
     Dataset<Row> joined = df1.join(df2, df1.col("id").equalTo(df2.col("id")));
 
-    // query should resolve columns by name and show null for old data
-    List<Object[]> result = rowsToJava(joined.collectAsList());
-    assertThat(result)
-        .as("Join should resolve columns by name")
-        .hasSize(2)
-        .containsExactlyInAnyOrder(row(1, null, 1, null), row(2, 200, 2, 200));
+    // the re-added column has a new field ID, so Spark detects that df1 is out of date
+    assertThatThrownBy(joined::collect)
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("INCOMPATIBLE_TABLE_CHANGE_AFTER_ANALYSIS.COLUMNS_MISMATCH")
+        .hasMessageContaining("`salary` field ID has changed from 2 to 3");
   }
 
   @TestTemplate

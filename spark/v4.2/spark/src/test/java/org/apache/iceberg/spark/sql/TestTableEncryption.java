@@ -186,6 +186,33 @@ public class TestTableEncryption extends CatalogTestBase {
   }
 
   @TestTemplate
+  void transactionCanReadAfterMetadataCommits() {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+    List<DataFile> dataFiles = currentDataFiles(table);
+    DataFile file = dataFiles.get(0);
+
+    Transaction transaction = table.newTransaction();
+    transaction.newFastAppend().appendFile(file).commit();
+
+    // Two commits are needed. The second refreshes twice, in updateProperties() and commit(),
+    // without rebuilding the encryption manager in between, and must keep the transaction's
+    // manifest list key.
+    table.updateProperties().set("prop", "first").commit();
+    table.updateProperties().set("prop", "second").commit();
+
+    // Only this read needs the pending manifest list key. commitTransaction() re-applies the
+    // append on the refreshed table and writes a new manifest list.
+    assertThat(SnapshotChanges.builderFor(transaction.table()).build().addedDataFiles())
+        .extracting(DataFile::location)
+        .containsExactly(file.location());
+
+    transaction.commitTransaction();
+
+    assertThat(currentDataFiles(table)).hasSize(dataFiles.size() + 1);
+  }
+
+  @TestTemplate
   public void testConcurrentAppendTransactions() {
     validationCatalog.initialize(catalogName, catalogConfig);
     Table table = validationCatalog.loadTable(tableIdent);

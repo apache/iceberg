@@ -103,8 +103,8 @@ Notes:
 3. All types, including parameters and return types, are considered nullable.
 
 #### Types
-[iceberg-type-json]: https://iceberg.apache.org/spec/#appendix-c-json-serialization
-Types are based on the [Iceberg Type](https://iceberg.apache.org/spec/#schemas-and-data-types).
+[iceberg-type-json]: spec.md#appendix-c-json-serialization
+Types are based on the [Iceberg Type](spec.md#schemas-and-data-types).
 
 Primitive and semi-structured type strings are encoded based on [Iceberg Type JSON Representation][iceberg-type-json]
 (e.g., `int`, `string`, `timestamp`, `decimal(9, 2)`, `variant`). Type strings must contain no quote characters.

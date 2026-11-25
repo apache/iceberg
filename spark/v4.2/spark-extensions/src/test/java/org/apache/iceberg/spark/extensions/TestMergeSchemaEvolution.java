@@ -27,6 +27,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkTableProperties;
+import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
@@ -259,6 +260,35 @@ public class TestMergeSchemaEvolution extends SparkRowLevelOperationsTestBase {
     assertEquals(
         "Should have expected rows with type widening",
         expectedRows,
+        sql("SELECT id, value FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
+  void mergeWithSchemaEvolutionCastsSmallIntToInt() {
+    assumeThat(branch).as("Schema evolution does not work for branches currently").isNull();
+
+    createAndInitTable(
+        "id INT, value INT", "{ \"id\": 1, \"value\": 100 }\n" + "{ \"id\": 2, \"value\": 200 }");
+
+    createOrReplaceView(
+        "source",
+        "id INT, value SMALLINT",
+        "{ \"id\": 1, \"value\": 10 }\n" + "{ \"id\": 3, \"value\": 30 }");
+
+    sql(
+        "MERGE WITH SCHEMA EVOLUTION INTO %s AS t USING source AS s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET * "
+            + "WHEN NOT MATCHED THEN "
+            + "  INSERT *",
+        commitTarget());
+
+    assertThat(spark.table(tableName).schema().apply("value").dataType())
+        .isEqualTo(DataTypes.IntegerType);
+    assertEquals(
+        "Should cast SMALLINT source values to INT",
+        ImmutableList.of(row(1, 10), row(2, 200), row(3, 30)),
         sql("SELECT id, value FROM %s ORDER BY id", selectTarget()));
   }
 

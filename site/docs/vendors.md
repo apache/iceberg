@@ -43,6 +43,7 @@ CelerData provides commercial offerings for [StarRocks](https://www.starrocks.io
 
 ### [ClickHouse](https://clickhouse.com/)
 ClickHouse is a column-oriented database that enables its users to generate powerful analytics, using SQL queries, in real-time. ClickHouse integrates well with Iceberg and offers two options to work with it:
+
 1. Via Iceberg [table function](https://clickhouse.com/docs/en/sql-reference/table-functions/iceberg): Provides a read-only table-like interface to Apache Iceberg tables in Amazon S3.
 2. Via the Iceberg [table engine](https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg): An engine that provides a read-only integration with existing Apache Iceberg tables in Amazon S3.
 
@@ -84,6 +85,7 @@ Collate is an AI-native data catalog and governance platform built on [OpenMetad
 ### [Dataddo](https://www.dataddo.com/)
 
 [Dataddo](https://www.dataddo.com/) is a fully managed data integration platform for moving enterprise data across cloud, on-prem, and hybrid environments, with first-class support for open table formats including Apache Iceberg.
+
 * **Architecture** - Dataddo runs a single control plane that orchestrates data planes on AWS, Azure, GCP, sovereign clouds or on-premises Kubernetes and OpenShift, so sensitive data never leaves your network.
 * **Transport patterns** - Dataddo supports ETL/ELT, CDC, streaming, reverse ETL, and batch delivery from hundreds of fully maintained connectors.
 * **Iceberg support** - Dataddo writes to Apache Iceberg via catalogs such as AWS Glue, REST and others, and automatically detects source schema drift so downstream tables don't silently break.
@@ -175,7 +177,7 @@ Redpanda is both a cloud-native and self-hosted streaming platform whose [Iceber
 
 ### [RisingWave](https://risingwave.com/)
 
-[RisingWave](https://risingwave.com/) is a cloud-native streaming database for real-time data ingestion, processing, and management. It integrates with Iceberg to [read from](https://docs.risingwave.com/integrations/sources/apache-iceberg) and [write to](https://docs.risingwave.com/integrations/destinations/apache-iceberg) Iceberg tables, enabling efficient file compaction across sources like message queues, databases (via Change Data Capture), data lakes, and files. RisingWave is available as [open source](https://github.com/risingwavelabs/risingwave), a managed cloud service ([RisingWave Cloud](https://cloud.risingwave.com/auth/signin/)) with BYOC support, and an enterprise on-premises edition ([RisingWave Premium](https://docs.risingwave.com/get-started/rw-premium-edition-intro)).
+[RisingWave](https://risingwave.com/) is a cloud-native streaming database for real-time data ingestion, processing, and management. It integrates with Iceberg to [read from](https://docs.risingwave.com/iceberg/ingest-from-iceberg) and [write to](https://docs.risingwave.com/integrations/destinations/apache-iceberg) Iceberg tables, enabling efficient file compaction across sources like message queues, databases (via Change Data Capture), data lakes, and files. RisingWave is available as [open source](https://github.com/risingwavelabs/risingwave), a managed cloud service ([RisingWave Cloud](https://cloud.risingwave.com/auth/signin/)) with BYOC support, and an enterprise on-premises edition ([RisingWave Premium](https://docs.risingwave.com/get-started/rw-premium-edition-intro)).
 
 ### [Ryft](https://ryft.io/)
 
@@ -188,6 +190,10 @@ Redpanda is both a cloud-native and self-hosted streaming platform whose [Iceber
 ### [SeaweedFS](https://seaweedfs.com/)
 
 [SeaweedFS](https://github.com/seaweedfs/seaweedfs) is an open-source distributed object store with an S3-compatible gateway. Its S3 Table Buckets provide both halves of an Iceberg deployment in a single service: an embedded Iceberg REST catalog serves table metadata, and the table bucket stores table data as Parquet files, with server-side compaction and snapshot expiration. Engines such as Spark, Trino, ClickHouse, DuckDB, Apache Doris, RisingWave, Dremio, and PyIceberg connect through the standard Iceberg REST catalog and S3 APIs.
+
+### [Singdata](https://www.singdata.com/)
+
+[Singdata](https://www.singdata.com/) offers Singdata Lakehouse, a fully-managed cloud-native AI Lakehouse that unifies structured, semi-structured, and unstructured data across AWS, Microsoft Azure, Google Cloud, Alibaba Cloud, Tencent Cloud, Huawei Cloud, Volcengine, Baidu AI Cloud, and on-premises deployments. Powered by a vectorized SQL engine, compute-storage separation, and the Generic Incremental Computation (GIC) model, Singdata delivers continuous incremental processing via Dynamic Tables alongside multimodal analytics and native AI workloads (such as vector search, full-text search, and AI functions). Built with [Apache Iceberg C++](https://cpp.iceberg.apache.org/), Singdata provides Iceberg-compatible internal tables as well as [Managed Iceberg Tables](https://www.singdata.com/documents/managed-iceberg-overview) that external engines such as Apache Spark and DuckDB can read and write directly through its built-in [Iceberg REST Catalog](https://www.singdata.com/documents/spark-lakehouse-iceberg-rest) with vended credentials, while also supporting federated queries over externally managed Iceberg catalogs through [Iceberg External Tables](https://www.singdata.com/documents/iceberg_external_catalog_guide).
 
 ### [SingleStore](https://singlestore.com/)
 
@@ -239,11 +245,11 @@ Learn more in the [Tinybird documentation](https://www.tinybird.co/docs/forward/
 
 ### [Upsolver](https://upsolver.com)
 
-[Upsolver](https://upsolver.com) is a streaming data ingestion and table management solution for Apache Iceberg. With Upsolver, users can easily ingest batch and streaming data from files, streams and databases (CDC) into [Iceberg tables](https://docs.upsolver.com/content/reference-1/sql-commands/iceberg-tables/upsolver-managed-tables). In addition, Upsolver connects to your existing REST and Hive catalogs, and [analyzes the health](https://docs.upsolver.com/content/how-to-guides-1/apache-iceberg/optimize-your-iceberg-tables) of your tables. Use Upsolver to continuously optimize tables by compacting small files, sorting and compressing, repartitioning, and cleaning up dangling files and expired manifests. Upsolver is available from the [Upsolver Cloud](https://www.upsolver.com/sqlake-signup-wp) or can be deployed in your AWS VPC.
+[Upsolver](https://upsolver.com) is a streaming data ingestion and table management solution for Apache Iceberg. With Upsolver, users can easily ingest batch and streaming data from files, streams and databases (CDC) into [Iceberg tables](https://docs.upsolver.com/content/reference-1/sql-commands/iceberg-tables/upsolver-managed-tables). In addition, Upsolver connects to your existing REST and Hive catalogs, and [analyzes the health](https://help.qlik.com/en-US/upsolver/sqlake/Content/Upsolver_Sqlake/quickstarts/apache-iceberg/optimize-your-iceberg-tables.htm) of your tables. Use Upsolver to continuously optimize tables by compacting small files, sorting and compressing, repartitioning, and cleaning up dangling files and expired manifests. Upsolver is available from the [Upsolver Cloud](https://www.upsolver.com/sqlake-signup-wp) or can be deployed in your AWS VPC.
 
 ### [VeloDB](https://velodb.io)
 
-[VeloDB](https://www.velodb.io/) is a commercial data warehouse powered by [Apache Doris](https://doris.apache.org/), an open-source, real-time data warehouse. It also provides powerful [query acceleration for Iceberg tables and efficient data writeback](https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog). VeloDB offers [enterprise version](https://www.velodb.io/enterprise) and [cloud service](https://www.velodb.io/cloud), which are fully compatible with open-source Apache Doris. Quick start with Apache Doris and Apache Iceberg [here](https://doris.apache.org/docs/lakehouse/lakehouse-best-practices/doris-iceberg).
+[VeloDB](https://www.velodb.io/) is a commercial data warehouse powered by [Apache Doris](https://doris.apache.org/), an open-source, real-time data warehouse. It also provides powerful [query acceleration for Iceberg tables and efficient data writeback](https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog). VeloDB offers [enterprise version](https://www.velodb.io/enterprise) and [cloud service](https://www.velodb.io/cloud), which are fully compatible with open-source Apache Doris. Quick start with Apache Doris and Apache Iceberg [here](https://doris.apache.org/docs/lakehouse/best-practices/doris-iceberg).
 
 ### [OLake](https://olake.io/)
 

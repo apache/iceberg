@@ -201,6 +201,12 @@ public class TableProperties {
   public static final String PARQUET_COLUMN_STATS_ENABLED_PREFIX =
       "write.parquet.stats-enabled.column.";
 
+  public static final String PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX =
+      "write.parquet.compression-codec.column.";
+
+  public static final String PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX =
+      "write.parquet.compression-level.column.";
+
   public static final String PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX =
       "write.parquet.dict-encoding-enabled.column.";
 
@@ -339,6 +345,23 @@ public class TableProperties {
   public static final String METRICS_MODE_COLUMN_CONF_PREFIX = "write.metadata.metrics.column.";
   public static final String DEFAULT_WRITE_METRICS_MODE = "write.metadata.metrics.default";
   public static final String DEFAULT_WRITE_METRICS_MODE_DEFAULT = "truncate(16)";
+
+  /**
+   * Prefixes of table properties that are keyed by column name.
+   *
+   * <p>Properties with these prefixes are renamed or removed when the column is renamed or dropped.
+   * New per-column properties must be added to this set.
+   */
+  public static final Set<String> COLUMN_PROPERTY_PREFIXES =
+      ImmutableSet.of(
+          METRICS_MODE_COLUMN_CONF_PREFIX,
+          PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX,
+          PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX,
+          PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX,
+          PARQUET_COLUMN_STATS_ENABLED_PREFIX,
+          PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX,
+          PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX,
+          PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX);
 
   public static final String DEFAULT_NAME_MAPPING = "schema.name-mapping.default";
 

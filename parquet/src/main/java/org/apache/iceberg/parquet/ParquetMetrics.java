@@ -136,7 +136,6 @@ class ParquetMetrics {
     Map<Integer, Long> valueCounts = Maps.newHashMap();
     Map<Integer, Long> nullValueCounts = Maps.newHashMap();
     Map<Integer, Long> nanValueCounts = Maps.newHashMap();
-    Map<Integer, Integer> avgValueSizes = Maps.newHashMap();
     Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
     Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
     Map<Integer, org.apache.iceberg.types.Type> originalTypes = Maps.newHashMap();
@@ -157,10 +156,6 @@ class ParquetMetrics {
 
       if (metrics.nanValueCount() >= 0) {
         nanValueCounts.put(id, metrics.nanValueCount());
-      }
-
-      if (metrics.avgValueSizeInBytes() != null) {
-        avgValueSizes.put(id, metrics.avgValueSizeInBytes());
       }
 
       if (metrics.lowerBound() != null) {
@@ -184,7 +179,6 @@ class ParquetMetrics {
         nanValueCounts,
         lowerBounds,
         upperBounds,
-        avgValueSizes.isEmpty() ? null : avgValueSizes,
         originalTypes);
   }
 
@@ -278,7 +272,7 @@ class ParquetMetrics {
             null,
             null,
             null,
-            fieldMetrics.avgValueSizeInBytes());
+            fieldMetrics.totalBytes());
       } else {
         T lowerBound = truncateLowerBound(icebergType, fieldMetrics.lowerBound(), truncateLength);
         T upperBound = truncateUpperBound(icebergType, fieldMetrics.upperBound(), truncateLength);
@@ -290,7 +284,7 @@ class ParquetMetrics {
             lowerBound,
             upperBound,
             icebergType,
-            fieldMetrics.avgValueSizeInBytes());
+            fieldMetrics.totalBytes());
       }
     }
 

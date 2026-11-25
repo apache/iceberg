@@ -18,16 +18,29 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.io.IOException;
+import java.util.Collections;
+import org.apache.flink.api.common.serialization.SerializerConfigImpl;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.TypeSerializerSnapshot;
 import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputSerializer;
+import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
+import org.apache.flink.types.RowKind;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestDynamicRecordInternalSerializer {
 
@@ -97,9 +110,114 @@ public class TestDynamicRecordInternalSerializer {
         .isTrue();
   }
 
+  @Test
+  void testSerializeWithSchemaIdForMissingTable() {
+    DynamicRecordInternalSerializer serializer =
+        new DynamicRecordInternalSerializer(
+            new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1, 10), false);
+    GenericRowData row = GenericRowData.of(123L, StringData.fromString("test"), 1.23f);
+    DynamicRecordInternal record =
+        new DynamicRecordInternal(
+            "missingTable",
+            DynamicRecordInternalSerializerTestBase.BRANCH,
+            DynamicRecordInternalSerializerTestBase.SCHEMA,
+            row,
+            DynamicRecordInternalSerializerTestBase.SPEC,
+            42,
+            false,
+            Collections.emptySet());
+    DataOutputSerializer output = new DataOutputSerializer(128);
+
+    assertThatCode(() -> serializer.serialize(record, output)).doesNotThrowAnyException();
+    assertThat(output.length()).isGreaterThan(0);
+  }
+
+  @Test
+  void testCacheSizesFromType() {
+    DynamicRecordInternalType type =
+        new DynamicRecordInternalType(CATALOG_EXTENSION.catalogLoader(), true, 5, 3);
+    TypeSerializer<DynamicRecordInternal> internalTypeSerializer =
+        type.createSerializer(new SerializerConfigImpl());
+    assertThat(internalTypeSerializer).isInstanceOf(DynamicRecordInternalSerializer.class);
+    DynamicRecordInternalSerializer dynamicRecordInternalSerializer =
+        (DynamicRecordInternalSerializer) internalTypeSerializer;
+
+    assertThat(dynamicRecordInternalSerializer.getSerializerCache().maximumSize()).isEqualTo(5);
+    assertThat(
+            dynamicRecordInternalSerializer
+                .getSerializerCache()
+                .inputSchemasPerTableCacheMaximumSize())
+        .isEqualTo(3);
+
+    DynamicRecordInternalSerializer duplicate =
+        (DynamicRecordInternalSerializer) dynamicRecordInternalSerializer.duplicate();
+    assertThat(duplicate.getSerializerCache())
+        .isNotSameAs(dynamicRecordInternalSerializer.getSerializerCache());
+    assertThat(duplicate.getSerializerCache().maximumSize()).isEqualTo(5);
+    assertThat(duplicate.getSerializerCache().inputSchemasPerTableCacheMaximumSize()).isEqualTo(3);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void copyPreservesValues(boolean reuse) {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+    long value = 123L;
+    GenericRowData row = GenericRowData.of(value);
+    DynamicRecordInternal copied = copy(schema, row, reuse);
+
+    row.setField(0, value + 1);
+
+    assertThat(copied.rowData().getLong(0)).isEqualTo(value);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void copyPreservesNestedValues(boolean reuse) {
+    Schema schema =
+        new Schema(
+            required(
+                1, "nested", Types.StructType.of(required(2, "data", Types.BinaryType.get()))));
+    byte[] value = new byte[] {1, 2, 3};
+    byte[] expected = value.clone();
+    GenericRowData row = GenericRowData.of(GenericRowData.of(value));
+    DynamicRecordInternal copied = copy(schema, row, reuse);
+
+    value[0] += 1;
+
+    assertThat(copied.rowData().getRow(0, 1).getBinary(0)).isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void copyPreservesRowKind(boolean reuse) {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+    GenericRowData row = GenericRowData.of(123L);
+    row.setRowKind(RowKind.UPDATE_BEFORE);
+    DynamicRecordInternal copied = copy(schema, row, reuse);
+
+    row.setRowKind(RowKind.UPDATE_AFTER);
+
+    assertThat(copied.rowData().getRowKind()).isEqualTo(RowKind.UPDATE_BEFORE);
+  }
+
+  private DynamicRecordInternal copy(Schema schema, RowData row, boolean reuse) {
+    DynamicRecordInternalSerializer serializer = createSerializer();
+    DynamicRecordInternal record =
+        new DynamicRecordInternal(
+            "table",
+            "main",
+            schema,
+            row,
+            PartitionSpec.unpartitioned(),
+            0,
+            false,
+            Collections.emptySet());
+    return reuse ? serializer.copy(record, serializer.createInstance()) : serializer.copy(record);
+  }
+
   private DynamicRecordInternalSerializer createSerializer() {
     return new DynamicRecordInternalSerializer(
-        new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1), true);
+        new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1, 10), true);
   }
 
   private static class OldTypeSerializerSnapshot

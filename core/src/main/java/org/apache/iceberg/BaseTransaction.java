@@ -353,8 +353,6 @@ public class BaseTransaction implements Transaction {
       return;
     }
 
-    Set<Long> startingSnapshots =
-        base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
     try {
       Tasks.foreach(ops)
           .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
@@ -392,6 +390,9 @@ public class BaseTransaction implements Transaction {
       // committed manifests to ensure that no committed manifest is deleted.
       // A manifest could be deleted in one successful operation commit, but reused in another
       // successful commit of that operation if the whole transaction is retried.
+      // only snapshots added on top of the committed base can reference this transaction's files
+      Set<Long> startingSnapshots =
+          base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
       Set<Snapshot> newSnapshots = Sets.newHashSet();
       for (Snapshot snapshot : current.snapshots()) {
         if (!startingSnapshots.contains(snapshot.snapshotId())) {
@@ -399,7 +400,7 @@ public class BaseTransaction implements Transaction {
         }
       }
 
-      Set<String> committedFiles = committedFiles(ops.io(), newSnapshots);
+      Set<String> committedFiles = committedFiles(newSnapshots);
       // delete all the files that were deleted in the most recent set of operation commits
       Set<String> uncommittedFiles =
           deletedFiles.stream()
@@ -454,15 +455,31 @@ public class BaseTransaction implements Transaction {
   }
 
   // returns the manifest lists and manifests referenced by the given committed snapshots
-  private static Set<String> committedFiles(FileIO io, Set<Snapshot> snapshots) {
+  private Set<String> committedFiles(Set<Snapshot> snapshots) {
     Set<String> committedFiles = Sets.newHashSet();
 
     for (Snapshot snap : snapshots) {
       committedFiles.add(snap.manifestListLocation());
-      snap.allManifests(io).forEach(manifest -> committedFiles.add(manifest.path()));
+      committedFiles.addAll(committedManifestPaths(snap));
     }
 
     return committedFiles;
+  }
+
+  /** Returns this snapshot's manifest paths. */
+  private Set<String> committedManifestPaths(Snapshot snapshot) {
+    for (PendingUpdate update : updates) {
+      if (update instanceof SnapshotProducer<?> producer) {
+        Set<String> paths = producer.writtenManifestPaths(snapshot.manifestListLocation());
+        if (paths != null) {
+          return paths;
+        }
+      }
+    }
+
+    return snapshot.allManifests(ops.io()).stream()
+        .map(ManifestFile::path)
+        .collect(Collectors.toSet());
   }
 
   public class TransactionTableOperations implements TableOperations {

@@ -93,6 +93,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   private JdbcClientPool connections;
   private Map<String, String> catalogProperties;
   private boolean uniqueTableLocation;
+  private int metadataRefreshMaxRetries;
   private final Function<Map<String, String>, FileIO> ioBuilder;
   private final Function<Map<String, String>, JdbcClientPool> clientPoolBuilder;
   private boolean initializeCatalogTables;
@@ -130,6 +131,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
             properties,
             CatalogProperties.UNIQUE_TABLE_LOCATION,
             CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT);
+    this.metadataRefreshMaxRetries = JdbcUtil.metadataRefreshMaxRetries(properties);
 
     if (name != null) {
       this.catalogName = name;
@@ -284,7 +286,13 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     return new JdbcTableOperations(
-        connections, io, catalogName, tableIdentifier, catalogProperties, schemaVersion);
+        connections,
+        io,
+        catalogName,
+        tableIdentifier,
+        catalogProperties,
+        schemaVersion,
+        metadataRefreshMaxRetries);
   }
 
   @Override
@@ -292,7 +300,8 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     if (schemaVersion != JdbcUtil.SchemaVersion.V1) {
       throw new UnsupportedOperationException(VIEW_WARNING_LOG_MESSAGE);
     }
-    return new JdbcViewOperations(connections, io, catalogName, viewIdentifier, catalogProperties);
+    return new JdbcViewOperations(
+        connections, io, catalogName, viewIdentifier, catalogProperties, metadataRefreshMaxRetries);
   }
 
   @Override

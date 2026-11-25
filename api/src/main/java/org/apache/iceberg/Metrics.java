@@ -38,7 +38,6 @@ public class Metrics implements Serializable {
   private Map<Integer, Long> nanValueCounts = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
-  private Map<Integer, Integer> avgValueSizes = null;
   // this is not serialized with all the other fields
   private Map<Integer, Type> originalTypes = null;
 
@@ -127,16 +126,14 @@ public class Metrics implements Serializable {
       Map<Integer, ByteBuffer> lowerBounds,
       Map<Integer, ByteBuffer> upperBounds,
       Map<Integer, Type> originalTypes) {
-    this(
-        rowCount,
-        columnSizes,
-        valueCounts,
-        nullValueCounts,
-        nanValueCounts,
-        lowerBounds,
-        upperBounds,
-        null /* avgValueSizes */,
-        originalTypes);
+    this.rowCount = rowCount;
+    this.columnSizes = columnSizes;
+    this.valueCounts = valueCounts;
+    this.nullValueCounts = nullValueCounts;
+    this.nanValueCounts = nanValueCounts;
+    this.lowerBounds = lowerBounds;
+    this.upperBounds = upperBounds;
+    this.originalTypes = originalTypes;
   }
 
   /**
@@ -150,11 +147,13 @@ public class Metrics implements Serializable {
    * @param nanValueCounts a map of field id to the number of NaN values, or null if unknown
    * @param lowerBounds a map of field id to the lower bound of the column, or null if unknown
    * @param upperBounds a map of field id to the upper bound of the column, or null if unknown
-   * @param avgValueSizes a map of field id to the average size in bytes of the column's non-null
-   *     values, or null if unknown
+   * @param avgValueSizes ignored
    * @param originalTypes a map of field id to the original type of the lower/upper bound, or null
    *     if unknown
+   * @deprecated will be removed in 2.0.0; use the constructor without {@code avgValueSizes}
+   *     instead.
    */
+  @Deprecated
   public Metrics(
       Long rowCount,
       Map<Integer, Long> columnSizes,
@@ -165,15 +164,15 @@ public class Metrics implements Serializable {
       Map<Integer, ByteBuffer> upperBounds,
       Map<Integer, Integer> avgValueSizes,
       Map<Integer, Type> originalTypes) {
-    this.rowCount = rowCount;
-    this.columnSizes = columnSizes;
-    this.valueCounts = valueCounts;
-    this.nullValueCounts = nullValueCounts;
-    this.nanValueCounts = nanValueCounts;
-    this.lowerBounds = lowerBounds;
-    this.upperBounds = upperBounds;
-    this.avgValueSizes = avgValueSizes;
-    this.originalTypes = originalTypes;
+    this(
+        rowCount,
+        columnSizes,
+        valueCounts,
+        nullValueCounts,
+        nanValueCounts,
+        lowerBounds,
+        upperBounds,
+        originalTypes);
   }
 
   /**
@@ -245,13 +244,14 @@ public class Metrics implements Serializable {
   }
 
   /**
-   * Get the average value size in memory (uncompressed) in bytes over non-null values, for all
-   * fields where it was collected.
+   * Returns {@code null} because average value sizes are no longer collected.
    *
-   * @return a Map of fieldId to average value size in bytes
+   * @return null
+   * @deprecated will be removed in 2.0.0
    */
+  @Deprecated
   public Map<Integer, Integer> avgValueSizes() {
-    return avgValueSizes;
+    return null;
   }
 
   /**
@@ -278,7 +278,6 @@ public class Metrics implements Serializable {
 
     writeByteBufferMap(out, lowerBounds);
     writeByteBufferMap(out, upperBounds);
-    out.writeObject(avgValueSizes);
   }
 
   private static void writeByteBufferMap(
@@ -315,7 +314,6 @@ public class Metrics implements Serializable {
 
     lowerBounds = readByteBufferMap(in);
     upperBounds = readByteBufferMap(in);
-    avgValueSizes = (Map<Integer, Integer>) in.readObject();
   }
 
   @SuppressWarnings("DangerousJavaDeserialization")

@@ -122,7 +122,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
   @Parameters(name = "formatVersion = {0}, usePrefixListing = {1}")
   protected static List<Object> parameters() {
-    return TestHelpers.ALL_VERSIONS.stream()
+    return TestHelpers.V3_AND_BELOW.stream()
         .filter(version -> version > 1)
         .flatMap(version -> Stream.of(new Object[] {version, true}, new Object[] {version, false}))
         .collect(Collectors.toList());

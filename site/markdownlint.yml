@@ -67,3 +67,5 @@ plugins:
   code-fence-style:
     enabled: true
 
+  blanks-around-lists:
+    enabled: true

@@ -134,7 +134,9 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
 
     assertThat(table).as("Should return updated table").isNotNull();
 
-    Column expectedField = Column.create(fieldName, DataTypes.StringType, true);
+    // the new column carries the field ID that Iceberg assigned to it
+    Column expectedField =
+        Column.builderFor(fieldName, DataTypes.StringType).nullable(true).id("3").build();
     assertThat(table.columns())
         .as("Adding a column to a table should return the updated table with the new column")
         .contains(expectedField, atIndex(2));

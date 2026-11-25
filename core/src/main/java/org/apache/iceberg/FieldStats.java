@@ -38,10 +38,14 @@ public interface FieldStats<T> {
   T upperBound();
 
   /**
-   * Whether {@link #lowerBound()} and {@link #upperBound()} are equal to the min and max values for
-   * the column.
+   * Returns whether the bounds are known to be exact.
+   *
+   * @deprecated will be removed in 1.14.0; use {@link DataFile#tightStats()} instead.
    */
-  boolean tightBounds();
+  @Deprecated
+  default boolean tightBounds() {
+    return false;
+  }
 
   /** Whether a value count is tracked for this field. */
   boolean hasValueCount();
@@ -61,11 +65,28 @@ public interface FieldStats<T> {
   /** The total NaN value count, defined only when {@link #hasNanValueCount()}. */
   long nanValueCount();
 
+  /** Whether total bytes are tracked for this field. */
+  default boolean hasTotalBytes() {
+    return false;
+  }
+
   /**
-   * The avg value size in memory (uncompressed) in bytes for variable-length types (string, binary,
-   * variant, geometry, geography)
+   * The total uncompressed size in memory in bytes of non-null values, for variable-length types,
+   * defined only when {@link #hasTotalBytes()}.
    */
-  Integer avgValueSizeInBytes();
+  default long totalBytes() {
+    return 0L;
+  }
+
+  /**
+   * Returns {@code null}.
+   *
+   * @deprecated since 1.13.0, will be removed in 1.14.0; use {@link #totalBytes()} instead.
+   */
+  @Deprecated
+  default Integer avgValueSizeInBytes() {
+    return null;
+  }
 
   /** Returns a copy of this {@link FieldStats}. */
   FieldStats<T> copy();

@@ -117,8 +117,8 @@ class TestParquetValueWriters {
               assertThat(metrics.valueCount()).isEqualTo(2);
               assertThat(metrics.nullValueCount()).isEqualTo(1);
             });
-    assertThat(metricsById.get(4).avgValueSizeInBytes()).isEqualTo(21);
-    assertThat(metricsById.get(5).avgValueSizeInBytes()).isEqualTo(42);
+    assertThat(metricsById.get(4).totalBytes()).isEqualTo(21L);
+    assertThat(metricsById.get(5).totalBytes()).isEqualTo(42L);
   }
 
   @Test
@@ -143,7 +143,7 @@ class TestParquetValueWriters {
     FieldMetrics<?> metrics = writer.metrics().findFirst().orElseThrow();
     assertThat(metrics.valueCount()).isEqualTo(3);
     assertThat(metrics.nullValueCount()).isEqualTo(1);
-    assertThat(metrics.avgValueSizeInBytes()).isEqualTo(31);
+    assertThat(metrics.totalBytes()).isEqualTo(63L);
   }
 
   @Test
@@ -165,12 +165,10 @@ class TestParquetValueWriters {
     writer.write(0, ByteBuffer.allocate(42));
     writer.write(0, null);
 
-    // the geometry writer adds bounds but must keep the same average WKB size metric as the
-    // counts-only geospatial writer: the average is over the two non-null values, (21 + 42) / 2
     FieldMetrics<?> metrics = writer.metrics().findFirst().orElseThrow();
     assertThat(metrics.valueCount()).isEqualTo(3);
     assertThat(metrics.nullValueCount()).isEqualTo(1);
-    assertThat(metrics.avgValueSizeInBytes()).isEqualTo(31);
+    assertThat(metrics.totalBytes()).isEqualTo(63L);
   }
 
   @Test

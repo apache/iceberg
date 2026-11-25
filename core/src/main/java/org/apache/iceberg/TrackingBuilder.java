@@ -23,24 +23,25 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
 
 class TrackingBuilder {
-  private final long newSnapshotId;
-  private final Long snapshotId;
-  private final Long dataSequenceNumber;
-  private final Long fileSequenceNumber;
-  private final Long firstRowId;
-  private EntryStatus status;
-  private Long modifiedSnapshotId;
-  private byte[] deletedPositions;
-  private byte[] replacedPositions;
-
   /**
    * Creates a builder for a newly added file.
    *
    * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
    * @return a builder for a newly added file
    */
-  static TrackingBuilder added(long newSnapshotId) {
+  static TrackingBuilder added(Long newSnapshotId) {
     return new TrackingBuilder(newSnapshotId);
+  }
+
+  /**
+   * Creates a builder for a newly added file.
+   *
+   * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
+   * @param dataSequenceNumber sequence number for rows in the file
+   * @return a builder for a newly added file
+   */
+  static TrackingBuilder added(long newSnapshotId, long dataSequenceNumber) {
+    return new TrackingBuilder(newSnapshotId, dataSequenceNumber);
   }
 
   /**
@@ -76,7 +77,17 @@ class TrackingBuilder {
     return terminal(EntryStatus.REPLACED, source, newSnapshotId);
   }
 
-  private TrackingBuilder(long newSnapshotId) {
+  private final Long newSnapshotId;
+  private final Long snapshotId;
+  private final Long fileSequenceNumber;
+  private final Long firstRowId;
+  private EntryStatus status;
+  private Long dataSequenceNumber;
+  private Long modifiedSnapshotId;
+  private byte[] deletedPositions;
+  private byte[] replacedPositions;
+
+  private TrackingBuilder(Long newSnapshotId) {
     this.status = EntryStatus.ADDED;
     this.snapshotId = newSnapshotId;
     this.newSnapshotId = newSnapshotId;
@@ -86,6 +97,11 @@ class TrackingBuilder {
     this.modifiedSnapshotId = null;
     this.deletedPositions = null;
     this.replacedPositions = null;
+  }
+
+  private TrackingBuilder(long newSnapshotId, long dataSequenceNumber) {
+    this(newSnapshotId);
+    this.dataSequenceNumber = dataSequenceNumber;
   }
 
   private TrackingBuilder(Tracking source, long newSnapshotId) {
@@ -107,11 +123,28 @@ class TrackingBuilder {
     Preconditions.checkState(
         deletedPositions == null && replacedPositions == null,
         "Cannot mark DV updated on a manifest entry (deleted/replaced positions are set)");
-    this.modifiedSnapshotId = newSnapshotId;
+    if (status != EntryStatus.ADDED) {
+      // files can be added with a DV and are not considered modified
+      this.modifiedSnapshotId = newSnapshotId;
+    }
+
     if (status == EntryStatus.EXISTING) {
       this.status = EntryStatus.MODIFIED;
     }
 
+    return this;
+  }
+
+  /** Indicates that the column files list has been updated for the new Tracking. */
+  TrackingBuilder columnFilesUpdated() {
+    this.modifiedSnapshotId = newSnapshotId;
+    if (status == EntryStatus.EXISTING) {
+      this.status = EntryStatus.MODIFIED;
+    }
+    // Reset to null to inherit from the new snapshot sequence number. It is safe to bump up the
+    // dataSequenceNumber as writers are required to rewrite v2 equality and position deletes to DVs
+    // when applying column update.
+    this.dataSequenceNumber = null;
     return this;
   }
 

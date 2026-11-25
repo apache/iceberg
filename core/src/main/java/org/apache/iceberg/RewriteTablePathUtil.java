@@ -241,8 +241,8 @@ public class RewriteTablePathUtil {
       TableMetadata metadata, String sourcePrefix, String targetPrefix) {
     List<Snapshot> newSnapshots = Lists.newArrayListWithCapacity(metadata.snapshots().size());
     for (Snapshot snapshot : metadata.snapshots()) {
-      String newManifestListLocation =
-          newPath(snapshot.manifestListLocation(), sourcePrefix, targetPrefix);
+      String manifestList = snapshot.manifestListLocation();
+      String rootManifest = snapshot.rootManifestLocation();
       Snapshot newSnapshot =
           new BaseSnapshot(
               snapshot.sequenceNumber(),
@@ -252,7 +252,8 @@ public class RewriteTablePathUtil {
               snapshot.operation(),
               snapshot.summary(),
               snapshot.schemaId(),
-              newManifestListLocation,
+              manifestList == null ? null : newPath(manifestList, sourcePrefix, targetPrefix),
+              rootManifest == null ? null : newPath(rootManifest, sourcePrefix, targetPrefix),
               snapshot.firstRowId(),
               snapshot.addedRows(),
               snapshot.keyId());
@@ -774,7 +775,7 @@ public class RewriteTablePathUtil {
 
   private static void checkNoRowData(Record record, String deleteFilePath) {
     Preconditions.checkArgument(
-        record.get(2) == null,
+        record.size() == 2 || record.get(2) == null,
         "Cannot rewrite position delete file with row data for %s",
         deleteFilePath);
   }
