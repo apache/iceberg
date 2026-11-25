@@ -19,13 +19,22 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.atIndex;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.List;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkCatalog;
+import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.functions;
@@ -81,5 +90,107 @@ public class TestRegisterTableProcedure extends ExtensionsTestBase {
         .contains(numRows, atIndex(1))
         .as("Should have the right datafile count in the procedure result")
         .contains(originalFileCount, atIndex(2));
+  }
+
+  @TestTemplate
+  void registerExistingTableWithoutOverwrite() throws NoSuchTableException, ParseException {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", targetName);
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    String metadataJson = TableUtil.metadataFileLocation(table);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.register_table(table => '%s', metadata_file => '%s', overwrite => false)",
+                    catalogName, targetName, metadataJson))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageStartingWith("Table already exists");
+  }
+
+  @TestTemplate
+  void registerTableWithOverwriteUnsupported() throws NoSuchTableException, ParseException {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    String metadataJson = TableUtil.metadataFileLocation(table);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.register_table(table => '%s', metadata_file => '%s', overwrite => true)",
+                    catalogName, targetName, metadataJson))
+        .hasMessageContaining("Registering tables with overwrite is not supported");
+  }
+
+  @TestTemplate
+  void registerTableWithOverwrite() throws NoSuchTableException, ParseException {
+    assumeThat(catalogName).isEqualTo(SparkCatalogConfig.HADOOP.catalogName());
+
+    String overwriteCatalog = "overwrite_cat";
+    spark.conf().set("spark.sql.catalog." + overwriteCatalog, SparkCatalog.class.getName());
+    spark
+        .conf()
+        .set(
+            "spark.sql.catalog." + overwriteCatalog + "." + CatalogProperties.CATALOG_IMPL,
+            OverwriteCatalog.class.getName());
+    spark
+        .conf()
+        .set(
+            "spark.sql.catalog." + overwriteCatalog + "." + CatalogProperties.FILE_IO_IMPL,
+            HadoopFileIO.class.getName());
+    spark
+        .conf()
+        .set(
+            "spark.sql.catalog." + overwriteCatalog + "." + CatalogProperties.WAREHOUSE_LOCATION,
+            temp.toFile().toURI().toString());
+
+    String sourceTable = overwriteCatalog + ".default.source_table";
+    String targetTable = overwriteCatalog + ".default.target_table";
+
+    try {
+      sql("CREATE NAMESPACE %s.default", overwriteCatalog);
+      sql("CREATE TABLE %s (id int, data string) USING iceberg", sourceTable);
+      sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", sourceTable);
+
+      sql("CREATE TABLE %s (id int, data string) USING iceberg", targetTable);
+      sql("INSERT INTO %s VALUES (3, 'c')", targetTable);
+      assertThat(sql("SELECT * FROM %s", targetTable)).containsExactly(row(3, "c"));
+
+      Table source = Spark3Util.loadIcebergTable(spark, sourceTable);
+      long expectedSnapshotId = source.currentSnapshot().snapshotId();
+      long expectedFileCount = (long) scalarSql("SELECT COUNT(*) FROM %s.files", sourceTable);
+      List<Object[]> expectedRows = sql("SELECT * FROM %s ORDER BY id", sourceTable);
+      String metadataJson = TableUtil.metadataFileLocation(source);
+
+      List<Object[]> result =
+          sql(
+              "CALL %s.system.register_table(table => '%s', metadata_file => '%s', overwrite => true)",
+              overwriteCatalog, targetTable, metadataJson);
+
+      assertThat(result.get(0))
+          .contains(expectedSnapshotId, atIndex(0))
+          .contains((long) expectedRows.size(), atIndex(1))
+          .contains(expectedFileCount, atIndex(2));
+      assertThat(sql("SELECT * FROM %s ORDER BY id", targetTable))
+          .containsExactlyElementsOf(expectedRows);
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", sourceTable);
+      sql("DROP TABLE IF EXISTS %s", targetTable);
+      sql("DROP NAMESPACE IF EXISTS %s.default", overwriteCatalog);
+    }
+  }
+
+  public static class OverwriteCatalog extends InMemoryCatalog {
+    @Override
+    public Table registerTable(
+        TableIdentifier identifier, String metadataFileLocation, boolean overwrite) {
+      if (overwrite && tableExists(identifier)) {
+        dropTable(identifier, false);
+      }
+
+      return registerTable(identifier, metadataFileLocation);
+    }
   }
 }
