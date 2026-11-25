@@ -727,10 +727,11 @@ public class Types {
   public static class VectorType extends PrimitiveType {
     private static final String NAME = "vector";
 
-    /** The primitive element types a vector may hold. */
+    /** The element types a vector may hold. */
     public enum ElementType {
       INT("int"),
       LONG("long"),
+      FLOAT16("float16"),
       FLOAT("float"),
       DOUBLE("double");
 
