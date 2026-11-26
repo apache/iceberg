@@ -125,7 +125,7 @@ public class JdbcLockFactory implements TriggerLockFactory {
   private void initializeLockTables() {
     LOG.debug("Creating database tables (if missing) to store table maintenance locks");
     try {
-      pool.run(JdbcLockFactory::initializeLockTable);
+      pool.run(JdbcLockFactory::createLockTableIfMissing);
     } catch (SQLTimeoutException e) {
       throw new UncheckedSQLException(
           e, "Cannot initialize JDBC table maintenance lock: Query timed out");
@@ -141,7 +141,7 @@ public class JdbcLockFactory implements TriggerLockFactory {
   }
 
   @VisibleForTesting
-  static boolean initializeLockTable(Connection conn) throws SQLException {
+  static boolean createLockTableIfMissing(Connection conn) throws SQLException {
     DatabaseMetaData dbMeta = conn.getMetaData();
     if (lockTableExists(dbMeta)) {
       LOG.debug("Flink maintenance lock table already exists");

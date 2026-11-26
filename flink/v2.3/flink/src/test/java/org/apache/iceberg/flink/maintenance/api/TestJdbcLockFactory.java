@@ -130,7 +130,7 @@ class TestJdbcLockFactory extends TestLockFactoryBase {
     when(connection.prepareStatement(anyString())).thenReturn(statement);
     when(statement.execute()).thenThrow(new SQLException("Table already exists"));
 
-    assertThat(JdbcLockFactory.initializeLockTable(connection)).isTrue();
+    assertThat(JdbcLockFactory.createLockTableIfMissing(connection)).isTrue();
 
     verify(statement).execute();
     verify(metadata, times(2)).getTables(null, null, "flink_maintenance_lock", null);
@@ -156,7 +156,8 @@ class TestJdbcLockFactory extends TestLockFactoryBase {
     when(connection.prepareStatement(anyString())).thenReturn(statement);
     when(statement.execute()).thenThrow(failure);
 
-    assertThatThrownBy(() -> JdbcLockFactory.initializeLockTable(connection)).isSameAs(failure);
+    assertThatThrownBy(() -> JdbcLockFactory.createLockTableIfMissing(connection))
+        .isSameAs(failure);
 
     verify(statement).execute();
     verify(metadata, times(2)).getTables(null, null, "flink_maintenance_lock", null);
