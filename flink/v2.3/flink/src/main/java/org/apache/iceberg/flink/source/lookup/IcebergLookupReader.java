@@ -25,7 +25,9 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataOperations;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
+import org.apache.iceberg.Scan;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -82,20 +84,14 @@ class IcebergLookupReader {
   }
 
   CloseableIterable<RowData> read(long snapshotId) {
-    Schema tableSchema =
-        snapshotId == NO_SNAPSHOT_ID ? table.schema() : SnapshotUtil.schemaFor(table, snapshotId);
-
-    RowDataFileScanTaskReader fileReader =
-        new RowDataFileScanTaskReader(
-            tableSchema, projectedSchema, nameMapping, caseSensitive, baseFilters);
-
-    TableScan scan =
-        table.newScan().caseSensitive(caseSensitive).project(projectedSchema).filter(filter);
+    TableScan scan = table.newScan();
+    Schema tableSchema = table.schema();
     if (snapshotId != NO_SNAPSHOT_ID) {
       scan = scan.useSnapshot(snapshotId);
+      tableSchema = SnapshotUtil.schemaFor(table, snapshotId);
     }
 
-    return new LookupIterable(scan.planTasks(), fileReader);
+    return read(scan, tableSchema);
   }
 
   CloseableIterable<RowData> readDelta(long fromExclusive, long toInclusive) {
@@ -103,24 +99,24 @@ class IcebergLookupReader {
       return CloseableIterable.empty();
     }
 
-    RowDataFileScanTaskReader fileReader =
-        new RowDataFileScanTaskReader(
-            SnapshotUtil.schemaFor(table, toInclusive),
-            projectedSchema,
-            nameMapping,
-            caseSensitive,
-            baseFilters);
-
-    IncrementalAppendScan appendScan =
+    IncrementalAppendScan scan =
         table
             .newIncrementalAppendScan()
             .fromSnapshotExclusive(fromExclusive)
-            .toSnapshot(toInclusive)
-            .caseSensitive(caseSensitive)
-            .project(projectedSchema)
-            .filter(filter);
+            .toSnapshot(toInclusive);
 
-    return new LookupIterable(appendScan.planTasks(), fileReader);
+    return read(scan, SnapshotUtil.schemaFor(table, toInclusive));
+  }
+
+  private <S extends Scan<S, FileScanTask, CombinedScanTask>> CloseableIterable<RowData> read(
+      S scan, Schema tableSchema) {
+    RowDataFileScanTaskReader fileReader =
+        new RowDataFileScanTaskReader(
+            tableSchema, projectedSchema, nameMapping, caseSensitive, baseFilters);
+
+    S configured = scan.caseSensitive(caseSensitive).project(projectedSchema).filter(filter);
+
+    return new LookupIterable(configured.planTasks(), fileReader);
   }
 
   boolean isAppendOnlyRange(long fromExclusive, long toInclusive) {
@@ -135,8 +131,7 @@ class IcebergLookupReader {
         return false;
       }
 
-      for (Snapshot snapshot :
-          SnapshotUtil.ancestorsBetween(toInclusive, fromExclusive, table::snapshot)) {
+      for (Snapshot snapshot : SnapshotUtil.ancestorsBetween(table, toInclusive, fromExclusive)) {
         String operation = snapshot.operation();
         if (!DataOperations.APPEND.equals(operation) && !DataOperations.REPLACE.equals(operation)) {
           return false;
