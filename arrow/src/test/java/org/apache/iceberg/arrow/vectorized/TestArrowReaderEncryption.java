@@ -29,6 +29,8 @@ import org.apache.iceberg.data.EncryptedTableReadTestBase;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.util.StructLikeSet;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.TestTemplate;
 
 class TestArrowReaderEncryption extends EncryptedTableReadTestBase {
 
@@ -41,6 +43,11 @@ class TestArrowReaderEncryption extends EncryptedTableReadTestBase {
   protected boolean supportsDeletes() {
     return false;
   }
+
+  @Override
+  @TestTemplate
+  @Disabled("ArrowReader fails to read non-encrypted files from an encrypted table")
+  protected void readMixedPlaintextAndEncryptedDataFiles() {}
 
   @Override
   protected StructLikeSet read(Table encryptedTable) throws IOException {

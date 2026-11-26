@@ -22,6 +22,8 @@ import static org.apache.iceberg.TableMetadata.newTableMetadata;
 
 import java.io.File;
 import java.util.Map;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -117,14 +119,23 @@ public class TestTables {
         temp, null, name, schema, spec, formatVersion, properties, SortOrder.unsorted(), null, ops);
   }
 
-  public static TestTable create(
+  public static TestTable createEncrypted(
       File temp,
       String name,
       Schema schema,
       PartitionSpec spec,
       int formatVersion,
       Map<String, String> properties,
-      TestTableOperations ops) {
+      EncryptionManager encryptionManager) {
+    TestTableOperations ops =
+        new TestTableOperations(
+            name, temp, EncryptingFileIO.combine(new LocalFileIO(), encryptionManager)) {
+          @Override
+          public EncryptionManager encryption() {
+            return encryptionManager;
+          }
+        };
+
     return createTable(
         temp, null, name, schema, spec, formatVersion, properties, SortOrder.unsorted(), null, ops);
   }

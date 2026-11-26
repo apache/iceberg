@@ -37,8 +37,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestTables;
-import org.apache.iceberg.encryption.EncryptingFileIO;
-import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionTestHelpers;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -86,20 +84,8 @@ public abstract class EncryptedTableReadTestBase {
 
   @BeforeEach
   void createTable() {
-    EncryptionManager encryptionManager = EncryptionTestHelpers.createEncryptionManager();
-    TestTables.TestTableOperations ops =
-        new TestTables.TestTableOperations(
-            "encrypted",
-            tableDir,
-            EncryptingFileIO.combine(new TestTables.LocalFileIO(), encryptionManager)) {
-          @Override
-          public EncryptionManager encryption() {
-            return encryptionManager;
-          }
-        };
-
     this.table =
-        TestTables.create(
+        TestTables.createEncrypted(
             tableDir,
             "encrypted",
             SCHEMA,
@@ -110,7 +96,7 @@ public abstract class EncryptedTableReadTestBase {
                 format.name(),
                 TableProperties.DELETE_DEFAULT_FILE_FORMAT,
                 format.name()),
-            ops);
+            EncryptionTestHelpers.createEncryptionManager());
   }
 
   @AfterEach
@@ -130,6 +116,33 @@ public abstract class EncryptedTableReadTestBase {
 
     assertThat(firstFile.keyMetadata()).isNotNull();
     assertThat(secondFile.keyMetadata()).isNotNull();
+
+    assertThat(read(table)).isEqualTo(rowSet(first, second, third));
+  }
+
+  @TestTemplate
+  protected void readMixedPlaintextAndEncryptedDataFiles() throws Exception {
+    // This table is needed so that we can create a plain text data file through the helper.
+    Table plaintextTable =
+        TestTables.create(
+            new File(tableDir, "plaintext"),
+            "plaintext",
+            table.schema(),
+            table.spec(),
+            formatVersion,
+            table.properties());
+
+    Record first = record(1L, "a");
+    Record second = record(2L, "b");
+    Record third = record(3L, "c");
+    DataFile plaintextFile =
+        FileHelpers.writeDataFile(plaintextTable, outputFile("plaintext"), List.of(first, second));
+    DataFile encryptedFile =
+        FileHelpers.writeDataFile(table, outputFile("encrypted"), List.of(third));
+    table.newAppend().appendFile(plaintextFile).appendFile(encryptedFile).commit();
+
+    assertThat(plaintextFile.keyMetadata()).isNull();
+    assertThat(encryptedFile.keyMetadata()).isNotNull();
 
     assertThat(read(table)).isEqualTo(rowSet(first, second, third));
   }
@@ -158,6 +171,7 @@ public abstract class EncryptedTableReadTestBase {
     assertThat(firstFile.keyMetadata()).isNotNull();
     assertThat(secondFile.keyMetadata()).isNotNull();
     assertThat(deleteFile.keyMetadata()).isNotNull();
+    assertThat(deleteFile.format()).isEqualTo(formatVersion >= 3 ? FileFormat.PUFFIN : format);
 
     assertThat(read(table)).isEqualTo(rowSet(second, third));
   }
