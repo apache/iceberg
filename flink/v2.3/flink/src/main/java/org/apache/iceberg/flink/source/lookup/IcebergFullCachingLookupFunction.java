@@ -260,6 +260,10 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
       loadDelta(fromExclusive, toInclusive);
       return true;
     } catch (Exception e) {
+      if (closed) {
+        return true;
+      }
+
       incrementalLoadFailuresCounter.inc();
       LOG.warn(
           "IcebergFullCachingLookupFunction incremental loading from snapshot {} to snapshot {} "
