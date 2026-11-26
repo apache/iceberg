@@ -309,7 +309,10 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
       return;
     }
 
-    this.cache = cache.mergedWith(delta);
+    if (rowCnt > 0) {
+      this.cache = cache.mergedWith(delta);
+    }
+
     this.currentSnapshotId = toInclusive;
     this.cachedRecords = cachedRecords + rowCnt;
     this.latestLoadTimeMs = loadTimeMs;
