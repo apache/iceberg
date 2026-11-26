@@ -272,10 +272,19 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
   }
 
   private void loadFull(long snapshotId) throws IOException {
+    load(snapshotId, reader.read(snapshotId), false);
+  }
+
+  private void loadDelta(long fromExclusive, long toInclusive) throws IOException {
+    load(toInclusive, reader.readDelta(fromExclusive, toInclusive), true);
+  }
+
+  private void load(long snapshotId, CloseableIterable<RowData> rows, boolean incremental)
+      throws IOException {
     InMemoryLookupCache loaded = new InMemoryLookupCache();
     long start = System.currentTimeMillis();
     long rowCnt;
-    try (CloseableIterable<RowData> rows = reader.read(snapshotId)) {
+    try (rows) {
       rowCnt = fillCache(rows, loaded);
     }
 
@@ -285,46 +294,22 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
       return;
     }
 
-    this.cache = loaded;
+    if (!incremental) {
+      this.cache = loaded;
+      this.cachedRecords = rowCnt;
+    } else if (rowCnt > 0) {
+      this.cache = cache.mergedWith(loaded);
+      this.cachedRecords = cachedRecords + rowCnt;
+    }
+
     this.currentSnapshotId = snapshotId;
-    this.cachedRecords = rowCnt;
     this.latestLoadTimeMs = loadTimeMs;
     loadCounter.inc();
 
     LOG.info(
-        "IcebergFullCachingLookupFunction loading finished, snapshot={}, rows={}, cost={} ms",
+        "IcebergFullCachingLookupFunction {} loading finished, snapshot={}, rows={}, cost={} ms",
+        incremental ? "incremental" : "full",
         snapshotId,
-        rowCnt,
-        loadTimeMs);
-  }
-
-  private void loadDelta(long fromExclusive, long toInclusive) throws IOException {
-    InMemoryLookupCache delta = new InMemoryLookupCache();
-    long start = System.currentTimeMillis();
-    long rowCnt;
-    try (CloseableIterable<RowData> rows = reader.readDelta(fromExclusive, toInclusive)) {
-      rowCnt = fillCache(rows, delta);
-    }
-
-    long loadTimeMs = System.currentTimeMillis() - start;
-
-    if (closed) {
-      return;
-    }
-
-    if (rowCnt > 0) {
-      this.cache = cache.mergedWith(delta);
-    }
-
-    this.currentSnapshotId = toInclusive;
-    this.cachedRecords = cachedRecords + rowCnt;
-    this.latestLoadTimeMs = loadTimeMs;
-    loadCounter.inc();
-
-    LOG.info(
-        "IcebergFullCachingLookupFunction incremental loading finished, from snapshot={}, to snapshot={}, rows={}, cost={} ms",
-        fromExclusive,
-        toInclusive,
         rowCnt,
         loadTimeMs);
   }
