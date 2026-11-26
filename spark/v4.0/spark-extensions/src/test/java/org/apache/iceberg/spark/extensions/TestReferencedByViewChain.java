@@ -497,48 +497,6 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
     }
   }
 
-  @Test
-  void viewWithCapturedSqlConfigsPassesViewIdentifierInContext() {
-    setReferencedByEnabled(true);
-    spark.conf().set("spark.sql.ansi.enabled", "true");
-    spark.conf().set("spark.sql.ansi.doubleQuotedIdentifiers", "true");
-    try {
-      spark.sql(String.format("CREATE VIEW simple_view AS SELECT \"id\" FROM %s", TABLE_NAME));
-    } finally {
-      spark.conf().unset("spark.sql.ansi.enabled");
-      spark.conf().unset("spark.sql.ansi.doubleQuotedIdentifiers");
-    }
-    ContextTrackingCatalog.clearCaptured();
-
-    List<Row> result = spark.sql("SELECT * FROM simple_view").collectAsList();
-    assertThat(result).hasSize(5);
-
-    assertCapturedTableChain(ContextTrackingCatalog.CAPTURED, TABLE_NAME, "simple_view");
-  }
-
-  @Test
-  void viewCycleFailsWithReferencedBy() {
-    setReferencedByEnabled(true);
-    createViewWithoutAnalysis("view_a", "SELECT id FROM view_b");
-    createViewWithoutAnalysis("view_b", "SELECT id FROM view_a");
-
-    assertThatThrownBy(() -> spark.sql("SELECT * FROM view_a").collectAsList())
-        .isInstanceOf(SparkThrowable.class)
-        .hasMessageContaining("exceeds the maximum view resolution depth");
-  }
-
-  @Test
-  void viewColumnsBindByNameWithReferencedBy() {
-    setReferencedByEnabled(true);
-    spark.sql(String.format("CREATE TABLE %s (a INT, b INT)", SCHEMA_TABLE_NAME));
-    spark.sql(String.format("INSERT INTO %s VALUES (1, 10), (2, 20)", SCHEMA_TABLE_NAME));
-    spark.sql(String.format("CREATE VIEW simple_view AS SELECT * FROM %s", SCHEMA_TABLE_NAME));
-    spark.sql(String.format("ALTER TABLE %s ALTER COLUMN b FIRST", SCHEMA_TABLE_NAME));
-
-    assertThat(rowsToJava(spark.sql("SELECT * FROM simple_view").collectAsList()))
-        .containsExactlyInAnyOrder(new Object[] {1, 10}, new Object[] {2, 20});
-  }
-
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void viewReadingMissingTableFails(boolean referencedByEnabled) {

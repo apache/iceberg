@@ -30,7 +30,6 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
@@ -701,7 +700,6 @@ public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContex
                 .withLocation(properties.get("location"))
                 .withProperties(props)
                 .createOrReplace();
-        removeStaleSqlConfigs(view, props);
         return new SparkView(catalogName, view);
       } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
         throw new NoSuchNamespaceException(currentNamespace);
@@ -746,24 +744,8 @@ public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContex
         "Altering a view is not supported by catalog: " + catalogName);
   }
 
-  // Iceberg view replacement merges properties, so configs captured only by the replaced version
-  // must be removed. ViewBuilder cannot remove properties, which makes this a separate commit.
-  private static void removeStaleSqlConfigs(
-      org.apache.iceberg.view.View view, Map<String, String> replacementProperties) {
-    List<String> staleConfigs =
-        view.properties().keySet().stream()
-            .filter(key -> key.startsWith(SparkView.SQL_CONFIG_PREFIX))
-            .filter(key -> !replacementProperties.containsKey(key))
-            .collect(Collectors.toList());
-    if (!staleConfigs.isEmpty()) {
-      UpdateViewProperties update = view.updateProperties();
-      staleConfigs.forEach(update::remove);
-      update.commit();
-    }
-  }
-
   private static void verifyNonReservedProperty(String property, String errorMsg) {
-    if (SparkView.isReservedProperty(property)) {
+    if (SparkView.RESERVED_PROPERTIES.contains(property)) {
       throw new UnsupportedOperationException(String.format(errorMsg, property));
     }
   }

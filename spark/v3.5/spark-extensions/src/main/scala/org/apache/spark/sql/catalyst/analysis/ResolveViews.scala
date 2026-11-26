@@ -18,7 +18,6 @@
  */
 package org.apache.spark.sql.catalyst.analysis
 
-import java.util.Locale
 import org.apache.iceberg.catalog.LoadContext
 import org.apache.iceberg.spark.SparkSQLProperties
 import org.apache.iceberg.spark.SparkSupportsLoadContext
@@ -27,11 +26,9 @@ import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
 import org.apache.spark.sql.catalyst.expressions.Alias
 import org.apache.spark.sql.catalyst.expressions.Cast
-import org.apache.spark.sql.catalyst.expressions.NamedExpression
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.expressions.UpCast
 import org.apache.spark.sql.catalyst.parser.ParseException
-import org.apache.spark.sql.catalyst.plans.logical.{View => ViewNode}
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
@@ -50,9 +47,7 @@ import org.apache.spark.sql.connector.catalog.V1Table
 import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
-import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.MetadataBuilder
-import scala.collection.mutable
 
 case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with LookupCatalog {
 
@@ -170,62 +165,24 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       ident: Identifier,
       view: View,
       existingChain: Seq[Seq[String]] = Seq.empty): LogicalPlan = {
-    // Session settings are read before switching to the view's captured SQL configs, which
-    // don't include them
-    val sessionConf = spark.sessionState.conf
-    val viewIdent = catalog.name +: ident.asMultipartIdentifier
-    val viewChain = if (ViewUtil.referencedByEnabled(sessionConf)) {
-      existingChain :+ viewIdent
+    val viewChain = if (ViewUtil.referencedByEnabled(conf)) {
+      existingChain :+ (catalog.name +: ident.asMultipartIdentifier)
     } else {
       Seq.empty
     }
-    val compensate = viewSchemaMode(sessionConf) == SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION
 
-    // Like Spark's own views, the view body is parsed and analyzed with the SQL configs captured
-    // at creation, and nested views are expanded within the outer view's analysis
-    ViewUtil.withNestedView(viewIdent, sessionConf.maxNestedViewDepth) {
-      val viewConf = ViewNode.effectiveSQLConf(ViewUtil.sqlConfigs(view), isTempView = false)
-      SQLConf.withExistingConf(viewConf) {
-        val parsed = parseViewText(nameParts.quoted, view.query)
+    val parsed = parseViewText(nameParts.quoted, view.query)
 
-        // Apply any necessary rewrites to preserve correct resolution
-        val viewCatalogAndNamespace: Seq[String] =
-          view.currentCatalog +: view.currentNamespace.toSeq
-        val rewritten = rewriteIdentifiers(parsed, viewCatalogAndNamespace, viewChain)
+    // Apply any necessary rewrites to preserve correct resolution
+    val viewCatalogAndNamespace: Seq[String] = view.currentCatalog +: view.currentNamespace.toSeq
+    val rewritten = rewriteIdentifiers(parsed, viewCatalogAndNamespace, viewChain)
 
-        val columns = viewColumns(nameParts.quoted, view, viewConf, compensate)
-        val analyzed = spark.sessionState.analyzer.execute(Project(columns, rewritten))
-        spark.sessionState.analyzer.checkAnalysis(analyzed)
-        SubqueryAlias(nameParts, analyzed)
-      }
-    }
-  }
-
-  private def viewColumns(
-      viewName: String,
-      view: View,
-      viewConf: SQLConf,
-      compensate: Boolean): Seq[NamedExpression] = {
-    val queryColumnNames = view.queryColumnNames.toIndexedSeq
-    val bindByName = queryColumnNames.length == view.schema.length
-    val normalizeColName: String => String =
-      if (viewConf.caseSensitiveAnalysis) identity else _.toLowerCase(Locale.ROOT)
-    val nameToCounts = queryColumnNames.groupBy(normalizeColName).map { case (name, names) =>
-      name -> names.length
-    }
-    val nameToCurrentOrdinal = mutable.HashMap.empty[String, Int]
-
-    view.schema.fields.zipWithIndex.map { case (expected, pos) =>
-      val attr = if (bindByName) {
-        val name = queryColumnNames(pos)
-        val normalizedName = normalizeColName(name)
-        val ordinal = nameToCurrentOrdinal.getOrElse(normalizedName, 0)
-        nameToCurrentOrdinal(normalizedName) = ordinal + 1
-        GetViewColumnByNameAndOrdinal(viewName, name, ordinal, nameToCounts(normalizedName), None)
-      } else {
-        GetColumnByOrdinal(pos, expected.dataType)
-      }
-
+    // Apply the field aliases and column comments
+    // This logic differs from how Spark handles views in SessionCatalog.fromCatalogTable.
+    // BINDING is more strict because it doesn't allow resolution by field name.
+    val compensate = viewSchemaMode == SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION
+    val aliases = view.schema.fields.zipWithIndex.map { case (expected, pos) =>
+      val attr = GetColumnByOrdinal(pos, expected.dataType)
       val cast = if (compensate) {
         Cast(attr, expected.dataType, ansiEnabled = true)
       } else {
@@ -233,12 +190,14 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       }
       Alias(cast, expected.name)(explicitMetadata = Some(expected.metadata))
     }.toIndexedSeq
+
+    SubqueryAlias(nameParts, Project(aliases, rewritten))
   }
 
   // Read on every resolution rather than cached, so that SET takes effect within a session.
-  private def viewSchemaMode(sessionConf: SQLConf): String =
+  private def viewSchemaMode: String =
     parseSchemaBindingMode(
-      sessionConf.getConfString(
+      conf.getConfString(
         SparkSQLProperties.VIEW_SCHEMA_BINDING_MODE,
         SparkSQLProperties.VIEW_SCHEMA_MODE_BINDING))
 

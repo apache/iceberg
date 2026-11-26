@@ -60,8 +60,7 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
           query,
           allowExisting,
           replace,
-          viewSchemaMode) =>
-      verifySchemaModeSupported(resolved, viewSchemaMode)
+          _) =>
       val q = CTESubstitution.apply(query)
       verifyTemporaryObjectsDontExist(resolved, q)
       CreateIcebergView(
@@ -144,22 +143,6 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
       throw invalidRefToTempObject(identifier, tempFunctions.mkString("[", ", ", "]"), "function")
     }
   }
-
-  // BINDING and COMPENSATION may be Spark's defaults when no clause is given, so only the modes
-  // that Iceberg views cannot honor are rejected
-  private def verifySchemaModeSupported(ident: ResolvedIdentifier, mode: ViewSchemaMode): Unit =
-    mode match {
-      case SchemaEvolution | SchemaTypeEvolution =>
-        throw new IcebergAnalysisException(
-          String.format(
-            "Cannot create view %s.%s with schema mode %s: Iceberg views support %s and %s",
-            ident.catalog.name(),
-            ident.identifier,
-            mode,
-            SchemaBinding,
-            SchemaCompensation))
-      case _ =>
-    }
 
   private def invalidRefToTempObject(
       ident: ResolvedIdentifier,

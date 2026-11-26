@@ -22,21 +22,16 @@ import org.apache.iceberg.catalog.LoadContext
 import org.apache.iceberg.catalog.TableIdentifier
 import org.apache.iceberg.spark.SparkSQLProperties
 import org.apache.iceberg.spark.SparkSupportsLoadContext
-import org.apache.iceberg.spark.source.SparkView
-import org.apache.spark.sql.catalyst.{TableIdentifier => V1TableIdentifier}
 import org.apache.spark.sql.connector.catalog.CatalogPlugin
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.errors.QueryCompilationErrors
-import org.apache.spark.sql.execution.command.ViewHelper
 import org.apache.spark.sql.internal.SQLConf
 import scala.jdk.CollectionConverters._
 
 object ViewUtil {
-
-  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   def loadView(catalog: CatalogPlugin, ident: Identifier): Option[View] = catalog match {
     case viewCatalog: ViewCatalog =>
@@ -116,38 +111,6 @@ object ViewUtil {
       conf.getConfString(
         SparkSQLProperties.REFERENCED_BY_ENABLED,
         SparkSQLProperties.REFERENCED_BY_ENABLED_DEFAULT.toString))
-  }
-
-  def sqlConfigs(view: View): Map[String, String] = view match {
-    case sparkView: SparkView => sparkView.sqlConfigs().asScala.toMap
-    case _ => Map.empty
-  }
-
-  /** Returns the session SQL configs to store with a new view, using Spark's capture rules. */
-  def capturedSqlConfigs(conf: SQLConf): Map[String, String] =
-    ViewHelper.sqlConfigsToProps(conf, SparkView.SQL_CONFIG_PREFIX)
-
-  private val nestedViewDepth = ThreadLocal.withInitial[Int](() => 0)
-
-  /**
-   * Runs the expansion of a view nested in the views currently being expanded, failing like
-   * Spark when the nesting exceeds `maxNestedViewDepth`.
-   */
-  def withNestedView[T](viewIdent: Seq[String], maxNestedViewDepth: Int)(expand: => T): T = {
-    val depth = nestedViewDepth.get() + 1
-    if (depth > maxNestedViewDepth) {
-      throw QueryCompilationErrors.viewDepthExceedsMaxResolutionDepthError(
-        V1TableIdentifier(viewIdent.last, Some(viewIdent.init.tail.quoted), Some(viewIdent.head)),
-        maxNestedViewDepth,
-        UnresolvedRelation(viewIdent))
-    }
-
-    nestedViewDepth.set(depth)
-    try {
-      expand
-    } finally {
-      nestedViewDepth.set(depth - 1)
-    }
   }
 
   def isViewCatalog(catalog: CatalogPlugin): Boolean = {

@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -70,9 +69,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestViews extends ExtensionsTestBase {
   private static final Namespace NAMESPACE = Namespace.of("default");
   private static final String SPARK_CATALOG = "spark_catalog";
-  private static final Map<String, String> DOUBLE_QUOTED_IDENTIFIERS =
-      ImmutableMap.of(
-          "spark.sql.ansi.enabled", "true", "spark.sql.ansi.doubleQuotedIdentifiers", "true");
   private final String tableName = "table";
 
   @BeforeEach
@@ -533,12 +529,20 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThat(sql(sql)).hasSize(1).containsExactly(row(5.5));
 
+    String expectedErrorMsg =
+        String.format("Cannot load function: %s.%s.%s", catalogName, NAMESPACE, functionName);
+    if (SPARK_CATALOG.equals(catalogName)) {
+      // spark session catalog tries to load a V1 function and has a different error msg
+      expectedErrorMsg =
+          String.format(
+              "[ROUTINE_NOT_FOUND] The function `%s`.`%s` cannot be found",
+              NAMESPACE, functionName);
+    }
+
     // reading from a view that references a TEMP FUNCTION shouldn't be possible
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(
-            "[UNRESOLVED_ROUTINE] Cannot resolve function `%s`.`%s`.`%s`",
-            catalogName, NAMESPACE, functionName);
+        .hasMessageStartingWith(expectedErrorMsg);
   }
 
   @TestTemplate
@@ -727,15 +731,10 @@ public class TestViews extends ExtensionsTestBase {
         .withSchema(schema)
         .create();
 
-    String expectedErrorMsg =
-        SPARK_CATALOG.equals(catalogName)
-            ? "The function `system`.`bucket` cannot be found"
-            : "[UNRESOLVED_ROUTINE] Cannot resolve function `spark_catalog`.`system`.`bucket`";
-
     // verify the v1 error message
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(expectedErrorMsg);
+        .hasMessageContaining("The function `system`.`bucket` cannot be found");
   }
 
   private Schema schema(String sql) {
@@ -2194,91 +2193,6 @@ public class TestViews extends ExtensionsTestBase {
             assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
                 .hasMessageContaining(
                     "Invalid value for spark.sql.iceberg.view.schema-binding-mode: evolution"));
-  }
-
-  @TestTemplate
-  public void readFromViewCycleExceedsMaxNestedViewDepth() {
-    String viewOne = viewName("viewOne");
-    String viewTwo = viewName("viewTwo");
-    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
-    createViewWithoutAnalysis(viewOne, String.format("SELECT * FROM %s", viewTwo), schema);
-    createViewWithoutAnalysis(viewTwo, String.format("SELECT * FROM %s", viewOne), schema);
-
-    assertThatThrownBy(() -> sql("SELECT * FROM %s", viewOne))
-        .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("exceeds the maximum view resolution depth");
-  }
-
-  @TestTemplate
-  public void readFromViewBindsColumnsByName() throws NoSuchTableException {
-    insertRows(2);
-    String viewName = viewName("reorderedColumnsView");
-    sql("CREATE VIEW %s AS SELECT * FROM %s", viewName, tableName);
-    sql("ALTER TABLE %s ALTER COLUMN data FIRST", tableName);
-
-    assertThat(sql("SELECT * FROM %s ORDER BY id", viewName))
-        .containsExactly(row(1, "2"), row(2, "4"));
-  }
-
-  @TestTemplate
-  public void readFromViewUsesSqlConfigsCapturedAtCreation() throws NoSuchTableException {
-    insertRows(2);
-    String viewName = viewName("viewWithSqlConfigs");
-    withSQLConf(
-        DOUBLE_QUOTED_IDENTIFIERS,
-        () -> sql("CREATE VIEW %s AS SELECT \"id\" FROM %s", viewName, tableName));
-
-    assertThat(sql("SELECT * FROM %s ORDER BY id", viewName)).containsExactly(row(1), row(2));
-  }
-
-  @TestTemplate
-  public void sqlConfigsCapturedAtCreationAreHidden() {
-    String viewName = viewName("viewWithHiddenSqlConfigs");
-    withSQLConf(
-        DOUBLE_QUOTED_IDENTIFIERS,
-        () -> sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, tableName));
-
-    assertThat(viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName)).properties())
-        .containsEntry("spark.sql-config.spark.sql.ansi.doubleQuotedIdentifiers", "true");
-    assertThat(sql("SHOW TBLPROPERTIES %s", viewName))
-        .noneMatch(row -> ((String) row[0]).startsWith("spark.sql-config."));
-  }
-
-  @TestTemplate
-  public void sqlConfigPropertiesAreReserved() {
-    String viewName = viewName("viewWithReservedSqlConfigs");
-    sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, tableName);
-
-    assertThatThrownBy(
-            () ->
-                sql(
-                    "ALTER VIEW %s SET TBLPROPERTIES ('spark.sql-config.spark.sql.ansi.enabled' = 'false')",
-                    viewName))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining(
-            "Cannot set reserved property: 'spark.sql-config.spark.sql.ansi.enabled'");
-  }
-
-  @TestTemplate
-  public void replaceViewRemovesSqlConfigsNotCapturedAgain() {
-    String viewName = viewName("replacedViewWithSqlConfigs");
-    withSQLConf(
-        DOUBLE_QUOTED_IDENTIFIERS,
-        () -> sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, tableName));
-    sql("CREATE OR REPLACE VIEW %s AS SELECT id FROM %s", viewName, tableName);
-
-    assertThat(viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName)).properties())
-        .doesNotContainKey("spark.sql-config.spark.sql.ansi.doubleQuotedIdentifiers");
-  }
-
-  private void createViewWithoutAnalysis(String viewName, String sql, Schema schema) {
-    viewCatalog()
-        .buildView(TableIdentifier.of(NAMESPACE, viewName))
-        .withQuery("spark", sql)
-        .withDefaultNamespace(NAMESPACE)
-        .withDefaultCatalog(catalogName)
-        .withSchema(schema)
-        .create();
   }
 
   private void createViewWithNarrowedSchema(String viewName) {

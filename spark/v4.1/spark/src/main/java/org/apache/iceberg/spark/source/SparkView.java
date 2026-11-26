@@ -36,7 +36,6 @@ import org.apache.spark.sql.types.StructType;
 public class SparkView implements org.apache.spark.sql.connector.catalog.View {
 
   public static final String QUERY_COLUMN_NAMES = "spark.query-column-names";
-  public static final String SQL_CONFIG_PREFIX = "spark.sql-config.";
   public static final Set<String> RESERVED_PROPERTIES =
       ImmutableSet.of("provider", "location", FORMAT_VERSION, QUERY_COLUMN_NAMES);
 
@@ -120,28 +119,10 @@ public class SparkView implements org.apache.spark.sql.connector.catalog.View {
     }
 
     icebergView.properties().entrySet().stream()
-        .filter(entry -> !isReservedProperty(entry.getKey()))
+        .filter(entry -> !RESERVED_PROPERTIES.contains(entry.getKey()))
         .forEach(propsBuilder::put);
 
     return propsBuilder.build();
-  }
-
-  /** Returns the SQL configs captured when this view was created. */
-  public Map<String, String> sqlConfigs() {
-    ImmutableMap.Builder<String, String> configsBuilder = ImmutableMap.builder();
-    icebergView
-        .properties()
-        .forEach(
-            (key, value) -> {
-              if (key.startsWith(SQL_CONFIG_PREFIX)) {
-                configsBuilder.put(key.substring(SQL_CONFIG_PREFIX.length()), value);
-              }
-            });
-    return configsBuilder.build();
-  }
-
-  public static boolean isReservedProperty(String property) {
-    return RESERVED_PROPERTIES.contains(property) || property.startsWith(SQL_CONFIG_PREFIX);
   }
 
   @Override
