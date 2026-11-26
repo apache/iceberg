@@ -22,7 +22,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 class TestRootManifestFile {
   private static final long SNAPSHOT_ID = 42L;
@@ -126,5 +129,42 @@ class TestRootManifestFile {
     assertThatThrownBy(root::partitions)
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Root manifest has no partition summaries");
+  }
+
+  @Test
+  void fromResolvesRelativeRootLocation() {
+    Snapshot snapshot = Mockito.mock(Snapshot.class);
+    Mockito.when(snapshot.rootManifestLocation()).thenReturn("metadata/root.parquet");
+    Mockito.when(snapshot.snapshotId()).thenReturn(SNAPSHOT_ID);
+    Mockito.when(snapshot.sequenceNumber()).thenReturn(SEQUENCE_NUMBER);
+    Mockito.when(snapshot.firstRowId()).thenReturn(FIRST_ROW_ID);
+
+    String resolved = "s3://bucket/db/table/metadata/root.parquet";
+    FileIO io = Mockito.mock(FileIO.class);
+    InputFile input = Mockito.mock(InputFile.class);
+    Mockito.when(io.newInputFile(resolved)).thenReturn(input);
+    Mockito.when(input.getLength()).thenReturn(LENGTH);
+
+    RootManifestFile root = RootManifestFile.from(snapshot, "s3://bucket/db/table", io);
+
+    assertThat(root.path())
+        .as("relative root location should resolve against the table location")
+        .isEqualTo(resolved);
+    assertThat(root.length()).isEqualTo(LENGTH);
+    assertThat(root.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(root.sequenceNumber()).isEqualTo(SEQUENCE_NUMBER);
+    assertThat(root.firstRowId()).isEqualTo(FIRST_ROW_ID);
+  }
+
+  @Test
+  void fromRejectsEncryptedRoot() {
+    Snapshot snapshot = Mockito.mock(Snapshot.class);
+    Mockito.when(snapshot.keyId()).thenReturn("key-123");
+
+    assertThatThrownBy(
+            () ->
+                RootManifestFile.from(snapshot, "s3://bucket/db/table", Mockito.mock(FileIO.class)))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Encrypted v4 root manifests are not supported");
   }
 }

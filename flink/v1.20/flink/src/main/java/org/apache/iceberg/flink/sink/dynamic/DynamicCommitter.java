@@ -38,18 +38,17 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotAncestryValidator;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.sink.CommitSummary;
 import org.apache.iceberg.flink.sink.DeltaManifests;
 import org.apache.iceberg.flink.sink.DeltaManifestsSerializer;
 import org.apache.iceberg.flink.sink.FlinkManifestUtil;
+import org.apache.iceberg.flink.sink.SinkUtil;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -198,7 +197,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
 
     for (Snapshot ancestor : ancestors) {
       Map<String, String> summary = ancestor.summary();
-      if (writtenBySameSink(summary, sinkId, operatorId)) {
+      if (SinkUtil.writtenBySameSink(summary, sinkId, operatorId)) {
         String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
         if (value != null) {
           lastCommittedCheckpointId = Long.parseLong(value);
@@ -208,18 +207,6 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     }
 
     return lastCommittedCheckpointId;
-  }
-
-  private static boolean writtenBySameSink(
-      Map<String, String> summary, String sinkId, String operatorId) {
-    String snapshotOperatorId = summary.get(OPERATOR_ID);
-    if (snapshotOperatorId != null && !snapshotOperatorId.equals(operatorId)) {
-      return false;
-    }
-
-    // Snapshots written before the sinkId was introduced are identified by the jobId
-    String snapshotSinkId = summary.get(SINK_ID);
-    return sinkId.equals(snapshotSinkId != null ? snapshotSinkId : summary.get(FLINK_JOB_ID));
   }
 
   /**
@@ -359,36 +346,6 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     }
   }
 
-  private static class MaxCommittedCheckpointMismatchException extends ValidationException {
-    private MaxCommittedCheckpointMismatchException() {
-      super("Table already contains staged changes.");
-    }
-  }
-
-  private static class MaxCommittedCheckpointIdValidator implements SnapshotAncestryValidator {
-    private final long stagedCheckpointId;
-    private final String sinkId;
-    private final String flinkOperatorId;
-
-    private MaxCommittedCheckpointIdValidator(
-        long stagedCheckpointId, String sinkId, String flinkOperatorId) {
-      this.stagedCheckpointId = stagedCheckpointId;
-      this.sinkId = sinkId;
-      this.flinkOperatorId = flinkOperatorId;
-    }
-
-    @Override
-    public boolean validate(Iterable<Snapshot> baseSnapshots) {
-      long maxCommittedCheckpointId =
-          getMaxCommittedCheckpointId(baseSnapshots, sinkId, flinkOperatorId);
-      if (maxCommittedCheckpointId >= stagedCheckpointId) {
-        throw new MaxCommittedCheckpointMismatchException();
-      }
-
-      return true;
-    }
-  }
-
   @VisibleForTesting
   void commitOperation(
       Table table,
@@ -417,12 +374,13 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
 
     operation.set(OPERATOR_ID, operatorId);
     operation.toBranch(branch);
-    operation.validateWith(new MaxCommittedCheckpointIdValidator(checkpointId, sinkId, operatorId));
+    operation.validateWith(
+        new SinkUtil.MaxCommittedCheckpointIdValidator(checkpointId, sinkId, operatorId));
 
     long startNano = System.nanoTime();
     try {
       operation.commit(); // abort is automatically called if this fails.
-    } catch (MaxCommittedCheckpointMismatchException e) {
+    } catch (SinkUtil.MaxCommittedCheckpointMismatchException e) {
       LOG.info(
           "Skipping commit operation {} because the {} branch of the {} table already contains changes for checkpoint {}."
               + " This can occur when a failure prevents the committer from receiving confirmation of a"

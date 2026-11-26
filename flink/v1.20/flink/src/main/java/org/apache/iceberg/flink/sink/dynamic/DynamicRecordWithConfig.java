@@ -91,4 +91,9 @@ class DynamicRecordWithConfig extends DynamicRecord {
   public Set<String> equalityFields() {
     return wrapped.equalityFields();
   }
+
+  @Override
+  public Set<String> distributionFields() {
+    return wrapped.distributionFields();
+  }
 }

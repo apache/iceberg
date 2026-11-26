@@ -47,6 +47,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
   private static final Logger LOG = LoggerFactory.getLogger(BatchDataReader.class);
 
   private final long numSplits;
+  private final InheritedTaskMetrics inheritedMetrics = new InheritedTaskMetrics();
 
   BatchDataReader(
       SparkInputPartition partition,
@@ -88,11 +89,15 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
 
   @Override
   public CustomTaskMetric[] currentMetricsValues() {
-    return new CustomTaskMetric[] {
-      new TaskNumSplits(numSplits),
-      new TaskNumDeletes(counter().get()),
-      new TaskScanDuration(scanDurationNanos())
-    };
+    return inheritedMetrics.addTo(
+        new TaskNumSplits(numSplits),
+        new TaskNumDeletes(counter().get()),
+        new TaskScanDuration(scanDurationNanos()));
+  }
+
+  @Override
+  public void initMetricsValues(CustomTaskMetric[] metrics) {
+    inheritedMetrics.inherit(metrics);
   }
 
   @Override

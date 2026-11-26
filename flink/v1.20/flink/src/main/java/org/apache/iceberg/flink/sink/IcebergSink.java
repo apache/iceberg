@@ -250,7 +250,6 @@ public class IcebergSink
         sinkId,
         metrics,
         maintenanceEnabled,
-        context.getRestoredCheckpointId().isPresent(),
         context.getTaskInfo().getIndexOfThisSubtask());
   }
 
@@ -327,7 +326,10 @@ public class IcebergSink
     // parallelism to 1, this can be removed.
     return writeResults
         .global()
-        .transform(preCommitAggregatorUid, typeInformation, new IcebergWriteAggregator(tableLoader))
+        .transform(
+            preCommitAggregatorUid,
+            typeInformation,
+            new IcebergWriteAggregator(tableLoader, sinkId))
         .uid(preCommitAggregatorUid)
         .setParallelism(1)
         .setMaxParallelism(1)
@@ -609,7 +611,7 @@ public class IcebergSink
      * with a suffix like "Sink Committer: $uidSuffix".
      *
      * <p>Flink auto generates operator uid if not set explicitly. It is a recommended <a
-     * href="https://ci.apache.org/projects/flink/flink-docs-master/docs/ops/production_ready/">
+     * href="https://nightlies.apache.org/flink/flink-docs-master/docs/ops/production_ready/">
      * best-practice to set uid for all operators</a> before deploying to production. Flink has an
      * option to {@code pipeline.auto-generate-uid=false} to disable auto-generation and force
      * explicit setting of all operator uid.

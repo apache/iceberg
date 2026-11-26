@@ -95,7 +95,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       long replacedRowsCount,
       long modifiedRowsCount,
       long minSequenceNumber,
-      byte[] dv,
+      ManifestBitmap mdv,
       int formatVersion) {
     super(BASE_TYPE.fields().size());
     this.addedFilesCount = addedFilesCount;
@@ -109,7 +109,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     this.replacedRowsCount = replacedRowsCount;
     this.modifiedRowsCount = modifiedRowsCount;
     this.minSequenceNumber = minSequenceNumber;
-    this.dv = dv;
+    this.dv = mdv != null ? ByteBuffers.toByteArray(mdv.buffer()) : null;
     this.formatVersion = formatVersion;
   }
 
@@ -308,7 +308,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     private Long replacedRowsCount = null;
     private Long modifiedRowsCount = null;
     private Long minSequenceNumber = null;
-    private byte[] dv = null;
+    private ManifestBitmap dv = null;
     private Integer formatVersion = null;
 
     Builder addedFilesCount(int count) {
@@ -387,9 +387,9 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       return this;
     }
 
-    Builder dv(ByteBuffer buffer) {
-      Preconditions.checkArgument(buffer != null, "Invalid DV: null");
-      this.dv = ByteBuffers.toByteArray(buffer);
+    Builder dv(ManifestBitmap bitmap) {
+      Preconditions.checkArgument(bitmap != null, "Invalid manifest DV: null");
+      this.dv = bitmap;
       return this;
     }
 
