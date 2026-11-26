@@ -423,6 +423,21 @@ public class TestBranchDDL extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  void createBranchFromSelectedBranch() throws NoSuchTableException {
+    Table table = insertRows();
+    sql("ALTER TABLE %s CREATE BRANCH work", tableName);
+    insertRows();
+    table.refresh();
+    long workSnapshotId = table.refs().get("work").snapshotId();
+    assertThat(table.currentSnapshot().snapshotId()).isNotEqualTo(workSnapshotId);
+
+    sql("ALTER TABLE %s.branch_work CREATE BRANCH child", tableName);
+
+    table.refresh();
+    assertThat(table.refs().get("child").snapshotId()).isEqualTo(workSnapshotId);
+  }
+
+  @TestTemplate
   public void replaceBranchDoesNotExist() throws NoSuchTableException {
     Table table = insertRows();
 

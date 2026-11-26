@@ -355,6 +355,21 @@ public class TestTagDDL extends ExtensionsTestBase {
     assertThat(table.refs().get(tagName).snapshotId()).isEqualTo(snapshotId);
   }
 
+  @TestTemplate
+  void createTagFromSelectedBranch() throws NoSuchTableException {
+    Table table = insertRows();
+    table.manageSnapshots().createBranch("work").commit();
+    insertRows();
+    table.refresh();
+    long workSnapshotId = table.refs().get("work").snapshotId();
+    assertThat(table.currentSnapshot().snapshotId()).isNotEqualTo(workSnapshotId);
+
+    sql("ALTER TABLE %s.branch_work CREATE TAG child_tag", tableName);
+
+    table.refresh();
+    assertThat(table.refs().get("child_tag").snapshotId()).isEqualTo(workSnapshotId);
+  }
+
   private Table insertRows() throws NoSuchTableException {
     List<SimpleRecord> records =
         ImmutableList.of(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
