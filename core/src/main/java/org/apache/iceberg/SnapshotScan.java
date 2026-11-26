@@ -86,7 +86,7 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
     if (!useSnapshotSchema()
         || snapshotId() == null
         || table().currentSnapshot() == null
-        || snapshotId().equals(table().currentSnapshot().snapshotId())) {
+        || tableSchema().schemaId() == table().schema().schemaId()) {
       return specs;
     }
 

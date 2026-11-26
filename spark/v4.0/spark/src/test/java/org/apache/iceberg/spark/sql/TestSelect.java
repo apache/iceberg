@@ -49,10 +49,19 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
+import org.apache.spark.sql.connector.read.HasPartitionKey;
+import org.apache.spark.sql.connector.read.InputPartition;
+import org.apache.spark.sql.connector.read.SupportsReportPartitioning;
+import org.apache.spark.sql.connector.read.partitioning.KeyGroupedPartitioning;
+import org.apache.spark.sql.connector.read.partitioning.UnknownPartitioning;
+import org.apache.spark.sql.execution.SparkPlan;
+import org.apache.spark.sql.execution.datasources.v2.BatchScanExec;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import scala.collection.JavaConverters;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSelect extends CatalogTestBase {
@@ -382,11 +391,32 @@ public class TestSelect extends CatalogTestBase {
 
       sql("ALTER TABLE %s DROP COLUMN p", tableName);
 
-      assertThat(sql("SELECT id, v FROM %s VERSION AS OF 'hist'", tableName))
-          .containsExactly(row(1, 10));
+      Dataset<Row> withoutPartition =
+          spark.sql(String.format("SELECT id, v FROM %s VERSION AS OF 'hist'", tableName));
+      assertThat(withoutPartition.collectAsList()).containsExactly(RowFactory.create(1, 10));
 
-      assertThat(sql("SELECT id, p, v FROM %s VERSION AS OF 'hist'", tableName))
-          .containsExactly(row(1, "a", 10));
+      Dataset<Row> withPartition =
+          spark.sql(String.format("SELECT id, p, v FROM %s VERSION AS OF 'hist'", tableName));
+      assertThat(withPartition.collectAsList()).containsExactly(RowFactory.create(1, "a", 10));
+
+      if (preserveDataGrouping) {
+        assertThat(reportedPartitioning(withoutPartition)).isInstanceOf(UnknownPartitioning.class);
+
+        assertThat(reportedPartitioning(withPartition)).isInstanceOf(KeyGroupedPartitioning.class);
+
+        BatchScanExec scan = batchScan(withPartition);
+        InputPartition[] partitions = scan.scan().toBatch().planInputPartitions();
+        assertThat(partitions)
+            .isNotEmpty()
+            .allSatisfy(
+                partition -> {
+                  assertThat(partition).isInstanceOf(HasPartitionKey.class);
+                  HasPartitionKey keyedPartition = (HasPartitionKey) partition;
+                  assertThat(keyedPartition.partitionKey().numFields()).isEqualTo(1);
+                  assertThat(keyedPartition.partitionKey().getUTF8String(0).toString())
+                      .isEqualTo("a");
+                });
+      }
     } finally {
       if (previousValue == null) {
         spark.conf().unset(groupingKey);
@@ -394,6 +424,23 @@ public class TestSelect extends CatalogTestBase {
         spark.conf().set(groupingKey, previousValue);
       }
     }
+  }
+
+  private BatchScanExec batchScan(Dataset<Row> df) {
+    List<SparkPlan> scans =
+        JavaConverters.seqAsJavaListConverter(df.queryExecution().executedPlan().collectLeaves())
+            .asJava();
+
+    assertThat(scans).hasSize(1);
+    assertThat(scans.get(0)).isInstanceOf(BatchScanExec.class);
+    return (BatchScanExec) scans.get(0);
+  }
+
+  private org.apache.spark.sql.connector.read.partitioning.Partitioning reportedPartitioning(
+      Dataset<Row> df) {
+    BatchScanExec scan = batchScan(df);
+    assertThat(scan.scan()).isInstanceOf(SupportsReportPartitioning.class);
+    return ((SupportsReportPartitioning) scan.scan()).outputPartitioning();
   }
 
   @TestTemplate
