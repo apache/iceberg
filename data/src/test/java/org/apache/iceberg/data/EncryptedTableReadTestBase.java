@@ -64,7 +64,7 @@ public abstract class EncryptedTableReadTestBase {
 
   @TempDir private File tableDir;
 
-  private Table table;
+  protected Table table;
 
   @Parameters(name = "format = {0}, formatVersion = {1}")
   protected static List<Object[]> parameters() {
@@ -201,7 +201,7 @@ public abstract class EncryptedTableReadTestBase {
     assertThat(read(table)).isEqualTo(rowSet(first, second));
   }
 
-  private Record record(long id, String data) {
+  protected Record record(long id, String data) {
     Record record = GenericRecord.create(table.schema());
     record.setField("id", id);
     record.setField("data", data);
@@ -214,7 +214,7 @@ public abstract class EncryptedTableReadTestBase {
     return set;
   }
 
-  private OutputFile outputFile(String name) {
+  protected OutputFile outputFile(String name) {
     return Files.localOutput(new File(tableDir, format.addExtension(name)));
   }
 }
