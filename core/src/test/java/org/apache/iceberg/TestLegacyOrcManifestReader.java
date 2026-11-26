@@ -23,6 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.io.OutputFile;
@@ -79,7 +80,7 @@ public class TestLegacyOrcManifestReader extends TestBase {
       writer.close();
     }
 
-    // Exercise the persisted Avro (V1-V3) or Parquet (V4) manifest, not an in-memory evaluator.
+    // Exercise the persisted Avro manifest, not an in-memory evaluator.
     ManifestFile manifest = writer.toManifestFile();
     try (ManifestReader<DataFile> reader =
         ManifestFiles.read(manifest, table.ops().io(), Map.of(spec.specId(), spec))
@@ -88,6 +89,15 @@ public class TestLegacyOrcManifestReader extends TestBase {
               Streams.stream(reader)
                   .map(DataFile::location)
                   .collect(Collectors.toList()))
+          .containsExactly(legacy.location());
+    }
+
+    // Selecting only the path must not lose legacy ORC files when file_format is absent.
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, table.ops().io(), Map.of(spec.specId(), spec))
+            .select(List.of("file_path"))
+            .filterRows(isNull("parent.leaf"))) {
+      assertThat(Streams.stream(reader).map(DataFile::location).collect(Collectors.toList()))
           .containsExactly(legacy.location());
     }
   }

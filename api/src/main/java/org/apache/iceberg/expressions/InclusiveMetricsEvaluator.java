@@ -21,13 +21,13 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.nio.ByteBuffer;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -66,7 +66,7 @@ public class InclusiveMetricsEvaluator {
 
   private static Set<Integer> fieldsWithOptionalStructAncestor(Schema schema) {
     Map<Integer, Integer> parents = TypeUtil.indexParents(schema.asStruct());
-    Set<Integer> fields = new HashSet<>();
+    Set<Integer> fields = Sets.newHashSet();
     for (Map.Entry<Integer, Integer> entry : parents.entrySet()) {
       Integer parentId = entry.getValue();
       boolean hasOptionalStructAncestor = false;
@@ -132,7 +132,9 @@ public class InclusiveMetricsEvaluator {
     }
 
     private boolean hasSuspectLegacyOrcCounts(int id) {
-      if (fileFormat != FileFormat.ORC || !fieldsWithOptionalStructAncestor.contains(id)) {
+      // A partial manifest projection may omit the file format.
+      if ((fileFormat != null && fileFormat != FileFormat.ORC)
+          || !fieldsWithOptionalStructAncestor.contains(id)) {
         return false;
       }
 

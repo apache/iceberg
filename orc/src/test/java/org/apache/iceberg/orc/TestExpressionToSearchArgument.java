@@ -28,6 +28,7 @@ import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.nanos;
+import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
@@ -38,8 +39,10 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -48,12 +51,20 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.stream.Stream;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.orc.GenericOrcReader;
+import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.Types;
@@ -64,6 +75,7 @@ import org.apache.orc.storage.ql.io.sarg.SearchArgument.TruthValue;
 import org.apache.orc.storage.ql.io.sarg.SearchArgumentFactory;
 import org.apache.orc.storage.serde2.io.HiveDecimalWritable;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -139,7 +151,7 @@ public class TestExpressionToSearchArgument {
             .build();
 
     SearchArgument actual =
-        ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
+        ExpressionToSearchArgument.convert(boundFilter, schema, ORCSchemaUtil.convert(schema));
     assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
@@ -179,7 +191,7 @@ public class TestExpressionToSearchArgument {
                 .build();
 
         SearchArgument actual =
-            ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
+            ExpressionToSearchArgument.convert(boundFilter, schema, ORCSchemaUtil.convert(schema));
         assertThat(actual.toString()).isEqualTo(expected.toString());
       }
     } finally {
@@ -217,7 +229,7 @@ public class TestExpressionToSearchArgument {
         SearchArgumentFactory.newBuilder().literal(TruthValue.YES_NO_NULL).build();
 
     SearchArgument actual =
-        ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
+        ExpressionToSearchArgument.convert(boundFilter, schema, ORCSchemaUtil.convert(schema));
     assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
@@ -243,7 +255,7 @@ public class TestExpressionToSearchArgument {
             .build();
 
     SearchArgument actual =
-        ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
+        ExpressionToSearchArgument.convert(boundFilter, schema, ORCSchemaUtil.convert(schema));
     assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
@@ -292,7 +304,7 @@ public class TestExpressionToSearchArgument {
             .build();
 
     SearchArgument actual =
-        ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
+        ExpressionToSearchArgument.convert(boundFilter, schema, ORCSchemaUtil.convert(schema));
     assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
@@ -332,8 +344,52 @@ public class TestExpressionToSearchArgument {
             .build();
 
     SearchArgument actual =
-        ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
+        ExpressionToSearchArgument.convert(boundFilter, schema, ORCSchemaUtil.convert(schema));
     assertThat(actual).hasToString(expected.toString());
+
+    TypeDescription projected = ORCSchemaUtil.buildOrcProjection(schema, ORCSchemaUtil.convert(schema));
+    assertThat(ExpressionToSearchArgument.convert(boundFilter, schema, projected))
+        .hasToString(expected.toString());
+  }
+
+  @Test
+  public void testNegatedNotNullOnFieldWithOptionalAncestor(@TempDir Path temp)
+      throws IOException {
+    Types.StructType parentType = Types.StructType.of(optional(3, "leaf", Types.LongType.get()));
+    Schema schema =
+        new Schema(required(1, "id", Types.IntegerType.get()), optional(2, "parent", parentType));
+
+    Record missing = GenericRecord.create(schema);
+    missing.setField("id", 1);
+    missing.setField("parent", null);
+
+    Record parent = GenericRecord.create(parentType);
+    parent.setField("leaf", 10L);
+    Record present = GenericRecord.create(schema);
+    present.setField("id", 2);
+    present.setField("parent", parent);
+
+    String location = temp.resolve("nested-nulls.orc").toString();
+    try (FileAppender<Record> writer =
+        ORC.write(Files.localOutput(location))
+            .schema(schema)
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .build()) {
+      writer.add(missing);
+      writer.add(present);
+    }
+
+    // ORC applies the search argument to row groups, not individual rows.
+    for (Expression filter : List.of(isNull("parent.leaf"), not(notNull("parent.leaf")))) {
+      try (CloseableIterable<Record> rows =
+          ORC.read(Files.localInput(location))
+              .project(schema)
+              .filter(filter)
+              .createReaderFunc(orcSchema -> GenericOrcReader.buildReader(schema, orcSchema))
+              .build()) {
+        assertThat(rows).containsExactly(missing, present);
+      }
+    }
   }
 
   @Test
@@ -362,7 +418,7 @@ public class TestExpressionToSearchArgument {
             .build();
 
     SearchArgument actual =
-        ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
+        ExpressionToSearchArgument.convert(boundFilter, schema, ORCSchemaUtil.convert(schema));
     assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
@@ -386,7 +442,7 @@ public class TestExpressionToSearchArgument {
     SearchArgument expected =
         SearchArgumentFactory.newBuilder().equals("`int`", Type.LONG, 1L).build();
 
-    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
+    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, evolvedSchema, readSchema);
     assertThat(actual.toString()).isEqualTo(expected.toString());
 
     // for columns not in the file, buildOrcProjection will append field names with _r<ID>
@@ -397,7 +453,7 @@ public class TestExpressionToSearchArgument {
     expected =
         SearchArgumentFactory.newBuilder().equals("`float_added_r3`", Type.FLOAT, 1.0).build();
 
-    actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
+    actual = ExpressionToSearchArgument.convert(boundFilter, evolvedSchema, readSchema);
     assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
@@ -423,7 +479,7 @@ public class TestExpressionToSearchArgument {
             .equals("`long`", Type.LONG, 1L)
             .build();
 
-    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
+    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, originalSchema, readSchema);
     assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
@@ -450,7 +506,7 @@ public class TestExpressionToSearchArgument {
     SearchArgument expected =
         SearchArgumentFactory.newBuilder().equals("`int`", Type.LONG, 1L).build();
 
-    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
+    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, mappingSchema, readSchema);
     assertThat(actual.toString()).isEqualTo(expected.toString());
 
     // for columns not in the file, buildOrcProjection will append field names with _r<ID>
@@ -461,7 +517,7 @@ public class TestExpressionToSearchArgument {
     expected =
         SearchArgumentFactory.newBuilder().equals("`new_float_field_r3`", Type.FLOAT, 1.0).build();
 
-    actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
+    actual = ExpressionToSearchArgument.convert(boundFilter, mappingSchema, readSchema);
     assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
@@ -545,7 +601,7 @@ public class TestExpressionToSearchArgument {
             .end()
             .build();
 
-    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
+    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, mappingSchema, readSchema);
     assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
@@ -560,7 +616,7 @@ public class TestExpressionToSearchArgument {
         SearchArgumentFactory.newBuilder().literal(TruthValue.YES_NO_NULL).build();
 
     SearchArgument actual =
-        ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
+        ExpressionToSearchArgument.convert(boundFilter, schema, ORCSchemaUtil.convert(schema));
     assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
@@ -586,7 +642,7 @@ public class TestExpressionToSearchArgument {
             .build();
 
     SearchArgument actual =
-        ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
+        ExpressionToSearchArgument.convert(boundFilter, schema, ORCSchemaUtil.convert(schema));
 
     assertThat(actual.toString()).isEqualTo(expected.toString());
   }

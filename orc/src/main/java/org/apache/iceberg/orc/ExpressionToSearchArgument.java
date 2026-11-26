@@ -30,6 +30,7 @@ import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -48,12 +49,13 @@ import org.apache.orc.storage.serde2.io.HiveDecimalWritable;
 class ExpressionToSearchArgument
     extends ExpressionVisitors.BoundVisitor<ExpressionToSearchArgument.Action> {
 
-  static SearchArgument convert(Expression expr, TypeDescription readSchema) {
-    Schema schema = ORCSchemaUtil.convert(readSchema);
-    Map<Integer, String> idToColumnName = ORCSchemaUtil.idToOrcName(schema);
+  static SearchArgument convert(Expression expr, Schema schema, TypeDescription readSchema) {
+    // Use projected ORC names for renamed fields, but Iceberg requiredness for nullability.
+    Map<Integer, String> idToColumnName =
+        ORCSchemaUtil.idToOrcName(ORCSchemaUtil.convert(readSchema));
     SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
     ExpressionVisitors.visit(
-            expr,
+            Expressions.rewriteNot(expr),
             new ExpressionToSearchArgument(
                 builder, idToColumnName, fieldsWithOptionalAncestor(schema)))
         .invoke();

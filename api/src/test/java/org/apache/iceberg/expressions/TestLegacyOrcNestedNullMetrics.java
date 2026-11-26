@@ -106,6 +106,7 @@ public class TestLegacyOrcNestedNullMetrics {
             "legacy.orc", Row.of(), 2L, null, Map.of(2, 0L), null, null, null);
     assertThat(mayMatch(missingCounts, isNull("parent.leaf"))).isTrue();
   }
+
   @Test
   public void testLegacyOrcNullParentStillMatchesNotNaN() {
     Schema floatSchema =
@@ -159,5 +160,4 @@ public class TestLegacyOrcNestedNullMetrics {
                 .eval(healthyAllNaN))
         .isFalse();
   }
-
 }

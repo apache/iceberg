@@ -98,7 +98,7 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     SearchArgument sarg = null;
     if (filter != null) {
       Expression boundFilter = Binder.bind(schema.asStruct(), filter, caseSensitive);
-      sarg = ExpressionToSearchArgument.convert(boundFilter, readOrcSchema);
+      sarg = ExpressionToSearchArgument.convert(boundFilter, schema, readOrcSchema);
     }
 
     VectorizedRowBatchIterator rowBatchIterator =
