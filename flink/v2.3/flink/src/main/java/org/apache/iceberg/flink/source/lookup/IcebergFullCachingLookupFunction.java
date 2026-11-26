@@ -91,6 +91,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
   private transient Counter missCounter;
   private transient Counter loadCounter;
   private transient Counter loadFailuresCounter;
+  private transient Counter incrementalLoadFailuresCounter;
   private transient volatile long currentSnapshotId;
   private transient volatile long cachedRecords;
   private transient volatile long latestLoadTimeMs;
@@ -124,6 +125,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
     this.missCounter = metricGroup.counter("missCount");
     this.loadCounter = metricGroup.counter("loadCount");
     this.loadFailuresCounter = metricGroup.counter("numLoadFailures");
+    this.incrementalLoadFailuresCounter = metricGroup.counter("numIncrementalLoadFailures");
     this.currentSnapshotId = IcebergLookupReader.NO_SNAPSHOT_ID;
     this.cachedRecords = 0L;
     this.latestLoadTimeMs = UNINITIALIZED;
@@ -258,6 +260,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
       loadDelta(fromExclusive, toInclusive);
       return true;
     } catch (Exception e) {
+      incrementalLoadFailuresCounter.inc();
       LOG.warn(
           "IcebergFullCachingLookupFunction incremental loading from snapshot {} to snapshot {} "
               + "failed, falling back to a full load",
