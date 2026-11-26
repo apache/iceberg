@@ -21,24 +21,17 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.MetadataTableType.ENTRIES;
 import static org.apache.spark.sql.functions.col;
 
-import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.ManifestFiles;
-import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
@@ -49,11 +42,9 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.ImmutableRewriteManifests;
 import org.apache.iceberg.actions.RewriteManifests;
-import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -68,7 +59,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
-import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoder;
@@ -93,8 +83,8 @@ import org.slf4j.LoggerFactory;
 public class RewriteManifestsSparkAction
     extends BaseSnapshotUpdateSparkAction<RewriteManifestsSparkAction> implements RewriteManifests {
 
-  public static final String USE_CACHING = "use-caching";
-  public static final boolean USE_CACHING_DEFAULT = false;
+  public static final String USE_CACHING = USE_CACHING_OPTION;
+  public static final boolean USE_CACHING_DEFAULT = USE_CACHING_BY_DEFAULT;
 
   private static final Logger LOG = LoggerFactory.getLogger(RewriteManifestsSparkAction.class);
   private static final RewriteManifests.Result EMPTY_RESULT =
@@ -127,11 +117,10 @@ public class RewriteManifestsSparkAction
             TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
 
     // default the output location to the metadata location
-    TableOperations ops = ((HasTableOperations) table).operations();
-    Path metadataFilePath = new Path(ops.metadataFileLocation("file"));
-    this.outputLocation = metadataFilePath.getParent().toString();
+    this.outputLocation = ManifestWriterFactory.defaultOutputLocation(table);
 
     // use the current table format version for new manifests
+    TableOperations ops = ((HasTableOperations) table).operations();
     this.formatVersion = ops.current().formatVersion();
 
     boolean snapshotIdInheritanceEnabled =
@@ -333,20 +322,6 @@ public class RewriteManifestsSparkAction
     return df.repartitionByRange(numPartitions, col).sortWithinPartitions(col);
   }
 
-  private <T, U> U withReusableDS(Dataset<T> ds, Function<Dataset<T>, U> func) {
-    boolean useCaching =
-        PropertyUtil.propertyAsBoolean(options(), USE_CACHING, USE_CACHING_DEFAULT);
-    Dataset<T> reusableDS = useCaching ? ds.cache() : ds;
-
-    try {
-      return func.apply(reusableDS);
-    } finally {
-      if (useCaching) {
-        reusableDS.unpersist(false);
-      }
-    }
-  }
-
   private List<ManifestFile> findMatchingManifests(ManifestContent content) {
     Snapshot currentSnapshot = table.currentSnapshot();
 
@@ -436,6 +411,7 @@ public class RewriteManifestsSparkAction
         formatVersion,
         spec.specId(),
         outputLocation,
+        "optimized-m-",
         // allow the actual size of manifests to be 20% higher as the estimation is not precise
         (long) (1.2 * targetManifestSizeBytes));
   }
@@ -547,63 +523,6 @@ public class RewriteManifestsSparkAction
 
     protected StructType sparkFileType() {
       return sparkFileType;
-    }
-  }
-
-  private static class ManifestWriterFactory implements Serializable {
-    private final Broadcast<Table> tableBroadcast;
-    private final int formatVersion;
-    private final int specId;
-    private final String outputLocation;
-    private final long maxManifestSizeBytes;
-
-    ManifestWriterFactory(
-        Broadcast<Table> tableBroadcast,
-        int formatVersion,
-        int specId,
-        String outputLocation,
-        long maxManifestSizeBytes) {
-      this.tableBroadcast = tableBroadcast;
-      this.formatVersion = formatVersion;
-      this.specId = specId;
-      this.outputLocation = outputLocation;
-      this.maxManifestSizeBytes = maxManifestSizeBytes;
-    }
-
-    public RollingManifestWriter<DataFile> newRollingManifestWriter() {
-      return new RollingManifestWriter<>(this::newManifestWriter, maxManifestSizeBytes);
-    }
-
-    private ManifestWriter<DataFile> newManifestWriter() {
-      return ManifestFiles.write(formatVersion, spec(), newOutputFile(), null);
-    }
-
-    public RollingManifestWriter<DeleteFile> newRollingDeleteManifestWriter() {
-      return new RollingManifestWriter<>(this::newDeleteManifestWriter, maxManifestSizeBytes);
-    }
-
-    private ManifestWriter<DeleteFile> newDeleteManifestWriter() {
-      return ManifestFiles.writeDeleteManifest(formatVersion, spec(), newOutputFile(), null);
-    }
-
-    private PartitionSpec spec() {
-      return table().specs().get(specId);
-    }
-
-    private EncryptedOutputFile newOutputFile() {
-      Table table = table();
-      OutputFile rawOutputFile = table.io().newOutputFile(newManifestLocation());
-      return table.encryption().encrypt(rawOutputFile);
-    }
-
-    private String newManifestLocation() {
-      String fileName = FileFormat.AVRO.addExtension("optimized-m-" + UUID.randomUUID());
-      Path filePath = new Path(outputLocation, fileName);
-      return filePath.toString();
-    }
-
-    private Table table() {
-      return tableBroadcast.value();
     }
   }
 }

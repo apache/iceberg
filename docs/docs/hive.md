@@ -357,30 +357,41 @@ The Hive table schema is kept in sync with the Iceberg table. If an outside sour
 changes the schema, the Hive table immediately reflects the changes. You alter the table schema using Hive commands:
 
 * Rename a table
-```sql
-ALTER TABLE orders RENAME TO renamed_orders;
-```
+
+    ```sql
+    ALTER TABLE orders RENAME TO renamed_orders;
+    ```
 
 * Add a column
-```sql
-ALTER TABLE orders ADD COLUMNS (nickname string);
-```
+
+    ```sql
+    ALTER TABLE orders ADD COLUMNS (nickname string);
+    ```
+
 * Rename a column
-```sql
-ALTER TABLE orders CHANGE COLUMN item fruit string;
-```
+
+    ```sql
+    ALTER TABLE orders CHANGE COLUMN item fruit string;
+    ```
+
 * Reorder columns
-```sql
-ALTER TABLE orders CHANGE COLUMN quantity quantity int AFTER price;
-```
+
+    ```sql
+    ALTER TABLE orders CHANGE COLUMN quantity quantity int AFTER price;
+    ```
+
 * Change a column type - only if the Iceberg defined the column type change as safe
-```sql
-ALTER TABLE orders CHANGE COLUMN price price long;
-```
+
+    ```sql
+    ALTER TABLE orders CHANGE COLUMN price price long;
+    ```
+
 * Drop column by using REPLACE COLUMN to remove the old column
-```sql
-ALTER TABLE orders REPLACE COLUMNS (remaining string);
-```
+
+    ```sql
+    ALTER TABLE orders REPLACE COLUMNS (remaining string);
+    ```
+
 !!! info
     Note, that dropping columns is only thing REPLACE COLUMNS can be used for
     i.e. if columns are specified out-of-order an error will be thrown signalling this limitation.
@@ -389,13 +400,16 @@ ALTER TABLE orders REPLACE COLUMNS (remaining string);
 You change the partitioning schema using the following commands:
 
 * Change the partitioning schema to new identity partitions:
-```sql
-ALTER TABLE default.customers SET PARTITION SPEC (last_name);
-```
+
+    ```sql
+    ALTER TABLE default.customers SET PARTITION SPEC (last_name);
+    ```
+
 * Alternatively, provide a partition specification:
-```sql
-ALTER TABLE order SET PARTITION SPEC (month(ts));
-```
+
+    ```sql
+    ALTER TABLE order SET PARTITION SPEC (month(ts));
+    ```
 
 #### Table migration
 You can migrate Avro / Parquet / ORC external tables to Iceberg tables using the following command:

@@ -66,6 +66,8 @@ Version 4 of the Iceberg spec restructures metadata for improved performance and
 * Support for [relative locations](#file-locations-in-metadata) in metadata fields
 * Writing new [equality deletes](#equality-delete-files) is no longer allowed
 * New data type: `file`
+* Support for table [constraints](#constraints)
+* [Default value expressions](#default-values) for write defaults
 
 The full set of changes are listed in [Appendix E](#version-4).
 
@@ -113,11 +115,13 @@ Inheriting the sequence number from manifest metadata allows writing a new manif
 
 Row-level deletes are stored in delete files.
 
-There are two types of row-level deletes:
+The current representation is [_deletion vectors_](#deletion-vectors) (v3 or above), which encode deleted positions of a single file in a bitmap.
 
-* **Position deletes** -- Mark a row deleted by data file path and the row position in the data file. Position deletes are encoded in a [_position delete file_](#position-delete-files) (V2) or [_deletion vector_](#deletion-vectors) (V3 or above).
+Legacy representations:
 
-* **Equality deletes** -- Mark a row deleted by one or more column values, like id = 5. Equality deletes are encoded in [_equality delete file_](#equality-delete-files) (may be created in v2 and v3 tables only).
+* **Position deletes** -- Mark a row deleted by data file path and the row position in the data file. Position deletes are encoded in a [_position delete file_](#position-delete-files), which may be created in v2 tables only.
+
+* **Equality deletes** -- Mark a row deleted by one or more column values, like id = 5. Equality deletes are encoded in an [_equality delete file_](#equality-delete-files), which may be created in v2 and v3 tables only.
 
 Like data files, delete files are tracked by partition. In general, a delete file must be applied to older data files with the same partition; see [Scan Planning](#scan-planning) for details. Column metrics can be used to determine whether a delete file's rows overlap the contents of a data file or a scan range.
 
@@ -314,8 +318,9 @@ The default CRS value `OGC:CRS84` means that the objects must be stored in longi
 
 Non-default CRS values are specified by any string that uniquely identifies a coordinate reference system associated with this type.
 To maximize interoperability, suggested formats for CRS include, but are not limited to:
+
 * `<context>:<identifier>`: Identifies a CRS by name or other identifier in some well-documented context. Examples: `OGC:CRS84`, `EPSG:4326`, `IGNF:ATI` and `SRID:0`
-* `projjson:<property-name>` - where <property-name> refers to a table property where CRS definition in [PROJJSON](https://proj.org/en/stable/specifications/projjson.html) format is stored.
+* `projjson:<property-name>` - where `<property-name>` refers to a table property where CRS definition in [PROJJSON](https://proj.org/en/stable/specifications/projjson.html) format is stored.
 
 CRS value must not contain inlined PROJJSON definitions and implementations must not parse the contents of the CRS as PROJJSON. PROJJSON definitions are very verbose, hence inlining them as part of schema would cause significant performance degradation. If the intention is for a PROJJSON definition to be part of the table metadata, then it must be stored in a table property and referenced from the CRS field using the `projjson:<property-name>` form described above.
 
@@ -369,7 +374,15 @@ Default values can be tracked for struct fields (both nested structs and the top
 
 The `initial-default` is set only when a field is added to an existing schema. The `write-default` is initially set to the same value as `initial-default` and can be changed through schema evolution. If either default is not set for an optional field, then the default value is null for compatibility with older spec versions.
 
-The `initial-default` and `write-default` produce SQL default value behavior, without rewriting data files. SQL default value behavior when a field is added handles all existing rows as though the rows were written with the new field's default value. Default value changes may only affect future records and all known fields are written into data files. Omitting a known field when writing a data file is never allowed. The write default for a field must be written if a field is not supplied to a write. If the write default for a required field is not set, the writer must fail.
+The `initial-default` and `write-default` produce SQL default value behavior, without rewriting data files. SQL default value behavior when a field is added handles all existing rows as though the rows were written with the new field's default value. Default value changes may only affect future records and all known fields are written into data files. Omitting a known field when writing a data file is never allowed. The write default for a field must be written if a field is not supplied to a write. If the write default for a required field is not set or the expression evaluates to `null`, the writer must fail.
+
+Starting in v4, a field's `write-default` may be a [value expression](expressions-spec.md). This allows defaults such as `current_timestamp()` to be evaluated when a row is written. A value expression `write-default` is subject to the following requirements:
+
+* [Field references](expressions-spec.md#field-reference) are not allowed in a default value expression; the expression must be a constant, a function application (apply), or a combination of the two.
+* The expression must produce a value of the field's type, subject to [type promotion](#schema-evolution)
+* The `write-default` expression is evaluated to populate the field for any record written after the field was added when the writer does not supply the field's value
+
+The `initial-default` must always be a literal value. A literal is itself a value expression, so existing `write-default` values remain valid value expressions.
 
 All columns of `unknown`, `variant`, `geometry`, `geography`, and `file` types must default to null. Non-null values for `initial-default` or `write-default` are invalid.
 
@@ -419,6 +432,8 @@ Iceberg's Avro manifest format does not store the type of lower and upper bounds
 Type promotion is not allowed for a field that is referenced by `source-id` or `source-ids` of a partition field if the partition transform would produce a different value after promoting the type. For example, `bucket[N]` produces different hash values for `34` and `"34"` (2017239379 != -427558391) but the same value for `34` and `34L`; when an `int` field is the source for a bucket partition field, it may be promoted to `long` but not to `string`. This may happen for the following type promotion cases:
 
 * `date` to `timestamp` or `timestamp_ns`
+
+The fields referenced by a [constraint](#constraints) are the field IDs in the `expression` of a `check` constraint, or the `field-ids` of a `unique` or `primary-key` constraint. Every referenced field must exist in the table's current schema. A schema change that removes a constraint-referenced field must be rejected unless the constraint is removed in the same change. A constraint-referenced field may apply type promotion. For a `unique` or `primary-key` constraint, the promotion must preserve distinctness.
 
 Any struct, including a top-level schema, can evolve through deleting fields, adding new fields, renaming existing fields, reordering existing fields, or promoting a primitive using the valid type promotions. Adding a new field assigns a new ID for that field and for any nested fields. Renaming an existing field must change the name, but not the field ID. Deleting a field removes it from the current schema. Field deletion cannot be rolled back unless the field was nullable or if the current snapshot has not changed.
 
@@ -473,6 +488,29 @@ A schema can optionally track the set of primitive fields that identify rows in 
 Two rows are the "same"---that is, the rows represent the same entity---if the identifier fields are equal. However, uniqueness of rows by this identifier is not guaranteed or required by Iceberg and it is the responsibility of processing engines or data providers to enforce.
 
 Identifier fields may be nested in structs but cannot be nested within maps or lists. Float, double, and optional fields cannot be used as identifier fields and a nested field cannot be used as an identifier field if it is nested in an optional struct, to avoid null values in identifiers.
+
+Identifier field IDs are replaced by a [`primary-key` constraint](#constraints) in v4 and must not be set in a v4 table schema.
+
+#### Stats-only Fields
+
+Stats are tracked in manifests by field ID. Schema fields have assigned IDs, but additional field IDs may be assigned to track stats for derived values. For instance, lower and upper bounds for `to_lower_case(name)` are useful for case-insensitive file pruning.
+
+These additional _stats-only fields_ are used to track stats for derived values that are not part of the table schema and are not materialized. A stats-only field consists of:
+
+* A **`field-id`** assigned by incrementing the table's `last-column-id`
+* A **`type`** that can be `partition-value` or `expr-value`
+* An optional **`data-type`** that determines the bound type; must be a primitive or variant
+* Type-specific fields that define how derived values are produced
+
+The `partition-value` type stores stats for the output of a partition field, identified by a `partition-field-id` type-specific field. The bound type is the partition field's result type and `data-type` is omitted. This may be used to store bucket partition values in stats for filtering.
+
+The `expr-value` type stores stats for the result of a [value expression](expressions-spec.md#value-expressions), stored in the `expr` field. Expressions must use only ID references. The output type of the value expression must be stored in the `data-type` field.
+
+Readers must not fail when an unsupported stats-only field `type` is found; stats for unsupported types must be ignored.
+
+Writers must preserve existing stats for stats-only fields listed in a table's `stats-fields` if the `data-type` is known (either set or specified by a supported type). Writers should produce stats when possible for stats-only fields. A writer should set the field stats struct to null if an expression is unsupported, produces an incompatible output type when bound, or binding fails.
+
+The data type of a stats-only field may only change according to the type promotion rules above.
 
 #### Reserved Field IDs
 
@@ -608,7 +646,7 @@ Partition field IDs must be reused if an existing partition spec contains an equ
 
 | Transform name    | Description                                                  | Source types                                                                                              | Result type |
 |-------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------|
-| **`identity`**    | Source value, unmodified                                     | Any primitive except for `geometry` and `geography` | Source type |
+| **`identity`**    | Source value, unmodified                                     | `unknown`, `boolean`, `int`, `long`, `float`, `double`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | Source type |
 | **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
 | **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int`, `long`, `decimal`, `string`, `binary`                                                              | Source type |
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
@@ -692,6 +730,99 @@ Order id `0` is reserved for the unsorted order.
 Sorting floating-point numbers should produce the following behavior: `-NaN` < `-Infinity` < `-value` < `-0` < `0` < `value` < `Infinity` < `NaN`. This aligns with the implementation of Java floating-point types comparisons.
 
 A data or delete file is associated with a sort order by the sort order's id within [a manifest](#manifests). Therefore, the table must declare all the sort orders for lookup. A table could also be configured with a default sort order id, indicating how the new data should be sorted by default. Writers should use this default sort order to sort the data on write, but are not required to if the default order is prohibitively expensive, as it would be for streaming writes.
+
+### Constraints
+
+Constraints are added in v4 and are not supported in v3 or earlier.
+
+A **constraint** declares a condition that a table's live rows are expected to satisfy. Its definition is stored in table metadata. Each snapshot contains the writer-reported status of each constraint that existed when the snapshot was created; see [Constraint Status](#constraint-status).
+
+Three constraint types are defined:
+
+* `check` -- every row must satisfy a predicate
+* `unique` -- the values of a set of fields must be distinct across the rows in which every field in the set is non-null; a row in which any field in the set is null is not compared, so more than one such row may exist
+* `primary-key` -- the values of a set of fields must be distinct across all rows and must not be null
+
+A constraint is stored separately from the table schema and must refer to fields by field ID. Constraints may evolve independently from the schema, being added, modified, or removed.
+
+#### Constraint Fields
+
+A constraint consists of the following fields:
+
+| Requirement | Field name                | Type      | Description |
+|-------------|---------------------------|-----------|-------------|
+| _required_ | **`constraint-id`**       | `int`     | ID of the constraint; unique within the table |
+| _required_ | **`type`**                | `string`  | The constraint type: `check`, `unique`, or `primary-key` |
+| _required_ | **`name`**                | `string`  | A name for the constraint that is unique within the table. Names are for human consumption and must not be used to identify a constraint in metadata |
+| _required_ | **`enforced`**            | `boolean` | Whether writers must only add or modify rows so that they satisfy the constraint |
+| _required_ | **`timestamp-ms`**        | `long`    | Timestamp in milliseconds from the unix epoch when the constraint was created or last modified. The timestamp is informational and must not be used to determine whether a constraint applies to a snapshot or whether the constraint holds for the snapshot |
+| _optional_ | **`expression`**          | `expression` | The predicate that every row must satisfy, using ID references, see [Check Constraint Expressions](#check-constraint-expressions). Required for a `check` constraint and must not be set for other types |
+| _optional_ | **`field-ids`**           | `list<int>`  | The set of field IDs that the constraint applies to. Must contain at least one field ID and no duplicates. Required for a `unique` or `primary-key` constraint and must not be set for a `check` constraint |
+
+The `field-ids` of a `unique` or `primary-key` constraint:
+
+* Must only reference primitive fields
+* Must not reference fields within a `list` or a `map`
+* Must not reference fields of type `float` or `double`
+* Must not reference fields of type `geometry` or `geography`, because Iceberg does not define equality for them
+* Must not reference fields of type `unknown`, because their values are always null
+* Must not reference fields of type `file` or their sub-fields
+
+A table may have at most one `primary-key` constraint. The fields of a `primary-key` constraint must be `required` and must not be nested in an optional struct, so that the schema rejects null keys even when the constraint is not enforced. The fields of a `unique` constraint may be optional or nested in optional structs, because a row in which any field is null is not compared.
+
+When a constraint is `enforced`, writers must ensure that written data conform to the constraint, and a write that would violate the constraint must fail. When a constraint is not enforced, writers are not required to ensure that written data conform to the constraint.
+
+When a table is upgraded to v4, the `identifier-field-ids` of the table's current schema are rewritten as a single `primary-key` constraint that is not enforced. The constraint is assigned a `constraint-id` from `last-constraint-id` in the same way as any other constraint, and its `timestamp-ms` is the time of the upgrade. If any of those fields cannot be used in a `primary-key` constraint, such as a `geometry` or `geography` field, no constraint is created and the upgrade continues without it. Writers must not set `identifier-field-ids` in a v4 table schema, and readers must ignore `identifier-field-ids` in a v4 table.
+
+Constraint IDs are assigned from the table's `last-constraint-id`, which is treated as 0 when it is not present. Writers must assign a new constraint an ID that is higher than the table's current `last-constraint-id` and must update `last-constraint-id` to the highest assigned ID. Readers must not assume that every `constraint-id` referenced by a snapshot is present in `constraints`.
+
+#### Check Constraint Expressions
+
+The `expression` of a `check` constraint is a [predicate](expressions-spec.md#predicates), not a value expression, and is serialized as described in the [Iceberg expressions spec](expressions-spec.md). It must use ID references so that it remains bound to the same fields when columns are renamed.
+
+A `check` expression is evaluated for each row and may only reference the fields of that row by ID.
+
+A `check` expression must be pure. Its result must depend only on the values of the fields it references in the row, and evaluating it must have no side effects.
+
+A [user-defined function](udf-spec.md) used in a `check` expression must declare `deterministic` as true and is expected to preserve its behavior across definition versions. Readers and writers are not required to detect behavioral changes or recompute `constraint-statuses` if such a change occurs.
+
+#### Constraint Evolution
+
+Once a constraint is created, its `expression` must always produce the same validation result for table rows, and its `field-ids` must not change. A change to the meaning of a constraint must be made by removing the constraint and adding a new one with a new `constraint-id`, so that statuses recorded for the old definition are not applied to the new one. `timestamp-ms` must be updated when a constraint is updated.
+
+#### Constraint Status
+
+The validation status of each constraint is tracked within snapshot metadata in the `constraint-statuses` field.
+
+The status of a constraint for a snapshot is one of:
+
+| Status        | Description |
+|---------------|-------------|
+| `validated`   | The constraint was checked and holds for all rows in the snapshot |
+| `valid`       | The writer has ensured that additions and modifications do not violate the constraint, and the constraint was `valid` or `validated` for the parent snapshot |
+| `invalid`     | At least one row in the snapshot is known to violate the constraint |
+| `unvalidated` | Whether the constraint holds for all rows in the snapshot is not known |
+
+A snapshot's `constraint-statuses` records, for each status, the IDs of the constraints that have that status for the snapshot:
+
+| Requirement | Field name        | Type        | Description |
+|-------------|-------------------|-------------|-------------|
+| _optional_ | **`validated`**   | `list<int>` | IDs of constraints that are `validated` for the snapshot |
+| _optional_ | **`valid`**       | `list<int>` | IDs of constraints that are `valid` for the snapshot |
+| _optional_ | **`invalid`**     | `list<int>` | IDs of constraints that are `invalid` for the snapshot |
+| _optional_ | **`unvalidated`** | `list<int>` | IDs of constraints that are `unvalidated` for the snapshot |
+
+Each list contains the `constraint-id` of every constraint that has that status for the snapshot. Every constraint that exists when the snapshot is created must be listed in exactly one of the four lists. A list with no constraints may be omitted. A constraint whose ID is not present in any list must be treated as `unvalidated` for the snapshot.
+
+A `constraint-id` listed in a snapshot that is not in the table's `constraints` must be ignored.
+
+A commit that does not add or modify rows cannot introduce a violation. Such a commit, for example a delete or a compaction operation, may record `valid` for a constraint that was `validated` or `valid` for the parent snapshot, without checking rows again.
+
+A snapshot's `constraint-statuses` must not be modified after the snapshot is created. A `constraint-statuses` update requires a new snapshot. A snapshot that only changes constraint statuses must use the `replace` operation, as it does not change table data.
+
+When a commit is retried against a new parent snapshot, every enforced constraint, including any that a concurrent commit added or changed to enforced, must hold for the rows that the commit adds or modifies in the snapshot that results from applying the commit to the new parent. `constraint-statuses` must be recomputed from the new parent.
+
+A constraint may be enforced while it is `invalid` or `unvalidated`, and writers may commit to such a table. An enforced constraint requires that a writer not add or modify rows so that they violate the constraint; it does not require a writer to repair existing violations.
 
 ### Manifests
 
@@ -817,6 +948,7 @@ The contents of a file are part of a snapshot if its tracking `status` is **live
     | _optional_ | 102      | **`partition`**          | `struct<...>`                                         | Partition data tuple for the file; null if unpartitioned. |
     | _optional_ | 140      | **`sort_order_id`**      | `int`                                                 | ID representing sort order for this file. If missing or unknown, the order is assumed to be unsorted. |
     | _optional_ | 146      | **`content_stats`**      | `content_stats` struct                                | Field-level stats. See [Content Stats](#content-stats). |
+    | _optional_ | 151      | **`tight_stats`**        | `boolean`                                             | When true, the file's `content_stats` are tight. See [Stats Tightness](#stats-tightness). |
     | _optional_ | 150      | **`manifest_info`**      | `manifest_info` struct                                | Manifest-specific stats. See [Manifest Info](#manifest-info-fields). |
     | _optional_ | 148      | **`deletion_vector`**    | `deletion_vector` struct                              | Row-level deletion vector for a data file. See [Deletion Vector](#deletion-vector-fields). |
     | _optional_ | 158      | **`column_files`**       | `list<159: column_file>`                              | Column files associated with this file. See [Column File](#column-file-fields). |
@@ -981,11 +1113,10 @@ Each stats struct holds statistics for one table field. It may contain the follo
 |-------------|--------|---------------------------|---------------------------|-----------------------------------------------|-------------|
 | _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type, or `geo_lower` for geo types |
 | _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type, or `geo_upper` for geo types |
-| _optional_  | 3      | `tight_bounds`            | `boolean`                 | all primitives except for `geometry` and `geography` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
-| _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
-| _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
-| _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
-| _optional_  | 7      | `total_bytes`             | `long`                    | `string`, `binary`, `variant`, `geometry`, `geography` | Estimated uncompressed bytes in memory of non-null values. The estimate depends on the in-memory representation |
+| _optional_  | 3      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
+| _optional_  | 4      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
+| _optional_  | 5      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
+| _optional_  | 6      | `total_bytes`             | `long`                    | `string`, `binary`, `variant`, `geometry`, `geography` | Estimated uncompressed bytes in memory of non-null values. The estimate depends on the in-memory representation |
 
 For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
 
@@ -993,8 +1124,7 @@ For example, stats for a `required` `int` field named `id` with field-id `2` are
 10_400: optional struct id (default null) {
   10_401: optional int lower_bound; // type matches the field type (int)
   10_402: optional int upper_bound; // type matches the field type (int)
-  10_403: optional boolean tight_bounds;
-  10_404: optional long value_count;
+  10_403: optional long value_count;
 
   // null_value_count is only used for optional fields
   // nan_value_count is only used for float and double
@@ -1040,14 +1170,31 @@ For example, stats for an optional `geometry` field named `location` with field-
     10_816: optional double z;
     10_817: optional double m;
   }
-  10_804: optional long value_count;
-  10_805: optional long null_value_count;
-  10_807: optional long total_bytes;
-  // tight_bounds and nan_value_count are omitted for geo types
+  10_803: optional long value_count;
+  10_804: optional long null_value_count;
+  10_806: optional long total_bytes;
+  // nan_value_count is omitted for geo types
 }
 ```
 
 For `variant`, both bounds are unshredded `variant` that store variant field bounds by normalized JSON paths as field names. See [Bounds for Variant](#bounds-for-variant) for details on producing these bounds.
+
+A `variant` value is null only when the variant itself is null; a non-null variant that encodes a variant null is not counted as a null value.
+
+###### Stats Tightness
+
+Statistics are _tight_ when the bounds, `value_count`, `null_value_count`, and `nan_value_count` are exact for the live rows of a file:
+
+* `lower_bound` and `upper_bound` for fixed-length types are equal to the minimum and maximum of the live values.
+* `value_count`, `null_value_count`, and `nan_value_count` are the counts across the live rows.
+
+Regardless of `tight_stats`, bounds for `string` and `binary` are never tight because they may be truncated when written, and bounds for `geometry` and `geography` are never tight because they are a bounding box rather than exact minimum and maximum values.
+
+For `variant`, `lower_bound` and `upper_bound` hold one bound per normalized JSON path. A path may be omitted, which means that path has no bound. Whether a present bound is tight follows the same rules as above for that path's value type.
+
+Statistics other than the bounds, `value_count`, `null_value_count`, and `nan_value_count` are not part of tightness.
+
+When `tight_stats` is absent, readers must assume stats are not tight. Stats may be recomputed to restore tightness without rewriting the data file.
 
 ###### Content Stats in Manifests
 
@@ -1061,18 +1208,16 @@ For example, stats for a table with a required int, `id`, and an optional string
   10_400: optional struct id (default null) {
     10_401: optional int lower_bound;
     10_402: optional int upper_bound;
-    10_403: optional boolean tight_bounds;
-    10_404: optional long value_count;
+    10_403: optional long value_count;
   }
 
   // stats struct for table field 3: optional string data
   10_600: optional struct data (default null) {
     10_601: optional string lower_bound;
     10_602: optional string upper_bound;
-    10_603: optional boolean tight_bounds;
-    10_604: optional long value_count;
-    10_605: optional long null_value_count;
-    10_607: optional long total_bytes;
+    10_603: optional long value_count;
+    10_604: optional long null_value_count;
+    10_606: optional long total_bytes;
   }
 }
 ```
@@ -1144,6 +1289,7 @@ A snapshot consists of the following fields:
     | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
     | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
     | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the root manifest key metadata |
+    | _optional_ | **`constraint-statuses`**    | A struct that records the status of the table's constraints for the snapshot, see [Constraint Status](#constraint-status) |
 
 When committed while the table is at version 4 or higher, a snapshot's `timestamp-ms` must be strictly greater than its parent snapshot's `timestamp-ms` on the same branch. Snapshots with no parent, and snapshots that were committed before a table was upgraded to v4 or higher, do not have this requirement.
 
@@ -1365,6 +1511,7 @@ Table metadata consists of the following fields:
     | _optional_ | _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
     |            |            | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot’s `first-row-id`. See [Row Lineage](#row-lineage). |
     |            |            | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
+    |            |            | _optional_ | **`stats-fields`**          | A list (optional) of [stats-only fields](#stats-only-fields) used to track stats for derived values. |
 
 === "v4"
     | v4         | Field                       | Description |
@@ -1394,6 +1541,9 @@ Table metadata consists of the following fields:
     | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
     | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot's `first-row-id`. See [Row Lineage](#row-lineage). |
     | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
+    | _optional_ | **`stats-fields`**          | A list (optional) of [stats-only fields](#stats-only-fields) used to track stats for derived values. |
+    | _optional_ | **`last-constraint-id`**    | An integer; the highest assigned constraint ID for the table. This is used to ensure constraints are always assigned an unused ID. See [Constraints](#constraints). |
+    | _optional_ | **`constraints`**           | A list of [constraints](#constraints) for the table. |
 
 For serialization details, see Appendix C.
 
@@ -1510,10 +1660,11 @@ Notes:
 
 When two commits happen at the same time and are based on the same version, only one commit will succeed. In most cases, the failed commit can be applied to the new current version of table metadata and retried. Updates verify the conditions under which they can be applied to a new version and retry if those conditions are met.
 
-* Append operations have no requirements and can always be applied.
+* Append operations have no requirements and can always be applied, other than the constraint requirements below.
 * Replace operations must verify that the files that will be deleted are still in the table. Examples of replace operations include format changes (replace an Avro file with a Parquet file) and compactions (several files are replaced with a single file that contains the same rows).
 * Delete operations must verify that specific files to delete are still in the table. Delete operations based on expressions can always be applied (e.g., where timestamp < X).
 * Table schema updates and partition spec changes must validate that the schema has not changed between the base version and the current version.
+* For a table with constraints, every operation must also follow the retry requirements in [Constraints](#constraints), including recomputing `constraint-statuses` from the new version.
 
 #### File System Tables
 
@@ -1552,7 +1703,14 @@ Notes:
 
 ### Delete Formats
 
-This section details how to encode row-level deletes in Iceberg delete files. Row-level deletes are added by v2 and are not supported in v1. Deletion vectors are added in v3 and are not supported in v2 or earlier. Position delete files must not be added to v3 tables, but existing position delete files are valid. Equality delete files must not be added to v4 tables, but existing equality delete files are valid.
+This section details how to encode row-level deletes in Iceberg delete files.
+
+Row-level deletes have changed across Iceberg versions:
+
+* v1 does not support row-level deletes
+* v2 allows position delete files and equality delete files stored as entries in delete manifests
+* v3 forbids new position delete files and allows deletion vectors as a replacement
+* v4 forbids new equality deletes and delete manifests. Deletion vector metadata is now part of the manifest entries of the data files they modify
 
 There are different formats for encoding row-level deletes:
 
@@ -1878,10 +2036,12 @@ Hash results are not dependent on decimal scale, which is part of the type, not 
 
 Schemas are serialized as a JSON object with the same fields as a struct in the table below, and the following additional fields:
 
-| v1         | v2 and v3  |Field|JSON representation|Example|
-| ---------- | ---------- |--- |--- |--- |
-| _optional_ | _required_ |**`schema-id`**|`JSON int`|`0`|
-| _optional_ | _optional_ |**`identifier-field-ids`**|`JSON list of ints`|`[1, 2]`|
+| v1         | v2 and v3  | v4         |Field|JSON representation|Example|
+| ---------- | ---------- | ---------- |--- |--- |--- |
+| _optional_ | _required_ | _required_ |**`schema-id`**|`JSON int`|`0`|
+| _optional_ | _optional_ |            |**`identifier-field-ids`**|`JSON list of ints`|`[1, 2]`|
+
+In v4, [`primary-key` constraint](#constraints) replaces `identifier-field-ids`.
 
 Types are serialized according to this table:
 
@@ -1904,7 +2064,7 @@ Types are serialized according to this table:
 |**`fixed(L)`**|`JSON string: "fixed[<L>]"`|`"fixed[16]"`|
 |**`binary`**|`JSON string: "binary"`|`"binary"`|
 |**`decimal(P, S)`**|`JSON string: "decimal(<P>, <S>)"`|`"decimal(9, 2)"`|
-|**`struct`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": <field id int>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": <boolean>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": <type JSON>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"doc": <comment string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": <JSON encoding of default value>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": <JSON encoding of default value>`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}, ...`<br />&nbsp;&nbsp;`] }`|`{`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 1,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "id",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": true,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": "uuid",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": "0db3e2a8-9d1d-42b9-aa7b-74ebe558dceb",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": "ec5911be-b0a7-458c-8438-c9a3e53cffae"`<br />&nbsp;&nbsp;`}, {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 2,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "data",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": false,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`} ]`<br />`}`|
+|**`struct`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": <field id int>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": <boolean>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": <type JSON>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"doc": <comment string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": <JSON encoding of default value>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": <JSON encoding of default value or value expression>`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}, ...`<br />&nbsp;&nbsp;`] }`|`{`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 1,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "id",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": true,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": "uuid",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": "0db3e2a8-9d1d-42b9-aa7b-74ebe558dceb",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": "ec5911be-b0a7-458c-8438-c9a3e53cffae"`<br />&nbsp;&nbsp;`}, {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 2,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "data",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": false,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`} ]`<br />`}`|
 |**`list`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": <id int>,`<br />&nbsp;&nbsp;`"element-required": <bool>`<br />&nbsp;&nbsp;`"element": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": 3,`<br />&nbsp;&nbsp;`"element-required": true,`<br />&nbsp;&nbsp;`"element": "string"`<br />`}`|
 |**`map`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": <key id int>,`<br />&nbsp;&nbsp;`"key": <type JSON>,`<br />&nbsp;&nbsp;`"value-id": <val id int>,`<br />&nbsp;&nbsp;`"value-required": <bool>`<br />&nbsp;&nbsp;`"value": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": 4,`<br />&nbsp;&nbsp;`"key": "string",`<br />&nbsp;&nbsp;`"value-id": 5,`<br />&nbsp;&nbsp;`"value-required": false,`<br />&nbsp;&nbsp;`"value": "double"`<br />`}`|
 | **`variant`**| `JSON string: "variant"`|`"variant"`|
@@ -1914,7 +2074,7 @@ Types are serialized according to this table:
 
 The schema JSON type strings in this table are the canonical serialized forms. Readers should accept optional whitespace around parameters and separators in parameterized type strings.
 
-Note that default values are serialized using the JSON single-value serialization in [Appendix D](#appendix-d-single-value-serialization).
+Note that constant default values are serialized using the JSON single-value serialization in [Appendix D](#appendix-d-single-value-serialization). Starting in v4, a `write-default` that is a value expression is serialized using the value expression JSON serialization defined in the [expressions spec](expressions-spec.md#appendix-b-json-serialization).
 
 ### Partition Specs
 
@@ -2011,13 +2171,16 @@ A metadata JSON file may be compressed with [GZIP](https://datatracker.ietf.org/
 |**`last-partition-id`**|`JSON int`|`1000`|
 |**`properties`**|`JSON object: {`<br />&nbsp;&nbsp;`"<key>": "<val>",`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"write.format.default": "avro",`<br />&nbsp;&nbsp;`"commit.retry.num-retries": "4"`<br />`}`|
 |**`current-snapshot-id`**|`JSON long`|`3051729675574597004`|
-|**`snapshots`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": <operation>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... },`<br />&nbsp;&nbsp;`"manifest-list": "<location>",`<br />&nbsp;&nbsp;`"schema-id": "<id>"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 3051729675574597004,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": "append"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`"manifest-list": "s3://b/wh/.../s1.avro"`<br />&nbsp;&nbsp;`"schema-id": 0`<br />`} ]`|
+|**`snapshots`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": <operation>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... },`<br />&nbsp;&nbsp;`"manifest-list": "<location>",`<br />&nbsp;&nbsp;`"schema-id": "<id>",`<br />&nbsp;&nbsp;`"constraint-statuses": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"validated": [ ... ],`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... }`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 3051729675574597004,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": "append"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`"manifest-list": "s3://b/wh/.../s1.avro",`<br />&nbsp;&nbsp;`"schema-id": 0,`<br />&nbsp;&nbsp;`"constraint-statuses": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"validated": [1],`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"unvalidated": [2]`<br />&nbsp;&nbsp;`}`<br />`} ]`|
 |**`snapshot-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"snapshot-id": ,`<br />&nbsp;&nbsp;`"timestamp-ms":`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 30517296...,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]`|
 |**`metadata-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"metadata-file": ,`<br />&nbsp;&nbsp;`"timestamp-ms":`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"metadata-file": "s3://bucket/.../v1.json",`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]` |
 |**`sort-orders`**|`JSON sort orders (list of sort field object)`|`See above`|
 |**`default-sort-order-id`**|`JSON int`|`0`|
 |**`refs`**|`JSON map with string key and object value:`<br />`{`<br />&nbsp;&nbsp;`"<name>": {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"type": <type>,`<br />&nbsp;&nbsp;`"max-ref-age-ms": <long>,`<br />&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"test": {`<br />&nbsp;&nbsp;`"snapshot-id": 123456789000,`<br />&nbsp;&nbsp;`"type": "tag",`<br />&nbsp;&nbsp;`"max-ref-age-ms": 10000000`<br />&nbsp;&nbsp;`}`<br />`}`|
 |**`encryption-keys`**|`JSON list of encryption key objects`|`[ {"key-id": "5f819b", "key-metadata": "aWNlYmVyZwo="} ]`|
+|**`stats-fields`**|`JSON list of stats-only field objects`|`[ {"field-id": 102, "type": "partition-value", "partition-field-id": 1001} ]`|
+|**`last-constraint-id`**|`JSON int`|`2`|
+|**`constraints`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"constraint-id": <id>,`<br />&nbsp;&nbsp;`"type": "check",`<br />&nbsp;&nbsp;`"name": "<name>",`<br />&nbsp;&nbsp;`"enforced": <boolean>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"expression": { ... }`<br />`}, {`<br />&nbsp;&nbsp;`"constraint-id": <id>,`<br />&nbsp;&nbsp;`"type": "primary-key",`<br />&nbsp;&nbsp;`"name": "<name>",`<br />&nbsp;&nbsp;`"enforced": <boolean>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"field-ids": [ ... ]`<br />`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"constraint-id": 1,`<br />&nbsp;&nbsp;`"type": "check",`<br />&nbsp;&nbsp;`"name": "chk_amount",`<br />&nbsp;&nbsp;`"enforced": true,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"expression": { ... }`<br />`}, {`<br />&nbsp;&nbsp;`"constraint-id": 2,`<br />&nbsp;&nbsp;`"type": "primary-key",`<br />&nbsp;&nbsp;`"name": "pk_sales",`<br />&nbsp;&nbsp;`"enforced": false,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"field-ids": [1]`<br />`} ]`|
 
 ### Name Mapping Serialization
 
@@ -2114,6 +2277,8 @@ The binary single-value serialization can be used to store the lower and upper b
 
 ### Version 4
 
+Default value expressions are added in v4. A field's `write-default` may be a [value expression](expressions-spec.md) (see [Default values](#default-values)).
+
 The `file` type is added in v4.
 
 Relative path support is added in v4.
@@ -2146,8 +2311,14 @@ Snapshot timestamp changes:
 Equality deletes are prohibited in v4.
 
 * Writers must not add equality delete files to v4 tables; equality deletes cannot be added as an entry to a v4 manifest
-* Upgrading a v2 or v3 table to v4 does not require rewriting data or delete files
-* Readers must continue to apply equality deletes for v2 and v3 tables and for equality deletes carried over into upgraded v4 tables
+* In a table upgraded to v4, existing delete manifests and the delete files they track remain valid and must be applied at read time
+* Readers must continue to apply equality deletes for v2 and v3 tables
+
+Constraints are added in v4:
+
+* Table metadata may contain `constraints` and `last-constraint-id`
+* Snapshots may contain `constraint-statuses`
+* Upgrading a v2 or v3 table to v4 rewrites the table's `identifier-field-ids` as a `primary-key` constraint that is not enforced, unless a field cannot be used in a `primary-key` constraint
 
 ### Version 3
 

@@ -101,7 +101,7 @@ class TestTrackedFileAdapters {
           CONTENT_STATS_TYPE.fieldType("score").asStructType(), 2, 1.0f, 100.0f, 100L, 10L, 3L);
   private static final FieldStats<?> GEOM_STATS =
       StatsTestUtil.mockFieldStats(
-          CONTENT_STATS_TYPE.fieldType("geom").asStructType(), 3, null, null, 100L, 20L, null, 12L);
+          CONTENT_STATS_TYPE.fieldType("geom").asStructType(), 3, null, null, 100L, 20L, null);
   private static final ContentStatsStruct CONTENT_STATS =
       new ContentStatsStruct(CONTENT_STATS_TYPE);
 
@@ -139,7 +139,7 @@ class TestTrackedFileAdapters {
           .replacedRowsCount(40L)
           .modifiedRowsCount(10L)
           .minSequenceNumber(7L)
-          .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
+          .dv(MumblingTestUtil.onlyFirstBitSet())
           .formatVersion(FORMAT_VERSION_V4)
           .build();
 
@@ -210,11 +210,13 @@ class TestTrackedFileAdapters {
             PARTITIONED_SPEC_ID,
             PARTITION,
             CONTENT_STATS,
+            true,
             3,
             dv,
             null,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
-            ImmutableList.of(50L, 100L));
+            ImmutableList.of(50L, 100L),
+            null);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(PARTITIONED_SPEC));
 
@@ -234,6 +236,7 @@ class TestTrackedFileAdapters {
     assertThat(dataFile.splitOffsets()).containsExactly(50L, 100L);
     assertThat(dataFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
     assertThat(dataFile.deletionVector()).isSameAs(dv);
+    assertThat(dataFile.tightStats()).isTrue();
     assertThat(dataFile.equalityFieldIds()).isNull();
     assertThat(dataFile.columnSizes()).isNull();
     assertThat(dataFile.valueCounts())
@@ -241,7 +244,6 @@ class TestTrackedFileAdapters {
     assertThat(dataFile.nullValueCounts())
         .containsOnly(Map.entry(1, 5L), Map.entry(2, 10L), Map.entry(3, 20L));
     assertThat(dataFile.nanValueCounts()).containsOnly(Map.entry(2, 3L));
-    assertThat(dataFile.totalBytes()).containsOnly(Map.entry(3, 12L));
     assertThat(dataFile.lowerBounds())
         .containsOnly(
             Map.entry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),
@@ -260,6 +262,20 @@ class TestTrackedFileAdapters {
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, UNPARTITIONED))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid content type for DataFile: %s", contentType);
+  }
+
+  @Test
+  void dataFileRejectsColumnFiles() {
+    TrackedFile trackedDataFile = mock(TrackedFile.class);
+    when(trackedDataFile.contentType()).thenReturn(FileContent.DATA);
+    when(trackedDataFile.columnFiles())
+        .thenReturn(ImmutableList.of(Mockito.mock(ColumnFile.class)));
+    when(trackedDataFile.location()).thenReturn("s3://bucket/path/file.parquet");
+
+    assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(trackedDataFile, UNPARTITIONED))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(
+            "Cannot convert data file with column updates: %s", "s3://bucket/path/file.parquet");
   }
 
   @Test
@@ -297,8 +313,10 @@ class TestTrackedFileAdapters {
             PARTITIONED_SPEC_ID,
             PARTITION,
             null,
+            true,
             null,
             dv,
+            null,
             null,
             null,
             null);
@@ -337,6 +355,7 @@ class TestTrackedFileAdapters {
     assertThat(dvFile.nanValueCounts()).isNull();
     assertThat(dvFile.lowerBounds()).isNull();
     assertThat(dvFile.upperBounds()).isNull();
+    assertThat(dvFile.tightStats()).isFalse();
   }
 
   @Test
@@ -427,11 +446,13 @@ class TestTrackedFileAdapters {
         PARTITIONED_SPEC_ID,
         PARTITION,
         null, // contentStats
+        false, // tightStats
         3, // sortOrderId
         dv, // deletionVector
         null, // manifestInfo
         KEY_METADATA,
-        ImmutableList.of(50L, 100L)); // splitOffsets
+        ImmutableList.of(50L, 100L), // splitOffsets
+        null); // columnFiles
   }
 
   @ParameterizedTest
@@ -469,11 +490,13 @@ class TestTrackedFileAdapters {
             null, // specId
             null, // partition
             null, // contentStats
+            false, // tightStats
             null, // sortOrderId
             null, // deletionVector
             MANIFEST_INFO,
             MANIFEST_KEY_METADATA,
-            null); // splitOffsets
+            null, // splitOffsets
+            null); // columnFiles
 
     ManifestFile manifest = TrackedFileAdapters.asManifestFile(file);
 
@@ -575,8 +598,10 @@ class TestTrackedFileAdapters {
             null,
             null,
             null,
+            false,
             null,
             deletionVector(),
+            null,
             null,
             null,
             null);
@@ -626,6 +651,8 @@ class TestTrackedFileAdapters {
             0L,
             99,
             null,
+            null,
+            false,
             null,
             null,
             null,
@@ -707,8 +734,8 @@ class TestTrackedFileAdapters {
   void dataTrackedFileAdapterUnwrapsToOriginalTrackedFile() {
     TrackedFile original = trackedFile(FileContent.DATA);
     DataFile adapted = TrackedFileAdapters.asDataFile(original, UNPARTITIONED);
-    TrackedFile roundTripped = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(adapted);
-    assertThat(roundTripped).isSameAs(original);
+    TrackedFile unwrapped = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(adapted);
+    assertThat(unwrapped).isSameAs(original);
   }
 
   @Test
@@ -825,6 +852,7 @@ class TestTrackedFileAdapters {
     assertThat(result.recordCount()).isEqualTo(file.recordCount());
     assertThat(result.fileSizeInBytes()).isEqualTo(file.fileSizeInBytes());
     assertThat(result.specId()).isEqualTo(file.specId());
+    assertThat(result.tightStats()).isEqualTo(file.tightStats());
     assertThat(result.sortOrderId()).isEqualTo(file.sortOrderId());
     assertThat(result.keyMetadata()).isEqualTo(file.keyMetadata());
     assertThat(result.splitOffsets()).isEqualTo(file.splitOffsets());
@@ -921,20 +949,22 @@ class TestTrackedFileAdapters {
   /** Minimal file for the rejection and null-tracking tests. */
   private static TrackedFileStruct trackedFile(FileContent contentType) {
     return new TrackedFileStruct(
-        null,
+        null, // tracking
         contentType,
         DATA_FILE_LOCATION,
         FileFormat.PARQUET,
-        1L,
-        1L,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null);
+        1L, // recordCount
+        1L, // fileSizeInBytes
+        null, // specId
+        null, // partition
+        null, // contentStats
+        false, // tightStats
+        null, // sortOrderId
+        null, // deletionVector
+        null, // manifestInfo
+        null, // keyMetadata
+        null, // splitOffsets
+        null); // columnFiles
   }
 
   private static DeletionVector deletionVector() {

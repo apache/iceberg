@@ -32,7 +32,6 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -504,25 +503,12 @@ class SchemaUpdate implements UpdateSchema {
       }
     }
 
-    // Transform the metrics if they exist
+    // Keep name-keyed per-column properties in sync
     if (base != null && base.properties() != null) {
-      Schema newSchema = newMetadata.schema();
-      List<String> deletedColumns =
-          deletes.stream().map(schema::findColumnName).collect(Collectors.toList());
-      Map<String, String> renamedColumns =
-          updates.keySet().stream()
-              .filter(id -> !addedNameToId.containsValue(id)) // remove added columns
-              .filter(id -> !schema.findColumnName(id).equals(newSchema.findColumnName(id)))
-              .collect(Collectors.toMap(schema::findColumnName, newSchema::findColumnName));
-      if (!deletedColumns.isEmpty() || !renamedColumns.isEmpty()) {
-        Set<String> columnProperties =
-            ImmutableSet.of(
-                TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX,
-                TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX,
-                TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX);
-        Map<String, String> updatedProperties =
-            PropertyUtil.applySchemaChanges(
-                newMetadata.properties(), deletedColumns, renamedColumns, columnProperties);
+      Map<String, String> properties = newMetadata.properties();
+      Map<String, String> updatedProperties =
+          PropertyUtil.applySchemaChanges(properties, schema, newMetadata.schema());
+      if (updatedProperties != properties) {
         newMetadata = newMetadata.replaceProperties(updatedProperties);
       }
     }

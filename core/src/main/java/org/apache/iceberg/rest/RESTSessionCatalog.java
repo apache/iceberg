@@ -21,11 +21,15 @@ package org.apache.iceberg.rest;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -75,6 +79,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.rest.RESTCatalogProperties.ScanPlanningMode;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.RESTTableCache.TableWithETag;
@@ -105,7 +110,6 @@ import org.apache.iceberg.rest.responses.UnregisterTableResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.EnvironmentUtil;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.ThreadPools;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.ImmutableSQLViewRepresentation;
 import org.apache.iceberg.view.ImmutableViewVersion;
@@ -286,7 +290,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
 
     if (reportingViaRestEnabled) {
-      this.metricsExecutor = ThreadPools.newFixedThreadPool("rest-metrics-reporter", 1);
+      this.metricsExecutor = newMetricsExecutor(Duration.ofSeconds(60));
       this.closeables.addCloseable(metricsExecutor::shutdown);
     }
 
@@ -1978,5 +1982,35 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
     }
+  }
+
+  /**
+   * Creates the single-threaded executor used to send metrics reports. Its thread exits after being
+   * idle for the given duration and does not inherit thread-locals or the context class loader of
+   * the thread that creates it, so a catalog that is never closed does not keep its users
+   * reachable.
+   */
+  @VisibleForTesting
+  static ExecutorService newMetricsExecutor(Duration idleTimeout) {
+    ThreadPoolExecutor executor =
+        new ThreadPoolExecutor(
+            1,
+            1,
+            idleTimeout.toNanos(),
+            TimeUnit.NANOSECONDS,
+            new LinkedBlockingQueue<>(),
+            new ThreadFactoryBuilder()
+                .setThreadFactory(RESTSessionCatalog::newNonInheritingThread)
+                .setDaemon(true)
+                .setNameFormat("rest-metrics-reporter-%d")
+                .build());
+    executor.allowCoreThreadTimeOut(true);
+    return executor;
+  }
+
+  private static Thread newNonInheritingThread(Runnable runnable) {
+    Thread thread = new Thread(null, runnable, "", 0, false /* inheritThreadLocals */);
+    thread.setContextClassLoader(RESTSessionCatalog.class.getClassLoader());
+    return thread;
   }
 }

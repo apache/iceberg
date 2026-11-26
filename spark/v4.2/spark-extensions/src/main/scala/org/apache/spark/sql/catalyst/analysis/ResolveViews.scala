@@ -31,7 +31,8 @@ import org.apache.spark.sql.connector.catalog.LookupCatalog
  *
  * In Spark 4.2, view relations are expanded through `RelationCatalog.loadRelation`, so Spark owns
  * query parsing, identifier resolution, and schema-mode application. This rule only converts the
- * remaining command targets to `ResolvedV2View` for Iceberg command planning.
+ * remaining command targets to `ResolvedV2View` for Iceberg command planning. With referenced-by
+ * enabled, Iceberg views in queries are expanded by `ResolveReferencedByViews` instead.
  */
 case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with LookupCatalog {
   protected lazy val catalogManager: CatalogManager = spark.sessionState.catalogManager

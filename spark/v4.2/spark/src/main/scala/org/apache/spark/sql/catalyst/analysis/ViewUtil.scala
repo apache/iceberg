@@ -18,20 +18,28 @@
  */
 package org.apache.spark.sql.catalyst.analysis
 
+import org.apache.iceberg.catalog.LoadContext
+import org.apache.iceberg.catalog.TableIdentifier
 import org.apache.iceberg.spark.Spark3Util
+import org.apache.iceberg.spark.SparkSQLProperties
+import org.apache.iceberg.spark.SparkSupportsLoadContext
 import org.apache.iceberg.spark.source.HasIcebergCatalog
 import org.apache.iceberg.spark.source.SparkView
 import org.apache.iceberg.view.{View => IcebergView}
 import org.apache.spark.sql.connector.catalog.CatalogPlugin
+import org.apache.spark.sql.connector.catalog.CatalogV2Util
 import org.apache.spark.sql.connector.catalog.Identifier
+import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.connector.catalog.V1View
 import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.errors.QueryCompilationErrors
+import org.apache.spark.sql.internal.SQLConf
 import scala.jdk.CollectionConverters._
 
 object ViewUtil {
+
   val RESERVED_PROPERTIES: Seq[String] =
     Seq(
       TableCatalog.PROP_COMMENT,
@@ -62,6 +70,17 @@ object ViewUtil {
     case _ => None
   }
 
+  def loadView(catalog: CatalogPlugin, ident: Identifier, context: LoadContext): Option[View] =
+    catalog match {
+      case supportsLoadContext: SparkSupportsLoadContext =>
+        try {
+          Option(supportsLoadContext.loadView(ident, context)).filter(isIcebergView)
+        } catch {
+          case _: NoSuchViewException => None
+        }
+      case _ => loadView(catalog, ident)
+    }
+
   def loadIcebergView(catalog: CatalogPlugin, ident: Identifier): Option[IcebergView] =
     catalog match {
       case catalogWithIceberg: HasIcebergCatalog =>
@@ -72,6 +91,69 @@ object ViewUtil {
       case _ =>
         None
     }
+
+  /**
+   * Build the referenced-by view chain from fully qualified view identifier parts.
+   * Entries must belong to the same catalog as the loaded target.
+   */
+  def buildReferencedByChain(
+      viewChain: Seq[Seq[String]],
+      targetCatalogName: String): java.util.List[TableIdentifier] = {
+    viewChain.foreach { parts =>
+      require(
+        parts.size >= 3,
+        s"View chain entry must be fully qualified [catalog, namespace..., name], got: " +
+          parts.mkString("."))
+    }
+
+    val crossCatalogViews = viewChain.filter(parts => !parts.headOption.contains(targetCatalogName))
+    if (crossCatalogViews.nonEmpty) {
+      throw new IllegalStateException(
+        s"Cross-catalog view references are not supported with referenced-by enabled. " +
+          s"Views from catalogs [${crossCatalogViews.map(_.head).distinct.mkString(", ")}] " +
+          s"cannot reference entities in catalog [$targetCatalogName]")
+    }
+
+    val viewIdentifiers = viewChain.map { parts =>
+      TableIdentifier.of(parts.tail: _*)
+    }
+
+    viewIdentifiers.asJava
+  }
+
+  def qualifyParts(
+      parts: Seq[String],
+      catalogAndNamespace: Seq[String],
+      isCatalog: String => Boolean): Seq[String] = {
+    parts match {
+      case Seq(name) => catalogAndNamespace :+ name
+      case _ if !isCatalog(parts.head) => catalogAndNamespace.head +: parts
+      case _ => parts
+    }
+  }
+
+  def loadTable(
+      catalog: CatalogPlugin,
+      ident: Identifier,
+      context: LoadContext,
+      timeTravelSpec: Option[TimeTravelSpec]): Table = {
+    catalog match {
+      case supportsLoadContext: SparkSupportsLoadContext =>
+        timeTravelSpec match {
+          case Some(AsOfVersion(version)) => supportsLoadContext.loadTable(ident, version, context)
+          case Some(AsOfTimestamp(micros)) => supportsLoadContext.loadTable(ident, micros, context)
+          case None => supportsLoadContext.loadTable(ident, context)
+        }
+      case _ => CatalogV2Util.getTable(catalog, ident, timeTravelSpec)
+    }
+  }
+
+  def referencedByEnabled: Boolean = {
+    java.lang.Boolean.parseBoolean(
+      SQLConf.get.getConfString(
+        SparkSQLProperties.REFERENCED_BY_ENABLED,
+        SparkSQLProperties.REFERENCED_BY_ENABLED_DEFAULT.toString))
+  }
 
   def isIcebergViewCatalog(catalog: CatalogPlugin): Boolean = {
     catalog.isInstanceOf[ViewCatalog] && catalog.isInstanceOf[HasIcebergCatalog]

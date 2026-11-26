@@ -44,6 +44,7 @@ import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UnboundPartitionSpec;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.LoadContext;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -67,7 +68,6 @@ import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.SparkView;
 import org.apache.iceberg.spark.source.StagedSparkTable;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.UpdateViewProperties;
@@ -126,7 +126,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog {
+public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContext {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
@@ -141,14 +141,6 @@ public class SparkCatalog extends BaseCatalog {
           ViewProperties.METADATA_COMPRESSION,
           ViewProperties.WRITE_METADATA_LOCATION,
           ViewProperties.REPLACE_DROP_DIALECT_ALLOWED);
-  private static final Set<String> COLUMN_PROPERTY_PREFIXES =
-      ImmutableSet.of(
-          TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX,
-          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX,
-          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX,
-          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX,
-          TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX,
-          TableProperties.PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX);
 
   private enum ViewCommit {
     CREATE,
@@ -194,17 +186,34 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
-    return load(ident, null /* no time travel */);
+    return loadTable(ident, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, LoadContext context) throws NoSuchTableException {
+    return load(ident, null /* no time travel */, context);
   }
 
   @Override
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
-    return load(ident, TimeTravel.version(version));
+    return loadTable(ident, version, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, String version, LoadContext context)
+      throws NoSuchTableException {
+    return load(ident, TimeTravel.version(version), context);
   }
 
   @Override
   public Table loadTable(Identifier ident, long timestampMicros) throws NoSuchTableException {
-    return load(ident, TimeTravel.timestampMicros(timestampMicros));
+    return loadTable(ident, timestampMicros, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, long timestampMicros, LoadContext context)
+      throws NoSuchTableException {
+    return load(ident, TimeTravel.timestampMicros(timestampMicros), context);
   }
 
   @Override
@@ -244,8 +253,10 @@ public class SparkCatalog extends BaseCatalog {
       org.apache.iceberg.Table sourceIcebergTable = sparkTable.table();
       icebergSchema = sparkTable.icebergSchema();
       spec = copyPartitionSpec(icebergSchema, sourceIcebergTable.spec());
+      // column properties name columns of the current schema, which can differ from the schema of
+      // a pinned snapshot
       properties.putAll(
-          copyColumnProperties(
+          PropertyUtil.applySchemaChanges(
               sourceIcebergTable.properties(), sourceIcebergTable.schema(), icebergSchema));
       properties.remove(TableProperties.WRITE_METADATA_LOCATION);
       properties.remove(TableProperties.WRITE_DATA_LOCATION);
@@ -293,30 +304,6 @@ public class SparkCatalog extends BaseCatalog {
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
     }
-  }
-
-  /**
-   * Returns the source properties with column-specific properties renamed or dropped to match the
-   * given schema, since those properties name columns of the current schema, which can differ from
-   * the schema of a pinned snapshot.
-   */
-  private static Map<String, String> copyColumnProperties(
-      Map<String, String> properties, Schema currentSchema, Schema schema) {
-    List<String> deletedColumns = Lists.newArrayList();
-    Map<String, String> renamedColumns = Maps.newHashMap();
-    TypeUtil.indexByName(currentSchema.asStruct())
-        .forEach(
-            (name, id) -> {
-              String nameInSchema = schema.findColumnName(id);
-              if (nameInSchema == null) {
-                deletedColumns.add(name);
-              } else if (!nameInSchema.equals(name)) {
-                renamedColumns.put(name, nameInSchema);
-              }
-            });
-
-    return PropertyUtil.applySchemaChanges(
-        properties, deletedColumns, renamedColumns, COLUMN_PROPERTY_PREFIXES);
   }
 
   private static PartitionSpec copyPartitionSpec(Schema schema, PartitionSpec sourceSpec) {
@@ -691,9 +678,15 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public View loadView(Identifier ident) throws NoSuchViewException {
+    return loadView(ident, LoadContext.empty());
+  }
+
+  @Override
+  public View loadView(Identifier ident, LoadContext context) throws NoSuchViewException {
     if (null != asViewCatalog) {
       try {
-        org.apache.iceberg.view.View icebergView = asViewCatalog.loadView(buildIdentifier(ident));
+        org.apache.iceberg.view.View icebergView =
+            asViewCatalog.loadView(buildIdentifier(ident), context);
         return SparkView.toView(catalogName, icebergView);
       } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
         throw new NoSuchViewException(ident);
@@ -1055,13 +1048,14 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  private Table load(Identifier ident, TimeTravel timeTravel) throws NoSuchTableException {
+  private Table load(Identifier ident, TimeTravel timeTravel, LoadContext context)
+      throws NoSuchTableException {
     if (isPathIdentifier(ident)) {
       return loadPath((PathIdentifier) ident, timeTravel);
     }
 
     try {
-      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident));
+      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident), context);
       return SparkTable.create(table, timeTravel);
 
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -1074,7 +1068,7 @@ public class SparkCatalog extends BaseCatalog {
       TableIdentifier namespaceAsIdent = buildIdentifier(namespaceToIdentifier(ident.namespace()));
       org.apache.iceberg.Table table;
       try {
-        table = icebergCatalog.loadTable(namespaceAsIdent);
+        table = icebergCatalog.loadTable(namespaceAsIdent, context);
       } catch (Exception ignored) {
         // the namespace does not identify a table, so it cannot be a table with a snapshot selector
         // throw an exception for the original identifier

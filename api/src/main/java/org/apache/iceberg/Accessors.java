@@ -233,6 +233,12 @@ public class Accessors {
     }
 
     @Override
+    public Map<Integer, Accessor<StructLike>> file(
+        Types.FileType file, List<Map<Integer, Accessor<StructLike>>> fieldResults) {
+      return struct(file.asStruct(), fieldResults);
+    }
+
+    @Override
     public Map<Integer, Accessor<StructLike>> variant(Types.VariantType variant) {
       return null;
     }
