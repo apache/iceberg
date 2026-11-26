@@ -44,8 +44,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
-import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.StructLikeSet;
+import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.iceberg.util.StructProjection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -244,7 +244,7 @@ public abstract class DeleteFilter<T> {
   }
 
   private List<Predicate<T>> applySharedEqDeletes() {
-    Multimap<Set<Integer>, StructLikeMap<Long>> deleteMaps =
+    Multimap<Set<Integer>, Map<StructLikeWrapper, Long>> deleteMaps =
         Multimaps.newMultimap(Maps.newHashMap(), Sets::newIdentityHashSet);
     Map<Set<Integer>, Schema> deleteSchemas = Maps.newHashMap();
     List<Pair<DeleteFile, Schema>> newEqDeletes = Lists.newArrayList();
@@ -278,36 +278,39 @@ public abstract class DeleteFilter<T> {
       }
     }
 
-    for (Map.Entry<Set<Integer>, Collection<StructLikeMap<Long>>> entry :
+    for (Map.Entry<Set<Integer>, Collection<Map<StructLikeWrapper, Long>>> entry :
         deleteMaps.asMap().entrySet()) {
       Schema deleteSchema = deleteSchemas.get(entry.getKey());
+      List<Map<StructLikeWrapper, Long>> maps = ImmutableList.copyOf(entry.getValue());
       isInDeleteSets.add(
-          entry.getValue().size() == 1
-              ? sharedEqDeleteFilter(
-                  deleteSchema, entry.getValue().iterator().next(), minSequenceNumber)
-              : sharedEqDeleteFilter(deleteSchema, entry.getValue(), minSequenceNumber));
+          maps.size() == 1
+              ? sharedEqDeleteFilter(deleteSchema, maps.get(0), minSequenceNumber)
+              : sharedEqDeleteFilter(deleteSchema, maps, minSequenceNumber));
     }
 
     return isInDeleteSets;
   }
 
   private Predicate<T> sharedEqDeleteFilter(
-      Schema deleteSchema, StructLikeMap<Long> deleteMap, long minSequenceNumber) {
+      Schema deleteSchema, Map<StructLikeWrapper, Long> deleteMap, long minSequenceNumber) {
     // a projection to select and reorder fields of the file schema to match the delete rows
     StructProjection projectRow = StructProjection.create(requiredSchema, deleteSchema);
+    StructLikeWrapper wrapper = StructLikeWrapper.forType(deleteSchema.asStruct());
     return record -> {
-      Long deleteSequenceNumber = deleteMap.get(projectRow.wrap(asStructLike(record)));
+      Long deleteSequenceNumber = deleteMap.get(wrapper.set(projectRow.wrap(asStructLike(record))));
       return deleteSequenceNumber != null && deleteSequenceNumber >= minSequenceNumber;
     };
   }
 
   private Predicate<T> sharedEqDeleteFilter(
-      Schema deleteSchema, Collection<StructLikeMap<Long>> deleteMaps, long minSequenceNumber) {
+      Schema deleteSchema, List<Map<StructLikeWrapper, Long>> deleteMaps, long minSequenceNumber) {
     // a projection to select and reorder fields of the file schema to match the delete rows
     StructProjection projectRow = StructProjection.create(requiredSchema, deleteSchema);
+    // the key is hashed once for all delete maps
+    StructLikeWrapper wrapper = StructLikeWrapper.forType(deleteSchema.asStruct());
     return record -> {
-      StructLike key = projectRow.wrap(asStructLike(record));
-      for (StructLikeMap<Long> deleteMap : deleteMaps) {
+      StructLikeWrapper key = wrapper.set(projectRow.wrap(asStructLike(record)));
+      for (Map<StructLikeWrapper, Long> deleteMap : deleteMaps) {
         Long deleteSequenceNumber = deleteMap.get(key);
         if (deleteSequenceNumber != null && deleteSequenceNumber >= minSequenceNumber) {
           return true;

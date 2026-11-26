@@ -27,12 +27,12 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PartitionMap;
-import org.apache.iceberg.util.StructLikeMap;
+import org.apache.iceberg.util.StructLikeWrapper;
 
 /** Equality deletes loaded once and shared by the data files of a task. Not thread-safe. */
 public class EqualityDeletes {
   private final Set<String> loadedEqDeletes;
-  private final PartitionMap<Map<Set<Integer>, StructLikeMap<Long>>> sharedEqDeletes;
+  private final PartitionMap<Map<Set<Integer>, Map<StructLikeWrapper, Long>>> sharedEqDeletes;
 
   public EqualityDeletes(Map<Integer, PartitionSpec> specs) {
     this.loadedEqDeletes = Sets.newHashSet();
@@ -43,13 +43,13 @@ public class EqualityDeletes {
     return deleteFile.location() != null && loadedEqDeletes.contains(deleteFile.location());
   }
 
-  StructLikeMap<Long> get(DeleteFile deleteFile, Set<Integer> ids) {
-    Map<Set<Integer>, StructLikeMap<Long>> deleteMaps =
+  Map<StructLikeWrapper, Long> get(DeleteFile deleteFile, Set<Integer> ids) {
+    Map<Set<Integer>, Map<StructLikeWrapper, Long>> deleteMaps =
         sharedEqDeletes.get(deleteFile.specId(), deleteFile.partition());
     return deleteMaps == null ? null : deleteMaps.get(ids);
   }
 
-  StructLikeMap<Long> merge(
+  Map<StructLikeWrapper, Long> merge(
       DeleteFile deleteFile,
       Set<Integer> ids,
       Schema deleteSchema,
@@ -58,14 +58,20 @@ public class EqualityDeletes {
       return get(deleteFile, ids);
     }
 
-    long deleteSequenceNumber = deleteFile.dataSequenceNumber();
-    StructLikeMap<Long> deleteMap =
+    Long deleteSequenceNumber = deleteFile.dataSequenceNumber();
+    Map<StructLikeWrapper, Long> deleteMap =
         sharedEqDeletes
             .computeIfAbsent(deleteFile.specId(), deleteFile.partition(), Maps::newHashMap)
-            .computeIfAbsent(ids, key -> StructLikeMap.create(deleteSchema.asStruct()));
+            .computeIfAbsent(ids, key -> Maps.newHashMap());
+    StructLikeWrapper wrapper = StructLikeWrapper.forType(deleteSchema.asStruct());
     for (StructLike key : deleteKeys) {
-      deleteMap.merge(key, deleteSequenceNumber, Math::max);
+      deleteMap.merge(wrapper.copyFor(key), deleteSequenceNumber, EqualityDeletes::max);
     }
     return deleteMap;
+  }
+
+  // returns one of the boxed arguments to avoid boxing a new value
+  private static Long max(Long first, Long second) {
+    return first >= second ? first : second;
   }
 }
