@@ -122,6 +122,8 @@ public class InclusiveStatsEvaluator {
       return fieldStats != null
           && fieldStats.hasValueCount()
           && fieldStats.hasNanValueCount()
+          // Rows with an absent ancestor are null, not NaN, and may match notNaN.
+          && fieldStats.valueCount() >= recordCount
           && fieldStats.valueCount() == fieldStats.nanValueCount();
     }
 
