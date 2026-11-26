@@ -97,7 +97,10 @@ public class TestLegacyOrcManifestReader extends TestBase {
         ManifestFiles.read(manifest, table.ops().io(), Map.of(spec.specId(), spec))
             .select(List.of("file_path"))
             .filterRows(isNull("parent.leaf"))) {
-      assertThat(Streams.stream(reader).map(DataFile::location).collect(Collectors.toList()))
+      assertThat(
+              Streams.stream(reader)
+                  .map(DataFile::location)
+                  .collect(Collectors.toList()))
           .containsExactly(legacy.location());
     }
   }

@@ -347,14 +347,14 @@ public class TestExpressionToSearchArgument {
         ExpressionToSearchArgument.convert(boundFilter, schema, ORCSchemaUtil.convert(schema));
     assertThat(actual).hasToString(expected.toString());
 
-    TypeDescription projected = ORCSchemaUtil.buildOrcProjection(schema, ORCSchemaUtil.convert(schema));
+    TypeDescription projected =
+        ORCSchemaUtil.buildOrcProjection(schema, ORCSchemaUtil.convert(schema));
     assertThat(ExpressionToSearchArgument.convert(boundFilter, schema, projected))
         .hasToString(expected.toString());
   }
 
   @Test
-  public void testNegatedNotNullOnFieldWithOptionalAncestor(@TempDir Path temp)
-      throws IOException {
+  public void testNegatedNotNullOnFieldWithOptionalAncestor(@TempDir Path temp) throws IOException {
     Types.StructType parentType = Types.StructType.of(optional(3, "leaf", Types.LongType.get()));
     Schema schema =
         new Schema(required(1, "id", Types.IntegerType.get()), optional(2, "parent", parentType));
@@ -442,7 +442,8 @@ public class TestExpressionToSearchArgument {
     SearchArgument expected =
         SearchArgumentFactory.newBuilder().equals("`int`", Type.LONG, 1L).build();
 
-    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, evolvedSchema, readSchema);
+    SearchArgument actual =
+        ExpressionToSearchArgument.convert(boundFilter, evolvedSchema, readSchema);
     assertThat(actual.toString()).isEqualTo(expected.toString());
 
     // for columns not in the file, buildOrcProjection will append field names with _r<ID>
@@ -479,7 +480,8 @@ public class TestExpressionToSearchArgument {
             .equals("`long`", Type.LONG, 1L)
             .build();
 
-    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, originalSchema, readSchema);
+    SearchArgument actual =
+        ExpressionToSearchArgument.convert(boundFilter, originalSchema, readSchema);
     assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
@@ -506,7 +508,8 @@ public class TestExpressionToSearchArgument {
     SearchArgument expected =
         SearchArgumentFactory.newBuilder().equals("`int`", Type.LONG, 1L).build();
 
-    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, mappingSchema, readSchema);
+    SearchArgument actual =
+        ExpressionToSearchArgument.convert(boundFilter, mappingSchema, readSchema);
     assertThat(actual.toString()).isEqualTo(expected.toString());
 
     // for columns not in the file, buildOrcProjection will append field names with _r<ID>
@@ -601,7 +604,8 @@ public class TestExpressionToSearchArgument {
             .end()
             .build();
 
-    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, mappingSchema, readSchema);
+    SearchArgument actual =
+        ExpressionToSearchArgument.convert(boundFilter, mappingSchema, readSchema);
     assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
