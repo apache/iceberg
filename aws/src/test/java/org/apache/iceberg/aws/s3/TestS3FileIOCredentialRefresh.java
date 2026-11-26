@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -343,6 +344,52 @@ public class TestS3FileIOCredentialRefresh {
       try (S3FileIO deserialized = TestHelpers.KryoHelpers.roundTripSerialize(fileIO)) {
         assertThat(deserialized.credentials()).isEqualTo(fileIO.credentials());
       }
+    }
+  }
+
+  @Test
+  void noScheduledRefreshWhenRefreshIsDisabled() {
+    String nearExpiryMs = Long.toString(Instant.now().plus(3, ChronoUnit.MINUTES).toEpochMilli());
+    StorageCredential initialCredential =
+        StorageCredential.create(
+            "s3://bucket/path",
+            ImmutableMap.of(
+                S3FileIOProperties.ACCESS_KEY_ID,
+                "initialAccessKey",
+                S3FileIOProperties.SECRET_ACCESS_KEY,
+                "initialSecretKey",
+                S3FileIOProperties.SESSION_TOKEN,
+                "initialToken",
+                S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                nearExpiryMs));
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+
+    Map<String, String> properties =
+        ImmutableMap.of(
+            AwsProperties.CLIENT_FACTORY,
+            StaticClientFactory.class.getName(),
+            VendedCredentialsProvider.URI,
+            CREDENTIALS_URI,
+            AwsClientProperties.REFRESH_CREDENTIALS_ENABLED,
+            "false",
+            CatalogProperties.URI,
+            CATALOG_URI,
+            "init-creation-stacktrace",
+            "false");
+
+    StaticClientFactory.client = null;
+    try (S3FileIO fileIO = new S3FileIO()) {
+      fileIO.initialize(properties);
+      fileIO.setCredentials(List.of(initialCredential));
+
+      // Near-expiry credentials schedule an immediate refresh when refresh is enabled.
+      fileIO.client();
+
+      Awaitility.await()
+          .during(2, TimeUnit.SECONDS)
+          .atMost(3, TimeUnit.SECONDS)
+          .untilAsserted(() -> mockServer.verify(mockRequest, VerificationTimes.never()));
+      assertThat(fileIO.credentials()).containsExactly(initialCredential);
     }
   }
 }

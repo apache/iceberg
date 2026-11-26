@@ -22,18 +22,27 @@ import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.executeR
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.planDataFileRewrite;
 import static org.apache.iceberg.metrics.CommitMetricsResult.TOTAL_DATA_FILES;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.flink.streaming.api.operators.Output;
+import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
+import org.apache.flink.util.OutputTag;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
@@ -217,6 +226,57 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
                   .getValue()
                   .getMessage())
           .contains("Testing error");
+    }
+  }
+
+  @Test
+  void closeAfterWatermarkFailure() throws Exception {
+    Table table = createTable();
+    insert(table, 1, "p1");
+    insert(table, 2, "p2");
+    insert(table, 3, "p3");
+
+    List<DataFileRewriteRunner.ExecutedGroup> rewritten =
+        executeRewrite(planDataFileRewrite(tableLoader()));
+
+    OutputFailingCommitter committer =
+        new OutputFailingCommitter(
+            OperatorTestBase.DUMMY_TABLE_NAME,
+            OperatorTestBase.DUMMY_TABLE_NAME,
+            0,
+            tableLoader(),
+            SnapshotRef.MAIN_BRANCH);
+    OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, Trigger> testHarness =
+        new OneInputStreamOperatorTestHarness<>(committer);
+    testHarness.open();
+    testHarness.processElement(rewritten.get(0), EVENT_TIME);
+    committer.failOnCollect();
+
+    // an interrupt makes closing the commit service fail
+    Thread.currentThread().interrupt();
+    try {
+      assertThatThrownBy(() -> testHarness.processWatermark(EVENT_TIME))
+          .hasMessage("Output failed");
+    } finally {
+      Thread.interrupted();
+    }
+
+    assertThatNoException().isThrownBy(testHarness::close);
+  }
+
+  private static class OutputFailingCommitter extends DataFileRewriteCommitter {
+    OutputFailingCommitter(
+        String tableName, String taskName, int taskIndex, TableLoader tableLoader, String branch) {
+      super(tableName, taskName, taskIndex, tableLoader, branch);
+    }
+
+    @SuppressWarnings("unchecked")
+    void failOnCollect() {
+      Output<StreamRecord<Trigger>> failing = mock(Output.class);
+      doThrow(new IllegalStateException("Output failed"))
+          .when(failing)
+          .collect(any(OutputTag.class), any(StreamRecord.class));
+      this.output = failing;
     }
   }
 

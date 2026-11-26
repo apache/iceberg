@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import org.apache.iceberg.expressions.Expressions;
@@ -34,22 +35,22 @@ public class TestSnapshot extends TestBase {
   public void snapshotValueMethodsIncludeMetadataFields() {
     Snapshot snapshot =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, 5L, "key-1");
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 10L, 5L, "key-1");
     Snapshot same =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, 5L, "key-1");
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 10L, 5L, "key-1");
     Snapshot differentFirstRowId =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 11L, 5L, "key-1");
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 11L, 5L, "key-1");
     Snapshot differentAddedRows =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, 6L, "key-1");
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 10L, 6L, "key-1");
     Snapshot differentKeyId =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, 5L, "key-2");
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 10L, 5L, "key-2");
     Snapshot withoutMetadataFields =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, null);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, null, null);
 
     assertThat(snapshot).isEqualTo(same);
     assertThat(snapshot.hashCode()).isEqualTo(same.hashCode());
@@ -58,6 +59,91 @@ public class TestSnapshot extends TestBase {
     assertThat(snapshot).isNotEqualTo(differentKeyId);
     assertThat(snapshot).isNotEqualTo(withoutMetadataFields);
     assertThat(snapshot.toString()).contains("first-row-id=10", "added-rows=5", "key-id=key-1");
+  }
+
+  @TestTemplate
+  void snapshotWithRootManifestExposesLocation() {
+    Snapshot snapshot =
+        new BaseSnapshot(
+            0 /* sequenceNumber */,
+            1 /* snapshotId */,
+            null /* parentId */,
+            0 /* timestampMillis */,
+            DataOperations.APPEND,
+            null /* summary */,
+            1 /* schemaId */,
+            null /* manifestList */,
+            "root-manifest.parquet" /* rootManifest */,
+            10L /* firstRowId */,
+            5L /* addedRows */,
+            "key-1" /* keyId */);
+
+    assertThat(snapshot.rootManifestLocation()).isEqualTo("root-manifest.parquet");
+    assertThat(snapshot.manifestListLocation()).isNull();
+  }
+
+  @TestTemplate
+  void rejectsBothManifestListAndRootManifest() {
+    assertThatThrownBy(
+            () ->
+                new BaseSnapshot(
+                    0 /* sequenceNumber */,
+                    1 /* snapshotId */,
+                    null /* parentId */,
+                    0 /* timestampMillis */,
+                    DataOperations.APPEND,
+                    null /* summary */,
+                    1 /* schemaId */,
+                    "ml.avro" /* manifestList */,
+                    "root-manifest.parquet" /* rootManifest */,
+                    10L /* firstRowId */,
+                    5L /* addedRows */,
+                    "key-1" /* keyId */))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("cannot have both a manifest list and a root manifest");
+  }
+
+  @TestTemplate
+  void rejectsNeitherManifestListNorRootManifest() {
+    assertThatThrownBy(
+            () ->
+                new BaseSnapshot(
+                    0 /* sequenceNumber */,
+                    1 /* snapshotId */,
+                    null /* parentId */,
+                    0 /* timestampMillis */,
+                    DataOperations.APPEND,
+                    null /* summary */,
+                    1 /* schemaId */,
+                    null /* manifestList */,
+                    null /* rootManifest */,
+                    10L /* firstRowId */,
+                    5L /* addedRows */,
+                    "key-1" /* keyId */))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("must have a manifest list or a root manifest");
+  }
+
+  @TestTemplate
+  void allManifestsRejectsRootManifest() {
+    Snapshot snapshot =
+        new BaseSnapshot(
+            0 /* sequenceNumber */,
+            1 /* snapshotId */,
+            null /* parentId */,
+            0 /* timestampMillis */,
+            DataOperations.APPEND,
+            null /* summary */,
+            1 /* schemaId */,
+            null /* manifestList */,
+            "root-manifest.parquet" /* rootManifest */,
+            10L /* firstRowId */,
+            5L /* addedRows */,
+            "key-1" /* keyId */);
+
+    assertThatThrownBy(() -> snapshot.allManifests(table.io()))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("root manifests are not supported");
   }
 
   @TestTemplate

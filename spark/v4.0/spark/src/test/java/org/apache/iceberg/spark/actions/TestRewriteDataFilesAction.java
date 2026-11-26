@@ -162,7 +162,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @Parameters(name = "formatVersion = {0}")
   protected static List<Integer> parameters() {
-    return org.apache.iceberg.TestHelpers.V2_AND_ABOVE;
+    return org.apache.iceberg.TestHelpers.V2_AND_V3;
   }
 
   private final FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
@@ -1685,6 +1685,37 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveSnapshots(table, 2);
     shouldHaveACleanCache(table);
     dataFilesShouldHaveSortOrderIdMatching(table, c3SortOrder);
+  }
+
+  @TestTemplate
+  void zOrderWhenTableDeclaredSortOrderAtCreation() throws IOException {
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            SortOrder.builderFor(SCHEMA).asc("c2").build(),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            tableLocation);
+    assertThat(table.sortOrders()).doesNotContainKey(SortOrder.unsorted().orderId());
+
+    writeRecords(4, 100);
+    table.refresh();
+
+    List<Object[]> originalData = currentData();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .zOrder("c2", "c3")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .execute();
+
+    assertThat(result.rewriteResults()).as("Should have 1 fileGroup").hasSize(1);
+
+    table.refresh();
+
+    assertEquals("We shouldn't have changed the data", originalData, currentData());
+    dataFilesShouldHaveSortOrderIdMatching(table, SortOrder.unsorted());
+    shouldHaveACleanCache(table);
   }
 
   @TestTemplate

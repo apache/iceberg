@@ -122,6 +122,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -140,6 +141,7 @@ public class TestTableMetadata {
             null,
             7,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -267,6 +269,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -285,6 +288,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -374,6 +378,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -393,6 +398,7 @@ public class TestTableMetadata {
             null,
             7,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -454,7 +460,18 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(snapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot snapshot =
         new BaseSnapshot(
-            0, snapshotId, null, snapshotId, null, null, null, manifestList, null, null, null);
+            0,
+            snapshotId,
+            null,
+            snapshotId,
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null,
+            null,
+            null);
 
     Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -592,6 +609,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -610,6 +628,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -672,6 +691,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -690,6 +710,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -769,6 +790,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -787,6 +809,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -879,6 +902,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -897,6 +921,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -2115,10 +2140,16 @@ public class TestTableMetadata {
   void addSnapshotRequiresManifestListFromV2(int formatVersion) {
     TableMetadata base = newTableMetadata(formatVersion);
     Snapshot snapshot =
-        snapshot(
-            formatVersion,
+        new BaseSnapshot(
+            formatVersion == 1 ? 0L : 1L,
+            1L,
             null,
+            1L,
             "append",
+            ImmutableMap.of(),
+            null,
+            null,
+            "file:/root.avro",
             formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE ? 0L : null,
             formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE ? 0L : null,
             null);
@@ -2233,6 +2264,7 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             null,
             "file:/s2.avro",
+            null /* rootManifest */,
             Long.MAX_VALUE,
             1L,
             null);
@@ -2260,7 +2292,18 @@ public class TestTableMetadata {
 
     Snapshot nextSnapshot =
         new BaseSnapshot(
-            2L, 2L, 1L, 2L, "append", ImmutableMap.of(), null, "file:/s2.avro", 5L, 1L, null);
+            2L,
+            2L,
+            1L,
+            2L,
+            "append",
+            ImmutableMap.of(),
+            null,
+            "file:/s2.avro",
+            null /* rootManifest */,
+            5L,
+            1L,
+            null);
     TableMetadata withNextSnapshot =
         TableMetadata.buildFrom(upgraded).addSnapshot(nextSnapshot).build();
 
@@ -2298,7 +2341,8 @@ public class TestTableMetadata {
         operation,
         operation == null ? null : ImmutableMap.of(),
         null,
-        manifestList,
+        manifestList == null ? "file:/s1.avro" : manifestList,
+        null /* rootManifest */,
         firstRowId,
         addedRows,
         keyId);
@@ -2321,6 +2365,7 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             null,
             "file:/s1.avro",
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -2337,6 +2382,7 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             null,
             "file:/s2.avro",
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -2366,6 +2412,7 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             null,
             "file:/s1.avro",
+            null /* rootManifest */,
             0L,
             5L,
             null);
@@ -2383,6 +2430,7 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             null,
             "file:/s2.avro",
+            null /* rootManifest */,
             0L,
             1L,
             null);
@@ -2408,6 +2456,7 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             null,
             "file:/s1.avro",
+            null /* rootManifest */,
             null,
             null,
             null);
@@ -2442,12 +2491,34 @@ public class TestTableMetadata {
 
     Snapshot parent =
         new BaseSnapshot(
-            1, 1L, null, 1_000L, "append", ImmutableMap.of(), null, "file:/s1.avro", 0L, 0L, null);
+            1,
+            1L,
+            null,
+            1_000L,
+            "append",
+            ImmutableMap.of(),
+            null,
+            "file:/s1.avro",
+            null /* rootManifest */,
+            0L,
+            0L,
+            null);
     TableMetadata withParent = TableMetadata.buildFrom(base).addSnapshot(parent).build();
 
     Snapshot child =
         new BaseSnapshot(
-            2, 2L, 1L, 1_000L, "append", ImmutableMap.of(), null, "file:/s2.avro", 0L, 0L, null);
+            2,
+            2L,
+            1L,
+            1_000L,
+            "append",
+            ImmutableMap.of(),
+            null,
+            "file:/s2.avro",
+            null /* rootManifest */,
+            0L,
+            0L,
+            null);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(withParent).addSnapshot(child))
         .isInstanceOf(ValidationException.class)
@@ -2480,6 +2551,7 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             null,
             "file:/s1.avro",
+            null /* rootManifest */,
             parentFirstRowId,
             parentAddedRows,
             null);
@@ -2500,6 +2572,7 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             null,
             "file:/s2.avro",
+            null /* rootManifest */,
             childFirstRowId,
             childAddedRows,
             null);
@@ -2533,6 +2606,7 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             null,
             "file:/s1.avro",
+            null /* rootManifest */,
             firstRowId,
             addedRows,
             null);

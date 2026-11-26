@@ -52,15 +52,17 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
 
   private final Collection<WriteResult> results;
   private final TableLoader tableLoader;
+  private final String sinkId;
 
   private long lastCheckpointId = CheckpointIDCounter.INITIAL_CHECKPOINT_ID - 1;
 
   private transient ManifestOutputFileFactory icebergManifestOutputFileFactory;
   private transient Table table;
 
-  IcebergWriteAggregator(TableLoader tableLoader) {
+  IcebergWriteAggregator(TableLoader tableLoader, String sinkId) {
     this.results = Sets.newHashSet();
     this.tableLoader = tableLoader;
+    this.sinkId = sinkId;
   }
 
   @Override
@@ -119,6 +121,7 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
         new IcebergCommittable(
             writeToManifest(results, checkpointId),
             getContainingTask().getEnvironment().getJobID().toString(),
+            sinkId,
             getRuntimeContext().getOperatorUniqueID(),
             checkpointId);
     CommittableMessage<IcebergCommittable> summary =

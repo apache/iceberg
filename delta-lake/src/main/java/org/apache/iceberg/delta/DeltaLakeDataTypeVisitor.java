@@ -28,24 +28,22 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 abstract class DeltaLakeDataTypeVisitor<T> {
   public static <T> T visit(DataType type, DeltaLakeDataTypeVisitor<T> visitor) {
-    if (type instanceof StructType) {
-      StructField[] fields = ((StructType) type).getFields();
+    if (type instanceof StructType structType) {
+      StructField[] fields = structType.getFields();
       List<T> fieldResults = Lists.newArrayListWithExpectedSize(fields.length);
 
       for (StructField field : fields) {
         fieldResults.add(visitor.field(field, visit(field.getDataType(), visitor)));
       }
 
-      return visitor.struct((StructType) type, fieldResults);
+      return visitor.struct(structType, fieldResults);
 
-    } else if (type instanceof MapType) {
+    } else if (type instanceof MapType mapType) {
       return visitor.map(
-          (MapType) type,
-          visit(((MapType) type).getKeyType(), visitor),
-          visit(((MapType) type).getValueType(), visitor));
+          mapType, visit(mapType.getKeyType(), visitor), visit(mapType.getValueType(), visitor));
 
-    } else if (type instanceof ArrayType) {
-      return visitor.array((ArrayType) type, visit(((ArrayType) type).getElementType(), visitor));
+    } else if (type instanceof ArrayType arrayType) {
+      return visitor.array(arrayType, visit(arrayType.getElementType(), visitor));
 
     } else {
       return visitor.atomic(type);

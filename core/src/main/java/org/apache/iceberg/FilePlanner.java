@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -35,6 +36,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.ThreadPools;
 
@@ -56,6 +59,7 @@ class FilePlanner {
 
   private String tableLocation = null;
   private Expression dataFilter = Expressions.alwaysTrue();
+  private Set<Integer> statsFieldIds = null;
   private boolean ignoreResiduals = false;
   private boolean caseSensitive = true;
   private ScanMetrics scanMetrics = ScanMetrics.noop();
@@ -85,8 +89,23 @@ class FilePlanner {
     return this;
   }
 
+  FilePlanner projectStats(int... fieldIds) {
+    Preconditions.checkArgument(fieldIds != null, "Invalid field IDs: null");
+    return projectStats(ArrayUtil.toIntList(fieldIds));
+  }
+
+  FilePlanner projectStats(Iterable<Integer> fieldIds) {
+    Preconditions.checkArgument(fieldIds != null, "Invalid field IDs: null");
+    this.statsFieldIds = Sets.newLinkedHashSet(fieldIds);
+    return this;
+  }
+
   FilePlanner ignoreResiduals() {
-    this.ignoreResiduals = true;
+    return ignoreResiduals(true);
+  }
+
+  FilePlanner ignoreResiduals(boolean shouldIgnoreResiduals) {
+    this.ignoreResiduals = shouldIgnoreResiduals;
     return this;
   }
 
@@ -132,11 +151,16 @@ class FilePlanner {
 
     List<CloseableIterable<TrackedFile>> leafPlanTasks = Lists.newArrayList();
     for (ManifestFile leaf : leafManifests) {
-      leafPlanTasks.add(reader(leaf));
+      if (hasLiveFiles(leaf)) {
+        leafPlanTasks.add(reader(leaf));
+      } else {
+        scanMetrics.skippedDataManifests().increment();
+        scanMetrics.totalDataManifests().increment();
+      }
     }
 
     CloseableIterable<TrackedFile> leafFiles =
-        executorService != null && leafManifests.size() > 1
+        executorService != null && leafPlanTasks.size() > 1
             ? new ParallelIterable<>(leafPlanTasks, executorService)
             : CloseableIterable.concat(leafPlanTasks);
 
@@ -162,6 +186,10 @@ class FilePlanner {
       builder.tableLocation(tableLocation);
     }
 
+    if (statsFieldIds != null) {
+      builder.projectStats(statsFieldIds);
+    }
+
     return builder.build();
   }
 
@@ -171,7 +199,7 @@ class FilePlanner {
 
     DeleteFile[] deletes = NO_DELETES;
     if (dataFile.deletionVector() != null) {
-      TrackedFile tracked = TrackedFileAdapters.asTrackedFile(dataFile);
+      TrackedFile tracked = TrackedFileAdapters.asTrackedFileUnchecked(dataFile);
       DeleteFile dv = TrackedFileAdapters.asDVDeleteFile(tracked, specsById);
       scanMetrics.dvs().increment();
       deletes = new DeleteFile[] {dv};
@@ -190,6 +218,12 @@ class FilePlanner {
         SchemaParser.toJson(spec.schema()),
         PartitionSpecParser.toJson(spec),
         ResidualEvaluator.of(spec, filter, caseSensitive));
+  }
+
+  private static boolean hasLiveFiles(ManifestFile leaf) {
+    return leaf.hasAddedFiles()
+        || leaf.hasExistingFiles()
+        || (leaf.modifiedFilesCount() != null && leaf.modifiedFilesCount() > 0);
   }
 
   /** Per-spec task inputs computed once and shared across all files of a spec. */

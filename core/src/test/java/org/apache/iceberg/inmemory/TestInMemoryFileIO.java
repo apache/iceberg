@@ -59,7 +59,7 @@ public class TestInMemoryFileIO {
   public void testNewInputFileNotFound() {
     InMemoryFileIO fileIO = new InMemoryFileIO();
     assertThatExceptionOfType(NotFoundException.class)
-        .isThrownBy(() -> fileIO.newInputFile("s3://nonexistent/file"))
+        .isThrownBy(() -> fileIO.newInputFile("s3://nonexistent/file").newStream())
         .withMessageContaining("No in-memory file found");
   }
 
