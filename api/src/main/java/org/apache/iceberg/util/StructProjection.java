@@ -180,6 +180,9 @@ public class StructProjection implements StructLike {
   /**
    * Returns whether the field at the given projected position exists in the source struct.
    *
+   * <p>A present field with a null value returns true. Missing fields are allowed only by {@link
+   * #createAllowMissing}.
+   *
    * @param pos position in the projected struct
    * @return true if the field exists in the source struct
    */

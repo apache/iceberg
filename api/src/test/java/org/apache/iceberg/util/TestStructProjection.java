@@ -98,4 +98,27 @@ class TestStructProjection {
         .hasToString(
             "StructProjection{id=1, person=StructProjection{first=John, middle=null, last=Doe}}");
   }
+
+  @Test
+  void fieldPresenceDistinguishesMissingFromPresentNull() {
+    StructType source = StructType.of(NestedField.optional(1, "p", Types.StringType.get()));
+    StructType projected =
+        StructType.of(
+            NestedField.optional(1, "p", Types.StringType.get()),
+            NestedField.optional(2, "q", Types.StringType.get()));
+
+    StructProjection projection =
+        StructProjection.createAllowMissing(source, projected).wrap(Row.of((Object) null));
+
+    assertThat(projection.isFieldProjected(0)).isTrue();
+    assertThat(projection.get(0, String.class)).isNull();
+
+    assertThat(projection.isFieldProjected(1)).isFalse();
+    assertThat(projection.get(1, String.class)).isNull();
+
+    projection.wrap(Row.of("value"));
+    assertThat(projection.isFieldProjected(0)).isTrue();
+    assertThat(projection.get(0, String.class)).isEqualTo("value");
+    assertThat(projection.isFieldProjected(1)).isFalse();
+  }
 }
