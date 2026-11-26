@@ -178,12 +178,13 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
         List<FileInfo> files = Lists.newArrayList();
         List<String> subPrefixes = Lists.newArrayList();
         for (FileStatus status : fs.listStatus(directory)) {
-          if (status.isDirectory()) {
+          FileStatus target = status.isSymlink() ? fs.getFileStatus(status.getPath()) : status;
+          if (target.isDirectory()) {
             subPrefixes.add(status.getPath() + "/");
           } else {
             files.add(
                 new FileInfo(
-                    status.getPath().toString(), status.getLen(), status.getModificationTime()));
+                    status.getPath().toString(), target.getLen(), target.getModificationTime()));
           }
         }
 

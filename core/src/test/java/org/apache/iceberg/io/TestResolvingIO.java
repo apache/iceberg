@@ -162,6 +162,19 @@ public class TestResolvingIO {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void directoryListingSupportMatchesDelegate(boolean supported) {
+    String prefix = "file:/table/";
+    DelegateFileIO delegate = mock(DelegateFileIO.class);
+    doReturn(supported).when(delegate).supportsDirectoryListing(prefix);
+
+    try (ResolvingFileIO io = spy(new ResolvingFileIO())) {
+      doReturn(delegate).when(io).io(prefix);
+      assertThat(io.supportsDirectoryListing(prefix)).isEqualTo(supported);
+    }
+  }
+
   @Test
   public void delegateFileIOWithAndWithoutMixins() {
     ResolvingFileIO resolvingFileIO = spy(new ResolvingFileIO());
