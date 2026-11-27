@@ -93,7 +93,6 @@ import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecord;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecordTypeInformation;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
-import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -148,7 +147,7 @@ public class IcebergSink
     implements Sink<RowData>,
         SupportsPreWriteTopology<RowData>,
         SupportsCommitter<IcebergCommittable>,
-        SupportsPreCommitTopology<WriteResult, IcebergCommittable>,
+        SupportsPreCommitTopology<SinkWriteResult, IcebergCommittable>,
         SupportsPostCommitTopology<IcebergCommittable>,
         SupportsConcurrentExecutionAttempts {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSink.class);
@@ -168,6 +167,7 @@ public class IcebergSink
   private final boolean overwriteMode;
   private final int workerPoolSize;
   private final boolean maintenanceEnabled;
+  private final boolean dvOnlyMode;
   private final Table table;
   // This should only be used for logging/error messages. For any actual logic always use
   // equalityFieldIds instead.
@@ -203,6 +203,7 @@ public class IcebergSink
     this.overwriteMode = overwriteMode;
     this.table = table;
     this.upsertMode = flinkWriteConf.upsertMode();
+    this.dvOnlyMode = flinkWriteConf.dvOnlyMode();
     this.dataFileFormat = flinkWriteConf.dataFileFormat();
     this.targetDataFileSize = flinkWriteConf.targetDataFileSize();
     this.workerPoolSize = flinkWriteConf.workerPoolSize();
@@ -226,7 +227,8 @@ public class IcebergSink
             dataFileFormat,
             writeProperties,
             equalityFieldIds,
-            upsertMode);
+            upsertMode,
+            dvOnlyMode);
     IcebergStreamWriterMetrics metrics =
         new IcebergStreamWriterMetrics(context.metricGroup(), table.name());
     return new IcebergSinkWriter(
@@ -313,7 +315,7 @@ public class IcebergSink
 
   @Override
   public DataStream<CommittableMessage<IcebergCommittable>> addPreCommitTopology(
-      DataStream<CommittableMessage<WriteResult>> writeResults) {
+      DataStream<CommittableMessage<SinkWriteResult>> writeResults) {
     TypeInformation<CommittableMessage<IcebergCommittable>> typeInformation =
         CommittableMessageTypeInfo.of(this::getCommittableSerializer);
 
@@ -341,8 +343,8 @@ public class IcebergSink
   }
 
   @Override
-  public SimpleVersionedSerializer<WriteResult> getWriteResultSerializer() {
-    return new WriteResultSerializer();
+  public SimpleVersionedSerializer<SinkWriteResult> getWriteResultSerializer() {
+    return dvOnlyMode ? SinkWriteResultSerializer.dvOnly() : SinkWriteResultSerializer.standard();
   }
 
   public static class Builder implements IcebergSinkBuilder<Builder> {
@@ -743,6 +745,22 @@ public class IcebergSink
     public Builder convertEqualityDeletes(Map<String, String> config) {
       convertEqualityDeletes();
       writeOptions.putAll(config);
+      return this;
+    }
+
+    /**
+     * Resolves equality deletes to deletion vectors inside the sink, so that no equality delete is
+     * ever committed to the table.
+     *
+     * <p>Requires equality field columns (upsert or CDC) and a table with format version 3 or
+     * later. Cannot be combined with {@link #convertEqualityDeletes()}, which is the post-commit
+     * alternative, or with overwrite mode.
+     *
+     * <p>The job has to run in streaming mode, with aligned exactly-once checkpoints.
+     */
+    @Experimental
+    public Builder dvOnly() {
+      writeOptions.put(FlinkWriteOptions.DV_ONLY_ENABLE.key(), "true");
       return this;
     }
 

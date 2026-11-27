@@ -203,7 +203,7 @@ class TestIcebergCommitter extends TestBase {
       TableLoader catalogTableLoader = TableLoader.fromCatalog(catalogLoader, identifier);
 
       try (OneInputStreamOperatorTestHarness<
-              CommittableMessage<WriteResult>, CommittableMessage<IcebergCommittable>>
+              CommittableMessage<SinkWriteResult>, CommittableMessage<IcebergCommittable>>
           harness =
               new OneInputStreamOperatorTestHarness<>(
                   new IcebergWriteAggregator(catalogTableLoader, SINK_ID))) {
