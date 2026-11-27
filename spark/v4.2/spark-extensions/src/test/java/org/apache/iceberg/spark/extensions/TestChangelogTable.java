@@ -37,6 +37,8 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.connector.catalog.Column;
+import org.apache.spark.sql.types.StructField;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -133,6 +135,74 @@ public class TestChangelogTable extends ExtensionsTestBase {
             row(2, "b", "DELETE", 0, snap3.snapshotId()),
             row(-2, "b", "INSERT", 0, snap3.snapshotId())),
         changelogRecords(snap2, snap3));
+  }
+
+  @TestTemplate
+  void readsMixedSnapshotAndTimestampBounds() {
+    createTable();
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot first = table.currentSnapshot();
+    waitUntilAfter(first.timestampMillis());
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot second = table.currentSnapshot();
+    waitUntilAfter(second.timestampMillis());
+    sql("INSERT INTO %s VALUES (3, 'c')", tableName);
+
+    assertThat(
+            rowsToJava(
+                collect(
+                    spark
+                        .read()
+                        .option(SparkReadOptions.START_SNAPSHOT_ID, first.snapshotId())
+                        .option(SparkReadOptions.END_TIMESTAMP, second.timestampMillis()))))
+        .containsExactly(row(2, "b", "INSERT", 0, second.snapshotId()));
+    assertThat(
+            rowsToJava(
+                collect(
+                    spark
+                        .read()
+                        .option(SparkReadOptions.START_TIMESTAMP, first.timestampMillis())
+                        .option(SparkReadOptions.END_SNAPSHOT_ID, second.snapshotId()))))
+        .containsExactly(row(2, "b", "INSERT", 0, second.snapshotId()));
+  }
+
+  @TestTemplate
+  void readsThroughEndingSnapshotWithoutStartingBound() {
+    createTable();
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot first = table.currentSnapshot();
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot second = table.currentSnapshot();
+    sql("INSERT INTO %s VALUES (3, 'c')", tableName);
+
+    assertThat(changelogRecords(null, second))
+        .containsExactly(
+            row(1, "a", "INSERT", 0, first.snapshotId()),
+            row(2, "b", "INSERT", 1, second.snapshotId()));
+  }
+
+  @TestTemplate
+  void readsAfterExpiredExclusiveStartingSnapshot() {
+    createTable();
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot first = table.currentSnapshot();
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot second = table.currentSnapshot();
+    table.expireSnapshots().expireSnapshotId(first.snapshotId()).cleanExpiredFiles(false).commit();
+    assertThat(table.snapshot(first.snapshotId())).isNull();
+    sql("REFRESH TABLE %s", tableName);
+
+    assertThat(changelogRecords(first, second))
+        .containsExactly(row(2, "b", "INSERT", 0, second.snapshotId()));
   }
 
   @TestTemplate
@@ -288,6 +358,22 @@ public class TestChangelogTable extends ExtensionsTestBase {
         "Should have expected rows",
         ImmutableList.of(row(1, "INSERT"), row(2, "INSERT")),
         sql("SELECT id, _change_type FROM %s.changes ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  void preservesChangelogColumnMetadata() {
+    createTable();
+    sql("ALTER TABLE %s ALTER COLUMN data COMMENT 'Change payload'", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    String fieldId = String.valueOf(table.schema().findField("data").fieldId());
+    Column column = new SparkChangelogTable(table).columns()[1];
+    assertThat(column.id()).isEqualTo(fieldId);
+    assertThat(column.comment()).isEqualTo("Change payload");
+
+    StructField field = spark.read().table(tableName + ".changes").schema().apply("data");
+    assertThat(field.id().get()).isEqualTo(fieldId);
+    assertThat(field.getComment().get()).isEqualTo("Change payload");
   }
 
   @TestTemplate

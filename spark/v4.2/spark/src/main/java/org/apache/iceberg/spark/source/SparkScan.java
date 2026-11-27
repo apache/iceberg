@@ -185,7 +185,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
         groupingKeyType(),
         taskGroups(),
         projection,
-        hashCode());
+        hashCode(),
+        new SparkRowReaderFactory());
   }
 
   @Override
