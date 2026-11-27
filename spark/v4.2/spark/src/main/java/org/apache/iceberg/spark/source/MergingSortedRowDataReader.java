@@ -45,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
+import org.apache.iceberg.spark.source.metrics.TaskScanDuration;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -268,12 +269,16 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
   @Override
   public CustomTaskMetric[] currentMetricsValues() {
     long totalDeletes = 0L;
+    long totalScanDurationNanos = 0L;
     for (RowDataReader reader : fileReaders) {
       totalDeletes += reader.counter().get();
+      totalScanDurationNanos += reader.scanDurationNanos();
     }
 
     return new CustomTaskMetric[] {
-      new TaskNumSplits(fileReaders.size()), new TaskNumDeletes(totalDeletes)
+      new TaskNumSplits(fileReaders.size()),
+      new TaskNumDeletes(totalDeletes),
+      new TaskScanDuration(totalScanDurationNanos)
     };
   }
 
