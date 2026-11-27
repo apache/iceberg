@@ -82,6 +82,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -92,7 +93,9 @@ import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileIOTrackerTestUtil;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.CommitReport;
@@ -4227,6 +4230,106 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessage("Cannot change key ID in a create transaction");
       assertThat(catalog.tableExists(TBL)).isFalse();
+    }
+  }
+
+  @Test
+  void createTransactionRejectsInvalidDataKeyLength() throws IOException {
+    try (RESTCatalog catalog = catalogWithKms()) {
+      catalog.createNamespace(TBL.namespace());
+
+      assertThatThrownBy(
+              () ->
+                  catalog
+                      .buildTable(TBL, SCHEMA)
+                      .withProperty(TableProperties.FORMAT_VERSION, "3")
+                      .withProperty(
+                          TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+                      .withProperty(TableProperties.ENCRYPTION_DEK_LENGTH, "17")
+                      .createTransaction())
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage("Invalid data key length: 17 (must be 16, 24, or 32)");
+    }
+  }
+
+  @Test
+  void loadTableWithoutKmsRejectsEncryptedTable() throws IOException {
+    try (RESTCatalog catalog = catalogWithKms();
+        RESTCatalog catalogWithoutKms =
+            catalogWithConfig(ConfigResponse.builder().build(), Map.of())) {
+      catalog.createNamespace(TBL.namespace());
+      catalog
+          .buildTable(TBL, SCHEMA)
+          .withProperty(TableProperties.FORMAT_VERSION, "3")
+          .withProperty(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+          .create();
+
+      assertThatThrownBy(() -> catalogWithoutKms.loadTable(TBL))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageStartingWith(
+              "Cannot create encryption manager without a key management client");
+    }
+  }
+
+  @Test
+  void encryptedTableSharingCatalogFileIOIsNotTracked() throws IOException {
+    try (RESTCatalog catalog = catalogWithKms()) {
+      catalog.createNamespace(TBL.namespace());
+      Table created =
+          catalog
+              .buildTable(TBL, SCHEMA)
+              .withProperty(TableProperties.FORMAT_VERSION, "3")
+              .withProperty(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+              .create();
+      Table loaded = catalog.loadTable(TBL);
+      assertThat(created.io()).isInstanceOf(EncryptingFileIO.class);
+
+      // the tracker closes a tracked FileIO when its table is garbage collected, so tracking these
+      // tables would close the catalog's FileIO
+      assertThat(FileIOTrackerTestUtil.trackedOperations(catalog.sessionCatalog().fileIOTracker()))
+          .doesNotContain(
+              ((HasTableOperations) created).operations(),
+              ((HasTableOperations) loaded).operations());
+    }
+  }
+
+  @Test
+  void encryptedTableWithOwnFileIOIsTracked() throws IOException {
+    List<FileIO> createdFileIOs = new CopyOnWriteArrayList<>();
+    try (RESTCatalog catalog =
+        new RESTCatalog(config -> new RESTCatalogAdapter(backendCatalog)) {
+          @Override
+          protected RESTSessionCatalog newSessionCatalog(
+              Function<Map<String, String>, RESTClient> clientBuilder) {
+            return new RESTSessionCatalog(
+                clientBuilder,
+                (context, properties) -> {
+                  FileIO fileIO = Mockito.spy(new InMemoryFileIO());
+                  fileIO.initialize(properties);
+                  createdFileIOs.add(fileIO);
+                  return fileIO;
+                });
+          }
+        }) {
+      catalog.initialize(
+          "test", Map.of(CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getName()));
+      assertThat(createdFileIOs).as("Catalog FileIO").hasSize(1);
+      catalog.createNamespace(TBL.namespace());
+      catalog
+          .buildTable(TBL, SCHEMA)
+          .withProperty(TableProperties.FORMAT_VERSION, "3")
+          .withProperty(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+          .create();
+      // with an ioBuilder set, the table gets its own FileIO
+      List<FileIO> tableFileIOs = List.copyOf(createdFileIOs.subList(1, createdFileIOs.size()));
+      assertThat(tableFileIOs).isNotEmpty();
+
+      // closing the tracker closes tracked FileIOs, as garbage collecting their tables does
+      catalog.sessionCatalog().fileIOTracker().close();
+
+      Awaitility.await("table FileIOs get closed")
+          .atMost(5, TimeUnit.SECONDS)
+          .untilAsserted(() -> tableFileIOs.forEach(fileIO -> Mockito.verify(fileIO).close()));
     }
   }
 

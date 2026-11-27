@@ -183,6 +183,13 @@ class RESTTableOperations implements TableOperations {
 
     // CREATE operations need encryption configured before current metadata is available.
     encryptionPropsFromMetadata(current);
+
+    // Set up encryption here rather than on first use, so a missing KMS client or invalid
+    // encryption settings fail before the table is used.
+    if (tableKeyId != null) {
+      this.encryptionManager = newEncryptionManager();
+      this.encryptingFileIO = EncryptingFileIO.combine(io, encryptionManager);
+    }
   }
 
   @Override
@@ -334,27 +341,30 @@ class RESTTableOperations implements TableOperations {
     }
 
     if (tableKeyId != null) {
-      Preconditions.checkArgument(
-          keyManagementClient != null,
-          "Cannot create encryption manager without a key management client. Consider setting the '%s' or '%s' catalog property",
-          CatalogProperties.ENCRYPTION_KMS_TYPE,
-          CatalogProperties.ENCRYPTION_KMS_IMPL);
-
-      Map<String, String> encryptionProperties =
-          ImmutableMap.of(
-              TableProperties.ENCRYPTION_TABLE_KEY,
-              tableKeyId,
-              TableProperties.ENCRYPTION_DEK_LENGTH,
-              String.valueOf(encryptionDekLength));
-
-      encryptionManager =
-          EncryptionUtil.createEncryptionManager(
-              encryptedKeys, encryptionProperties, keyManagementClient);
+      encryptionManager = newEncryptionManager();
     } else {
       return PlaintextEncryptionManager.instance();
     }
 
     return encryptionManager;
+  }
+
+  private EncryptionManager newEncryptionManager() {
+    Preconditions.checkArgument(
+        keyManagementClient != null,
+        "Cannot create encryption manager without a key management client. Consider setting the '%s' or '%s' catalog property",
+        CatalogProperties.ENCRYPTION_KMS_TYPE,
+        CatalogProperties.ENCRYPTION_KMS_IMPL);
+
+    Map<String, String> encryptionProperties =
+        ImmutableMap.of(
+            TableProperties.ENCRYPTION_TABLE_KEY,
+            tableKeyId,
+            TableProperties.ENCRYPTION_DEK_LENGTH,
+            String.valueOf(encryptionDekLength));
+
+    return EncryptionUtil.createEncryptionManager(
+        encryptedKeys, encryptionProperties, keyManagementClient);
   }
 
   private static Long expectedSnapshotIdIfSnapshotAddOnly(List<MetadataUpdate> updates) {

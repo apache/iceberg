@@ -646,19 +646,21 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         referencedByParam(loadContext, RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER);
 
     return () -> {
+      FileIO tableIO =
+          tableFileIO(
+              identifier, context, tableConf, loadContext, credentials, remoteSigningConfig);
       RESTTableOperations ops =
           newTableOps(
               tableClient,
               paths.table(identifier),
               Map::of,
               mutationHeaders,
-              tableFileIO(
-                  identifier, context, tableConf, loadContext, credentials, remoteSigningConfig),
+              tableIO,
               tableMetadata,
               endpoints,
               readQueryParams);
 
-      trackFileIO(ops);
+      trackFileIO(ops, tableIO);
 
       RESTTable table = restTableForScanPlanning(ops, identifier, tableClient, tableConf, labels);
       if (table != null) {
@@ -731,10 +733,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     return null;
   }
 
-  private void trackFileIO(RESTTableOperations ops) {
-    if (io != ops.io()) {
+  private void trackFileIO(RESTTableOperations ops, FileIO tableIO) {
+    // The catalog closes its own FileIO. Compare tableIO because ops.io() wraps it for encrypted
+    // tables.
+    if (io != tableIO) {
       fileIOTracker.track(ops);
     }
+  }
+
+  @VisibleForTesting
+  FileIOTracker fileIOTracker() {
+    return fileIOTracker;
   }
 
   private MetricsReporter metricsReporter(String metricsEndpoint, RESTClient restClient) {
@@ -799,24 +808,26 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Map<String, String> tableConf = response.config();
     AuthSession tableSession = authManager.tableSession(ident, tableConf, contextualSession);
     RESTClient tableClient = client.withAuthSession(tableSession);
+    FileIO tableIO =
+        tableFileIO(
+            ident,
+            context,
+            tableConf,
+            LoadContext.empty(),
+            response.credentials(),
+            response.remoteSigningConfig());
     RESTTableOperations ops =
         newTableOps(
             tableClient,
             paths.table(ident),
             Map::of,
             mutationHeaders,
-            tableFileIO(
-                ident,
-                context,
-                tableConf,
-                LoadContext.empty(),
-                response.credentials(),
-                response.remoteSigningConfig()),
+            tableIO,
             response.tableMetadata(),
             endpoints,
             Map.of());
 
-    trackFileIO(ops);
+    trackFileIO(ops, tableIO);
 
     RESTTable restTable =
         restTableForScanPlanning(ops, ident, tableClient, tableConf, response.labels());
@@ -1113,24 +1124,26 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       Map<String, String> tableConf = response.config();
       AuthSession tableSession = authManager.tableSession(ident, tableConf, contextualSession);
       RESTClient tableClient = client.withAuthSession(tableSession);
+      FileIO tableIO =
+          tableFileIO(
+              ident,
+              context,
+              tableConf,
+              LoadContext.empty(),
+              response.credentials(),
+              response.remoteSigningConfig());
       RESTTableOperations ops =
           newTableOps(
               tableClient,
               paths.table(ident),
               Map::of,
               mutationHeaders,
-              tableFileIO(
-                  ident,
-                  context,
-                  tableConf,
-                  LoadContext.empty(),
-                  response.credentials(),
-                  response.remoteSigningConfig()),
+              tableIO,
               response.tableMetadata(),
               endpoints,
               Map.of());
 
-      trackFileIO(ops);
+      trackFileIO(ops, tableIO);
 
       RESTTable restTable =
           restTableForScanPlanning(ops, ident, tableClient, tableConf, response.labels());
@@ -1157,25 +1170,27 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       TableMetadata meta = response.tableMetadata();
 
       RESTClient tableClient = client.withAuthSession(tableSession);
+      FileIO tableIO =
+          tableFileIO(
+              ident,
+              context,
+              tableConf,
+              LoadContext.empty(),
+              response.credentials(),
+              response.remoteSigningConfig());
       RESTTableOperations ops =
           newTableOps(
               tableClient,
               paths.table(ident),
               Map::of,
               mutationHeaders,
-              tableFileIO(
-                  ident,
-                  context,
-                  tableConf,
-                  LoadContext.empty(),
-                  response.credentials(),
-                  response.remoteSigningConfig()),
+              tableIO,
               RESTTableOperations.UpdateType.CREATE,
               createChanges(meta),
               meta,
               endpoints);
 
-      trackFileIO(ops);
+      trackFileIO(ops, tableIO);
 
       return Transactions.createTableTransaction(
           fullName, ops, meta, metricsReporter(paths.metrics(ident), tableClient));
@@ -1229,25 +1244,27 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       }
 
       RESTClient tableClient = client.withAuthSession(tableSession);
+      FileIO tableIO =
+          tableFileIO(
+              ident,
+              context,
+              tableConf,
+              LoadContext.empty(),
+              response.credentials(),
+              response.remoteSigningConfig());
       RESTTableOperations ops =
           newTableOps(
               tableClient,
               paths.table(ident),
               Map::of,
               mutationHeaders,
-              tableFileIO(
-                  ident,
-                  context,
-                  tableConf,
-                  LoadContext.empty(),
-                  response.credentials(),
-                  response.remoteSigningConfig()),
+              tableIO,
               RESTTableOperations.UpdateType.REPLACE,
               changes.build(),
               base,
               endpoints);
 
-      trackFileIO(ops);
+      trackFileIO(ops, tableIO);
 
       return Transactions.replaceTableTransaction(
           fullName, ops, replacement, metricsReporter(paths.metrics(ident), tableClient));
