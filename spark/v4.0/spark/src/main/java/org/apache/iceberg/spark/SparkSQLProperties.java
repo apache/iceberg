@@ -109,6 +109,11 @@ public class SparkSQLProperties {
       "spark.sql.iceberg.async-micro-batch-planning-enabled";
   public static final boolean ASYNC_MICRO_BATCH_PLANNING_ENABLED_DEFAULT = false;
 
+  // Controls whether to send referenced-by view chains while loading relations; requires the
+  // Iceberg SQL extensions, which expand Iceberg views when this is enabled
+  public static final String REFERENCED_BY_ENABLED = "spark.sql.iceberg.referenced-by.enabled";
+  public static final boolean REFERENCED_BY_ENABLED_DEFAULT = false;
+
   // Prefix for custom snapshot properties
   public static final String SNAPSHOT_PROPERTY_PREFIX = "spark.sql.iceberg.snapshot-property.";
 

@@ -18,13 +18,21 @@
  */
 package org.apache.spark.sql.catalyst.analysis
 
+import org.apache.iceberg.catalog.LoadContext
+import org.apache.iceberg.catalog.TableIdentifier
+import org.apache.iceberg.spark.SparkSQLProperties
+import org.apache.iceberg.spark.SparkSupportsLoadContext
 import org.apache.spark.sql.connector.catalog.CatalogPlugin
 import org.apache.spark.sql.connector.catalog.Identifier
+import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.errors.QueryCompilationErrors
+import org.apache.spark.sql.internal.SQLConf
+import scala.jdk.CollectionConverters._
 
 object ViewUtil {
+
   def loadView(catalog: CatalogPlugin, ident: Identifier): Option[View] = catalog match {
     case viewCatalog: ViewCatalog =>
       try {
@@ -33,6 +41,76 @@ object ViewUtil {
         case _: NoSuchViewException => None
       }
     case _ => None
+  }
+
+  def loadView(catalog: CatalogPlugin, ident: Identifier, context: LoadContext): Option[View] =
+    catalog match {
+      case supportsLoadContext: SparkSupportsLoadContext =>
+        try {
+          Option(supportsLoadContext.loadView(ident, context))
+        } catch {
+          case _: NoSuchViewException => None
+        }
+      case _ => loadView(catalog, ident)
+    }
+
+  /**
+   * Build the referenced-by view chain from fully qualified view identifier parts.
+   * Entries must belong to the same catalog as the loaded target.
+   */
+  def buildReferencedByChain(
+      viewChain: Seq[Seq[String]],
+      targetCatalogName: String): java.util.List[TableIdentifier] = {
+    viewChain.foreach { parts =>
+      require(
+        parts.size >= 3,
+        s"View chain entry must be fully qualified [catalog, namespace..., name], got: " +
+          parts.mkString("."))
+    }
+
+    val crossCatalogViews = viewChain.filter(parts => !parts.headOption.contains(targetCatalogName))
+    if (crossCatalogViews.nonEmpty) {
+      throw new IllegalStateException(
+        s"Cross-catalog view references are not supported with referenced-by enabled. " +
+          s"Views from catalogs [${crossCatalogViews.map(_.head).distinct.mkString(", ")}] " +
+          s"cannot reference entities in catalog [$targetCatalogName]")
+    }
+
+    val viewIdentifiers = viewChain.map { parts =>
+      TableIdentifier.of(parts.tail: _*)
+    }
+
+    viewIdentifiers.asJava
+  }
+
+  def qualifyParts(
+      parts: Seq[String],
+      catalogAndNamespace: Seq[String],
+      isCatalog: String => Boolean): Seq[String] = {
+    parts match {
+      case Seq(name) => catalogAndNamespace :+ name
+      case _ if !isCatalog(parts.head) => catalogAndNamespace.head +: parts
+      case _ => parts
+    }
+  }
+
+  def loadTable(
+      catalog: SparkSupportsLoadContext,
+      ident: Identifier,
+      context: LoadContext,
+      timeTravelSpec: Option[TimeTravelSpec]): Table = {
+    timeTravelSpec match {
+      case Some(AsOfVersion(version)) => catalog.loadTable(ident, version, context)
+      case Some(AsOfTimestamp(micros)) => catalog.loadTable(ident, micros, context)
+      case None => catalog.loadTable(ident, context)
+    }
+  }
+
+  def referencedByEnabled(conf: SQLConf): Boolean = {
+    java.lang.Boolean.parseBoolean(
+      conf.getConfString(
+        SparkSQLProperties.REFERENCED_BY_ENABLED,
+        SparkSQLProperties.REFERENCED_BY_ENABLED_DEFAULT.toString))
   }
 
   def isViewCatalog(catalog: CatalogPlugin): Boolean = {
