@@ -127,10 +127,29 @@ class TestFileIOParser {
             ImmutableMap.of("gcs.oauth2.token", "token2", "gcs.oauth2.token-expires-at", "1000"));
     fileIO.setCredentials(ImmutableList.of(cred1, cred2));
 
-    String json = FileIOParser.toJson(fileIO, true);
-    assertThat(json).contains("storage-credentials");
+    String expectedJson =
+        String.format(
+            "{\"io-impl\":\"%s\","
+                + "\"properties\":{\"k1\":\"v1\",\"k2\":\"v2\"},"
+                + "\"storage-credentials\":["
+                + "{\"prefix\":\"s3://bucket1\",\"config\":{"
+                + "\"s3.access-key-id\":\"key1\",\"s3.secret-access-key\":\"secret1\"}},"
+                + "{\"prefix\":\"gs://bucket2\",\"config\":{"
+                + "\"gcs.oauth2.token\":\"token2\",\"gcs.oauth2.token-expires-at\":\"1000\"}}]}",
+            TestFileIOWithStorageCredentials.class.getName());
+
+    String json = FileIOParser.toJson(fileIO);
+    assertThat(json).isEqualTo(expectedJson);
 
     try (FileIO deserialized = FileIOParser.fromJson(json)) {
+      assertThat(deserialized).isInstanceOf(TestFileIOWithStorageCredentials.class);
+      assertThat(deserialized.properties()).isEqualTo(fileIO.properties());
+      assertThat(((SupportsStorageCredentials) deserialized).credentials())
+          .containsExactly(cred1, cred2);
+    }
+
+    String prettyJson = FileIOParser.toJson(fileIO, true);
+    try (FileIO deserialized = FileIOParser.fromJson(prettyJson)) {
       assertThat(deserialized).isInstanceOf(TestFileIOWithStorageCredentials.class);
       assertThat(deserialized.properties()).isEqualTo(fileIO.properties());
       assertThat(((SupportsStorageCredentials) deserialized).credentials())
