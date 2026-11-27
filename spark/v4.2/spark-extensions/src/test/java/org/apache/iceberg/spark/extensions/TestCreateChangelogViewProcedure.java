@@ -23,13 +23,20 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.ChangelogOperation;
+import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.spark.sql.AnalysisException;
+import org.apache.spark.sql.execution.SparkPlan;
+import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructField;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -230,11 +237,11 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
             "CALL %s.system.create_changelog_view(table => '%s'," + "options => map('%s', '%s'))",
             catalogName, tableName, SparkReadOptions.END_SNAPSHOT_ID, snap1.snapshotId());
 
-    assertEquals(
-        "Rows should match",
+    assertChangelogPlan(
+        (String) returns.get(0)[0],
         ImmutableList.of(
             row(1, "a", INSERT, 0, snap0.snapshotId()), row(2, "b", INSERT, 1, snap1.snapshotId())),
-        sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
+        0);
   }
 
   @TestTemplate
@@ -718,5 +725,251 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "Identifier field is required as table contains unorderable columns: [data]");
+  }
+
+  @TestTemplate
+  void insertOnlyAvoidsShuffleAndSort() {
+    assertInsertOnlyChanges("", "compute_updates => false", "false");
+  }
+
+  @TestTemplate
+  void insertOnlyUpdatesWithAqeAvoidShuffleAndSort() {
+    assertInsertOnlyChanges(
+        "PARTITIONED BY (bucket(8, id))", "identifier_columns => array('id')", "true");
+  }
+
+  @TestTemplate
+  void unboundedEmptyInputIncludesLaterAppend() {
+    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+    List<Object[]> result =
+        sql("CALL %s.system.create_changelog_view(table => '%s')", catalogName, tableName);
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    assertEquals(
+        "An unbounded view must include snapshots committed before it is read",
+        ImmutableList.of(row(1, "a", INSERT, 0, snapshotId)),
+        sql("SELECT * FROM %s", result.get(0)[0]));
+  }
+
+  @TestTemplate
+  void boundedEmptyInput() {
+    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.newAppend().commit();
+    spark.catalog().refreshTable(tableName);
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', " + "options => map('%s', '%s'))",
+            catalogName,
+            tableName,
+            SparkReadOptions.END_SNAPSHOT_ID,
+            table.currentSnapshot().snapshotId());
+
+    assertChangelogPlan((String) result.get(0)[0], ImmutableList.of(), 0);
+  }
+
+  @TestTemplate
+  void netChangesPreserveDuplicateMetadata() {
+    withSQLConf(
+        Map.of(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false"),
+        () -> {
+          sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+          sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+          long firstSnapshotId =
+              validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+          sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+          List<Object[]> result =
+              sql(
+                  "CALL %s.system.create_changelog_view(table => '%s', net_changes => true, "
+                      + "options => map('%s', '%s'))",
+                  catalogName,
+                  tableName,
+                  SparkReadOptions.END_SNAPSHOT_ID,
+                  validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId());
+
+          assertChangelogPlan(
+              (String) result.get(0)[0],
+              ImmutableList.of(
+                  row(1, "a", INSERT, 0, firstSnapshotId), row(1, "a", INSERT, 0, firstSnapshotId)),
+              1);
+        });
+  }
+
+  @TestTemplate
+  void mixedChangesRetainShuffleAndSort() {
+    withSQLConf(
+        Map.of(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false"),
+        () -> {
+          sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+          sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+          Table table = validationCatalog.loadTable(tableIdent);
+          long startSnapshotId = table.currentSnapshot().snapshotId();
+          sql("INSERT OVERWRITE %s VALUES (1, 'b')", tableName);
+          table.refresh();
+          long endSnapshotId = table.currentSnapshot().snapshotId();
+          List<Object[]> result =
+              sql(
+                  "CALL %s.system.create_changelog_view(table => '%s', "
+                      + "options => map('%s', '%s', '%s', '%s'))",
+                  catalogName,
+                  tableName,
+                  SparkReadOptions.START_SNAPSHOT_ID,
+                  startSnapshotId,
+                  SparkReadOptions.END_SNAPSHOT_ID,
+                  endSnapshotId);
+
+          assertChangelogPlan(
+              (String) result.get(0)[0],
+              ImmutableList.of(
+                  row(1, "a", DELETE, 0, endSnapshotId), row(1, "b", INSERT, 0, endSnapshotId)),
+              1);
+        });
+  }
+
+  @TestTemplate
+  void insertOnlyRejectsUnknownIdentifier() {
+    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('missing'), "
+                        + "options => map('%s', '%s'))",
+                    catalogName,
+                    tableName,
+                    SparkReadOptions.END_SNAPSHOT_ID,
+                    validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId()))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("UNRESOLVED_COLUMN");
+  }
+
+  @TestTemplate
+  void insertOnlyRejectsUnorderableIdentifier() {
+    sql("CREATE TABLE %s (id INT, data MAP<STRING, STRING>) USING iceberg", tableName);
+    sql("INSERT INTO %s VALUES (1, map('a', 'b'))", tableName);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('data'), "
+                        + "options => map('%s', '%s'))",
+                    catalogName,
+                    tableName,
+                    SparkReadOptions.END_SNAPSHOT_ID,
+                    validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId()))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("MAP");
+  }
+
+  @TestTemplate
+  void appendsAfterOverwriteWithRewriteAvoidShuffleAndSort() {
+    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    sql("INSERT OVERWRITE %s VALUES (1, 'b')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    long startSnapshotId = table.currentSnapshot().snapshotId();
+    sql("INSERT INTO %s VALUES (2, 'c')", tableName);
+    table.refresh();
+    long appendSnapshotId = table.currentSnapshot().snapshotId();
+    sql(
+        "CALL %s.system.rewrite_data_files(table => '%s', options => map('rewrite-all', 'true'))",
+        catalogName, tableName);
+    table.refresh();
+    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.REPLACE);
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', "
+                + "options => map('%s', '%s', '%s', '%s'))",
+            catalogName,
+            tableName,
+            SparkReadOptions.START_SNAPSHOT_ID,
+            startSnapshotId,
+            SparkReadOptions.END_SNAPSHOT_ID,
+            table.currentSnapshot().snapshotId());
+
+    assertChangelogPlan(
+        (String) result.get(0)[0], ImmutableList.of(row(2, "c", INSERT, 0, appendSnapshotId)), 0);
+  }
+
+  @TestTemplate
+  void insertOnlyOverwriteRetainsShuffleAndSort() {
+    withSQLConf(
+        Map.of(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false"),
+        () -> {
+          sql("CREATE TABLE %s (id INT, data STRING) USING iceberg PARTITIONED BY (id)", tableName);
+          sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+          Table table = validationCatalog.loadTable(tableIdent);
+          long startSnapshotId = table.currentSnapshot().snapshotId();
+          sql("INSERT OVERWRITE %s VALUES (2, 'b')", tableName);
+          table.refresh();
+          long endSnapshotId = table.currentSnapshot().snapshotId();
+          assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.OVERWRITE);
+
+          List<Object[]> result =
+              sql(
+                  "CALL %s.system.create_changelog_view(table => '%s', "
+                      + "options => map('%s', '%s', '%s', '%s'))",
+                  catalogName,
+                  tableName,
+                  SparkReadOptions.START_SNAPSHOT_ID,
+                  startSnapshotId,
+                  SparkReadOptions.END_SNAPSHOT_ID,
+                  endSnapshotId);
+
+          assertChangelogPlan(
+              (String) result.get(0)[0],
+              ImmutableList.of(row(2, "b", INSERT, 0, endSnapshotId)),
+              1);
+        });
+  }
+
+  private void assertInsertOnlyChanges(String partitioning, String options, String aqe) {
+    withSQLConf(
+        Map.of(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), aqe),
+        () -> {
+          sql("CREATE TABLE %s (id INT, data STRING) USING iceberg %s", tableName, partitioning);
+          sql("INSERT INTO %s VALUES (1, 'a'), (1, 'a')", tableName);
+          Table table = validationCatalog.loadTable(tableIdent);
+          long firstSnapshotId = table.currentSnapshot().snapshotId();
+          sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+          table.refresh();
+          long secondSnapshotId = table.currentSnapshot().snapshotId();
+          List<Object[]> result =
+              sql(
+                  "CALL %s.system.create_changelog_view(table => '%s', %s, "
+                      + "options => map('%s', '%s'))",
+                  catalogName,
+                  tableName,
+                  options,
+                  SparkReadOptions.END_SNAPSHOT_ID,
+                  secondSnapshotId);
+          sql("INSERT INTO %s VALUES (3, 'c')", tableName);
+
+          assertChangelogPlan(
+              (String) result.get(0)[0],
+              ImmutableList.of(
+                  row(1, "a", INSERT, 0, firstSnapshotId),
+                  row(1, "a", INSERT, 0, firstSnapshotId),
+                  row(1, "a", INSERT, 1, secondSnapshotId),
+                  row(2, "b", INSERT, 1, secondSnapshotId)),
+              0);
+        });
+  }
+
+  private void assertChangelogPlan(
+      String view, List<Object[]> expectedRows, int expectedShufflesAndSorts) {
+    List<Object[]> actualRows = Lists.newArrayList();
+    SparkPlan plan = executeAndKeepPlan(() -> actualRows.addAll(sql("SELECT * FROM %s", view)));
+
+    assertThat(actualRows).containsExactlyInAnyOrderElementsOf(expectedRows);
+    assertThat(StringUtils.countMatches(plan.toString(), "Exchange"))
+        .as("Changelog shuffles in %s", plan)
+        .isEqualTo(expectedShufflesAndSorts);
+    assertThat(StringUtils.countMatches(plan.toString(), "Sort ["))
+        .as("Changelog sorts in %s", plan)
+        .isEqualTo(expectedShufflesAndSorts);
   }
 }
