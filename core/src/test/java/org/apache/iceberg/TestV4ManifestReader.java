@@ -78,6 +78,8 @@ class TestV4ManifestReader {
   static {
     Mockito.when(UNREAD_MANIFEST_FILE.path())
         .thenReturn(FileFormat.PARQUET.addExtension("manifest"));
+    Mockito.when(UNREAD_MANIFEST_FILE.location())
+        .thenReturn(FileFormat.PARQUET.addExtension("manifest"));
     Mockito.when(UNREAD_MANIFEST_FILE.formatVersion()).thenReturn(4);
     Mockito.when(UNREAD_MANIFEST_FILE.content()).thenReturn(ManifestContent.DATA);
   }
@@ -1763,6 +1765,7 @@ class TestV4ManifestReader {
   public void validationUnknownManifestFormatFailure() {
     ManifestFile fileWithoutFormat = Mockito.mock(ManifestFile.class);
     Mockito.when(fileWithoutFormat.path()).thenReturn("manifest");
+    Mockito.when(fileWithoutFormat.location()).thenReturn("manifest");
     Mockito.when(fileWithoutFormat.formatVersion()).thenReturn(4);
     Mockito.when(fileWithoutFormat.content()).thenReturn(ManifestContent.DATA);
 
@@ -1780,6 +1783,7 @@ class TestV4ManifestReader {
   public void validationUnknownFormatVersionFailure() {
     ManifestFile v3File = Mockito.mock(ManifestFile.class);
     Mockito.when(v3File.path()).thenReturn(FileFormat.PARQUET.addExtension("manifest"));
+    Mockito.when(v3File.location()).thenReturn(FileFormat.PARQUET.addExtension("manifest"));
     Mockito.when(v3File.formatVersion()).thenReturn(3);
     Mockito.when(v3File.content()).thenReturn(ManifestContent.DATA);
 
@@ -1793,6 +1797,7 @@ class TestV4ManifestReader {
   public void validationDeleteManifestFailure() {
     ManifestFile v3File = Mockito.mock(ManifestFile.class);
     Mockito.when(v3File.path()).thenReturn(FileFormat.PARQUET.addExtension("manifest"));
+    Mockito.when(v3File.location()).thenReturn(FileFormat.PARQUET.addExtension("manifest"));
     Mockito.when(v3File.formatVersion()).thenReturn(4);
     Mockito.when(v3File.content()).thenReturn(ManifestContent.DELETES);
 
@@ -2071,6 +2076,7 @@ class TestV4ManifestReader {
   private static ManifestFile v4Manifest(String path) {
     ManifestFile manifest = mock(ManifestFile.class);
     when(manifest.path()).thenReturn(path);
+    when(manifest.location()).thenReturn(path);
     when(manifest.formatVersion()).thenReturn(FORMAT_VERSION_V4);
     when(manifest.content()).thenReturn(ManifestContent.DATA);
     when(manifest.snapshotId()).thenReturn(SNAPSHOT_ID);
