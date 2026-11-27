@@ -29,18 +29,21 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import java.util.function.LongFunction;
+import java.util.function.ToLongFunction;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericDataUtil;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.PrimitiveType;
 
 public class GenericParquetReaders extends BaseParquetReaders<Record> {
 
@@ -95,10 +98,6 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
 
   @Override
   protected ParquetValueReader<?> timestampReader(ColumnDescriptor desc, boolean isAdjustedToUTC) {
-    if (desc.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
-      return new GenericParquetReaders.TimestampInt96Reader(desc);
-    }
-
     LogicalTypeAnnotation timestamp = desc.getPrimitiveType().getLogicalTypeAnnotation();
     Preconditions.checkArgument(
         timestamp instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation,
@@ -121,6 +120,24 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
             : new GenericParquetReaders.TimestampMillisReader(desc);
       default:
         throw new UnsupportedOperationException("Unsupported unit for timestamp: " + unit);
+    }
+  }
+
+  @Override
+  ParquetValueReader<?> int96Reader(
+      ColumnDescriptor desc, TypeID expectedType, boolean isAdjustedToUTC) {
+    if (expectedType == TypeID.TIMESTAMP_NANO) {
+      return isAdjustedToUTC
+          ? new TimestampInt96Reader<>(
+              desc, ParquetUtil::extractTimestampInt96Nanos, DateTimeUtil::timestamptzFromNanos)
+          : new TimestampInt96Reader<>(
+              desc, ParquetUtil::extractTimestampInt96Nanos, DateTimeUtil::timestampFromNanos);
+    } else {
+      return isAdjustedToUTC
+          ? new TimestampInt96Reader<>(
+              desc, ParquetUtil::extractTimestampInt96, DateTimeUtil::timestamptzFromMicros)
+          : new TimestampInt96Reader<>(
+              desc, ParquetUtil::extractTimestampInt96, DateTimeUtil::timestampFromMicros);
     }
   }
 
@@ -169,24 +186,24 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     }
   }
 
-  private static class TimestampInt96Reader
-      extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
-    private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
+  private static class TimestampInt96Reader<T> extends ParquetValueReaders.PrimitiveReader<T> {
+    private final ToLongFunction<ByteBuffer> converter;
+    private final LongFunction<T> timestampConverter;
 
-    TimestampInt96Reader(ColumnDescriptor desc) {
+    TimestampInt96Reader(
+        ColumnDescriptor desc,
+        ToLongFunction<ByteBuffer> converter,
+        LongFunction<T> timestampConverter) {
       super(desc);
+      this.converter = converter;
+      this.timestampConverter = timestampConverter;
     }
 
     @Override
-    public OffsetDateTime read(OffsetDateTime reuse) {
+    public T read(T reuse) {
       final ByteBuffer byteBuffer =
           column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-      final long timeOfDayNanos = byteBuffer.getLong();
-      final int julianDay = byteBuffer.getInt();
-
-      return Instant.ofEpochMilli(TimeUnit.DAYS.toMillis(julianDay - UNIX_EPOCH_JULIAN))
-          .plusNanos(timeOfDayNanos)
-          .atOffset(ZoneOffset.UTC);
+      return timestampConverter.apply(converter.applyAsLong(byteBuffer));
     }
   }
 

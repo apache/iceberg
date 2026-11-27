@@ -20,17 +20,75 @@ package org.apache.iceberg.arrow.vectorized.parquet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.TimeStampMicroVector;
+import org.apache.arrow.vector.TimeStampNanoVector;
+import org.apache.arrow.vector.TimeStampVector;
+import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
+import org.apache.iceberg.parquet.Int96TestUtil;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.io.api.Binary;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 public class TestVectorizedParquetDefinitionLevelReader {
   private static final int UNIX_EPOCH_JULIAN_DAY = 2_440_588;
+
+  @ParameterizedTest
+  @CsvSource({"false, RLE", "false, PACKED", "true, RLE", "true, PACKED"})
+  void decodesTimestampDictionaryValues(
+      boolean nanos, BaseVectorizedParquetValuesReader.Mode mode) {
+    long[] expected = {-1L, 1001L};
+    try (RootAllocator allocator = new RootAllocator();
+        TimeStampVector vector =
+            nanos
+                ? new TimeStampNanoVector("ts", allocator)
+                : new TimeStampMicroVector("ts", allocator)) {
+      vector.allocateNew(expected.length);
+      VectorizedParquetDefinitionLevelReader definitionReader =
+          new VectorizedParquetDefinitionLevelReader(1, 1, false);
+      VectorizedDictionaryEncodedParquetValuesReader dictionaryReader =
+          new VectorizedDictionaryEncodedParquetValuesReader(1, false);
+      Dictionary dictionary =
+          new Dictionary(Encoding.PLAIN_DICTIONARY) {
+            @Override
+            public int getMaxId() {
+              return expected.length - 1;
+            }
+
+            @Override
+            public Binary decodeToBinary(int id) {
+              return Int96TestUtil.encode(
+                  BigInteger.valueOf(expected[id])
+                      .multiply(nanos ? BigInteger.ONE : BigInteger.valueOf(1000)));
+            }
+          };
+      VectorizedParquetDefinitionLevelReader.TimestampInt96Reader timestampReader =
+          definitionReader.timestampInt96Reader(vector);
+      NullabilityHolder nullability = new NullabilityHolder(expected.length);
+      for (int index = 0; index < expected.length; index += 1) {
+        vector.set(index, 0L);
+        dictionaryReader.mode = mode;
+        dictionaryReader.currentCount = 1;
+        dictionaryReader.currentValue = index;
+        dictionaryReader.packedValuesBuffer[0] = index;
+        dictionaryReader.packedValuesBufferIdx = 0;
+        timestampReader.nextDictEncodedVal(
+            vector, index, dictionaryReader, dictionary, mode, 1, nullability, Long.BYTES);
+      }
+      vector.setValueCount(expected.length);
+
+      for (int index = 0; index < expected.length; index += 1) {
+        assertThat(vector.get(index)).isEqualTo(expected[index]);
+      }
+    }
+  }
 
   @Test
   public void timestampInt96ReaderPackedDictionaryDecodeDecodesRowsCorrectly() {
