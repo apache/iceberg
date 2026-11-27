@@ -317,6 +317,21 @@ public class TestAwsClientFactories {
         .contains(URI.create(endpoint));
   }
 
+  @Test
+  void defaultGlueClientAppliesEndpointOverride() {
+    String endpoint = "https://glue.example.com";
+    AwsClientFactory factory =
+        AwsClientFactories.from(
+            ImmutableMap.of(
+                AwsClientProperties.CLIENT_REGION,
+                "us-east-1",
+                AwsProperties.GLUE_CATALOG_ENDPOINT,
+                endpoint));
+
+    assertThat(factory.glue().serviceClientConfiguration().endpointOverride())
+        .contains(URI.create(endpoint));
+  }
+
   private static AwsClientFactory assumeRoleFactory(String property, String value) {
     return AwsClientFactories.from(
         ImmutableMap.of(
