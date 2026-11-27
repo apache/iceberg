@@ -287,7 +287,21 @@ class TestFileType {
     assertThatThrownBy(() -> TypeUtil.assignIds(schema.asStruct(), oldId -> oldId + 10))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage(
-            "Cannot assign IDs to file field 1: this GetID does not implement get(int, Type)");
+            "Cannot reassign file field 1 to 11: this GetID does not implement get(int, Type)");
+  }
+
+  @Test
+  void assignedIdsKeepAFileWhoseIdIsUnchanged() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "photo", Types.FileType.of(2)));
+
+    Type assigned = TypeUtil.assignIds(schema.asStruct(), oldId -> oldId == 1 ? 100 : oldId);
+
+    Types.StructType expected =
+        Types.StructType.of(
+            required(100, "id", Types.LongType.get()), optional(2, "photo", Types.FileType.of(2)));
+    assertThat(assigned).isEqualTo(expected);
   }
 
   @Test

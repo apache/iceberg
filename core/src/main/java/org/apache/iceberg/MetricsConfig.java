@@ -50,6 +50,18 @@ import org.slf4j.LoggerFactory;
 public final class MetricsConfig implements Serializable {
 
   private static final Logger LOG = LoggerFactory.getLogger(MetricsConfig.class);
+  private static final int FILE_URI_ID_OFFSET = 1;
+  private static final int FILE_OFFSET_ID_OFFSET = 2;
+  private static final int FILE_SIZE_ID_OFFSET = 3;
+  private static final int FILE_CONTENT_TYPE_ID_OFFSET = 4;
+  private static final int FILE_CHECKSUM_ID_OFFSET = 5;
+  private static final int FILE_INLINE_ID_OFFSET = 6;
+  private static final int[] FILE_INFERRED_METRIC_ID_OFFSETS = {
+    FILE_URI_ID_OFFSET, FILE_SIZE_ID_OFFSET, FILE_CONTENT_TYPE_ID_OFFSET
+  };
+  private static final int[] FILE_COUNTS_METRIC_ID_OFFSETS = {
+    FILE_OFFSET_ID_OFFSET, FILE_CHECKSUM_ID_OFFSET, FILE_INLINE_ID_OFFSET
+  };
 
   // Disable metrics by default for wide tables to prevent excessive metadata
   private static final MetricsMode DEFAULT_MODE =
@@ -201,6 +213,17 @@ public final class MetricsConfig implements Serializable {
           }
 
           @Override
+          public Set<Integer> file(Types.FileType file, Iterable<Set<Integer>> fieldResults) {
+            for (int offset : FILE_INFERRED_METRIC_ID_OFFSETS) {
+              if (shouldContinue()) {
+                idSet.add(file.baseId() + offset);
+              }
+            }
+
+            return null;
+          }
+
+          @Override
           @SuppressWarnings("ReturnValueIgnored")
           public Set<Integer> field(Types.NestedField field, Supplier<Set<Integer>> fieldResult) {
             fieldResult.get();
@@ -285,6 +308,8 @@ public final class MetricsConfig implements Serializable {
 
     Map<String, MetricsMode> columnModes = Maps.newHashMap();
 
+    columnModes.putAll(fileColumnModes(schema, defaultMode));
+
     columnModes.putAll(defaultColumnConf);
 
     // Default sort columns to at least truncate (overridden by config)
@@ -317,6 +342,25 @@ public final class MetricsConfig implements Serializable {
     if (schema != null) {
       for (int id : limitFieldIds(schema, maxColumns)) {
         builder.put(schema.findColumnName(id), defaultMode);
+      }
+    }
+
+    return builder.build();
+  }
+
+  private static Map<String, MetricsMode> fileColumnModes(Schema schema, MetricsMode defaultMode) {
+    ImmutableMap.Builder<String, MetricsMode> builder = ImmutableMap.builder();
+    if (schema != null) {
+      MetricsMode fileMode =
+          defaultMode == MetricsModes.None.get()
+              ? MetricsModes.None.get()
+              : MetricsModes.Counts.get();
+      for (Types.NestedField field : TypeUtil.indexById(schema.asStruct()).values()) {
+        if (field.type().isFileType()) {
+          for (int offset : FILE_COUNTS_METRIC_ID_OFFSETS) {
+            builder.put(schema.findColumnName(field.fieldId() + offset), fileMode);
+          }
+        }
       }
     }
 

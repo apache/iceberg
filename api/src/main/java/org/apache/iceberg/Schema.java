@@ -149,6 +149,8 @@ public class Schema implements Serializable {
     this.struct = StructType.of(finalColumns);
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
 
+    validateFileBaseIds(struct, null);
+
     // validate IdentifierField
     if (identifierFieldIds != null) {
       Map<Integer, Integer> idToParent = TypeUtil.indexParents(struct);
@@ -159,6 +161,27 @@ public class Schema implements Serializable {
         identifierFieldIds != null ? Ints.toArray(identifierFieldIds) : new int[0];
 
     this.highestFieldId = lazyIdToName().keySet().stream().mapToInt(i -> i).max().orElse(0);
+  }
+
+  private static void validateFileBaseIds(Type type, String parentName) {
+    if (!type.isNestedType()) {
+      return;
+    }
+
+    for (NestedField field : type.asNestedType().fields()) {
+      String name = parentName != null ? parentName + "." + field.name() : field.name();
+      if (field.type().isFileType()) {
+        int baseId = field.type().asFileType().baseId();
+        Preconditions.checkArgument(
+            baseId == field.fieldId(),
+            "Invalid file column %s: file base ID %s does not match field ID %s",
+            name,
+            baseId,
+            field.fieldId());
+      } else {
+        validateFileBaseIds(field.type(), name);
+      }
+    }
   }
 
   static void validateIdentifierField(
@@ -603,18 +626,31 @@ public class Schema implements Serializable {
     if (getID == null) {
       return columns;
     }
+
     Type res =
         TypeUtil.assignIds(
             StructType.of(columns),
-            oldId -> {
-              int newId = getID.get(oldId);
-              if (newId != oldId) {
-                idsToReassigned.put(oldId, newId);
-                idsToOriginal.put(newId, oldId);
+            new TypeUtil.GetID() {
+              @Override
+              public int get(int oldId) {
+                return recordIfReassigned(oldId, getID.get(oldId));
               }
-              return newId;
+
+              @Override
+              public int get(int oldId, Type type) {
+                return recordIfReassigned(oldId, getID.get(oldId, type));
+              }
             });
     return res.asStructType().fields();
+  }
+
+  private int recordIfReassigned(int oldId, int newId) {
+    if (newId != oldId) {
+      idsToReassigned.put(oldId, newId);
+      idsToOriginal.put(newId, oldId);
+    }
+
+    return newId;
   }
 
   /**

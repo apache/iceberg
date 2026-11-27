@@ -261,6 +261,15 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
   }
 
   @Override
+  public List<String> file(Types.FileType readFile, Iterable<List<String>> fieldErrorLists) {
+    if (currentType.isFileType()) {
+      return NO_ERRORS;
+    }
+
+    return ImmutableList.of(String.format(": %s cannot be read as a %s", currentType, readFile));
+  }
+
+  @Override
   public List<String> primitive(Type.PrimitiveType readPrimitive) {
     if (currentType.equals(readPrimitive)) {
       return NO_ERRORS;

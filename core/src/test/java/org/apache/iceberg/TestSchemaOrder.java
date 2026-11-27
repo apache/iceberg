@@ -22,6 +22,9 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -69,6 +72,24 @@ class TestSchemaOrder {
 
     assertThat(SchemaOrder.allFieldIds(schema)).containsExactly(1, 2, 3, 4, 5);
     assertThat(SchemaOrder.leafFieldIds(schema)).containsExactly(1, 3, 4, 5);
+  }
+
+  @Test
+  void fileOrder() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "photo", Types.FileType.of(2)),
+            optional(9, "data", Types.StringType.get()));
+    List<Integer> nestedIds =
+        Lists.transform(Types.FileType.of(2).fields(), Types.NestedField::fieldId);
+
+    assertThat(SchemaOrder.allFieldIds(schema))
+        .containsExactlyElementsOf(
+            ImmutableList.<Integer>builder().add(1, 2).addAll(nestedIds).add(9).build());
+    assertThat(SchemaOrder.leafFieldIds(schema))
+        .containsExactlyElementsOf(
+            ImmutableList.<Integer>builder().add(1).addAll(nestedIds).add(9).build());
   }
 
   @Test

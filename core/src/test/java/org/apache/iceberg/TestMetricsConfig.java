@@ -45,6 +45,17 @@ public class TestMetricsConfig {
           optional(CATEGORY, "category", Types.StringType.get()),
           optional(DATA, "data", Types.StringType.get()));
 
+  private static final Schema FILE_SCHEMA =
+      new Schema(
+          required(1, "id", Types.LongType.get()),
+          optional(2, "photo", Types.FileType.of(2)),
+          optional(9, "data", Types.StringType.get()));
+
+  private static final MetricsModes.MetricsMode NONE = MetricsModes.None.get();
+  private static final MetricsModes.MetricsMode COUNTS = MetricsModes.Counts.get();
+  private static final MetricsModes.MetricsMode TRUNCATE_16 = MetricsModes.Truncate.withLength(16);
+  private static final MetricsModes.MetricsMode FULL = MetricsModes.Full.get();
+
   @Test
   public void testInvalidColumnModeValue() {
     Map<String, String> properties =
@@ -218,6 +229,134 @@ public class TestMetricsConfig {
     assertThat(metricModes).containsEntry(4, MetricsModes.Truncate.withLength(16));
 
     assertThat(config.metricsFieldIds()).containsExactly(33, 4);
+  }
+
+  @Test
+  void fileFieldsWithoutPruningValueDefaultToCounts() {
+    Map<String, MetricsModes.MetricsMode> expected =
+        ImmutableMap.<String, MetricsModes.MetricsMode>builder()
+            .put("id", TRUNCATE_16)
+            .put("photo.uri", TRUNCATE_16)
+            .put("photo.offset", COUNTS)
+            .put("photo.size", TRUNCATE_16)
+            .put("photo.content_type", TRUNCATE_16)
+            .put("photo.checksum", COUNTS)
+            .put("photo.inline", COUNTS)
+            .put("data", TRUNCATE_16)
+            .buildOrThrow();
+
+    MetricsConfig config = MetricsTestUtil.from(ImmutableMap.of(), FILE_SCHEMA);
+
+    assertThat(leafColumnModes(config, FILE_SCHEMA)).isEqualTo(expected);
+  }
+
+  @Test
+  void fileColumnUsesInferredDefaultsOnlyForFilterableFields() {
+    Map<String, String> properties =
+        Map.of(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "5");
+    Map<String, MetricsModes.MetricsMode> expected =
+        ImmutableMap.<String, MetricsModes.MetricsMode>builder()
+            .put("id", TRUNCATE_16)
+            .put("photo.uri", TRUNCATE_16)
+            .put("photo.offset", NONE)
+            .put("photo.size", TRUNCATE_16)
+            .put("photo.content_type", TRUNCATE_16)
+            .put("photo.checksum", NONE)
+            .put("photo.inline", NONE)
+            .put("data", TRUNCATE_16)
+            .buildOrThrow();
+
+    MetricsConfig config = MetricsTestUtil.from(properties, FILE_SCHEMA);
+
+    assertThat(leafColumnModes(config, FILE_SCHEMA)).isEqualTo(expected);
+  }
+
+  @Test
+  void fileFieldsHaveNoMetricsPastTheInferredLimit() {
+    Map<String, String> properties =
+        Map.of(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "1");
+    Map<String, MetricsModes.MetricsMode> expected =
+        ImmutableMap.<String, MetricsModes.MetricsMode>builder()
+            .put("id", TRUNCATE_16)
+            .put("photo.uri", NONE)
+            .put("photo.offset", NONE)
+            .put("photo.size", NONE)
+            .put("photo.content_type", NONE)
+            .put("photo.checksum", NONE)
+            .put("photo.inline", NONE)
+            .put("data", NONE)
+            .buildOrThrow();
+
+    MetricsConfig config = MetricsTestUtil.from(properties, FILE_SCHEMA);
+
+    assertThat(leafColumnModes(config, FILE_SCHEMA)).isEqualTo(expected);
+  }
+
+  @Test
+  void fileFieldsPastTheInferredLimitUseTheConfiguredDefault() {
+    Map<String, String> properties =
+        Map.of(
+            TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS,
+            "1",
+            TableProperties.DEFAULT_WRITE_METRICS_MODE,
+            "full");
+    Map<String, MetricsModes.MetricsMode> expected =
+        ImmutableMap.<String, MetricsModes.MetricsMode>builder()
+            .put("id", FULL)
+            .put("photo.uri", FULL)
+            .put("photo.offset", COUNTS)
+            .put("photo.size", FULL)
+            .put("photo.content_type", FULL)
+            .put("photo.checksum", COUNTS)
+            .put("photo.inline", COUNTS)
+            .put("data", FULL)
+            .buildOrThrow();
+
+    MetricsConfig config = MetricsTestUtil.from(properties, FILE_SCHEMA);
+
+    assertThat(leafColumnModes(config, FILE_SCHEMA)).isEqualTo(expected);
+  }
+
+  @Test
+  void configuredModeOverridesAnInferredFileFieldDefault() {
+    Map<String, String> properties =
+        Map.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "photo.size", "full");
+    Map<String, MetricsModes.MetricsMode> expected =
+        ImmutableMap.<String, MetricsModes.MetricsMode>builder()
+            .put("id", TRUNCATE_16)
+            .put("photo.uri", TRUNCATE_16)
+            .put("photo.offset", COUNTS)
+            .put("photo.size", FULL)
+            .put("photo.content_type", TRUNCATE_16)
+            .put("photo.checksum", COUNTS)
+            .put("photo.inline", COUNTS)
+            .put("data", TRUNCATE_16)
+            .buildOrThrow();
+
+    MetricsConfig config = MetricsTestUtil.from(properties, FILE_SCHEMA);
+
+    assertThat(leafColumnModes(config, FILE_SCHEMA)).isEqualTo(expected);
+  }
+
+  @Test
+  void configuredModeOverridesACountsFileFieldDefault() {
+    Map<String, String> properties =
+        Map.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "photo.checksum", "full");
+    Map<String, MetricsModes.MetricsMode> expected =
+        ImmutableMap.<String, MetricsModes.MetricsMode>builder()
+            .put("id", TRUNCATE_16)
+            .put("photo.uri", TRUNCATE_16)
+            .put("photo.offset", COUNTS)
+            .put("photo.size", TRUNCATE_16)
+            .put("photo.content_type", TRUNCATE_16)
+            .put("photo.checksum", FULL)
+            .put("photo.inline", COUNTS)
+            .put("data", TRUNCATE_16)
+            .buildOrThrow();
+
+    MetricsConfig config = MetricsTestUtil.from(properties, FILE_SCHEMA);
+
+    assertThat(leafColumnModes(config, FILE_SCHEMA)).isEqualTo(expected);
   }
 
   @Test
@@ -538,5 +677,11 @@ public class TestMetricsConfig {
         .isEqualTo(MetricsModes.Counts.get().toString());
 
     assertThat(deserialized.metricsFieldIds()).containsExactlyElementsOf(config.metricsFieldIds());
+  }
+
+  private static Map<String, MetricsModes.MetricsMode> leafColumnModes(
+      MetricsConfig config, Schema schema) {
+    return SchemaOrder.leafFieldIds(schema).stream()
+        .collect(Collectors.toMap(schema::findColumnName, config::columnMode));
   }
 }

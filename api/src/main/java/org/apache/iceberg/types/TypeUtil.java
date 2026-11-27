@@ -693,22 +693,24 @@ public class TypeUtil {
     /**
      * Assigns a new ID for a field of the given type.
      *
-     * <p>Implementations must override this method to assign IDs to file fields.
+     * <p>Implementations must override this method to assign a different ID to a file field.
      *
      * @param oldId an existing field ID
      * @param type the type of the field
      * @return a new field ID
-     * @throws UnsupportedOperationException if the type is a file and this method is not overridden
+     * @throws UnsupportedOperationException if the type is a file, this method is not overridden,
+     *     and {@link #get(int)} returns a different ID
      */
     default int get(int oldId, Type type) {
-      if (type.isFileType()) {
+      int newId = get(oldId);
+      if (type.isFileType() && newId != oldId) {
         throw new UnsupportedOperationException(
             String.format(
-                "Cannot assign IDs to file field %s: this GetID does not implement get(int, Type)",
-                oldId));
+                "Cannot reassign file field %s to %s: this GetID does not implement get(int, Type)",
+                oldId, newId));
       }
 
-      return get(oldId);
+      return newId;
     }
   }
 
