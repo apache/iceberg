@@ -95,6 +95,9 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
         return field.type();
       } else if (field.type().isStructType()) {
         return projectSelectedStruct(fieldResult);
+      } else if (field.type().isVectorType()) {
+        // Nested-only: primitive vectors already pass the non-nested check below.
+        return field.type();
       } else {
         Preconditions.checkArgument(
             !field.type().isNestedType(),
@@ -122,7 +125,8 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
         return projectList(list, projectedStruct);
       } else {
         Preconditions.checkArgument(
-            list.elementType().isPrimitiveType(),
+            // Nested-only: primitive vector elements already pass this whole-value projection.
+            list.elementType().isPrimitiveType() || list.elementType().isVectorType(),
             "Cannot explicitly project List or Map types, List element %s of type %s was selected",
             list.elementId(),
             list.elementType());
@@ -144,7 +148,8 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
         return projectMap(map, projectedStruct);
       } else {
         Preconditions.checkArgument(
-            map.valueType().isPrimitiveType(),
+            // Nested-only: primitive vector values already pass this whole-value projection.
+            map.valueType().isPrimitiveType() || map.valueType().isVectorType(),
             "Cannot explicitly project List or Map types, Map value %s of type %s was selected",
             map.valueId(),
             map.valueType());

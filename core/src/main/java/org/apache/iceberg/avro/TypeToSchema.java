@@ -209,6 +209,12 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
     return VariantLogicalType.get().addToSchema(schema);
   }
 
+  // Nested-only: primitive vectors already fail explicitly in primitive(...).
+  @Override
+  public Schema vector(Types.VectorType vector) {
+    throw new UnsupportedOperationException("Unsupported type: " + vector);
+  }
+
   @Override
   public Schema primitive(Type.PrimitiveType primitive) {
     Schema primitiveSchema;

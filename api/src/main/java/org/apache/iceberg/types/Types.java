@@ -71,6 +71,8 @@ public class Types {
           "geography\\s*(?:\\(\\s*([^,]*?)\\s*(?:,\\s*(\\w*)\\s*)?\\))?", Pattern.CASE_INSENSITIVE);
   private static final Pattern DECIMAL =
       Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
+  private static final Pattern VECTOR =
+      Pattern.compile("vector\\(\\s*(\\w+)\\s*,\\s*(\\d+)\\s*\\)", Pattern.CASE_INSENSITIVE);
 
   public static Type fromTypeName(String typeString) {
     String lowerTypeString = typeString.toLowerCase(Locale.ROOT);
@@ -103,6 +105,13 @@ public class Types {
       return DecimalType.of(Integer.parseInt(decimal.group(1)), Integer.parseInt(decimal.group(2)));
     }
 
+    Matcher vector = VECTOR.matcher(typeString);
+    if (vector.matches()) {
+      VectorType.ElementType elementType = VectorType.ElementType.fromName(vector.group(1));
+      int dimension = Integer.parseInt(vector.group(2));
+      return VectorType.of(elementType, dimension);
+    }
+
     throw new IllegalArgumentException("Cannot parse type string to primitive: " + typeString);
   }
 
@@ -112,7 +121,9 @@ public class Types {
       return type.asPrimitiveType();
     }
 
-    throw new IllegalArgumentException("Cannot parse type string: variant is not a primitive type");
+    // Nested-only: vector is still parseable by name, but no longer a primitive.
+    throw new IllegalArgumentException(
+        "Cannot parse type string: " + type + " is not a primitive type");
   }
 
   public static class BooleanType extends PrimitiveType {
@@ -710,6 +721,122 @@ public class Types {
     }
   }
 
+  /**
+   * A fixed-length vector type, parameterized by the type of its elements and its dimension (the
+   * number of elements, at least 1). Serializes as {@code vector(<element-type>, <dimension>)},
+   * e.g. {@code vector(int, 768)}.
+   */
+  public static class VectorType extends NestedType {
+    private static final String NAME = "vector";
+
+    /** The primitive element types a vector may hold. */
+    public enum ElementType {
+      INT("int"),
+      LONG("long"),
+      FLOAT("float"),
+      DOUBLE("double");
+
+      private final String typeName;
+
+      ElementType(String typeName) {
+        this.typeName = typeName;
+      }
+
+      public String typeName() {
+        return typeName;
+      }
+
+      public static ElementType fromName(String name) {
+        Preconditions.checkArgument(name != null, "Invalid vector element type: null");
+        String trimmed = name.trim();
+        for (ElementType type : values()) {
+          if (type.typeName.equalsIgnoreCase(trimmed)) {
+            return type;
+          }
+        }
+
+        throw new IllegalArgumentException("Invalid vector element type: " + name);
+      }
+    }
+
+    public static VectorType of(ElementType elementType, int dimension) {
+      return new VectorType(elementType, dimension);
+    }
+
+    private final ElementType elementType;
+    private final int dimension;
+
+    private VectorType(ElementType elementType, int dimension) {
+      Preconditions.checkArgument(elementType != null, "Vector element type cannot be null");
+      Preconditions.checkArgument(
+          dimension >= 1, "Vector dimension must be at least 1: %s", dimension);
+      this.elementType = elementType;
+      this.dimension = dimension;
+    }
+
+    public ElementType elementType() {
+      return elementType;
+    }
+
+    public int dimension() {
+      return dimension;
+    }
+
+    // Nested-only: implement NestedType's field API without inventing an element field or ID.
+    // A primitive vector would not need these methods. Element type is a type parameter.
+    @Override
+    public List<NestedField> fields() {
+      return ImmutableList.of();
+    }
+
+    @Override
+    public Type fieldType(String name) {
+      return null;
+    }
+
+    @Override
+    public NestedField field(int id) {
+      return null;
+    }
+
+    @Override
+    public boolean isVectorType() {
+      return true;
+    }
+
+    @Override
+    public VectorType asVectorType() {
+      return this;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.VECTOR;
+    }
+
+    @Override
+    public String toString() {
+      return String.format(Locale.ROOT, "%s(%s, %d)", NAME, elementType.typeName(), dimension);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      } else if (!(o instanceof VectorType)) {
+        return false;
+      }
+
+      VectorType that = (VectorType) o;
+      return elementType == that.elementType && dimension == that.dimension;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(VectorType.class, elementType, dimension);
+    }
+  }
+
   public static class NestedField implements Serializable {
     public static NestedField optional(int id, String name, Type type) {
       return new NestedField(true, id, name, type, null, null, null);
@@ -893,7 +1020,7 @@ public class Types {
     }
 
     private static Literal<?> castDefault(Literal<?> defaultValue, Type type) {
-      if (type.isNestedType() && defaultValue != null) {
+      if (defaultValue != null && type.isNestedType()) {
         throw new IllegalArgumentException(
             String.format("Invalid default value for %s: %s (must be null)", type, defaultValue));
       } else if (defaultValue != null) {

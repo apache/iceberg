@@ -139,6 +139,12 @@ public class RestoreColumns extends SchemaWithPartnerVisitor<Type, Type> {
     return projection;
   }
 
+  // Nested-only: primitive vectors use primitive(...) to retain the projected type.
+  @Override
+  public Type vector(Types.VectorType vector, Type projection) {
+    return projection;
+  }
+
   private static class FieldIdAccessors implements SchemaWithPartnerVisitor.PartnerAccessors<Type> {
     private static final FieldIdAccessors INSTANCE = new FieldIdAccessors();
 

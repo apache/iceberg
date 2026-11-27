@@ -96,6 +96,12 @@ class ReassignDoc extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     return variant;
   }
 
+  // Nested-only: primitive vectors are already preserved by primitive(...).
+  @Override
+  public Type vector(Types.VectorType vector) {
+    return vector;
+  }
+
   @Override
   public Type file(Types.FileType file, Iterable<Type> fieldTypes) {
     // the nested fields of a file cannot carry docs
