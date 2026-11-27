@@ -336,7 +336,8 @@ class RESTTableOperations implements TableOperations {
     if (tableKeyId != null) {
       Preconditions.checkArgument(
           keyManagementClient != null,
-          "Cannot create encryption manager without a key management client. Consider setting the '%s' catalog property",
+          "Cannot create encryption manager without a key management client. Consider setting the '%s' or '%s' catalog property",
+          CatalogProperties.ENCRYPTION_KMS_TYPE,
           CatalogProperties.ENCRYPTION_KMS_IMPL);
 
       Map<String, String> encryptionProperties =
