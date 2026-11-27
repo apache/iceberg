@@ -4,7 +4,8 @@
  * distributed with this work for additional information
  * regarding copyright ownership.  The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
- * "License"); you may obtain a copy of the License at
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -37,14 +38,14 @@ public class TestLegacyOrcManifestReader extends TestBase {
     Schema schema =
         new Schema(
             required(1, "id", Types.IntegerType.get()),
-            optional(2, "parent", Types.StructType.of(optional(3, "leaf", Types.IntegerType.get()))));
+            optional(
+                2, "parent", Types.StructType.of(optional(3, "leaf", Types.IntegerType.get()))));
     PartitionSpec spec = PartitionSpec.builderFor(schema).build();
 
     // This is the metadata emitted by the pre-fix ORC metrics conversion for a file with
     // two rows: parent = NULL, and parent = {leaf: 10}. No physical ORC data is needed
     // because the regression happens before the reader opens the file.
-    Metrics legacyMetrics =
-        new Metrics(2L, null, Map.of(1, 2L, 3, 1L), Map.of(1, 0L, 3, 0L), null);
+    Metrics legacyMetrics = new Metrics(2L, null, Map.of(1, 2L, 3, 1L), Map.of(1, 0L, 3, 0L), null);
     Metrics healthyMetrics =
         new Metrics(2L, null, Map.of(1, 2L, 3, 2L), Map.of(1, 0L, 3, 0L), null);
     DataFile legacy =
@@ -67,10 +68,10 @@ public class TestLegacyOrcManifestReader extends TestBase {
             .build();
 
     OutputFile outputFile =
-        table.ops()
+        table
+            .ops()
             .io()
-            .newOutputFile(
-                temp.resolve(manifestFormat().addExtension("legacy-orc-m0")).toString());
+            .newOutputFile(temp.resolve(manifestFormat().addExtension("legacy-orc-m0")).toString());
     ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, spec, outputFile, 1000L);
     try {
       writer.add(legacy);
@@ -85,10 +86,7 @@ public class TestLegacyOrcManifestReader extends TestBase {
     try (ManifestReader<DataFile> reader =
         ManifestFiles.read(manifest, table.ops().io(), Map.of(spec.specId(), spec))
             .filterRows(isNull("parent.leaf"))) {
-      assertThat(
-              Streams.stream(reader)
-                  .map(DataFile::location)
-                  .collect(Collectors.toList()))
+      assertThat(Streams.stream(reader).map(DataFile::location).collect(Collectors.toList()))
           .containsExactly(legacy.location());
     }
 
@@ -97,10 +95,7 @@ public class TestLegacyOrcManifestReader extends TestBase {
         ManifestFiles.read(manifest, table.ops().io(), Map.of(spec.specId(), spec))
             .select(List.of("file_path"))
             .filterRows(isNull("parent.leaf"))) {
-      assertThat(
-              Streams.stream(reader)
-                  .map(DataFile::location)
-                  .collect(Collectors.toList()))
+      assertThat(Streams.stream(reader).map(DataFile::location).collect(Collectors.toList()))
           .containsExactly(legacy.location());
     }
   }

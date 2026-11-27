@@ -48,15 +48,11 @@ public class TestLegacyOrcNestedNullMetrics {
                       3,
                       "inner",
                       Types.StructType.of(required(4, "leaf", Types.IntegerType.get()))))),
-          required(
-              5,
-              "stable",
-              Types.StructType.of(optional(6, "leaf", Types.IntegerType.get()))),
+          required(5, "stable", Types.StructType.of(optional(6, "leaf", Types.IntegerType.get()))),
           optional(7, "simple", Types.IntegerType.get()));
 
   private static DataFile file(String filename, long nestedValueCount) {
-    Map<Integer, Long> valueCounts =
-        Map.of(2, nestedValueCount, 4, nestedValueCount, 6, 2L, 7, 2L);
+    Map<Integer, Long> valueCounts = Map.of(2, nestedValueCount, 4, nestedValueCount, 6, 2L, 7, 2L);
     Map<Integer, Long> nullCounts = Map.of(2, 0L, 4, 0L, 6, 0L, 7, 0L);
     Map<Integer, ByteBuffer> bounds =
         Map.of(
@@ -64,8 +60,7 @@ public class TestLegacyOrcNestedNullMetrics {
             4, toByteBuffer(Types.IntegerType.get(), 20),
             6, toByteBuffer(Types.IntegerType.get(), 30),
             7, toByteBuffer(Types.IntegerType.get(), 40));
-    return new TestDataFile(
-        filename, Row.of(), 2L, valueCounts, nullCounts, null, bounds, bounds);
+    return new TestDataFile(filename, Row.of(), 2L, valueCounts, nullCounts, null, bounds, bounds);
   }
 
   private static boolean mayMatch(DataFile file, Expression expression) {
@@ -102,8 +97,7 @@ public class TestLegacyOrcNestedNullMetrics {
   @Test
   public void testMissingChildValueCountsCannotProveNoNulls() {
     DataFile missingCounts =
-        new TestDataFile(
-            "legacy.orc", Row.of(), 2L, null, Map.of(2, 0L), null, null, null);
+        new TestDataFile("legacy.orc", Row.of(), 2L, null, Map.of(2, 0L), null, null, null);
     assertThat(mayMatch(missingCounts, isNull("parent.leaf"))).isTrue();
   }
 
@@ -112,19 +106,10 @@ public class TestLegacyOrcNestedNullMetrics {
     Schema floatSchema =
         new Schema(
             optional(
-                10,
-                "parent",
-                Types.StructType.of(optional(11, "leaf", Types.FloatType.get()))));
+                10, "parent", Types.StructType.of(optional(11, "leaf", Types.FloatType.get()))));
     DataFile legacyAllObservedNaN =
         new TestDataFile(
-            "legacy.orc",
-            Row.of(),
-            2L,
-            Map.of(11, 1L),
-            Map.of(11, 0L),
-            Map.of(11, 1L),
-            null,
-            null);
+            "legacy.orc", Row.of(), 2L, Map.of(11, 1L), Map.of(11, 0L), Map.of(11, 1L), null, null);
     DataFile legacyWithNoPresentChildren =
         new TestDataFile(
             "all-null-parents.orc",
@@ -156,8 +141,7 @@ public class TestLegacyOrcNestedNullMetrics {
                 .eval(legacyWithNoPresentChildren))
         .isTrue();
     assertThat(
-            new InclusiveMetricsEvaluator(floatSchema, notNaN("parent.leaf"))
-                .eval(healthyAllNaN))
+            new InclusiveMetricsEvaluator(floatSchema, notNaN("parent.leaf")).eval(healthyAllNaN))
         .isFalse();
   }
 }
