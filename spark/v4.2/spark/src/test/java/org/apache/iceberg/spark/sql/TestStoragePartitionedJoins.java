@@ -785,7 +785,7 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
   // full key, so within id 1 the 'bb' split comes before the 'aa' one. Turning the key ordering
   // off after planning must not change how the planned merge orders the rows.
   @TestTemplate
-  public void testPlannedSortedMergeKeepsOrderingAfterConfigChange() {
+  public void plannedSortedMergeKeepsOrderingAfterConfigChange() {
     sql(
         "CREATE TABLE %s (id INT, name STRING, arrive_time TIMESTAMP) "
             + "USING iceberg "
