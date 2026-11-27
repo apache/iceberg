@@ -333,6 +333,23 @@ public class TestTableEncryption extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void addKeyIdToUnencryptedTable() {
+    sql("DROP TABLE %s", tableName);
+    sql(
+        "CREATE TABLE %s (id bigint) USING iceberg TBLPROPERTIES ('format-version'='3')",
+        tableName);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s SET TBLPROPERTIES ('encryption.key-id'='%s')",
+                    tableName, UnitestKMS.MASTER_KEY_NAME1))
+        .isInstanceOf(SparkException.class)
+        .hasMessage(
+            "Unsupported table change: Cannot add key ID to an existing table: set encryption.key-id when creating the table");
+  }
+
+  @TestTemplate
   public void testReplaceKeyChange() {
     // Replacing a table with a different encryption key is disallowed
     assertThatThrownBy(

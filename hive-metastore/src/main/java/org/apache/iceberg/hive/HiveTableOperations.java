@@ -299,6 +299,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
             "Cannot remove key ID from an encrypted table");
 
         Preconditions.checkArgument(
+            base.properties().containsKey(TableProperties.ENCRYPTION_TABLE_KEY)
+                || !metadata.properties().containsKey(TableProperties.ENCRYPTION_TABLE_KEY),
+            "Cannot add key ID to an existing table: set %s when creating the table",
+            TableProperties.ENCRYPTION_TABLE_KEY);
+
+        Preconditions.checkArgument(
             Objects.equals(
                 base.properties().get(TableProperties.ENCRYPTION_TABLE_KEY),
                 metadata.properties().get(TableProperties.ENCRYPTION_TABLE_KEY)),
