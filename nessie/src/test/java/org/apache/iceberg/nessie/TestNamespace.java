@@ -83,6 +83,21 @@ public class TestNamespace extends BaseTestIceberg {
   }
 
   @Test
+  void listNamespacesWithSpecialCharacters() {
+    Namespace quote = Namespace.of("it's");
+    Namespace quoteChild = Namespace.of("it's", "c");
+    Namespace backslash = Namespace.of("a\\b");
+    Namespace backslashChild = Namespace.of("a\\b", "c");
+    catalog.createNamespace(quote, ImmutableMap.of());
+    catalog.createNamespace(quoteChild, ImmutableMap.of());
+    catalog.createNamespace(backslash, ImmutableMap.of());
+    catalog.createNamespace(backslashChild, ImmutableMap.of());
+
+    assertThat(catalog.listNamespaces(quote)).containsExactly(quoteChild);
+    assertThat(catalog.listNamespaces(backslash)).containsExactly(backslashChild);
+  }
+
+  @Test
   public void testCreatingAndDroppingNamespace() {
     Namespace namespace = Namespace.of("test");
     catalog.createNamespace(namespace, ImmutableMap.of());
