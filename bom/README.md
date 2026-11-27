@@ -17,6 +17,5 @@
 
 # iceberg-bom
 
-The `iceberg-bom` project is configured in the root `build.gradle`. This directory exists because
-Gradle requires every included project to have one: a missing project directory is deprecated in
-Gradle 8 and an error in Gradle 9.
+The `iceberg-bom` project is configured in the root `build.gradle`. This directory exists
+because Gradle expects every included project to have one.
