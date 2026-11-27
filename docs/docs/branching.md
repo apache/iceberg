@@ -34,6 +34,15 @@ Branches have retention properties which define the minimum number of snapshots 
 These properties are used when the expireSnapshots procedure is run.
 For details on the algorithm for expireSnapshots, refer to the [spec](../../spec.md#snapshot-retention-policy).
 
+## Differences from Git
+
+Iceberg branches and tags are **named references to snapshots** with their own retention policies.
+They are useful for WAP-style workflows and historical retention, but they are not a direct parallel to Git branches:
+
+* A branch always identifies the **current tip** (head) of an independent snapshot lineage. Committing to a branch advances that tip; promoting work onto `main` is typically done with procedures such as [`fast_forward`](spark-procedures.md#fast_forward) rather than Git-style merge commits.
+* Retention is **policy-driven**. Branch and tag properties control how long the *reference* is kept and how many / how old snapshots on a branch are retained when [`expire_snapshots`](spark-procedures.md#expire_snapshots) runs. Git does not expire history by table retention settings in the same way.
+* Time travel to a branch or tag resolves to that named tip (or tagged snapshot). History on `main` can change via rollback, while ancestor relationships of a given snapshot remain fixed—see the [spec](../../spec.md#snapshot-retention-policy) for retention details.
+
 ## Use Cases
 
 Branching and tagging can be used for handling GDPR requirements and retaining important historical snapshots for auditing.
