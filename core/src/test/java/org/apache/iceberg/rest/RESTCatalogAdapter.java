@@ -190,6 +190,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           } else {
             ns = Namespace.empty();
           }
+          boolean recursive = PropertyUtil.propertyAsBoolean(vars, "recursive", false);
 
           String pageToken = PropertyUtil.propertyAsString(vars, "pageToken", null);
           String pageSize = PropertyUtil.propertyAsString(vars, "pageSize", null);
@@ -199,6 +200,10 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                 responseType,
                 CatalogHandlers.listNamespaces(asNamespaceCatalog, ns, pageToken, pageSize));
           } else {
+            if (recursive) {
+              return castResponse(
+                  responseType, CatalogHandlers.listNamespacesRecursively(asNamespaceCatalog, ns));
+            }
             return castResponse(
                 responseType, CatalogHandlers.listNamespaces(asNamespaceCatalog, ns));
           }
