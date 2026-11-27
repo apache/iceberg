@@ -35,6 +35,8 @@ import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
@@ -44,6 +46,7 @@ import org.apache.flink.table.types.logical.IntType;
 import org.apache.flink.table.types.logical.LocalZonedTimestampType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.RowKind;
+import org.apache.flink.util.InstantiationUtil;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -54,6 +57,8 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestBase;
 import org.apache.iceberg.TestHelpers;
@@ -62,6 +67,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
+import org.apache.iceberg.io.BaseTaskWriter.InsertedRowTracker;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -373,6 +379,103 @@ public class TestDeltaTaskWriter extends TestBase {
     assertThat(actualRowSet("*")).isEqualTo(expectedRowSet(expectedRecord));
   }
 
+  @TestTemplate
+  public void testTaskWritersShareInsertedRowTrackerFromResolver() throws IOException {
+    createAndInitTable(false);
+    InsertedRowTracker[] shared = new InsertedRowTracker[1];
+    RowDataTaskWriterFactory taskWriterFactory =
+        createTaskWriterFactory(
+            Sets.newHashSet(idFieldId()),
+            (partition, keyType) -> {
+              if (shared[0] == null) {
+                shared[0] = InsertedRowTracker.create(keyType);
+              }
+
+              return shared[0];
+            });
+    taskWriterFactory.initialize(1, 1);
+
+    TaskWriter<RowData> first = taskWriterFactory.create();
+    TaskWriter<RowData> second = taskWriterFactory.create();
+    first.write(createInsert(1, "aaa"));
+    first.write(createInsert(2, "bbb"));
+    second.write(createUpdateBefore(1, "aaa")); // retires the first writer's row: 1 pos-delete
+    second.write(createUpdateAfter(1, "ccc"));
+
+    WriteResult firstResult = first.complete();
+    WriteResult secondResult = second.complete();
+    assertThat(firstResult.deleteFiles()).isEmpty();
+    assertThat(secondResult.deleteFiles())
+        .hasSize(1)
+        .allMatch(file -> file.content() == FileContent.POSITION_DELETES);
+    assertThat(secondResult.referencedDataFiles())
+        .containsExactly(firstResult.dataFiles()[0].location());
+
+    RowDelta rowDelta = table.newRowDelta();
+    for (WriteResult result : ImmutableList.of(firstResult, secondResult)) {
+      Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
+      Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
+    }
+
+    rowDelta.commit();
+    assertThat(actualRowSet("*"))
+        .isEqualTo(expectedRowSet(createRecord(1, "ccc"), createRecord(2, "bbb")));
+  }
+
+  @TestTemplate
+  public void testDeserializedTaskWriterFactoryUsesPrivateInsertedRowTrackers() throws Exception {
+    createAndInitTable(false);
+    AtomicInteger resolverCalls = new AtomicInteger();
+    RowDataTaskWriterFactory original =
+        createTaskWriterFactory(
+            Sets.newHashSet(idFieldId()),
+            (partition, keyType) -> {
+              resolverCalls.incrementAndGet();
+              return InsertedRowTracker.create(keyType);
+            });
+
+    // The resolver is transient: a factory shipped to a task manager keeps one tracker per writer
+    RowDataTaskWriterFactory deserialized = InstantiationUtil.clone(original);
+    deserialized.initialize(1, 1);
+
+    TaskWriter<RowData> first = deserialized.create();
+    TaskWriter<RowData> second = deserialized.create();
+    first.write(createInsert(1, "aaa"));
+    second.write(createUpdateBefore(1, "aaa")); // not in this writer's tracker: 1 eq-delete
+    second.write(createUpdateAfter(1, "bbb"));
+
+    first.complete();
+    WriteResult secondResult = second.complete();
+    assertThat(resolverCalls).hasValue(0);
+    assertThat(secondResult.deleteFiles())
+        .hasSize(1)
+        .allMatch(file -> file.content() == FileContent.EQUALITY_DELETES);
+  }
+
+  @TestTemplate
+  public void testTaskWriterIgnoresSharedInsertedRowTrackerOfAnotherKeyType() throws IOException {
+    createAndInitTable(false);
+    Types.StructType dataKeyType = table.schema().select("data").asStruct();
+    RowDataTaskWriterFactory taskWriterFactory =
+        createTaskWriterFactory(
+            Sets.newHashSet(idFieldId()),
+            (partition, keyType) -> InsertedRowTracker.create(dataKeyType));
+    taskWriterFactory.initialize(1, 1);
+
+    // A tracker keyed by another type is not shared; the writer falls back to a private tracker
+    TaskWriter<RowData> writer = taskWriterFactory.create();
+    writer.write(createInsert(1, "aaa"));
+    writer.write(createDelete(1, "aaa")); // 1 pos-delete from the private tracker
+
+    WriteResult result = writer.complete();
+    assertThat(result.deleteFiles())
+        .hasSize(1)
+        .allMatch(file -> file.content() == FileContent.POSITION_DELETES);
+    commitTransaction(result);
+
+    assertThat(actualRowSet("*")).isEqualTo(expectedRowSet());
+  }
+
   private void commitTransaction(WriteResult result) {
     RowDelta rowDelta = table.newRowDelta();
     Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
@@ -400,6 +503,23 @@ public class TestDeltaTaskWriter extends TestBase {
         table.properties(),
         equalityFieldIds,
         false);
+  }
+
+  private RowDataTaskWriterFactory createTaskWriterFactory(
+      Set<Integer> equalityFieldIds,
+      BiFunction<StructLike, Types.StructType, InsertedRowTracker> insertedRowTrackers) {
+    Table serializableTable = SerializableTable.copyOf(table);
+    return new RowDataTaskWriterFactory(
+        () -> serializableTable,
+        FlinkSchemaUtil.convert(table.schema()),
+        128 * 1024 * 1024,
+        format,
+        table.properties(),
+        equalityFieldIds,
+        false,
+        table.schema(),
+        table.spec(),
+        insertedRowTrackers);
   }
 
   private TaskWriterFactory<RowData> createTaskWriterFactory(

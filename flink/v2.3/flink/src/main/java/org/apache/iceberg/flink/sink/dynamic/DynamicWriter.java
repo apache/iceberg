@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.VisibleForTesting;
@@ -31,6 +32,7 @@ import org.apache.flink.api.connector.sink2.SinkWriter;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -38,12 +40,14 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
 import org.apache.iceberg.flink.sink.SinkUtil;
+import org.apache.iceberg.io.BaseTaskWriter.InsertedRowTracker;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,6 +62,11 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
 
   private final Map<WriteTarget, RowDataTaskWriterFactory> taskWriterFactories;
   private final Map<WriteTarget, TaskWriter<RowData>> writers;
+  // Inserted-row trackers shared within the current checkpoint by writers of the same table, e.g.
+  // after a schema evolution or a change of upsert mode; without a shared tracker re-writes of keys
+  // written by another writer would produce equality deletes at the same sequence number as their
+  // targets, which never apply.
+  private final Map<TrackerScope, TableTrackers> insertedRowTrackers;
   private final Configuration flinkConfig;
   private final Map<String, String> commonWriteProperties;
   private final DynamicWriterMetrics metrics;
@@ -81,6 +90,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     this.attemptId = attemptId;
     this.taskWriterFactories = new LRUCache<>(cacheMaximumSize);
     this.writers = Maps.newHashMap();
+    this.insertedRowTrackers = Maps.newHashMap();
 
     LOG.debug("DynamicIcebergSinkWriter created for subtask {} attemptId {}", subTaskId, attemptId);
   }
@@ -129,6 +139,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                             SinkUtil.writeProperties(
                                 flinkWriteConf.dataFileFormat(), flinkWriteConf, table);
 
+                        TrackerScope trackerScope = new TrackerScope(factoryKey);
                         LOG.debug("Creating new writer factory for table '{}'", table.name());
                         return new RowDataTaskWriterFactory(
                             () -> table,
@@ -139,7 +150,9 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                             Lists.newArrayList(equalityFieldIds),
                             element.upsertMode(),
                             element.schema(),
-                            element.spec());
+                            element.spec(),
+                            (partition, keyType) ->
+                                insertedRowTracker(trackerScope, partition, keyType));
                       });
 
               taskWriterFactory.initialize(subTaskId, attemptId);
@@ -149,6 +162,86 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     metrics.mainMetricsGroup().getNumRecordsSendCounter().inc();
   }
 
+  private InsertedRowTracker insertedRowTracker(
+      TrackerScope trackerScope, StructLike partition, Types.StructType keyType) {
+    TableTrackers trackers =
+        insertedRowTrackers.computeIfAbsent(trackerScope, scope -> new TableTrackers(keyType));
+    if (!trackers.acceptsKeyType(keyType)) {
+      LOG.warn(
+          "Not sharing inserted-row tracker for table {} branch {}: key type {} of the earlier "
+              + "writers does not accept key type {} of the new writer (an equality field's type, "
+              + "optionality or position changed). Re-writes of a key across these schema versions "
+              + "within one checkpoint will produce equality deletes that cannot apply to data "
+              + "written in the same commit",
+          trackerScope.tableName,
+          trackerScope.branch,
+          trackers.keyType(),
+          keyType);
+      return null;
+    }
+
+    return trackers.forPartition(partition);
+  }
+
+  private static class TrackerScope {
+    private final String tableName;
+    private final String branch;
+    private final Integer specId;
+    private final Set<Integer> equalityFields;
+
+    private TrackerScope(WriteTarget writeTarget) {
+      this.tableName = writeTarget.tableName();
+      this.branch = writeTarget.branch();
+      this.specId = writeTarget.specId();
+      this.equalityFields = writeTarget.equalityFields();
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      }
+
+      if (other == null || getClass() != other.getClass()) {
+        return false;
+      }
+
+      TrackerScope that = (TrackerScope) other;
+      return Objects.equals(tableName, that.tableName)
+          && Objects.equals(branch, that.branch)
+          && Objects.equals(specId, that.specId)
+          && Objects.equals(equalityFields, that.equalityFields);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(tableName, branch, specId, equalityFields);
+    }
+  }
+
+  /** Inserted-row trackers of one table within one checkpoint, one per partition. */
+  private static class TableTrackers {
+    private final Types.StructType keyType;
+    private final Map<StructLike, InsertedRowTracker> byPartition = Maps.newHashMap();
+
+    private TableTrackers(Types.StructType keyType) {
+      this.keyType = keyType;
+    }
+
+    private Types.StructType keyType() {
+      return keyType;
+    }
+
+    private boolean acceptsKeyType(Types.StructType otherKeyType) {
+      return byPartition.isEmpty()
+          || byPartition.values().iterator().next().acceptsKeyType(otherKeyType);
+    }
+
+    private InsertedRowTracker forPartition(StructLike partition) {
+      return byPartition.computeIfAbsent(partition, part -> InsertedRowTracker.create(keyType));
+    }
+  }
+
   @Override
   public void flush(boolean endOfInput) {
     // flush is used to handle flush/endOfInput, so no action is taken here.
@@ -156,8 +249,12 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
 
   @Override
   public void close() throws Exception {
-    for (TaskWriter<RowData> writer : writers.values()) {
-      writer.close();
+    try {
+      for (TaskWriter<RowData> writer : writers.values()) {
+        writer.close();
+      }
+    } finally {
+      insertedRowTrackers.clear();
     }
   }
 
@@ -196,6 +293,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     }
 
     writers.clear();
+    insertedRowTrackers.clear();
 
     return result;
   }
