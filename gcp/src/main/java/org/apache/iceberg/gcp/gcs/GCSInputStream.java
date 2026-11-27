@@ -19,6 +19,7 @@
 package org.apache.iceberg.gcp.gcs;
 
 import com.google.cloud.ReadChannel;
+import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobSourceOption;
@@ -28,6 +29,7 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.RangeReadable;
@@ -179,7 +181,12 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
   @Override
   public int readTail(byte[] buffer, int offset, int length) throws IOException {
     if (blobSize == null) {
-      blobSize = storage.get(blobId).getSize();
+      Blob blob = storage.get(blobId);
+      if (blob == null) {
+        throw new NotFoundException("Location does not exist: %s", blobId.toGsUtilUri());
+      }
+
+      blobSize = blob.getSize();
     }
     long startPosition = Math.max(0, blobSize - length);
     try (ReadChannel readChannel = openChannel()) {

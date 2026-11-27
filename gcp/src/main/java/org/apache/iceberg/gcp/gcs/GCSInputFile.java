@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
+import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import java.io.IOException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
@@ -64,7 +66,12 @@ class GCSInputFile extends BaseGCSFile implements InputFile {
   @Override
   public long getLength() {
     if (blobSize == null) {
-      this.blobSize = getBlob().getSize();
+      Blob blob = getBlob();
+      if (blob == null) {
+        throw new NotFoundException("Location does not exist: %s", location());
+      }
+
+      this.blobSize = blob.getSize();
     }
 
     return blobSize;
