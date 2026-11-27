@@ -139,6 +139,13 @@ final class CurveQuantization {
           column);
     }
 
+    Preconditions.checkArgument(
+        !hasBounds || Double.isFinite(max - min),
+        "Cannot quantize column %s: range [%s, %s] is too wide",
+        column,
+        min,
+        max);
+
     return hasBounds ? new ColumnRange(min, max, false) : ColumnRange.NONE;
   }
 

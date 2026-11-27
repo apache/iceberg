@@ -154,6 +154,17 @@ class TestCurveQuantization extends TestBase {
   }
 
   @Test
+  void rangeFailsWhenDoubleRangeOverflows() {
+    Table table = createTable(ImmutableMap.of());
+    List<FileScanTask> tasks = ImmutableList.of(doubleFile(-Double.MAX_VALUE, Double.MAX_VALUE));
+
+    assertThatThrownBy(() -> CurveQuantization.ranges(tasks, table, ImmutableList.of("double_col")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("double_col")
+        .hasMessageContaining("too wide");
+  }
+
+  @Test
   void rangeFailsWhenNoFileHasCountsAndMetricsAreOff() {
     Table table = createTable(ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none"));
     List<FileScanTask> tasks = filesWithoutMetrics();
