@@ -5714,11 +5714,11 @@ components:
         column-sizes:
           allOf:
             - $ref: '#/components/schemas/CountMap'
-          description: "Map of column id to total count, including null and NaN"
+          description: "Map of column id to total size on disk in bytes of all regions that store the column"
         value-counts:
           allOf:
             - $ref: '#/components/schemas/CountMap'
-          description: "Map of column id to null value count"
+          description: "Map of column id to number of values in the column (including null and NaN values)"
         null-value-counts:
           allOf:
             - $ref: '#/components/schemas/CountMap'
