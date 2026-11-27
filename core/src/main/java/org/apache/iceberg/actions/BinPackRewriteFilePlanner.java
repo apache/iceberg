@@ -302,13 +302,13 @@ public class BinPackRewriteFilePlanner
     TableScan scan =
         table().newScan().filter(filter).caseSensitive(caseSensitive).ignoreResiduals();
 
-    if (snapshotId != null) {
-      scan = scan.useSnapshot(snapshotId);
-    }
-
     Collection<String> statsColumns = statsColumns();
     if (!statsColumns.isEmpty()) {
       scan = scan.includeColumnStats(statsColumns);
+    }
+
+    if (snapshotId != null) {
+      scan = scan.useSnapshot(snapshotId);
     }
 
     CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles();

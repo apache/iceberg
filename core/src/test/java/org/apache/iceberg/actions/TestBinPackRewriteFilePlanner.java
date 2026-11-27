@@ -625,16 +625,8 @@ class TestBinPackRewriteFilePlanner {
   @Test
   void plannedTasksCarryStatsForRequestedColumns() {
     addFilesWithBounds();
-    BinPackRewriteFilePlanner planner =
-        new BinPackRewriteFilePlanner(table) {
-          @Override
-          protected Collection<String> statsColumns() {
-            return ImmutableList.of("data");
-          }
-        };
-    planner.init(REWRITE_ALL);
 
-    List<FileScanTask> tasks = plannedTasks(planner);
+    List<FileScanTask> tasks = plannedTasks(plannerWithStatsFor("data"));
 
     int dataId = table.schema().findField("data").fieldId();
     assertThat(tasks).isNotEmpty();
@@ -644,6 +636,34 @@ class TestBinPackRewriteFilePlanner {
               assertThat(task.file().lowerBounds()).containsOnlyKeys(dataId);
               assertThat(task.file().upperBounds()).containsOnlyKeys(dataId);
             });
+  }
+
+  @Test
+  void plannedTasksCarryStatsForColumnRenamedAfterSnapshot() {
+    addFilesWithBounds();
+    table.updateSchema().renameColumn("data", "payload").commit();
+    int payloadId = table.schema().findField("payload").fieldId();
+
+    List<FileScanTask> tasks = plannedTasks(plannerWithStatsFor("payload"));
+
+    assertThat(tasks).isNotEmpty();
+    assertThat(tasks)
+        .allSatisfy(task -> assertThat(task.file().lowerBounds()).containsOnlyKeys(payloadId));
+  }
+
+  @Test
+  void plannedTasksCarryStatsForCurrentFieldAfterNameSwap() {
+    addFilesWithBounds();
+    table.updateSchema().renameColumn("id", "tmp").commit();
+    table.updateSchema().renameColumn("data", "id").commit();
+    table.updateSchema().renameColumn("tmp", "data").commit();
+    int dataId = table.schema().findField("data").fieldId();
+
+    List<FileScanTask> tasks = plannedTasks(plannerWithStatsFor("data"));
+
+    assertThat(tasks).isNotEmpty();
+    assertThat(tasks)
+        .allSatisfy(task -> assertThat(task.file().lowerBounds()).containsOnlyKeys(dataId));
   }
 
   @Test
@@ -676,6 +696,18 @@ class TestBinPackRewriteFilePlanner {
         .appendFile(newDataFileWithBounds("data_bucket=0"))
         .appendFile(newDataFileWithBounds("data_bucket=1"))
         .commit();
+  }
+
+  private BinPackRewriteFilePlanner plannerWithStatsFor(String column) {
+    BinPackRewriteFilePlanner planner =
+        new BinPackRewriteFilePlanner(table) {
+          @Override
+          protected Collection<String> statsColumns() {
+            return ImmutableList.of(column);
+          }
+        };
+    planner.init(REWRITE_ALL);
+    return planner;
   }
 
   private static List<FileScanTask> plannedTasks(BinPackRewriteFilePlanner planner) {
