@@ -68,27 +68,49 @@ public class TestIcebergSinkConfig {
     result = IcebergSinkConfig.stringToList("", ",");
     assertThat(result).isEmpty();
 
+    result = IcebergSinkConfig.stringToList("   ", ",");
+    assertThat(result).isEmpty();
+
     result = IcebergSinkConfig.stringToList("one ", ",");
-    assertThat(result).contains("one");
+    assertThat(result).containsExactly("one");
 
     result = IcebergSinkConfig.stringToList("one, two", ",");
-    assertThat(result).contains("one", "two");
+    assertThat(result).containsExactly("one", "two");
+
+    result = IcebergSinkConfig.stringToList("one, , two", ",");
+    assertThat(result).containsExactly("one", "two");
+
+    result = IcebergSinkConfig.stringToList("one, two, ", ",");
+    assertThat(result).containsExactly("one", "two");
 
     result = IcebergSinkConfig.stringToList("bucket(id, 4)", ",");
-    assertThat(result).contains("bucket(id", "4)");
+    assertThat(result).containsExactly("bucket(id", "4)");
 
     result =
         IcebergSinkConfig.stringToList("bucket(id, 4)", IcebergSinkConfig.COMMA_NO_PARENS_REGEX);
-    assertThat(result).contains("bucket(id, 4)");
+    assertThat(result).containsExactly("bucket(id, 4)");
 
     result =
         IcebergSinkConfig.stringToList(
             "bucket(id, 4), type", IcebergSinkConfig.COMMA_NO_PARENS_REGEX);
-    assertThat(result).contains("bucket(id, 4)", "type");
+    assertThat(result).containsExactly("bucket(id, 4)", "type");
   }
 
   @Test
-  public void testStringWithParensToList() {}
+  public void testStringWithParensToList() {
+    List<String> result =
+        IcebergSinkConfig.stringToList(
+            "bucket(id, 4), truncate(data, 10), type", IcebergSinkConfig.COMMA_NO_PARENS_REGEX);
+    assertThat(result).containsExactly("bucket(id, 4)", "truncate(data, 10)", "type");
+
+    result =
+        IcebergSinkConfig.stringToList(
+            "bucket(id, 4), , type", IcebergSinkConfig.COMMA_NO_PARENS_REGEX);
+    assertThat(result).containsExactly("bucket(id, 4)", "type");
+
+    result = IcebergSinkConfig.stringToList("   ", IcebergSinkConfig.COMMA_NO_PARENS_REGEX);
+    assertThat(result).isEmpty();
+  }
 
   @Test
   public void testCheckClassName() {
