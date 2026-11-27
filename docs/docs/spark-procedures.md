@@ -436,12 +436,16 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 |------|---------------|-------------|
 | `var-length-contribution` | 8 | Number of bytes considered from an input column of a type with variable length (String, Binary) |
 | `max-output-size` | 2147483647 | Amount of bytes interleaved in the ZOrder algorithm |
+| `quantization-bits` | 0 | 0 (default) disables. 8, 16, 24 or 32 maps each zorder or hilbert column linearly onto that many bits, using the column's min and max across the files in each rewrite group, so columns with different ranges carry equal weight. A value of 16 is recommended. See the requirements below the table. Only supported in Spark 4.2. |
+
+Columns quantized with `quantization-bits` must be `int`, `long`, `date`, `timestamp`, `float` or `double` and need column bounds, written with metrics mode `truncate` or `full`. Changing the metrics mode only affects files written afterwards: to give existing files bounds, rewrite them once with `rewrite-all=true` and without `quantization-bits`. Files with no metrics for a column are left out of its range, so their values outside the range of the other files fall into the first or last bucket. A column with no metrics in any file of a group is left unclustered in that group; run the rewrite again with `rewrite-all=true` to cluster it once the rewritten files have metrics. If metrics are disabled for that column, the rewrite of the group fails instead. The rewrite of a group also fails if a file has values but no bounds for a column, if a bound is infinite, or if a `double` column's range is wider than the largest finite double.
 
 ##### Options for sort strategy with hilbert sort_order
 
-The Hilbert sort order accepts the [general options](#general-options) and the
-[sort strategy options](#options-for-sort-strategy), but has no options of its own. Unlike ZOrder,
-every column contributes its full primitive width (8 bytes) to the Hilbert index, so
+The Hilbert sort order accepts the [general options](#general-options), the
+[sort strategy options](#options-for-sort-strategy) and `quantization-bits` from the
+[zorder options](#options-for-sort-strategy-with-zorder-sort_order). Unless `quantization-bits` is
+set, every column contributes its full primitive width (8 bytes) to the Hilbert index.
 `var-length-contribution` and `max-output-size` do not apply.
 
 Note that `hilbert()` and `zorder()` cannot be combined with each other, nor with plain column sort

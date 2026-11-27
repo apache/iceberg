@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.ZOrderByteUtils;
 import org.apache.spark.sql.Column;
@@ -347,6 +348,70 @@ class SparkZOrderUDF implements Serializable {
           String.format(
               "Cannot use column %s of type %s in ZOrdering, the type is unsupported",
               column, type));
+    }
+  }
+
+  Column quantizedOrderedBytes(
+      Column column, DataType type, CurveQuantization.ColumnRange range, int bits) {
+    int position = inputCol;
+    Column quantized;
+    if (type instanceof TimestampNTZType) {
+      quantized =
+          functions
+              .udf(
+                  (LocalDateTime value) ->
+                      quantizedBytes(
+                          value == null ? null : (double) DateTimeUtil.microsFromTimestamp(value),
+                          range,
+                          bits,
+                          position),
+                  DataTypes.BinaryType)
+              .withName("QUANTIZED_TIMESTAMP_NTZ_ORDERED_BYTES")
+              .apply(column);
+    } else {
+      quantized =
+          functions
+              .udf(
+                  (Double value) -> quantizedBytes(value, range, bits, position),
+                  DataTypes.BinaryType)
+              .withName("QUANTIZED_ORDERED_BYTES")
+              .apply(quantizationInput(column, type));
+    }
+
+    this.inputCol++;
+    increaseOutputSize(bits / Byte.SIZE);
+
+    return quantized;
+  }
+
+  private byte[] quantizedBytes(
+      Double value, CurveQuantization.ColumnRange range, int bits, int position) {
+    ByteBuffer buffer = inputBuffer(position, bits / Byte.SIZE);
+    if (value == null || range.isNone()) {
+      Arrays.fill(buffer.array(), (byte) 0);
+      return buffer.array();
+    }
+
+    return ZOrderByteUtils.quantizedOrderedBytes(value, range.min(), range.max(), bits, buffer)
+        .array();
+  }
+
+  private static Column quantizationInput(Column column, DataType type) {
+    if (type instanceof DateType) {
+      return functions.unix_date(column).cast(DataTypes.DoubleType);
+    } else if (type instanceof TimestampType) {
+      return functions.unix_micros(column).cast(DataTypes.DoubleType);
+    } else if (type instanceof ByteType
+        || type instanceof ShortType
+        || type instanceof IntegerType
+        || type instanceof LongType
+        || type instanceof FloatType
+        || type instanceof DoubleType) {
+      return column.cast(DataTypes.DoubleType);
+    } else {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot quantize column %s of type %s, the type is unsupported", column, type));
     }
   }
 

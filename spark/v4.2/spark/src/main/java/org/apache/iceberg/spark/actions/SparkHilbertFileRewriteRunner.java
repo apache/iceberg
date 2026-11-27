@@ -21,8 +21,10 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.spark.sql.functions.array;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortDirection;
@@ -30,6 +32,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
@@ -38,6 +41,7 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.types.StructField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,18 +57,18 @@ class SparkHilbertFileRewriteRunner extends SparkShufflingFileRewriteRunner {
           .build();
 
   /**
-   * The number of bits contributed by each column to the Hilbert index.
+   * The number of bits each column contributes to the Hilbert index by default.
    *
-   * <p>This is fixed at the full width of {@link ZOrderByteUtils#PRIMITIVE_BUFFER_SIZE}. A smaller,
-   * configurable width is unsafe with the shared {@link ZOrderByteUtils} encodings: whole-number
-   * types (int, date, small longs, ...) are widened into an 8-byte key with their magnitude in the
-   * low-order bytes, so truncating to fewer high-order bytes would discard all magnitude and
-   * collapse those columns to a single coordinate. Supporting a narrower width correctly would
-   * require tracking each column's significant bit width, which is out of scope here.
+   * <p>This is the full width of {@link ZOrderByteUtils#PRIMITIVE_BUFFER_SIZE}. Truncating the
+   * shared {@link ZOrderByteUtils} encodings is unsafe: whole-number types (int, date, small longs,
+   * ...) are widened into an 8-byte key with their magnitude in the low-order bytes, so fewer
+   * high-order bytes would collapse those columns to a single coordinate. Narrower keys come from
+   * the quantized path instead, which scales each column to its range in the rewrite group.
    */
   private static final int BITS_PER_COLUMN = ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE * Byte.SIZE;
 
   private final List<String> hilbertColNames;
+  private int quantizationBits;
 
   SparkHilbertFileRewriteRunner(SparkSession spark, Table table, List<String> hilbertColNames) {
     super(spark, table);
@@ -74,6 +78,30 @@ class SparkHilbertFileRewriteRunner extends SparkShufflingFileRewriteRunner {
   @Override
   public String description() {
     return "HILBERT";
+  }
+
+  @Override
+  public Set<String> validOptions() {
+    return ImmutableSet.<String>builder()
+        .addAll(super.validOptions())
+        .add(CurveQuantization.QUANTIZATION_BITS)
+        .build();
+  }
+
+  @Override
+  public void init(Map<String, String> options) {
+    super.init(options);
+    this.quantizationBits = CurveQuantization.quantizationBits(options);
+    if (quantizationBits > 0) {
+      CurveQuantization.validateColumns(table(), hilbertColNames);
+    }
+  }
+
+  @Override
+  List<String> statsColumns(Map<String, String> options) {
+    return CurveQuantization.quantizationBits(options) > 0
+        ? ImmutableList.copyOf(hilbertColNames)
+        : ImmutableList.of();
   }
 
   @Override
@@ -98,7 +126,26 @@ class SparkHilbertFileRewriteRunner extends SparkShufflingFileRewriteRunner {
 
   @Override
   protected Dataset<Row> sortedDF(Dataset<Row> df, Function<Dataset<Row>, Dataset<Row>> sortFunc) {
-    Dataset<Row> hValueDF = df.withColumn(H_COLUMN, hilbertValue(df));
+    return sortedByHilbertValue(df, sortFunc, hilbertValue(df));
+  }
+
+  @Override
+  protected Dataset<Row> sortedDF(
+      Dataset<Row> df,
+      Function<Dataset<Row>, Dataset<Row>> sortFunc,
+      List<FileScanTask> groupTasks) {
+    if (quantizationBits == 0) {
+      return sortedDF(df, sortFunc);
+    }
+
+    List<CurveQuantization.ColumnRange> ranges =
+        CurveQuantization.ranges(groupTasks, table(), hilbertColNames);
+    return sortedByHilbertValue(df, sortFunc, quantizedHilbertValue(df, ranges));
+  }
+
+  private Dataset<Row> sortedByHilbertValue(
+      Dataset<Row> df, Function<Dataset<Row>, Dataset<Row>> sortFunc, Column hilbertValue) {
+    Dataset<Row> hValueDF = df.withColumn(H_COLUMN, hilbertValue);
     Dataset<Row> sortedDF = sortFunc.apply(hValueDF);
     return sortedDF.drop(H_COLUMN);
   }
@@ -117,6 +164,24 @@ class SparkHilbertFileRewriteRunner extends SparkShufflingFileRewriteRunner {
             .toArray(Column[]::new);
 
     SparkHilbertUDF hilbertUDF = new SparkHilbertUDF(hilbertColNames.size(), BITS_PER_COLUMN);
+    return hilbertUDF.hilbertValue(array(orderedCols));
+  }
+
+  private Column quantizedHilbertValue(
+      Dataset<Row> df, List<CurveQuantization.ColumnRange> ranges) {
+    SparkZOrderUDF byteUDF =
+        new SparkZOrderUDF(
+            hilbertColNames.size(), ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE, Integer.MAX_VALUE);
+
+    Column[] orderedCols = new Column[hilbertColNames.size()];
+    for (int i = 0; i < orderedCols.length; i++) {
+      StructField field = df.schema().apply(hilbertColNames.get(i));
+      orderedCols[i] =
+          byteUDF.quantizedOrderedBytes(
+              df.col(field.name()), field.dataType(), ranges.get(i), quantizationBits);
+    }
+
+    SparkHilbertUDF hilbertUDF = new SparkHilbertUDF(hilbertColNames.size(), quantizationBits);
     return hilbertUDF.hilbertValue(array(orderedCols));
   }
 
@@ -153,7 +218,7 @@ class SparkHilbertFileRewriteRunner extends SparkShufflingFileRewriteRunner {
       if (identityPartitionFieldIds.contains(field.fieldId())) {
         LOG.warn("Ignoring '{}' as such values are constant within a partition", colName);
       } else {
-        validHilbertColNames.add(colName);
+        validHilbertColNames.add(schema.findColumnName(field.fieldId()));
       }
     }
 
