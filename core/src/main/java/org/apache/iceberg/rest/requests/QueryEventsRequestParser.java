@@ -1,0 +1,178 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.rest.requests;
+
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.JsonNode;
+import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.apache.iceberg.catalog.CatalogObjectIdentifier;
+import org.apache.iceberg.catalog.CatalogObjectIdentifierParser;
+import org.apache.iceberg.catalog.CatalogObjectType;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.rest.events.OperationType;
+import org.apache.iceberg.util.JsonUtil;
+
+public class QueryEventsRequestParser {
+  private static final String CONTINUATION_TOKEN = "continuation-token";
+  private static final String PAGE_SIZE = "page-size";
+  private static final String AFTER_TIMESTAMP_MS = "after-timestamp-ms";
+  private static final String OPERATION_TYPES = "operation-types";
+  private static final String CATALOG_OBJECTS_BY_NAME = "catalog-objects-by-name";
+  private static final String CATALOG_OBJECTS_BY_UUID = "catalog-objects-by-uuid";
+  private static final String OBJECT_TYPES = "object-types";
+  private static final String CUSTOM_FILTERS = "custom-filters";
+
+  private QueryEventsRequestParser() {}
+
+  public static String toJson(QueryEventsRequest request) {
+    return toJson(request, false);
+  }
+
+  public static String toJson(QueryEventsRequest request, boolean pretty) {
+    return JsonUtil.generate(gen -> toJson(request, gen), pretty);
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  public static void toJson(QueryEventsRequest request, JsonGenerator gen) throws IOException {
+    Preconditions.checkNotNull(request, "Invalid query events request: null");
+
+    gen.writeStartObject();
+
+    if (request.continuationToken() != null) {
+      gen.writeStringField(CONTINUATION_TOKEN, request.continuationToken());
+    }
+
+    if (request.pageSize() != null) {
+      gen.writeNumberField(PAGE_SIZE, request.pageSize());
+    }
+
+    if (request.afterTimestampMs() != null) {
+      gen.writeNumberField(AFTER_TIMESTAMP_MS, request.afterTimestampMs());
+    }
+
+    if (!request.operationTypes().isEmpty()) {
+      gen.writeArrayFieldStart(OPERATION_TYPES);
+
+      for (OperationType operationType : request.operationTypes()) {
+        gen.writeString(operationType.type());
+      }
+
+      gen.writeEndArray();
+    }
+
+    if (!request.catalogObjectsByName().isEmpty()) {
+      gen.writeArrayFieldStart(CATALOG_OBJECTS_BY_NAME);
+
+      for (CatalogObjectIdentifier catalogObjectIdentifier : request.catalogObjectsByName()) {
+        CatalogObjectIdentifierParser.toJson(catalogObjectIdentifier, gen);
+      }
+
+      gen.writeEndArray();
+    }
+
+    if (!request.catalogObjectsByUuid().isEmpty()) {
+      gen.writeArrayFieldStart(CATALOG_OBJECTS_BY_UUID);
+
+      for (String uuid : request.catalogObjectsByUuid()) {
+        gen.writeString(uuid);
+      }
+
+      gen.writeEndArray();
+    }
+
+    if (!request.objectTypes().isEmpty()) {
+      gen.writeArrayFieldStart(OBJECT_TYPES);
+
+      for (CatalogObjectType objectType : request.objectTypes()) {
+        gen.writeString(objectType.type());
+      }
+
+      gen.writeEndArray();
+    }
+
+    if (!request.customFilters().isEmpty()) {
+      JsonUtil.writeStringMap(CUSTOM_FILTERS, request.customFilters(), gen);
+    }
+
+    gen.writeEndObject();
+  }
+
+  public static QueryEventsRequest fromJson(String json) {
+    return JsonUtil.parse(json, QueryEventsRequestParser::fromJson);
+  }
+
+  public static QueryEventsRequest fromJson(JsonNode json) {
+    Preconditions.checkNotNull(json, "Cannot parse query events request from null object");
+
+    ImmutableQueryEventsRequest.Builder builder = ImmutableQueryEventsRequest.builder();
+
+    if (json.has(CONTINUATION_TOKEN)) {
+      builder.continuationToken(JsonUtil.getString(CONTINUATION_TOKEN, json));
+    }
+
+    if (json.has(PAGE_SIZE)) {
+      builder.pageSize(JsonUtil.getInt(PAGE_SIZE, json));
+    }
+
+    if (json.has(AFTER_TIMESTAMP_MS)) {
+      builder.afterTimestampMs(JsonUtil.getLong(AFTER_TIMESTAMP_MS, json));
+    }
+
+    if (json.has(OPERATION_TYPES)) {
+      builder.operationTypes(
+          JsonUtil.getStringList(OPERATION_TYPES, json).stream()
+              .map(OperationType::fromType)
+              .collect(Collectors.toList()));
+    }
+
+    if (json.has(CATALOG_OBJECTS_BY_NAME)) {
+      JsonNode arrayNode = json.get(CATALOG_OBJECTS_BY_NAME);
+      Preconditions.checkArgument(
+          arrayNode.isArray(),
+          "Cannot parse %s from non-array value: %s",
+          CATALOG_OBJECTS_BY_NAME,
+          arrayNode);
+      List<CatalogObjectIdentifier> identifiers = Lists.newArrayListWithCapacity(arrayNode.size());
+      for (JsonNode element : arrayNode) {
+        identifiers.add(CatalogObjectIdentifierParser.fromJson(element));
+      }
+      builder.catalogObjectsByName(identifiers);
+    }
+
+    if (json.has(CATALOG_OBJECTS_BY_UUID)) {
+      builder.catalogObjectsByUuid(JsonUtil.getStringList(CATALOG_OBJECTS_BY_UUID, json));
+    }
+
+    if (json.has(OBJECT_TYPES)) {
+      builder.objectTypes(
+          JsonUtil.getStringList(OBJECT_TYPES, json).stream()
+              .map(CatalogObjectType::fromType)
+              .collect(Collectors.toList()));
+    }
+
+    if (json.has(CUSTOM_FILTERS)) {
+      builder.customFilters(JsonUtil.getStringMap(CUSTOM_FILTERS, json));
+    }
+
+    return builder.build();
+  }
+}
