@@ -65,7 +65,7 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
         new TableMetadata.MetadataLogEntry(
             current.lastUpdatedMillis(), current.metadataFileLocation()));
     return StaticDataTask.of(
-        table().io().newInputFile(current.metadataFileLocation()),
+        current.metadataFileLocation(),
         schema(),
         scan.schema(),
         metadataLogEntries,
