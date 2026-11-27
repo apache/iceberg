@@ -18,11 +18,13 @@
  */
 package org.apache.iceberg.spark.data.vectorized;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcBatchReader;
 import org.apache.iceberg.orc.OrcSchemaWithTypeVisitor;
 import org.apache.iceberg.orc.OrcValueReader;
@@ -104,7 +106,7 @@ public class VectorizedSparkOrcReaders {
         TypeDescription record,
         List<String> names,
         List<Converter> fields) {
-      return new StructConverter(iStruct, fields, idToConstant);
+      return new StructConverter(iStruct, record, fields, idToConstant);
     }
 
     @Override
@@ -432,16 +434,89 @@ public class VectorizedSparkOrcReaders {
 
   private static class StructConverter implements Converter {
     private final Types.StructType structType;
+    private final Map<Integer, Integer> fieldIdToOrcIndex;
     private final List<Converter> fieldConverters;
     private final Map<Integer, ?> idToConstant;
 
     private StructConverter(
         Types.StructType structType,
+        TypeDescription orcType,
         List<Converter> fieldConverters,
         Map<Integer, ?> idToConstant) {
       this.structType = structType;
+      this.fieldIdToOrcIndex = buildFieldIdToOrcIndex(orcType);
       this.fieldConverters = fieldConverters;
       this.idToConstant = idToConstant;
+    }
+
+    private static Map<Integer, Integer> buildFieldIdToOrcIndex(TypeDescription orcType) {
+      List<TypeDescription> children = orcType.getChildren();
+      Map<Integer, Integer> mapping = new HashMap<>();
+      for (int index = 0; index < children.size(); index += 1) {
+        mapping.put(ORCSchemaUtil.fieldId(children.get(index)), index);
+      }
+
+      return mapping;
+    }
+
+    private ColumnVector storedVector(
+        Types.NestedField field,
+        StructColumnVector structVector,
+        int batchSize,
+        long batchOffsetInFile,
+        boolean isSelectedInUse,
+        int[] selected) {
+      Integer orcIndex = fieldIdToOrcIndex.get(field.fieldId());
+      if (orcIndex == null) {
+        return null;
+      }
+
+      return fieldConverters
+          .get(orcIndex)
+          .convert(
+              structVector.fields[orcIndex],
+              batchSize,
+              batchOffsetInFile,
+              isSelectedInUse,
+              selected);
+    }
+
+    private ColumnVector rowIdVector(
+        Types.NestedField field,
+        StructColumnVector structVector,
+        int batchSize,
+        long batchOffsetInFile,
+        boolean isSelectedInUse,
+        int[] selected) {
+      Long firstRowId = (Long) idToConstant.get(field.fieldId());
+      if (firstRowId == null) {
+        return new ConstantColumnVector(field.type(), batchSize, null);
+      }
+
+      ColumnVector storedIds =
+          storedVector(
+              field, structVector, batchSize, batchOffsetInFile, isSelectedInUse, selected);
+      int[] selectedRows = isSelectedInUse ? selected : null;
+      return RowLineageColumnVector.rowId(firstRowId, batchOffsetInFile, selectedRows, storedIds);
+    }
+
+    private ColumnVector lastUpdatedSeqVector(
+        Types.NestedField field,
+        StructColumnVector structVector,
+        int batchSize,
+        long batchOffsetInFile,
+        boolean isSelectedInUse,
+        int[] selected) {
+      Long fileLastUpdated = (Long) idToConstant.get(field.fieldId());
+      Long firstRowId = (Long) idToConstant.get(MetadataColumns.ROW_ID.fieldId());
+      if (fileLastUpdated == null || firstRowId == null) {
+        return new ConstantColumnVector(field.type(), batchSize, null);
+      }
+
+      ColumnVector storedSequences =
+          storedVector(
+              field, structVector, batchSize, batchOffsetInFile, isSelectedInUse, selected);
+      return RowLineageColumnVector.lastUpdatedSequence(fileLastUpdated, storedSequences);
     }
 
     @Override
@@ -456,7 +531,15 @@ public class VectorizedSparkOrcReaders {
       List<ColumnVector> fieldVectors = Lists.newArrayListWithExpectedSize(fields.size());
       for (int pos = 0, vectorIndex = 0; pos < fields.size(); pos += 1) {
         Types.NestedField field = fields.get(pos);
-        if (idToConstant.containsKey(field.fieldId())) {
+        if (field.equals(MetadataColumns.ROW_ID)) {
+          fieldVectors.add(
+              rowIdVector(
+                  field, structVector, batchSize, batchOffsetInFile, isSelectedInUse, selected));
+        } else if (field.equals(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER)) {
+          fieldVectors.add(
+              lastUpdatedSeqVector(
+                  field, structVector, batchSize, batchOffsetInFile, isSelectedInUse, selected));
+        } else if (idToConstant.containsKey(field.fieldId())) {
           fieldVectors.add(
               new ConstantColumnVector(field.type(), batchSize, idToConstant.get(field.fieldId())));
         } else if (field.equals(MetadataColumns.ROW_POSITION)) {
