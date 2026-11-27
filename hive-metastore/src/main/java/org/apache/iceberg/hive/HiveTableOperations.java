@@ -90,6 +90,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   private EncryptingFileIO encryptingFileIO;
   private String tableKeyId;
   private int encryptionDekLength;
+  private Boolean kmsKeyGenerationEnabled;
 
   private List<EncryptedKey> encryptedKeys = List.of();
 
@@ -147,12 +148,19 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
           "Cannot create encryption manager without a key management client. Consider setting the '%s' catalog property",
           CatalogProperties.ENCRYPTION_KMS_IMPL);
 
+      boolean kmsKeyGeneration =
+          kmsKeyGenerationEnabled != null
+              ? kmsKeyGenerationEnabled
+              : TableProperties.ENCRYPTION_KMS_KEY_GENERATION_ENABLED_DEFAULT;
+
       Map<String, String> encryptionProperties =
           ImmutableMap.of(
               TableProperties.ENCRYPTION_TABLE_KEY,
               tableKeyId,
               TableProperties.ENCRYPTION_DEK_LENGTH,
-              String.valueOf(encryptionDekLength));
+              String.valueOf(encryptionDekLength),
+              TableProperties.ENCRYPTION_KMS_KEY_GENERATION_ENABLED,
+              String.valueOf(kmsKeyGeneration));
 
       encryptionManager =
           EncryptionUtil.createEncryptionManager(
@@ -169,6 +177,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     String metadataLocation = null;
     String tableKeyIdFromHMS = null;
     String dekLengthFromHMS = null;
+    String kmsKeyGenerationFromHMS = null;
     String metadataHashFromHMS = null;
     try {
       Table table = metaClients.run(client -> client.getTable(database, tableName));
@@ -185,6 +194,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       produce unencrypted files. Table key ID is taken directly from HMS catalog */
       tableKeyIdFromHMS = table.getParameters().get(TableProperties.ENCRYPTION_TABLE_KEY);
       dekLengthFromHMS = table.getParameters().get(TableProperties.ENCRYPTION_DEK_LENGTH);
+      kmsKeyGenerationFromHMS =
+          table.getParameters().get(TableProperties.ENCRYPTION_KMS_KEY_GENERATION_ENABLED);
       metadataHashFromHMS = table.getParameters().get(METADATA_HASH_PROP);
     } catch (NoSuchObjectException e) {
       if (currentMetadataLocation() != null) {
@@ -204,13 +215,18 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     refreshFromMetadataLocation(metadataLocation, metadataRefreshMaxRetries);
 
     if (tableKeyIdFromHMS != null) {
-      checkIntegrityForEncryption(tableKeyIdFromHMS, dekLengthFromHMS, metadataHashFromHMS);
+      checkIntegrityForEncryption(
+          tableKeyIdFromHMS, dekLengthFromHMS, kmsKeyGenerationFromHMS, metadataHashFromHMS);
 
       tableKeyId = tableKeyIdFromHMS;
       encryptionDekLength =
           (dekLengthFromHMS != null)
               ? Integer.parseInt(dekLengthFromHMS)
               : TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT;
+      kmsKeyGenerationEnabled =
+          (kmsKeyGenerationFromHMS != null)
+              ? Boolean.parseBoolean(kmsKeyGenerationFromHMS)
+              : TableProperties.ENCRYPTION_KMS_KEY_GENERATION_ENABLED_DEFAULT;
 
       // Open transactions may still need keys that are not in committed metadata. After an
       // earlier refresh discarded the manager, those keys are only in encryptedKeys.
@@ -583,10 +599,21 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               TableProperties.ENCRYPTION_DEK_LENGTH,
               TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
     }
+
+    if (tableKeyId != null && kmsKeyGenerationEnabled == null) {
+      kmsKeyGenerationEnabled =
+          PropertyUtil.propertyAsBoolean(
+              tableProperties,
+              TableProperties.ENCRYPTION_KMS_KEY_GENERATION_ENABLED,
+              TableProperties.ENCRYPTION_KMS_KEY_GENERATION_ENABLED_DEFAULT);
+    }
   }
 
   private void checkIntegrityForEncryption(
-      String encryptionKeyIdFromHMS, String dekLengthFromHMS, String metadataHashFromHMS) {
+      String encryptionKeyIdFromHMS,
+      String dekLengthFromHMS,
+      String kmsKeyGenerationFromHMS,
+      String metadataHashFromHMS) {
     TableMetadata metadata = current();
     if (StringUtils.isNotEmpty(metadataHashFromHMS)) {
       HMSTablePropertyHelper.verifyMetadataHash(metadata, metadataHashFromHMS);
@@ -617,6 +644,17 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
           String.format(
               "Metadata file might have been modified. DEK length %s differs from HMS value %s",
               dekLengthFromMetadata, dekLengthFromHMS);
+      throw new RuntimeException(errMsg);
+    }
+
+    String kmsKeyGenerationFromMetadata =
+        propertiesFromMetadata.get(TableProperties.ENCRYPTION_KMS_KEY_GENERATION_ENABLED);
+    if (!Objects.equals(kmsKeyGenerationFromHMS, kmsKeyGenerationFromMetadata)) {
+      String errMsg =
+          String.format(
+              "Metadata file might have been modified. KMS key generation flag %s differs"
+                  + " from HMS value %s",
+              kmsKeyGenerationFromMetadata, kmsKeyGenerationFromHMS);
       throw new RuntimeException(errMsg);
     }
   }
