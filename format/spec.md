@@ -406,9 +406,9 @@ A `string` field may have a collation that defines how its values are compared a
 
 Any `string` field may have a collation, including nested fields, except map keys. A struct field uses the `collation` attribute, a list uses `element-collation`, and a map uses `value-collation` (see [Appendix C](#appendix-c-json-serialization)). A string field without a collation uses UTF-8 byte order.
 
-A collation changes comparison only. The rest of the format stays byte-based, because collation order differs between implementations and versions:
+Other parts of the format compare UTF-8 bytes, because collation order differs between implementations and versions:
 
-* A collated field must not be a source field of a partition field or a sort field, and must not be an identifier field. A collation must not be added to a field that is used in one of these ways.
+* A collated field must not be a source field of a partition field or a sort field, an identifier field, or a field of a `unique` or `primary-key` constraint. A collation must not be added to a field that is used in one of these ways in the table's current partition spec, default sort order, schema, or constraints.
 * Map keys must not have a collation.
 * Bounds of the collated field itself use UTF-8 byte order.
 
@@ -423,16 +423,18 @@ specifier  = icu-spec | utf8-spec
 icu-spec   = "icu" "." locale [ "-" case-mod ] [ "-" accent-mod ] [ "-" trim-mod ]
 utf8-spec  = "utf8" [ "-" trim-mod ]
 locale     = language [ "_" region ]       ; e.g. en, de, en_US, de_DE
+language   = 2*3LOWER                       ; ISO 639 language code, lowercase
+region     = 2UPPER                         ; ISO 3166-1 alpha-2 region code, uppercase
 case-mod   = "ci"                           ; case-insensitive (default is case-sensitive)
 accent-mod = "ai"                           ; accent-insensitive (default is accent-sensitive)
 trim-mod   = "ltrim" | "rtrim" | "trim"     ; trim leading / trailing / both spaces (U+0020)
 ```
 
-Modifier order and case are fixed, and defaults have no modifier, so each collation has exactly one name. Case- and accent-insensitive collations require a locale: `ł` and `l` are equal under `icu.en-ai` but not under `icu.pl-ai`.
+Modifier order and case, and the case of the locale, are fixed, and defaults have no modifier, so each collation has exactly one name. Case- and accent-insensitive collations require a locale: `ł` and `l` are equal under `icu.en-ai` but not under `icu.pl-ai`.
 
 Without a trim modifier, leading and trailing spaces are significant. A trim modifier removes leading, trailing, or both leading and trailing spaces (U+0020) before values are compared, for example `icu.en_US-ci-rtrim`.
 
-`utf8` without a modifier is UTF-8 byte order, the same as no collation.
+`utf8` without a modifier is UTF-8 byte order, the same as no collation. Its byte-order bounds can prune directly, so it has no `collation-value` fields. Because `utf8` order does not change, `utf8` collations have no version.
 
 For `icu`, the locale is the ICU locale ID, and the modifiers map to ICU collator settings as follows. All other settings use the locale's defaults. Trim modifiers are applied to values before comparison and do not change collator settings.
 
@@ -451,7 +453,7 @@ Collation order can change between versions of a provider's data ([UTS #10](http
 
 Byte-order bounds cannot prune a collated field: under a case-insensitive collation `'a' < 'B'`, but in byte order `'a' > 'B'`. Collation bounds are kept in [stats-only fields](#stats-only-fields), outside the schema. A collated field has:
 
-* One `collation-value` stats-only field per collation version. Its type-specific fields are `source-id`, the id of the collated field; `collation`, the collation name; and `version`, the collation version. Its bounds are original string values, compared under that collation and version. Its `data-type` must be `string`.
+* One `collation-value` stats-only field per collation version. Its type-specific fields are `source-id`, the id of the collated field; `collation`, the collation name; and `version`, the collation version, which is omitted for `utf8`. Its bounds are original string values, compared under that collation and version. Its `data-type` must be `string`.
 * Two `expr-value` stats-only fields with `data-type` `int`, for `min_code_point(ref)` and `max_code_point(ref)` (see [Iceberg functions](expressions-spec.md#appendix-a-iceberg-functions)). The lower bound of the first and the upper bound of the second give the file's code-point range. They do not depend on the collation or its version.
 
 For example, for a field `city` with id `5` and collation `icu.de_DE` (`expr` in short form):
@@ -466,7 +468,7 @@ For example, for a field `city` with id `5` and collation `icu.de_DE` (`expr` in
 
 Bounds a writer stores for a collated field itself must use UTF-8 byte order. Writers should store them, so readers without collation support can still prune. A writer that supports the collation should also write `collation-value` bounds for its version and code-point bounds, and adds these stats-only fields when they do not exist. It must not add a second `collation-value` field with the same `source-id`, `collation`, and `version`, and must not write `collation-value` bounds for a version it does not support.
 
-A reader must not use byte-order bounds to prune comparison, equality, or prefix predicates on a collated field. It may prune with `collation-value` bounds when their collation is the field's collation and their version is the reader's version. It may also use bounds from another version of the same collation when both versions order the file's code-point range the same way. Otherwise it scans the file.
+A reader that evaluates predicates under a field's collation must not use byte-order bounds to prune comparison, equality, or prefix predicates on that field. It may prune with `collation-value` bounds when their collation is the field's collation and their version is the reader's version. It may also use bounds from another version of the same collation when both versions order the file's code-point range the same way. Otherwise it scans the file.
 
 Collation bounds prune comparison and equality predicates. They do not prune prefix predicates such as `STARTS_WITH` or `LIKE 'x%'`, because collation order does not preserve prefixes.
 
@@ -850,6 +852,7 @@ The `field-ids` of a `unique` or `primary-key` constraint:
 * Must not reference fields of type `geometry` or `geography`, because Iceberg does not define equality for them
 * Must not reference fields of type `unknown`, because their values are always null
 * Must not reference fields of type `file` or their sub-fields
+* Must not reference fields that have a [collation](#collations)
 
 A table may have at most one `primary-key` constraint. The fields of a `primary-key` constraint must be `required` and must not be nested in an optional struct, so that the schema rejects null keys even when the constraint is not enforced. The fields of a `unique` constraint may be optional or nested in optional structs, because a row in which any field is null is not compared.
 
@@ -2405,7 +2408,7 @@ Constraints are added in v4:
 
 Collation changes:
 
-* String fields may have a `collation` (see [Collations](#collations)), except map keys; collated fields cannot be partition sources, sort fields, or identifier fields
+* String fields may have a `collation` (see [Collations](#collations)), except map keys; collated fields cannot be partition sources, sort fields, identifier fields, or fields of `unique` or `primary-key` constraints
 * Collation bounds are stored in stats-only fields: one `collation-value` field per collation version, and code-point fields per collated field
 * Readers must not prune collated fields with byte-order bounds
 * Readers without collation support must not use `collation-value` fields; they may fail or read collated fields as UTF-8 strings
