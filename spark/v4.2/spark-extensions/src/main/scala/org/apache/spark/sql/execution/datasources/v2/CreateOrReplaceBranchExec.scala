@@ -44,7 +44,7 @@ case class CreateOrReplaceBranchExec(
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
         val snapshotId: java.lang.Long = branchOptions.snapshotId
-          .orElse(Option(iceberg.table.currentSnapshot()).map(_.snapshotId()))
+          .orElse(Option(iceberg.snapshotId()).map(_.longValue))
           .map(java.lang.Long.valueOf)
           .orNull
 
