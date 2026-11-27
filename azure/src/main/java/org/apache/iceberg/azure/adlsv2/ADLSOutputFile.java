@@ -18,10 +18,8 @@
  */
 package org.apache.iceberg.azure.adlsv2;
 
-import com.azure.storage.file.datalake.DataLakeFileClient;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -30,12 +28,12 @@ import org.apache.iceberg.metrics.MetricsContext;
 
 class ADLSOutputFile extends BaseADLSFile implements OutputFile {
 
-  ADLSOutputFile(
-      String location,
-      DataLakeFileClient fileClient,
-      AzureProperties azureProperties,
-      MetricsContext metrics) {
-    super(location, fileClient, azureProperties, metrics);
+  ADLSOutputFile(String location, PrefixedADLSClient prefixedADLSClient, MetricsContext metrics) {
+    super(
+        location,
+        prefixedADLSClient.fileClient(location),
+        prefixedADLSClient.azureProperties(),
+        metrics);
   }
 
   /**
