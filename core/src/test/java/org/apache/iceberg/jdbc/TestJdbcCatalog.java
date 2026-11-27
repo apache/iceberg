@@ -986,6 +986,22 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Test
+  public void testCreateNamespaceLosingConcurrentCreate() {
+    Namespace testNamespace = Namespace.of("testDb", "ns1");
+    catalog.createNamespace(testNamespace, ImmutableMap.of("owner", "winner"));
+
+    // A concurrent create that checked for the namespace before the winner inserted it
+    JdbcCatalog loser = Mockito.spy(catalog);
+    Mockito.doReturn(false).doCallRealMethod().when(loser).namespaceExists(testNamespace);
+
+    assertThatThrownBy(
+            () -> loser.createNamespace(testNamespace, ImmutableMap.of("owner", "loser")))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Namespace already exists: %s", testNamespace);
+    assertThat(catalog.loadNamespaceMetadata(testNamespace)).containsEntry("owner", "winner");
+  }
+
+  @Test
   public void testNamespaceLocation() {
     Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
 
