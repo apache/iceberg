@@ -127,10 +127,9 @@ public class TableMetadata implements Serializable {
     PartitionSpec.Builder specBuilder =
         PartitionSpec.builderFor(freshSchema).withSpecId(INITIAL_SPEC_ID);
     for (PartitionField field : spec.fields()) {
-      // look up the name of the source field in the old schema to get the new schema's id
-      String sourceName = schema.findColumnName(field.sourceId());
       // reassign all partition fields with fresh partition field Ids to ensure consistency
-      specBuilder.add(freshSchema.findField(sourceName).fieldId(), field.name(), field.transform());
+      specBuilder.add(
+          freshSourceIds(schema, freshSchema, field.sourceIds()), field.name(), field.transform());
     }
     PartitionSpec freshSpec = specBuilder.build();
 
@@ -652,12 +651,12 @@ public class TableMetadata implements Serializable {
 
     if (formatVersion > 1) {
       // for v2 and later, reuse any existing field IDs, but reproduce the same spec
-      Map<Pair<Integer, String>, Integer> transformToFieldId =
+      Map<Pair<List<Integer>, String>, Integer> transformToFieldId =
           specs.stream()
               .flatMap(spec -> spec.fields().stream())
               .collect(
                   Collectors.toMap(
-                      field -> Pair.of(field.sourceId(), field.transform().toString()),
+                      field -> Pair.of(field.sourceIds(), field.transform().toString()),
                       PartitionField::fieldId,
                       Math::max));
 
@@ -665,8 +664,8 @@ public class TableMetadata implements Serializable {
         // reassign the partition field ids
         int partitionFieldId =
             transformToFieldId.computeIfAbsent(
-                Pair.of(field.sourceId(), field.transform().toString()), k -> nextID.get());
-        specBuilder.add(field.sourceId(), partitionFieldId, field.name(), field.transform());
+                Pair.of(field.sourceIds(), field.transform().toString()), k -> nextID.get());
+        specBuilder.add(field.sourceIds(), partitionFieldId, field.name(), field.transform());
       }
 
     } else {
@@ -763,7 +762,7 @@ public class TableMetadata implements Serializable {
 
     // add all the fields to the builder. IDs should not change.
     for (PartitionField field : partitionSpec.fields()) {
-      specBuilder.add(field.sourceId(), field.fieldId(), field.name(), field.transform());
+      specBuilder.add(field.sourceIds(), field.fieldId(), field.name(), field.transform());
     }
 
     // build without validation because the schema may have changed in a way that makes this spec
@@ -778,7 +777,7 @@ public class TableMetadata implements Serializable {
     // add all the fields to the builder. IDs should not change.
     for (SortField field : sortOrder.fields()) {
       builder.addSortField(
-          field.transform(), field.sourceId(), field.direction(), field.nullOrder());
+          field.transform(), field.sourceIds(), field.direction(), field.nullOrder());
     }
 
     // build without validation because the schema may have changed in a way that makes this order
@@ -791,18 +790,20 @@ public class TableMetadata implements Serializable {
     UnboundPartitionSpec.Builder specBuilder = UnboundPartitionSpec.builder().withSpecId(specId);
 
     for (PartitionField field : partitionSpec.fields()) {
-      // look up the name of the source field in the old schema to get the new schema's id
-      String sourceName = partitionSpec.schema().findColumnName(field.sourceId());
-
-      final int fieldId;
-      if (sourceName != null) {
-        fieldId = schema.findField(sourceName).fieldId();
-      } else {
-        // In the case of a null sourceName, the column has been deleted.
-        // This only happens in V1 tables where the reference is still around as a void transform
-        fieldId = field.sourceId();
+      List<Integer> sourceIds = Lists.newArrayListWithCapacity(field.sourceIds().size());
+      for (int sourceId : field.sourceIds()) {
+        // look up the name of the source field in the old schema to get the new schema's id
+        String sourceName = partitionSpec.schema().findColumnName(sourceId);
+        if (sourceName != null) {
+          sourceIds.add(schema.findField(sourceName).fieldId());
+        } else {
+          // In the case of a null sourceName, the column has been deleted.
+          // This only happens in V1 tables where the reference is still around as a void transform
+          sourceIds.add(sourceId);
+        }
       }
-      specBuilder.addField(field.transform().toString(), fieldId, field.fieldId(), field.name());
+
+      specBuilder.addField(field.transform().toString(), sourceIds, field.fieldId(), field.name());
     }
 
     return specBuilder.build().bind(schema);
@@ -816,15 +817,25 @@ public class TableMetadata implements Serializable {
     }
 
     for (SortField field : sortOrder.fields()) {
-      // look up the name of the source field in the old schema to get the new schema's id
-      String sourceName = sortOrder.schema().findColumnName(field.sourceId());
       // reassign all sort fields with fresh sort field IDs
-      int newSourceId = schema.findField(sourceName).fieldId();
+      List<Integer> newSourceIds = freshSourceIds(sortOrder.schema(), schema, field.sourceIds());
       builder.addSortField(
-          field.transform().toString(), newSourceId, field.direction(), field.nullOrder());
+          field.transform().toString(), newSourceIds, field.direction(), field.nullOrder());
     }
 
     return builder.build().bind(schema);
+  }
+
+  private static List<Integer> freshSourceIds(
+      Schema oldSchema, Schema newSchema, List<Integer> sourceIds) {
+    List<Integer> freshIds = Lists.newArrayListWithCapacity(sourceIds.size());
+    for (int sourceId : sourceIds) {
+      // look up the name of the source field in the old schema to get the new schema's id
+      String sourceName = oldSchema.findColumnName(sourceId);
+      freshIds.add(newSchema.findField(sourceName).fieldId());
+    }
+
+    return freshIds;
   }
 
   private static Map<Long, Snapshot> indexAndValidateSnapshots(

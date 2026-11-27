@@ -19,6 +19,8 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
+import static org.apache.iceberg.NullOrder.NULLS_LAST;
+import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.SortDirection.DESC;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -60,6 +62,113 @@ public class TestSortOrderParser extends TestBase {
     assertThat(order.fields().get(0).sourceId()).isEqualTo(2);
     assertThat(order.fields().get(0).direction()).isEqualTo(DESC);
     assertThat(order.fields().get(0).nullOrder()).isEqualTo(NULLS_FIRST);
+  }
+
+  @TestTemplate
+  public void testSourceIdsDeserialization() {
+    String jsonString =
+        "{\n"
+            + "  \"order-id\" : 10,\n"
+            + "  \"fields\" : [ {\n"
+            + "    \"transform\" : \"bucket[16]\",\n"
+            + "    \"source-ids\" : [ 1, 2 ],\n"
+            + "    \"direction\" : \"asc\",\n"
+            + "    \"null-order\" : \"nulls-last\"\n"
+            + "  } ]\n"
+            + "}";
+
+    UnboundSortOrder order = SortOrderParser.fromJson(jsonString);
+
+    assertThat(order.orderId()).isEqualTo(10);
+    assertThat(order.fields()).hasSize(1);
+    assertThat(order.fields().get(0).sourceIds()).containsExactly(1, 2);
+    assertThat(order.fields().get(0).sourceId()).isEqualTo(1);
+    assertThat(order.fields().get(0).direction()).isEqualTo(ASC);
+    assertThat(order.fields().get(0).nullOrder()).isEqualTo(NULLS_LAST);
+  }
+
+  @TestTemplate
+  public void testSourceIdsSerialization() {
+    UnboundSortOrder order =
+        UnboundSortOrder.builder()
+            .withOrderId(10)
+            .addSortField("bucket[16]", Arrays.asList(1, 2), ASC, NULLS_LAST)
+            .build();
+
+    String json = SortOrderParser.toJson(order, true);
+    assertThat(json).contains("\"source-ids\" : [ 1, 2 ]");
+    assertThat(json).doesNotContain("\"source-id\"");
+  }
+
+  @TestTemplate
+  public void testSingleSourceIdSerialization() {
+    UnboundSortOrder order =
+        UnboundSortOrder.builder()
+            .withOrderId(10)
+            .addSortField("bucket[16]", 1, ASC, NULLS_LAST)
+            .build();
+
+    String json = SortOrderParser.toJson(order, true);
+    assertThat(json).contains("\"source-id\" : 1");
+    assertThat(json).doesNotContain("\"source-ids\"");
+  }
+
+  @TestTemplate
+  public void testSourceIdsRoundTrip() {
+    UnboundSortOrder order =
+        UnboundSortOrder.builder()
+            .withOrderId(10)
+            .addSortField("bucket[16]", Arrays.asList(1, 2), ASC, NULLS_LAST)
+            .addSortField("identity", 3, DESC, NULLS_FIRST)
+            .build();
+
+    String json = SortOrderParser.toJson(order, true);
+    UnboundSortOrder parsed = SortOrderParser.fromJson(json);
+
+    assertThat(parsed.orderId()).isEqualTo(10);
+    assertThat(parsed.fields()).hasSize(2);
+    assertThat(parsed.fields().get(0).sourceIds()).containsExactly(1, 2);
+    assertThat(parsed.fields().get(0).direction()).isEqualTo(ASC);
+    assertThat(parsed.fields().get(1).sourceIds()).containsExactly(3);
+    assertThat(parsed.fields().get(1).direction()).isEqualTo(DESC);
+  }
+
+  @TestTemplate
+  public void testSourceIdsPrecedenceOverSourceId() {
+    String jsonString =
+        "{\n"
+            + "  \"order-id\" : 10,\n"
+            + "  \"fields\" : [ {\n"
+            + "    \"transform\" : \"bucket[16]\",\n"
+            + "    \"source-id\" : 99,\n"
+            + "    \"source-ids\" : [ 1, 2 ],\n"
+            + "    \"direction\" : \"asc\",\n"
+            + "    \"null-order\" : \"nulls-last\"\n"
+            + "  } ]\n"
+            + "}";
+
+    UnboundSortOrder order = SortOrderParser.fromJson(jsonString);
+
+    assertThat(order.fields()).hasSize(1);
+    assertThat(order.fields().get(0).sourceIds()).containsExactly(1, 2);
+  }
+
+  @TestTemplate
+  public void testEmptySourceIdsArray() {
+    String jsonString =
+        "{\n"
+            + "  \"order-id\" : 10,\n"
+            + "  \"fields\" : [ {\n"
+            + "    \"transform\" : \"bucket[16]\",\n"
+            + "    \"source-ids\" : [ ],\n"
+            + "    \"direction\" : \"asc\",\n"
+            + "    \"null-order\" : \"nulls-last\"\n"
+            + "  } ]\n"
+            + "}";
+
+    assertThatThrownBy(() -> SortOrderParser.fromJson(jsonString))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("source-ids must be a non-empty array");
   }
 
   @TestTemplate
