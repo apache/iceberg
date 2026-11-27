@@ -18,13 +18,17 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class BoundSetPredicate<T> extends BoundPredicate<T> {
   private static final Joiner COMMA = Joiner.on(", ");
   private final Set<T> literalSet;
+  private final List<Literal<T>> literals;
+  private final BoundExpression<T> child;
 
   BoundSetPredicate(Operation op, BoundTerm<T> term, Set<T> lits) {
     super(op, term);
@@ -33,10 +37,33 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
         "%s predicate does not support a literal set",
         op);
     this.literalSet = lits;
+    this.literals = null;
+    this.child = term;
+  }
+
+  BoundSetPredicate(Operation op, BoundExpression<T> child, List<Literal<T>> literals) {
+    super(op);
+    Preconditions.checkArgument(
+        op == Operation.IN || op == Operation.NOT_IN,
+        "%s predicate does not support a literal set",
+        op);
+    Preconditions.checkNotNull(child, "Child expression cannot be null");
+    Preconditions.checkNotNull(literals, "Literals cannot be null");
+    this.literalSet = literals.isEmpty() ? Sets.newHashSet() : UnboundPredicate.setOf(literals);
+    this.literals = literals;
+    this.child = child;
+  }
+
+  public BoundExpression<T> child() {
+    return child;
   }
 
   @Override
   public Expression negate() {
+    if (term() == null) {
+      return super.negate();
+    }
+
     return new BoundSetPredicate<>(op().negate(), term(), literalSet);
   }
 
@@ -48,6 +75,11 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
   @Override
   public BoundSetPredicate<T> asSetPredicate() {
     return this;
+  }
+
+  /** Returns the typed literals of a set test over a value expression, or null for a term. */
+  List<Literal<T>> literals() {
+    return literals;
   }
 
   public Set<T> literalSet() {
@@ -82,9 +114,9 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
   public String toString() {
     switch (op()) {
       case IN:
-        return term() + " in (" + COMMA.join(literalSet) + ")";
+        return child + " in (" + COMMA.join(literalSet) + ")";
       case NOT_IN:
-        return term() + " not in (" + COMMA.join(literalSet) + ")";
+        return child + " not in (" + COMMA.join(literalSet) + ")";
       default:
         return "Invalid unary predicate: operation = " + op();
     }

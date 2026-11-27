@@ -184,6 +184,143 @@ public class ExpressionUtil {
    * @param caseSensitive whether to bind expressions using case-sensitive matching
    * @return true if the expressions are equivalent
    */
+  /**
+   * Returns whether an expression references any field.
+   *
+   * <p>References within transforms, function arguments, and predicates are included.
+   *
+   * @param expr an expression
+   * @return true if the expression contains a field reference
+   * @throws UnsupportedOperationException if the expression contains an unsupported node
+   */
+  public static boolean hasReferences(Expression expr) {
+    return !references(expr).isEmpty();
+  }
+
+  /**
+   * Returns whether an expression references any field by name.
+   *
+   * <p>References within transforms, function arguments, and predicates are included. ID references
+   * and bound references are not named references.
+   *
+   * @param expr an expression
+   * @return true if the expression contains a named reference
+   * @throws UnsupportedOperationException if the expression contains an unsupported node
+   */
+  public static boolean hasNamedReferences(Expression expr) {
+    return references(expr).stream().anyMatch(NamedReference.class::isInstance);
+  }
+
+  /**
+   * Returns the IDs of fields that an expression references.
+   *
+   * <p>References within transforms, function arguments, and predicates are included. Field IDs
+   * come from ID references and bound references; the expression is not bound.
+   *
+   * @param expr an expression
+   * @return the set of referenced field IDs
+   * @throws IllegalArgumentException if the expression contains a named reference
+   * @throws UnsupportedOperationException if the expression contains an unsupported node
+   */
+  public static Set<Integer> referencedFieldIds(Expression expr) {
+    return references(expr).stream()
+        .map(ExpressionUtil::referenceFieldId)
+        .collect(Collectors.toSet());
+  }
+
+  /**
+   * Returns whether an expression is a predicate.
+   *
+   * <p>True, false, tests, and comparisons are predicates, as are and, or, and not when all of
+   * their children are predicates. Value expressions, such as references and function calls, are
+   * not predicates.
+   *
+   * @param expr an expression
+   * @return true if the expression is a predicate
+   */
+  public static boolean isPredicate(Expression expr) {
+    if (expr instanceof And and) {
+      return isPredicate(and.left()) && isPredicate(and.right());
+    } else if (expr instanceof Or or) {
+      return isPredicate(or.left()) && isPredicate(or.right());
+    } else if (expr instanceof Not not) {
+      return isPredicate(not.child());
+    }
+
+    return expr instanceof True || expr instanceof False || expr instanceof Predicate;
+  }
+
+  private static int referenceFieldId(Expression reference) {
+    if (reference instanceof IdReference<?> idReference) {
+      return idReference.fieldId();
+    } else if (reference instanceof BoundReference<?> boundReference) {
+      return boundReference.fieldId();
+    }
+
+    throw new IllegalArgumentException(
+        "Cannot determine the field ID of a named reference: " + reference);
+  }
+
+  private static List<Expression> references(Expression expr) {
+    List<Expression> references = Lists.newArrayList();
+    collectReferences(expr, references);
+    return references;
+  }
+
+  private static void collectReferences(Expression expr, List<Expression> references) {
+    if (expr instanceof ValueExpression) {
+      collectValueReferences(expr, references);
+    } else if (expr instanceof Predicate) {
+      collectPredicateReferences(expr, references);
+    } else if (expr instanceof And and) {
+      collectReferences(and.left(), references);
+      collectReferences(and.right(), references);
+    } else if (expr instanceof Or or) {
+      collectReferences(or.left(), references);
+      collectReferences(or.right(), references);
+    } else if (expr instanceof Not not) {
+      collectReferences(not.child(), references);
+    } else if (!(expr instanceof True) && !(expr instanceof False)) {
+      throw new UnsupportedOperationException("Cannot find references in expression: " + expr);
+    }
+  }
+
+  private static void collectValueReferences(Expression expr, List<Expression> references) {
+    if (expr instanceof IdReference) {
+      references.add(expr);
+    } else if (expr instanceof UnboundTerm<?> term) {
+      references.add(term.ref());
+    } else if (expr instanceof BoundTerm<?> term) {
+      references.add(term.ref());
+    } else if (expr instanceof UnboundApply<?> apply) {
+      apply.arguments().forEach(arg -> collectReferences(arg, references));
+    } else if (expr instanceof BoundApply<?> apply) {
+      apply.arguments().forEach(arg -> collectReferences(arg, references));
+    } else if (!(expr instanceof Literal)) {
+      throw new UnsupportedOperationException("Cannot find references in expression: " + expr);
+    }
+  }
+
+  private static void collectPredicateReferences(Expression expr, List<Expression> references) {
+    if (expr instanceof UnboundPredicate<?> pred) {
+      if (UnboundPredicate.isComparison(pred.op())) {
+        collectReferences(pred.left(), references);
+        collectReferences(pred.right(), references);
+      } else {
+        collectReferences(pred.child(), references);
+      }
+    } else if (expr instanceof BoundPredicate<?> pred) {
+      if (pred.isLiteralPredicate()) {
+        collectReferences(pred.asLiteralPredicate().left(), references);
+        collectReferences(pred.asLiteralPredicate().right(), references);
+      } else if (pred.isUnaryPredicate()) {
+        collectReferences(pred.asUnaryPredicate().child(), references);
+      } else {
+        collectReferences(pred.asSetPredicate().child(), references);
+      }
+    }
+  }
+
   public static boolean equivalent(
       Expression left, Expression right, Types.StructType struct, boolean caseSensitive) {
     return Binder.bind(struct, Expressions.rewriteNot(left), caseSensitive)

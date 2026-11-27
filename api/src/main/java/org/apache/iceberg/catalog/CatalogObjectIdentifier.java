@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.catalog;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -32,7 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * <p>Mirrors {@link Namespace} structurally; the distinct name signals "any object within a
  * catalog" and avoids confusion with a future top-level catalog name.
  */
-public class CatalogObjectIdentifier {
+public class CatalogObjectIdentifier implements Serializable {
   private static final Joiner DOT = Joiner.on('.');
   private static final Predicate<String> CONTAINS_NULL_CHARACTER =
       Pattern.compile("\u0000", Pattern.UNICODE_CHARACTER_CLASS).asPredicate();

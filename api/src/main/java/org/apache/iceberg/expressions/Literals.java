@@ -130,7 +130,12 @@ class Literals {
       return byteBuffer;
     }
 
-    protected abstract Type.TypeID typeId();
+    @Override
+    public abstract Type type();
+
+    protected Type.TypeID typeId() {
+      return type().typeId();
+    }
 
     @Override
     public String toString() {
@@ -240,8 +245,8 @@ class Literals {
     }
 
     @Override
-    protected Type.TypeID typeId() {
-      return Type.TypeID.BOOLEAN;
+    public Type type() {
+      return Types.BooleanType.get();
     }
   }
 
@@ -275,8 +280,8 @@ class Literals {
     }
 
     @Override
-    protected Type.TypeID typeId() {
-      return Type.TypeID.INTEGER;
+    public Type type() {
+      return Types.IntegerType.get();
     }
   }
 
@@ -305,7 +310,7 @@ class Literals {
         case TIME:
           return (Literal<T>) new TimeLiteral(value());
         case TIMESTAMP:
-          return (Literal<T>) new TimestampLiteral(value());
+          return (Literal<T>) new TimestampLiteral(value(), (Types.TimestampType) type);
         case TIMESTAMP_NANO:
           // assume micros and convert to nanos to match the behavior in the timestamp case above
           return new TimestampLiteral(value()).to(type);
@@ -327,8 +332,8 @@ class Literals {
     }
 
     @Override
-    protected Type.TypeID typeId() {
-      return Type.TypeID.LONG;
+    public Type type() {
+      return Types.LongType.get();
     }
   }
 
@@ -355,8 +360,8 @@ class Literals {
     }
 
     @Override
-    protected Type.TypeID typeId() {
-      return Type.TypeID.FLOAT;
+    public Type type() {
+      return Types.FloatType.get();
     }
   }
 
@@ -390,8 +395,8 @@ class Literals {
     }
 
     @Override
-    protected Type.TypeID typeId() {
-      return Type.TypeID.DOUBLE;
+    public Type type() {
+      return Types.DoubleType.get();
     }
   }
 
@@ -410,8 +415,8 @@ class Literals {
     }
 
     @Override
-    protected Type.TypeID typeId() {
-      return Type.TypeID.DATE;
+    public Type type() {
+      return Types.DateType.get();
     }
   }
 
@@ -430,60 +435,86 @@ class Literals {
     }
 
     @Override
-    protected Type.TypeID typeId() {
-      return Type.TypeID.TIME;
+    public Type type() {
+      return Types.TimeType.get();
     }
   }
 
   static class TimestampLiteral extends ComparableLiteral<Long> {
+    private final Types.TimestampType type;
+
     TimestampLiteral(Long value) {
+      this(value, Types.TimestampType.withoutZone());
+    }
+
+    TimestampLiteral(Long value, Types.TimestampType type) {
       super(value);
+      this.type = type;
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T> Literal<T> to(Type type) {
-      switch (type.typeId()) {
+    public <T> Literal<T> to(Type toType) {
+      switch (toType.typeId()) {
         case TIMESTAMP:
-          return (Literal<T>) this;
+          if (type.equals(toType)) {
+            return (Literal<T>) this;
+          }
+
+          return (Literal<T>) new TimestampLiteral(value(), (Types.TimestampType) toType);
         case DATE:
           return (Literal<T>) new DateLiteral(DateTimeUtil.microsToDays(value()));
         case TIMESTAMP_NANO:
-          return (Literal<T>) new TimestampNanoLiteral(DateTimeUtil.microsToNanos(value()));
+          return (Literal<T>)
+              new TimestampNanoLiteral(
+                  DateTimeUtil.microsToNanos(value()), (Types.TimestampNanoType) toType);
         default:
       }
       return null;
     }
 
     @Override
-    protected Type.TypeID typeId() {
-      return Type.TypeID.TIMESTAMP;
+    public Type type() {
+      return type;
     }
   }
 
   static class TimestampNanoLiteral extends ComparableLiteral<Long> {
+    private final Types.TimestampNanoType type;
+
     TimestampNanoLiteral(Long value) {
+      this(value, Types.TimestampNanoType.withoutZone());
+    }
+
+    TimestampNanoLiteral(Long value, Types.TimestampNanoType type) {
       super(value);
+      this.type = type;
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T> Literal<T> to(Type type) {
-      switch (type.typeId()) {
+    public <T> Literal<T> to(Type toType) {
+      switch (toType.typeId()) {
         case DATE:
           return (Literal<T>) new DateLiteral(DateTimeUtil.nanosToDays(value()));
         case TIMESTAMP:
-          return (Literal<T>) new TimestampLiteral(DateTimeUtil.nanosToMicros(value()));
+          return (Literal<T>)
+              new TimestampLiteral(
+                  DateTimeUtil.nanosToMicros(value()), (Types.TimestampType) toType);
         case TIMESTAMP_NANO:
-          return (Literal<T>) this;
+          if (type.equals(toType)) {
+            return (Literal<T>) this;
+          }
+
+          return (Literal<T>) new TimestampNanoLiteral(value(), (Types.TimestampNanoType) toType);
         default:
       }
       return null;
     }
 
     @Override
-    protected Type.TypeID typeId() {
-      return Type.TypeID.TIMESTAMP_NANO;
+    public Type type() {
+      return type;
     }
   }
 
@@ -504,6 +535,15 @@ class Literals {
       }
     }
 
+    /** Returns the narrowest decimal type that holds the value without rounding. */
+    @Override
+    public Type type() {
+      int scale = Math.max(value().scale(), 0);
+      int integerDigits = Math.max(value().precision() - value().scale(), 0);
+      return Types.DecimalType.of(integerDigits + scale, scale);
+    }
+
+    // values may have more digits than a decimal type allows, but can still be serialized
     @Override
     protected Type.TypeID typeId() {
       return Type.TypeID.DECIMAL;
@@ -532,8 +572,8 @@ class Literals {
     }
 
     @Override
-    protected Type.TypeID typeId() {
-      return Type.TypeID.VARIANT;
+    public Type type() {
+      return Types.VariantType.get();
     }
   }
 
@@ -562,20 +602,25 @@ class Literals {
           return (Literal<T>) new TimeLiteral(timeMicros);
 
         case TIMESTAMP:
-          if (((Types.TimestampType) type).shouldAdjustToUTC()) {
+          Types.TimestampType timestampType = (Types.TimestampType) type;
+          if (timestampType.shouldAdjustToUTC()) {
             long timestampMicros = DateTimeUtil.isoTimestamptzToMicros(value().toString());
-            return (Literal<T>) new TimestampLiteral(timestampMicros);
+            return (Literal<T>) new TimestampLiteral(timestampMicros, timestampType);
           } else {
             long timestampMicros = DateTimeUtil.isoTimestampToMicros(value().toString());
-            return (Literal<T>) new TimestampLiteral(timestampMicros);
+            return (Literal<T>) new TimestampLiteral(timestampMicros, timestampType);
           }
 
         case TIMESTAMP_NANO:
-          if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
+          Types.TimestampNanoType timestampNanoType = (Types.TimestampNanoType) type;
+          if (timestampNanoType.shouldAdjustToUTC()) {
             return (Literal<T>)
-                new TimestampNanoLiteral(DateTimeUtil.isoTimestamptzToNanos(value()));
+                new TimestampNanoLiteral(
+                    DateTimeUtil.isoTimestamptzToNanos(value()), timestampNanoType);
           } else {
-            return (Literal<T>) new TimestampNanoLiteral(DateTimeUtil.isoTimestampToNanos(value()));
+            return (Literal<T>)
+                new TimestampNanoLiteral(
+                    DateTimeUtil.isoTimestampToNanos(value()), timestampNanoType);
           }
 
         case STRING:
@@ -626,8 +671,8 @@ class Literals {
     }
 
     @Override
-    protected Type.TypeID typeId() {
-      return Type.TypeID.STRING;
+    public Type type() {
+      return Types.StringType.get();
     }
 
     @Override
@@ -651,8 +696,8 @@ class Literals {
     }
 
     @Override
-    protected Type.TypeID typeId() {
-      return Type.TypeID.UUID;
+    public Type type() {
+      return Types.UUIDType.get();
     }
   }
 
@@ -687,8 +732,8 @@ class Literals {
     }
 
     @Override
-    protected Type.TypeID typeId() {
-      return Type.TypeID.FIXED;
+    public Type type() {
+      return Types.FixedType.ofLength(value().remaining());
     }
 
     Object writeReplace() throws ObjectStreamException {
@@ -737,8 +782,8 @@ class Literals {
     }
 
     @Override
-    protected Type.TypeID typeId() {
-      return Type.TypeID.BINARY;
+    public Type type() {
+      return Types.BinaryType.get();
     }
 
     @Override
