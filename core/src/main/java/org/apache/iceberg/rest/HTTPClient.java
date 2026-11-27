@@ -93,6 +93,7 @@ public class HTTPClient extends BaseHTTPClient {
   static final String REST_PROXY_USERNAME = "rest.client.proxy.username";
   static final String REST_PROXY_PASSWORD = "rest.client.proxy.password";
   static final String REST_USER_AGENT = "rest.client.user-agent";
+  static final String REST_USER_AGENT_PREFIX = "rest.client.user-agent.prefix";
 
   @VisibleForTesting
   static final String REST_CONNECTION_TIMEOUT_MS = "rest.client.connection-timeout-ms";
@@ -132,10 +133,10 @@ public class HTTPClient extends BaseHTTPClient {
     clientBuilder.setRetryStrategy(
         new ExponentialHttpRequestRetryStrategy(maxRetries, keyLifetime));
 
-    String userAgent = PropertyUtil.propertyAsString(properties, REST_USER_AGENT, null);
-    if (userAgent != null) {
-      clientBuilder.setUserAgent(userAgent);
-    }
+    clientBuilder.setUserAgent(
+        userAgent(
+            PropertyUtil.propertyAsString(properties, REST_USER_AGENT, null),
+            PropertyUtil.propertyAsString(properties, REST_USER_AGENT_PREFIX, null)));
 
     if (proxy != null) {
       if (proxyCredsProvider != null) {
@@ -167,6 +168,33 @@ public class HTTPClient extends BaseHTTPClient {
   public HTTPClient withAuthSession(AuthSession session) {
     Preconditions.checkNotNull(session, "Invalid auth session: null");
     return new HTTPClient(this, session);
+  }
+
+  @VisibleForTesting
+  static String userAgent(String override, String prefix) {
+    if (override != null) {
+      // the HTTP client silently replaces characters outside visible ASCII with '?'
+      Preconditions.checkArgument(
+          override.chars().allMatch(c -> c >= 0x20 && c <= 0x7E),
+          "Invalid %s: only visible ASCII characters and spaces are allowed",
+          REST_USER_AGENT);
+      return override;
+    }
+
+    // the format the REST spec recommends, with the library token after any caller tokens
+    String userAgent =
+        String.format(
+            "iceberg-java/%s (jvm %s)", IcebergBuild.version(), System.getProperty("java.version"));
+    if (prefix == null) {
+      return userAgent;
+    }
+
+    Preconditions.checkArgument(
+        prefix.chars().allMatch(c -> c >= 0x20 && c <= 0x7E),
+        "Invalid %s: only visible ASCII characters and spaces are allowed",
+        REST_USER_AGENT_PREFIX);
+    String tokens = prefix.strip();
+    return tokens.isEmpty() ? userAgent : tokens + " " + userAgent;
   }
 
   @VisibleForTesting
