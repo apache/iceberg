@@ -71,6 +71,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestCatalogUtil;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
@@ -4169,6 +4170,52 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                         ImmutableMap.of("header.X-Iceberg-Access-Delegation", "vended-credentials"))
                     .close())
         .doesNotThrowAnyException();
+  }
+
+  @Test
+  void createTransactionRejectsSettingKeyId() throws IOException {
+    try (RESTCatalog catalog = catalogWithKms()) {
+      catalog.createNamespace(TBL.namespace());
+      Transaction create =
+          catalog
+              .buildTable(TBL, SCHEMA)
+              .withProperty(TableProperties.FORMAT_VERSION, "3")
+              .createTransaction();
+      create
+          .updateProperties()
+          .set(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+          .commit();
+
+      assertThatThrownBy(create::commitTransaction)
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Cannot change key ID in a create transaction");
+      assertThat(catalog.tableExists(TBL)).isFalse();
+    }
+  }
+
+  @Test
+  void createTransactionRejectsRemovingKeyId() throws IOException {
+    try (RESTCatalog catalog = catalogWithKms()) {
+      catalog.createNamespace(TBL.namespace());
+      Transaction create =
+          catalog
+              .buildTable(TBL, SCHEMA)
+              .withProperty(TableProperties.FORMAT_VERSION, "3")
+              .withProperty(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+              .createTransaction();
+      create.updateProperties().remove(TableProperties.ENCRYPTION_TABLE_KEY).commit();
+
+      assertThatThrownBy(create::commitTransaction)
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Cannot change key ID in a create transaction");
+      assertThat(catalog.tableExists(TBL)).isFalse();
+    }
+  }
+
+  private RESTCatalog catalogWithKms() {
+    return catalogWithConfig(
+        ConfigResponse.builder().build(),
+        ImmutableMap.of(CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getName()));
   }
 
   private RESTCatalog catalogWithConfig(

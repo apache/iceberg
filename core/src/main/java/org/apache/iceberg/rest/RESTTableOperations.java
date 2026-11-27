@@ -258,6 +258,12 @@ class RESTTableOperations implements TableOperations {
               metadata.properties().get(TableProperties.ENCRYPTION_TABLE_KEY));
       Preconditions.checkArgument(
           encryptionKeyUnchanged, "Cannot modify key ID of an encrypted table");
+    } else {
+      // a create transaction writes its files with tableKeyId, read from the staged table
+      Preconditions.checkArgument(
+          Objects.equals(
+              tableKeyId, metadata.properties().get(TableProperties.ENCRYPTION_TABLE_KEY)),
+          "Cannot change key ID in a create transaction");
     }
 
     UpdateTableRequest request = new UpdateTableRequest(requirements, updates);
