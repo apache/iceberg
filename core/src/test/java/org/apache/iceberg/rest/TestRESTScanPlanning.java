@@ -433,6 +433,30 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
         .contains(FILE_C.location(), FILE_B.location());
   }
 
+  @Test
+  void incrementalScanExcludesStartSnapshot() {
+    TableIdentifier ident = TableIdentifier.of(NS, "incremental_boundary");
+    Table table = restTableFor(restCatalog, ident.name());
+    long startSnapshotId = table.currentSnapshot().snapshotId();
+    table.newAppend().appendFile(FILE_B).commit();
+    long endSnapshotId = table.currentSnapshot().snapshotId();
+
+    PlanTableScanResponse response =
+        CatalogHandlers.planTableScan(
+            backendCatalog,
+            ident,
+            PlanTableScanRequest.builder()
+                .withStartSnapshotId(startSnapshotId)
+                .withEndSnapshotId(endSnapshotId)
+                .build(),
+            scan -> false,
+            scan -> 2);
+
+    assertThat(response.fileScanTasks())
+        .extracting(task -> task.file().location())
+        .containsExactly(FILE_B.location());
+  }
+
   @ParameterizedTest
   @EnumSource(PlanningMode.class)
   void remoteScanPlanningWithPositionDeletes(
