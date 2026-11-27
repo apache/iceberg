@@ -262,3 +262,8 @@ Learn more in the [OLake documentation](https://olake.io/docs) and explore the [
 [OptimaFlo](https://optimaflo.io) is an AI data team that runs a company's data stack end to end, from raw ingestion to clean, query-ready tables, inside the customer's own AWS or GCP account (BYOC). Apache Iceberg is the storage layer for every table OptimaFlo manages, giving customers ACID transactions, schema evolution, and time travel, all under an Apache Polaris catalog. OptimaFlo's control plane never stores customer data; it only builds and runs the pipelines. Queries route across DuckDB or the customer's cloud warehouse depending on table size, and OptimaFlo's LLM agents generate the SQL that builds and maintains the Iceberg tables.
 
 Learn more about running Iceberg without a data team [here](https://optimaflo.io/blog/apache-iceberg-without-a-data-team).
+
+### [Alibaba Cloud](https://www.alibabacloud.com/help/en/dlf/dlf-2-0/user-guide/manage-iceberg-tables)
+
+Alibaba Cloud Data Lake Formation (DLF) provides managed Apache Iceberg tables through an Iceberg REST catalog.
+[Apache Spark and Apache Flink](https://www.alibabacloud.com/help/en/dlf/dlf-2-0/user-guide/access-iceberg-tables-in-dlf-via-java-api) can read and write DLF Iceberg tables using the Apache Iceberg runtimes and S3-compatible endpoints for Alibaba Cloud Object Storage Service (OSS).
