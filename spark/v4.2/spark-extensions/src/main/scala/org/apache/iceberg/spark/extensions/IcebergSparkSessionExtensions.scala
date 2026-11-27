@@ -23,6 +23,7 @@ import org.apache.spark.sql.catalyst.analysis.CheckViews
 import org.apache.spark.sql.catalyst.analysis.ResolveBranch
 import org.apache.spark.sql.catalyst.analysis.ResolveReferencedByViews
 import org.apache.spark.sql.catalyst.analysis.ResolveViews
+import org.apache.spark.sql.catalyst.optimizer.InstallNestedDynamicPruning
 import org.apache.spark.sql.catalyst.optimizer.ReplaceStaticInvoke
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
@@ -38,6 +39,8 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectResolutionRule { spark => ResolveViews(spark) }
     extensions.injectPostHocResolutionRule { spark => ResolveBranch(spark) }
     extensions.injectCheckRule(_ => CheckViews)
+    // lets scans offer data columns to dynamic pruning without nesting pruning subqueries
+    extensions.injectPostHocResolutionRule { spark => InstallNestedDynamicPruning(spark) }
 
     // optimizer extensions
     extensions.injectOptimizerRule { _ => ReplaceStaticInvoke }

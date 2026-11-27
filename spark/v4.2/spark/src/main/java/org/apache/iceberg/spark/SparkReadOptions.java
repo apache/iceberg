@@ -105,4 +105,8 @@ public class SparkReadOptions {
   public static final String TIMESTAMP_AS_OF = "timestampAsOf";
 
   public static final String AGGREGATE_PUSH_DOWN_ENABLED = "aggregate-push-down-enabled";
+
+  // String match filters for the Vortex reader that Iceberg expressions cannot state, set by the
+  // scan builder rather than by users
+  public static final String VORTEX_LIKE_FILTERS = "vortex-like-filters";
 }

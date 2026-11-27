@@ -26,6 +26,8 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -46,6 +48,7 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
 
   private final long numSplits;
   private final InheritedTaskMetrics inheritedMetrics = new InheritedTaskMetrics();
+  private final Expression runtimeFilter;
 
   RowDataReader(SparkInputPartition partition) {
     this(
@@ -54,7 +57,8 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
         partition.taskGroup(),
         partition.projection(),
         partition.isCaseSensitive(),
-        partition.cacheDeleteFilesOnExecutors());
+        partition.cacheDeleteFilesOnExecutors(),
+        partition.runtimeFilter());
   }
 
   RowDataReader(
@@ -64,10 +68,28 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
       Schema expectedSchema,
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
+    this(
+        table,
+        fileIO,
+        taskGroup,
+        expectedSchema,
+        caseSensitive,
+        cacheDeleteFilesOnExecutors,
+        Expressions.alwaysTrue());
+  }
 
+  private RowDataReader(
+      Table table,
+      FileIO fileIO,
+      ScanTaskGroup<FileScanTask> taskGroup,
+      Schema expectedSchema,
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors,
+      Expression runtimeFilter) {
     super(table, fileIO, taskGroup, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
 
     numSplits = taskGroup.tasks().size();
+    this.runtimeFilter = runtimeFilter;
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
   }
 
@@ -119,7 +141,7 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
           task.file().format(),
           task.start(),
           task.length(),
-          task.residual(),
+          Expressions.and(task.residual(), runtimeFilter),
           readSchema,
           idToConstant);
     }

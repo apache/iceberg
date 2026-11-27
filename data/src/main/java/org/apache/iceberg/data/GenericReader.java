@@ -20,10 +20,12 @@ package org.apache.iceberg.data;
 
 import java.io.Serializable;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.expressions.Evaluator;
@@ -65,7 +67,7 @@ class GenericReader implements Serializable {
         new GenericDeleteFilter(decryptor, task, tableSchema, projection);
     Schema readSchema = deletes.requiredSchema();
 
-    CloseableIterable<Record> records = openFile(task, readSchema, decryptor);
+    CloseableIterable<Record> records = openFile(task, readSchema, decryptor, deletes);
     records = deletes.filter(records);
     records = applyResidual(records, readSchema, task.residual());
 
@@ -84,7 +86,10 @@ class GenericReader implements Serializable {
   }
 
   private CloseableIterable<Record> openFile(
-      FileScanTask task, Schema fileProjection, InputFilesDecryptor decryptor) {
+      FileScanTask task,
+      Schema fileProjection,
+      InputFilesDecryptor decryptor,
+      DeleteFilter<Record> deletes) {
     Map<Integer, ?> partition =
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 
@@ -94,6 +99,16 @@ class GenericReader implements Serializable {
 
     if (reuseContainers) {
       builder = builder.reuseContainers();
+    }
+
+    // Push position deletes into the scan when the reader applies them natively; the delete filter
+    // then skips re-applying them. Readers without pushdown support fall back to post-scan
+    // filtering.
+    if (builder.supportsPositionDeletes()) {
+      Optional<PositionDeleteIndex> pushable = deletes.pushablePosDeletes();
+      if (pushable.isPresent()) {
+        builder = builder.positionDeletes(pushable.get());
+      }
     }
 
     return builder

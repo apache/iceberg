@@ -55,6 +55,7 @@ project(':iceberg-mr') {
       exclude group: 'javax.transaction', module: 'transaction-api'
       exclude group: 'com.zaxxer', module: 'HikariCP'
     }
+    testRuntimeOnly project(':iceberg-vortex')
   }
 
   test {

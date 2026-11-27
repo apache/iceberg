@@ -25,12 +25,15 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
+import org.apache.iceberg.spark.VortexBatchReadConf;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -47,11 +50,13 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
   private static final Logger LOG = LoggerFactory.getLogger(BatchDataReader.class);
 
   private final long numSplits;
+  private final Expression runtimeFilter;
 
   BatchDataReader(
       SparkInputPartition partition,
       ParquetBatchReadConf parquetBatchReadConf,
-      OrcBatchReadConf orcBatchReadConf) {
+      OrcBatchReadConf orcBatchReadConf,
+      VortexBatchReadConf vortexBatchReadConf) {
     this(
         partition.table(),
         partition.io(),
@@ -61,7 +66,9 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
         partition.isCaseSensitive(),
         parquetBatchReadConf,
         orcBatchReadConf,
-        partition.cacheDeleteFilesOnExecutors());
+        vortexBatchReadConf,
+        partition.cacheDeleteFilesOnExecutors(),
+        partition.runtimeFilter());
   }
 
   BatchDataReader(
@@ -73,7 +80,34 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
       boolean caseSensitive,
       ParquetBatchReadConf parquetConf,
       OrcBatchReadConf orcConf,
+      VortexBatchReadConf vortexConf,
       boolean cacheDeleteFilesOnExecutors) {
+    this(
+        table,
+        fileIO,
+        taskGroup,
+        tableSchema,
+        expectedSchema,
+        caseSensitive,
+        parquetConf,
+        orcConf,
+        vortexConf,
+        cacheDeleteFilesOnExecutors,
+        Expressions.alwaysTrue());
+  }
+
+  private BatchDataReader(
+      Table table,
+      FileIO fileIO,
+      ScanTaskGroup<FileScanTask> taskGroup,
+      Schema tableSchema,
+      Schema expectedSchema,
+      boolean caseSensitive,
+      ParquetBatchReadConf parquetConf,
+      OrcBatchReadConf orcConf,
+      VortexBatchReadConf vortexConf,
+      boolean cacheDeleteFilesOnExecutors,
+      Expression runtimeFilter) {
     super(
         table,
         fileIO,
@@ -83,9 +117,11 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
         caseSensitive,
         parquetConf,
         orcConf,
+        vortexConf,
         cacheDeleteFilesOnExecutors);
 
     numSplits = taskGroup.tasks().size();
+    this.runtimeFilter = runtimeFilter;
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
   }
 
@@ -122,7 +158,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
             task.file().format(),
             task.start(),
             task.length(),
-            task.residual(),
+            Expressions.and(task.residual(), runtimeFilter),
             idToConstant,
             deleteFilter)
         .iterator();

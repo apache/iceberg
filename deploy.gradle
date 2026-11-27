@@ -93,28 +93,31 @@ subprojects {
             }
           }
 
-          groupId = 'org.apache.iceberg'
           pom {
-            name = 'Apache Iceberg'
-            description = 'A table format for huge analytic datasets'
-            url = 'https://iceberg.apache.org'
+            name = 'SpiralDB Iceberg'
+            description = 'SpiralDB fork of Apache Iceberg, a table format for huge analytic datasets'
+            url = 'https://github.com/spiraldb/iceberg'
             licenses {
               license {
                 name = 'The Apache Software License, Version 2.0'
                 url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
               }
             }
-            mailingLists {
-              mailingList {
-                name = 'Dev Mailing List'
-                post = 'dev@iceberg.apache.org'
-                subscribe = 'dev-subscribe@iceberg.apache.org'
-                unsubscribe = 'dev-unsubscribe@iceberg.apache.org'
+            developers {
+              developer {
+                name = 'SpiralDB'
+                organization = 'SpiralDB'
+                organizationUrl = 'https://spiraldb.com'
               }
+            }
+            scm {
+              connection = 'scm:git:https://github.com/spiraldb/iceberg.git'
+              developerConnection = 'scm:git:ssh://git@github.com/spiraldb/iceberg.git'
+              url = 'https://github.com/spiraldb/iceberg'
             }
             issueManagement {
               system = 'GitHub'
-              url = 'https://github.com/apache/iceberg/issues'
+              url = 'https://github.com/spiraldb/iceberg/issues'
             }
           }
         }
@@ -127,10 +130,11 @@ subprojects {
             password project.hasProperty('mavenPassword') ? "$mavenPassword" : ""
           }
           // upload to the releases repository using ./gradlew -Prelease publish
-          def apacheSnapshotsRepoUrl = 'https://repository.apache.org/content/repositories/snapshots'
-          def apacheReleasesRepoUrl = 'https://repository.apache.org/service/local/staging/deploy/maven2'
-          def snapshotsRepoUrl = project.hasProperty('mavenSnapshotsRepo') ? "$mavenSnapshotsRepo" : "$apacheSnapshotsRepoUrl"
-          def releasesRepoUrl = project.hasProperty('mavenReleasesRepo') ? "$mavenReleasesRepo" : "$apacheReleasesRepoUrl"
+          // releases are staged in the Sonatype Central Portal through its OSSRH staging API
+          def centralSnapshotsRepoUrl = 'https://central.sonatype.com/repository/maven-snapshots/'
+          def centralReleasesRepoUrl = 'https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/'
+          def snapshotsRepoUrl = project.hasProperty('mavenSnapshotsRepo') ? "$mavenSnapshotsRepo" : "$centralSnapshotsRepoUrl"
+          def releasesRepoUrl = project.hasProperty('mavenReleasesRepo') ? "$mavenReleasesRepo" : "$centralReleasesRepoUrl"
           url = project.hasProperty('release') ? releasesRepoUrl : snapshotsRepoUrl
         }
       }
@@ -138,7 +142,11 @@ subprojects {
 
     if (project.hasProperty('release')) {
       signing {
-        useGpgCmd()
+        if (project.hasProperty('signingKey')) {
+          useInMemoryPgpKeys(project.findProperty('signingKey'), project.findProperty('signingPassword'))
+        } else {
+          useGpgCmd()
+        }
         sign publishing.publications.apache
       }
     }

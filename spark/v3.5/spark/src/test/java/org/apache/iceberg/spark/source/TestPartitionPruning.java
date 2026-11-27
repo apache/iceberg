@@ -90,7 +90,10 @@ public class TestPartitionPruning {
       {FileFormat.PARQUET, true, LOCAL},
       {FileFormat.AVRO, false, DISTRIBUTED},
       {FileFormat.ORC, false, LOCAL},
-      {FileFormat.ORC, true, DISTRIBUTED}
+      {FileFormat.ORC, true, DISTRIBUTED},
+      // Vortex reads are always vectorized, so the flag has no effect and is fixed at false.
+      {FileFormat.VORTEX, false, DISTRIBUTED},
+      {FileFormat.VORTEX, false, LOCAL}
     };
   }
 

@@ -76,6 +76,10 @@ class SparkCopyOnWriteOperation implements RowLevelOperation {
     if (lazyScanBuilder == null) {
       lazyScanBuilder =
           new SparkScanBuilder(spark, table, table.schema(), snapshot, branch, options) {
+            {
+              withoutDataColumnRuntimeFilters();
+            }
+
             @Override
             public Scan build() {
               Scan scan = super.buildCopyOnWriteScan();

@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
+import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,17 +43,23 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.optimizer.NestedDynamicPruning;
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
+import org.apache.spark.sql.catalyst.rules.Rule;
 import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import scala.collection.immutable.Seq;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestRuntimeFiltering extends TestBaseWithCatalog {
@@ -460,6 +467,136 @@ public class TestRuntimeFiltering extends TestBaseWithCatalog {
         "Should have expected rows",
         sql("SELECT * FROM %s WHERE id = 1 ORDER BY date", tableName),
         sql(query));
+  }
+
+  @TestTemplate
+  public void testNoDataColumnOfUnpartitionedParquetTable() throws NoSuchTableException {
+    // the Parquet reader keeps the rows that a data column filter rules out
+    assertDataColumnRuntimeFilter("parquet", false);
+  }
+
+  @TestTemplate
+  public void testDataColumnOfUnpartitionedVortexTable() throws NoSuchTableException {
+    assertDataColumnRuntimeFilter("vortex", true);
+  }
+
+  @TestTemplate
+  public void testDataColumnOfListedParquetFormat() throws NoSuchTableException {
+    String formats = SparkSQLProperties.DATA_COLUMN_RUNTIME_FILTERING_FORMATS;
+    spark.conf().set(formats, "vortex, parquet");
+    try {
+      assertDataColumnRuntimeFilter("parquet", true);
+    } finally {
+      spark.conf().unset(formats);
+    }
+  }
+
+  private void assertDataColumnRuntimeFilter(String format, boolean offered)
+      throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id BIGINT, data STRING) USING iceberg "
+            + "TBLPROPERTIES ('write.format.default' = '%s')",
+        tableName, format);
+    configurePlanningMode(planningMode);
+
+    // four files, each with a separate range of ids
+    spark
+        .range(1, 100)
+        .withColumn("data", expr("CAST(id AS STRING)"))
+        .repartitionByRange(4, col("id"))
+        .sortWithinPartitions("id")
+        .writeTo(tableName)
+        .append();
+
+    sql("CREATE TABLE dim (id BIGINT, date DATE) USING parquet");
+    Dataset<Row> dimDF =
+        spark.range(1, 2).withColumn("date", expr("DATE '1970-01-02'")).select("id", "date");
+    dimDF.coalesce(1).write().mode("append").insertInto("dim");
+
+    String query =
+        String.format(
+            "SELECT f.* FROM %s f JOIN dim d ON f.id = d.id AND d.date = DATE '1970-01-02'",
+            tableName);
+
+    Seq<Rule<LogicalPlan>> optimizations = spark.experimental().extraOptimizations();
+    NestedDynamicPruning.install(spark);
+    try {
+      if (!offered) {
+        assertQueryContainsNoRuntimeFilter(query);
+        assertEquals(
+            "Should have expected rows",
+            sql("SELECT * FROM %s WHERE id = 1", tableName),
+            sql(query));
+        return;
+      }
+
+      assertQueryContainsRuntimeFilter(query);
+
+      withSQLConf(
+          ImmutableMap.of(SparkSQLProperties.DATA_COLUMN_RUNTIME_FILTERING_ENABLED, "false"),
+          () -> assertQueryContainsNoRuntimeFilter(query));
+
+      // the metrics of the other files rule out the join key, so the scan must not read them
+      deleteNotMatchingFiles(Expressions.equal("id", 1), 3);
+
+      assertEquals(
+          "Should have expected rows", sql("SELECT * FROM %s WHERE id = 1", tableName), sql(query));
+
+      // a set larger than the limit reaches the readers as its range
+      withSQLConf(
+          ImmutableMap.of(SparkSQLProperties.RUNTIME_FILTER_MAX_VALUES, "0"),
+          () ->
+              assertEquals(
+                  "Should have expected rows",
+                  sql("SELECT * FROM %s WHERE id = 1", tableName),
+                  sql(query)));
+    } finally {
+      spark.experimental().extraOptimizations_$eq(optimizations);
+    }
+  }
+
+  @TestTemplate
+  public void testPlanShortensLargeRuntimeInFilter() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id BIGINT, data STRING) USING iceberg "
+            + "TBLPROPERTIES ('write.format.default' = 'vortex')",
+        tableName);
+    configurePlanningMode(planningMode);
+
+    spark
+        .range(1, 100)
+        .withColumn("data", expr("CAST(id AS STRING)"))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    sql("CREATE TABLE dim (id BIGINT, date DATE) USING parquet");
+    Dataset<Row> dimDF =
+        spark.range(1, 21).withColumn("date", expr("DATE '1970-01-02'")).select("id", "date");
+    dimDF.coalesce(1).write().mode("append").insertInto("dim");
+
+    String query =
+        String.format(
+            "SELECT f.* FROM %s f JOIN dim d ON f.id = d.id AND d.date = DATE '1970-01-02' "
+                + "ORDER BY id",
+            tableName);
+
+    Seq<Rule<LogicalPlan>> optimizations = spark.experimental().extraOptimizations();
+    NestedDynamicPruning.install(spark);
+    try {
+      Dataset<Row> df = spark.sql(query);
+
+      assertEquals(
+          "Should have expected rows",
+          sql("SELECT * FROM %s WHERE id <= 20 ORDER BY id", tableName),
+          rowsToJava(df.collectAsList()));
+
+      // the plan lists 10 of the 20 join keys
+      String plan = df.queryExecution().executedPlan().toString();
+      assertThat(plan).contains("runtimeFilters=id IN (").contains(", ... 10 more)");
+    } finally {
+      spark.experimental().extraOptimizations_$eq(optimizations);
+    }
   }
 
   @TestTemplate

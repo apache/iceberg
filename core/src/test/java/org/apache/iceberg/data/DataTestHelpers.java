@@ -128,6 +128,7 @@ public class DataTestHelpers {
       case UUID:
       case BINARY:
       case DECIMAL:
+        // Geometry and geography are carried as WKB, so they compare as plain binary values.
       case GEOMETRY:
       case GEOGRAPHY:
         assertThat(actual)
