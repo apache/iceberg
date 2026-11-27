@@ -115,11 +115,15 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
     Set<ManifestFile> liveDeleteManifests = ConcurrentHashMap.newKeySet();
     Set<ManifestFile> manifestsToScan = ConcurrentHashMap.newKeySet();
 
-    // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
-    // as much of the delete work as possible and avoid orphaned data or manifest files.
+    // Reading the retained snapshots must not suppress failures: a manifest list that cannot be
+    // read leaves validManifests incomplete, and the manifests it references would be deleted
+    // below even though they are still live. Fail the cleanup instead, as ReachableFileCleanup
+    // does. Later reads and deletes use suppressFailureWhenFinished to complete as much of the
+    // delete work as possible and avoid orphaned data or manifest files.
     Tasks.foreach(snapshots)
         .retry(3)
-        .suppressFailureWhenFinished()
+        .stopOnFailure()
+        .throwFailureWhenFinished()
         .executeWith(planExecutorService)
         .onFailure(
             (snapshot, exc) ->
