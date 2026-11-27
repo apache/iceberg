@@ -193,7 +193,7 @@ class TableMetadataCache {
             CompareSchemasVisitor.visit(input, tableSchema, caseSensitive, dropUnusedColumns);
         if (result == CompareSchemasVisitor.Result.SAME) {
           return new ResolvedSchemaInfo(
-              tableSchema, CompareSchemasVisitor.Result.SAME, DataConverter.identity());
+              tableSchema, CompareSchemasVisitor.Result.SAME, DataConverter.identity(tableSchema));
         } else if (compatible == null
             && result == CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED) {
           compatible = tableSchema;

@@ -30,7 +30,6 @@ import org.apache.flink.api.connector.sink2.CommittingSinkWriter;
 import org.apache.flink.api.connector.sink2.SinkWriter;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.RowData;
-import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -41,7 +40,6 @@ import org.apache.iceberg.flink.sink.SinkUtil;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
@@ -107,21 +105,6 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
 
                         Set<Integer> equalityFieldIds =
                             getEqualityFields(table, element.equalityFields());
-                        if (element.upsertMode()) {
-                          Preconditions.checkState(
-                              !equalityFieldIds.isEmpty(),
-                              "Equality field columns shouldn't be empty when configuring to use UPSERT data.");
-
-                          if (!table.spec().isUnpartitioned()) {
-                            for (PartitionField partitionField : table.spec().fields()) {
-                              Preconditions.checkState(
-                                  equalityFieldIds.contains(partitionField.sourceId()),
-                                  "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",
-                                  partitionField,
-                                  equalityFieldIds);
-                            }
-                          }
-                        }
 
                         FlinkWriteConf flinkWriteConf =
                             new FlinkWriteConf(table, commonWriteProperties, flinkConfig);
