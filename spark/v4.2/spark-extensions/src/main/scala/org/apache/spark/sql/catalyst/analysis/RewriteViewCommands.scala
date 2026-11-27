@@ -20,11 +20,14 @@ package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
+import org.apache.spark.sql.catalyst.plans.logical.AnalyzeColumn
+import org.apache.spark.sql.catalyst.plans.logical.AnalyzeTable
 import org.apache.spark.sql.catalyst.plans.logical.CreateView
 import org.apache.spark.sql.catalyst.plans.logical.DescribeRelation
 import org.apache.spark.sql.catalyst.plans.logical.DropView
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.RenameTable
+import org.apache.spark.sql.catalyst.plans.logical.ShowColumns
 import org.apache.spark.sql.catalyst.plans.logical.ShowCreateTable
 import org.apache.spark.sql.catalyst.plans.logical.ShowTableProperties
 import org.apache.spark.sql.catalyst.plans.logical.ShowViews
@@ -34,6 +37,7 @@ import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
 import org.apache.spark.sql.catalyst.plans.logical.views.ShowIcebergViews
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.connector.catalog.CatalogManager
+import org.apache.spark.sql.connector.catalog.CatalogV2Util
 import org.apache.spark.sql.connector.catalog.LookupCatalog
 
 /**
@@ -50,6 +54,15 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
 
     case RenameTable(ResolvedViewPlan(resolved), newName, isView @ true) =>
       RenameTable(resolved, newName, isView)
+
+    case c @ ShowColumns(ResolvedSessionViewPlan(resolved), _, _) =>
+      c.copy(child = resolved)
+
+    case c @ AnalyzeTable(ResolvedSessionViewPlan(resolved), _, _) =>
+      c.copy(child = resolved)
+
+    case c @ AnalyzeColumn(ResolvedSessionViewPlan(resolved), _, _) =>
+      c.copy(child = resolved)
 
     case DescribeRelation(ResolvedViewPlan(resolved), isExtended, output) =>
       DescribeRelation(resolved, isExtended, output)
@@ -138,6 +151,17 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
         ViewUtil
           .loadView(catalog, ident)
           .map(view => ResolvedV2View(catalog.asViewCatalog, ident, view))
+
+      case _ =>
+        None
+    }
+  }
+
+  private object ResolvedSessionViewPlan {
+    def unapply(plan: LogicalPlan): Option[ResolvedV2View] = plan match {
+      case UnresolvedTableOrView(parts @ CatalogAndIdentifier(catalog, _), _, _, _)
+          if CatalogV2Util.isSessionCatalog(catalog) =>
+        ResolvedView.unapply(parts)
 
       case _ =>
         None
