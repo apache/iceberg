@@ -39,6 +39,11 @@ public class PartitionSpecEvolution {
    * long as their transforms and field names corresponding to their source ids match.
    */
   public static boolean checkCompatibility(PartitionSpec spec1, PartitionSpec spec2) {
+    return checkCompatibility(spec1, spec2, true);
+  }
+
+  static boolean checkCompatibility(
+      PartitionSpec spec1, PartitionSpec spec2, boolean caseSensitive) {
     if (spec1.equals(spec2)) {
       return true;
     }
@@ -50,7 +55,7 @@ public class PartitionSpecEvolution {
     for (int i = 0; i < spec1.fields().size(); i++) {
       PartitionField field1 = spec1.fields().get(i);
       PartitionField field2 = spec2.fields().get(i);
-      if (!specFieldsAreCompatible(field1, spec1.schema(), field2, spec2.schema())) {
+      if (!specFieldsAreCompatible(field1, spec1.schema(), field2, spec2.schema(), caseSensitive)) {
         return false;
       }
     }
@@ -59,6 +64,11 @@ public class PartitionSpecEvolution {
   }
 
   static PartitionSpecChanges evolve(PartitionSpec currentSpec, PartitionSpec targetSpec) {
+    return evolve(currentSpec, targetSpec, true);
+  }
+
+  static PartitionSpecChanges evolve(
+      PartitionSpec currentSpec, PartitionSpec targetSpec, boolean caseSensitive) {
     if (currentSpec.compatibleWith(targetSpec)) {
       return new PartitionSpecChanges();
     }
@@ -71,7 +81,7 @@ public class PartitionSpecEvolution {
       PartitionField targetField = Iterables.get(targetSpec.fields(), i, null);
 
       if (!specFieldsAreCompatible(
-          currentField, currentSpec.schema(), targetField, targetSpec.schema())) {
+          currentField, currentSpec.schema(), targetField, targetSpec.schema(), caseSensitive)) {
 
         if (currentField != null) {
           result.remove(toTerm(currentField, currentSpec.schema()));
@@ -125,13 +135,24 @@ public class PartitionSpecEvolution {
   }
 
   private static boolean specFieldsAreCompatible(
-      PartitionField field1, Schema schemaField1, PartitionField field2, Schema schemaField2) {
+      PartitionField field1,
+      Schema schemaField1,
+      PartitionField field2,
+      Schema schemaField2,
+      boolean caseSensitive) {
     if (field1 == null || field2 == null) {
       return false;
     }
     String firstFieldSourceName = schemaField1.idToName().get(field1.sourceId());
     String secondFieldSourceName = schemaField2.idToName().get(field2.sourceId());
-    return firstFieldSourceName.equals(secondFieldSourceName)
-        && field1.transform().toString().equals(field2.transform().toString());
+    if (firstFieldSourceName == null || secondFieldSourceName == null) {
+      return false;
+    }
+
+    boolean sameSource =
+        caseSensitive
+            ? firstFieldSourceName.equals(secondFieldSourceName)
+            : firstFieldSourceName.equalsIgnoreCase(secondFieldSourceName);
+    return sameSource && field1.transform().toString().equals(field2.transform().toString());
   }
 }
