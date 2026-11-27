@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.IntFunction;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -46,7 +47,7 @@ public class Comparators {
           .put(Types.TimestampNanoType.withZone(), Comparator.naturalOrder())
           .put(Types.TimestampNanoType.withoutZone(), Comparator.naturalOrder())
           .put(Types.StringType.get(), Comparators.charSequences())
-          .put(Types.UUIDType.get(), Comparator.naturalOrder())
+          .put(Types.UUIDType.get(), Comparators.uuids())
           .put(Types.BinaryType.get(), Comparators.unsignedBytes())
           .put(Types.UnknownType.get(), Comparator.nullsFirst(Comparator.naturalOrder()))
           .buildOrThrow();
@@ -229,6 +230,10 @@ public class Comparators {
     return CharSeqComparator.INSTANCE;
   }
 
+  public static Comparator<UUID> uuids() {
+    return UUIDComparator.INSTANCE;
+  }
+
   public static Comparator<CharSequence> filePath() {
     return FilePathComparator.INSTANCE;
   }
@@ -364,6 +369,27 @@ public class Comparators {
 
       // if there are no differences, then the shorter seq is smaller
       return Integer.compare(array1.length, array2.length);
+    }
+  }
+
+  private static class UUIDComparator implements Comparator<UUID> {
+    private static final UUIDComparator INSTANCE = new UUIDComparator();
+
+    private UUIDComparator() {}
+
+    @Override
+    public int compare(UUID left, UUID right) {
+      // UUIDs are serialized and bounded as 16-byte big-endian values, so they must be ordered as
+      // unsigned 128-bit values to stay consistent with those bounds. java.util.UUID.compareTo
+      // compares the two longs as signed, which flips the order whenever the high bit of either
+      // half is set -- that inverts a data file's stored [lower, upper] bounds and makes range
+      // overlap checks (e.g. equality-delete planning) wrongly skip files (apache/iceberg#18619).
+      int cmp = Long.compareUnsigned(left.getMostSignificantBits(), right.getMostSignificantBits());
+      if (cmp != 0) {
+        return cmp;
+      }
+
+      return Long.compareUnsigned(left.getLeastSignificantBits(), right.getLeastSignificantBits());
     }
   }
 
