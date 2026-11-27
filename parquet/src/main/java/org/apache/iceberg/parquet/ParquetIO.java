@@ -27,6 +27,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
@@ -36,8 +38,6 @@ import org.apache.iceberg.io.FileRange;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.parquet.bytes.ByteBufferAllocator;
-import org.apache.parquet.conf.ParquetConfiguration;
-import org.apache.parquet.hadoop.util.ConfigurationUtil;
 import org.apache.parquet.hadoop.util.HadoopStreams;
 import org.apache.parquet.io.DelegatingPositionOutputStream;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
@@ -68,30 +68,10 @@ class ParquetIO {
   }
 
   static OutputFile file(org.apache.iceberg.io.OutputFile file) {
-    if (file instanceof HadoopOutputFile) {
-      HadoopOutputFile hfile = (HadoopOutputFile) file;
-      try {
-        return org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath(
-            hfile.getPath(), hfile.getConf());
-      } catch (IOException e) {
-        throw new RuntimeIOException(
-            e, "Failed to create Parquet output file for %s", file.location());
-      }
+    if (file instanceof HadoopOutputFile hfile) {
+      return new HadoopFileSystemOutputFile(hfile.getFileSystem(), hfile.getPath());
     }
-    return new ParquetOutputFile(file);
-  }
 
-  static OutputFile file(org.apache.iceberg.io.OutputFile file, ParquetConfiguration conf) {
-    if (file instanceof HadoopOutputFile) {
-      HadoopOutputFile hfile = (HadoopOutputFile) file;
-      try {
-        return org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath(
-            hfile.getPath(), ConfigurationUtil.createHadoopConfiguration(conf));
-      } catch (IOException e) {
-        throw new RuntimeIOException(
-            e, "Failed to create Parquet output file for %s", file.location());
-      }
-    }
     return new ParquetOutputFile(file);
   }
 
@@ -236,6 +216,56 @@ class ParquetIO {
     @Override
     public long defaultBlockSize() {
       return 0;
+    }
+  }
+
+  // Parquet's own HadoopOutputFile resolves the FileSystem from the path, which would bypass the
+  // FileSystem the Iceberg file was created with
+  private static class HadoopFileSystemOutputFile implements OutputFile {
+    private static final int BUFFER_SIZE = 4096;
+
+    private final FileSystem fs;
+    private final Path path;
+
+    private HadoopFileSystemOutputFile(FileSystem fs, Path path) {
+      this.fs = fs;
+      this.path = fs.makeQualified(path);
+    }
+
+    @Override
+    public PositionOutputStream create(long blockSizeHint) throws IOException {
+      return create(false, blockSizeHint);
+    }
+
+    @Override
+    public PositionOutputStream createOrOverwrite(long blockSizeHint) throws IOException {
+      return create(true, blockSizeHint);
+    }
+
+    private PositionOutputStream create(boolean overwrite, long blockSizeHint) throws IOException {
+      return HadoopStreams.wrap(
+          fs.create(
+              path,
+              overwrite,
+              BUFFER_SIZE,
+              fs.getDefaultReplication(path),
+              Math.max(fs.getDefaultBlockSize(path), blockSizeHint)));
+    }
+
+    @Override
+    public boolean supportsBlockSize() {
+      return org.apache.parquet.hadoop.util.HadoopOutputFile.getBlockFileSystems()
+          .contains(fs.getUri().getScheme());
+    }
+
+    @Override
+    public long defaultBlockSize() {
+      return fs.getDefaultBlockSize(path);
+    }
+
+    @Override
+    public String getPath() {
+      return path.toString();
     }
   }
 

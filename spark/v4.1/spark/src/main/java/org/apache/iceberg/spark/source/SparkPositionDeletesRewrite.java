@@ -89,6 +89,7 @@ public class SparkPositionDeletesRewrite implements Write {
   private final StructLike partition;
   private final Map<String, String> writeProperties;
   private InMemoryMetricsReporter metricsReporter;
+  private WriteTimer.Totals writeTimes = new WriteTimer.Totals();
 
   /**
    * Constructs a {@link SparkPositionDeletesRewrite}.
@@ -139,7 +140,7 @@ public class SparkPositionDeletesRewrite implements Write {
 
   @Override
   public CustomTaskMetric[] reportDriverMetrics() {
-    return SparkWriteUtil.customTaskMetrics(metricsReporter);
+    return writeTimes.driverMetrics(metricsReporter);
   }
 
   @Override
@@ -186,14 +187,17 @@ public class SparkPositionDeletesRewrite implements Write {
 
     private List<DeleteFile> files(WriterCommitMessage[] messages) {
       List<DeleteFile> files = Lists.newArrayList();
+      // both commit and abort funnel through here, so this is where task write times are collected
+      WriteTimer.Totals totals = new WriteTimer.Totals();
 
       for (WriterCommitMessage message : messages) {
         if (message != null) {
-          DeleteTaskCommit taskCommit = (DeleteTaskCommit) message;
+          DeleteTaskCommit taskCommit = (DeleteTaskCommit) totals.unwrap(message);
           files.addAll(Arrays.asList(taskCommit.files()));
         }
       }
 
+      SparkPositionDeletesRewrite.this.writeTimes = totals;
       return files;
     }
   }
@@ -245,16 +249,18 @@ public class SparkPositionDeletesRewrite implements Write {
     public DataWriter<InternalRow> createWriter(int partitionId, long taskId) {
       Table table = tableBroadcast.value();
       int formatVersion = TableUtil.formatVersion(table);
+      WriteTimer timer = new WriteTimer(partitionId, taskId);
 
       OutputFileFactory deleteFileFactory =
           OutputFileFactory.builderFor(table, partitionId, taskId)
               .format(formatVersion >= 3 ? FileFormat.PUFFIN : format)
               .operationId(queryId)
               .suffix("deletes")
+              .ioSupplier(() -> new TimedFileIO(table.io(), timer))
               .build();
 
       if (formatVersion >= 3) {
-        return new DVWriter(table, deleteFileFactory, dsSchema, specId, partition);
+        return timer.wrap(new DVWriter(table, deleteFileFactory, dsSchema, specId, partition));
       } else {
         SparkFileWriterFactory writerFactory =
             SparkFileWriterFactory.builderFor(table)
@@ -262,15 +268,16 @@ public class SparkPositionDeletesRewrite implements Write {
                 .writeProperties(writeProperties)
                 .build();
 
-        return new DeleteWriter(
-            table,
-            writerFactory,
-            deleteFileFactory,
-            targetFileSize,
-            deleteGranularity,
-            dsSchema,
-            specId,
-            partition);
+        return timer.wrap(
+            new DeleteWriter(
+                table,
+                writerFactory,
+                deleteFileFactory,
+                targetFileSize,
+                deleteGranularity,
+                dsSchema,
+                specId,
+                partition));
       }
     }
   }

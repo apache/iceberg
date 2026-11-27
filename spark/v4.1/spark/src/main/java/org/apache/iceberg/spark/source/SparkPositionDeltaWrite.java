@@ -125,6 +125,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
   private boolean cleanupOnAbort = false;
   private InMemoryMetricsReporter metricsReporter;
+  private WriteTimer.Totals writeTimes = new WriteTimer.Totals();
 
   SparkPositionDeltaWrite(
       SparkSession spark,
@@ -195,7 +196,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
   @Override
   public CustomTaskMetric[] reportDriverMetrics() {
-    return SparkWriteUtil.customTaskMetrics(metricsReporter);
+    return writeTimes.driverMetrics(metricsReporter);
   }
 
   private class PositionDeltaBatchWrite implements DeltaBatchWrite {
@@ -246,9 +247,10 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
       int addedDataFilesCount = 0;
       int addedDeleteFilesCount = 0;
       int removedDeleteFilesCount = 0;
+      WriteTimer.Totals totals = new WriteTimer.Totals();
 
       for (WriterCommitMessage message : messages) {
-        DeltaTaskCommit taskCommit = (DeltaTaskCommit) message;
+        DeltaTaskCommit taskCommit = (DeltaTaskCommit) totals.unwrap(message);
 
         for (DataFile dataFile : taskCommit.dataFiles()) {
           rowDelta.addRows(dataFile);
@@ -267,6 +269,8 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
         referencedDataFiles.addAll(Arrays.asList(taskCommit.referencedDataFiles()));
       }
+
+      SparkPositionDeltaWrite.this.writeTimes = totals;
 
       // the scan may be null if the optimizer replaces it with an empty relation
       // no validation is needed in this case as the command is independent of the table state
@@ -329,7 +333,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
       for (WriterCommitMessage message : messages) {
         if (message != null) {
-          DeltaTaskCommit taskCommit = (DeltaTaskCommit) message;
+          DeltaTaskCommit taskCommit = (DeltaTaskCommit) WriteTimer.unwrap(message);
           files.addAll(Arrays.asList(taskCommit.dataFiles()));
           files.addAll(Arrays.asList(taskCommit.deleteFiles()));
         }
@@ -439,17 +443,20 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
     @Override
     public DeltaWriter<InternalRow> createWriter(int partitionId, long taskId) {
       Table table = tableBroadcast.value();
+      WriteTimer timer = new WriteTimer(partitionId, taskId);
 
       OutputFileFactory dataFileFactory =
           OutputFileFactory.builderFor(table, partitionId, taskId)
               .format(context.dataFileFormat())
               .operationId(context.queryId())
+              .ioSupplier(() -> new TimedFileIO(table.io(), timer))
               .build();
       OutputFileFactory deleteFileFactory =
           OutputFileFactory.builderFor(table, partitionId, taskId)
               .format(context.deleteFileFormat())
               .operationId(context.queryId())
               .suffix("deletes")
+              .ioSupplier(() -> new TimedFileIO(table.io(), timer))
               .build();
 
       SparkFileWriterFactory writerFactory =
@@ -463,28 +470,31 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
               .build();
 
       if (command == DELETE) {
-        return new DeleteOnlyDeltaWriter(
-            table, rewritableDeletes(), writerFactory, deleteFileFactory, context);
+        return timer.wrap(
+            new DeleteOnlyDeltaWriter(
+                table, rewritableDeletes(), writerFactory, deleteFileFactory, context));
 
       } else if (table.spec().isUnpartitioned()) {
-        return new UnpartitionedDeltaWriter(
-            table,
-            rewritableDeletes(),
-            writerFactory,
-            dataFileFactory,
-            deleteFileFactory,
-            new ExtractRowLineage(context.dataSchema()),
-            context);
+        return timer.wrap(
+            new UnpartitionedDeltaWriter(
+                table,
+                rewritableDeletes(),
+                writerFactory,
+                dataFileFactory,
+                deleteFileFactory,
+                new ExtractRowLineage(context.dataSchema()),
+                context));
 
       } else {
-        return new PartitionedDeltaWriter(
-            table,
-            rewritableDeletes(),
-            writerFactory,
-            dataFileFactory,
-            deleteFileFactory,
-            new ExtractRowLineage(context.dataSchema()),
-            context);
+        return timer.wrap(
+            new PartitionedDeltaWriter(
+                table,
+                rewritableDeletes(),
+                writerFactory,
+                dataFileFactory,
+                deleteFileFactory,
+                new ExtractRowLineage(context.dataSchema()),
+                context));
       }
     }
 
