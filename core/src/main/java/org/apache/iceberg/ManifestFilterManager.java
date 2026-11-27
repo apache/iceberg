@@ -187,6 +187,12 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     deleteFilePartitions.add(file.specId(), file.partition());
   }
 
+  void dropDelete(F file) {
+    Preconditions.checkNotNull(file, "Cannot drop delete for file: null");
+    invalidateFilteredCache();
+    deleteFiles.remove(file);
+  }
+
   /** Add a specific path to be deleted in the new snapshot. */
   void delete(CharSequence path) {
     Preconditions.checkNotNull(path, "Cannot delete file path: null");
