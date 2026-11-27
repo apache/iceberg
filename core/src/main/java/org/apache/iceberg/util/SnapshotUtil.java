@@ -158,13 +158,29 @@ public class SnapshotUtil {
    * @throws IllegalStateException if the first ancestor after the given time can't be determined
    */
   public static Snapshot oldestAncestorAfter(Table table, long timestampMillis) {
-    if (table.currentSnapshot() == null) {
+    return oldestAncestorAfter(table, null, timestampMillis);
+  }
+
+  /**
+   * Traverses the history of the given branch's head snapshot, finds the oldest snapshot that was
+   * committed either at or after a given time.
+   *
+   * @param table a table
+   * @param branch a branch name, or null for main
+   * @param timestampMillis a timestamp in milliseconds
+   * @return the first snapshot after the given timestamp, or null if the branch does not exist or
+   *     its head snapshot is older than the timestamp
+   * @throws IllegalStateException if the first ancestor after the given time can't be determined
+   */
+  public static Snapshot oldestAncestorAfter(Table table, String branch, long timestampMillis) {
+    Snapshot headSnapshot = latestSnapshot(table, branch);
+    if (headSnapshot == null) {
       // there are no snapshots or ancestors
       return null;
     }
 
     Snapshot lastSnapshot = null;
-    for (Snapshot snapshot : currentAncestors(table)) {
+    for (Snapshot snapshot : ancestorsOf(headSnapshot, table::snapshot)) {
       if (snapshot.timestampMillis() < timestampMillis) {
         return lastSnapshot;
       } else if (snapshot.timestampMillis() == timestampMillis) {
