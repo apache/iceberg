@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -32,6 +33,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.InvalidRecordException;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -128,6 +130,92 @@ public class ParquetSchemaUtil {
     } catch (InvalidRecordException ignored) {
       return null;
     }
+  }
+
+  static MessageType removeContainersWithMissingIds(MessageType fileSchema, Schema expectedSchema) {
+    List<Type> fields = Lists.newArrayList();
+    for (Type field : fileSchema.getFields()) {
+      Type resolved = removeContainersWithMissingIds(field, expectedSchema);
+      if (resolved != null) {
+        fields.add(resolved);
+      }
+    }
+    return new MessageType(fileSchema.getName(), fields);
+  }
+
+  private static Type removeContainersWithMissingIds(Type type, Schema expectedSchema) {
+    if (type.isPrimitive()) {
+      return type;
+    }
+
+    org.apache.iceberg.types.Type expected =
+        type.getId() != null ? expectedSchema.findType(type.getId().intValue()) : null;
+    if (expected == null || expected.isVariantType()) {
+      return type;
+    }
+
+    GroupType group = type.asGroupType();
+    if (group.getLogicalTypeAnnotation()
+        instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation) {
+      return removeListWithMissingIds(group, expectedSchema);
+    } else if (group.getLogicalTypeAnnotation()
+        instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation) {
+      return removeMapWithMissingIds(group, expectedSchema);
+    } else if (group.getLogicalTypeAnnotation() != null) {
+      return group;
+    }
+
+    List<Type> fields = Lists.newArrayList();
+    for (Type field : group.getFields()) {
+      Type resolved = removeContainersWithMissingIds(field, expectedSchema);
+      if (resolved != null) {
+        fields.add(resolved);
+      }
+    }
+    Preconditions.checkArgument(
+        fields.equals(group.getFields())
+            || fields.stream().anyMatch(ParquetSchemaUtil::hasIdentifiedLeaf),
+        "POC cannot preserve struct presence without an identified leaf: %s",
+        group.getName());
+    return group.withNewFields(fields);
+  }
+
+  private static boolean hasIdentifiedLeaf(Type type) {
+    if (type.isPrimitive()) {
+      return type.getId() != null;
+    }
+    return type.asGroupType().getFields().stream().anyMatch(ParquetSchemaUtil::hasIdentifiedLeaf);
+  }
+
+  private static Type removeMapWithMissingIds(GroupType group, Schema expectedSchema) {
+    GroupType entries = group.getType(0).asGroupType();
+    if (entries.getFieldCount() != 2
+        || entries.getType(0).getId() == null
+        || entries.getType(1).getId() == null) {
+      return null;
+    }
+    Type key = removeContainersWithMissingIds(entries.getType(0), expectedSchema);
+    Type value = removeContainersWithMissingIds(entries.getType(1), expectedSchema);
+    Preconditions.checkArgument(
+        key != null && value != null,
+        "POC does not support missing containers nested in maps: %s",
+        group.getName());
+    return group.withNewFields(entries.withNewFields(key, value));
+  }
+
+  private static Type removeListWithMissingIds(GroupType group, Schema expectedSchema) {
+    Type element = determineListElementType(group);
+    if (element.getId() == null) {
+      return null;
+    }
+    Type resolved = removeContainersWithMissingIds(element, expectedSchema);
+    Preconditions.checkArgument(
+        resolved != null,
+        "POC does not support missing containers nested in lists: %s",
+        group.getName());
+    return element.isRepetition(Type.Repetition.REPEATED)
+        ? group.withNewFields(resolved)
+        : group.withNewFields(group.getType(0).asGroupType().withNewFields(resolved));
   }
 
   /**
