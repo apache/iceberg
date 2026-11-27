@@ -2930,6 +2930,7 @@ components:
       type: string
       examples:
         - "identity"
+        - "void"
         - "year"
         - "month"
         - "day"
