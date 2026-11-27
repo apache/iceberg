@@ -20,7 +20,9 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -28,7 +30,9 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.state.StateInitializationContext;
@@ -56,7 +60,9 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -87,6 +93,10 @@ import org.slf4j.LoggerFactory;
  * that plan. A {@link EqualityConvertPlan#cycleStart} marker is emitted first, before any phase
  * watermark. The marker tells the committer a cycle has started, and the committer holds watermarks
  * until the commit.
+ *
+ * <p>With a partition index idle timeout, the index covers only the partitions that received
+ * equality deletes: {@link #loadPartitions} indexes a partition when its first delete arrives, and
+ * {@link #evictIdlePartitions} drops a partition that received no delete within the timeout.
  *
  * <p>Assumes a single equality-field set supplied via the builder; staging eq-deletes with a
  * different {@code equalityFieldIds} fail fast in {@link #retrieveStagingFiles}. Concurrent writes
@@ -122,6 +132,8 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   // Equality-field-id set the worker keys on. Supplied via the builder; every staging
   // eq-delete's equalityFieldIds() must match exactly.
   private final Set<Integer> eqFieldIds;
+  // Null indexes every partition of the target branch.
+  private final Long partitionIndexIdleTimeoutMs;
 
   // Main snapshot id the worker's index reflects.
   private transient ListState<Long> indexSnapshotState;
@@ -133,6 +145,10 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   private transient ListState<Integer> eqFieldIdsState;
   // Absent in state of a version that recorded the index as current before it was complete.
   private transient ListState<Integer> stateVersionState;
+  // Whether the index covers only the partitions in indexedPartitionsState.
+  private transient ListState<Boolean> partitionScopedState;
+  // Partitions of a partition-scoped index and the trigger timestamp of their latest delete.
+  private transient ListState<Tuple2<IndexPartition, Long>> indexedPartitionsState;
 
   private transient Table table;
 
@@ -143,6 +159,13 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   // Staging snapshot the index changed for until its conversion commit shows up on the target
   // branch, checkpointed so it survives a restore taken mid-cycle.
   private transient Long pendingStagingSnapshotId;
+  private transient Map<IndexPartition, Long> indexedPartitions;
+  // Whether every partition with data files on the indexed snapshot is indexed, so that an
+  // unpartitioned delete has nothing to load.
+  private transient boolean coversAllPartitions;
+  // Partitions whose rows the current cycle sends to the worker, which must not be evicted in it.
+  private transient Set<IndexPartition> partitionsWithRows;
+  private transient StructLikeSerializer partitionSerializer;
 
   private transient long nextPhaseTs;
 
@@ -160,6 +183,21 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
       String stagingBranch,
       String targetBranch,
       Set<Integer> eqFieldIds) {
+    this(tableName, taskName, tableLoader, stagingBranch, targetBranch, eqFieldIds, null);
+  }
+
+  public EqualityConvertPlanner(
+      String tableName,
+      String taskName,
+      TableLoader tableLoader,
+      String stagingBranch,
+      String targetBranch,
+      Set<Integer> eqFieldIds,
+      Long partitionIndexIdleTimeoutMs) {
+    Preconditions.checkArgument(
+        partitionIndexIdleTimeoutMs == null || partitionIndexIdleTimeoutMs > 0,
+        "Invalid partition index idle timeout: %s ms (must be positive)",
+        partitionIndexIdleTimeoutMs);
     this.tableName = tableName;
     this.taskName = taskName;
     this.tableLoader = tableLoader;
@@ -169,6 +207,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     Preconditions.checkArgument(
         eqFieldIds != null && !eqFieldIds.isEmpty(), "eqFieldIds must not be null or empty");
     this.eqFieldIds = ImmutableSet.copyOf(eqFieldIds);
+    this.partitionIndexIdleTimeoutMs = partitionIndexIdleTimeoutMs;
   }
 
   @Override
@@ -179,6 +218,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     }
 
     table = tableLoader.loadTable();
+    partitionSerializer = new StructLikeSerializer();
 
     MetricGroup taskMetricGroup =
         TableMaintenanceMetrics.groupFor(getRuntimeContext(), tableName, taskName, 0);
@@ -252,6 +292,9 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
             .getOperatorStateStore()
             .getListState(new ListStateDescriptor<>("stateVersion", Types.INT));
 
+    boolean restoredPartitionScoped = initializePartitionIndexState(context);
+    partitionsWithRows = Sets.newHashSet();
+
     // The index recorded by an older version can be incomplete while it looks current.
     if (context.isRestored() && !stateVersionState.get().iterator().hasNext()) {
       LOG.info(
@@ -260,6 +303,42 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
           taskName);
       indexSnapshotId = null;
     }
+
+    if (context.isRestored() && restoredPartitionScoped != partitionScoped()) {
+      LOG.info(
+          "Partition index idle timeout was {} for table {} task {}, rebuilding the worker index.",
+          partitionScoped() ? "enabled" : "disabled",
+          tableName,
+          taskName);
+      indexSnapshotId = null;
+    }
+  }
+
+  private boolean initializePartitionIndexState(StateInitializationContext context)
+      throws Exception {
+    partitionScopedState =
+        context
+            .getOperatorStateStore()
+            .getListState(new ListStateDescriptor<>("partitionScopedIndex", Types.BOOLEAN));
+    boolean restoredPartitionScoped = false;
+    for (Boolean stateValue : partitionScopedState.get()) {
+      restoredPartitionScoped = stateValue;
+    }
+
+    indexedPartitionsState =
+        context
+            .getOperatorStateStore()
+            .getListState(
+                new ListStateDescriptor<>(
+                    "indexedPartitions",
+                    Types.<Tuple2<IndexPartition, Long>>TUPLE(
+                        TypeInformation.of(IndexPartition.class), Types.LONG)));
+    indexedPartitions = Maps.newHashMap();
+    for (Tuple2<IndexPartition, Long> stateValue : indexedPartitionsState.get()) {
+      indexedPartitions.put(stateValue.f0, stateValue.f1);
+    }
+
+    return restoredPartitionScoped;
   }
 
   @Override
@@ -285,12 +364,21 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
 
     stateVersionState.clear();
     stateVersionState.add(STATE_VERSION);
+
+    partitionScopedState.clear();
+    partitionScopedState.add(partitionScoped());
+
+    indexedPartitionsState.clear();
+    for (Map.Entry<IndexPartition, Long> entry : indexedPartitions.entrySet()) {
+      indexedPartitionsState.add(Tuple2.of(entry.getKey(), entry.getValue()));
+    }
   }
 
   @Override
   public void processElement(StreamRecord<Trigger> element) throws Exception {
     long triggerTs = element.getTimestamp();
     nextPhaseTs = Math.max(triggerTs, nextPhaseTs + 1);
+    partitionsWithRows.clear();
 
     // Mark cycle start before the first phase watermark. The committer holds back watermarks from
     // here until the plan arrives; without the marker it cannot tell a phase watermark emitted
@@ -313,6 +401,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
 
       if (nextToProcess == null) {
         LOG.info("Nothing new to convert on staging branch '{}'.", stagingBranch);
+        evictIdlePartitions(triggerTs);
         emitNoOpResult(triggerTs, currentMainSnapshotId);
         return;
       }
@@ -350,6 +439,8 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
       indexSnapshotId = null;
       pendingStagingSnapshotId = null;
       lastMainSnapshotId = null;
+      indexedPartitions.clear();
+      coversAllPartitions = false;
       return;
     }
 
@@ -497,6 +588,10 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
       validateTargetDeleteFiles(snapshot, changes);
 
       for (DataFile dataFile : changes.addedDataFiles()) {
+        if (!sendsRowsOf(dataFile)) {
+          continue;
+        }
+
         // Make sure to not index a file which has already been removed.
         if (!removedLater.remove(dataFile.location())) {
           addedLater.add(dataFile.location());
@@ -508,6 +603,10 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
       }
 
       for (DataFile dataFile : changes.removedDataFiles()) {
+        if (!sendsRowsOf(dataFile)) {
+          continue;
+        }
+
         // The worker could apply this removal after the newer add of the same file and lose its
         // rows. Failing makes the next trigger rebuild the index.
         Preconditions.checkState(
@@ -616,7 +715,11 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     reindexCounter.inc();
 
     indexGeneration = generation;
-    emitMainDataReadCommands(mainSnapshot);
+    indexedPartitions.clear();
+    coversAllPartitions = false;
+    if (!partitionScoped()) {
+      emitMainDataReadCommands(mainSnapshot);
+    }
   }
 
   private void updateLastStagingSnapshotId(LastCommittedWork info) {
@@ -733,12 +836,14 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
    * cycle's metadata. Phase ordering (separated by watermarks):
    *
    * <ol>
+   *   <li>Main data files of the partitions the eq deletes reach that a partition-scoped index does
+   *       not cover yet. Emitted only when there are such partitions.
    *   <li>Eq delete read commands. Eq deletes resolve in the worker.
    *   <li>Staging data files. Indexed for the NEXT cycle's eq-delete resolution.
    * </ol>
    *
-   * Cold-start bootstrap of the index from main data is handled separately in {@link
-   * #processElement}, which runs once before the first cycle.
+   * Before this method runs, {@link #ensureIndexCurrent} brings the partitions already in the index
+   * up to date with the main snapshot.
    */
   private void processStagingSnapshot(
       Snapshot stagingSnapshot, long triggerTs, Long currentMainSnapshotId) {
@@ -753,8 +858,10 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     // consumes no index entries, so it must not make later triggers rebuild the index.
     pendingStagingSnapshotId = stagingSnapshot.snapshotId();
 
+    loadPartitions(inputs.eqDeleteFiles(), triggerTs);
     emitDeletePhase(inputs.eqDeleteFiles());
     emitSnapshotDataPhase(inputs.newDataFiles());
+    evictIdlePartitions(triggerTs);
 
     LOG.info(
         "Emitted read commands for {} new data files from staging branch '{}'.",
@@ -896,6 +1003,10 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     // dataRowPositions.
     if (!stagingOnTargetBranch) {
       for (DataFile dataFile : snapshotDataFiles) {
+        if (!sendsRowsOf(dataFile)) {
+          continue;
+        }
+
         PartitionSpec spec = table.specs().get(dataFile.specId());
         output.collect(
             new StreamRecord<>(
@@ -955,6 +1066,143 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
         commitSnapshotId);
 
     advancePhase();
+  }
+
+  private void loadPartitions(List<DeleteFile> eqDeleteFiles, long triggerTs) {
+    if (!partitionScoped()) {
+      return;
+    }
+
+    Set<IndexPartition> deletePartitions = Sets.newHashSet();
+    boolean allPartitions = false;
+    for (DeleteFile deleteFile : eqDeleteFiles) {
+      if (table.specs().get(deleteFile.specId()).isUnpartitioned()) {
+        allPartitions = true;
+      } else {
+        deletePartitions.add(partitionOf(deleteFile));
+      }
+    }
+
+    Set<IndexPartition> missing = Sets.newHashSet(deletePartitions);
+    missing.removeAll(indexedPartitions.keySet());
+    Set<IndexPartition> loaded = Sets.newHashSet(missing);
+    if (indexSnapshotId != null
+        && ((allPartitions && !coversAllPartitions) || !missing.isEmpty())) {
+      Predicate<IndexPartition> unindexed =
+          allPartitions
+              ? partition -> !indexedPartitions.containsKey(partition)
+              : missing::contains;
+      loaded.addAll(emitPartitionReadCommands(unindexed));
+      coversAllPartitions |= allPartitions;
+    }
+
+    if (allPartitions) {
+      for (IndexPartition partition : loaded) {
+        indexedPartitions.put(partition, triggerTs);
+      }
+
+      indexedPartitions.replaceAll((partition, lastDeleteTs) -> triggerTs);
+    } else {
+      for (IndexPartition partition : deletePartitions) {
+        indexedPartitions.put(partition, triggerTs);
+      }
+    }
+
+    partitionsWithRows.addAll(loaded);
+  }
+
+  private Set<IndexPartition> emitPartitionReadCommands(Predicate<IndexPartition> shouldLoad) {
+    Set<IndexPartition> loaded = Sets.newHashSet();
+    int fileNum = 0;
+    try (CloseableIterable<FileScanTask> tasks =
+        table.newScan().useSnapshot(indexSnapshotId).planFiles()) {
+      for (FileScanTask task : tasks) {
+        IndexPartition partition = partitionOf(task.file());
+        if (shouldLoad.test(partition)) {
+          loaded.add(partition);
+          output.collect(
+              new StreamRecord<>(
+                  ReadCommand.dataFile(
+                      task, indexSnapshotId, indexGeneration, dataSequenceNumber(task.file())),
+                  nextPhaseTs));
+          fileNum++;
+        }
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to plan files for partition index", e);
+    }
+
+    LOG.info(
+        "Indexing {} partitions with {} data files from main snapshot {} for field IDs {}.",
+        loaded.size(),
+        fileNum,
+        indexSnapshotId,
+        eqFieldIds);
+    advancePhase();
+    return loaded;
+  }
+
+  private void evictIdlePartitions(long triggerTs) {
+    if (!partitionScoped()) {
+      return;
+    }
+
+    List<IndexPartition> idle = Lists.newArrayList();
+    Iterator<Map.Entry<IndexPartition, Long>> entries = indexedPartitions.entrySet().iterator();
+    while (entries.hasNext()) {
+      Map.Entry<IndexPartition, Long> entry = entries.next();
+      // The worker might apply the rows this cycle sends after the eviction and keep part of the
+      // partition.
+      if (triggerTs - entry.getValue() >= partitionIndexIdleTimeoutMs
+          && !partitionsWithRows.contains(entry.getKey())) {
+        idle.add(entry.getKey());
+        entries.remove();
+      }
+    }
+
+    if (idle.isEmpty()) {
+      return;
+    }
+
+    coversAllPartitions = false;
+    LOG.info(
+        "Evicting {} partitions without equality deletes for {} ms from the worker index.",
+        idle.size(),
+        partitionIndexIdleTimeoutMs);
+    output.collect(
+        CLEAR_BROADCAST_STREAM,
+        new StreamRecord<>(
+            IndexCommand.evictPartitions(indexSnapshotId, indexGeneration, idle), nextPhaseTs));
+  }
+
+  /**
+   * Returns whether the worker index holds the rows of {@code file}, and records its partition as
+   * receiving rows in this cycle. A file of a partition outside the index means the index no longer
+   * covers every partition.
+   */
+  private boolean sendsRowsOf(ContentFile<?> file) {
+    if (!partitionScoped()) {
+      return true;
+    }
+
+    IndexPartition partition = partitionOf(file);
+    if (!indexedPartitions.containsKey(partition)) {
+      coversAllPartitions = false;
+      return false;
+    }
+
+    partitionsWithRows.add(partition);
+    return true;
+  }
+
+  private IndexPartition partitionOf(ContentFile<?> file) {
+    StructType partitionType = table.specs().get(file.specId()).partitionType();
+    return new IndexPartition(
+        file.specId(), partitionSerializer.encodePartition(file.partition(), partitionType));
+  }
+
+  private boolean partitionScoped() {
+    return partitionIndexIdleTimeoutMs != null;
   }
 
   /**

@@ -52,6 +52,7 @@ import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.IcebergGenerics;
@@ -791,6 +792,70 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
   }
 
   @Test
+  void testPartitionScopedIndexReindexesEvictedPartition() throws Exception {
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+    insertPartitioned(table, 2, "b");
+    insertPartitioned(table, 3, "a");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    // Cycle 1 indexes partition "a". Cycle 2 indexes "b" and evicts the idle "a". Cycle 3 indexes
+    // "a" again, now with the DV of cycle 1, and indexes the new row (4, "a") for later deletes.
+    table
+        .newRowDelta()
+        .addDeletes(writePartitionedEqualityDelete(table, 1, "a"))
+        .toBranch(STAGING_BRANCH)
+        .commit();
+    table
+        .newRowDelta()
+        .addDeletes(writePartitionedEqualityDelete(table, 2, "b"))
+        .toBranch(STAGING_BRANCH)
+        .commit();
+    table
+        .newRowDelta()
+        .addRows(writePartitionedDataFile(table, createRecord(4, "a"), "a"))
+        .addDeletes(writePartitionedEqualityDelete(table, 3, "a"))
+        .toBranch(STAGING_BRANCH)
+        .commit();
+    table.refresh();
+
+    ConvertEqualityDeletes.builder()
+        .stagingBranch(STAGING_BRANCH)
+        .equalityFieldColumns(ImmutableList.of("id", "data"))
+        .partitionIndexIdleTimeout(Duration.ofMillis(1))
+        .parallelism(2)
+        .append(
+            infra.triggerStream(),
+            DUMMY_TABLE_NAME,
+            DUMMY_TASK_NAME,
+            0,
+            tableLoader(),
+            UID_SUFFIX,
+            StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
+            1)
+        .sinkTo(infra.sink());
+
+    JobClient jobClient = null;
+    try {
+      jobClient = infra.env().executeAsync();
+
+      long time = System.currentTimeMillis();
+      for (int cycle = 0; cycle < 3; cycle++) {
+        long triggerTime = time + cycle * 10L;
+        infra.source().sendRecord(Trigger.create(triggerTime, 0), triggerTime);
+        TaskResult result = infra.sink().poll(Duration.ofSeconds(10));
+        assertThat(result.success()).isTrue();
+      }
+
+      assertRecords(table, ImmutableList.of(createRecord(4, "a")));
+    } finally {
+      closeJobClient(jobClient);
+    }
+  }
+
+  @Test
   void testStagingPositionDeleteMergedIntoConversionDV() throws Exception {
     Table table = createTableWithDelete(3);
 
@@ -1012,6 +1077,12 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
   private DataFile writeDataFile(Table table, Record record) throws IOException {
     return new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
         .writeFile(Lists.newArrayList(record));
+  }
+
+  private DataFile writePartitionedDataFile(Table table, Record record, String data)
+      throws IOException {
+    return new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
+        .writeFile(TestHelpers.Row.of(data), Lists.newArrayList(record));
   }
 
   private DeleteFile writeStagingDV(Table table, String dataFilePath, long position)

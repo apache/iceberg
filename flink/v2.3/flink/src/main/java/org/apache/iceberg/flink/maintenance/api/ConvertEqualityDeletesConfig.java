@@ -53,6 +53,17 @@ public class ConvertEqualityDeletesConfig {
           .withDescription(
               "The time interval (in seconds) between two consecutive equality delete conversions.");
 
+  public static final String PARTITION_INDEX_IDLE_TIMEOUT_SECOND =
+      PREFIX + "partition-index.idle-timeout-second";
+  public static final ConfigOption<Long> PARTITION_INDEX_IDLE_TIMEOUT_SECOND_OPTION =
+      ConfigOptions.key(PARTITION_INDEX_IDLE_TIMEOUT_SECOND)
+          .longType()
+          .noDefaultValue()
+          .withDescription(
+              "When set, the index covers only the partitions that receive equality deletes, and a "
+                  + "partition leaves the index after receiving none for this many seconds. "
+                  + "By default, the index covers every partition.");
+
   private final FlinkConfParser confParser;
 
   public ConvertEqualityDeletesConfig(
@@ -85,6 +96,15 @@ public class ConvertEqualityDeletesConfig {
         .longConf()
         .option(SCHEDULE_ON_INTERVAL_SECOND)
         .flinkConfig(SCHEDULE_ON_INTERVAL_SECOND_OPTION)
+        .parseOptional();
+  }
+
+  /** Gets the partition index idle timeout (in seconds), or null to index every partition. */
+  public Long partitionIndexIdleTimeoutSecond() {
+    return confParser
+        .longConf()
+        .option(PARTITION_INDEX_IDLE_TIMEOUT_SECOND)
+        .flinkConfig(PARTITION_INDEX_IDLE_TIMEOUT_SECOND_OPTION)
         .parseOptional();
   }
 }
