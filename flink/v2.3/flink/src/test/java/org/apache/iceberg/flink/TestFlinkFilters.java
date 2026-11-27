@@ -29,6 +29,7 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.catalog.Column;
@@ -52,6 +53,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.Pair;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestFlinkFilters {
 
@@ -245,6 +249,55 @@ public class TestFlinkFilters {
         FlinkFilters.convert(resolve(Expressions.lit(1).isGreaterOrEqual(Expressions.$("field1"))));
     assertThat(actual1).isPresent();
     assertPredicatesMatch(expected, actual1.get());
+  }
+
+  private static Stream<Arguments> literalsWithExactColumnValue() {
+    return Stream.of(
+        Arguments.of("field1", new BigDecimal("6.0"), 6L),
+        Arguments.of("field2", 5.0D, 5L),
+        Arguments.of("field3", 0.5D, 0.5F),
+        Arguments.of("field3", new BigDecimal("0.25"), 0.25F),
+        Arguments.of("field4", new BigDecimal("0.1"), 0.1D));
+  }
+
+  @ParameterizedTest
+  @MethodSource("literalsWithExactColumnValue")
+  void wideLiteralPushedAsColumnValue(String column, Object literal, Object columnValue) {
+    UnboundPredicate<Object> expected =
+        org.apache.iceberg.expressions.Expressions.greaterThan(column, columnValue);
+
+    Optional<org.apache.iceberg.expressions.Expression> literalRight =
+        FlinkFilters.convert(resolve(Expressions.$(column).isGreater(Expressions.lit(literal))));
+    assertThat(literalRight).isPresent();
+    assertPredicatesMatch(expected, literalRight.get());
+
+    Optional<org.apache.iceberg.expressions.Expression> literalLeft =
+        FlinkFilters.convert(resolve(Expressions.lit(literal).isLess(Expressions.$(column))));
+    assertThat(literalLeft).isPresent();
+    assertPredicatesMatch(expected, literalLeft.get());
+  }
+
+  private static Stream<Arguments> literalsWithoutExactColumnValue() {
+    return Stream.of(
+        Arguments.of("field1", 6.5D),
+        Arguments.of("field1", new BigDecimal("6.5")),
+        Arguments.of("field1", 1e30D),
+        Arguments.of("field2", 5.5D),
+        Arguments.of("field3", 0.1D),
+        Arguments.of("field3", new BigDecimal("0.1")),
+        Arguments.of("field8", 1.505D));
+  }
+
+  @ParameterizedTest
+  @MethodSource("literalsWithoutExactColumnValue")
+  void wideLiteralWithoutExactColumnValueNotPushed(String column, Object literal) {
+    assertThat(
+            FlinkFilters.convert(
+                resolve(Expressions.$(column).isGreater(Expressions.lit(literal)))))
+        .isEmpty();
+    assertThat(
+            FlinkFilters.convert(resolve(Expressions.lit(literal).isLess(Expressions.$(column)))))
+        .isEmpty();
   }
 
   @Test

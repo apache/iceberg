@@ -555,6 +555,44 @@ public class TestFlinkTableSource extends TableSourceTestBase {
   }
 
   @TestTemplate
+  void fractionalLiteralOnIntColumnNotPushedDown() {
+    List<Row> result = sql("SELECT * FROM %s WHERE id > 1.5", TABLE_NAME);
+
+    assertSameElements(Lists.newArrayList(Row.of(2, "b", 20.0), Row.of(3, null, 30.0)), result);
+    assertThat(lastScanEvent.filter())
+        .as("Should not push down a filter")
+        .isEqualTo(Expressions.alwaysTrue());
+  }
+
+  @TestTemplate
+  void decimalLiteralOnDoubleColumnPushedDown() {
+    List<Row> result = sql("SELECT * FROM %s WHERE d > 15.5", TABLE_NAME);
+
+    assertSameElements(Lists.newArrayList(Row.of(2, "b", 20.0), Row.of(3, null, 30.0)), result);
+    assertThat(lastScanEvent.filter())
+        .as("Should contain the push down filter")
+        .asString()
+        .isEqualTo("ref(name=\"d\") > 15.5");
+  }
+
+  @TestTemplate
+  void doubleLiteralOnFloatColumnKeepsMatchingRows() {
+    String floatTable = "float_table";
+    sql("CREATE TABLE %s (f FLOAT)", floatTable);
+    try {
+      sql("INSERT INTO %s VALUES (CAST(0.1 AS FLOAT))", floatTable);
+
+      assertThat(sql("SELECT * FROM %s WHERE f > CAST(0.1 AS DOUBLE)", floatTable))
+          .containsExactly(Row.of(0.1F));
+      assertThat(lastScanEvent.filter())
+          .as("Should not push down a filter")
+          .isEqualTo(Expressions.alwaysTrue());
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", floatTable);
+    }
+  }
+
+  @TestTemplate
   public void testSqlParseNaN() {
     // todo add some test case to test NaN
   }
