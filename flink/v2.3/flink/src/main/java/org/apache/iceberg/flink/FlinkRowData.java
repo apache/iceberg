@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink;
 
+import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.NullType;
@@ -43,5 +44,14 @@ public class FlinkRowData {
       }
       return flinkFieldGetter.getFieldOrNull(rowData);
     };
+  }
+
+  static ArrayData.ElementGetter createElementGetter(LogicalType elementType) {
+    // Iceberg's unknown type is Flink's NULL type, which ArrayData.createElementGetter rejects.
+    if (elementType instanceof NullType) {
+      return (array, pos) -> null;
+    }
+
+    return ArrayData.createElementGetter(elementType);
   }
 }
