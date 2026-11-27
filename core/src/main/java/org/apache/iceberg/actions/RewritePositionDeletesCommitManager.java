@@ -44,6 +44,7 @@ public class RewritePositionDeletesCommitManager {
   private final Table table;
   private final long startingSnapshotId;
   private final Map<String, String> snapshotProperties;
+  private final Object commitLock = new Object();
 
   public RewritePositionDeletesCommitManager(Table table) {
     this(table, ImmutableMap.of());
@@ -76,7 +77,18 @@ public class RewritePositionDeletesCommitManager {
 
     snapshotProperties.forEach(rewriteFiles::set);
 
-    rewriteFiles.commit();
+    // Commits through this manager conflict with each other, so they are serialized. Calling
+    // apply() first writes manifests outside the lock for commit() to reuse. A failure is left to
+    // commit(), which applies again and either succeeds or fails and cleans up.
+    try {
+      rewriteFiles.apply();
+    } catch (RuntimeException e) {
+      LOG.debug("Failed to apply rewrite before committing, applying again in commit", e);
+    }
+
+    synchronized (commitLock) {
+      rewriteFiles.commit();
+    }
   }
 
   /**

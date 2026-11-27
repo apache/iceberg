@@ -31,12 +31,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -48,12 +50,14 @@ import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionTestHelpers;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -94,6 +98,45 @@ public class TestRowDelta extends TestBase {
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
+  }
+
+  @TestTemplate
+  void addedDeletesCountedOnceAfterFailedManifestWrite() {
+    AtomicBoolean failNextManifest = new AtomicBoolean(false);
+    TestTables.LocalFileIO io =
+        new TestTables.LocalFileIO() {
+          @Override
+          public OutputFile newOutputFile(String path) {
+            boolean isManifestList = new File(path).getName().startsWith("snap-");
+            if (!isManifestList && failNextManifest.compareAndSet(true, false)) {
+              throw new RuntimeIOException("Injected failure writing %s", path);
+            }
+
+            return super.newOutputFile(path);
+          }
+        };
+    String tableName = "failing-io-" + branch;
+    File location = temp.resolve(tableName).toFile();
+    TestTables.TestTable failingTable =
+        TestTables.create(
+            location,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, location, io));
+
+    RowDelta rowDelta = failingTable.newRowDelta().addDeletes(fileADeletes());
+    failNextManifest.set(true);
+    assertThatThrownBy(() -> apply(rowDelta, branch))
+        .isInstanceOf(RuntimeIOException.class)
+        .hasMessageContaining("Injected failure writing");
+
+    Snapshot snap = commit(failingTable, rowDelta, branch);
+    assertThat(snap.summary())
+        .containsEntry(ADDED_DELETE_FILES_PROP, "1")
+        .containsEntry(TOTAL_DELETE_FILES_PROP, "1");
   }
 
   @TestTemplate
