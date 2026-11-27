@@ -55,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.TruncateUtil;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 import org.mockito.Mockito;
@@ -116,6 +117,29 @@ class TestFilePlanner {
         .hasSize(2)
         .extracting(task -> task.file().location())
         .containsExactlyInAnyOrder(FILE_A, FILE_B);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void plansWrappedTruncatePartitionForLessThan(FileFormat format) throws IOException {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(TABLE_SCHEMA).withSpecId(1).truncate("id", 1000).build();
+    int wrapped = TruncateUtil.truncateInt(1000, Integer.MIN_VALUE);
+    ManifestFile root =
+        writeManifest(
+            format,
+            spec.partitionType(),
+            ImmutableList.of(
+                dataFile(FILE_A, spec.specId(), V4TestHelpers.partition(spec, wrapped)),
+                dataFile(FILE_B, spec.specId(), V4TestHelpers.partition(spec, 0))));
+
+    List<FileScanTask> tasks =
+        plan(
+            root,
+            ImmutableMap.of(spec.specId(), spec),
+            planner -> planner.filterData(Expressions.lessThan("id", 0)));
+
+    assertThat(tasks).extracting(task -> task.file().location()).containsExactly(FILE_A);
   }
 
   @ParameterizedTest

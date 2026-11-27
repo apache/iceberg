@@ -127,6 +127,168 @@ class ProjectionUtil {
     }
   }
 
+  static Expression truncateIntegerExpression(
+      String name,
+      BoundLiteralPredicate<Integer> pred,
+      Function<Integer, Integer> transform,
+      int width,
+      boolean strict) {
+    int boundary = pred.literal().value();
+    if (Math.floorMod(Integer.MIN_VALUE, width) == 0) {
+      return strict
+          ? truncateIntegerStrict(name, pred, transform)
+          : truncateInteger(name, pred, transform);
+    }
+
+    return truncateWrapped(
+        name,
+        boundary,
+        Integer.MIN_VALUE,
+        Integer.MAX_VALUE,
+        value -> transform.apply(value.intValue()),
+        width,
+        pred.op(),
+        strict);
+  }
+
+  static Expression truncateLongExpression(
+      String name,
+      BoundLiteralPredicate<Long> pred,
+      Function<Long, Long> transform,
+      int width,
+      boolean strict) {
+    long boundary = pred.literal().value();
+    if (Math.floorMod(Long.MIN_VALUE, width) == 0) {
+      return strict
+          ? truncateLongStrict(name, pred, transform)
+          : truncateLong(name, pred, transform);
+    }
+
+    return truncateWrapped(
+        name, boundary, Long.MIN_VALUE, Long.MAX_VALUE, transform, width, pred.op(), strict);
+  }
+
+  private static <T> Expression truncateWrapped(
+      String name,
+      long boundary,
+      long minimum,
+      long maximum,
+      Function<Long, T> transform,
+      int width,
+      Expression.Operation op,
+      boolean strict) {
+    long remainder = Math.floorMod(minimum, width);
+    long firstNormal = minimum + (width - remainder);
+    T wrapped = transform.apply(minimum);
+    Expression wrappedPartition = Expressions.equal(name, wrapped);
+    Expression notWrappedPartition = Expressions.notEqual(name, wrapped);
+
+    if (strict) {
+      Expression projection =
+          switch (op) {
+            case LT -> {
+              if (boundary < firstNormal) {
+                yield Expressions.alwaysFalse();
+              }
+
+              yield Expressions.or(
+                  predicate(Expression.Operation.LT, name, transform.apply(boundary)),
+                  wrappedPartition);
+            }
+            case LT_EQ -> {
+              if (boundary < firstNormal - 1) {
+                yield Expressions.alwaysFalse();
+              } else if (boundary == maximum) {
+                yield Expressions.alwaysTrue();
+              }
+
+              yield Expressions.or(
+                  predicate(Expression.Operation.LT, name, transform.apply(boundary + 1)),
+                  wrappedPartition);
+            }
+            case GT -> {
+              if (boundary >= maximum) {
+                yield Expressions.alwaysFalse();
+              } else if (boundary < firstNormal) {
+                yield notWrappedPartition;
+              }
+
+              yield Expressions.and(
+                  predicate(Expression.Operation.GT, name, transform.apply(boundary)),
+                  notWrappedPartition);
+            }
+            case GT_EQ -> {
+              if (boundary <= minimum) {
+                yield Expressions.alwaysTrue();
+              } else if (boundary <= firstNormal) {
+                yield notWrappedPartition;
+              }
+
+              yield Expressions.and(
+                  predicate(Expression.Operation.GT, name, transform.apply(boundary - 1)),
+                  notWrappedPartition);
+            }
+            case NOT_EQ -> predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
+            default -> null;
+          };
+      return projection == null || op == Expression.Operation.NOT_EQ
+          ? projection
+          : Expressions.and(Expressions.notNull(name), projection);
+    }
+
+    switch (op) {
+      case LT:
+        if (boundary <= minimum) {
+          return Expressions.alwaysFalse();
+        } else if (boundary <= firstNormal) {
+          return wrappedPartition;
+        }
+
+        return Expressions.or(
+            predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1)),
+            wrappedPartition);
+      case LT_EQ:
+        if (boundary < minimum) {
+          return Expressions.alwaysFalse();
+        } else if (boundary < firstNormal) {
+          return wrappedPartition;
+        }
+
+        return Expressions.or(
+            predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary)),
+            wrappedPartition);
+      case GT:
+        if (boundary >= maximum) {
+          return Expressions.alwaysFalse();
+        } else if (boundary < firstNormal - 1) {
+          return Expressions.alwaysTrue();
+        }
+
+        return Expressions.and(
+            predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1)),
+            notWrappedPartition);
+      case GT_EQ:
+        if (boundary > maximum) {
+          return Expressions.alwaysFalse();
+        } else if (boundary < firstNormal) {
+          return Expressions.alwaysTrue();
+        }
+
+        return Expressions.and(
+            predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary)),
+            notWrappedPartition);
+      case EQ:
+        return predicate(Expression.Operation.EQ, name, transform.apply(boundary));
+      default:
+        return null;
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  static <T> UnboundPredicate<T> asUnboundPredicate(Expression expression) {
+    return expression instanceof UnboundPredicate ? (UnboundPredicate<T>) expression : null;
+  }
+
   static <T> UnboundPredicate<T> truncateDecimal(
       String name, BoundLiteralPredicate<BigDecimal> pred, Function<BigDecimal, T> transform) {
     BigDecimal boundary = pred.literal().value();

@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -126,6 +127,22 @@ public interface Transform<S, T> extends Serializable {
    * @return an inclusive predicate on partition values
    */
   UnboundPredicate<T> projectStrict(String name, BoundPredicate<S> predicate);
+
+  /**
+   * Transforms a {@link BoundPredicate predicate} to an expression on partition values.
+   *
+   * <p>If strict is true, the expression is true only when the predicate is true for every source
+   * value in the partition. Otherwise, the expression is true when any source value in the
+   * partition may match.
+   *
+   * @param name the field name for partition values
+   * @param predicate a predicate for source values
+   * @param strict whether to produce a strict projection
+   * @return an expression on partition values, or null if no projection is available
+   */
+  default Expression project(String name, BoundPredicate<S> predicate, boolean strict) {
+    return strict ? projectStrict(name, predicate) : project(name, predicate);
+  }
 
   /**
    * Return whether this transform is the identity transform.

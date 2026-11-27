@@ -38,6 +38,8 @@ import org.apache.iceberg.util.TruncateUtil;
 import org.apache.iceberg.util.UnicodeUtil;
 
 class Truncate<T> implements Transform<T, T>, Function<T, T> {
+  private static final long serialVersionUID = 3870793115417360096L;
+
   static <T> Truncate<T> get(int width) {
     Preconditions.checkArgument(width > 0, "Invalid truncate width: %s (must be > 0)", width);
     return new Truncate<>(width);
@@ -113,6 +115,33 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
   public UnboundPredicate<T> projectStrict(String name, BoundPredicate<T> predicate) {
     Truncate<T> bound = (Truncate<T>) get(predicate.term().type(), width);
     return bound.projectStrict(name, predicate);
+  }
+
+  @Override
+  @SuppressWarnings("unchecked")
+  public Expression project(String name, BoundPredicate<T> predicate, boolean strict) {
+    Truncate<T> bound = (Truncate<T>) get(predicate.term().type(), width);
+    if (predicate.term() instanceof BoundTransform || !predicate.isLiteralPredicate()) {
+      return strict ? bound.projectStrict(name, predicate) : bound.project(name, predicate);
+    }
+
+    return switch (predicate.term().type().typeId()) {
+      case INTEGER ->
+          ProjectionUtil.truncateIntegerExpression(
+              name,
+              (BoundLiteralPredicate<Integer>) predicate.asLiteralPredicate(),
+              (TruncateInteger) bound,
+              width,
+              strict);
+      case LONG ->
+          ProjectionUtil.truncateLongExpression(
+              name,
+              (BoundLiteralPredicate<Long>) predicate.asLiteralPredicate(),
+              (TruncateLong) bound,
+              width,
+              strict);
+      default -> strict ? bound.projectStrict(name, predicate) : bound.project(name, predicate);
+    };
   }
 
   @Override
@@ -195,7 +224,9 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       if (pred.isUnaryPredicate()) {
         return Expressions.predicate(pred.op(), name);
       } else if (pred.isLiteralPredicate()) {
-        return ProjectionUtil.truncateInteger(name, pred.asLiteralPredicate(), this);
+        return ProjectionUtil.asUnboundPredicate(
+            ProjectionUtil.truncateIntegerExpression(
+                name, pred.asLiteralPredicate(), this, width, false));
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
         return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
@@ -208,13 +239,12 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
         return ProjectionUtil.projectTransformPredicate(this, name, pred);
       }
 
-      // TODO: for integers, can this return the original predicate?
-      // No. the predicate needs to be in terms of the applied value. For all x, apply(x) <= x.
-      // Therefore, the lower bound can be transformed outside of a greater-than bound.
       if (pred instanceof BoundUnaryPredicate) {
         return Expressions.predicate(pred.op(), name);
       } else if (pred instanceof BoundLiteralPredicate) {
-        return ProjectionUtil.truncateIntegerStrict(name, pred.asLiteralPredicate(), this);
+        return ProjectionUtil.asUnboundPredicate(
+            ProjectionUtil.truncateIntegerExpression(
+                name, pred.asLiteralPredicate(), this, width, true));
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
         return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
@@ -254,7 +284,9 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       if (pred.isUnaryPredicate()) {
         return Expressions.predicate(pred.op(), name);
       } else if (pred.isLiteralPredicate()) {
-        return ProjectionUtil.truncateLong(name, pred.asLiteralPredicate(), this);
+        return ProjectionUtil.asUnboundPredicate(
+            ProjectionUtil.truncateLongExpression(
+                name, pred.asLiteralPredicate(), this, width, false));
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
         return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
@@ -270,7 +302,9 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       if (pred.isUnaryPredicate()) {
         return Expressions.predicate(pred.op(), name);
       } else if (pred.isLiteralPredicate()) {
-        return ProjectionUtil.truncateLongStrict(name, pred.asLiteralPredicate(), this);
+        return ProjectionUtil.asUnboundPredicate(
+            ProjectionUtil.truncateLongExpression(
+                name, pred.asLiteralPredicate(), this, width, true));
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
         return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
