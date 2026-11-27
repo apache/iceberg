@@ -3273,6 +3273,89 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertFiles(afterSecondReplace, FILE_C);
   }
 
+  @Test
+  public void replaceTransactionKeepsConcurrentSnapshot() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    Transaction replace = catalog.buildTable(TABLE, SCHEMA).replaceTransaction();
+    replace.newFastAppend().appendFile(FILE_B).commit();
+
+    table.newFastAppend().appendFile(FILE_C).commit();
+    long concurrentSnapshotId = table.currentSnapshot().snapshotId();
+
+    replace.commitTransaction();
+
+    Table replaced = catalog.loadTable(TABLE);
+    assertFiles(replaced, FILE_B);
+    assertThat(replaced.snapshot(concurrentSnapshotId))
+        .as("Concurrent snapshot should stay in history")
+        .isNotNull();
+  }
+
+  @Test
+  public void replaceTransactionDoesNotRestoreExpiredSnapshot() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table =
+        catalog.buildTable(TABLE, SCHEMA).withProperty(TableProperties.GC_ENABLED, "true").create();
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long expiredSnapshotId = table.currentSnapshot().snapshotId();
+    table.newFastAppend().appendFile(FILE_B).commit();
+
+    Transaction replace = catalog.buildTable(TABLE, SCHEMA).replaceTransaction();
+    replace.newFastAppend().appendFile(FILE_C).commit();
+
+    table.expireSnapshots().expireSnapshotId(expiredSnapshotId).commit();
+
+    replace.commitTransaction();
+
+    Table replaced = catalog.loadTable(TABLE);
+    assertFiles(replaced, FILE_C);
+    assertThat(replaced.snapshot(expiredSnapshotId))
+        .as("Expired snapshot should not be restored")
+        .isNull();
+  }
+
+  @Test
+  public void replaceTransactionThatCannotReplayKeepsItsData() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    Transaction replace = catalog.buildTable(TABLE, SCHEMA).replaceTransaction();
+    replace.newFastAppend().appendFile(FILE_B).commit();
+    replace.updateSchema().commit();
+    replace.newFastAppend().appendFile(FILE_C).commit();
+
+    table.updateProperties().set("concurrent", "true").commit();
+
+    replace.commitTransaction();
+
+    Table replaced = catalog.loadTable(TABLE);
+    assertFiles(replaced, FILE_B, FILE_C);
+    for (Snapshot snapshot : replaced.snapshots()) {
+      assertThat(replaced.io().newInputFile(snapshot.manifestListLocation()).exists())
+          .as("Manifest list of snapshot %s should exist", snapshot.snapshotId())
+          .isTrue();
+    }
+  }
+
   @ParameterizedTest
   @ValueSource(ints = {1, 2, 3})
   public void createTableTransaction(int formatVersion) {

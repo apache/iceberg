@@ -33,7 +33,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
@@ -316,6 +318,66 @@ public class TestReplaceTransaction extends TestBase {
   }
 
   @TestTemplate
+  void replaceTransactionConcurrentCommitRetainsHistory() {
+    // TestTables assigns sequential snapshot ids, which collide between the two writers
+    table.updateProperties().set("random-snapshot-ids", "true").commit();
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    validateSnapshot(null, table.currentSnapshot(), FILE_A);
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+
+    Transaction replace = TestTables.beginReplace(tableDir, "test", table.schema(), table.spec());
+    replace.newAppend().appendFile(FILE_B).commit();
+
+    table.newAppend().appendFile(FILE_C).commit();
+    long concurrentSnapshotId = table.currentSnapshot().snapshotId();
+
+    replace.commitTransaction();
+
+    table.refresh();
+
+    assertThat(table.currentSnapshot()).isNotNull();
+    validateSnapshot(null, table.currentSnapshot(), FILE_B);
+
+    assertThat(table.snapshot(concurrentSnapshotId))
+        .as("Concurrent writer's snapshot should be preserved in history")
+        .isNotNull();
+    assertThat(table.snapshot(firstSnapshotId))
+        .as("Original snapshot should be preserved in history")
+        .isNotNull();
+    assertThat(table.snapshots()).hasSize(3);
+  }
+
+  @TestTemplate
+  void replaceTransactionFilesMatchTheirSortOrder() throws IOException {
+    table.newAppend().appendFile(FILE_A).commit();
+
+    SortOrder requested = SortOrder.builderFor(table.schema()).asc("data").build();
+    Transaction replace =
+        TestTables.beginReplace(
+            tableDir, "test", table.schema(), table.spec(), requested, ImmutableMap.of());
+    DataFile sortedFile =
+        DataFiles.builder(table.spec())
+            .copy(FILE_B)
+            .withSortOrder(replace.table().sortOrder())
+            .build();
+    replace.newAppend().appendFile(sortedFile).commit();
+
+    table.replaceSortOrder().asc("id").commit();
+
+    replace.commitTransaction();
+
+    table.refresh();
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      DataFile committed = Iterables.getOnlyElement(tasks).file();
+      assertThat(table.sortOrders().get(committed.sortOrderId()).sameOrder(table.sortOrder()))
+          .as("Data file should reference the replace's sort order")
+          .isTrue();
+    }
+  }
+
+  @TestTemplate
   public void testReplaceToCreateAndAppend() throws IOException {
     // this table doesn't exist.
     Transaction replace = TestTables.beginReplace(tableDir, "test_append", SCHEMA, unpartitioned());
@@ -425,6 +487,31 @@ public class TestReplaceTransaction extends TestBase {
     assertThat(meta.snapshots()).hasSize(1);
 
     validateSnapshot(null, meta.currentSnapshot(), FILE_A, FILE_B);
+  }
+
+  @TestTemplate
+  void createOrReplaceOfMissingTableDeletesUnusedManifestList() {
+    String name = "missing";
+    TestTables.TestTableOperations ops = new TestTables.TestTableOperations(name, tableDir);
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            tableDir.toURI().toString(),
+            ImmutableMap.of(),
+            formatVersion);
+    Transaction createOrReplace = Transactions.createOrReplaceTableTransaction(name, ops, metadata);
+
+    AppendFiles append = createOrReplace.newFastAppend().appendFile(FILE_A);
+    Snapshot applied = append.apply();
+    append.commit();
+
+    createOrReplace.commitTransaction();
+
+    Snapshot committed = TestTables.readMetadata(name).currentSnapshot();
+    assertThat(new File(applied.manifestListLocation())).doesNotExist();
+    assertThat(new File(committed.manifestListLocation())).exists();
   }
 
   private static Schema assignFreshIds(Schema schema) {
