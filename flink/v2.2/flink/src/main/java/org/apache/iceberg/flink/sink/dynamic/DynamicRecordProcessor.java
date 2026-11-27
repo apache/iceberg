@@ -132,7 +132,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     DynamicRecordWithConfig data = dynamicRecordWithConfig.wrap(inputData);
 
     boolean isForward = isForwardEligible(data);
-    boolean exists = tableCache.exists(data.tableIdentifier()).f0;
+    boolean exists = tableCache.exists(data.tableIdentifier());
     String foundBranch = exists ? tableCache.branch(data.tableIdentifier(), data.branch()) : null;
 
     TableMetadataCache.ResolvedSchemaInfo foundSchema =
@@ -161,15 +161,10 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
             newData.f1,
             isForward);
       } else {
-        // Shuffled records with immediateUpdate=false go to the update side output
-        int writerKey =
-            hashKeyGenerator.generateKey(
-                data,
-                foundSchema.resolvedTableSchema() != null
-                    ? foundSchema.resolvedTableSchema()
-                    : data.schema(),
-                foundSpec != null ? foundSpec : data.spec(),
-                data.rowData());
+        // Shuffled records with immediateUpdate=false go to the update side output.
+        // Key them with the record's own schema, spec and row: the raw row is laid out by the
+        // record's schema, so the table's schema or spec cannot be used with it.
+        int writerKey = hashKeyGenerator.generateKey(data);
         context.output(
             updateStream,
             new DynamicRecordInternal(

@@ -195,6 +195,11 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   private TableMetadata internalApply() {
     this.base = ops.refresh();
+    ValidationException.check(
+        CleanupLevel.NONE == cleanupLevel || !hasRootManifestSnapshot(base),
+        "File cleanup for V4 tables is not supported. "
+            + "Use CleanupLevel.NONE to skip file cleanup.");
+
     // attempt to clean expired metadata even if there are no snapshots to expire
     // table metadata builder takes care of the case when this should actually be a no-op
     if (base.snapshots().isEmpty() && !cleanExpiredMetadata) {
@@ -471,5 +476,10 @@ class RemoveSnapshots implements ExpireSnapshots {
     }
 
     return ancestors;
+  }
+
+  private static boolean hasRootManifestSnapshot(TableMetadata metadata) {
+    return metadata.snapshots().stream()
+        .anyMatch(snapshot -> snapshot.rootManifestLocation() != null);
   }
 }

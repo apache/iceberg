@@ -124,6 +124,7 @@ class TestCommittableToTableChangeConverter {
               SimpleVersionedSerialization.writeVersionAndSerialize(
                   DeltaManifestsSerializer.INSTANCE, deltaManifests),
               flinkJobId,
+              "sinkId",
               operatorId,
               1L);
       CommittableWithLineage<IcebergCommittable> message =
@@ -244,7 +245,7 @@ class TestCommittableToTableChangeConverter {
 
       harness.open();
       IcebergCommittable emptyCommittable =
-          new IcebergCommittable(new byte[0], "jobId", "operatorId", 1L);
+          new IcebergCommittable(new byte[0], "jobId", "sinkId", "operatorId", 1L);
       CommittableWithLineage<IcebergCommittable> message =
           new CommittableWithLineage<>(emptyCommittable, 1L, 0);
       harness.processElement(new StreamRecord<>(message));
@@ -309,6 +310,7 @@ class TestCommittableToTableChangeConverter {
             SimpleVersionedSerialization.writeVersionAndSerialize(
                 DeltaManifestsSerializer.INSTANCE, deltaManifests),
             flinkJobId,
+            "sinkId",
             operatorId,
             checkpointId);
     return Tuple2.of(new CommittableWithLineage<>(committable, checkpointId, 0), deltaManifests);

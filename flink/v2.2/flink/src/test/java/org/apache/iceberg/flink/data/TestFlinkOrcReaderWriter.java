@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.flink.data;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -29,6 +31,7 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DataTestBase;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcReader;
@@ -39,6 +42,12 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.ShreddedObject;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.Variants;
+import org.junit.jupiter.api.Test;
 
 public class TestFlinkOrcReaderWriter extends DataTestBase {
   private static final int NUM_RECORDS = 100;
@@ -118,6 +127,43 @@ public class TestFlinkOrcReaderWriter extends DataTestBase {
         TestHelpers.assertRowData(schema.asStruct(), flinkSchema, records.next(), expected.next());
       }
       assertThat(records).isExhausted();
+    }
+  }
+
+  @Test
+  public void variantIsNotSupported() throws IOException {
+    Schema variantSchema =
+        new Schema(
+            required(100, "id", Types.LongType.get()),
+            required(101, "payload", Types.VariantType.get()));
+
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).isTrue();
+
+    VariantMetadata metadata = Variants.metadata("name");
+    ShreddedObject payload = Variants.object(metadata);
+    payload.put("name", Variants.of("alice"));
+
+    GenericRecord record = GenericRecord.create(variantSchema);
+    record.setField("id", 1L);
+    record.setField("payload", Variant.of(metadata, payload));
+
+    try (FileAppender<Record> writer =
+        ORC.write(Files.localOutput(testFile))
+            .schema(variantSchema)
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .build()) {
+      writer.add(record);
+    }
+
+    try (CloseableIterable<RowData> reader =
+        ORC.read(Files.localInput(testFile))
+            .project(variantSchema)
+            .createReaderFunc(type -> new FlinkOrcReader(variantSchema, type))
+            .build()) {
+      assertThatThrownBy(reader::iterator)
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessage("Variant is not supported");
     }
   }
 }

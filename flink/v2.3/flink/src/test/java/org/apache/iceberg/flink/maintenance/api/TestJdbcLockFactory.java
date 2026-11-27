@@ -21,7 +21,17 @@ package org.apache.iceberg.flink.maintenance.api;
 import static org.apache.iceberg.flink.maintenance.api.JdbcLockFactory.INIT_LOCK_TABLES_PROPERTY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.SQLTransientConnectionException;
 import java.util.Map;
 import java.util.UUID;
@@ -102,5 +112,57 @@ class TestJdbcLockFactory extends TestLockFactoryBase {
           .isInstanceOf(UncheckedSQLException.class)
           .hasMessageContaining("wrapped");
     }
+  }
+
+  @Test
+  void testLockTableInitializationRecoversFromConcurrentCreation() throws Exception {
+    Connection connection = mock(Connection.class);
+    DatabaseMetaData metadata = mock(DatabaseMetaData.class);
+    PreparedStatement statement = mock(PreparedStatement.class);
+    ResultSet beforeCreation = mock(ResultSet.class);
+    ResultSet afterCreation = mock(ResultSet.class);
+
+    when(connection.getMetaData()).thenReturn(metadata);
+    when(metadata.getTables(null, null, "flink_maintenance_lock", null))
+        .thenReturn(beforeCreation, afterCreation);
+    when(beforeCreation.next()).thenReturn(false);
+    when(afterCreation.next()).thenReturn(true);
+    when(connection.prepareStatement(anyString())).thenReturn(statement);
+    when(statement.execute()).thenThrow(new SQLException("Table already exists"));
+
+    assertThat(JdbcLockFactory.createLockTableIfMissing(connection)).isTrue();
+
+    verify(statement).execute();
+    verify(metadata, times(2)).getTables(null, null, "flink_maintenance_lock", null);
+    verify(beforeCreation).close();
+    verify(afterCreation).close();
+    verify(statement).close();
+  }
+
+  @Test
+  void testLockTableInitializationPropagatesDatabaseFailure() throws Exception {
+    Connection connection = mock(Connection.class);
+    DatabaseMetaData metadata = mock(DatabaseMetaData.class);
+    PreparedStatement statement = mock(PreparedStatement.class);
+    ResultSet beforeCreation = mock(ResultSet.class);
+    ResultSet afterCreation = mock(ResultSet.class);
+    SQLException failure = new SQLException("Permission denied");
+
+    when(connection.getMetaData()).thenReturn(metadata);
+    when(metadata.getTables(null, null, "flink_maintenance_lock", null))
+        .thenReturn(beforeCreation, afterCreation);
+    when(beforeCreation.next()).thenReturn(false);
+    when(afterCreation.next()).thenReturn(false);
+    when(connection.prepareStatement(anyString())).thenReturn(statement);
+    when(statement.execute()).thenThrow(failure);
+
+    assertThatThrownBy(() -> JdbcLockFactory.createLockTableIfMissing(connection))
+        .isSameAs(failure);
+
+    verify(statement).execute();
+    verify(metadata, times(2)).getTables(null, null, "flink_maintenance_lock", null);
+    verify(beforeCreation).close();
+    verify(afterCreation).close();
+    verify(statement).close();
   }
 }

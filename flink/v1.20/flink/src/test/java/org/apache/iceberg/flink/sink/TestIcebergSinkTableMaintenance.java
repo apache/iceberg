@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.runtime.jobgraph.JobVertex;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -42,6 +43,7 @@ import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
@@ -50,10 +52,13 @@ import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
+import org.apache.iceberg.flink.maintenance.api.ConvertEqualityDeletesConfig;
 import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFilesConfig;
 import org.apache.iceberg.flink.maintenance.api.ExpireSnapshotsConfig;
+import org.apache.iceberg.flink.maintenance.api.FlinkMaintenanceConfig;
 import org.apache.iceberg.flink.maintenance.api.LockConfig;
 import org.apache.iceberg.flink.maintenance.api.RewriteDataFilesConfig;
+import org.apache.iceberg.flink.maintenance.operator.ManualSource;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -61,10 +66,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
+@Timeout(value = 5, unit = TimeUnit.MINUTES)
 class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
   private static final String[] LOCK_TYPES = new String[] {LockConfig.JdbcLockConfig.JDBC, ""};
 
@@ -434,6 +442,87 @@ class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
     } finally {
       jobClient.cancel();
     }
+  }
+
+  // TODO: Also run with the JDBC lock once JdbcLockFactory creates the lock table safely. The
+  // trigger manager and the lock remover both create it on open, and the second CREATE TABLE
+  // fails with "table already exists" when they race.
+  @Test
+  public void testConvertEqualityDeletesWithRewriteEnabledE2e() throws Exception {
+    setupLockConfig("");
+    setupCompactionConfig();
+    setupConvertEqualityDeletesConfig();
+    upgradeToFormatV3();
+    flinkConf.put(FlinkWriteOptions.BRANCH.key(), "staging");
+    flinkConf.put(ConvertEqualityDeletesConfig.TARGET_BRANCH, SnapshotRef.MAIN_BRANCH);
+    flinkConf.put(FlinkMaintenanceConfig.RATE_LIMIT, "1");
+    flinkConf.put(FlinkMaintenanceConfig.LOCK_CHECK_DELAY, "1");
+
+    new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
+        .appendToTable(ImmutableList.of(SimpleDataUtil.createRecord(1, "aaa")));
+
+    ManualSource<Row> source = new ManualSource<>(env, ROW_TYPE_INFO);
+    DataStream<RowData> dataStream =
+        source
+            .dataStream()
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    IcebergSink.forRowData(dataStream)
+        .table(table)
+        .tableLoader(tableLoader)
+        .upsert(true)
+        .equalityFieldColumns(Lists.newArrayList("id"))
+        .setAll(flinkConf)
+        .append();
+
+    source.sendRecord(Row.of(1, "bbb"));
+    JobClient jobClient = env.executeAsync("Test Rewrite On Convert Target Branch E2E");
+    try {
+      Awaitility.await()
+          .atMost(Duration.ofMinutes(2))
+          .pollInterval(Duration.ofMillis(200))
+          .untilAsserted(
+              () -> {
+                assertThat(dvCountOnMain(table)).isEqualTo(0);
+                assertThat(getDataFiles(table.currentSnapshot(), table)).hasSize(1);
+                SimpleDataUtil.assertTableRecords(
+                    table, ImmutableList.of(SimpleDataUtil.createRecord(1, "bbb")));
+              });
+    } finally {
+      jobClient.cancel();
+    }
+  }
+
+  @Test
+  void testRewriteBranchMustMatchConvertTargetBranch() {
+    setupLockConfig("");
+    setupCompactionConfig();
+    setupConvertEqualityDeletesConfig();
+    upgradeToFormatV3();
+    flinkConf.put(FlinkWriteOptions.BRANCH.key(), "staging");
+    flinkConf.put(ConvertEqualityDeletesConfig.TARGET_BRANCH, "main");
+    flinkConf.put(RewriteDataFilesConfig.BRANCH, "staging");
+
+    List<Row> rows = Lists.newArrayList(Row.of(1, "hello"));
+    DataStream<RowData> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    assertThatThrownBy(
+            () ->
+                IcebergSink.forRowData(dataStream)
+                    .table(table)
+                    .tableLoader(tableLoader)
+                    .upsert(true)
+                    .equalityFieldColumns(Lists.newArrayList("id"))
+                    .setAll(flinkConf)
+                    .append())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid rewrite branch staging. Expected rewrite branch main, "
+                + "the convert equality deletes target branch. Unset config "
+                + RewriteDataFilesConfig.BRANCH
+                + " to default to it.");
   }
 
   private static long dvCountOnMain(Table table) throws IOException {

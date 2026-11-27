@@ -143,7 +143,9 @@ Many contributors have questions about how to become a committer. This section o
 
 ### What are the responsibilities of a committer?
 
-In the Iceberg project, committers are community members that can review and commit changes to Iceberg repositories. Reviewing is the primary responsibility of committers.
+Committers are project members who have the authority to commit code to Iceberg repositories. With this authority comes the responsibility to help maintain the project's quality, stability, and overall direction. Reviewing contributions is therefore their primary responsibility.
+
+Although ASF write access applies across all project repositories, committers are trusted to merge PRs or commit only in areas and Iceberg implementations where they are knowledgeable. When contributing to or reviewing changes outside their area of expertise or in another implementation, committers should work with already experienced committers in that codebase to get a review from someone familiar with the area before merging.
 
 ### How are new committers added?
 
@@ -179,7 +181,7 @@ To be a committer, a candidate should act like a committer so that PMC members c
 
 You can always reach out to PMC members for feedback and guidance if you have questions.
 
-There is no single path to becoming a committer. For example, people contributing to Python are often implicitly trusted not to start reviewing changes to other languages. Similarly, some areas of a project require more context than others.
+There is no single path to becoming a committer. Contributors who focus on a specific language implementation (such as Java, Python, Rust, Go, or C++) can become committers based on their work in that implementation without needing context across all Iceberg repositories. Similarly, within a repository, some areas require more context than others.
 
 Keep in mind that it’s best not to compare your contributions to others. Instead, focus on demonstrating quality and judgment.
 

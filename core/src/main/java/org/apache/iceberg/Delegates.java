@@ -26,6 +26,113 @@ import java.util.Set;
 class Delegates {
   private Delegates() {}
 
+  static TrackedFile withDataDV(TrackedFile file, DeletionVector dv) {
+    return new DelegatingTrackedFile(file) {
+      @Override
+      public DeletionVector deletionVector() {
+        return dv;
+      }
+    };
+  }
+
+  static class DelegatingTrackedFile implements TrackedFile {
+    private final TrackedFile wrapped;
+
+    DelegatingTrackedFile(TrackedFile wrapped) {
+      this.wrapped = wrapped;
+    }
+
+    @Override
+    public Tracking tracking() {
+      return wrapped.tracking();
+    }
+
+    @Override
+    public FileContent contentType() {
+      return wrapped.contentType();
+    }
+
+    @Override
+    public String location() {
+      return wrapped.location();
+    }
+
+    @Override
+    public FileFormat fileFormat() {
+      return wrapped.fileFormat();
+    }
+
+    @Override
+    public long recordCount() {
+      return wrapped.recordCount();
+    }
+
+    @Override
+    public long fileSizeInBytes() {
+      return wrapped.fileSizeInBytes();
+    }
+
+    @Override
+    public Integer specId() {
+      return wrapped.specId();
+    }
+
+    @Override
+    public StructLike partition() {
+      return wrapped.partition();
+    }
+
+    @Override
+    public ContentStats contentStats() {
+      return wrapped.contentStats();
+    }
+
+    @Override
+    public boolean tightStats() {
+      return wrapped.tightStats();
+    }
+
+    @Override
+    public Integer sortOrderId() {
+      return wrapped.sortOrderId();
+    }
+
+    @Override
+    public DeletionVector deletionVector() {
+      return wrapped.deletionVector();
+    }
+
+    @Override
+    public ManifestInfo manifestInfo() {
+      return wrapped.manifestInfo();
+    }
+
+    @Override
+    public ByteBuffer keyMetadata() {
+      return wrapped.keyMetadata();
+    }
+
+    @Override
+    public List<Long> splitOffsets() {
+      return wrapped.splitOffsets();
+    }
+
+    @Override
+    public List<ColumnFile> columnFiles() {
+      return wrapped.columnFiles();
+    }
+
+    @Override
+    public TrackedFile copy() {
+      throw new UnsupportedOperationException("Cannot copy delegating tracked file");
+    }
+
+    @Override
+    public TrackedFile copyWithStats(Set<Integer> requestedColumnIds) {
+      throw new UnsupportedOperationException("Cannot copy delegating tracked file");
+    }
+  }
+
   @SuppressWarnings("unchecked")
   static <F extends ContentFile<F>> F suppressFirstRowId(F file) {
     if (file instanceof DataFile && null != file.firstRowId()) {
@@ -233,11 +340,6 @@ class Delegates {
     }
 
     @Override
-    public Map<Integer, Long> totalBytes() {
-      return wrapped.totalBytes();
-    }
-
-    @Override
     public Map<Integer, ByteBuffer> lowerBounds() {
       return wrapped.lowerBounds();
     }
@@ -245,6 +347,11 @@ class Delegates {
     @Override
     public Map<Integer, ByteBuffer> upperBounds() {
       return wrapped.upperBounds();
+    }
+
+    @Override
+    public boolean tightStats() {
+      return wrapped.tightStats();
     }
 
     @Override

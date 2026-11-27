@@ -53,7 +53,7 @@ public class TestDeleteFrom extends CatalogTestBase {
   protected static Object[][] parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (Object[] catalogParams : CatalogTestBase.parameters()) {
-      for (int version : TestHelpers.V2_AND_ABOVE) {
+      for (int version : TestHelpers.V2_AND_V3) {
         parameters.add(
             new Object[] {catalogParams[0], catalogParams[1], catalogParams[2], version});
       }

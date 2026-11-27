@@ -27,6 +27,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
+import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
@@ -35,6 +36,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.types.Types;
@@ -452,5 +454,64 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     assertThat(catalog.tableExists(tableIdentifier)).isTrue();
     assertThat(result.f0.resolvedTableSchema().sameSchema(SCHEMA)).isTrue();
     assertThat(result.f0.compareResult()).isEqualTo(CompareSchemasVisitor.Result.SAME);
+  }
+
+  @Test
+  void testNamespaceCreatedWhenCatalogReportsMissingNamespaceAsMissingTable() {
+    // Like the Glue catalog, which throws NoSuchTableException for a table in a missing namespace
+    InMemoryCatalog catalog =
+        new InMemoryCatalog() {
+          @Override
+          public Table loadTable(TableIdentifier identifier) {
+            if (!namespaceExists(identifier.namespace())) {
+              throw new NoSuchTableException("Table does not exist: %s", identifier);
+            }
+
+            return super.loadTable(identifier);
+          }
+        };
+    catalog.initialize("catalog", Map.of());
+    Namespace namespace = Namespace.of("glue_like_namespace");
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, "myTable");
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    // The record processor looks the table up before calling the updater, so the updater only
+    // sees the cached answer, which carries no exception
+    cache.exists(tableIdentifier);
+
+    tableUpdater.update(
+        tableIdentifier,
+        SnapshotRef.MAIN_BRANCH,
+        SCHEMA,
+        PartitionSpec.unpartitioned(),
+        TableCreator.DEFAULT);
+
+    assertThat(catalog.namespaceExists(namespace)).isTrue();
+    assertThat(catalog.tableExists(tableIdentifier)).isTrue();
+  }
+
+  @Test
+  void testTableCreatedForCatalogWithoutNamespaceSupport() {
+    InMemoryCatalog inMemoryCatalog = new InMemoryCatalog();
+    inMemoryCatalog.initialize("catalog", Map.of());
+    Namespace namespace = Namespace.of("some_namespace");
+    inMemoryCatalog.createNamespace(namespace);
+    Catalog catalog = CachingCatalog.wrap(inMemoryCatalog);
+    assertThat(catalog).isNotInstanceOf(SupportsNamespaces.class);
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, "myTable");
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    tableUpdater.update(
+        tableIdentifier,
+        SnapshotRef.MAIN_BRANCH,
+        SCHEMA,
+        PartitionSpec.unpartitioned(),
+        TableCreator.DEFAULT);
+
+    assertThat(catalog.tableExists(tableIdentifier)).isTrue();
   }
 }

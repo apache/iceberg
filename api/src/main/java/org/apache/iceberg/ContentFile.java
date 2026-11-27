@@ -99,29 +99,20 @@ public interface ContentFile<F> {
   /** Returns if collected, map from column ID to value upper bounds, null otherwise. */
   Map<Integer, ByteBuffer> upperBounds();
 
-  /**
-   * Returns map from column ID to the total uncompressed size in memory in bytes of non-null values
-   * if collected, null otherwise.
-   *
-   * <p>This statistic is not persisted in manifests prior to v4, so it is generally only present on
-   * newly created or written files, and is null for files read back from such manifests.
-   */
-  default Map<Integer, Long> totalBytes() {
-    return null;
+  /** Returns whether the file's stats are tight. */
+  default boolean tightStats() {
+    return false;
   }
 
   /**
-   * Returns if collected, map from column ID to its average value size in memory (uncompressed) in
-   * bytes over non-null values, null otherwise.
+   * Returns {@code null} because average value sizes are no longer tracked for content files.
    *
-   * <p>This statistic is not persisted in manifests prior to v4, so it is generally only present on
-   * newly created or written files, and is null for files read back from such manifests.
-   *
-   * @deprecated since 1.13.0, will be removed in 2.0.0; use {@link #totalBytes()} instead.
+   * @return null
+   * @deprecated will be removed in 2.0.0
    */
   @Deprecated
   default Map<Integer, Integer> avgValueSizes() {
-    return Metrics.avgValueSizes(totalBytes(), valueCounts(), nullValueCounts());
+    return null;
   }
 
   /**

@@ -1175,7 +1175,7 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles BoringSSL (statically linked into netty-tcnative bundled by gRPC-netty-shaded, and into Conscrypt).
+This product bundles BoringSSL (statically linked into netty-tcnative bundled by gRPC-netty-shaded, into Conscrypt, and into netty-codec-native-quic).
 
 Project URL: https://boringssl.googlesource.com/boringssl/
 License: Apache License, Version 2.0 (with portions under the Go License - BSD 3-Clause) - https://boringssl.googlesource.com/boringssl/+/HEAD/LICENSE
@@ -1215,6 +1215,14 @@ License: Apache License, Version 2.0 (with portions under the Go License - BSD 3
 | THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 | (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 | OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+This product bundles Quiche (statically linked into netty-codec-native-quic).
+
+Copyright: 2018-2019, Cloudflare, Inc.
+Project URL: https://github.com/cloudflare/quiche
+License: BSD 2-Clause - https://github.com/cloudflare/quiche/blob/master/LICENSE
 
 --------------------------------------------------------------------------------
 

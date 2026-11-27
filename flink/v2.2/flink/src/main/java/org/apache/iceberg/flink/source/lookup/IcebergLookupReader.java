@@ -43,7 +43,7 @@ import org.apache.iceberg.util.SnapshotUtil;
 @Internal
 class IcebergLookupReader {
 
-  static final long CURRENT_SNAPSHOT = -1L;
+  static final long NO_SNAPSHOT_ID = -1L;
 
   private final Table table;
   private final Schema projectedSchema;
@@ -76,7 +76,7 @@ class IcebergLookupReader {
 
   CloseableIterable<RowData> read(long snapshotId) {
     Schema tableSchema =
-        snapshotId == CURRENT_SNAPSHOT ? table.schema() : SnapshotUtil.schemaFor(table, snapshotId);
+        snapshotId == NO_SNAPSHOT_ID ? table.schema() : SnapshotUtil.schemaFor(table, snapshotId);
 
     RowDataFileScanTaskReader fileReader =
         new RowDataFileScanTaskReader(
@@ -84,7 +84,7 @@ class IcebergLookupReader {
 
     TableScan scan =
         table.newScan().caseSensitive(caseSensitive).project(projectedSchema).filter(filter);
-    if (snapshotId != CURRENT_SNAPSHOT) {
+    if (snapshotId != NO_SNAPSHOT_ID) {
       scan = scan.useSnapshot(snapshotId);
     }
 
