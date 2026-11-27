@@ -41,8 +41,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MockFileScanTask;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -55,21 +53,17 @@ import org.junit.jupiter.api.Test;
 
 public class TestScanTaskIterable {
 
-  private static final TableIdentifier TABLE_IDENTIFIER =
-      TableIdentifier.of(Namespace.of("ns"), "table");
   private static final String FETCH_TASKS_PATH = "v1/namespaces/ns/tables/table/tasks";
   private static final Map<String, String> HEADERS =
       ImmutableMap.of("Authorization", "Bearer token");
 
   private RESTClient mockClient;
-  private ResourcePaths resourcePaths;
   private ExecutorService executorService;
   private ParserContext parserContext;
 
   @BeforeEach
   public void before() {
     mockClient = mock(RESTClient.class);
-    resourcePaths = ResourcePaths.forCatalogProperties(ImmutableMap.of());
     executorService = Executors.newFixedThreadPool(4);
     parserContext = ParserContext.builder().build();
   }
@@ -107,9 +101,8 @@ public class TestScanTaskIterable {
         planTasks,
         initialTasks,
         mockClient,
-        resourcePaths,
-        TABLE_IDENTIFIER,
-        HEADERS,
+        FETCH_TASKS_PATH,
+        () -> HEADERS,
         executorService,
         parserContext);
   }
