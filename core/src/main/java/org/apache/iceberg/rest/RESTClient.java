@@ -226,4 +226,14 @@ public interface RESTClient extends Closeable {
   default RESTClient withAuthSession(AuthSession session) {
     return this;
   }
+
+  /**
+   * Unwraps this client to the given type, if possible. This allows callers to access the
+   * underlying HTTP library used by this client.
+   *
+   * @return the unwrapped client, or null if this client cannot be unwrapped to the given type
+   */
+  default <T> T unwrap(Class<T> type) {
+    return type.isInstance(this) ? type.cast(this) : null;
+  }
 }
