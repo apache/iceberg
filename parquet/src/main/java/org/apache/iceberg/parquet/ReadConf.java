@@ -191,7 +191,7 @@ class ReadConf<T> {
 
   private static ParquetFileReader newReader(InputFile file, ParquetReadOptions options) {
     try {
-      return ParquetFileReader.open(ParquetIO.file(file), options);
+      return ParquetIO.open(ParquetIO.file(file), options);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to open Parquet file: %s", file.location());
     }
