@@ -4147,6 +4147,24 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
+  void clientKmsTypeRejectsAccessDelegation() {
+    // the check runs before the KMS client is created, so the AWS client isn't needed here
+    assertThatThrownBy(
+            () ->
+                catalogWithConfig(
+                    ConfigResponse.builder().build(),
+                    ImmutableMap.of(
+                        CatalogProperties.ENCRYPTION_KMS_TYPE,
+                        CatalogProperties.ENCRYPTION_KMS_TYPE_AWS,
+                        "header.X-Iceberg-Access-Delegation",
+                        "vended-credentials")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot request access delegation with a client-side KMS: "
+                + "header.X-Iceberg-Access-Delegation=vended-credentials (must be none or unset)");
+  }
+
+  @Test
   void clientKmsAllowsNoAccessDelegation() {
     assertThatCode(
             () ->
