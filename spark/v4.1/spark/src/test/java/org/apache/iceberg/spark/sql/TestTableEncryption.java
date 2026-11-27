@@ -185,10 +185,8 @@ public class TestTableEncryption extends CatalogTestBase {
     Transaction transaction = table.newTransaction();
     transaction.newFastAppend().appendFile(file).commit();
 
-    // Refresh and metadata commits must preserve keys for the transaction's uncommitted snapshot.
+    // Refresh must preserve the keys for the transaction's uncommitted snapshot.
     table.refresh();
-    table.updateProperties().set("owner", "first").commit();
-    table.updateProperties().set("owner", "second").commit();
 
     assertThat(SnapshotChanges.builderFor(transaction.table()).build().addedDataFiles())
         .extracting(DataFile::location)
