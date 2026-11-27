@@ -1099,12 +1099,6 @@ paths:
         The response also contains the table's full metadata, matching the table metadata JSON file.
 
 
-        The catalog configuration may contain credentials that should be used for subsequent requests for the
-        table. The configuration key "token" is used to pass an access token to be used as a bearer token
-        for table requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
-        key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
-
-
         The response may include a read-restrictions field. A reader that supports read
         restrictions must fail any read against the loaded table that cannot apply a returned
         restriction in full. This includes unrecognized action or expression types, and actions
@@ -1822,12 +1816,6 @@ paths:
 
 
         The response also contains the view's full metadata, matching the view metadata JSON file.
-
-
-        The catalog configuration may contain credentials that should be used for subsequent requests for the
-        view. The configuration key "token" is used to pass an access token to be used as a bearer token
-        for view requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
-        key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
       parameters:
         - $ref: '#/components/parameters/referenced-by'
       responses:
@@ -4296,7 +4284,7 @@ components:
 
         ## General Configurations
 
-        - `token`: Authorization bearer token to use for table requests if OAuth2 security is enabled
+        - `token` **DEPRECATED**: Authorization bearer token to use for table requests if OAuth2 security is enabled
         - `scan-planning-mode`: Communicates to clients the supported planning mode. Clients should use this value to fail fast if the supported scanning mode is not available on the client. Valid values:
           - `client`: Clients MUST use client-side scan planning
           - `server`: Clients MUST use server-side scan planning via the `planTableScan` endpoint
@@ -4637,7 +4625,7 @@ components:
 
         ## General Configurations
 
-        - `token`: Authorization bearer token to use for view requests if OAuth2 security is enabled
+        - `token` **DEPRECATED**: Authorization bearer token to use for view requests if OAuth2 security is enabled
       type: object
       required:
         - metadata-location
