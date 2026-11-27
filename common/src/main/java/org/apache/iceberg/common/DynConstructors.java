@@ -301,7 +301,7 @@ public class DynConstructors {
     private Class<?> classForName(String className) throws ClassNotFoundException {
       try {
         return Class.forName(className, true, loader);
-      } catch (ClassNotFoundException e) {
+      } catch (ClassNotFoundException | NoClassDefFoundError e) {
         if (loader != Thread.currentThread().getContextClassLoader()) {
           return Class.forName(className, true, Thread.currentThread().getContextClassLoader());
         } else {

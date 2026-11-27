@@ -308,8 +308,8 @@ public class DynMethods {
       try {
         Class<?> targetClass = Class.forName(className, true, loader);
         impl(targetClass, methodName, argClasses);
-      } catch (ClassNotFoundException e) {
-        // not the right implementation
+      } catch (ClassNotFoundException | NoClassDefFoundError e) {
+        // cannot load this implementation
       }
       return this;
     }
@@ -389,8 +389,8 @@ public class DynMethods {
       try {
         Class<?> targetClass = Class.forName(className, true, loader);
         hiddenImpl(targetClass, methodName, argClasses);
-      } catch (ClassNotFoundException e) {
-        // not the right implementation
+      } catch (ClassNotFoundException | NoClassDefFoundError e) {
+        // cannot load this implementation
       }
       return this;
     }
