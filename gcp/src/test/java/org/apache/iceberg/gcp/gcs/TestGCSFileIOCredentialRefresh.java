@@ -293,4 +293,41 @@ class TestGCSFileIOCredentialRefresh {
       }
     }
   }
+
+  @Test
+  void noScheduledRefreshWhenRefreshIsDisabled() {
+    String nearExpiryMs = Long.toString(Instant.now().plus(3, ChronoUnit.MINUTES).toEpochMilli());
+    StorageCredential initialCredential =
+        StorageCredential.create(
+            "gs://bucket/path",
+            ImmutableMap.of(
+                GCPProperties.GCS_OAUTH2_TOKEN,
+                "initialToken",
+                GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT,
+                nearExpiryMs));
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+
+    Map<String, String> properties =
+        ImmutableMap.of(
+            GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
+            credentialsUri,
+            GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED,
+            "false",
+            CatalogProperties.URI,
+            catalogUri);
+
+    try (GCSFileIO fileIO = new GCSFileIO()) {
+      fileIO.initialize(properties);
+      fileIO.setCredentials(List.of(initialCredential));
+
+      // Near-expiry credentials schedule an immediate refresh when refresh is enabled.
+      fileIO.client();
+
+      Awaitility.await()
+          .during(2, TimeUnit.SECONDS)
+          .atMost(3, TimeUnit.SECONDS)
+          .untilAsserted(() -> mockServer.verify(mockRequest, VerificationTimes.never()));
+      assertThat(fileIO.credentials()).containsExactly(initialCredential);
+    }
+  }
 }

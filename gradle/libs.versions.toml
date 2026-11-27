@@ -22,78 +22,73 @@
 [versions]
 activation = "1.1.1"
 aliyun-credentials-java = "1.0.8"
-aliyun-sdk-kms = "2.3.1"
+aliyun-sdk-kms = "2.3.2"
 aliyun-sdk-oss = "3.18.5"
-aliyun-tea = "1.4.2"
+aliyun-tea = "1.4.3"
 analyticsaccelerator = "1.3.1"
 antlr = "4.9.3"
 antlr413 = "4.13.1" # For Spark 4.0 support
 aircompressor = "2.0.3"
-apiguardian = "1.1.2"
 arrow = "19.0.0"
 avro = "1.12.2"
 assertj-core = "3.27.7"
 awaitility = "4.3.0"
-awssdk-bom = "2.57.3"
-azuresdk-bom = "1.3.9"
-awssdk-s3accessgrants = "2.4.1"
-bouncycastle = "1.86"
-bson-ver = "4.11.5"
+awssdk-bom = "2.59.1"
+azuresdk-bom = "1.3.10"
+awssdk-s3accessgrants = "2.5.0"
+bouncycastle = "1.87"
+bson-ver = "5.15.0"
 caffeine = "3.3.1"
-calcite = "1.42.0"
 datasketches = "6.2.0"
+delta-kernel = "4.4.0"
 delta-standalone = "3.3.3"
 delta-spark = "3.3.3"
 derby = "10.15.2.0"
 esotericsoftware-kryo = "4.0.3"
-errorprone-annotations = "2.51.0"
+errorprone-annotations = "2.52.0"
 failsafe = "3.3.2"
 findbugs-jsr305 = "3.0.2"
 flink120 = { strictly = "1.20.1"}
 flink22 = { strictly = "2.2.0"}
 flink23 = { strictly = "2.3.0"}
-google-libraries-bom = "26.90.0"
-gcs-analytics-core = "1.6.0"
-guava = "33.7.2-jre"
+google-libraries-bom = "26.93.0"
+gcs-analytics-core = "1.7.0"
+guava = "33.8.0-jre"
 hadoop3 = "3.4.3"
 httpcomponents-httpclient5 = "5.6.5"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
 immutables-value = "2.12.3"
-jackson-annotations = "2.22"
-jackson-bom = "2.22.4"
+jackson-annotations = "2.23"
+jackson-bom = "2.23.0"
 jackson218 = { strictly = "2.18.11"}
 jackson221 = { strictly = "2.21.7"}
-jakarta-el-api = "3.0.3"
 jakarta-servlet-api = "6.1.0"
 jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.9"
-jetty = "12.1.14"
-joda = "2.15.0"
-junit = "5.14.4"
-junit-platform = "1.14.4"
+jetty = "12.1.15"
+joda = "2.15.1"
+junit = "6.1.3"
 junit-pioneer = "2.3.0"
 kafka = "3.9.2"
-kryo-shaded = "4.0.3"
-lz4Java = "1.12.1"
-microprofile-openapi-api = "3.1.2"
-mockito = "4.11.0"
-mockserver = "5.15.0"
-nessie = "0.109.0"
-netty-buffer = "4.2.19.Final"
+lz4Java = "1.14.0"
+microprofile-openapi-api = "4.2"
+mockito = "5.24.0"
+mockserver = "9.4.0"
+nessie = "0.110.0"
+netty-buffer = "4.2.20.Final"
 object-client-bundle = "3.3.2"
 orc = "1.9.9"
-parquet = "1.18.1"
-roaringbitmap = "1.6.25"
+parquet = "1.18.2"
+roaringbitmap = "1.6.30"
 scala-collection-compat = "2.14.0"
-slf4j = "2.0.18"
-snowflake-jdbc = "3.28.0"
-spark35 = "3.5.9"
+slf4j = "2.0.20"
+snowflake-jdbc = "4.4.1"
+spark35 = "3.5.10"
 spark40 = "4.0.5"
 spark41 = "4.1.4"
 spark42 = "4.2.1"
-sqlite-jdbc = "3.53.4.0"
+sqlite-jdbc = "3.54.1.0"
 testcontainers = "2.0.5"
-tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
 [libraries]
 activation = { module = "javax.activation:activation", version.ref = "activation" }
@@ -118,9 +113,9 @@ bouncycastle-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref 
 bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
 bouncycastle-bcutil = { module = "org.bouncycastle:bcutil-jdk18on", version.ref = "bouncycastle" }
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
-calcite-core = { module = "org.apache.calcite:calcite-core", version.ref = "calcite" }
-calcite-druid = { module = "org.apache.calcite:calcite-druid", version.ref = "calcite" }
 datasketches = { module = "org.apache.datasketches:datasketches-java", version.ref = "datasketches" }
+delta-kernel-api = { module = "io.delta:delta-kernel-api", version.ref = "delta-kernel" }
+delta-kernel-defaults = { module = "io.delta:delta-kernel-defaults", version.ref = "delta-kernel" }
 delta-standalone = { module = "io.delta:delta-standalone_2.12", version.ref = "delta-standalone" }
 errorprone-annotations = { module = "com.google.errorprone:error_prone_annotations", version.ref = "errorprone-annotations" }
 failsafe = { module = "dev.failsafe:failsafe", version.ref = "failsafe"}
@@ -148,12 +143,10 @@ gcs-analytics-core = { module = "com.google.cloud.gcs.analytics:gcs-analytics-co
 guava-guava = { module = "com.google.guava:guava", version.ref = "guava" }
 hadoop3-client = { module = "org.apache.hadoop:hadoop-client", version.ref = "hadoop3" }
 hadoop3-common = { module = "org.apache.hadoop:hadoop-common", version.ref = "hadoop3" }
-hadoop3-hdfs = { module = "org.apache.hadoop:hadoop-hdfs", version.ref = "hadoop3" }
 hadoop3-mapreduce-client-core = { module = "org.apache.hadoop:hadoop-mapreduce-client-core", version.ref = "hadoop3" }
 hadoop3-minicluster = { module = "org.apache.hadoop:hadoop-minicluster", version.ref = "hadoop3" }
 hive2-exec = { module = "org.apache.hive:hive-exec", version.ref = "hive2" }
 hive2-metastore = { module = "org.apache.hive:hive-metastore", version.ref = "hive2" }
-hive2-service = { module = "org.apache.hive:hive-service", version.ref = "hive2" }
 httpcomponents-httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5", version.ref = "httpcomponents-httpclient5" }
 immutables-value = { module = "org.immutables:value", version.ref = "immutables-value" }
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson-bom" }
@@ -176,16 +169,13 @@ parquet-avro = { module = "org.apache.parquet:parquet-avro", version.ref = "parq
 parquet-column = { module = "org.apache.parquet:parquet-column", version.ref = "parquet" }
 parquet-hadoop = { module = "org.apache.parquet:parquet-hadoop", version.ref = "parquet" }
 roaringbitmap = { module = "org.roaringbitmap:RoaringBitmap", version.ref = "roaringbitmap" }
-scala-collection-compat = { module = "org.scala-lang.modules:scala-collection-compat_2.13", version.ref = "scala-collection-compat"}
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 snowflake-jdbc = { module = "net.snowflake:snowflake-jdbc", version.ref = "snowflake-jdbc" }
 
 # test libraries
-apiguardian = { module = "org.apiguardian:apiguardian-api", version.ref = "apiguardian" }
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj-core" }
 awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
-delta-spark = { module = "io.delta:delta-spark_2.12", version.ref = "delta-spark" }
 derby-core = { module = "org.apache.derby:derby", version.ref = "derby"}
 derby-tools = { module = "org.apache.derby:derbytools", version.ref = "derby"}
 esotericsoftware-kryo = { module = "com.esotericsoftware:kryo", version.ref = "esotericsoftware-kryo" }
@@ -193,35 +183,27 @@ flink120-connector-test-utils = { module = "org.apache.flink:flink-connector-tes
 flink120-core = { module = "org.apache.flink:flink-core", version.ref = "flink120" }
 flink120-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink120" }
 flink120-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink120" }
-flink120-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink120" }
 flink22-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink22" }
 flink22-core = { module = "org.apache.flink:flink-core", version.ref = "flink22" }
 flink22-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink22" }
 flink22-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink22" }
-flink22-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink22" }
 flink23-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink23" }
 flink23-core = { module = "org.apache.flink:flink-core", version.ref = "flink23" }
 flink23-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink23" }
 flink23-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink23" }
-flink23-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink23" }
 guava-testlib = { module = "com.google.guava:guava-testlib", version.ref = "guava" }
-jakarta-el-api = { module = "jakarta.el:jakarta.el-api", version.ref = "jakarta-el-api" }
 jakarta-servlet = {module = "jakarta.servlet:jakarta.servlet-api", version.ref = "jakarta-servlet-api"}
 jetty-compression-server = { module = "org.eclipse.jetty.compression:jetty-compression-server", version.ref = "jetty" }
 jetty-compression-gzip = { module = "org.eclipse.jetty.compression:jetty-compression-gzip", version.ref = "jetty" }
 jetty-servlet = { module = "org.eclipse.jetty.ee10:jetty-ee10-servlet", version.ref = "jetty" }
 joda-time = { module = "joda-time:joda-time", version.ref = "joda" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
-junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
 junit-pioneer = { module = "org.junit-pioneer:junit-pioneer", version.ref = "junit-pioneer" }
-junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
-junit-suite-api = { module = "org.junit.platform:junit-platform-suite-api", version.ref = "junit-platform" }
-junit-suite-engine = { module = "org.junit.platform:junit-platform-suite-engine", version.ref = "junit-platform" }
-kryo-shaded = { module = "com.esotericsoftware:kryo-shaded", version.ref = "kryo-shaded" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit" }
+junit-suite-api = { module = "org.junit.platform:junit-platform-suite-api", version.ref = "junit" }
+junit-suite-engine = { module = "org.junit.platform:junit-platform-suite-engine", version.ref = "junit" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
-mockito-inline = { module = "org.mockito:mockito-inline", version.ref = "mockito" }
 mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
-mockserver-client-java = { module = "org.mock-server:mockserver-client-java", version.ref = "mockserver" }
 mockserver-netty = { module = "org.mock-server:mockserver-netty", version.ref = "mockserver" }
 nessie-jaxrs-testextension = { module = "org.projectnessie.nessie:nessie-jaxrs-testextension", version.ref = "nessie" }
 nessie-versioned-storage-inmemory-tests = { module = "org.projectnessie.nessie:nessie-versioned-storage-inmemory-tests", version.ref = "nessie" }
@@ -230,5 +212,3 @@ orc-tools = { module = "org.apache.orc:orc-tools", version.ref = "orc" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
 testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
 testcontainers-junit-jupiter = { module = "org.testcontainers:testcontainers-junit-jupiter", version.ref = "testcontainers" }
-tez08-dag = { module = "org.apache.tez:tez-dag", version.ref = "tez08" }
-tez08-mapreduce = { module = "org.apache.tez:tez-mapreduce", version.ref = "tez08" }

@@ -175,9 +175,7 @@ public class ContentFileUtil {
         file.nullValueCounts(),
         file.nanValueCounts(),
         lowerBounds == null ? null : Collections.unmodifiableMap(lowerBounds),
-        upperBounds == null ? null : Collections.unmodifiableMap(upperBounds),
-        file.totalBytes(),
-        null /* originalTypes */);
+        upperBounds == null ? null : Collections.unmodifiableMap(upperBounds));
   }
 
   private static Metrics metricsWithPathBounds(DeleteFile file, ByteBuffer bound) {
@@ -199,8 +197,6 @@ public class ContentFileUtil {
         file.nullValueCounts(),
         file.nanValueCounts(),
         lowerBounds == null ? null : Collections.unmodifiableMap(lowerBounds),
-        upperBounds == null ? null : Collections.unmodifiableMap(upperBounds),
-        file.totalBytes(),
-        null /* originalTypes */);
+        upperBounds == null ? null : Collections.unmodifiableMap(upperBounds));
   }
 }

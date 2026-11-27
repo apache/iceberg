@@ -272,11 +272,7 @@ public class NessieIcebergClient implements AutoCloseable {
         org.projectnessie.model.Namespace root =
             org.projectnessie.model.Namespace.of(namespace.levels());
         Content existing =
-            api.getContent()
-                .reference(getReference())
-                .key(root.toContentKey())
-                .get()
-                .get(root.toContentKey());
+            withReference(api.getContent()).key(root.toContentKey()).get().get(root.toContentKey());
         if (existing == null) {
           throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
         }
@@ -555,15 +551,8 @@ public class NessieIcebergClient implements AutoCloseable {
     getRef().checkMutable();
 
     IcebergContent existingContent = fetchContent(identifier);
-    if (existingContent == null) {
+    if (existingContent == null || existingContent.getType() != type) {
       return false;
-    }
-
-    if (existingContent.getType() != type) {
-      throw new RuntimeException(
-          String.format(
-              "Cannot drop %s: not matching with the type `%s`",
-              identifier, NessieUtil.contentTypeString(type)));
     }
 
     String contentType = NessieUtil.contentTypeString(type).toLowerCase(Locale.ROOT);

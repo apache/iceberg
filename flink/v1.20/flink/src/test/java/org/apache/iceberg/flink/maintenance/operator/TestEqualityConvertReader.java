@@ -100,8 +100,8 @@ class TestEqualityConvertReader extends OperatorTestBase {
         createHarness(fieldIds)) {
       harness.open();
 
-      // Same task type as the staging test: the command's staging flag, not the task type, decides
-      // that main reindex data is indexed immediately as ADD_DATA_ROW.
+      // Same task type as the staging test: the command's type, not the task type, decides that
+      // main reindex data is indexed immediately as ADD_DATA_ROW.
       ReadCommand cmd =
           ReadCommand.dataFile(new FlinkAddedRowsScanTask(dataFile, spec), 0L, 0L, 0L);
       harness.processElement(cmd, 0);
@@ -110,6 +110,49 @@ class TestEqualityConvertReader extends OperatorTestBase {
       assertThat(output).hasSize(1);
       assertThat(output.get(0).type()).isEqualTo(IndexCommand.Type.ADD_DATA_ROW);
     }
+  }
+
+  @Test
+  void emitsRemoveDataRowForRemovedDataFile() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    DataFile dataFile = getFirstDataFile(table);
+    PartitionSpec spec = table.specs().get(dataFile.specId());
+    List<Integer> fieldIds = Lists.newArrayList(1);
+
+    try (OneInputStreamOperatorTestHarness<ReadCommand, IndexCommand> harness =
+        createHarness(fieldIds)) {
+      harness.open();
+
+      ReadCommand cmd =
+          ReadCommand.removedDataFile(new FlinkAddedRowsScanTask(dataFile, spec), 0L, 0L, 0L);
+      harness.processElement(cmd, 0);
+
+      List<IndexCommand> output = harness.extractOutputValues();
+      assertThat(output).hasSize(1);
+      assertThat(output.get(0).type()).isEqualTo(IndexCommand.Type.REMOVE_DATA_ROW);
+      assertThat(output.get(0).rowPosition().dataFilePath()).isEqualTo(dataFile.location());
+      assertThat(output.get(0).rowPosition().position()).isZero();
+    }
+  }
+
+  @Test
+  void rejectsTaskThatDoesNotMatchTheCommandType() throws Exception {
+    Table table = createTableWithDelete(3);
+    DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
+    PartitionSpec spec = table.specs().get(eqDelete.specId());
+
+    assertThatThrownBy(
+            () ->
+                new ReadCommand(
+                    new EqualityDeleteFileScanTask(eqDelete, spec),
+                    0L,
+                    0L,
+                    0L,
+                    ReadCommand.Type.DATA_FILE))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("DATA_FILE requires a FileScanTask");
   }
 
   @Test

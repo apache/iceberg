@@ -25,8 +25,6 @@ import com.google.api.services.bigquery.model.ExternalCatalogDatasetOptions;
 import com.google.api.services.bigquery.model.TableReference;
 import com.google.cloud.bigquery.BigQueryOptions;
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.security.GeneralSecurityException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -84,13 +82,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
     BigQueryOptions bigQueryOptions = bigQueryProperties.metastoreOptions();
 
-    try {
-      client = new BigQueryMetastoreClientImpl(bigQueryOptions);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Creating BigQuery client failed", e);
-    } catch (GeneralSecurityException e) {
-      throw new RuntimeException("Creating BigQuery client failed due to a security issue", e);
-    }
+    client = new BigQueryMetastoreClientImpl(bigQueryOptions);
 
     initialize(name, properties, projectId, projectLocation, client);
   }

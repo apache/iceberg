@@ -138,7 +138,8 @@ public class TestFindFiles extends TestBase {
 
     table.newAppend().appendFile(FILE_B).commit();
 
-    long timestamp = System.currentTimeMillis();
+    // asOfTime includes a snapshot committed at the timestamp, so FILE_C's must come strictly later
+    long timestamp = table.currentSnapshot().timestampMillis();
 
     table.newAppend().appendFile(FILE_C).commit();
 

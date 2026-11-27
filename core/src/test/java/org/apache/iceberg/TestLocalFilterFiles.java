@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.TestHelpers.ALL_VERSIONS;
+import static org.apache.iceberg.TestHelpers.V3_AND_BELOW;
 
 import java.util.List;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,7 +29,7 @@ public class TestLocalFilterFiles
 
   @Parameters(name = "formatVersion = {0}")
   protected static List<Integer> formatVersions() {
-    return ALL_VERSIONS;
+    return V3_AND_BELOW;
   }
 
   @Override

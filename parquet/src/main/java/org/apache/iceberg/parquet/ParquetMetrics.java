@@ -136,7 +136,6 @@ class ParquetMetrics {
     Map<Integer, Long> valueCounts = Maps.newHashMap();
     Map<Integer, Long> nullValueCounts = Maps.newHashMap();
     Map<Integer, Long> nanValueCounts = Maps.newHashMap();
-    Map<Integer, Long> totalBytes = Maps.newHashMap();
     Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
     Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
     Map<Integer, org.apache.iceberg.types.Type> originalTypes = Maps.newHashMap();
@@ -157,10 +156,6 @@ class ParquetMetrics {
 
       if (metrics.nanValueCount() >= 0) {
         nanValueCounts.put(id, metrics.nanValueCount());
-      }
-
-      if (metrics.totalBytes() >= 0) {
-        totalBytes.put(id, metrics.totalBytes());
       }
 
       if (metrics.lowerBound() != null) {
@@ -184,7 +179,6 @@ class ParquetMetrics {
         nanValueCounts,
         lowerBounds,
         upperBounds,
-        totalBytes.isEmpty() ? null : totalBytes,
         originalTypes);
   }
 

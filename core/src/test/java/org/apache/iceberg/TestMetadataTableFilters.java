@@ -50,7 +50,7 @@ public class TestMetadataTableFilters extends TestBase {
 
   @Parameters(name = "formatVersion = {0}, table_type = {1}")
   protected static List<Object> parameters() {
-    return TestHelpers.ALL_VERSIONS.stream()
+    return TestHelpers.V3_AND_BELOW.stream()
         .flatMap(
             v -> {
               ImmutableList.Builder<Object[]> builder =

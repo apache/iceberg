@@ -56,7 +56,7 @@ class TestManifestFileUtil {
   @TempDir private Path temp;
 
   @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @FieldSource("org.apache.iceberg.TestHelpers#V3_AND_BELOW")
   void canContainWithUnknownTypeOnly(int formatVersion) throws IOException {
     // Parquet cannot represent the empty struct produced by an UnknownType-only partition
     assumeThat(formatVersion).isLessThan(MIN_FORMAT_VERSION_PARQUET_MANIFESTS);
@@ -74,7 +74,7 @@ class TestManifestFileUtil {
   }
 
   @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @FieldSource("org.apache.iceberg.TestHelpers#V3_AND_BELOW")
   void canContainWithNaNValueOnly(int formatVersion) throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("floats").build();
     PartitionData partition = new PartitionData(spec.partitionType());
@@ -90,7 +90,7 @@ class TestManifestFileUtil {
   }
 
   @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @FieldSource("org.apache.iceberg.TestHelpers#V3_AND_BELOW")
   void canContainWithNullValueOnly(int formatVersion) throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("floats").build();
     PartitionData partition = new PartitionData(spec.partitionType());
@@ -106,7 +106,7 @@ class TestManifestFileUtil {
   }
 
   @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @FieldSource("org.apache.iceberg.TestHelpers#V3_AND_BELOW")
   void canContainWithUnknownType(int formatVersion) throws IOException {
     PartitionSpec spec =
         PartitionSpec.builderFor(SCHEMA).identity("floats").identity("unknown").build();
