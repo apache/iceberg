@@ -23,6 +23,7 @@ import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.S3FileIOAwsClientFactories;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -48,9 +49,15 @@ class PrefixedS3Client implements AutoCloseable {
     this.s3 = s3;
     this.s3Async = s3Async;
     this.s3FileIOProperties = new S3FileIOProperties(properties);
+    // A refresh of vended credentials uses the credential for this client's storage prefix
+    Map<String, String> clientProperties =
+        ImmutableMap.<String, String>builder()
+            .putAll(properties)
+            .put(VendedCredentialsProvider.STORAGE_PREFIX, storagePrefix)
+            .buildKeepingLast();
     // Do not override s3 client if it was provided
     if (s3 == null) {
-      Object clientFactory = S3FileIOAwsClientFactories.initialize(properties);
+      Object clientFactory = S3FileIOAwsClientFactories.initialize(clientProperties);
       if (clientFactory instanceof S3FileIOAwsClientFactory) {
         this.s3 = ((S3FileIOAwsClientFactory) clientFactory)::s3;
       }
@@ -64,7 +71,7 @@ class PrefixedS3Client implements AutoCloseable {
 
     // Do not override s3Async client if it was provided
     if (s3Async == null) {
-      Object clientFactory = S3FileIOAwsClientFactories.initialize(properties);
+      Object clientFactory = S3FileIOAwsClientFactories.initialize(clientProperties);
       if (clientFactory instanceof S3FileIOAwsClientFactory) {
         this.s3Async = ((S3FileIOAwsClientFactory) clientFactory)::s3Async;
       }

@@ -20,6 +20,7 @@ package org.apache.iceberg.aws.s3;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -46,11 +47,20 @@ import software.amazon.awssdk.utils.cache.RefreshResult;
 
 public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAutoCloseable {
   public static final String URI = "credentials.uri";
+
+  /**
+   * The storage prefix of the S3 client that uses this provider. When the catalog returns more than
+   * one S3 credential, the provider uses the one with the longest prefix that the storage prefix
+   * starts with.
+   */
+  public static final String STORAGE_PREFIX = "credentials.storage-prefix";
+
   private volatile HTTPClient client;
   private final Map<String, String> properties;
   private final CachedSupplier<AwsCredentials> credentialCache;
   private final String catalogEndpoint;
   private final String credentialsEndpoint;
+  private final String storagePrefix;
   private AuthManager authManager;
   private AuthSession authSession;
 
@@ -66,6 +76,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
             .build();
     this.catalogEndpoint = properties.get(CatalogProperties.URI);
     this.credentialsEndpoint = properties.get(URI);
+    this.storagePrefix = properties.get(STORAGE_PREFIX);
   }
 
   @Override
@@ -156,10 +167,8 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
             .collect(Collectors.toList());
 
     Preconditions.checkState(!s3Credentials.isEmpty(), "Invalid S3 Credentials: empty");
-    Preconditions.checkState(
-        s3Credentials.size() == 1, "Invalid S3 Credentials: only one S3 credential should exist");
 
-    Credential s3Credential = s3Credentials.get(0);
+    Credential s3Credential = selectCredential(s3Credentials);
     checkCredential(s3Credential, S3FileIOProperties.ACCESS_KEY_ID);
     checkCredential(s3Credential, S3FileIOProperties.SECRET_ACCESS_KEY);
     checkCredential(s3Credential, S3FileIOProperties.SESSION_TOKEN);
@@ -184,6 +193,25 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
         .staleTime(expiresAt)
         .prefetchTime(prefetchAt)
         .build();
+  }
+
+  private Credential selectCredential(List<Credential> s3Credentials) {
+    if (s3Credentials.size() == 1) {
+      return s3Credentials.get(0);
+    }
+
+    Preconditions.checkState(
+        null != storagePrefix, "Invalid S3 Credentials: only one S3 credential should exist");
+
+    return s3Credentials.stream()
+        .filter(credential -> storagePrefix.startsWith(credential.prefix()))
+        .max(Comparator.comparingInt(credential -> credential.prefix().length()))
+        .orElseThrow(
+            () ->
+                new IllegalStateException(
+                    String.format(
+                        "Invalid S3 Credentials: no S3 credential for storage prefix %s",
+                        storagePrefix)));
   }
 
   private void checkCredential(Credential credential, String property) {

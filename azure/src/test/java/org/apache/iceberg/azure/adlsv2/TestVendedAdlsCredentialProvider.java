@@ -238,6 +238,34 @@ public class TestVendedAdlsCredentialProvider extends VendedCredentialsTestBase 
   }
 
   @Test
+  public void sameSasTokenForMultiplePrefixesOfStorageAccount() {
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    Map<String, String> config =
+        ImmutableMap.of(
+            ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT,
+            "randomSasToken",
+            ADLS_SAS_TOKEN_EXPIRES_AT_MS_PREFIX + STORAGE_ACCOUNT,
+            Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli()));
+    LoadCredentialsResponse response =
+        ImmutableLoadCredentialsResponse.builder()
+            .addCredentials(
+                ImmutableCredential.builder().prefix(CREDENTIAL_PREFIX).config(config).build(),
+                ImmutableCredential.builder()
+                    .prefix(CREDENTIAL_PREFIX + "/dir2")
+                    .config(config)
+                    .build())
+            .build();
+    HttpResponse mockResponse =
+        response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
+    mockServer.when(mockRequest).respond(mockResponse);
+
+    try (VendedAdlsCredentialProvider provider = new VendedAdlsCredentialProvider(PROPERTIES)) {
+      assertThat(provider.credentialForAccount(STORAGE_ACCOUNT).block())
+          .isEqualTo("randomSasToken");
+    }
+  }
+
+  @Test
   public void multipleStorageAccounts() {
     HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
     Credential credential1 =
