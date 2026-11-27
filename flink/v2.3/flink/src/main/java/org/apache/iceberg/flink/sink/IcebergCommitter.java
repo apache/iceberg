@@ -30,10 +30,12 @@ import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -72,6 +74,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
   private final String branch;
   private final Map<String, String> snapshotProperties;
   private final boolean replacePartitions;
+  private final boolean staticOverwrite;
   private IcebergFilesCommitterMetrics committerMetrics;
   private Table table;
   private final TableLoader tableLoader;
@@ -86,6 +89,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       String branch,
       Map<String, String> snapshotProperties,
       boolean replacePartitions,
+      boolean staticOverwrite,
       int workerPoolSize,
       String sinkId,
       IcebergFilesCommitterMetrics committerMetrics,
@@ -94,6 +98,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     this.branch = branch;
     this.snapshotProperties = snapshotProperties;
     this.replacePartitions = replacePartitions;
+    this.staticOverwrite = staticOverwrite;
     this.committerMetrics = committerMetrics;
     this.tableLoader = tableLoader;
     this.tableMaintenanceEnabled = tableMaintenanceEnabled;
@@ -226,8 +231,14 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       String operatorId) {
     long totalFiles = summary.dataFilesCount() + summary.deleteFilesCount();
     continuousEmptyCheckpoints = totalFiles == 0 ? continuousEmptyCheckpoints + 1 : 0;
-    if (totalFiles != 0 || continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0) {
-      if (replacePartitions) {
+    // a static overwrite with no new files still commits, because it removes every row of the table
+    boolean replaceTable = replacePartitions && staticOverwrite;
+    if (totalFiles != 0
+        || replaceTable
+        || continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0) {
+      if (replaceTable) {
+        overwriteTable(pendingResults, summary, newFlinkJobId, sinkId, operatorId);
+      } else if (replacePartitions) {
         replacePartitions(pendingResults, summary, newFlinkJobId, sinkId, operatorId);
       } else {
         commitDeltaTxn(pendingResults, summary, newFlinkJobId, sinkId, operatorId);
@@ -259,6 +270,31 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
 
     logCommitSummary(summary, description);
     commitOperation(dynamicOverwrite, description, newFlinkJobId, sinkId, operatorId, checkpointId);
+  }
+
+  private void overwriteTable(
+      NavigableMap<Long, WriteResult> pendingResults,
+      CommitSummary summary,
+      String newFlinkJobId,
+      String sinkId,
+      String operatorId) {
+    long checkpointId = pendingResults.lastKey();
+    Preconditions.checkState(
+        summary.deleteFilesCount() == 0, "Cannot overwrite the table with delete files.");
+    OverwriteFiles overwrite =
+        table
+            .newOverwrite()
+            .scanManifestsWith(workerPool)
+            .overwriteByRowFilter(Expressions.alwaysTrue());
+    for (WriteResult result : pendingResults.values()) {
+      Preconditions.checkState(
+          result.referencedDataFiles().length == 0, "Should have no referenced data files.");
+      Arrays.stream(result.dataFiles()).forEach(overwrite::addFile);
+    }
+    String description = "static overwrite";
+
+    logCommitSummary(summary, description);
+    commitOperation(overwrite, description, newFlinkJobId, sinkId, operatorId, checkpointId);
   }
 
   private void commitDeltaTxn(

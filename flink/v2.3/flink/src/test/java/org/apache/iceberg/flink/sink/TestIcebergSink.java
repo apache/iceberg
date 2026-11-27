@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -182,6 +183,56 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
     Map<String, String> summary = table.currentSnapshot().summary();
     assertThat(summary).containsKeys(SinkUtil.SINK_ID, SinkUtil.FLINK_JOB_ID);
     assertThat(summary.get(SinkUtil.SINK_ID)).isNotEqualTo(summary.get(SinkUtil.FLINK_JOB_ID));
+  }
+
+  @TestTemplate
+  void staticOverwriteReplacesTableInBatchJob() throws Exception {
+    env.setRuntimeMode(RuntimeExecutionMode.BATCH);
+
+    List<Row> oldRows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"));
+    IcebergSink.forRowData(batchInput(oldRows))
+        .table(table)
+        .tableLoader(tableLoader)
+        .writeParallelism(parallelism)
+        .append();
+    env.execute("Test Iceberg DataStream");
+
+    List<Row> newRows = Lists.newArrayList(Row.of(3, "foo"));
+    IcebergSink.forRowData(batchInput(newRows))
+        .table(table)
+        .tableLoader(tableLoader)
+        .writeParallelism(parallelism)
+        .overwrite(true)
+        .set(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "static")
+        .append();
+    env.execute("Test Iceberg DataStream");
+
+    SimpleDataUtil.assertTableRows(table, convertToRowData(newRows));
+  }
+
+  @TestTemplate
+  void staticOverwriteIsRejectedInStreamingJob() {
+    DataStream<RowData> dataStream =
+        env.addSource(createBoundedSource(createRows("")), ROW_TYPE_INFO)
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    IcebergSink.forRowData(dataStream)
+        .table(table)
+        .tableLoader(tableLoader)
+        .overwrite(true)
+        .set(FlinkWriteOptions.OVERWRITE_STRATEGY.key(), "static")
+        .append();
+
+    assertThatThrownBy(() -> env.execute("Test Iceberg DataStream"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot run a static overwrite (overwrite-mode=static) in STREAMING mode: "
+                + "execution.runtime-mode must be BATCH");
+  }
+
+  private DataStream<RowData> batchInput(List<Row> rows) {
+    return env.fromData(rows, ROW_TYPE_INFO)
+        .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
   }
 
   @TestTemplate

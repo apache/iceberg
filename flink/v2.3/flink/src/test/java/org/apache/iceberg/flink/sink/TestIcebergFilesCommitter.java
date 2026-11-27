@@ -53,6 +53,7 @@ import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFile;
@@ -63,7 +64,9 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestBase;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -1074,6 +1077,159 @@ public class TestIcebergFilesCommitter extends TestBase {
     }
   }
 
+  @TestTemplate
+  public void testStaticOverwriteReplacesAllPartitions() throws Exception {
+    table.updateSpec().addField("data").commit();
+    RowData rowA = SimpleDataUtil.createRowData(1, "a");
+    RowData rowB = SimpleDataUtil.createRowData(2, "b");
+    table
+        .newAppend()
+        .appendFile(writePartitionedDataFile("data-1", rowA))
+        .appendFile(writePartitionedDataFile("data-2", rowB))
+        .toBranch(branch)
+        .commit();
+
+    JobID jobId = new JobID();
+    long checkpointId = 1;
+    long timestamp = 0;
+    RowData newRowA = SimpleDataUtil.createRowData(3, "a");
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobId, true, true)) {
+      harness.setup();
+      harness.open();
+
+      harness.processElement(
+          of(checkpointId, writePartitionedDataFile("data-3", newRowA)), ++timestamp);
+      harness.snapshot(checkpointId, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(newRowA), branch);
+      Snapshot snapshot = SimpleDataUtil.latestSnapshot(table, branch);
+      assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+      assertThat(snapshot.summary())
+          .doesNotContainKey(SnapshotSummary.REPLACE_PARTITIONS_PROP)
+          .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "2")
+          .containsEntry(SnapshotSummary.ADDED_FILES_PROP, "1")
+          .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "1");
+      assertMaxCommittedCheckpointId(jobId, harness.getOperator().getOperatorID(), checkpointId);
+    }
+  }
+
+  @TestTemplate
+  public void testStaticOverwriteWithoutNewRowsRemovesAllRows() throws Exception {
+    // other empty commits are skipped until the third empty checkpoint
+    table.updateProperties().set(MAX_CONTINUOUS_EMPTY_COMMITS, "3").commit();
+    table.updateSpec().addField("data").commit();
+    table
+        .newAppend()
+        .appendFile(writePartitionedDataFile("data-1", SimpleDataUtil.createRowData(1, "a")))
+        .appendFile(writePartitionedDataFile("data-2", SimpleDataUtil.createRowData(2, "b")))
+        .toBranch(branch)
+        .commit();
+
+    JobID jobId = new JobID();
+    long checkpointId = 1;
+    long timestamp = 0;
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobId, true, true)) {
+      harness.setup();
+      harness.open();
+
+      harness.snapshot(checkpointId, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(), branch);
+      Snapshot snapshot = SimpleDataUtil.latestSnapshot(table, branch);
+      assertThat(snapshot.operation()).isEqualTo(DataOperations.DELETE);
+      assertThat(snapshot.summary())
+          .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "2")
+          .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "0");
+      assertMaxCommittedCheckpointId(jobId, harness.getOperator().getOperatorID(), checkpointId);
+    }
+  }
+
+  @TestTemplate
+  public void testDynamicOverwriteKeepsPartitionsWithoutNewRows() throws Exception {
+    table.updateSpec().addField("data").commit();
+    RowData rowA = SimpleDataUtil.createRowData(1, "a");
+    RowData rowB = SimpleDataUtil.createRowData(2, "b");
+    table
+        .newAppend()
+        .appendFile(writePartitionedDataFile("data-1", rowA))
+        .appendFile(writePartitionedDataFile("data-2", rowB))
+        .toBranch(branch)
+        .commit();
+
+    JobID jobId = new JobID();
+    long checkpointId = 1;
+    long timestamp = 0;
+    RowData newRowA = SimpleDataUtil.createRowData(3, "a");
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobId, true, false)) {
+      harness.setup();
+      harness.open();
+
+      harness.processElement(
+          of(checkpointId, writePartitionedDataFile("data-3", newRowA)), ++timestamp);
+      harness.snapshot(checkpointId, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(newRowA, rowB), branch);
+      assertThat(SimpleDataUtil.latestSnapshot(table, branch).summary())
+          .containsEntry(SnapshotSummary.REPLACE_PARTITIONS_PROP, "true")
+          .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "2");
+    }
+  }
+
+  @TestTemplate
+  public void testStaticOverwriteReplacesFilesWrittenUnderOlderSpec() throws Exception {
+    RowData unpartitionedRow = SimpleDataUtil.createRowData(0, "z");
+    table
+        .newAppend()
+        .appendFile(writeDataFile("data-0", ImmutableList.of(unpartitionedRow)))
+        .toBranch(branch)
+        .commit();
+    table.updateSpec().addField("data").commit();
+    RowData rowA = SimpleDataUtil.createRowData(1, "a");
+    RowData rowB = SimpleDataUtil.createRowData(2, "b");
+    table
+        .newAppend()
+        .appendFile(writePartitionedDataFile("data-1", rowA))
+        .appendFile(writePartitionedDataFile("data-2", rowB))
+        .toBranch(branch)
+        .commit();
+
+    JobID jobId = new JobID();
+    long checkpointId = 1;
+    long timestamp = 0;
+    RowData newRowA = SimpleDataUtil.createRowData(3, "a");
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobId, true, true)) {
+      harness.setup();
+      harness.open();
+
+      harness.processElement(
+          of(checkpointId, writePartitionedDataFile("data-3", newRowA)), ++timestamp);
+      harness.snapshot(checkpointId, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(newRowA), branch);
+      Snapshot snapshot = SimpleDataUtil.latestSnapshot(table, branch);
+      assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+      assertThat(snapshot.summary())
+          .doesNotContainKey(SnapshotSummary.REPLACE_PARTITIONS_PROP)
+          .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "3")
+          .containsEntry(SnapshotSummary.ADDED_FILES_PROP, "1")
+          .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "1");
+    }
+  }
+
+  private DataFile writePartitionedDataFile(String filename, RowData row) throws IOException {
+    StructLike partition = new PartitionData(table.spec().partitionType());
+    partition.set(0, row.getString(1).toString());
+    return writeDataFile(filename, ImmutableList.of(row), table.spec(), partition);
+  }
+
   private int getStagingManifestSpecId(OperatorStateStore operatorStateStore, long checkPointId)
       throws Exception {
     ListState<SortedMap<Long, byte[]>> checkpointsState =
@@ -1168,7 +1324,14 @@ public class TestIcebergFilesCommitter extends TestBase {
 
   private OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> createStreamSink(JobID jobID)
       throws Exception {
-    TestOperatorFactory factory = TestOperatorFactory.of(table.location(), branch, table.spec());
+    return createStreamSink(jobID, false, false);
+  }
+
+  private OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> createStreamSink(
+      JobID jobID, boolean replacePartitions, boolean staticOverwrite) throws Exception {
+    TestOperatorFactory factory =
+        new TestOperatorFactory(
+            table.location(), branch, table.spec(), replacePartitions, staticOverwrite);
     return new OneInputStreamOperatorTestHarness<>(factory, createEnvironment(jobID));
   }
 
@@ -1190,15 +1353,20 @@ public class TestIcebergFilesCommitter extends TestBase {
     private final String tablePath;
     private final String branch;
     private final PartitionSpec spec;
+    private final boolean replacePartitions;
+    private final boolean staticOverwrite;
 
-    private TestOperatorFactory(String tablePath, String branch, PartitionSpec spec) {
+    private TestOperatorFactory(
+        String tablePath,
+        String branch,
+        PartitionSpec spec,
+        boolean replacePartitions,
+        boolean staticOverwrite) {
       this.tablePath = tablePath;
       this.branch = branch;
       this.spec = spec;
-    }
-
-    private static TestOperatorFactory of(String tablePath, String branch, PartitionSpec spec) {
-      return new TestOperatorFactory(tablePath, branch, spec);
+      this.replacePartitions = replacePartitions;
+      this.staticOverwrite = staticOverwrite;
     }
 
     @Override
@@ -1209,7 +1377,8 @@ public class TestIcebergFilesCommitter extends TestBase {
           new IcebergFilesCommitter(
               params,
               new TestTableLoader(tablePath),
-              false,
+              replacePartitions,
+              staticOverwrite,
               Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName()),
               ThreadPools.WORKER_THREAD_POOL_SIZE,
               branch,

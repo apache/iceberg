@@ -55,6 +55,16 @@ INSERT OVERWRITE `hive_catalog`.`default`.`sample` PARTITION(data='a') SELECT 6;
 For a partitioned iceberg table, when all the partition columns are set a value in `PARTITION` clause, it is inserting into a static partition, otherwise if partial partition columns (prefix part of all partition columns) are set a value in `PARTITION` clause, it is writing the query result into a dynamic partition.
 For an unpartitioned iceberg table, its data will be completely overwritten by `INSERT OVERWRITE`.
 
+To replace every row of a partitioned table, including partitions that receive no new rows, set `overwrite-mode` to `static`:
+
+```sql
+INSERT OVERWRITE sample /*+ OPTIONS('overwrite-mode'='static') */ SELECT id, data FROM other_table;
+```
+
+A job can also set `overwrite-mode` in the Flink configuration; the write option takes priority. In `static` mode, `INSERT OVERWRITE` with a `PARTITION` clause fails. After a static overwrite the table holds only the files that the job wrote. The snapshot operation is `overwrite`, or `delete` when the query returns no rows.
+
+A static overwrite runs only in a batch job. `INSERT OVERWRITE` already requires one. A DataStream job must set `execution.runtime-mode` to `BATCH` before it builds the sink; `AUTOMATIC` is not accepted. A static overwrite whose query returns no rows removes every row of the table.
+
 ### `UPSERT`
 
 Iceberg supports `UPSERT` based on the primary key when writing data into v2 table format. There are two ways to enable upsert.
@@ -115,6 +125,25 @@ TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
     .overwrite(true)
+    .append();
+
+env.execute("Test Iceberg DataStream");
+```
+
+To replace every row of a partitioned table, also set `overwrite-mode` to `static`. The job must run in `BATCH` mode:
+
+```java
+StreamExecutionEnvironment env = ...;
+env.setRuntimeMode(RuntimeExecutionMode.BATCH);
+
+DataStream<RowData> input = ... ;
+Configuration hadoopConf = new Configuration();
+TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path", hadoopConf);
+
+FlinkSink.forRowData(input)
+    .tableLoader(tableLoader)
+    .overwrite(true)
+    .set("overwrite-mode", "static")
     .append();
 
 env.execute("Test Iceberg DataStream");
