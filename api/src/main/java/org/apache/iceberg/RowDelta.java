@@ -156,7 +156,9 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
    *
    * <p>Validation uses the conflict detection filter passed to {@link
    * #conflictDetectionFilter(Expression)} and applies to operations that happened after the
-   * snapshot passed to {@link #validateFromSnapshot(long)}.
+   * snapshot passed to {@link #validateFromSnapshot(long)}. Data files removed via {@link
+   * #removeRows(DataFile)} are always checked for new deletes, regardless of the conflict detection
+   * filter.
    *
    * @return this for method chaining
    */

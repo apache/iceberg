@@ -163,8 +163,9 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
    * #conflictDetectionFilter(Expression)} and applies to operations that happened after the
    * snapshot passed to {@link #validateFromSnapshot(long)}. If the conflict detection filter is not
    * set, this operation will use the row filter provided in {@link
-   * #overwriteByRowFilter(Expression)} to check for new delete files and will ensure there are no
-   * conflicting deletes for data files removed via {@link #deleteFile(DataFile)}.
+   * #overwriteByRowFilter(Expression)} to check for new delete files. Data files removed via {@link
+   * #deleteFile(DataFile)} are always checked for new deletes, regardless of the conflict detection
+   * filter.
    *
    * @return this for method chaining
    */
