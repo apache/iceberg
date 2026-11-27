@@ -75,6 +75,8 @@ import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.CatalogV2Implicits;
+import org.apache.spark.sql.connector.catalog.ColumnDefaultValue;
+import org.apache.spark.sql.connector.catalog.DefaultValue;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -202,6 +204,9 @@ public class Spark3Util {
       } else if (change instanceof TableChange.UpdateColumnPosition) {
         apply(pendingUpdate, (TableChange.UpdateColumnPosition) change);
 
+      } else if (change instanceof TableChange.UpdateColumnDefaultValue) {
+        apply(pendingUpdate, (TableChange.UpdateColumnDefaultValue) change);
+
       } else {
         throw new UnsupportedOperationException("Cannot apply unknown table change: " + change);
       }
@@ -231,16 +236,15 @@ public class Spark3Util {
         add.isNullable(),
         "Incompatible change: cannot add required column: %s",
         leafName(add.fieldNames()));
-    if (add.defaultValue() != null) {
-      throw new UnsupportedOperationException(
-          String.format(
-              "Cannot add column %s since setting default values in Spark is currently unsupported",
-              leafName(add.fieldNames())));
-    }
+
+    ColumnDefaultValue defaultValue = add.defaultValue();
+    String columnName = leafName(add.fieldNames());
+    org.apache.iceberg.expressions.Literal<?> defaultLiteral =
+        toNewColumnDefault(defaultValue, columnName);
 
     Type type = SparkSchemaUtil.convert(add.dataType());
     pendingUpdate.addColumn(
-        parentName(add.fieldNames()), leafName(add.fieldNames()), type, add.comment());
+        parentName(add.fieldNames()), columnName, type, add.comment(), defaultLiteral);
 
     if (add.position() instanceof TableChange.After) {
       TableChange.After after = (TableChange.After) add.position();
@@ -257,6 +261,60 @@ public class Spark3Util {
           DOT.join(add.fieldNames()),
           add.position());
     }
+  }
+
+  private static void apply(
+      UpdateSchema pendingUpdate, TableChange.UpdateColumnDefaultValue update) {
+    pendingUpdate.updateColumnDefault(
+        DOT.join(update.fieldNames()), toWriteDefault(update.newCurrentDefault()));
+  }
+
+  private static org.apache.iceberg.expressions.Literal<?> toInitialDefault(
+      ColumnDefaultValue defaultValue) {
+    return defaultValue != null ? toIcebergLiteral(defaultValue.getValue()) : null;
+  }
+
+  private static org.apache.iceberg.expressions.Literal<?> toWriteDefault(
+      DefaultValue defaultValue) {
+    if (defaultValue == null) {
+      return null;
+    }
+
+    Expression expression = defaultValue.getExpression();
+    if (expression == null) {
+      throw new UnsupportedOperationException(
+          "Unsupported default value expression: " + defaultValue.getSql());
+    }
+
+    if (!SparkV2Filters.isLiteral(expression)) {
+      throw new UnsupportedOperationException(
+          "Default value expressions are not supported in Iceberg");
+    }
+
+    return toIcebergLiteral((Literal<?>) expression);
+  }
+
+  static org.apache.iceberg.expressions.Literal<?> toNewColumnDefault(
+      ColumnDefaultValue defaultValue, String columnName) {
+    org.apache.iceberg.expressions.Literal<?> initialDefault = toInitialDefault(defaultValue);
+    org.apache.iceberg.expressions.Literal<?> writeDefault = toWriteDefault(defaultValue);
+
+    // Spark builds both defaults from the same literal when a column is first added
+    if (!Objects.equals(initialDefault, writeDefault)) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Cannot add new column %s: initial and write defaults must match", columnName));
+    }
+
+    return initialDefault;
+  }
+
+  private static org.apache.iceberg.expressions.Literal<?> toIcebergLiteral(Literal<?> literal) {
+    if (literal == null || literal.value() == null) {
+      return null;
+    }
+
+    return org.apache.iceberg.expressions.Expressions.lit(SparkV2Filters.convertLiteral(literal));
   }
 
   public static org.apache.iceberg.Table toIcebergTable(Table table) {

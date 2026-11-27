@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
@@ -32,7 +31,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.connector.catalog.ColumnDefaultValue;
 import org.apache.spark.sql.connector.catalog.TableInfo;
-import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.BooleanType;
@@ -237,34 +235,18 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
       return;
     }
 
-    ColumnDefaultValue columnDefaultValue = column.defaultValue();
+    ColumnDefaultValue defaultValue = column.defaultValue();
 
-    if (columnDefaultValue == null) {
+    if (defaultValue == null) {
       return;
     }
 
-    if (columnDefaultValue.getExpression() == null && columnDefaultValue.getSql() != null) {
-      throw new UnsupportedOperationException(
-          "Unsupported default value expression: " + columnDefaultValue.getSql());
-    }
+    org.apache.iceberg.expressions.Literal<?> defaultLiteral =
+        Spark3Util.toNewColumnDefault(defaultValue, sparkField.name());
 
-    if (columnDefaultValue.getExpression() != null
-        && !SparkV2Filters.isLiteral(columnDefaultValue.getExpression())) {
-      throw new UnsupportedOperationException(
-          "Default value expressions are not supported in Iceberg");
-    }
-
-    // ColumnDefaultValue.getValue is equivalent to initial-default in Iceberg
-    Literal<?> initialDefault = columnDefaultValue.getValue();
-    if (initialDefault != null && initialDefault.value() != null) {
-      icebergField.withInitialDefault(
-          Expressions.lit(SparkV2Filters.convertLiteral(initialDefault)));
-    }
-
-    // ColumnDefaultValue.getExpression() is equivalent to write-default in Iceberg
-    Literal<?> writeDefault = (Literal<?>) columnDefaultValue.getExpression();
-    if (writeDefault != null && writeDefault.value() != null) {
-      icebergField.withWriteDefault(Expressions.lit(SparkV2Filters.convertLiteral(writeDefault)));
+    if (defaultLiteral != null) {
+      icebergField.withInitialDefault(defaultLiteral);
+      icebergField.withWriteDefault(defaultLiteral);
     }
   }
 }
