@@ -225,6 +225,137 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends ExtensionsT
   }
 
   @TestTemplate
+  public void testMergeWithSubsetOfPartitionKeys() {
+    checkMergeWithSubsetOfPartitionKeys(true);
+  }
+
+  @TestTemplate
+  public void testMergeWithSubsetOfPartitionKeysWithoutPartialClustering() {
+    checkMergeWithSubsetOfPartitionKeys(false);
+  }
+
+  private void checkMergeWithSubsetOfPartitionKeys(boolean partialClustering) {
+    String createTableStmt =
+        "CREATE TABLE %s (id INT, event_date DATE, salary INT) "
+            + "USING iceberg "
+            + "PARTITIONED BY (days(event_date), bucket(2, id)) "
+            + "TBLPROPERTIES (%s)";
+
+    sql(createTableStmt, tableName, tablePropsAsString(COMMON_TABLE_PROPERTIES));
+    sql(createTableStmt, tableName(OTHER_TABLE_NAME), tablePropsAsString(COMMON_TABLE_PROPERTIES));
+
+    for (int i = 0; i < 8; i++) {
+      sql("INSERT INTO %s VALUES (%d, DATE '2026-01-01', %d)", tableName, i + 10, (i + 10) * 100);
+    }
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, DATE '2026-01-01', 100), "
+            + "(2, DATE '2026-01-01', 200), "
+            + "(3, DATE '2026-01-02', 300)",
+        tableName);
+
+    sql(
+        "INSERT INTO %s VALUES " + "(1, DATE '2026-01-01', 110), " + "(2, DATE '2026-01-01', 220)",
+        tableName(OTHER_TABLE_NAME));
+
+    Map<String, String> mergeProps =
+        ImmutableMap.of(
+            TableProperties.MERGE_MODE,
+            COPY_ON_WRITE.modeName(),
+            TableProperties.MERGE_DISTRIBUTION_MODE,
+            "none");
+
+    sql("ALTER TABLE %s SET TBLPROPERTIES(%s)", tableName, tablePropsAsString(mergeProps));
+
+    Map<String, String> conf =
+        ImmutableMap.<String, String>builder()
+            .putAll(ENABLED_SPJ_SQL_CONF)
+            .put(SQLConf.V2_BUCKETING_ALLOW_JOIN_KEYS_SUBSET_OF_PARTITION_KEYS().key(), "true")
+            .put(
+                SQLConf.V2_BUCKETING_PARTIALLY_CLUSTERED_DISTRIBUTION_ENABLED().key(),
+                Boolean.toString(partialClustering))
+            .build();
+
+    withSQLConf(
+        conf,
+        () -> {
+          SparkPlan plan =
+              executeAndKeepPlan(
+                  "MERGE INTO %s t USING %s s "
+                      + "ON t.id = s.id "
+                      + "WHEN MATCHED THEN UPDATE SET t.salary = s.salary",
+                  tableName, tableName(OTHER_TABLE_NAME));
+
+          assertThat(plan).isNotNull();
+          org.apache.spark.sql.execution.SparkPlan actualPlan =
+              plan instanceof org.apache.spark.sql.execution.CommandResultExec
+                  ? ((org.apache.spark.sql.execution.CommandResultExec) plan).commandPhysicalPlan()
+                  : plan;
+
+          org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanHelper helper =
+              new org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanHelper() {};
+
+          scala.collection.Seq<org.apache.spark.sql.execution.SparkPlan> grouped =
+              helper.collect(
+                  actualPlan,
+                  new scala.runtime.AbstractPartialFunction<
+                      org.apache.spark.sql.execution.SparkPlan,
+                      org.apache.spark.sql.execution.SparkPlan>() {
+                    @Override
+                    public boolean isDefinedAt(org.apache.spark.sql.execution.SparkPlan node) {
+                      return node
+                          instanceof
+                          org.apache.spark.sql.execution.datasources.v2.GroupPartitionsExec;
+                    }
+
+                    @Override
+                    public org.apache.spark.sql.execution.SparkPlan apply(
+                        org.apache.spark.sql.execution.SparkPlan node) {
+                      return node;
+                    }
+                  });
+
+          assertThat(grouped.size()).as("Expected grouped partition operators").isGreaterThan(0);
+
+          boolean foundExpectedGrouping = false;
+          scala.collection.Iterator<org.apache.spark.sql.execution.SparkPlan> iterator =
+              grouped.iterator();
+
+          while (iterator.hasNext()) {
+            org.apache.spark.sql.execution.datasources.v2.GroupPartitionsExec group =
+                (org.apache.spark.sql.execution.datasources.v2.GroupPartitionsExec) iterator.next();
+
+            if (group.groupedPartitions().size() == (partialClustering ? 10 : 2)) {
+              foundExpectedGrouping = true;
+            }
+          }
+
+          assertThat(foundExpectedGrouping)
+              .as(
+                  "Expected target-side partition grouping for partialClustering=%s",
+                  partialClustering)
+              .isTrue();
+        });
+
+    assertEquals(
+        "Merge should update matching IDs",
+        ImmutableList.of(
+            row(1, java.sql.Date.valueOf("2026-01-01"), 110),
+            row(2, java.sql.Date.valueOf("2026-01-01"), 220),
+            row(3, java.sql.Date.valueOf("2026-01-02"), 300),
+            row(10, java.sql.Date.valueOf("2026-01-01"), 1000),
+            row(11, java.sql.Date.valueOf("2026-01-01"), 1100),
+            row(12, java.sql.Date.valueOf("2026-01-01"), 1200),
+            row(13, java.sql.Date.valueOf("2026-01-01"), 1300),
+            row(14, java.sql.Date.valueOf("2026-01-01"), 1400),
+            row(15, java.sql.Date.valueOf("2026-01-01"), 1500),
+            row(16, java.sql.Date.valueOf("2026-01-01"), 1600),
+            row(17, java.sql.Date.valueOf("2026-01-01"), 1700)),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
   public void testCopyOnWriteMergeWithoutShuffles() {
     checkMerge(COPY_ON_WRITE, false /* with ON predicate */);
   }
