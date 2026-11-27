@@ -34,6 +34,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -495,5 +496,61 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
     assertThat(metricsMap)
         .hasEntrySatisfying(
             "skippedDeleteFiles", sqlMetric -> assertThat(sqlMetric.value()).isEqualTo(0));
+  }
+
+  @TestTemplate
+  public void metricsWhenTaskReadsSeveralPartitions() {
+    // open file cost and split size are set as 16 MB to produce a split per file
+    sql(
+        "CREATE TABLE %s (id BIGINT, dep STRING) USING iceberg PARTITIONED BY (dep) "
+            + "TBLPROPERTIES ('format-version'='2', 'write.delete.mode'='merge-on-read', "
+            + "'%s'='16777216', '%s'='16777216')",
+        tableName, TableProperties.SPLIT_SIZE, TableProperties.SPLIT_OPEN_FILE_COST);
+    sql("INSERT INTO %s VALUES (1, 'hr'), (11, 'hr'), (4, 'ops'), (14, 'ops')", tableName);
+    sql("INSERT INTO %s VALUES (2, 'hr'), (12, 'hr'), (5, 'ops'), (15, 'ops')", tableName);
+    sql("INSERT INTO %s VALUES (3, 'hr'), (13, 'hr')", tableName);
+    // one deleted row in each of the 5 data files
+    sql("DELETE FROM %s WHERE id > 10", tableName);
+
+    // Spark groups the splits with the same partition key into one task, so the 3 hr and the
+    // 2 ops splits are read by one task each and every task opens several readers
+    Map<String, String> spjConf =
+        ImmutableMap.of(
+            SQLConf.V2_BUCKETING_ENABLED().key(),
+            "true",
+            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(),
+            "false",
+            SQLConf.AUTO_BROADCASTJOIN_THRESHOLD().key(),
+            "-1",
+            SparkSQLProperties.PRESERVE_DATA_GROUPING,
+            "true");
+
+    for (String vectorized : new String[] {"true", "false"}) {
+      sql(
+          "ALTER TABLE %s SET TBLPROPERTIES ('%s'='%s')",
+          tableName, TableProperties.PARQUET_VECTORIZATION_ENABLED, vectorized);
+
+      withSQLConf(
+          spjConf,
+          () -> {
+            Dataset<Row> df =
+                spark.sql(
+                    String.format(
+                        "SELECT * FROM %s a JOIN %s b ON a.dep = b.dep", tableName, tableName));
+            df.collect();
+
+            List<SparkPlan> scans =
+                seqAsJavaListConverter(df.queryExecution().executedPlan().collectLeaves()).asJava();
+            assertThat(scans).hasSize(2);
+            for (SparkPlan scan : scans) {
+              assertThat(scan.metrics().get("numSplits").get().value())
+                  .as("numSplits with vectorization %s", vectorized)
+                  .isEqualTo(5L);
+              assertThat(scan.metrics().get("numDeletes").get().value())
+                  .as("numDeletes with vectorization %s", vectorized)
+                  .isEqualTo(5L);
+            }
+          });
+    }
   }
 }
