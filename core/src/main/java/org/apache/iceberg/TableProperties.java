@@ -264,6 +264,17 @@ public class TableProperties {
   public static final String SPLIT_OPEN_FILE_COST = "read.split.open-file-cost";
   public static final long SPLIT_OPEN_FILE_COST_DEFAULT = 4 * 1024 * 1024; // 4MB
 
+  /**
+   * Scan option declaring that a task loads shared equality deletes once.
+   *
+   * <p>Ignored as a table property because it must be set only by engines whose readers share
+   * equality deletes. Engines that load them per data file would plan tasks above the target size.
+   */
+  public static final String SPLIT_SHARE_EQUALITY_DELETES_ENABLED =
+      "read.split.share-equality-deletes.enabled";
+
+  public static final boolean SPLIT_SHARE_EQUALITY_DELETES_ENABLED_DEFAULT = false;
+
   public static final String ADAPTIVE_SPLIT_SIZE_ENABLED = "read.split.adaptive-size.enabled";
   public static final boolean ADAPTIVE_SPLIT_SIZE_ENABLED_DEFAULT = true;
 

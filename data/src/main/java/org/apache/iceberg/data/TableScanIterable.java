@@ -19,20 +19,34 @@
 package org.apache.iceberg.data;
 
 import java.io.IOException;
+import java.util.Map;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.util.SerializableSupplier;
 
 class TableScanIterable extends CloseableGroup implements CloseableIterable<Record> {
   private final GenericReader reader;
   private final CloseableIterable<CombinedScanTask> tasks;
 
-  TableScanIterable(TableScan scan, boolean reuseContainers) {
-    this.reader = new GenericReader(scan, reuseContainers);
+  TableScanIterable(TableScan scan, boolean reuseContainers, boolean shareEqualityDeletes) {
+    TableScan readerScan =
+        scan.option(
+            TableProperties.SPLIT_SHARE_EQUALITY_DELETES_ENABLED,
+            String.valueOf(shareEqualityDeletes));
+    SerializableSupplier<EqualityDeletes> sharedEqDeletesSupplier = () -> null;
+    if (shareEqualityDeletes) {
+      Map<Integer, PartitionSpec> specs = scan.table().specs();
+      sharedEqDeletesSupplier = () -> new EqualityDeletes(specs);
+    }
+
+    this.reader = new GenericReader(readerScan, reuseContainers, sharedEqDeletesSupplier);
     // start planning tasks in the background
-    this.tasks = scan.planTasks();
+    this.tasks = readerScan.planTasks();
   }
 
   @Override

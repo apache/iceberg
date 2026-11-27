@@ -127,6 +127,11 @@ public class SparkSQLProperties {
   public static final String READ_ADAPTIVE_SPLIT_SIZE_PARALLELISM =
       "spark.sql.iceberg.read.adaptive-split-size.parallelism";
 
+  // Controls whether a task loads each equality delete file once for all of its data files
+  public static final String READ_SHARE_EQUALITY_DELETES_ENABLED =
+      "spark.sql.iceberg.read.share-equality-deletes.enabled";
+  public static final boolean READ_SHARE_EQUALITY_DELETES_ENABLED_DEFAULT = false;
+
   // Controls whether to enable async micro batch planning for session
   public static final String ASYNC_MICRO_BATCH_PLANNING_ENABLED =
       "spark.sql.iceberg.async-micro-batch-planning-enabled";

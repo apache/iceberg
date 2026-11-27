@@ -58,6 +58,7 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.DeleteReadTests;
+import org.apache.iceberg.data.EqualityDeletes;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.InternalRecordWrapper;
@@ -74,6 +75,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkStructLike;
 import org.apache.iceberg.spark.TestBase;
@@ -98,6 +100,7 @@ import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -113,17 +116,26 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   @Parameter(index = 3)
   private PlanningMode planningMode;
 
-  @Parameters(name = "fileFormat = {0}, formatVersion = {1}, vectorized = {2}, planningMode = {3}")
+  @Parameter(index = 4)
+  private boolean shareEqualityDeletes;
+
+  @Parameters(
+      name =
+          "fileFormat = {0}, formatVersion = {1}, vectorized = {2}, planningMode = {3}, shareEqualityDeletes = {4}")
   public static Object[][] parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (int version : TestHelpers.V2_AND_V3) {
-      parameters.add(new Object[] {FileFormat.PARQUET, version, false, PlanningMode.DISTRIBUTED});
-      parameters.add(new Object[] {FileFormat.PARQUET, version, true, PlanningMode.LOCAL});
+      parameters.add(
+          new Object[] {FileFormat.PARQUET, version, false, PlanningMode.DISTRIBUTED, false});
+      parameters.add(new Object[] {FileFormat.PARQUET, version, true, PlanningMode.LOCAL, false});
       if (version == 2) {
-        parameters.add(new Object[] {FileFormat.ORC, version, false, PlanningMode.DISTRIBUTED});
-        parameters.add(new Object[] {FileFormat.AVRO, version, false, PlanningMode.LOCAL});
+        parameters.add(
+            new Object[] {FileFormat.ORC, version, false, PlanningMode.DISTRIBUTED, false});
+        parameters.add(new Object[] {FileFormat.AVRO, version, false, PlanningMode.LOCAL, false});
       }
     }
+    parameters.add(new Object[] {FileFormat.PARQUET, 3, false, PlanningMode.DISTRIBUTED, true});
+    parameters.add(new Object[] {FileFormat.PARQUET, 3, true, PlanningMode.LOCAL, true});
     return parameters.toArray(new Object[0][]);
   }
 
@@ -167,9 +179,15 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   private static final String EQ_CACHE_TABLE = "test_eq_cache_ordering";
 
+  @BeforeEach
+  public void setShareEqualityDeletes() {
+    spark.conf().set(SparkSQLProperties.READ_SHARE_EQUALITY_DELETES_ENABLED, shareEqualityDeletes);
+  }
+
   @AfterEach
   @Override
   public void cleanup() throws IOException {
+    spark.conf().unset(SparkSQLProperties.READ_SHARE_EQUALITY_DELETES_ENABLED);
     super.cleanup();
     dropTable("test3");
     dropTable(EQ_CACHE_TABLE);
@@ -745,7 +763,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
               false,
               conf,
               null,
-              true)) {
+              true,
+              shareEqualityDeletes ? new EqualityDeletes(dateTable.specs()) : null)) {
         while (reader.next()) {
           ColumnarBatch columnarBatch = reader.get();
           int numOfCols = columnarBatch.numCols();

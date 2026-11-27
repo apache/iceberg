@@ -26,6 +26,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.EqualityDeletes;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -46,6 +47,9 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
 
   private final long numSplits;
 
+  // Shared by the data files of this task group, or null to load equality deletes per file
+  private final EqualityDeletes sharedEqDeletes;
+
   RowDataReader(SparkInputPartition partition) {
     this(
         partition.table(),
@@ -53,7 +57,8 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
         partition.taskGroup(),
         partition.projection(),
         partition.isCaseSensitive(),
-        partition.cacheDeleteFilesOnExecutors());
+        partition.cacheDeleteFilesOnExecutors(),
+        partition.shareEqualityDeletes() ? new EqualityDeletes(partition.table().specs()) : null);
   }
 
   RowDataReader(
@@ -62,12 +67,15 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
       ScanTaskGroup<FileScanTask> taskGroup,
       Schema expectedSchema,
       boolean caseSensitive,
-      boolean cacheDeleteFilesOnExecutors) {
+      boolean cacheDeleteFilesOnExecutors,
+      EqualityDeletes sharedEqDeletes) {
 
     super(table, fileIO, taskGroup, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
 
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
+
+    this.sharedEqDeletes = sharedEqDeletes;
   }
 
   @Override
@@ -89,7 +97,7 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
     String filePath = task.file().location();
     LOG.debug("Opening data file {}", filePath);
     SparkDeleteFilter deleteFilter =
-        new SparkDeleteFilter(filePath, task.deletes(), counter(), true);
+        new SparkDeleteFilter(filePath, task.deletes(), sharedEqDeletes, counter(), true);
 
     // schema or rows returned by readers
     Schema requiredSchema = deleteFilter.requiredSchema();

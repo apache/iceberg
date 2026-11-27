@@ -251,6 +251,29 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  void shareEqualityDeletesEnabledByConf() throws Exception {
+    List<DeleteFile> deleteFiles = createAndInitTable(TableProperties.DELETE_MODE, MERGE_ON_READ);
+    Table table = Spark3Util.loadIcebergTable(spark, targetTableName);
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.READ_SHARE_EQUALITY_DELETES_ENABLED, "true"),
+        () -> {
+          RewriteDataFiles.Result result =
+              SparkActions.get(spark)
+                  .rewriteDataFiles(table)
+                  .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+                  .execute();
+
+          assertThat(result.rewrittenDataFilesCount()).isEqualTo(2);
+        });
+
+    // the cache is off, so the position delete file is opened once per data file
+    assertThat(streamCount(deleteFiles.get(0))).isEqualTo(2);
+    // the equality delete file is opened once since both data files are in the same task
+    assertThat(streamCount(deleteFiles.get(1))).isEqualTo(1);
+  }
+
+  @TestTemplate
   public void testConcurrentAccess() throws InterruptedException {
     SparkExecutorCache cache = SparkExecutorCache.getOrCreate();
 

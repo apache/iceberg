@@ -34,6 +34,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderComparators;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.EqualityDeletes;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -66,7 +67,7 @@ import scala.collection.immutable.Range;
  *
  * <p>All files must have the same sort order. Sort orders with a UUID key, a floating point key
  * followed by another key, or a nested key that is not projected are rejected. All files are open
- * at once and each loads its own deletes.
+ * at once.
  */
 class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
   private static final Logger LOG = LoggerFactory.getLogger(MergingSortedRowDataReader.class);
@@ -85,7 +86,8 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
         partition.taskGroup(),
         partition.projection(),
         partition.isCaseSensitive(),
-        partition.cacheDeleteFilesOnExecutors());
+        partition.cacheDeleteFilesOnExecutors(),
+        partition.shareEqualityDeletes() ? new EqualityDeletes(partition.table().specs()) : null);
   }
 
   MergingSortedRowDataReader(
@@ -94,7 +96,8 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
       ScanTaskGroup<FileScanTask> taskGroup,
       Schema projection,
       boolean caseSensitive,
-      boolean cacheDeleteFilesOnExecutors) {
+      boolean cacheDeleteFilesOnExecutors,
+      EqualityDeletes sharedEqDeletes) {
     List<FileScanTask> tasks = Lists.newArrayList(taskGroup.tasks());
     int numTasks = tasks.size();
 
@@ -142,7 +145,8 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
                         new BaseScanTaskGroup<>(ImmutableList.of(task)),
                         mergeReadSchema,
                         caseSensitive,
-                        cacheDeleteFilesOnExecutors))
+                        cacheDeleteFilesOnExecutors,
+                        sharedEqDeletes))
             .toList();
     fileReaders.forEach(resources::addCloseable);
 

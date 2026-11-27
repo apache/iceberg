@@ -25,6 +25,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.EqualityDeletes;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -48,6 +49,9 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
 
   private final long numSplits;
 
+  // Shared by the data files of this task group, or null to load equality deletes per file
+  private final EqualityDeletes sharedEqDeletes;
+
   BatchDataReader(
       SparkInputPartition partition,
       ParquetBatchReadConf parquetBatchReadConf,
@@ -60,7 +64,8 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
         partition.isCaseSensitive(),
         parquetBatchReadConf,
         orcBatchReadConf,
-        partition.cacheDeleteFilesOnExecutors());
+        partition.cacheDeleteFilesOnExecutors(),
+        partition.shareEqualityDeletes() ? new EqualityDeletes(partition.table().specs()) : null);
   }
 
   BatchDataReader(
@@ -71,7 +76,8 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
       boolean caseSensitive,
       ParquetBatchReadConf parquetConf,
       OrcBatchReadConf orcConf,
-      boolean cacheDeleteFilesOnExecutors) {
+      boolean cacheDeleteFilesOnExecutors,
+      EqualityDeletes sharedEqDeletes) {
     super(
         table,
         fileIO,
@@ -84,6 +90,8 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
 
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
+
+    this.sharedEqDeletes = sharedEqDeletes;
   }
 
   @Override
@@ -112,7 +120,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
     Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with FileScanTask");
 
     SparkDeleteFilter deleteFilter =
-        new SparkDeleteFilter(filePath, task.deletes(), counter(), true);
+        new SparkDeleteFilter(filePath, task.deletes(), sharedEqDeletes, counter(), true);
 
     Map<Integer, ?> idToConstant = constantsMap(task, deleteFilter.requiredSchema());
 

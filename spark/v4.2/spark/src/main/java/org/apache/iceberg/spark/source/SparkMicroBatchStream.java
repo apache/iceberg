@@ -64,6 +64,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   private final int maxFilesPerMicroBatch;
   private final int maxRecordsPerMicroBatch;
   private final boolean cacheDeleteFilesOnExecutors;
+  private final boolean shareEqualityDeletes;
   private SparkMicroBatchPlanner planner;
   private StreamingOffset lastOffsetForTriggerAvailableNow;
   private boolean noSnapshotMatchedForTriggerAvailableNow;
@@ -90,6 +91,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.maxFilesPerMicroBatch = readConf.maxFilesPerMicroBatch();
     this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatch();
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
+    this.shareEqualityDeletes = readConf.shareEqualityDeletes();
 
     StreamingInitialOffsetStore initialOffsetStore =
         new StreamingInitialOffsetStore(
@@ -146,7 +148,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
         TableScanUtil.splitFiles(CloseableIterable.withNoopClose(fileScanTasks), splitSize);
     List<CombinedScanTask> combinedScanTasks =
         Lists.newArrayList(
-            TableScanUtil.planTasks(splitTasks, splitSize, splitLookback, splitOpenFileCost));
+            TableScanUtil.planTasks(
+                splitTasks, splitSize, splitLookback, splitOpenFileCost, shareEqualityDeletes));
     String[][] locations = computePreferredLocations(combinedScanTasks);
 
     InputPartition[] partitions = new InputPartition[combinedScanTasks.size()];
@@ -161,7 +164,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
               projection,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
-              cacheDeleteFilesOnExecutors);
+              cacheDeleteFilesOnExecutors,
+              shareEqualityDeletes);
     }
 
     return partitions;

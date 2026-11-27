@@ -65,7 +65,9 @@ class SparkStagedScan extends SparkScan {
           table(),
           taskSetId);
 
-      this.taskGroups = TableScanUtil.planTaskGroups(tasks, splitSize, splitLookback, openFileCost);
+      this.taskGroups =
+          TableScanUtil.planTaskGroups(
+              tasks, splitSize, splitLookback, openFileCost, shareEqualityDeletes());
       setEffectiveSplitTargetSize(taskGroups, splitSize);
     }
     return taskGroups;
@@ -88,7 +90,8 @@ class SparkStagedScan extends SparkScan {
         && readSchema().equals(that.readSchema())
         && splitSize == that.splitSize
         && splitLookback == that.splitLookback
-        && openFileCost == that.openFileCost;
+        && openFileCost == that.openFileCost
+        && shareEqualityDeletes() == that.shareEqualityDeletes();
   }
 
   @Override
@@ -100,7 +103,8 @@ class SparkStagedScan extends SparkScan {
         readSchema(),
         splitSize,
         splitLookback,
-        openFileCost);
+        openFileCost,
+        shareEqualityDeletes());
   }
 
   @Override

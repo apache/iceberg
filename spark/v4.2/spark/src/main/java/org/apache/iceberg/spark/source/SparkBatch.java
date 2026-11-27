@@ -58,6 +58,7 @@ class SparkBatch implements Batch {
   private final boolean executorCacheLocalityEnabled;
   private final int scanHashCode;
   private final boolean cacheDeleteFilesOnExecutors;
+  private final boolean shareEqualityDeletes;
 
   SparkBatch(
       JavaSparkContext sparkContext,
@@ -67,7 +68,8 @@ class SparkBatch implements Batch {
       Types.StructType groupingKeyType,
       List<? extends ScanTaskGroup<?>> taskGroups,
       Schema projection,
-      int scanHashCode) {
+      int scanHashCode,
+      boolean shareEqualityDeletes) {
     this.sparkContext = sparkContext;
     this.table = table;
     this.fileIO = fileIO;
@@ -80,6 +82,7 @@ class SparkBatch implements Batch {
     this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
     this.scanHashCode = scanHashCode;
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
+    this.shareEqualityDeletes = shareEqualityDeletes;
   }
 
   @Override
@@ -104,7 +107,8 @@ class SparkBatch implements Batch {
               projectionString,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
-              cacheDeleteFilesOnExecutors);
+              cacheDeleteFilesOnExecutors,
+              shareEqualityDeletes);
     }
 
     return partitions;

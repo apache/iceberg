@@ -22,6 +22,7 @@ import java.util.function.Function;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.deletes.DeleteCounter;
 import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -37,7 +38,7 @@ public class GenericDeleteFilter extends DeleteFilter<Record> {
   @Deprecated
   public GenericDeleteFilter(
       FileIO io, FileScanTask task, Schema tableSchema, Schema requestedSchema) {
-    this(io::newInputFile, task, tableSchema, requestedSchema);
+    this(io::newInputFile, task, tableSchema, requestedSchema, null);
   }
 
   public GenericDeleteFilter(
@@ -45,15 +46,32 @@ public class GenericDeleteFilter extends DeleteFilter<Record> {
       FileScanTask task,
       Schema tableSchema,
       Schema requestedSchema) {
-    this(decryptor::getInputFile, task, tableSchema, requestedSchema);
+    this(decryptor::getInputFile, task, tableSchema, requestedSchema, null);
+  }
+
+  GenericDeleteFilter(
+      InputFilesDecryptor decryptor,
+      FileScanTask task,
+      Schema tableSchema,
+      Schema requestedSchema,
+      EqualityDeletes sharedEqDeletes) {
+    this(decryptor::getInputFile, task, tableSchema, requestedSchema, sharedEqDeletes);
   }
 
   private GenericDeleteFilter(
       Function<String, InputFile> inputFileProvider,
       FileScanTask task,
       Schema tableSchema,
-      Schema requestedSchema) {
-    super(task.file().location(), task.deletes(), tableSchema, requestedSchema);
+      Schema requestedSchema,
+      EqualityDeletes sharedEqDeletes) {
+    super(
+        task.file().location(),
+        task.deletes(),
+        sharedEqDeletes,
+        tableSchema::findField,
+        requestedSchema,
+        new DeleteCounter(),
+        true);
     this.inputFileProvider = inputFileProvider;
     this.asStructLike = new InternalRecordWrapper(requiredSchema().asStruct());
   }

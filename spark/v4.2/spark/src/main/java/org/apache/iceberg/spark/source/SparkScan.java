@@ -110,6 +110,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private final SparkSession spark;
   private final SparkReadConf readConf;
   private final boolean caseSensitive;
+  private final boolean shareEqualityDeletes;
   private final Schema projection;
   private final List<Expression> filters;
   private final Supplier<ScanReport> scanReportSupplier;
@@ -135,6 +136,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.schema = schema;
     this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
+    this.shareEqualityDeletes = readConf.shareEqualityDeletes();
     this.projection = projection;
     this.filters = filters != null ? filters : Collections.emptyList();
     this.scanReportSupplier = scanReportSupplier;
@@ -147,6 +149,10 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   protected boolean caseSensitive() {
     return caseSensitive;
+  }
+
+  protected boolean shareEqualityDeletes() {
+    return shareEqualityDeletes;
   }
 
   protected Schema schema() {
@@ -185,7 +191,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
         groupingKeyType(),
         taskGroups(),
         projection,
-        hashCode());
+        hashCode(),
+        shareEqualityDeletes);
   }
 
   @Override
