@@ -91,9 +91,7 @@ public class PartitionsTable extends BaseMetadataTable {
           Types.LongType.get(),
           "Id of snapshot that last updated this partition");
 
-  private final Schema schema;
-
-  private final boolean unpartitionedTable;
+  private volatile Schema schema;
 
   PartitionsTable(Table table) {
     this(table, table.name() + ".partitions");
@@ -101,11 +99,35 @@ public class PartitionsTable extends BaseMetadataTable {
 
   PartitionsTable(Table table, String name) {
     super(table, name);
+    this.schema = calculateSchema();
+  }
 
-    this.schema =
+  @Override
+  public TableScan newScan() {
+    return new PartitionsScan(table());
+  }
+
+  @Override
+  public void refresh() {
+    super.refresh();
+    this.schema = calculateSchema();
+  }
+
+  @Override
+  public Schema schema() {
+    return schema;
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.PARTITIONS;
+  }
+
+  private Schema calculateSchema() {
+    Types.StructType partitionType = Partitioning.partitionType(table());
+    Schema calculatedSchema =
         new Schema(
-            Types.NestedField.required(
-                PARTITION_FIELD_ID, "partition", Partitioning.partitionType(table)),
+            Types.NestedField.required(PARTITION_FIELD_ID, "partition", partitionType),
             SPEC_ID,
             RECORD_COUNT,
             FILE_COUNT,
@@ -116,19 +138,10 @@ public class PartitionsTable extends BaseMetadataTable {
             EQUALITY_DELETE_FILE_COUNT,
             LAST_UPDATED_AT,
             LAST_UPDATED_SNAPSHOT_ID);
-    this.unpartitionedTable = Partitioning.partitionType(table).fields().isEmpty();
-  }
 
-  @Override
-  public TableScan newScan() {
-    return new PartitionsScan(table());
-  }
-
-  @Override
-  public Schema schema() {
-    if (unpartitionedTable) {
+    if (partitionType.fields().isEmpty()) {
       return TypeUtil.select(
-          schema,
+          calculatedSchema,
           ImmutableSet.of(
               RECORD_COUNT.fieldId(),
               FILE_COUNT.fieldId(),
@@ -140,21 +153,19 @@ public class PartitionsTable extends BaseMetadataTable {
               LAST_UPDATED_AT.fieldId(),
               LAST_UPDATED_SNAPSHOT_ID.fieldId()));
     }
-    return schema;
-  }
 
-  @Override
-  MetadataTableType metadataTableType() {
-    return MetadataTableType.PARTITIONS;
+    return calculatedSchema;
   }
 
   private DataTask task(StaticTableScan scan) {
+    Schema tableSchema = scan.tableSchema();
     Iterable<Partition> partitions = partitions(table(), scan);
-    if (unpartitionedTable) {
+
+    if (tableSchema.findField(PARTITION_FIELD_ID) == null) {
       // the table is unpartitioned, partitions contains only the root partition
       return StaticDataTask.of(
           io().newInputFile(table().operations().current().metadataFileLocation()),
-          schema(),
+          tableSchema,
           scan.schema(),
           partitions,
           root ->
@@ -171,7 +182,7 @@ public class PartitionsTable extends BaseMetadataTable {
     } else {
       return StaticDataTask.of(
           io().newInputFile(table().operations().current().metadataFileLocation()),
-          schema(),
+          tableSchema,
           scan.schema(),
           partitions,
           PartitionsTable::convertPartition);
