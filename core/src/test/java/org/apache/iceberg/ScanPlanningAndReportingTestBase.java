@@ -33,6 +33,7 @@ import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -334,6 +335,83 @@ public abstract class ScanPlanningAndReportingTestBase<
       assertThat(result.positionalDeleteFiles().value()).isEqualTo(0);
       assertThat(result.dvs().value()).isEqualTo(1);
     }
+  }
+
+  @TestTemplate
+  public void scanReportUsesSourceSchemaIdWhenProjected() throws IOException {
+    String tableName = "scan-report-projected-schema-id";
+    Table table =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, reporter);
+
+    table.newAppend().appendFile(FILE_A).commit();
+    table.updateSchema().addColumn("extra", Types.StringType.get()).commit();
+    table.refresh();
+
+    int currentSchemaId = table.schema().schemaId();
+    assertThat(currentSchemaId)
+        .as("schema must be evolved so the current id is not the projected default of 0")
+        .isNotEqualTo(0);
+    assertThat(newScan(table).select("id").schema().schemaId())
+        .as("projected schema id defaults to 0 and must not be used in the report")
+        .isEqualTo(0);
+
+    try (CloseableIterable<T> fileScanTasks = newScan(table).select("id").planFiles()) {
+      fileScanTasks.forEach(task -> {});
+    }
+
+    ScanReport scanReport = reporter.lastReport();
+    assertThat(scanReport).isNotNull();
+    assertThat(scanReport.schemaId()).isEqualTo(currentSchemaId);
+    assertThat(scanReport.projectedFieldNames()).contains("id");
+  }
+
+  @TestTemplate
+  public void scanReportUsesSnapshotSchemaIdWhenTimeTraveling() throws IOException {
+    String tableName = "scan-report-snapshot-schema-id";
+    Table table =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, reporter);
+
+    table.newAppend().appendFile(FILE_A).commit();
+    table.updateSchema().addColumn("extra", Types.StringType.get()).commit();
+    table.newAppend().appendFile(FILE_B).commit();
+    table.refresh();
+
+    long snapshotId = table.currentSnapshot().snapshotId();
+    int snapshotSchemaId = table.currentSnapshot().schemaId();
+    assertThat(snapshotSchemaId)
+        .as("evolved snapshot schema id must not be the projected default of 0")
+        .isNotEqualTo(0);
+
+    table.updateSchema().addColumn("extra2", Types.StringType.get()).commit();
+    table.newAppend().appendFile(FILE_D).commit();
+    table.refresh();
+
+    assertThat(table.schema().schemaId()).isNotEqualTo(snapshotSchemaId);
+
+    ScanT tableScan = useSnapshot(newScan(table).select("id"), snapshotId);
+    try (CloseableIterable<T> fileScanTasks = tableScan.planFiles()) {
+      fileScanTasks.forEach(task -> {});
+    }
+
+    ScanReport scanReport = reporter.lastReport();
+    assertThat(scanReport).isNotNull();
+    assertThat(scanReport.schemaId()).isEqualTo(snapshotSchemaId);
+    assertThat(scanReport.snapshotId()).isEqualTo(snapshotId);
+    assertThat(scanReport.projectedFieldNames()).contains("id");
+  }
+
+  @SuppressWarnings("unchecked")
+  private ScanT useSnapshot(ScanT scan, long snapshotId) {
+    if (scan instanceof TableScan) {
+      return (ScanT) ((TableScan) scan).useSnapshot(snapshotId);
+    } else if (scan instanceof BatchScan) {
+      return (ScanT) ((BatchScan) scan).useSnapshot(snapshotId);
+    }
+
+    throw new UnsupportedOperationException(
+        "Scan type does not support useSnapshot: " + scan.getClass().getName());
   }
 
   static class TestMetricsReporter implements MetricsReporter {

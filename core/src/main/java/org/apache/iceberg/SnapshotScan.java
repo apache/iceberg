@@ -166,7 +166,8 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
           metadata.putAll(EnvironmentContext.get());
           ScanReport scanReport =
               ImmutableScanReport.builder()
-                  .schemaId(schema().schemaId())
+                  // Report the source table schema id; projected schemas may carry a default id.
+                  .schemaId(tableSchema().schemaId())
                   .projectedFieldIds(projectedFieldIds)
                   .projectedFieldNames(projectedFieldNames)
                   .tableName(table().name())
