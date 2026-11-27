@@ -241,7 +241,8 @@ abstract class BaseSparkScanBuilder implements ScanBuilder {
    * Returns whether Iceberg evaluates the expression as SQL does for null values.
    *
    * <p>Iceberg expressions are two-valued: for a null value, predicates such as {@code notEq} and
-   * {@code notIn} are true, while in SQL they are unknown and the row is not selected. A filter
+   * {@code notIn} are true, while in SQL they are unknown and the row is not selected. The same
+   * holds for {@code lt} and {@code ltEq}, because literal comparators order null first. A filter
    * that selects whole partitions is only dropped from Spark's post-scan filters if every such
    * predicate is on a column known to be non-null.
    */
@@ -258,6 +259,8 @@ abstract class BaseSparkScanBuilder implements ScanBuilder {
       case IS_NAN:
       case EQ:
       case IN:
+      case GT:
+      case GT_EQ:
       case STARTS_WITH:
         return true;
       case AND:
