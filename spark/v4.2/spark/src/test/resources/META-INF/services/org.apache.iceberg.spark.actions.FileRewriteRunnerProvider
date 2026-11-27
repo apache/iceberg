@@ -1,0 +1,2 @@
+org.apache.iceberg.spark.actions.TestRewriteRunnerProviders$Recording
+org.apache.iceberg.spark.actions.TestRewriteRunnerProviders$Declining
