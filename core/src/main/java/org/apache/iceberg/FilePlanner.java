@@ -133,7 +133,7 @@ class FilePlanner {
       for (TrackedFile entry : rootEntries) {
         switch (entry.contentType()) {
           case DATA:
-            rootDataFiles.add(TrackedFileAdapters.asDataFile(entry, specsById));
+            rootDataFiles.add(asDataFile(entry));
             break;
           case DATA_MANIFEST:
             leafManifests.add(TrackedFileAdapters.asManifestFile(entry));
@@ -165,14 +165,23 @@ class FilePlanner {
             : CloseableIterable.concat(leafPlanTasks);
 
     CloseableIterable<DataFile> leafDataFiles =
-        CloseableIterable.transform(
-            leafFiles, file -> TrackedFileAdapters.asDataFile(file, specsById));
+        CloseableIterable.transform(leafFiles, this::asDataFile);
 
     CloseableIterable<DataFile> dataFiles =
         CloseableIterable.concat(
             ImmutableList.of(CloseableIterable.of(rootDataFiles), leafDataFiles));
 
     return CloseableIterable.transform(dataFiles, this::createTask);
+  }
+
+  private DataFile asDataFile(TrackedFile file) {
+    List<ColumnFile> columnFiles = file.columnFiles();
+    if (columnFiles != null && !columnFiles.isEmpty()) {
+      throw new UnsupportedOperationException(
+          "Cannot plan data file with column files: " + file.location());
+    }
+
+    return TrackedFileAdapters.asDataFile(file, specsById);
   }
 
   private CloseableIterable<TrackedFile> reader(ManifestFile manifest) {

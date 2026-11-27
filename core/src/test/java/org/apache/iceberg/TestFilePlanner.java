@@ -22,7 +22,9 @@ import static org.apache.iceberg.V4TestHelpers.FILE_SIZE_IN_BYTES;
 import static org.apache.iceberg.V4TestHelpers.FORMAT_VERSION_V4;
 import static org.apache.iceberg.V4TestHelpers.RECORD_COUNT;
 import static org.apache.iceberg.V4TestHelpers.SNAPSHOT_ID;
+import static org.apache.iceberg.V4TestHelpers.columnFile;
 import static org.apache.iceberg.V4TestHelpers.dataFile;
+import static org.apache.iceberg.V4TestHelpers.dataFileWithColumnFiles;
 import static org.apache.iceberg.V4TestHelpers.deletionVector;
 import static org.apache.iceberg.V4TestHelpers.manifestRef;
 import static org.apache.iceberg.V4TestHelpers.manifestRefWithStats;
@@ -36,6 +38,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -72,6 +75,8 @@ class TestFilePlanner {
   private static final String FILE_D = "s3://bucket/db/table/file-d.parquet";
   private static final String PARTITIONED_FILE = "s3://bucket/db/table/partitioned.parquet";
   private static final String UNPARTITIONED_FILE = "s3://bucket/db/table/unpartitioned.parquet";
+  private static final List<ColumnFile> COLUMN_FILES =
+      ImmutableList.of(columnFile("s3://bucket/db/table/column-file.parquet", Set.of(2)));
 
   private static final Schema TABLE_SCHEMA =
       new Schema(
@@ -577,6 +582,32 @@ class TestFilePlanner {
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("v3 and earlier deletes are not yet supported");
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void rootDataFileWithColumnFilesUnsupported(FileFormat format) throws IOException {
+    TrackedFile file = dataFileWithColumnFiles(FILE_A, COLUMN_FILES);
+    ManifestFile root = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
+
+    FilePlanner planner = new FilePlanner(fileIO, root, TABLE_SCHEMA, UNPARTITIONED_SPECS);
+    assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot plan data file with column files: %s", FILE_A);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void leafDataFileWithColumnFilesUnsupported(FileFormat format) throws IOException {
+    TrackedFile file = dataFileWithColumnFiles(FILE_A, COLUMN_FILES);
+    ManifestFile leaf = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
+    ManifestFile root =
+        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.path())));
+
+    FilePlanner planner = new FilePlanner(fileIO, root, TABLE_SCHEMA, UNPARTITIONED_SPECS);
+    assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot plan data file with column files: %s", FILE_A);
   }
 
   @ParameterizedTest
