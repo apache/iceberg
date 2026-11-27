@@ -152,7 +152,8 @@ class PrefixedStorage implements AutoCloseable {
     // in most cases the convenient way, especially in GCP.
     // See javadoc of com.google.auth.oauth2.GoogleCredentials.getApplicationDefault()
     if (properties.oauth2Token().isPresent()) {
-      return GCPAuthUtils.oauth2CredentialsFromGcpProperties(properties, closeableGroup);
+      return GCPAuthUtils.oauth2CredentialsFromGcpProperties(
+          properties, storagePrefix, closeableGroup);
     } else if (properties.noAuth()) {
       // Explicitly allow "no credentials" for testing purposes
       return NoCredentials.getInstance();
