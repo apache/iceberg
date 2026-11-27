@@ -38,7 +38,10 @@ import org.apache.iceberg.actions.ComputeTableStats;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.puffin.Blob;
+import org.apache.iceberg.puffin.StandardBlobTypes;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
@@ -136,6 +139,38 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
                         assertThat(blobMetadata.properties())
                             .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "4");
                       });
+            });
+  }
+
+  @TestTemplate
+  void generateHLLBlobs() throws Exception {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c"),
+            new SimpleRecord(4, "d"));
+    spark.createDataset(records, Encoders.bean(SimpleRecord.class)).writeTo(tableName).append();
+    table.refresh();
+
+    List<Blob> blobs =
+        NDVSketchUtil.generateBlobs(
+            spark,
+            table,
+            table.currentSnapshot(),
+            ImmutableList.of("id", "data"),
+            StandardBlobTypes.APACHE_DATASKETCHES_HLL_V1);
+
+    assertThat(blobs)
+        .hasSize(2)
+        .allSatisfy(
+            blob -> {
+              assertThat(blob.type()).isEqualTo(StandardBlobTypes.APACHE_DATASKETCHES_HLL_V1);
+              assertThat(blob.properties())
+                  .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "4");
             });
   }
 
