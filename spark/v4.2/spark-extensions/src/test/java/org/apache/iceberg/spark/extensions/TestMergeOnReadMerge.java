@@ -19,8 +19,10 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,11 +34,14 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.deletes.DeleteGranularity;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -51,6 +56,32 @@ public class TestMergeOnReadMerge extends TestMerge {
   protected Map<String, String> extraTableProperties() {
     return ImmutableMap.of(
         TableProperties.MERGE_MODE, RowLevelOperationMode.MERGE_ON_READ.modeName());
+  }
+
+  @TestTemplate
+  void mergeConflictsWithConcurrentDeleteOfAnotherDataFile() throws IOException {
+    createAndInitTable("id INT, dep STRING");
+    append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }");
+    Table table = validationCatalog.loadTable(tableIdent);
+    DataFile dataFile =
+        Iterables.getOnlyElement(
+            SnapshotChanges.builderFor(table)
+                .snapshot(table.currentSnapshot())
+                .build()
+                .addedDataFiles());
+    createBranchIfNeeded();
+    append(commitTarget(), "{ \"id\": 2, \"dep\": \"hr\" }");
+
+    String target = tableWithConcurrentDelete(dataFile, 0L);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "MERGE INTO %s t USING (SELECT 2 AS id, 'it' AS dep) s ON t.id = s.id "
+                        + "WHEN MATCHED THEN UPDATE SET dep = s.dep",
+                    target))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found new conflicting delete files");
   }
 
   @TestTemplate

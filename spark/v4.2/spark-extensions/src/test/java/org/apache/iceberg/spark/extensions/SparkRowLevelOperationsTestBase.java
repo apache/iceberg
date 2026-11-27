@@ -40,6 +40,9 @@ import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
 import static org.apache.iceberg.spark.SparkTableProperties.WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -51,31 +54,39 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PlanningMode;
+import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
+import org.apache.iceberg.spark.source.SparkTable;
+import org.apache.iceberg.spark.source.TestSparkCatalog;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -401,6 +412,53 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
   protected void assertAllBatchScansVectorized(SparkPlan plan) {
     List<SparkPlan> batchScans = SparkPlanUtil.collectBatchScans(plan);
     assertThat(batchScans).hasSizeGreaterThan(0).allMatch(SparkPlan::supportsColumnar);
+  }
+
+  /**
+   * Returns the name of a table that writes to the test table and, right before committing its row
+   * delta, commits a concurrent delete of the row at {@code position} in {@code dataFile}.
+   */
+  protected String tableWithConcurrentDelete(DataFile dataFile, long position) throws IOException {
+    Table table = validationCatalog.loadTable(tableIdent);
+    DeleteFile concurrentDelete =
+        FileHelpers.writeDeleteFile(
+                table,
+                Files.localOutput(
+                    temp.resolve(fileFormat.addExtension(UUID.randomUUID().toString())).toFile()),
+                null,
+                ImmutableList.of(Pair.of(dataFile.location(), position)),
+                formatVersion)
+            .first();
+
+    RowDelta spyRowDelta = spy(table.newRowDelta());
+    doAnswer(
+            invocation -> {
+              RowDelta concurrentRowDelta =
+                  validationCatalog
+                      .loadTable(tableIdent)
+                      .newRowDelta()
+                      .addDeletes(concurrentDelete);
+              if (branch != null) {
+                concurrentRowDelta.toBranch(branch);
+              }
+
+              concurrentRowDelta.commit();
+              return invocation.callRealMethod();
+            })
+        .when(spyRowDelta)
+        .commit();
+
+    Table spyTable = spy(table);
+    when(spyTable.newRowDelta()).thenReturn(spyRowDelta);
+    SparkTable sparkTable =
+        branch == null ? new SparkTable(spyTable) : SparkTable.create(spyTable, branch);
+
+    spark.conf().set("spark.sql.catalog.dummy_catalog", TestSparkCatalog.class.getName());
+    spark.conf().set("spark.sql.catalog.dummy_catalog.type", "hive");
+    spark.conf().set("spark.sql.catalog.dummy_catalog.default-namespace", "default");
+    String name = "table_" + table.uuid().toString().replace("-", "_");
+    TestSparkCatalog.setTable(Identifier.of(new String[] {"default"}, name), sparkTable);
+    return "dummy_catalog.default." + name;
   }
 
   protected void createTableWithDeleteGranularity(
