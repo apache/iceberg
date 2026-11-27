@@ -58,9 +58,9 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
   public boolean test(T value) {
     switch (op()) {
       case IN:
-        return value != null && literalSet.contains(value);
+        return value != null && PredicateComparisons.contains(literalSet, value);
       case NOT_IN:
-        return value == null || !literalSet.contains(value);
+        return value == null || !PredicateComparisons.contains(literalSet, value);
       default:
         throw new IllegalStateException("Invalid operation for BoundSetPredicate: " + op());
     }
@@ -72,7 +72,14 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
     // predicate
     if (op() == other.op()) {
       BoundSetPredicate<?> pred = (BoundSetPredicate<?>) other;
-      return literalSet().equals(pred.literalSet());
+      if (!term().isEquivalentTo(pred.term())) {
+        return false;
+      }
+
+      return literalSet.stream()
+              .allMatch(value -> PredicateComparisons.contains(pred.literalSet(), value))
+          && pred.literalSet().stream()
+              .allMatch(value -> PredicateComparisons.contains(literalSet, value));
     }
 
     return false;

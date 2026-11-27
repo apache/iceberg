@@ -168,7 +168,7 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
       return ROWS_MIGHT_NOT_MATCH;
     }
 
-    int cmp = lit.comparator().compare(upper, lit.value());
+    int cmp = PredicateComparisons.compare(upper, lit.value(), lit.comparator());
     if (cmp < 0) {
       return ROWS_MUST_MATCH;
     }
@@ -193,7 +193,7 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
       return ROWS_MIGHT_NOT_MATCH;
     }
 
-    int cmp = lit.comparator().compare(upper, lit.value());
+    int cmp = PredicateComparisons.compare(upper, lit.value(), lit.comparator());
     if (cmp <= 0) {
       return ROWS_MUST_MATCH;
     }
@@ -219,7 +219,7 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
       return ROWS_MIGHT_NOT_MATCH;
     }
 
-    int cmp = lit.comparator().compare(lower, lit.value());
+    int cmp = PredicateComparisons.compare(lower, lit.value(), lit.comparator());
     if (cmp > 0) {
       return ROWS_MUST_MATCH;
     }
@@ -245,7 +245,7 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
       return ROWS_MIGHT_NOT_MATCH;
     }
 
-    int cmp = lit.comparator().compare(lower, lit.value());
+    int cmp = PredicateComparisons.compare(lower, lit.value(), lit.comparator());
     if (cmp >= 0) {
       return ROWS_MUST_MATCH;
     }
@@ -271,11 +271,11 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
       return ROWS_MIGHT_NOT_MATCH;
     }
 
-    if (lit.comparator().compare(lower, lit.value()) != 0) {
+    if (PredicateComparisons.compare(lower, lit.value(), lit.comparator()) != 0) {
       return ROWS_MIGHT_NOT_MATCH;
     }
 
-    if (lit.comparator().compare(upper, lit.value()) != 0) {
+    if (PredicateComparisons.compare(upper, lit.value(), lit.comparator()) != 0) {
       return ROWS_MIGHT_NOT_MATCH;
     }
 
@@ -301,7 +301,7 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
         return ROWS_MIGHT_NOT_MATCH;
       }
 
-      int cmp = lit.comparator().compare(lower, lit.value());
+      int cmp = PredicateComparisons.compare(lower, lit.value(), lit.comparator());
       if (cmp > 0) {
         return ROWS_MUST_MATCH;
       }
@@ -309,7 +309,7 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
 
     T upper = upperBound(ref);
     if (upper != null) {
-      int cmp = lit.comparator().compare(upper, lit.value());
+      int cmp = PredicateComparisons.compare(upper, lit.value(), lit.comparator());
       if (cmp < 0) {
         return ROWS_MUST_MATCH;
       }
@@ -336,17 +336,17 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
     }
 
     // similar to the implementation in eq, first check if the lower bound is in the set
-    if (!literalSet.contains(lower)) {
+    if (!PredicateComparisons.contains(literalSet, lower)) {
       return ROWS_MIGHT_NOT_MATCH;
     }
 
     // check if the upper bound is in the set
-    if (!literalSet.contains(upper)) {
+    if (!PredicateComparisons.contains(literalSet, upper)) {
       return ROWS_MIGHT_NOT_MATCH;
     }
 
     // finally check if the lower bound and the upper bound are equal
-    if (ref.comparator().compare(lower, upper) != 0) {
+    if (PredicateComparisons.compare(lower, upper, ref.comparator()) != 0) {
       return ROWS_MIGHT_NOT_MATCH;
     }
 
@@ -466,8 +466,8 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
   private static <T> boolean anyWithinBounds(
       Set<T> literals, Comparator<T> comparator, T lower, T upper) {
     for (T literal : literals) {
-      if ((lower == null || comparator.compare(lower, literal) <= 0)
-          && (upper == null || comparator.compare(upper, literal) >= 0)) {
+      if ((lower == null || PredicateComparisons.compare(lower, literal, comparator) <= 0)
+          && (upper == null || PredicateComparisons.compare(upper, literal, comparator) >= 0)) {
         return true;
       }
     }
