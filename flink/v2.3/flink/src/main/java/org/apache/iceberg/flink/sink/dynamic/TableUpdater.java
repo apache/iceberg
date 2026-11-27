@@ -31,6 +31,7 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +41,7 @@ import org.slf4j.LoggerFactory;
 class TableUpdater {
 
   private static final Logger LOG = LoggerFactory.getLogger(TableUpdater.class);
+  private static final int MAX_ATTEMPTS = 3;
   private final TableMetadataCache cache;
   private final Catalog catalog;
   private final boolean caseSensitive;
@@ -68,8 +70,8 @@ class TableUpdater {
     findOrCreateTable(tableIdentifier, schema, spec, tableCreator);
     findOrCreateBranch(tableIdentifier, branch);
     TableMetadataCache.ResolvedSchemaInfo newSchemaInfo =
-        findOrCreateSchema(tableIdentifier, schema);
-    PartitionSpec newSpec = findOrCreateSpec(tableIdentifier, spec);
+        findOrCreateSchema(tableIdentifier, schema, MAX_ATTEMPTS);
+    PartitionSpec newSpec = findOrCreateSpec(tableIdentifier, spec, MAX_ATTEMPTS);
     return Tuple2.of(newSchemaInfo, newSpec);
   }
 
@@ -95,9 +97,19 @@ class TableUpdater {
         cache.update(identifier, table);
       } catch (AlreadyExistsException e) {
         LOG.debug("Table {} created concurrently. Skipping creation.", identifier, e);
-        cache.invalidate(identifier);
-        findOrCreateTable(identifier, schema, spec, tableCreator);
+        cache.update(identifier, loadConcurrentlyCreatedTable(identifier, e));
       }
+    }
+  }
+
+  private Table loadConcurrentlyCreatedTable(
+      TableIdentifier identifier, AlreadyExistsException alreadyExists) {
+    try {
+      return catalog.loadTable(identifier);
+    } catch (NoSuchTableException e) {
+      // Something else than a table is in the way, for example a view with the same name.
+      alreadyExists.addSuppressed(e);
+      throw alreadyExists;
     }
   }
 
@@ -126,7 +138,7 @@ class TableUpdater {
   }
 
   private TableMetadataCache.ResolvedSchemaInfo findOrCreateSchema(
-      TableIdentifier identifier, Schema schema) {
+      TableIdentifier identifier, Schema schema, int attemptsLeft) {
     TableMetadataCache.ResolvedSchemaInfo fromCache = cache.schema(identifier, schema);
     if (fromCache.compareResult() != CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
       return fromCache;
@@ -170,6 +182,9 @@ class TableUpdater {
             if (newSchema.compareResult() != CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
               LOG.debug("Table {} schema updated concurrently to {}", identifier, schema);
               return newSchema;
+            } else if (attemptsLeft > 1) {
+              LOG.debug("Retrying schema update for {} after concurrent table change", identifier);
+              return findOrCreateSchema(identifier, schema, attemptsLeft - 1);
             } else {
               LOG.error(
                   "Schema update failed for {} from {} to {}", identifier, tableSchema, schema, e);
@@ -182,7 +197,8 @@ class TableUpdater {
     }
   }
 
-  private PartitionSpec findOrCreateSpec(TableIdentifier identifier, PartitionSpec targetSpec) {
+  private PartitionSpec findOrCreateSpec(
+      TableIdentifier identifier, PartitionSpec targetSpec, int attemptsLeft) {
     PartitionSpec currentSpec = cache.spec(identifier, targetSpec);
     if (currentSpec != null) {
       return currentSpec;
@@ -213,10 +229,12 @@ class TableUpdater {
     } catch (CommitFailedException e) {
       cache.invalidate(identifier);
       PartitionSpec newSpec = cache.spec(identifier, targetSpec);
-      result = PartitionSpecEvolution.evolve(targetSpec, newSpec);
-      if (result.isEmpty()) {
+      if (newSpec != null) {
         LOG.debug("Table {} partition spec updated concurrently to {}", identifier, newSpec);
         return newSpec;
+      } else if (attemptsLeft > 1) {
+        LOG.debug("Retrying spec update for {} after concurrent table change", identifier);
+        return findOrCreateSpec(identifier, targetSpec, attemptsLeft - 1);
       } else {
         LOG.error(
             "Partition spec update failed for {} from {} to {}",
