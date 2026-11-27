@@ -23,7 +23,7 @@ import org.apache.parquet.io.api.Binary;
 
 public abstract class ColumnIterator<T> extends BaseColumnIterator implements TripleIterator<T> {
   @SuppressWarnings("unchecked")
-  static <T> ColumnIterator<T> newIterator(ColumnDescriptor desc, String writerVersion) {
+  public static <T> ColumnIterator<T> newIterator(ColumnDescriptor desc, String writerVersion) {
     switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
       case BOOLEAN:
         return (ColumnIterator<T>)

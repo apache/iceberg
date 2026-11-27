@@ -194,7 +194,7 @@ public class ParquetSchemaUtil {
   }
 
   /** Shallowest leaf under path; its definition level shows whether the struct is present. */
-  static ColumnDescriptor selectPresenceColumn(MessageType fileSchema, String[] path) {
+  public static ColumnDescriptor selectPresenceColumn(MessageType fileSchema, String[] path) {
     return selectPresenceColumn(fileSchema, path, leafColumns(fileSchema, path));
   }
 
