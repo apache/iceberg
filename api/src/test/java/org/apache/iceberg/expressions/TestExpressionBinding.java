@@ -217,6 +217,58 @@ public class TestExpressionBinding {
   }
 
   @Test
+  void boundarySimplification() {
+    StructType struct =
+        StructType.of(
+            required(0, "int_col", Types.IntegerType.get()),
+            required(1, "long_col", Types.LongType.get()),
+            required(2, "date_col", Types.DateType.get()),
+            required(3, "time_col", Types.TimeType.get()),
+            required(4, "ts_col", Types.TimestampType.withoutZone()),
+            required(5, "ts_nano_col", Types.TimestampNanoType.withoutZone()));
+
+    // Integer boundaries
+    assertThat(Binder.bind(struct, lessThan("int_col", Integer.MIN_VALUE)))
+        .isEqualTo(alwaysFalse());
+    assertThat(Binder.bind(struct, greaterThan("int_col", Integer.MAX_VALUE)))
+        .isEqualTo(alwaysFalse());
+
+    // Long boundaries
+    assertThat(Binder.bind(struct, lessThan("long_col", Long.MIN_VALUE))).isEqualTo(alwaysFalse());
+    assertThat(Binder.bind(struct, greaterThan("long_col", Long.MAX_VALUE)))
+        .isEqualTo(alwaysFalse());
+
+    // Date boundaries
+    assertThat(Binder.bind(struct, lessThan("date_col", Integer.MIN_VALUE)))
+        .isEqualTo(alwaysFalse());
+    assertThat(Binder.bind(struct, greaterThan("date_col", Integer.MAX_VALUE)))
+        .isEqualTo(alwaysFalse());
+
+    // Time boundaries (time of day is in [0, 86_399_999_999])
+    assertThat(Binder.bind(struct, lessThan("time_col", 0L))).isEqualTo(alwaysFalse());
+    assertThat(Binder.bind(struct, lessThan("time_col", "00:00:00"))).isEqualTo(alwaysFalse());
+    assertThat(Binder.bind(struct, greaterThan("time_col", 86_399_999_999L)))
+        .isEqualTo(alwaysFalse());
+    assertThat(Binder.bind(struct, greaterThan("time_col", "23:59:59.999999")))
+        .isEqualTo(alwaysFalse());
+
+    // Timestamp boundaries
+    assertThat(Binder.bind(struct, lessThan("ts_col", Long.MIN_VALUE))).isEqualTo(alwaysFalse());
+    assertThat(Binder.bind(struct, greaterThan("ts_col", Long.MAX_VALUE))).isEqualTo(alwaysFalse());
+
+    // TimestampNano boundaries
+    assertThat(
+            Binder.bind(
+                struct, lessThan("ts_nano_col", new Literals.TimestampNanoLiteral(Long.MIN_VALUE))))
+        .isEqualTo(alwaysFalse());
+    assertThat(
+            Binder.bind(
+                struct,
+                greaterThan("ts_nano_col", new Literals.TimestampNanoLiteral(Long.MAX_VALUE))))
+        .isEqualTo(alwaysFalse());
+  }
+
+  @Test
   public void testTransformExpressionBinding() {
     Expression bound = Binder.bind(STRUCT, equal(bucket("x", 16), 10));
     TestHelpers.assertAllReferencesBound("BoundTransform", bound);
