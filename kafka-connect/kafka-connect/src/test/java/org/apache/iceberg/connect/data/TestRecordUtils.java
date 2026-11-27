@@ -23,11 +23,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.events.TableReference;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.kafka.connect.data.Schema;
@@ -182,6 +185,45 @@ public class TestRecordUtils extends WriterTestBase {
     // the per-table id-columns config is only found when looked up by the full table identifier
     assertThatThrownBy(() -> RecordUtils.createTableWriter(table, tableReference, sinkConfig))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("ID column not found: missing_col");
+        .hasMessage(
+            "ID column not found: missing_col (table: default.events, columns: id, data, id2)");
+  }
+
+  @Test
+  public void createTableWriterWithIdColumnCaseMismatch() {
+    Map<String, String> props =
+        ImmutableMap.of(
+            "iceberg.catalog.type", "rest",
+            "topics", "source-topic",
+            "iceberg.tables", "default.events",
+            "iceberg.table.default.events.id-columns", "ID");
+    IcebergSinkConfig sinkConfig = new IcebergSinkConfig(props);
+    TableReference tableReference =
+        TableReference.of(
+            "test_catalog", TableIdentifier.of("default", "events"), UUID.randomUUID());
+
+    assertThatThrownBy(() -> RecordUtils.createTableWriter(table, tableReference, sinkConfig))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("ID column not found: ID (table: default.events, columns: id, data, id2)");
+  }
+
+  @Test
+  public void createTableWriterWithIdColumnCaseInsensitive() throws IOException {
+    Map<String, String> props =
+        ImmutableMap.of(
+            "iceberg.catalog.type", "rest",
+            "topics", "source-topic",
+            "iceberg.tables", "default.events",
+            "iceberg.tables.schema-case-insensitive", "true",
+            "iceberg.table.default.events.id-columns", "ID");
+    IcebergSinkConfig sinkConfig = new IcebergSinkConfig(props);
+    TableReference tableReference =
+        TableReference.of(
+            "test_catalog", TableIdentifier.of("default", "events"), UUID.randomUUID());
+
+    try (TaskWriter<Record> writer =
+        RecordUtils.createTableWriter(table, tableReference, sinkConfig)) {
+      assertThat(writer).isNotNull();
+    }
   }
 }
