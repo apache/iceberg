@@ -22,6 +22,8 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.ListType;
@@ -212,6 +214,54 @@ class TestCompareSchemasVisitor {
   }
 
   @Test
+  void optionalInputAgainstRequiredFieldNeedingConversion() {
+    Schema dataSchema = new Schema(optional(1, "id", IntegerType.get()));
+    Schema tableSchema = new Schema(required(1, "id", LongType.get()));
+    assertThat(
+            CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
+  }
+
+  @Test
+  void optionalInputAgainstRequiredIdentifierField() {
+    Schema dataSchema =
+        new Schema(optional(1, "id", IntegerType.get()), optional(2, "extra", StringType.get()));
+    Schema tableSchema =
+        new Schema(
+            List.of(required(1, "id", IntegerType.get()), optional(2, "extra", StringType.get())),
+            Set.of(1));
+    assertThat(
+            CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SAME);
+  }
+
+  @Test
+  void optionalInputAgainstRequiredStructOfIdentifierField() {
+    Schema dataSchema =
+        new Schema(optional(1, "struct1", StructType.of(optional(2, "id", IntegerType.get()))));
+    Schema tableSchema =
+        new Schema(
+            List.of(required(1, "struct1", StructType.of(required(2, "id", IntegerType.get())))),
+            Set.of(2));
+    assertThat(
+            CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SAME);
+  }
+
+  @Test
+  void optionalInputAgainstRequiredNonIdentifierField() {
+    Schema dataSchema =
+        new Schema(optional(1, "id", IntegerType.get()), optional(2, "extra", StringType.get()));
+    Schema tableSchema =
+        new Schema(
+            List.of(required(1, "id", IntegerType.get()), required(2, "extra", StringType.get())),
+            Set.of(1));
+    assertThat(
+            CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
+  }
+
+  @Test
   void testStructDifferentId() {
     assertThat(
             CompareSchemasVisitor.visit(
@@ -303,6 +353,52 @@ class TestCompareSchemasVisitor {
                 CASE_SENSITIVE,
                 PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
+  }
+
+  @Test
+  void optionalListElementAgainstRequiredTableElement() {
+    Schema dataSchema = new Schema(optional(1, "list1", ListType.ofOptional(2, IntegerType.get())));
+    Schema tableSchema =
+        new Schema(optional(1, "list1", ListType.ofRequired(2, IntegerType.get())));
+    assertThat(
+            CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
+  }
+
+  @Test
+  void requiredListElementAgainstOptionalTableElement() {
+    Schema dataSchema = new Schema(optional(1, "list1", ListType.ofRequired(2, IntegerType.get())));
+    Schema tableSchema =
+        new Schema(optional(1, "list1", ListType.ofOptional(2, IntegerType.get())));
+    assertThat(
+            CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SAME);
+  }
+
+  @Test
+  void optionalMapValueAgainstRequiredTableValue() {
+    Schema dataSchema =
+        new Schema(
+            optional(1, "map1", MapType.ofOptional(2, 3, IntegerType.get(), StringType.get())));
+    Schema tableSchema =
+        new Schema(
+            optional(1, "map1", MapType.ofRequired(2, 3, IntegerType.get(), StringType.get())));
+    assertThat(
+            CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
+  }
+
+  @Test
+  void requiredMapValueAgainstOptionalTableValue() {
+    Schema dataSchema =
+        new Schema(
+            optional(1, "map1", MapType.ofRequired(2, 3, IntegerType.get(), StringType.get())));
+    Schema tableSchema =
+        new Schema(
+            optional(1, "map1", MapType.ofOptional(2, 3, IntegerType.get(), StringType.get())));
+    assertThat(
+            CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SAME);
   }
 
   @Test

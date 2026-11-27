@@ -22,7 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
@@ -52,6 +54,9 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
 
   private static final boolean DROP_COLUMNS = true;
   private static final boolean PRESERVE_COLUMNS = false;
+
+  private static final TableIdentifier SCHEMA_UPDATE_TABLE =
+      TableIdentifier.parse("default.schemaUpdateTable");
 
   static final Schema SCHEMA =
       new Schema(
@@ -287,6 +292,78 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
   }
 
   @Test
+  void optionalInputKeepsRequiredIdentifierFieldRequired() {
+    Schema tableSchema =
+        new Schema(
+            List.of(
+                Types.NestedField.required(1, "id", Types.IntegerType.get()),
+                Types.NestedField.optional(2, "data", Types.StringType.get())),
+            Set.of(1));
+
+    TableMetadataCache.ResolvedSchemaInfo result = updateTableSchema(tableSchema, SCHEMA);
+
+    assertThat(result.compareResult()).isEqualTo(CompareSchemasVisitor.Result.SAME);
+    Schema evolved = loadTableSchema();
+    assertThat(evolved.findField("id").isRequired()).isTrue();
+    assertThat(evolved.identifierFieldIds()).containsExactly(1);
+  }
+
+  @Test
+  void optionalInputMakesRequiredFieldNeedingConversionOptional() {
+    Schema tableSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    TableMetadataCache.ResolvedSchemaInfo result = updateTableSchema(tableSchema, SCHEMA);
+
+    assertThat(result.compareResult())
+        .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
+    Types.NestedField evolved = loadTableSchema().findField("id");
+    assertThat(evolved.isOptional()).isTrue();
+    assertThat(evolved.type()).isEqualTo(Types.LongType.get());
+  }
+
+  @Test
+  void optionalInputMakesRequiredListElementOptional() {
+    Schema tableSchema =
+        new Schema(
+            Types.NestedField.optional(
+                1, "list1", Types.ListType.ofRequired(2, Types.LongType.get())));
+    Schema rowSchema =
+        new Schema(
+            Types.NestedField.optional(
+                1, "list1", Types.ListType.ofOptional(2, Types.LongType.get())));
+
+    TableMetadataCache.ResolvedSchemaInfo result = updateTableSchema(tableSchema, rowSchema);
+
+    assertThat(result.compareResult()).isEqualTo(CompareSchemasVisitor.Result.SAME);
+    assertThat(loadTableSchema().findField("list1").type().asListType().isElementOptional())
+        .isTrue();
+  }
+
+  @Test
+  void optionalInputMakesRequiredMapValueOptional() {
+    Schema tableSchema =
+        new Schema(
+            Types.NestedField.optional(
+                1,
+                "map1",
+                Types.MapType.ofRequired(2, 3, Types.StringType.get(), Types.LongType.get())));
+    Schema rowSchema =
+        new Schema(
+            Types.NestedField.optional(
+                1,
+                "map1",
+                Types.MapType.ofOptional(2, 3, Types.StringType.get(), Types.LongType.get())));
+
+    TableMetadataCache.ResolvedSchemaInfo result = updateTableSchema(tableSchema, rowSchema);
+
+    assertThat(result.compareResult()).isEqualTo(CompareSchemasVisitor.Result.SAME);
+    assertThat(loadTableSchema().findField("map1").type().asMapType().isValueOptional()).isTrue();
+  }
+
+  @Test
   void testLastResultInvalidation() {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
@@ -513,5 +590,27 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
         TableCreator.DEFAULT);
 
     assertThat(catalog.tableExists(tableIdentifier)).isTrue();
+  }
+
+  private TableMetadataCache.ResolvedSchemaInfo updateTableSchema(
+      Schema tableSchema, Schema rowSchema) {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    catalog.createTable(SCHEMA_UPDATE_TABLE, tableSchema);
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    return tableUpdater.update(
+            SCHEMA_UPDATE_TABLE,
+            SnapshotRef.MAIN_BRANCH,
+            rowSchema,
+            PartitionSpec.unpartitioned(),
+            TableCreator.DEFAULT)
+        .f0;
+  }
+
+  private Schema loadTableSchema() {
+    return CATALOG_EXTENSION.catalog().loadTable(SCHEMA_UPDATE_TABLE).schema();
   }
 }
