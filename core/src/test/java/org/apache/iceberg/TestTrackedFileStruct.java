@@ -36,6 +36,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructProjection;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 
@@ -414,6 +415,16 @@ class TestTrackedFileStruct {
         .hasMessage("Missing partition for spec 1");
   }
 
+  @ParameterizedTest
+  @EnumSource(
+      value = FileContent.class,
+      names = {"DATA_MANIFEST", "DELETE_MANIFEST"})
+  void partitionIsNullForManifestWithSpec(FileContent content) {
+    TrackedFileStruct manifest = trackedFile(content, 1, null);
+
+    assertThat(manifest.partition()).isNull();
+  }
+
   @Test
   void partitionIsNullWhenThereIsNoSpec() {
     TrackedFileStruct file = trackedFile(null, null);
@@ -513,9 +524,14 @@ class TestTrackedFileStruct {
   }
 
   private static TrackedFileStruct trackedFile(Integer specId, PartitionData partition) {
+    return trackedFile(FileContent.DATA, specId, partition);
+  }
+
+  private static TrackedFileStruct trackedFile(
+      FileContent content, Integer specId, PartitionData partition) {
     return new TrackedFileStruct(
         null, // tracking
-        FileContent.DATA,
+        content,
         "s3://bucket/file.parquet",
         FileFormat.PARQUET,
         100L, // recordCount

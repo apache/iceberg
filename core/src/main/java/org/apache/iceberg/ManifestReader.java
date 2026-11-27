@@ -99,6 +99,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private final InputFile file;
   private final InheritableMetadata inheritableMetadata;
   private final Long firstRowId;
+  private final ManifestBitmap manifestDV;
   private final boolean isCommitted;
   private final FileType content;
   private final PartitionSpec spec;
@@ -144,12 +145,33 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       Long firstRowId,
       boolean isCommitted,
       FileType content) {
+    this(
+        file,
+        specId,
+        specsById,
+        inheritableMetadata,
+        firstRowId,
+        null /* no manifest DV */,
+        isCommitted,
+        content);
+  }
+
+  ManifestReader(
+      InputFile file,
+      int specId,
+      Map<Integer, PartitionSpec> specsById,
+      InheritableMetadata inheritableMetadata,
+      Long firstRowId,
+      ManifestBitmap manifestDV,
+      boolean isCommitted,
+      FileType content) {
     Preconditions.checkArgument(
         firstRowId == null || content == FileType.DATA_FILES,
         "First row ID is not valid for delete manifests");
     this.file = file;
     this.inheritableMetadata = inheritableMetadata;
     this.firstRowId = firstRowId;
+    this.manifestDV = manifestDV;
     this.isCommitted = isCommitted;
     this.content = content;
 
@@ -361,7 +383,13 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   private boolean isLiveEntry(ManifestEntry<F> entry) {
-    return entry != null && entry.status() != ManifestEntry.Status.DELETED;
+    return entry != null
+        && entry.status() != ManifestEntry.Status.DELETED
+        && !isDeletedByMDV(entry);
+  }
+
+  private boolean isDeletedByMDV(ManifestEntry<F> entry) {
+    return manifestDV != null && manifestDV.isSet(Math.toIntExact(entry.file().pos()));
   }
 
   /**

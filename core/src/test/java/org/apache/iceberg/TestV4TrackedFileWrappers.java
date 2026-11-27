@@ -107,6 +107,72 @@ class TestV4TrackedFileWrappers {
     assertThat(get(row, TRACKED_FILE_SCHEMA, TrackedFile.PARTITION_ID)).isNull();
   }
 
+  @ParameterizedTest
+  @MethodSource("unpartitionedSpecs")
+  void rootWritesSpecIdForPreV4Manifest(PartitionSpec spec) {
+    StructLike row = wrapExistingManifest(spec, ManifestInfo.PRE_V4_FORMAT_VERSION);
+
+    assertThat(get(row, TRACKED_FILE_SCHEMA, TrackedFile.SPEC_ID))
+        .as("a pre-v4 manifest is read with its spec, so its spec ID is kept")
+        .isEqualTo(spec.specId());
+  }
+
+  @ParameterizedTest
+  @MethodSource("unpartitionedSpecs")
+  void rootWritesNullSpecIdForUnpartitionedV4Manifest(PartitionSpec spec) {
+    StructLike row = wrapExistingManifest(spec, 4 /* formatVersion */);
+
+    assertThat(get(row, TRACKED_FILE_SCHEMA, TrackedFile.SPEC_ID)).isNull();
+  }
+
+  @Test
+  void rootWritesNullPartitionForManifestWithSpecId() {
+    // a pre-v4 manifest read from a root keeps its spec ID but has no partition
+    TrackedFile manifest =
+        new TrackedFileStruct(
+            new TrackingStruct(
+                EntryStatus.EXISTING,
+                COMMIT_SNAPSHOT_ID - 1,
+                COMMIT_SEQ - 1, // dataSequenceNumber
+                COMMIT_SEQ - 1, // fileSequenceNumber
+                null, // modifiedSnapshotId
+                PREVIOUS_FIRST_ROW_ID,
+                null, // deletedPositions
+                null), // replacedPositions
+            FileContent.DATA_MANIFEST,
+            MANIFEST_LOCATION,
+            FileFormat.AVRO,
+            1L, // recordCount
+            1024L, // fileSizeInBytes
+            PartitionSpec.unpartitioned().specId(),
+            null, // partition
+            null, // contentStats
+            false, // tightStats
+            null, // sortOrderId
+            null, // deletionVector
+            V4TestHelpers.manifestInfo(1, 0, 0, 0, ManifestInfo.PRE_V4_FORMAT_VERSION),
+            null, // keyMetadata
+            null, // splitOffsets
+            null); // columnFiles
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQ,
+            ImmutableMap.of(
+                PartitionSpec.unpartitioned().specId(),
+                PartitionSpec.unpartitioned(),
+                ID_SPEC.specId(),
+                ID_SPEC),
+            ID_SPEC.partitionType(),
+            NO_STATS_TYPE);
+    StructLike row = wrapper.wrap(manifest, manifest.tracking(), null /* assignedFirstRowId */);
+
+    assertThat(get(row, TRACKED_FILE_SCHEMA, TrackedFile.SPEC_ID))
+        .isEqualTo(PartitionSpec.unpartitioned().specId());
+    assertThat(get(row, TRACKED_FILE_SCHEMA, TrackedFile.PARTITION_ID)).isNull();
+  }
+
   @Test
   void leafProjectsPartitionToUnionType() {
     Map<Integer, PartitionSpec> specs =
@@ -831,6 +897,31 @@ class TestV4TrackedFileWrappers {
     StructLike row = wrapper.wrap(file, tracking);
 
     assertThat(get(row, TRACKED_FILE_SCHEMA, Tracking.SNAPSHOT_ID)).isNull();
+  }
+
+  private static StructLike wrapExistingManifest(PartitionSpec spec, int formatVersion) {
+    ManifestInfo info = mock(ManifestInfo.class);
+    when(info.formatVersion()).thenReturn(formatVersion);
+    TrackedFile manifest = mock(TrackedFile.class);
+    when(manifest.contentType()).thenReturn(FileContent.DATA_MANIFEST);
+    when(manifest.location()).thenReturn(MANIFEST_LOCATION);
+    when(manifest.specId()).thenReturn(spec.specId());
+    when(manifest.manifestInfo()).thenReturn(info);
+
+    Tracking tracking = mock(Tracking.class);
+    when(tracking.status()).thenReturn(EntryStatus.EXISTING);
+    when(tracking.snapshotId()).thenReturn(COMMIT_SNAPSHOT_ID - 1);
+    when(tracking.dataSequenceNumber()).thenReturn(COMMIT_SEQ - 1);
+    when(tracking.firstRowId()).thenReturn(PREVIOUS_FIRST_ROW_ID);
+
+    RootTrackedFileWrapper wrapper =
+        new RootTrackedFileWrapper(
+            COMMIT_SNAPSHOT_ID,
+            COMMIT_SEQ,
+            ImmutableMap.of(spec.specId(), spec),
+            spec.partitionType(),
+            NO_STATS_TYPE);
+    return wrapper.wrap(manifest, tracking, null /* assignedFirstRowId */);
   }
 
   private static Object get(StructLike row, Schema schema, Types.NestedField field) {

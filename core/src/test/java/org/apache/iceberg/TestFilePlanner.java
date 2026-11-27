@@ -24,6 +24,7 @@ import static org.apache.iceberg.V4TestHelpers.RECORD_COUNT;
 import static org.apache.iceberg.V4TestHelpers.SNAPSHOT_ID;
 import static org.apache.iceberg.V4TestHelpers.dataFile;
 import static org.apache.iceberg.V4TestHelpers.deletionVector;
+import static org.apache.iceberg.V4TestHelpers.manifestInfo;
 import static org.apache.iceberg.V4TestHelpers.manifestRef;
 import static org.apache.iceberg.V4TestHelpers.manifestRefWithStats;
 import static org.apache.iceberg.V4TestHelpers.writeTrackedFiles;
@@ -581,18 +582,18 @@ class TestFilePlanner {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  void v3ManifestLeafUnsupported(FileFormat format) throws IOException {
-    String leafLocation = "s3://bucket/db/table/v3-leaf." + format.name().toLowerCase(Locale.ROOT);
+  void manifestWithUnknownFormatVersionFails(FileFormat format) throws IOException {
+    String leafLocation = "s3://bucket/db/table/leaf." + format.name().toLowerCase(Locale.ROOT);
     // the leaf's InputFile is created before the format version is validated, so it must exist
     fileIO.addFile(leafLocation, new byte[0]);
-    TrackedFile v3Leaf =
-        manifestRef(FileContent.DATA_MANIFEST, leafLocation, manifestInfo(1, 0, 0, 0, 0));
-    ManifestFile root = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(v3Leaf));
+    TrackedFile leaf =
+        manifestRef(FileContent.DATA_MANIFEST, leafLocation, manifestInfo(1, 0, 0, 0, 5));
+    ManifestFile root = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(leaf));
 
     FilePlanner planner = new FilePlanner(fileIO, root, TABLE_SCHEMA, UNPARTITIONED_SPECS);
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot read manifest with format version 0: only 4 is supported");
+        .hasMessage("Cannot read manifest with format version 5: only 4 is supported");
   }
 
   @ParameterizedTest
@@ -772,24 +773,6 @@ class TestFilePlanner {
 
   private static ManifestInfo deletedOnly(int deletedFiles) {
     return manifestInfo(0, 0, 0, deletedFiles, FORMAT_VERSION_V4);
-  }
-
-  private static ManifestInfo manifestInfo(
-      int addedFiles, int existingFiles, int modifiedFiles, int deletedFiles, int formatVersion) {
-    return ManifestInfoStruct.builder()
-        .addedFilesCount(addedFiles)
-        .existingFilesCount(existingFiles)
-        .deletedFilesCount(deletedFiles)
-        .replacedFilesCount(0)
-        .modifiedFilesCount(modifiedFiles)
-        .addedRowsCount(addedFiles * RECORD_COUNT)
-        .existingRowsCount(existingFiles * RECORD_COUNT)
-        .deletedRowsCount(deletedFiles * RECORD_COUNT)
-        .replacedRowsCount(0)
-        .modifiedRowsCount(modifiedFiles * RECORD_COUNT)
-        .minSequenceNumber(0L)
-        .formatVersion(formatVersion)
-        .build();
   }
 
   private static TrackedFile deleteManifest(String location) {

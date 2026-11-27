@@ -434,6 +434,14 @@ class TrackedFileAdapters {
 
     @Override
     public int partitionSpecId() {
+      if (formatVersion() == ManifestInfo.PRE_V4_FORMAT_VERSION) {
+        Preconditions.checkState(
+            file.specId() != null,
+            "Cannot read pre-v4 manifest without a spec ID: %s",
+            file.location());
+        return file.specId();
+      }
+
       throw new UnsupportedOperationException(
           "v4 manifests are not bound to a single partition spec");
     }

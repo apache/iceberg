@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg;
 
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -25,7 +28,9 @@ import java.util.Set;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.mumbling.MumblingTestUtil;
 import org.apache.iceberg.types.Types;
+import org.mockito.AdditionalAnswers;
 
 /** Factories for building V4 {@link TrackedFile}s and manifests in tests. */
 class V4TestHelpers {
@@ -190,6 +195,32 @@ class V4TestHelpers {
   static ColumnFile columnFile(String location, Set<Integer> fieldIds, ByteBuffer keyMetadata) {
     return new ColumnFileStruct(
         location, fieldIds, FileFormat.fromFileName(location), FILE_SIZE_IN_BYTES, keyMetadata);
+  }
+
+  static ManifestInfo manifestInfo(
+      int addedFiles, int existingFiles, int modifiedFiles, int deletedFiles, int formatVersion) {
+    return ManifestInfoStruct.builder()
+        .addedFilesCount(addedFiles)
+        .existingFilesCount(existingFiles)
+        .deletedFilesCount(deletedFiles)
+        .replacedFilesCount(0)
+        .modifiedFilesCount(modifiedFiles)
+        .addedRowsCount(addedFiles * RECORD_COUNT)
+        .existingRowsCount(existingFiles * RECORD_COUNT)
+        .deletedRowsCount(deletedFiles * RECORD_COUNT)
+        .replacedRowsCount(0)
+        .modifiedRowsCount(modifiedFiles * RECORD_COUNT)
+        .minSequenceNumber(0L)
+        .formatVersion(formatVersion)
+        .build();
+  }
+
+  static ManifestFile withManifestDV(ManifestFile manifest, int... positions) {
+    ManifestFile masked = mock(ManifestFile.class, AdditionalAnswers.delegatesTo(manifest));
+    doReturn(MumblingTestUtil.bitmap(MumblingTestUtil.sparse(positions)))
+        .when(masked)
+        .manifestDeletionVector();
+    return masked;
   }
 
   static PartitionData partition(PartitionSpec spec, Object... values) {

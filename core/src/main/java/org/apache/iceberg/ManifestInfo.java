@@ -68,6 +68,9 @@ interface ManifestInfo {
           Types.IntegerType.get(),
           "Format version used to write the manifest");
 
+  /** The format version of a manifest written in v1, v2, or v3. */
+  int PRE_V4_FORMAT_VERSION = 0;
+
   static Types.StructType schema() {
     return Types.StructType.of(
         ADDED_FILES_COUNT,
