@@ -78,6 +78,7 @@ class TestDynamicCommitter {
   Catalog catalog;
 
   final int cacheMaximumSize = 10;
+  final long cacheRefreshMs = 1_000L;
 
   private static final DataFile DATA_FILE =
       DataFiles.builder(PartitionSpec.unpartitioned())
@@ -173,7 +174,7 @@ class TestDynamicCommitter {
 
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
-            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId");
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId", cacheRefreshMs);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
@@ -290,7 +291,7 @@ class TestDynamicCommitter {
 
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
-            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId");
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId", cacheRefreshMs);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
@@ -360,7 +361,7 @@ class TestDynamicCommitter {
 
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
-            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId");
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId", cacheRefreshMs);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
@@ -465,7 +466,7 @@ class TestDynamicCommitter {
 
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
-            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId");
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId", cacheRefreshMs);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
@@ -533,7 +534,7 @@ class TestDynamicCommitter {
 
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
-            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId");
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId", cacheRefreshMs);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
@@ -596,7 +597,7 @@ class TestDynamicCommitter {
 
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
-            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId");
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId", cacheRefreshMs);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
@@ -649,7 +650,7 @@ class TestDynamicCommitter {
 
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
-            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId");
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId", cacheRefreshMs);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
@@ -750,7 +751,7 @@ class TestDynamicCommitter {
 
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
-            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId");
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId", cacheRefreshMs);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
@@ -899,7 +900,7 @@ class TestDynamicCommitter {
 
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
-            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId");
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId", cacheRefreshMs);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
@@ -972,7 +973,7 @@ class TestDynamicCommitter {
 
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
-            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId");
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId", cacheRefreshMs);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
@@ -1031,7 +1032,7 @@ class TestDynamicCommitter {
 
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
-            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId");
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId", cacheRefreshMs);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
@@ -1179,7 +1180,7 @@ class TestDynamicCommitter {
   private DynamicWriteResultAggregator openAggregator() throws Exception {
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
-            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, SINK_ID);
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, SINK_ID, cacheRefreshMs);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();

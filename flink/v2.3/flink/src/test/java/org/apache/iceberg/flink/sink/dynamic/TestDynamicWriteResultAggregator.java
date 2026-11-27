@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
@@ -39,10 +40,12 @@ import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.sink.DeltaManifests;
 import org.apache.iceberg.flink.sink.DeltaManifestsSerializer;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.io.TempDir;
 
 class TestDynamicWriteResultAggregator {
 
@@ -50,6 +53,7 @@ class TestDynamicWriteResultAggregator {
   static final HadoopCatalogExtension CATALOG_EXTENSION = new HadoopCatalogExtension("db", "table");
 
   final int cacheMaximumSize = 1;
+  final long cacheRefreshMs = 1_000L;
 
   private static final DataFile DATA_FILE =
       DataFiles.builder(PartitionSpec.unpartitioned())
@@ -65,7 +69,7 @@ class TestDynamicWriteResultAggregator {
 
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
-            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId");
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId", cacheRefreshMs);
     try (OneInputStreamOperatorTestHarness<
             CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>>
         testHarness = new OneInputStreamOperatorTestHarness<>(aggregator)) {
@@ -109,7 +113,7 @@ class TestDynamicWriteResultAggregator {
     final int zeroCacheSize = 0;
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(
-            CATALOG_EXTENSION.catalogLoader(), zeroCacheSize, "sinkId");
+            CATALOG_EXTENSION.catalogLoader(), zeroCacheSize, "sinkId", cacheRefreshMs);
     try (OneInputStreamOperatorTestHarness<
             CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>>
         testHarness = new OneInputStreamOperatorTestHarness<>(aggregator)) {
@@ -163,7 +167,10 @@ class TestDynamicWriteResultAggregator {
         testHarness =
             new OneInputStreamOperatorTestHarness<>(
                 new DynamicWriteResultAggregator(
-                    CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId"))) {
+                    CATALOG_EXTENSION.catalogLoader(),
+                    cacheMaximumSize,
+                    "sinkId",
+                    cacheRefreshMs))) {
       testHarness.open();
 
       TableKey tableKey = new TableKey("table", "branch");
@@ -212,6 +219,45 @@ class TestDynamicWriteResultAggregator {
           .isEqualTo(testHarness.getEnvironment().getJobID().toString());
       assertThat(dynamicCommittable.operatorId())
           .isEqualTo(testHarness.getOperator().getOperatorID().toString());
+    }
+  }
+
+  @Test
+  void writesManifestsToRecreatedTable(@TempDir Path newManifestDir) throws Exception {
+    TableIdentifier tableId = TableIdentifier.of("table");
+    CATALOG_EXTENSION.catalog().createTable(tableId, new Schema());
+
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>>
+        testHarness =
+            new OneInputStreamOperatorTestHarness<>(
+                new DynamicWriteResultAggregator(
+                    CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId", 0L))) {
+      testHarness.open();
+
+      TableKey tableKey = new TableKey("table", "branch");
+      testHarness.processElement(createRecord(tableKey, 1L, DATA_FILE.specId(), DATA_FILE));
+      testHarness.prepareSnapshotPreBarrier(1L);
+
+      CATALOG_EXTENSION.catalog().dropTable(tableId, true);
+      CATALOG_EXTENSION
+          .catalog()
+          .createTable(
+              tableId,
+              new Schema(),
+              PartitionSpec.unpartitioned(),
+              ImmutableMap.of("flink.manifests.location", newManifestDir.toString()));
+
+      testHarness.processElement(createRecord(tableKey, 2L, DATA_FILE.specId(), DATA_FILE));
+      testHarness.prepareSnapshotPreBarrier(2L);
+
+      List<StreamRecord<CommittableMessage<DynamicCommittable>>> output =
+          Lists.newArrayList(testHarness.getRecordOutput().iterator());
+      List<StreamRecord<CommittableMessage<DynamicCommittable>>> secondCheckpoint =
+          output.subList(output.size() - 2, output.size());
+      assertThat(getManifestPaths(secondCheckpoint))
+          .singleElement()
+          .satisfies(path -> assertThat(path).startsWith(newManifestDir.toString()));
     }
   }
 
