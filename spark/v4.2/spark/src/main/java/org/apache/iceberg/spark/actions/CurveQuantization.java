@@ -110,7 +110,7 @@ final class CurveQuantization {
         } else {
           Preconditions.checkArgument(
               valueCount == nullOrNaNCount(file, fieldId),
-              "Cannot quantize column %s: file %s has values but no bounds, set %s or %s%s to truncate or full",
+              "Cannot quantize column %s: file %s has values but no bounds, set %s or %s%s to truncate or full, then rewrite existing files with rewrite-all=true and no quantization-bits to add bounds",
               column,
               file.location(),
               TableProperties.DEFAULT_WRITE_METRICS_MODE,
@@ -123,25 +123,25 @@ final class CurveQuantization {
     if (filesWithoutCounts > 0 && filesWithoutCounts == tasks.size()) {
       Preconditions.checkArgument(
           MetricsConfig.forTable(table).columnMode(column) != MetricsModes.None.get(),
-          "Cannot quantize column %s: metrics are disabled for it, set %s or %s%s to truncate or full",
+          "Cannot quantize column %s: metrics are disabled for it, set %s or %s%s to truncate or full, then rewrite existing files with rewrite-all=true and no quantization-bits to add bounds",
           column,
           TableProperties.DEFAULT_WRITE_METRICS_MODE,
           TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX,
           column);
       LOG.warn(
-          "Leaving column {} unclustered for this file group because none of its {} files have stats for the column",
+          "Leaving column {} unclustered for this file group because none of its {} files have stats for the column; rewrite again with rewrite-all=true to cluster it using the new files' stats",
           column,
           filesWithoutCounts);
     } else if (filesWithoutCounts > 0) {
       LOG.warn(
-          "Ignoring {} files without metrics for column {} when computing its quantization range",
+          "Ignoring {} files without metrics for column {} when computing its quantization range; their values outside the range of the other files fall into the first or last bucket",
           filesWithoutCounts,
           column);
     }
 
     Preconditions.checkArgument(
         !hasBounds || Double.isFinite(max - min),
-        "Cannot quantize column %s: range [%s, %s] is too wide",
+        "Cannot quantize column %s: range [%s, %s] is too wide, remove the column from the sort order or set quantization-bits to 0",
         column,
         min,
         max);

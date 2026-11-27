@@ -140,7 +140,8 @@ class TestCurveQuantization extends TestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("int_col")
         .hasMessageContaining(countsOnly.file().location())
-        .hasMessageContaining("write.metadata.metrics");
+        .hasMessageContaining("write.metadata.metrics")
+        .hasMessageContaining("rewrite-all=true");
   }
 
   @Test
@@ -172,7 +173,8 @@ class TestCurveQuantization extends TestBase {
     assertThatThrownBy(() -> CurveQuantization.ranges(tasks, table, ImmutableList.of("int_col")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("int_col")
-        .hasMessageContaining("write.metadata.metrics");
+        .hasMessageContaining("write.metadata.metrics")
+        .hasMessageContaining("rewrite-all=true");
   }
 
   @Test
