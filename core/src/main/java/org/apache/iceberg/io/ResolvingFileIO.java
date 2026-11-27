@@ -176,11 +176,6 @@ public class ResolvingFileIO
         }
       }
 
-      if (io instanceof SupportsStorageCredentials
-          && !((SupportsStorageCredentials) io).credentials().equals(storageCredentials)) {
-        ((SupportsStorageCredentials) io).setCredentials(storageCredentials);
-      }
-
       return io;
     }
 
@@ -284,6 +279,11 @@ public class ResolvingFileIO
     Preconditions.checkArgument(credentials != null, "Invalid storage credentials: null");
     // copy credentials into a modifiable collection for Kryo serde
     this.storageCredentials = Lists.newArrayList(credentials);
+    for (DelegateFileIO io : ioInstances.values()) {
+      if (io instanceof SupportsStorageCredentials ioWithCredentials) {
+        ioWithCredentials.setCredentials(storageCredentials);
+      }
+    }
   }
 
   @Override
