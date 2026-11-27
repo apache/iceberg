@@ -129,6 +129,7 @@ public class BaseTransaction implements Transaction {
 
     if (update instanceof SnapshotProducer) {
       ((SnapshotProducer) update).reportWith(reporter);
+      ((SnapshotProducer) update).deferNotifications();
     }
 
     this.updates.add(update);
@@ -268,6 +269,8 @@ public class BaseTransaction implements Transaction {
         commitSimpleTransaction();
         break;
     }
+
+    sendDeferredNotifications();
   }
 
   private void commitCreateTransaction() {
@@ -430,6 +433,14 @@ public class BaseTransaction implements Transaction {
                 ((SnapshotProducer) update).cleanAll();
               }
             });
+  }
+
+  private void sendDeferredNotifications() {
+    for (PendingUpdate update : updates) {
+      if (update instanceof SnapshotProducer<?> producer) {
+        producer.sendDeferredNotifications();
+      }
+    }
   }
 
   private void deleteUncommittedFiles(Iterable<String> paths) {

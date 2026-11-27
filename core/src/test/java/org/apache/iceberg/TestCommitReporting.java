@@ -24,7 +24,9 @@ import java.util.List;
 import org.apache.iceberg.ScanPlanningAndReportingTestBase.TestMetricsReporter;
 import org.apache.iceberg.metrics.CommitMetricsResult;
 import org.apache.iceberg.metrics.CommitReport;
+import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -183,6 +185,34 @@ public class TestCommitReporting extends TestBase {
     assertThat(metrics.manifestsCreated().value()).isEqualTo(1L);
     assertThat(metrics.manifestsKept().value()).isEqualTo(0L);
     assertThat(metrics.manifestsReplaced().value()).isEqualTo(1L);
+  }
+
+  @TestTemplate
+  void oneCommitReportForRetriedTransaction() {
+    List<MetricsReport> reports = Lists.newArrayList();
+    Table table =
+        TestTables.create(
+            tableDir,
+            "retried-txn",
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            reports::add);
+
+    Transaction transaction = table.newTransaction();
+    transaction.newAppend().appendFile(FILE_A).commit();
+    // a concurrent commit makes the transaction re-apply its append
+    table.newAppend().appendFile(FILE_B).commit();
+    transaction.commitTransaction();
+
+    Snapshot committed = table.currentSnapshot();
+    assertThat(reports)
+        .map(CommitReport.class::cast)
+        .filteredOn(report -> report.snapshotId() == committed.snapshotId())
+        .singleElement()
+        .extracting(CommitReport::sequenceNumber)
+        .isEqualTo(committed.sequenceNumber());
   }
 
   @TestTemplate
