@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -32,6 +33,9 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -150,6 +154,7 @@ class TableUpdater {
                   FlinkSchemaUtil.convert(tableSchema),
                   caseSensitive));
         case SCHEMA_UPDATE_NEEDED:
+          validateVariantColumns(identifier, tableSchema, schema);
           LOG.info(
               "Triggering schema update for table {} {} to {}", identifier, tableSchema, schema);
           UpdateSchema updateApi = table.updateSchema();
@@ -178,6 +183,26 @@ class TableUpdater {
           }
         default:
           throw new IllegalArgumentException("Unknown comparison result");
+      }
+    }
+  }
+
+  private void validateVariantColumns(
+      TableIdentifier identifier, Schema tableSchema, Schema dataSchema) {
+    for (Map.Entry<String, Integer> entry :
+        TypeUtil.indexByName(dataSchema.asStruct()).entrySet()) {
+      String name = entry.getKey();
+      Types.NestedField tableField =
+          caseSensitive ? tableSchema.findField(name) : tableSchema.caseInsensitiveFindField(name);
+      Types.NestedField dataField = dataSchema.findField(entry.getValue());
+      if (tableField != null) {
+        Preconditions.checkArgument(
+            tableField.type().isVariantType() == dataField.type().isVariantType(),
+            "Cannot change column type: %s: %s -> %s (table %s)",
+            tableSchema.findColumnName(tableField.fieldId()),
+            tableField.type(),
+            dataField.type(),
+            identifier);
       }
     }
   }

@@ -215,14 +215,6 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
   private void updateColumn(Types.NestedField existingField, Types.NestedField targetField) {
     String existingColumnName = this.existingSchema.findColumnName(existingField.fieldId());
 
-    // A column cannot be promoted to variant; fail instead of silently skipping the update
-    Preconditions.checkArgument(
-        !targetField.type().isVariantType() || existingField.type().isVariantType(),
-        "Cannot change column type: %s: %s -> %s",
-        existingColumnName,
-        existingField.type(),
-        targetField.type());
-
     boolean needsOptionalUpdate = targetField.isOptional() && existingField.isRequired();
     boolean handledByDataConversion =
         CompareSchemasVisitor.isDataConversionPossible(targetField.type(), existingField.type());
