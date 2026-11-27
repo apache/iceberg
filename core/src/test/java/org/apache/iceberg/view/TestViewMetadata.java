@@ -996,6 +996,116 @@ public class TestViewMetadata {
   }
 
   @Test
+  public void applySameViewVersionAndSchemaUpdateWithSchemaIdAssignment() {
+    Schema schema = new Schema(-1, Types.NestedField.required(1, "x", Types.LongType.get()));
+    ViewVersion viewVersion = newViewVersion(1, -1, "select * from ns.tbl");
+    ViewMetadata metadata =
+        ViewMetadata.builder()
+            .setLocation("custom-location")
+            .addSchema(schema)
+            .addVersion(viewVersion)
+            .setCurrentVersion(viewVersion, schema)
+            .build();
+    assertThat(metadata.versions()).hasSize(1);
+    assertThat(metadata.currentVersion().versionId()).isEqualTo(1);
+    assertThat(metadata.currentVersion().schemaId()).isEqualTo(0);
+
+    // simulates a case where the same view update is applied twice and the schema ID is set to -1
+    // (indicating that the schema ID should be automatically assigned)
+    // this scenario can happen with concurrent updates in REST cases where the same update is
+    // applied twice.
+    ViewMetadata updated =
+        ViewMetadata.buildFrom(metadata)
+            .setLocation("custom-location")
+            .addSchema(schema)
+            .addVersion(viewVersion)
+            .setCurrentVersion(viewVersion, schema)
+            .build();
+
+    assertThat(updated.versions()).hasSize(1);
+    assertThat(updated.currentVersion().versionId()).isEqualTo(1);
+    assertThat(updated.currentVersion().schemaId()).isEqualTo(0);
+  }
+
+  @Test
+  public void applySameViewVersionsAndSchemaUpdatesWithSchemaIdAssignment() {
+    Schema schemaOne = new Schema(-1, Types.NestedField.required(1, "x", Types.LongType.get()));
+    Schema schemaTwo = new Schema(-1, Types.NestedField.required(1, "y", Types.LongType.get()));
+    Schema schemaThree = new Schema(-1, Types.NestedField.required(1, "z", Types.LongType.get()));
+    ViewVersion viewVersionOne = newViewVersion(1, 2, "select x from ns.tbl");
+    ViewVersion viewVersionTwo = newViewVersion(1, 1, "select y from ns.tbl");
+    ViewVersion viewVersionThree = newViewVersion(1, 0, "select z from ns.tbl");
+    ViewMetadata metadata =
+        ViewMetadata.builder()
+            .setLocation("custom-location")
+            .addSchema(schemaThree)
+            .addSchema(schemaTwo)
+            .addSchema(schemaOne)
+            .addVersion(viewVersionThree)
+            .addVersion(viewVersionTwo)
+            .addVersion(viewVersionOne)
+            .setCurrentVersion(viewVersionTwo, schemaTwo)
+            .build();
+    assertThat(metadata.versions()).hasSize(3);
+    assertThat(metadata.currentVersion().versionId()).isEqualTo(2);
+    assertThat(metadata.currentVersion().schemaId()).isEqualTo(1);
+
+    // simulates a case where the same view update is applied twice and the schema ID is set to -1
+    // (indicating that the schema ID should be automatically assigned)
+    // this scenario can happen with concurrent updates in REST cases where the same update is
+    // applied twice.
+    ViewMetadata updated =
+        ViewMetadata.buildFrom(metadata)
+            .setLocation("custom-location")
+            .addSchema(schemaOne)
+            .addSchema(schemaTwo)
+            .addSchema(schemaThree)
+            .addVersion(viewVersionThree)
+            .addVersion(viewVersionTwo)
+            .addVersion(viewVersionOne)
+            .setCurrentVersion(viewVersionTwo, schemaTwo)
+            .build();
+
+    assertThat(updated.versions()).hasSize(3);
+    assertThat(updated.currentVersion().versionId()).isEqualTo(2);
+    assertThat(updated.currentVersion().schemaId()).isEqualTo(1);
+  }
+
+  @Test
+  public void applySameViewVersionAndDifferentSchemaUpdateWithSchemaIdAssignment() {
+    Schema schema = new Schema(-1, Types.NestedField.required(1, "x", Types.LongType.get()));
+    ViewVersion viewVersion = newViewVersion(1, -1, "select * from ns.tbl");
+    ViewVersion viewVersionTwo = newViewVersion(-1, -1, "select * from ns.tbl");
+    ViewMetadata metadata =
+        ViewMetadata.builder()
+            .setLocation("custom-location")
+            .addSchema(schema)
+            .addVersion(viewVersion)
+            .setCurrentVersion(viewVersion, schema)
+            .build();
+    assertThat(metadata.versions()).hasSize(1);
+    assertThat(metadata.currentVersion().versionId()).isEqualTo(1);
+    assertThat(metadata.currentVersion().schemaId()).isEqualTo(0);
+
+    // simulates a case where the same view update is applied twice and the schema ID is set to -1
+    // (indicating that the schema ID should be automatically assigned) and also
+    // setCurrentVersionId(..) passes a -1 (indicating that the last view version should be used)
+    // this scenario can happen with concurrent updates in REST cases where the same update is
+    // applied twice.
+    ViewMetadata updated =
+        ViewMetadata.buildFrom(metadata)
+            .setLocation("custom-location")
+            .addSchema(schema)
+            .addVersion(viewVersionTwo)
+            .setCurrentVersionId(-1)
+            .build();
+
+    assertThat(updated.versions()).hasSize(1);
+    assertThat(updated.currentVersion().versionId()).isEqualTo(1);
+    assertThat(updated.currentVersion().schemaId()).isEqualTo(0);
+  }
+
+  @Test
   public void droppingDialectFailsByDefault() {
     Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
     ViewRepresentation spark =
