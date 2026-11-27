@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.StructLikeSet;
@@ -52,31 +54,38 @@ import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.PartitionFieldReference;
+import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.connector.expressions.filter.PartitionPredicate;
+import org.apache.spark.sql.connector.read.SupportsReportOrdering;
 import org.apache.spark.sql.connector.read.SupportsReportPartitioning;
 import org.apache.spark.sql.connector.read.partitioning.KeyGroupedPartitioning;
 import org.apache.spark.sql.connector.read.partitioning.Partitioning;
 import org.apache.spark.sql.connector.read.partitioning.UnknownPartitioning;
+import org.apache.spark.sql.internal.SQLConf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends SparkScan
-    implements SupportsReportPartitioning {
+    implements SupportsReportPartitioning, SupportsReportOrdering {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkPartitioningAwareScan.class);
+  private static final SortOrder[] NO_ORDERING = new SortOrder[0];
 
   private final Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan;
   private final boolean preserveDataGrouping;
   private final List<PartitionPredicate> partitionPredicates;
   private final List<PartitionField> partitionPredicateFields;
   private final StructType partitionPredicateType;
+  private final boolean preserveDataOrdering;
+  private final int maxFilesPerOrderedTask;
 
   private Set<PartitionSpec> specs = null; // lazy cache of scanned specs
   private List<T> tasks = null; // lazy cache of uncombined tasks
   private List<ScanTaskGroup<T>> taskGroups = null; // lazy cache of task groups
   private StructType groupingKeyType = null; // lazy cache of the grouping key type
   private Transform[] groupingKeyTransforms = null; // lazy cache of grouping key transforms
+  private SortOrder[] reportedOrdering = null; // lazy cache of the ordering, empty if not reported
 
   SparkPartitioningAwareScan(
       SparkSession spark,
@@ -103,12 +112,47 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
     this.partitionPredicates = Lists.newArrayList(partitionPredicates);
     this.partitionPredicateFields = activePartitionFields(table.spec());
     this.partitionPredicateType = activePartitionType(table.spec());
+    this.preserveDataOrdering =
+        readConf.preserveDataOrdering() && canPreserveDataOrdering(spark, table);
+    this.maxFilesPerOrderedTask =
+        preserveDataOrdering ? readConf.preserveDataOrderingMaxFilesPerTask() : 0;
 
     if (scan == null) {
       this.specs = Collections.emptySet();
       this.tasks = Collections.emptyList();
       this.taskGroups = Collections.emptyList();
+      this.reportedOrdering = NO_ORDERING;
     }
+  }
+
+  private boolean canPreserveDataOrdering(SparkSession spark, Table table) {
+    SQLConf sqlConf = spark.sessionState().conf();
+    if (!preserveDataGrouping) {
+      LOG.warn(
+          "Ignoring {} for table {}: it requires {}",
+          SparkSQLProperties.PRESERVE_DATA_ORDERING,
+          table.name(),
+          SparkSQLProperties.PRESERVE_DATA_GROUPING);
+      return false;
+
+    } else if (sqlConf.v2BucketingAllowCompatibleTransforms()) {
+      LOG.warn(
+          "Ignoring {} for table {}: incompatible with {}",
+          SparkSQLProperties.PRESERVE_DATA_ORDERING,
+          table.name(),
+          SQLConf.V2_BUCKETING_ALLOW_COMPATIBLE_TRANSFORMS().key());
+      return false;
+
+    } else if (sqlConf.v2BucketingAllowJoinKeysSubsetOfPartitionKeys()) {
+      LOG.warn(
+          "Ignoring {} for table {}: incompatible with {}",
+          SparkSQLProperties.PRESERVE_DATA_ORDERING,
+          table.name(),
+          SQLConf.V2_BUCKETING_ALLOW_JOIN_KEYS_SUBSET_OF_PARTITION_KEYS().key());
+      return false;
+    }
+
+    return true;
   }
 
   protected abstract Class<T> taskJavaClass();
@@ -133,6 +177,12 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
           table().name());
       return new KeyGroupedPartitioning(groupingKeyTransforms(), taskGroups().size());
     }
+  }
+
+  @Override
+  public synchronized SortOrder[] outputOrdering() {
+    taskGroups();
+    return reportedOrdering;
   }
 
   @Override
@@ -243,6 +293,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
                 scan.splitLookback(),
                 scan.splitOpenFileCost());
         this.taskGroups = Lists.newArrayList(plannedTaskGroups);
+        this.reportedOrdering = NO_ORDERING;
 
         LOG.debug(
             "Planned {} task group(s) without data grouping for table {}",
@@ -257,6 +308,14 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
                 scan.splitLookback(),
                 scan.splitOpenFileCost(),
                 groupingKeyType());
+        if (reportedOrdering == null) {
+          this.reportedOrdering = reportableOrdering(plannedTaskGroups);
+        }
+
+        if (reportedOrdering.length > 0) {
+          plannedTaskGroups = asOrderedTaskGroups(plannedTaskGroups);
+        }
+
         StructLikeSet plannedGroupingKeys = collectGroupingKeys(plannedTaskGroups);
 
         LOG.debug(
@@ -273,6 +332,40 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
     }
 
     return taskGroups;
+  }
+
+  private SortOrder[] reportableOrdering(List<ScanTaskGroup<T>> plannedTaskGroups) {
+    org.apache.iceberg.SortOrder sortOrder = table().sortOrder();
+    int prefixLength = sortOrderPrefixLength(sortOrder);
+    if (prefixLength > 0
+        && SparkOrderingUtil.withinFileLimit(plannedTaskGroups, maxFilesPerOrderedTask)) {
+      LOG.info(
+          "Reporting {} field(s) of sort order {} for table {}",
+          prefixLength,
+          sortOrder.orderId(),
+          table().name());
+      return Arrays.copyOf(Spark3Util.toOrdering(sortOrder, schema()), prefixLength);
+    }
+
+    return NO_ORDERING;
+  }
+
+  private List<ScanTaskGroup<T>> asOrderedTaskGroups(List<ScanTaskGroup<T>> plannedTaskGroups) {
+    return plannedTaskGroups.stream()
+        .<ScanTaskGroup<T>>map(OrderedScanTaskGroup::new)
+        .collect(Collectors.toList());
+  }
+
+  private int sortOrderPrefixLength(org.apache.iceberg.SortOrder sortOrder) {
+    if (!preserveDataOrdering) {
+      return 0;
+    }
+
+    int prefixLength =
+        SparkOrderingUtil.reportablePrefixLength(sortOrder, table().schema(), projection());
+    boolean mergeable =
+        prefixLength > 0 && SparkOrderingUtil.canMerge(tasks(), sortOrder.orderId());
+    return mergeable ? prefixLength : 0;
   }
 
   // only task groups can be reset while resetting tasks
@@ -403,5 +496,11 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
       return true;
     }
+  }
+
+  protected String orderingDesc() {
+    return Arrays.stream(outputOrdering())
+        .map(SortOrder::describe)
+        .collect(Collectors.joining(", "));
   }
 }
