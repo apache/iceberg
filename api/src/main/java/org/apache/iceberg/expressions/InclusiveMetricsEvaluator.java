@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Map;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -167,6 +168,8 @@ public class InclusiveMetricsEvaluator {
   }
 
   private static VariantObject parseBounds(ByteBuffer buffer) {
-    return Variant.from(buffer).value().asObject();
+    // Explicitly use little-endian encoding for reading buffer
+    ByteBuffer littleEndian = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN);
+    return Variant.from(littleEndian).value().asObject();
   }
 }
