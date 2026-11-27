@@ -30,6 +30,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 
@@ -63,25 +64,21 @@ class IcebergWriter implements RecordWriter {
         Record row = convertToRow(record);
         writer.write(row);
       }
+    } catch (DataException e) {
+      throw e;
     } catch (Exception e) {
-      throw new DataException(
-          String.format(
-              Locale.ROOT,
-              "An error occurred converting record, topic: %s, partition, %d, offset: %d",
-              record.topic(),
-              record.kafkaPartition(),
-              record.kafkaOffset()),
-          e);
+      // not a problem with the record, so it must not be reported and skipped
+      throw new ConnectException(errorMessage("writing", record), e);
     }
   }
 
   private Record convertToRow(SinkRecord record) {
     if (!config.evolveSchemaEnabled()) {
-      return recordConverter.convert(record.value());
+      return convert(record, null);
     }
 
     SchemaUpdate.Consumer updates = new SchemaUpdate.Consumer();
-    Record row = recordConverter.convert(record.value(), updates);
+    Record row = convert(record, updates);
 
     if (!updates.empty()) {
       // complete the current file
@@ -91,10 +88,28 @@ class IcebergWriter implements RecordWriter {
       // initialize a new writer with the new schema
       initNewWriter();
       // convert the row again, this time using the new table schema
-      row = recordConverter.convert(record.value(), null);
+      row = convert(record, null);
     }
 
     return row;
+  }
+
+  private Record convert(SinkRecord record, SchemaUpdate.Consumer updates) {
+    try {
+      return recordConverter.convert(record.value(), updates);
+    } catch (Exception e) {
+      throw new DataException(errorMessage("converting", record), e);
+    }
+  }
+
+  private static String errorMessage(String action, SinkRecord record) {
+    return String.format(
+        Locale.ROOT,
+        "An error occurred %s record, topic: %s, partition, %d, offset: %d",
+        action,
+        record.topic(),
+        record.kafkaPartition(),
+        record.kafkaOffset());
   }
 
   private void flush() {
