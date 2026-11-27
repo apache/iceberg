@@ -26,9 +26,12 @@ import static org.mockserver.model.HttpResponse.response;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.exceptions.RESTException;
+import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.HttpMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties;
@@ -41,6 +44,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
@@ -583,6 +588,167 @@ public class TestVendedCredentialsProvider {
     }
 
     mockServer.verify(mockRequest, VerificationTimes.once());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void mostSpecificCredentialForPrefix(boolean reversed) {
+    Credential parent = credential("s3://bucket/", "parent");
+    Credential selected = credential("s3://bucket/table/", "selected");
+    Credential child = credential("s3://bucket/table/child/", "child");
+    Credential unrelated = credential("s3://another-bucket/longer-prefix/", "unrelated");
+    if (reversed) {
+      respondWithCredentials(unrelated, child, selected, parent);
+    } else {
+      respondWithCredentials(parent, selected, child, unrelated);
+    }
+
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(propertiesForPrefix("s3://bucket/table/data/"))) {
+      verifyCredentials(provider.resolveCredentials(), selected);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"s3://another-bucket/", "s3://bucket/table/child/"})
+  void noCredentialForPrefix(String credentialPrefix) {
+    respondWithCredentials(credential(credentialPrefix, "unrelated"));
+
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(propertiesForPrefix("s3://bucket/table/"))) {
+      assertThatThrownBy(provider::resolveCredentials)
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage(
+              "Invalid S3 Credentials: no credential matches storage prefix s3://bucket/table/");
+    }
+  }
+
+  @Test
+  void ambiguousCredentialsForPrefix() {
+    respondWithCredentials(
+        credential("s3://bucket/", "parent"),
+        credential("s3://bucket/table/", "first"),
+        credential("s3://bucket/table/", "second"));
+
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(propertiesForPrefix("s3://bucket/table/"))) {
+      assertThatThrownBy(provider::resolveCredentials)
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage(
+              "Invalid S3 Credentials: multiple credentials match storage prefix s3://bucket/table/");
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void prefixedClientsRefreshIndependently(boolean async) {
+    Credential first = credential("s3://bucket/first/", "first");
+    Credential second = credential("s3://bucket/second/", "second");
+    respondWithCredentials(first, second);
+
+    ImmutableMap.Builder<String, String> properties =
+        ImmutableMap.<String, String>builder()
+            .putAll(PROPERTIES)
+            .put(AwsClientProperties.CLIENT_REGION, "us-east-1")
+            .put(AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT, CREDENTIALS_URI)
+            .put(S3FileIOProperties.S3_CRT_ENABLED, "false");
+    if (async) {
+      properties.put(
+          AwsClientProperties.CLIENT_CREDENTIALS_PROVIDER,
+          VendedCredentialsProvider.class.getName());
+    }
+
+    Map<String, String> clientProperties = properties.build();
+    try (S3FileIO fileIO = new S3FileIO()) {
+      fileIO.initialize(clientProperties);
+      fileIO.setCredentials(
+          List.of(
+              StorageCredential.create(
+                  first.prefix(), Map.of(S3FileIOProperties.SESSION_TOKEN, "initial")),
+              StorageCredential.create(
+                  second.prefix(), Map.of(S3FileIOProperties.SESSION_TOKEN, "initial"))));
+      try (VendedCredentialsProvider firstProvider =
+              (VendedCredentialsProvider)
+                  (async
+                      ? fileIO
+                          .asyncClient(first.prefix())
+                          .serviceClientConfiguration()
+                          .credentialsProvider()
+                      : fileIO
+                          .client(first.prefix())
+                          .serviceClientConfiguration()
+                          .credentialsProvider());
+          VendedCredentialsProvider secondProvider =
+              (VendedCredentialsProvider)
+                  (async
+                      ? fileIO
+                          .asyncClient(second.prefix())
+                          .serviceClientConfiguration()
+                          .credentialsProvider()
+                      : fileIO
+                          .client(second.prefix())
+                          .serviceClientConfiguration()
+                          .credentialsProvider())) {
+        verifyCredentials(firstProvider.resolveCredentials(), first);
+        verifyCredentials(secondProvider.resolveCredentials(), second);
+      }
+    }
+  }
+
+  @Test
+  void unscopedFileIORefreshesSingleCredential() {
+    Credential credential = credential("s3://bucket/table/", "refreshed");
+    respondWithCredentials(credential);
+    Map<String, String> properties =
+        ImmutableMap.<String, String>builder()
+            .putAll(PROPERTIES)
+            .put(AwsClientProperties.CLIENT_REGION, "us-east-1")
+            .put(AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT, CREDENTIALS_URI)
+            .build();
+
+    try (S3FileIO fileIO = new S3FileIO()) {
+      fileIO.initialize(properties);
+      try (VendedCredentialsProvider provider =
+          (VendedCredentialsProvider)
+              fileIO.client().serviceClientConfiguration().credentialsProvider()) {
+        verifyCredentials(provider.resolveCredentials(), credential);
+      }
+    }
+  }
+
+  private static Map<String, String> propertiesForPrefix(String prefix) {
+    return ImmutableMap.<String, String>builder()
+        .putAll(PROPERTIES)
+        .put(VendedCredentialsProvider.STORAGE_PREFIX, prefix)
+        .build();
+  }
+
+  private static Credential credential(String prefix, String token) {
+    return ImmutableCredential.builder()
+        .prefix(prefix)
+        .config(
+            ImmutableMap.of(
+                S3FileIOProperties.ACCESS_KEY_ID,
+                token + "-access-key",
+                S3FileIOProperties.SECRET_ACCESS_KEY,
+                token + "-secret-key",
+                S3FileIOProperties.SESSION_TOKEN,
+                token,
+                S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli())))
+        .build();
+  }
+
+  private static void respondWithCredentials(Credential... credentials) {
+    mockServer
+        .when(request("/v1/credentials").withMethod(HttpMethod.GET.name()))
+        .respond(
+            response(
+                    LoadCredentialsResponseParser.toJson(
+                        ImmutableLoadCredentialsResponse.builder()
+                            .addCredentials(credentials)
+                            .build()))
+                .withStatusCode(200));
   }
 
   private void verifyCredentials(AwsCredentials awsCredentials, Credential credential) {

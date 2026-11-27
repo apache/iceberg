@@ -20,6 +20,7 @@ package org.apache.iceberg.aws.s3;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -46,6 +47,7 @@ import software.amazon.awssdk.utils.cache.RefreshResult;
 
 public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAutoCloseable {
   public static final String URI = "credentials.uri";
+  static final String STORAGE_PREFIX = "s3.credentials.storage-prefix";
   private volatile HTTPClient client;
   private final Map<String, String> properties;
   private final CachedSupplier<AwsCredentials> credentialCache;
@@ -156,8 +158,26 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
             .collect(Collectors.toList());
 
     Preconditions.checkState(!s3Credentials.isEmpty(), "Invalid S3 Credentials: empty");
-    Preconditions.checkState(
-        s3Credentials.size() == 1, "Invalid S3 Credentials: only one S3 credential should exist");
+    String storagePrefix = properties.get(STORAGE_PREFIX);
+    if (storagePrefix != null) {
+      s3Credentials =
+          s3Credentials.stream()
+              .filter(c -> storagePrefix.startsWith(c.prefix()))
+              .sorted(Comparator.comparingInt((Credential c) -> c.prefix().length()).reversed())
+              .collect(Collectors.toList());
+      Preconditions.checkState(
+          !s3Credentials.isEmpty(),
+          "Invalid S3 Credentials: no credential matches storage prefix %s",
+          storagePrefix);
+      Preconditions.checkState(
+          s3Credentials.size() == 1
+              || s3Credentials.get(0).prefix().length() > s3Credentials.get(1).prefix().length(),
+          "Invalid S3 Credentials: multiple credentials match storage prefix %s",
+          storagePrefix);
+    } else {
+      Preconditions.checkState(
+          s3Credentials.size() == 1, "Invalid S3 Credentials: only one S3 credential should exist");
+    }
 
     Credential s3Credential = s3Credentials.get(0);
     checkCredential(s3Credential, S3FileIOProperties.ACCESS_KEY_ID);
