@@ -34,8 +34,11 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.Projections;
@@ -45,6 +48,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestTruncatesProjection {
 
@@ -136,11 +142,17 @@ public class TestTruncatesProjection {
     Schema schema = new Schema(optional(1, "value", Types.IntegerType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
 
-    assertProjectionStrict(spec, lessThan("value", value), Expression.Operation.LT, "100");
-    assertProjectionStrict(spec, lessThanOrEqual("value", value), Expression.Operation.LT, "100");
-    assertProjectionStrict(spec, greaterThan("value", value), Expression.Operation.GT, "100");
-    assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, "90");
-    assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "100");
+    assertProjectionEvaluation(spec, lessThan("value", value), true, 90, true);
+    assertProjectionEvaluation(spec, lessThan("value", value), true, 100, false);
+    assertProjectionEvaluation(spec, lessThanOrEqual("value", value), true, 90, true);
+    assertProjectionEvaluation(spec, lessThanOrEqual("value", value), true, 100, false);
+    assertProjectionEvaluation(spec, greaterThan("value", value), true, 100, false);
+    assertProjectionEvaluation(spec, greaterThan("value", value), true, 110, true);
+    assertProjectionEvaluation(spec, greaterThanOrEqual("value", value), true, 90, false);
+    assertProjectionEvaluation(spec, greaterThanOrEqual("value", value), true, 100, true);
+    assertProjectionEvaluation(spec, notEqual("value", value), true, 100, false);
+    assertProjectionEvaluation(spec, notEqual("value", value), true, 110, true);
+    assertProjectionEvaluation(spec, notEqual("value", value), true, null, true);
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
 
     assertProjectionStrict(
@@ -157,11 +169,17 @@ public class TestTruncatesProjection {
     Schema schema = new Schema(optional(1, "value", Types.IntegerType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
 
-    assertProjectionStrict(spec, lessThan("value", value), Expression.Operation.LT, "90");
-    assertProjectionStrict(spec, lessThanOrEqual("value", value), Expression.Operation.LT, "100");
-    assertProjectionStrict(spec, greaterThan("value", value), Expression.Operation.GT, "90");
-    assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, "90");
-    assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "90");
+    assertProjectionEvaluation(spec, lessThan("value", value), true, 80, true);
+    assertProjectionEvaluation(spec, lessThan("value", value), true, 90, false);
+    assertProjectionEvaluation(spec, lessThanOrEqual("value", value), true, 90, true);
+    assertProjectionEvaluation(spec, lessThanOrEqual("value", value), true, 100, false);
+    assertProjectionEvaluation(spec, greaterThan("value", value), true, 90, false);
+    assertProjectionEvaluation(spec, greaterThan("value", value), true, 100, true);
+    assertProjectionEvaluation(spec, greaterThanOrEqual("value", value), true, 90, false);
+    assertProjectionEvaluation(spec, greaterThanOrEqual("value", value), true, 100, true);
+    assertProjectionEvaluation(spec, notEqual("value", value), true, 90, false);
+    assertProjectionEvaluation(spec, notEqual("value", value), true, 100, true);
+    assertProjectionEvaluation(spec, notEqual("value", value), true, null, true);
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
 
     assertProjectionStrict(
@@ -178,12 +196,14 @@ public class TestTruncatesProjection {
     Schema schema = new Schema(optional(1, "value", Types.IntegerType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
 
-    assertProjectionInclusive(spec, lessThan("value", value), Expression.Operation.LT_EQ, "90");
-    assertProjectionInclusive(
-        spec, lessThanOrEqual("value", value), Expression.Operation.LT_EQ, "100");
-    assertProjectionInclusive(spec, greaterThan("value", value), Expression.Operation.GT_EQ, "100");
-    assertProjectionInclusive(
-        spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, "100");
+    assertProjectionEvaluation(spec, lessThan("value", value), false, 90, true);
+    assertProjectionEvaluation(spec, lessThan("value", value), false, 100, false);
+    assertProjectionEvaluation(spec, lessThanOrEqual("value", value), false, 100, true);
+    assertProjectionEvaluation(spec, lessThanOrEqual("value", value), false, 110, false);
+    assertProjectionEvaluation(spec, greaterThan("value", value), false, 90, false);
+    assertProjectionEvaluation(spec, greaterThan("value", value), false, 100, true);
+    assertProjectionEvaluation(spec, greaterThanOrEqual("value", value), false, 90, false);
+    assertProjectionEvaluation(spec, greaterThanOrEqual("value", value), false, 100, true);
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "100");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
 
@@ -199,12 +219,14 @@ public class TestTruncatesProjection {
     Schema schema = new Schema(optional(1, "value", Types.IntegerType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
 
-    assertProjectionInclusive(spec, lessThan("value", value), Expression.Operation.LT_EQ, "90");
-    assertProjectionInclusive(
-        spec, lessThanOrEqual("value", value), Expression.Operation.LT_EQ, "90");
-    assertProjectionInclusive(spec, greaterThan("value", value), Expression.Operation.GT_EQ, "100");
-    assertProjectionInclusive(
-        spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, "90");
+    assertProjectionEvaluation(spec, lessThan("value", value), false, 90, true);
+    assertProjectionEvaluation(spec, lessThan("value", value), false, 100, false);
+    assertProjectionEvaluation(spec, lessThanOrEqual("value", value), false, 90, true);
+    assertProjectionEvaluation(spec, lessThanOrEqual("value", value), false, 100, false);
+    assertProjectionEvaluation(spec, greaterThan("value", value), false, 90, false);
+    assertProjectionEvaluation(spec, greaterThan("value", value), false, 100, true);
+    assertProjectionEvaluation(spec, greaterThanOrEqual("value", value), false, 80, false);
+    assertProjectionEvaluation(spec, greaterThanOrEqual("value", value), false, 90, true);
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "90");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
 
@@ -220,11 +242,17 @@ public class TestTruncatesProjection {
     Schema schema = new Schema(optional(1, "value", Types.LongType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
 
-    assertProjectionStrict(spec, lessThan("value", value), Expression.Operation.LT, "100");
-    assertProjectionStrict(spec, lessThanOrEqual("value", value), Expression.Operation.LT, "100");
-    assertProjectionStrict(spec, greaterThan("value", value), Expression.Operation.GT, "100");
-    assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, "90");
-    assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "100");
+    assertProjectionEvaluation(spec, lessThan("value", value), true, 90L, true);
+    assertProjectionEvaluation(spec, lessThan("value", value), true, 100L, false);
+    assertProjectionEvaluation(spec, lessThanOrEqual("value", value), true, 90L, true);
+    assertProjectionEvaluation(spec, lessThanOrEqual("value", value), true, 100L, false);
+    assertProjectionEvaluation(spec, greaterThan("value", value), true, 100L, false);
+    assertProjectionEvaluation(spec, greaterThan("value", value), true, 110L, true);
+    assertProjectionEvaluation(spec, greaterThanOrEqual("value", value), true, 90L, false);
+    assertProjectionEvaluation(spec, greaterThanOrEqual("value", value), true, 100L, true);
+    assertProjectionEvaluation(spec, notEqual("value", value), true, 100L, false);
+    assertProjectionEvaluation(spec, notEqual("value", value), true, 110L, true);
+    assertProjectionEvaluation(spec, notEqual("value", value), true, null, true);
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
 
     assertProjectionStrict(
@@ -241,11 +269,17 @@ public class TestTruncatesProjection {
     Schema schema = new Schema(optional(1, "value", Types.LongType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
 
-    assertProjectionStrict(spec, lessThan("value", value), Expression.Operation.LT, "90");
-    assertProjectionStrict(spec, lessThanOrEqual("value", value), Expression.Operation.LT, "100");
-    assertProjectionStrict(spec, greaterThan("value", value), Expression.Operation.GT, "90");
-    assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, "90");
-    assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "90");
+    assertProjectionEvaluation(spec, lessThan("value", value), true, 80L, true);
+    assertProjectionEvaluation(spec, lessThan("value", value), true, 90L, false);
+    assertProjectionEvaluation(spec, lessThanOrEqual("value", value), true, 90L, true);
+    assertProjectionEvaluation(spec, lessThanOrEqual("value", value), true, 100L, false);
+    assertProjectionEvaluation(spec, greaterThan("value", value), true, 90L, false);
+    assertProjectionEvaluation(spec, greaterThan("value", value), true, 100L, true);
+    assertProjectionEvaluation(spec, greaterThanOrEqual("value", value), true, 90L, false);
+    assertProjectionEvaluation(spec, greaterThanOrEqual("value", value), true, 100L, true);
+    assertProjectionEvaluation(spec, notEqual("value", value), true, 90L, false);
+    assertProjectionEvaluation(spec, notEqual("value", value), true, 100L, true);
+    assertProjectionEvaluation(spec, notEqual("value", value), true, null, true);
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
 
     assertProjectionStrict(
@@ -262,12 +296,14 @@ public class TestTruncatesProjection {
     Schema schema = new Schema(optional(1, "value", Types.LongType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
 
-    assertProjectionInclusive(spec, lessThan("value", value), Expression.Operation.LT_EQ, "90");
-    assertProjectionInclusive(
-        spec, lessThanOrEqual("value", value), Expression.Operation.LT_EQ, "100");
-    assertProjectionInclusive(spec, greaterThan("value", value), Expression.Operation.GT_EQ, "100");
-    assertProjectionInclusive(
-        spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, "100");
+    assertProjectionEvaluation(spec, lessThan("value", value), false, 90L, true);
+    assertProjectionEvaluation(spec, lessThan("value", value), false, 100L, false);
+    assertProjectionEvaluation(spec, lessThanOrEqual("value", value), false, 100L, true);
+    assertProjectionEvaluation(spec, lessThanOrEqual("value", value), false, 110L, false);
+    assertProjectionEvaluation(spec, greaterThan("value", value), false, 90L, false);
+    assertProjectionEvaluation(spec, greaterThan("value", value), false, 100L, true);
+    assertProjectionEvaluation(spec, greaterThanOrEqual("value", value), false, 90L, false);
+    assertProjectionEvaluation(spec, greaterThanOrEqual("value", value), false, 100L, true);
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "100");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
 
@@ -283,12 +319,14 @@ public class TestTruncatesProjection {
     Schema schema = new Schema(optional(1, "value", Types.LongType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
 
-    assertProjectionInclusive(spec, lessThan("value", value), Expression.Operation.LT_EQ, "90");
-    assertProjectionInclusive(
-        spec, lessThanOrEqual("value", value), Expression.Operation.LT_EQ, "90");
-    assertProjectionInclusive(spec, greaterThan("value", value), Expression.Operation.GT_EQ, "100");
-    assertProjectionInclusive(
-        spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, "90");
+    assertProjectionEvaluation(spec, lessThan("value", value), false, 90L, true);
+    assertProjectionEvaluation(spec, lessThan("value", value), false, 100L, false);
+    assertProjectionEvaluation(spec, lessThanOrEqual("value", value), false, 90L, true);
+    assertProjectionEvaluation(spec, lessThanOrEqual("value", value), false, 100L, false);
+    assertProjectionEvaluation(spec, greaterThan("value", value), false, 90L, false);
+    assertProjectionEvaluation(spec, greaterThan("value", value), false, 100L, true);
+    assertProjectionEvaluation(spec, greaterThanOrEqual("value", value), false, 80L, false);
+    assertProjectionEvaluation(spec, greaterThanOrEqual("value", value), false, 90L, true);
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "90");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
 
@@ -296,6 +334,193 @@ public class TestTruncatesProjection {
         spec, in("value", value - 1, value, value + 1), Expression.Operation.IN, "[90, 90, 100]");
     assertProjectionInclusiveValue(
         spec, notIn("value", value, value - 1), Expression.Operation.TRUE);
+  }
+
+  private static Stream<Arguments> integerTypes() {
+    return Stream.of(
+        Arguments.of(Types.IntegerType.get(), (long) Integer.MIN_VALUE),
+        Arguments.of(Types.LongType.get(), Long.MIN_VALUE));
+  }
+
+  private static Object sourceValue(Type type, long value) {
+    if (type.typeId() == Type.TypeID.INTEGER) {
+      return (int) value;
+    }
+
+    return value;
+  }
+
+  @SuppressWarnings("unchecked")
+  private static Object transform(PartitionSpec spec, Type type, long value) {
+    Transform<Object, Object> transform =
+        (Transform<Object, Object>) spec.fields().get(0).transform();
+    return transform.bind(type).apply(sourceValue(type, value));
+  }
+
+  private static long firstNormalPartition(long minimum, int width) {
+    return minimum + (width - Math.floorMod(minimum, width));
+  }
+
+  private static boolean evalProjection(
+      PartitionSpec spec, UnboundPredicate<?> filter, boolean strict, Object partitionValue) {
+    Expression projection =
+        strict
+            ? Projections.strict(spec).project(filter)
+            : Projections.inclusive(spec).project(filter);
+    return new Evaluator(spec.partitionType(), projection, true)
+        .eval(TestHelpers.Row.of(partitionValue));
+  }
+
+  private static void assertProjectionEvaluation(
+      PartitionSpec spec,
+      UnboundPredicate<?> filter,
+      boolean strict,
+      Object partitionValue,
+      boolean expected) {
+    assertThat(evalProjection(spec, filter, strict, partitionValue)).isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @MethodSource("integerTypes")
+  void inclusiveLessThanIncludesWrappedPartition(Type type, long minimum) {
+    int width = 1000;
+    Schema schema = new Schema(optional(1, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", width).build();
+    Object wrapped = transform(spec, type, minimum);
+
+    assertThat(evalProjection(spec, lessThan("value", 0), false, wrapped)).isTrue();
+  }
+
+  @ParameterizedTest
+  @MethodSource("integerTypes")
+  void inclusiveLessThanOrEqualToIncludesWrappedPartition(Type type, long minimum) {
+    int width = 1000;
+    Schema schema = new Schema(optional(1, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", width).build();
+    Object wrapped = transform(spec, type, minimum);
+
+    assertThat(evalProjection(spec, lessThanOrEqual("value", 0), false, wrapped)).isTrue();
+  }
+
+  @ParameterizedTest
+  @MethodSource("integerTypes")
+  void inclusiveGreaterThanIncludesFirstNormalPartition(Type type, long minimum) {
+    int width = 10;
+    Schema schema = new Schema(optional(1, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", width).build();
+    Object firstNormal = transform(spec, type, firstNormalPartition(minimum, width));
+
+    assertThat(
+            evalProjection(
+                spec, greaterThan("value", sourceValue(type, minimum)), false, firstNormal))
+        .isTrue();
+  }
+
+  @ParameterizedTest
+  @MethodSource("integerTypes")
+  void inclusiveGreaterThanOrEqualToIncludesFirstNormalPartition(Type type, long minimum) {
+    int width = 10;
+    Schema schema = new Schema(optional(1, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", width).build();
+    Object firstNormal = transform(spec, type, firstNormalPartition(minimum, width));
+
+    assertThat(
+            evalProjection(
+                spec, greaterThanOrEqual("value", sourceValue(type, minimum)), false, firstNormal))
+        .isTrue();
+  }
+
+  @ParameterizedTest
+  @MethodSource("integerTypes")
+  void strictGreaterThanExcludesWrappedPartition(Type type, long minimum) {
+    int width = 10;
+    Schema schema = new Schema(optional(1, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", width).build();
+    Object wrapped = transform(spec, type, minimum);
+
+    assertThat(evalProjection(spec, greaterThan("value", 99), true, wrapped)).isFalse();
+    assertThat(evalProjection(spec, greaterThanOrEqual("value", 99), true, wrapped)).isFalse();
+  }
+
+  @ParameterizedTest
+  @MethodSource("integerTypes")
+  void strictLessThanExcludesFirstNormalPartition(Type type, long minimum) {
+    int width = 10;
+    Schema schema = new Schema(optional(1, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", width).build();
+    Object firstNormal = transform(spec, type, firstNormalPartition(minimum, width));
+
+    assertThat(
+            evalProjection(spec, lessThan("value", sourceValue(type, minimum)), true, firstNormal))
+        .isFalse();
+    assertThat(
+            evalProjection(
+                spec, lessThanOrEqual("value", sourceValue(type, minimum)), true, firstNormal))
+        .isFalse();
+  }
+
+  @ParameterizedTest
+  @MethodSource("integerTypes")
+  void strictGreaterThanOrEqualToIncludesFirstNormalPartition(Type type, long minimum) {
+    int width = 10;
+    Schema schema = new Schema(optional(1, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", width).build();
+    Object firstNormal = transform(spec, type, firstNormalPartition(minimum, width));
+
+    assertThat(
+            evalProjection(
+                spec,
+                greaterThanOrEqual(
+                    "value", sourceValue(type, firstNormalPartition(minimum, width))),
+                true,
+                firstNormal))
+        .isTrue();
+  }
+
+  @ParameterizedTest
+  @MethodSource("integerTypes")
+  void inclusiveGreaterThanExcludesWrappedPartition(Type type, long minimum) {
+    int width = 1000;
+    Schema schema = new Schema(optional(1, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", width).build();
+    Object wrapped = transform(spec, type, minimum);
+
+    assertThat(evalProjection(spec, greaterThan("value", 0), false, wrapped)).isFalse();
+  }
+
+  @ParameterizedTest
+  @MethodSource("integerTypes")
+  void inclusiveGreaterThanOrEqualToExcludesWrappedPartition(Type type, long minimum) {
+    int width = 1000;
+    Schema schema = new Schema(optional(1, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", width).build();
+    Object wrapped = transform(spec, type, minimum);
+
+    assertThat(evalProjection(spec, greaterThanOrEqual("value", 0), false, wrapped)).isFalse();
+  }
+
+  @ParameterizedTest
+  @MethodSource("integerTypes")
+  void strictGreaterThanExcludesNullPartition(Type type, long minimum) {
+    int width = 10;
+    Schema schema = new Schema(optional(1, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", width).build();
+
+    assertThat(evalProjection(spec, greaterThan("value", sourceValue(type, minimum)), true, null))
+        .isFalse();
+  }
+
+  @ParameterizedTest
+  @MethodSource("integerTypes")
+  void strictGreaterThanOrEqualToExcludesNullPartition(Type type, long minimum) {
+    int width = 10;
+    Schema schema = new Schema(optional(1, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", width).build();
+
+    assertThat(
+            evalProjection(
+                spec, greaterThanOrEqual("value", sourceValue(type, minimum)), true, null))
+        .isFalse();
   }
 
   @Test

@@ -243,19 +243,15 @@ public class ResidualEvaluator implements Serializable {
       for (PartitionField part : parts) {
 
         // checking the strict projection
-        UnboundPredicate<?> strictProjection =
-            ((Transform<T, ?>) part.transform()).projectStrict(part.name(), pred);
+        Expression strictProjection =
+            ((Transform<T, ?>) part.transform()).project(part.name(), pred, true);
         Expression strictResult = null;
 
         if (strictProjection != null) {
-          Expression bound = strictProjection.bind(spec.partitionType(), caseSensitive);
-          if (bound instanceof BoundPredicate) {
-            strictResult = super.predicate((BoundPredicate<?>) bound);
-          } else {
-            // if the result is not a predicate, then it must be a constant like alwaysTrue or
-            // alwaysFalse
-            strictResult = bound;
-          }
+          strictResult =
+              new Evaluator(spec.partitionType(), strictProjection, caseSensitive).eval(struct)
+                  ? alwaysTrue()
+                  : alwaysFalse();
         }
 
         if (strictResult != null && strictResult.op() == Expression.Operation.TRUE) {
@@ -264,19 +260,14 @@ public class ResidualEvaluator implements Serializable {
         }
 
         // checking the inclusive projection
-        UnboundPredicate<?> inclusiveProjection =
-            ((Transform<T, ?>) part.transform()).project(part.name(), pred);
+        Expression inclusiveProjection =
+            ((Transform<T, ?>) part.transform()).project(part.name(), pred, false);
         Expression inclusiveResult = null;
         if (inclusiveProjection != null) {
-          Expression boundInclusive = inclusiveProjection.bind(spec.partitionType(), caseSensitive);
-          if (boundInclusive instanceof BoundPredicate) {
-            // using predicate method specific to inclusive
-            inclusiveResult = super.predicate((BoundPredicate<?>) boundInclusive);
-          } else {
-            // if the result is not a predicate, then it must be a constant like alwaysTrue or
-            // alwaysFalse
-            inclusiveResult = boundInclusive;
-          }
+          inclusiveResult =
+              new Evaluator(spec.partitionType(), inclusiveProjection, caseSensitive).eval(struct)
+                  ? alwaysTrue()
+                  : alwaysFalse();
         }
 
         if (inclusiveResult != null && inclusiveResult.op() == Expression.Operation.FALSE) {

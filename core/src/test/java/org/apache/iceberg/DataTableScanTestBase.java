@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
@@ -32,7 +34,9 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceMap;
+import org.apache.iceberg.util.TruncateUtil;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -86,6 +90,34 @@ public abstract class DataTableScanTestBase<
         .withPartitionPath(partitionPath)
         .withRecordCount(10)
         .build();
+  }
+
+  @TestTemplate
+  public void testScanIncludesWrappedTruncatePartition() throws IOException {
+    Schema schema = new Schema(optional(1, "value", Types.IntegerType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 1000).build();
+    this.table = TestTables.create(tableDir, "test_truncate_wrap", schema, spec, formatVersion);
+    int wrapped = TruncateUtil.truncateInt(1000, Integer.MIN_VALUE);
+    DataFile wrappedFile =
+        DataFiles.builder(spec)
+            .withPath("/path/to/data-wrapped.parquet")
+            .withFormat(FileFormat.PARQUET)
+            .withFileSizeInBytes(100)
+            .withPartition(TestHelpers.Row.of(wrapped))
+            .withRecordCount(10)
+            .build();
+    DataFile ordinaryFile =
+        DataFiles.builder(spec)
+            .withPath("/path/to/data-ordinary.parquet")
+            .withFormat(FileFormat.PARQUET)
+            .withFileSizeInBytes(100)
+            .withPartition(TestHelpers.Row.of(0))
+            .withRecordCount(10)
+            .build();
+    table.newFastAppend().appendFile(wrappedFile).appendFile(ordinaryFile).commit();
+
+    validateExpectedFileScanTasks(
+        newScan().filter(lessThan("value", 0)), ImmutableList.of(wrappedFile.location()));
   }
 
   protected DeleteFile newDeleteFile(String partitionPath) {

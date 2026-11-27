@@ -29,14 +29,21 @@ import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.stream.Stream;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
+import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestTruncatesResiduals {
 
@@ -140,6 +147,103 @@ public class TestTruncatesResiduals {
     assertResidualValue(spec, notEqual("value", 99), 100, Expression.Operation.TRUE);
     assertResidualPredicate(spec, notEqual("value", 99), 90);
     assertResidualValue(spec, notEqual("value", 99), 80, Expression.Operation.TRUE);
+  }
+
+  private static Stream<Arguments> integerTypes() {
+    return Stream.of(
+        Arguments.of(Types.IntegerType.get(), (long) Integer.MIN_VALUE),
+        Arguments.of(Types.LongType.get(), Long.MIN_VALUE));
+  }
+
+  private static Object sourceValue(Type type, long value) {
+    if (type.typeId() == Type.TypeID.INTEGER) {
+      return (int) value;
+    }
+
+    return value;
+  }
+
+  @SuppressWarnings("unchecked")
+  private static Object transform(PartitionSpec spec, Type type, long value) {
+    Transform<Object, Object> transform =
+        (Transform<Object, Object>) spec.fields().get(0).transform();
+    return transform.bind(type).apply(sourceValue(type, value));
+  }
+
+  private static long firstNormalPartition(long minimum, int width) {
+    return minimum + (width - Math.floorMod(minimum, width));
+  }
+
+  @ParameterizedTest
+  @MethodSource("integerTypes")
+  void wrappedPartitionIsRejectedByGreaterThan(Type type, long minimum) {
+    int width = 10;
+    Schema schema = new Schema(Types.NestedField.optional(50, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", width).build();
+    Object wrapped = transform(spec, type, minimum);
+
+    assertResidualValue(spec, greaterThan("value", 0), wrapped, Expression.Operation.FALSE);
+  }
+
+  @ParameterizedTest
+  @MethodSource("integerTypes")
+  void wrappedPartitionIsSelectedByLessThan(Type type, long minimum) {
+    int width = 1000;
+    Schema schema = new Schema(Types.NestedField.optional(50, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", width).build();
+    Object wrapped = transform(spec, type, minimum);
+
+    assertResidualValue(spec, lessThan("value", 0), wrapped, Expression.Operation.TRUE);
+  }
+
+  @ParameterizedTest
+  @MethodSource("integerTypes")
+  void firstNormalPartitionIsSelectedByGreaterThan(Type type, long minimum) {
+    int width = 10;
+    Schema schema = new Schema(Types.NestedField.optional(50, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", width).build();
+    Object firstNormal = transform(spec, type, firstNormalPartition(minimum, width));
+
+    assertResidualValue(
+        spec,
+        greaterThan("value", sourceValue(type, minimum)),
+        firstNormal,
+        Expression.Operation.TRUE);
+  }
+
+  @ParameterizedTest
+  @MethodSource("integerTypes")
+  void firstNormalPartitionIsRejectedByLessThan(Type type, long minimum) {
+    int width = 10;
+    Schema schema = new Schema(Types.NestedField.optional(50, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", width).build();
+    Object firstNormal = transform(spec, type, firstNormalPartition(minimum, width));
+
+    assertResidualValue(
+        spec,
+        lessThan("value", sourceValue(type, minimum)),
+        firstNormal,
+        Expression.Operation.FALSE);
+    assertResidualValue(
+        spec,
+        lessThanOrEqual("value", sourceValue(type, minimum)),
+        firstNormal,
+        Expression.Operation.FALSE);
+  }
+
+  @ParameterizedTest
+  @MethodSource("integerTypes")
+  void countOnlyMetricsDoNotSelectWrappedPartition(Type type, long minimum) {
+    int width = 10;
+    Schema schema = new Schema(Types.NestedField.optional(50, "value", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", width).build();
+    Object wrapped = transform(spec, type, minimum);
+    Expression residual =
+        ResidualEvaluator.of(spec, greaterThan("value", 0), true)
+            .residualFor(TestHelpers.Row.of(wrapped));
+    DataFile file = new TestHelpers.TestDataFile("file.parquet", TestHelpers.Row.of(wrapped), 10);
+
+    assertThat(new StrictMetricsEvaluator(schema, residual).eval(file)).isFalse();
   }
 
   @Test
