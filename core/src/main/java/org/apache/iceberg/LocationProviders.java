@@ -21,10 +21,8 @@ package org.apache.iceberg;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Set;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.hash.HashCode;
 import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
@@ -198,20 +196,27 @@ public class LocationProviders {
     }
 
     private static String pathContext(String tableLocation) {
-      Path dataPath = new Path(tableLocation);
-      Path parent = dataPath.getParent();
-      String resolvedContext;
-      if (parent != null) {
-        // remove the data folder
-        resolvedContext = String.format("%s/%s", parent.getName(), dataPath.getName());
-      } else {
-        resolvedContext = dataPath.getName();
+      String path = LocationUtil.stripTrailingSlash(tableLocation);
+      if (LocationUtil.hasScheme(path)) {
+        path = path.substring(path.indexOf(':') + 1);
+        if (path.startsWith("//")) {
+          int authorityEnd = path.indexOf('/', 2);
+          path = authorityEnd < 0 ? "" : path.substring(authorityEnd);
+        }
       }
 
-      Preconditions.checkState(
-          !resolvedContext.endsWith("/"), "Path context must not end with a slash.");
+      int lastSlash = path.lastIndexOf('/');
+      String name = path.substring(lastSlash + 1);
+      if (name.isEmpty()) {
+        return null;
+      }
 
-      return resolvedContext;
+      if (lastSlash <= 0) {
+        return name;
+      }
+
+      String parentName = path.substring(path.lastIndexOf('/', lastSlash - 1) + 1, lastSlash);
+      return parentName.isEmpty() ? name : String.format("%s/%s", parentName, name);
     }
 
     private String computeHash(String fileName) {
