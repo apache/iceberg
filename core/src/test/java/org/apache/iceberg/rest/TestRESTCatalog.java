@@ -71,6 +71,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestCatalogUtil;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
@@ -81,6 +82,8 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -90,7 +93,9 @@ import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileIOTrackerTestUtil;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.CommitReport;
@@ -133,6 +138,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -3238,7 +3244,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           FileIO fileIO,
           TableMetadata current,
           Set<Endpoint> supportedEndpoints) {
-        super(client, path, () -> customHeaders, fileIO, current, supportedEndpoints);
+        super(client, path, () -> customHeaders, fileIO, null, current, supportedEndpoints);
         customTableOpsCalled.set(true);
       }
 
@@ -3256,6 +3262,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             path,
             () -> customHeaders,
             fileIO,
+            null,
             updateType,
             createChanges,
             current,
@@ -4100,6 +4107,265 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     String metadataFileLocation =
         ((HasTableOperations) table).operations().current().metadataFileLocation();
     assertThat(metadataFileLocation).contains("ns 1 ?=-+/ns 2 ?=-+/table 1 ?=-+");
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "X-Iceberg-Access-Delegation, vended-credentials",
+    "X-Iceberg-Access-Delegation, remote-signing",
+    "X-Iceberg-Access-Delegation, 'none,vended-credentials'",
+    "x-iceberg-access-delegation, vended-credentials"
+  })
+  void clientKmsRejectsAccessDelegation(String header, String accessDelegation) {
+    assertThatThrownBy(
+            () ->
+                catalogWithConfig(
+                    ConfigResponse.builder().build(),
+                    ImmutableMap.of(
+                        CatalogProperties.ENCRYPTION_KMS_IMPL,
+                        UnitestKMS.class.getName(),
+                        "header." + header,
+                        accessDelegation)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot request access delegation with a client-side KMS: header.%s=%s "
+                + "(must be none or unset)",
+            header, accessDelegation);
+  }
+
+  @Test
+  void clientKmsRejectsAccessDelegationFromServerConfig() {
+    assertThatThrownBy(
+            () ->
+                catalogWithConfig(
+                    ConfigResponse.builder()
+                        .withOverride("header.X-Iceberg-Access-Delegation", "vended-credentials")
+                        .build(),
+                    ImmutableMap.of(
+                        CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getName())))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot request access delegation with a client-side KMS: "
+                + "header.X-Iceberg-Access-Delegation=vended-credentials (must be none or unset)");
+  }
+
+  @Test
+  void clientKmsTypeRejectsAccessDelegation() {
+    // the check runs before the KMS client is created, so the AWS client isn't needed here
+    assertThatThrownBy(
+            () ->
+                catalogWithConfig(
+                    ConfigResponse.builder().build(),
+                    ImmutableMap.of(
+                        CatalogProperties.ENCRYPTION_KMS_TYPE,
+                        CatalogProperties.ENCRYPTION_KMS_TYPE_AWS,
+                        "header.X-Iceberg-Access-Delegation",
+                        "vended-credentials")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot request access delegation with a client-side KMS: "
+                + "header.X-Iceberg-Access-Delegation=vended-credentials (must be none or unset)");
+  }
+
+  @Test
+  void clientKmsAllowsNoAccessDelegation() {
+    assertThatCode(
+            () ->
+                catalogWithConfig(
+                        ConfigResponse.builder().build(),
+                        ImmutableMap.of(
+                            CatalogProperties.ENCRYPTION_KMS_IMPL,
+                            UnitestKMS.class.getName(),
+                            "header.X-Iceberg-Access-Delegation",
+                            "none"))
+                    .close())
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  void accessDelegationAllowedWithoutClientKms() {
+    assertThatCode(
+            () ->
+                catalogWithConfig(
+                        ConfigResponse.builder().build(),
+                        ImmutableMap.of("header.X-Iceberg-Access-Delegation", "vended-credentials"))
+                    .close())
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  void createTransactionRejectsSettingKeyId() throws IOException {
+    try (RESTCatalog catalog = catalogWithKms()) {
+      catalog.createNamespace(TBL.namespace());
+      Transaction create =
+          catalog
+              .buildTable(TBL, SCHEMA)
+              .withProperty(TableProperties.FORMAT_VERSION, "3")
+              .createTransaction();
+      create
+          .updateProperties()
+          .set(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+          .commit();
+
+      assertThatThrownBy(create::commitTransaction)
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Cannot change key ID in a create transaction");
+      assertThat(catalog.tableExists(TBL)).isFalse();
+    }
+  }
+
+  @Test
+  void createTransactionRejectsRemovingKeyId() throws IOException {
+    try (RESTCatalog catalog = catalogWithKms()) {
+      catalog.createNamespace(TBL.namespace());
+      Transaction create =
+          catalog
+              .buildTable(TBL, SCHEMA)
+              .withProperty(TableProperties.FORMAT_VERSION, "3")
+              .withProperty(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+              .createTransaction();
+      create.updateProperties().remove(TableProperties.ENCRYPTION_TABLE_KEY).commit();
+
+      assertThatThrownBy(create::commitTransaction)
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Cannot change key ID in a create transaction");
+      assertThat(catalog.tableExists(TBL)).isFalse();
+    }
+  }
+
+  @Test
+  void createTransactionRejectsInvalidDataKeyLength() throws IOException {
+    try (RESTCatalog catalog = catalogWithKms()) {
+      catalog.createNamespace(TBL.namespace());
+
+      assertThatThrownBy(
+              () ->
+                  catalog
+                      .buildTable(TBL, SCHEMA)
+                      .withProperty(TableProperties.FORMAT_VERSION, "3")
+                      .withProperty(
+                          TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+                      .withProperty(TableProperties.ENCRYPTION_DEK_LENGTH, "17")
+                      .createTransaction())
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage("Invalid data key length: 17 (must be 16, 24, or 32)");
+    }
+  }
+
+  @Test
+  void loadTableWithoutKmsRejectsEncryptedTable() throws IOException {
+    try (RESTCatalog catalog = catalogWithKms();
+        RESTCatalog catalogWithoutKms =
+            catalogWithConfig(ConfigResponse.builder().build(), Map.of())) {
+      catalog.createNamespace(TBL.namespace());
+      catalog
+          .buildTable(TBL, SCHEMA)
+          .withProperty(TableProperties.FORMAT_VERSION, "3")
+          .withProperty(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+          .create();
+
+      assertThatThrownBy(() -> catalogWithoutKms.loadTable(TBL))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageStartingWith(
+              "Cannot create encryption manager without a key management client");
+    }
+  }
+
+  @Test
+  void encryptedTableSharingCatalogFileIOIsNotTracked() throws IOException {
+    try (RESTCatalog catalog = catalogWithKms()) {
+      catalog.createNamespace(TBL.namespace());
+      Table created =
+          catalog
+              .buildTable(TBL, SCHEMA)
+              .withProperty(TableProperties.FORMAT_VERSION, "3")
+              .withProperty(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+              .create();
+      Table loaded = catalog.loadTable(TBL);
+      assertThat(created.io()).isInstanceOf(EncryptingFileIO.class);
+
+      // the tracker closes a tracked FileIO when its table is garbage collected, so tracking these
+      // tables would close the catalog's FileIO
+      assertThat(FileIOTrackerTestUtil.trackedOperations(catalog.sessionCatalog().fileIOTracker()))
+          .doesNotContain(
+              ((HasTableOperations) created).operations(),
+              ((HasTableOperations) loaded).operations());
+    }
+  }
+
+  @Test
+  void encryptedTableWithOwnFileIOIsTracked() throws IOException {
+    List<FileIO> createdFileIOs = new CopyOnWriteArrayList<>();
+    try (RESTCatalog catalog =
+        new RESTCatalog(config -> new RESTCatalogAdapter(backendCatalog)) {
+          @Override
+          protected RESTSessionCatalog newSessionCatalog(
+              Function<Map<String, String>, RESTClient> clientBuilder) {
+            return new RESTSessionCatalog(
+                clientBuilder,
+                (context, properties) -> {
+                  FileIO fileIO = Mockito.spy(new InMemoryFileIO());
+                  fileIO.initialize(properties);
+                  createdFileIOs.add(fileIO);
+                  return fileIO;
+                });
+          }
+        }) {
+      catalog.initialize(
+          "test", Map.of(CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getName()));
+      assertThat(createdFileIOs).as("Catalog FileIO").hasSize(1);
+      catalog.createNamespace(TBL.namespace());
+      catalog
+          .buildTable(TBL, SCHEMA)
+          .withProperty(TableProperties.FORMAT_VERSION, "3")
+          .withProperty(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+          .create();
+      // with an ioBuilder set, the table gets its own FileIO
+      List<FileIO> tableFileIOs = List.copyOf(createdFileIOs.subList(1, createdFileIOs.size()));
+      assertThat(tableFileIOs).isNotEmpty();
+
+      // closing the tracker closes tracked FileIOs, as garbage collecting their tables does
+      catalog.sessionCatalog().fileIOTracker().close();
+
+      Awaitility.await("table FileIOs get closed")
+          .atMost(5, TimeUnit.SECONDS)
+          .untilAsserted(() -> tableFileIOs.forEach(fileIO -> Mockito.verify(fileIO).close()));
+    }
+  }
+
+  private RESTCatalog catalogWithKms() {
+    return catalogWithConfig(
+        ConfigResponse.builder().build(),
+        ImmutableMap.of(CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getName()));
+  }
+
+  private RESTCatalog catalogWithConfig(
+      ConfigResponse configResponse, Map<String, String> properties) {
+    RESTCatalogAdapter adapter =
+        new RESTCatalogAdapter(backendCatalog) {
+          @Override
+          public <T extends RESTResponse> T execute(
+              HTTPRequest request,
+              Class<T> responseType,
+              Consumer<ErrorResponse> errorHandler,
+              Consumer<Map<String, String>> responseHeaders) {
+            if (ResourcePaths.config().equals(request.path())) {
+              return castResponse(responseType, configResponse);
+            }
+
+            return super.execute(request, responseType, errorHandler, responseHeaders);
+          }
+        };
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.<String, String>builder()
+            .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO")
+            .putAll(properties)
+            .buildOrThrow());
+    return catalog;
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
