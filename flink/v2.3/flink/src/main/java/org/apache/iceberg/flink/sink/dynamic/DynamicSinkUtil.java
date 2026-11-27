@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.io.Closeable;
 import java.util.Collections;
 import java.util.Set;
 import javax.annotation.Nullable;
@@ -84,6 +85,11 @@ class DynamicSinkUtil {
     }
 
     return distributionFieldIds;
+  }
+
+  @Nullable
+  static Closeable closeable(@Nullable Object obj) {
+    return obj instanceof Closeable closeable ? closeable : null;
   }
 
   static int safeAbs(int input) {

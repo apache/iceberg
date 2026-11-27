@@ -271,6 +271,21 @@ class TestDynamicTableUpdateOperator {
     assertThat(input).isEqualTo(output);
   }
 
+  @Test
+  void closesCatalogOnClose() throws Exception {
+    CloseCountingCatalog catalog = new CloseCountingCatalog();
+    DynamicTableUpdateOperator operator =
+        new DynamicTableUpdateOperator(
+            catalog.loader(),
+            TableCreator.DEFAULT,
+            flinkDynamicSinkConfiguration(CASE_SENSITIVE, PRESERVE_COLUMNS));
+    operator.open(null);
+
+    operator.close();
+
+    assertThat(catalog.closeCount()).isEqualTo(1);
+  }
+
   private static FlinkDynamicSinkConf flinkDynamicSinkConfiguration(
       boolean caseSensitive, boolean dropUnusedColumns) {
     return new FlinkDynamicSinkConf(
