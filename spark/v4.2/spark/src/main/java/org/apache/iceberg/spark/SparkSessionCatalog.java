@@ -43,6 +43,7 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
 import org.apache.spark.sql.catalyst.analysis.NonEmptyNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException;
+import org.apache.spark.sql.catalyst.catalog.CatalogTableType;
 import org.apache.spark.sql.connector.catalog.CatalogExtension;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
@@ -56,6 +57,7 @@ import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.connector.catalog.TableSummary;
+import org.apache.spark.sql.connector.catalog.V1Table;
 import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.catalog.ViewCatalog;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
@@ -213,8 +215,23 @@ public class SparkSessionCatalog<
       checkLoadContextSupported("table", ident, context);
       return icebergCatalog.loadTable(ident);
     } catch (NoSuchTableException e) {
-      return getSessionCatalog().loadTable(ident);
+      Table table = getSessionCatalog().loadTable(ident);
+      if (isIcebergView(ident, table)) {
+        // The session catalog sees Iceberg views stored in the Hive Metastore as Hive views, but
+        // they must be resolved as Iceberg views, by the ResolveViews rule of the Iceberg
+        // extensions
+        throw e;
+      }
+
+      return table;
     }
+  }
+
+  private boolean isIcebergView(Identifier ident, Table table) {
+    return asViewCatalog != null
+        && table instanceof V1Table
+        && CatalogTableType.VIEW().equals(((V1Table) table).v1Table().tableType())
+        && asViewCatalog.viewExists(ident);
   }
 
   @Override
