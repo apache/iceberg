@@ -59,6 +59,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
           .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
           .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
+          .applyMutation(s3FileIOProperties::applyServiceConfigurations)
           .applyMutation(s3FileIOProperties::applyS3CrtConfigurations)
           .build();
     }
@@ -68,6 +69,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
         .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
         .applyMutation(awsClientProperties::applyLegacyMd5Plugin)
         .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
+        .applyMutation(s3FileIOProperties::applyServiceConfigurations)
         .build();
   }
 

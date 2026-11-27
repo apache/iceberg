@@ -49,6 +49,7 @@ import software.amazon.awssdk.core.retry.conditions.OrRetryCondition;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.core.retry.conditions.RetryOnExceptionsCondition;
 import software.amazon.awssdk.core.retry.conditions.TokenBucketRetryCondition;
+import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
 import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
@@ -1010,13 +1011,49 @@ public class S3FileIOProperties implements Serializable {
     builder
         .dualstackEnabled(isDualStackEnabled)
         .crossRegionAccessEnabled(isCrossRegionAccessEnabled)
-        .serviceConfiguration(
-            S3Configuration.builder()
-                .pathStyleAccessEnabled(isPathStyleAccess)
-                .useArnRegionEnabled(isUseArnRegionEnabled)
-                .accelerateModeEnabled(isAccelerationEnabled)
-                .chunkedEncodingEnabled(isChunkedEncodingEnabled)
-                .build());
+        .serviceConfiguration(s3Configuration());
+  }
+
+  /**
+   * Configure the same service settings as for an S3 client on an S3 async client.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3AsyncClient.builder().applyMutation(s3FileIOProperties::applyServiceConfigurations)
+   * </pre>
+   */
+  public <T extends S3AsyncClientBuilder> void applyServiceConfigurations(T builder) {
+    builder
+        .dualstackEnabled(isDualStackEnabled)
+        .crossRegionAccessEnabled(isCrossRegionAccessEnabled)
+        .serviceConfiguration(s3Configuration());
+  }
+
+  /**
+   * Configure path-style access, acceleration and cross-region access for an S3 CRT client. The CRT
+   * client has no dual-stack, ARN region or chunked encoding setting, so those are not applied.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3AsyncClient.crtBuilder().applyMutation(s3FileIOProperties::applyServiceConfigurations)
+   * </pre>
+   */
+  public <T extends S3CrtAsyncClientBuilder> void applyServiceConfigurations(T builder) {
+    builder
+        .crossRegionAccessEnabled(isCrossRegionAccessEnabled)
+        .forcePathStyle(isPathStyleAccess)
+        .accelerate(isAccelerationEnabled);
+  }
+
+  private S3Configuration s3Configuration() {
+    return S3Configuration.builder()
+        .pathStyleAccessEnabled(isPathStyleAccess)
+        .useArnRegionEnabled(isUseArnRegionEnabled)
+        .accelerateModeEnabled(isAccelerationEnabled)
+        .chunkedEncodingEnabled(isChunkedEncodingEnabled)
+        .build();
   }
 
   /**
