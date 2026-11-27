@@ -34,6 +34,13 @@ WORKDIR /usr/lib/iceberg-rest
 COPY --chown=iceberg:iceberg open-api/build/rest-fixture-runtime/ /usr/lib/iceberg-rest/libs/
 COPY --chown=iceberg:iceberg docker/iceberg-rest-fixture/entrypoint.sh /usr/lib/iceberg-rest/entrypoint.sh
 
+# LICENSE and NOTICE for the image
+COPY --chown=iceberg:iceberg open-api/LICENSE open-api/NOTICE /usr/lib/iceberg-rest/
+# open-api/LICENSE reuses the cloud bundles' own LICENSE files
+COPY --chown=iceberg:iceberg aws-bundle/LICENSE /usr/lib/iceberg-rest/licenses/iceberg-aws-bundle/LICENSE
+COPY --chown=iceberg:iceberg azure-bundle/LICENSE /usr/lib/iceberg-rest/licenses/iceberg-azure-bundle/LICENSE
+COPY --chown=iceberg:iceberg gcp-bundle/LICENSE /usr/lib/iceberg-rest/licenses/iceberg-gcp-bundle/LICENSE
+
 ENV CATALOG_CATALOG__IMPL=org.apache.iceberg.jdbc.JdbcCatalog
 ENV CATALOG_URI=jdbc:sqlite:/tmp/iceberg_catalog.db?journal_mode=WAL
 ENV CATALOG_JDBC_USER=user
