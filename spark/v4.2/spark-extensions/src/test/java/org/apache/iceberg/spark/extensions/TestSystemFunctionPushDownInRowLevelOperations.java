@@ -106,7 +106,8 @@ public class TestSystemFunctionPushDownInRowLevelOperations extends ExtensionsTe
   @TestTemplate
   public void testMergeOnReadDeleteYearsTransform() {
     initTable("years(ts)");
-    checkDelete(MERGE_ON_READ, "system.years(ts) <= 30");
+    // ts IS NOT NULL lets Iceberg evaluate <= completely; null sorts before 30
+    checkDelete(MERGE_ON_READ, "system.years(ts) <= 30 AND ts IS NOT NULL");
   }
 
   @TestTemplate
@@ -178,7 +179,8 @@ public class TestSystemFunctionPushDownInRowLevelOperations extends ExtensionsTe
   @TestTemplate
   public void testMergeOnReadUpdateYearsTransform() {
     initTable("years(ts)");
-    checkUpdate(MERGE_ON_READ, "system.years(ts) <= 30");
+    // ts IS NOT NULL lets Iceberg evaluate <= completely; null sorts before 30
+    checkUpdate(MERGE_ON_READ, "system.years(ts) <= 30 AND ts IS NOT NULL");
   }
 
   @TestTemplate
@@ -202,7 +204,8 @@ public class TestSystemFunctionPushDownInRowLevelOperations extends ExtensionsTe
   @TestTemplate
   public void testMergeOnReadMergeYearsTransform() {
     initTable("years(ts)");
-    checkMerge(MERGE_ON_READ, "system.years(ts) <= 30");
+    // ts IS NOT NULL lets Iceberg evaluate <= completely; null sorts before 30
+    checkMerge(MERGE_ON_READ, "system.years(ts) <= 30 AND ts IS NOT NULL");
   }
 
   @TestTemplate

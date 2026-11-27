@@ -42,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.source.PlanUtils;
@@ -140,16 +141,16 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
   @TestTemplate
   public void testDaysFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName);
-    testDaysFunction(false);
+    testDaysFunction();
   }
 
   @TestTemplate
   public void testDaysFunctionOnPartitionedTable() {
     createPartitionedTable(spark, tableName, "days(ts)");
-    testDaysFunction(true);
+    testDaysFunction();
   }
 
-  private void testDaysFunction(boolean partitioned) {
+  private void testDaysFunction() {
     String timestamp = "2018-11-20T00:00:00.000000+00:00";
     int targetDays = timestampStrToDayOrdinal(timestamp);
     String query =
@@ -160,7 +161,8 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
     Dataset<Row> df = spark.sql(query);
     LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
-    checkExpressions(optimizedPlan, partitioned, "days");
+    // ts can be null; Iceberg would match the null partition, so Spark keeps the filter
+    checkExpressions(optimizedPlan, false, "days");
     checkPushedFilters(optimizedPlan, lessThan(day("ts"), targetDays));
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
@@ -198,16 +200,16 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
   @TestTemplate
   public void testBucketLongFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName);
-    testBucketLongFunction(false);
+    testBucketLongFunction();
   }
 
   @TestTemplate
   public void testBucketLongFunctionOnPartitionedTable() {
     createPartitionedTable(spark, tableName, "bucket(5, id)");
-    testBucketLongFunction(true);
+    testBucketLongFunction();
   }
 
-  private void testBucketLongFunction(boolean partitioned) {
+  private void testBucketLongFunction() {
     int target = 2;
     String query =
         String.format(
@@ -216,7 +218,8 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
     Dataset<Row> df = spark.sql(query);
     LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
-    checkExpressions(optimizedPlan, partitioned, "bucket");
+    // id can be null; Iceberg would match the null partition, so Spark keeps the filter
+    checkExpressions(optimizedPlan, false, "bucket");
     checkPushedFilters(optimizedPlan, lessThanOrEqual(bucket("id", 5), target));
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
@@ -226,16 +229,16 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
   @TestTemplate
   public void testBucketStringFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName);
-    testBucketStringFunction(false);
+    testBucketStringFunction();
   }
 
   @TestTemplate
   public void testBucketStringFunctionOnPartitionedTable() {
     createPartitionedTable(spark, tableName, "bucket(5, data)");
-    testBucketStringFunction(true);
+    testBucketStringFunction();
   }
 
-  private void testBucketStringFunction(boolean partitioned) {
+  private void testBucketStringFunction() {
     int target = 2;
     String query =
         String.format(
@@ -244,7 +247,8 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
     Dataset<Row> df = spark.sql(query);
     LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
-    checkExpressions(optimizedPlan, partitioned, "bucket");
+    // data can be null; Iceberg would match the null partition, so Spark keeps the filter
+    checkExpressions(optimizedPlan, false, "bucket");
     checkPushedFilters(optimizedPlan, notEqual(bucket("data", 5), target));
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
@@ -278,6 +282,35 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
     assertThat(actual).hasSize(5);
+  }
+
+  @TestTemplate
+  public void testNullPartitionWithFunctionPredicates() {
+    createPartitionedTable(spark, tableName, "days(ts)");
+    // without column metrics, only the partition value decides whether the null row is read
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' 'none')",
+        tableName, TableProperties.DEFAULT_WRITE_METRICS_MODE);
+    sql("INSERT INTO %s VALUES (100, null, 'null-ts')", tableName);
+    String timestamp = "2018-11-20T00:00:00.000000+00:00";
+
+    // NULL < x is unknown in SQL, but Iceberg orders null first, so the filter must stay
+    String lessThanQuery =
+        String.format(
+            "SELECT * FROM %s WHERE system.days(ts) < date('%s') ORDER BY id",
+            tableName, timestamp);
+    Dataset<Row> lessThanDf = spark.sql(lessThanQuery);
+    checkExpressions(lessThanDf.queryExecution().optimizedPlan(), false, "days");
+    assertThat(rowsToJava(lessThanDf.collectAsList())).hasSize(5);
+
+    // NULL > x is false in Iceberg as in SQL, so the filter is evaluated completely by Iceberg
+    String greaterThanQuery =
+        String.format(
+            "SELECT * FROM %s WHERE system.days(ts) > date('%s') ORDER BY id",
+            tableName, timestamp);
+    Dataset<Row> greaterThanDf = spark.sql(greaterThanQuery);
+    checkExpressions(greaterThanDf.queryExecution().optimizedPlan(), true, "days");
+    assertThat(rowsToJava(greaterThanDf.collectAsList())).hasSize(5);
   }
 
   private void checkExpressions(

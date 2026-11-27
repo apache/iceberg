@@ -30,10 +30,13 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Scan;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.And;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Or;
+import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -160,6 +163,8 @@ abstract class BaseSparkScanBuilder implements ScanBuilder {
     List<Predicate> pushablePredicates = Lists.newArrayListWithExpectedSize(predicates.length);
     List<Predicate> postScanPredicates = Lists.newArrayListWithExpectedSize(predicates.length);
 
+    Set<String> notNullColumns = notNullColumns(predicates);
+
     for (Predicate predicate : predicates) {
       if (predicate instanceof PartitionPredicate partitionPredicate) {
         partitionPredicates.add(partitionPredicate);
@@ -181,7 +186,9 @@ abstract class BaseSparkScanBuilder implements ScanBuilder {
           pushablePredicates.add(predicate);
         }
 
-        if (expr == null || !ExpressionUtil.selectsPartitions(expr, table, caseSensitive)) {
+        if (expr == null
+            || !isNullSafe(expr, notNullColumns)
+            || !ExpressionUtil.selectsPartitions(expr, table, caseSensitive)) {
           postScanPredicates.add(predicate);
         } else {
           LOG.info("Evaluating completely on Iceberg side: {}", predicate);
@@ -197,6 +204,77 @@ abstract class BaseSparkScanBuilder implements ScanBuilder {
     this.pushedPredicates.addAll(pushablePredicates);
 
     return postScanPredicates.toArray(new Predicate[0]);
+  }
+
+  // columns that a top-level IS NOT NULL predicate keeps non-null for the whole scan
+  private static Set<String> notNullColumns(Predicate[] predicates) {
+    Set<String> columns = Sets.newHashSet();
+    for (Predicate predicate : predicates) {
+      if (!(predicate instanceof PartitionPredicate)) {
+        try {
+          addNotNullColumns(SparkV2Filters.convert(predicate), columns);
+        } catch (Exception e) {
+          // the predicate is handled again when it is pushed
+        }
+      }
+    }
+
+    return columns;
+  }
+
+  private static void addNotNullColumns(Expression expr, Set<String> columns) {
+    if (expr == null) {
+      return;
+    }
+
+    if (expr.op() == Expression.Operation.AND) {
+      And and = (And) expr;
+      addNotNullColumns(and.left(), columns);
+      addNotNullColumns(and.right(), columns);
+    } else if (expr.op() == Expression.Operation.NOT_NULL
+        && expr instanceof UnboundPredicate<?> predicate) {
+      columns.add(predicate.ref().name());
+    }
+  }
+
+  /**
+   * Returns whether Iceberg evaluates the expression as SQL does for null values.
+   *
+   * <p>Iceberg expressions are two-valued: for a null value, predicates such as {@code notEq} and
+   * {@code notIn} are true, while in SQL they are unknown and the row is not selected. The same
+   * holds for {@code lt} and {@code ltEq}, because literal comparators order null first. A filter
+   * that selects whole partitions is only dropped from Spark's post-scan filters if every such
+   * predicate is on a column known to be non-null.
+   */
+  private static boolean isNullSafe(Expression expr, Set<String> notNullColumns) {
+    return nullSafe(Expressions.rewriteNot(expr), notNullColumns);
+  }
+
+  private static boolean nullSafe(Expression expr, Set<String> notNullColumns) {
+    switch (expr.op()) {
+      case TRUE:
+      case FALSE:
+      case IS_NULL:
+      case NOT_NULL:
+      case IS_NAN:
+      case EQ:
+      case IN:
+      case GT:
+      case GT_EQ:
+      case STARTS_WITH:
+        return true;
+      case AND:
+        And and = (And) expr;
+        Set<String> columns = Sets.newHashSet(notNullColumns);
+        addNotNullColumns(and, columns);
+        return nullSafe(and.left(), columns) && nullSafe(and.right(), columns);
+      case OR:
+        Or or = (Or) expr;
+        return nullSafe(or.left(), notNullColumns) && nullSafe(or.right(), notNullColumns);
+      default:
+        return expr instanceof UnboundPredicate<?> predicate
+            && notNullColumns.contains(predicate.ref().name());
+    }
   }
 
   // logic necessary for SupportsPushDownV2Filters

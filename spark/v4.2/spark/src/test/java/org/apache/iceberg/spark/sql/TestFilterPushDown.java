@@ -217,6 +217,36 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testFilterPushdownWithNegatedPredicatesOnNullPartition() {
+    sql(
+        "CREATE TABLE %s (id INT, salary INT, dep STRING)"
+            + "USING iceberg "
+            + "PARTITIONED BY (dep)",
+        tableName);
+    configurePlanningMode(planningMode);
+
+    sql("INSERT INTO %s VALUES (1, 100, 'd1')", tableName);
+    sql("INSERT INTO %s VALUES (2, 200, 'd2')", tableName);
+    sql("INSERT INTO %s VALUES (3, 300, null)", tableName);
+
+    // NULL <> 'd1' is unknown in SQL, so rows in the null partition must not be selected
+    checkPostScanFilter(
+        "dep != 'd1' OR dep != 'd2'", true, ImmutableList.of(row(1, 100, "d1"), row(2, 200, "d2")));
+    checkPostScanFilter("dep = 'd1' OR dep != 'd2'", true, ImmutableList.of(row(1, 100, "d1")));
+    checkPostScanFilter(
+        "NOT (dep = 'd1' AND dep IS NULL)",
+        true,
+        ImmutableList.of(row(1, 100, "d1"), row(2, 200, "d2")));
+
+    // Spark adds dep IS NOT NULL for these, so Iceberg still evaluates them completely
+    checkPostScanFilter("dep != 'd1'", false, ImmutableList.of(row(2, 200, "d2")));
+    checkPostScanFilter(
+        "dep = 'd1' OR dep = 'd2'", false, ImmutableList.of(row(1, 100, "d1"), row(2, 200, "d2")));
+    checkPostScanFilter(
+        "dep IS NULL OR dep = 'd1'", false, ImmutableList.of(row(1, 100, "d1"), row(3, 300, null)));
+  }
+
+  @TestTemplate
   public void partitionPredicatePushdownWithUDF() {
     sql("CREATE TABLE %s (id INT, dep STRING) USING iceberg PARTITIONED BY (dep)", tableName);
     configurePlanningMode(planningMode);
@@ -908,6 +938,23 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
       String predicate, String icebergFilters, List<Object[]> expectedRows) {
 
     checkFilters(predicate, null, icebergFilters, expectedRows);
+  }
+
+  private void checkPostScanFilter(
+      String predicate, boolean expectPostScanFilter, List<Object[]> expectedRows) {
+    Action check =
+        () ->
+            assertEquals(
+                "Rows must match",
+                expectedRows,
+                sql("SELECT * FROM %s WHERE %s ORDER BY id", tableName, predicate));
+    String planAsString = executeAndKeepPlan(check).toString();
+
+    if (expectPostScanFilter) {
+      assertThat(planAsString).as("Should have a post scan filter").contains("Filter ");
+    } else {
+      assertThat(planAsString).as("Should be no post scan filter").doesNotContain("Filter ");
+    }
   }
 
   private void setSmallSplitSize() {
