@@ -342,6 +342,44 @@ public abstract class TestMetrics {
   }
 
   @TestTemplate
+  public void testMetricsForFieldsUnderNullStruct() throws IOException {
+    StructType innerType = StructType.of(optional(4, "leafLongCol", LongType.get()));
+    StructType outerType =
+        StructType.of(
+            optional(2, "longCol", LongType.get()), optional(3, "innerStructCol", innerType));
+    Schema schema =
+        new Schema(
+            required(1, "intCol", IntegerType.get()), optional(5, "outerStructCol", outerType));
+
+    Record nullOuter = GenericRecord.create(schema);
+    nullOuter.setField("intCol", 1);
+    nullOuter.setField("outerStructCol", null);
+
+    Record outer = GenericRecord.create(outerType);
+    outer.setField("longCol", 10L);
+    outer.setField("innerStructCol", null);
+    Record nullInner = GenericRecord.create(schema);
+    nullInner.setField("intCol", 2);
+    nullInner.setField("outerStructCol", outer);
+
+    Record inner = GenericRecord.create(innerType);
+    inner.setField("leafLongCol", 30L);
+    Record outer2 = GenericRecord.create(outerType);
+    outer2.setField("longCol", 20L);
+    outer2.setField("innerStructCol", inner);
+    Record present = GenericRecord.create(schema);
+    present.setField("intCol", 3);
+    present.setField("outerStructCol", outer2);
+
+    Metrics metrics = getMetrics(schema, nullOuter, nullInner, present);
+    assertThat(metrics.recordCount()).isEqualTo(3L);
+    assertCounts(2, 3L, 1L, metrics);
+    assertBounds(2, LongType.get(), 10L, 20L, metrics);
+    assertCounts(4, 3L, 2L, metrics);
+    assertBounds(4, LongType.get(), 30L, 30L, metrics);
+  }
+
+  @TestTemplate
   public void testMetricsModeForNestedStructFields() throws IOException {
     Map<String, String> properties =
         ImmutableMap.of(
