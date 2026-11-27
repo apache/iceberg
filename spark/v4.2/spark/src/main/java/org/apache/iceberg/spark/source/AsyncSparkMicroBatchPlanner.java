@@ -33,6 +33,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.util.Pair;
@@ -401,16 +402,31 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
   private void addMicroBatchToQueue(
       Snapshot snapshot, long startFileIndex, long endFileIndex, boolean shouldScanAllFile) {
     LOG.info("Adding MicroBatch for snapshot: {} to the queue", snapshot.snapshotId());
-    MicroBatches.MicroBatch microBatch =
+    MicroBatches.MicroBatchBuilder microBatchBuilder =
         MicroBatches.from(snapshot, table().io())
             .caseSensitive(readConf().caseSensitive())
-            .specsById(table().specs())
-            .generate(startFileIndex, endFileIndex, Long.MAX_VALUE, shouldScanAllFile);
+            .specsById(table().specs());
+    List<FileScanTask> tasks;
+    if (shouldScanAllFile) {
+      tasks =
+          microBatchBuilder.generate(startFileIndex, endFileIndex, Long.MAX_VALUE, true).tasks();
+    } else if (startFileIndex >= endFileIndex) {
+      tasks = ImmutableList.of();
+    } else {
+      tasks =
+          microBatchBuilder
+              .generate(
+                  MicroBatchUtils.addedFilePosition(table(), snapshot, startFileIndex),
+                  MicroBatchUtils.addedFilePosition(table(), snapshot, endFileIndex),
+                  Long.MAX_VALUE,
+                  false)
+              .tasks();
+    }
 
     long position = startFileIndex;
-    for (FileScanTask task : microBatch.tasks()) {
+    for (FileScanTask task : tasks) {
       Pair<StreamingOffset, FileScanTask> elem =
-          Pair.of(new StreamingOffset(microBatch.snapshotId(), position, shouldScanAllFile), task);
+          Pair.of(new StreamingOffset(snapshot.snapshotId(), position, shouldScanAllFile), task);
       queuedFileCount.incrementAndGet();
       queuedRowCount.addAndGet(task.file().recordCount());
       queue.addLast(elem);
