@@ -85,6 +85,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.orc.CompressionKind;
@@ -777,10 +778,23 @@ public class ORC {
                   MetadataColumns.ROW_ID.fieldId(),
                   MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()));
 
+      // select struct ids too, including list elements and map values, so that a struct without
+      // projected fields is read as an empty struct instead of being pruned
+      Set<Integer> projectedIds =
+          TypeUtil.indexById(schema.asStruct()).values().stream()
+              .filter(
+                  field ->
+                      field.type().isPrimitiveType()
+                          || field.type().isStructType()
+                          || field.type().isVariantType())
+              .map(Types.NestedField::fieldId)
+              .filter(id -> !idsToExclude.contains(id))
+              .collect(Collectors.toSet());
+
       return new OrcIterable<>(
           file,
           conf,
-          TypeUtil.selectNot(schema, idsToExclude),
+          TypeUtil.project(schema, projectedIds),
           nameMapping,
           start,
           length,
