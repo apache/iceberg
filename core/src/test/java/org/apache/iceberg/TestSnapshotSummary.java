@@ -528,4 +528,109 @@ public class TestSnapshotSummary extends TestBase {
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "3");
   }
+
+  @TestTemplate
+  void rewriteCarriesForwardListedProperties() {
+    carryForwardKeys("custom-key");
+    table.newAppend().appendFile(FILE_A).set("custom-key", "custom-value").commit();
+
+    table.newRewrite().deleteFile(FILE_A).addFile(FILE_A2).commit();
+
+    assertThat(table.currentSnapshot().summary()).containsEntry("custom-key", "custom-value");
+  }
+
+  @TestTemplate
+  void rewriteManifestsCarriesForwardOnlyListedProperties() {
+    carryForwardKeys("custom-key");
+    table
+        .newAppend()
+        .appendFile(FILE_A)
+        .set("custom-key", "custom-value")
+        .set("other-key", "other-value")
+        .commit();
+
+    table.rewriteManifests().clusterBy(file -> "file").rewriteIf(ignored -> true).commit();
+
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry("custom-key", "custom-value")
+        .doesNotContainKey("other-key");
+  }
+
+  @TestTemplate
+  void rewriteDoesNotCarryForwardPropertiesByDefault() {
+    table.newAppend().appendFile(FILE_A).set("custom-key", "custom-value").commit();
+
+    table.newRewrite().deleteFile(FILE_A).addFile(FILE_A2).commit();
+
+    assertThat(table.currentSnapshot().summary()).doesNotContainKey("custom-key");
+  }
+
+  @TestTemplate
+  void rewritePropertyOverridesCarriedForwardValue() {
+    carryForwardKeys("custom-key");
+    table.newAppend().appendFile(FILE_A).set("custom-key", "previous-value").commit();
+
+    table
+        .newRewrite()
+        .deleteFile(FILE_A)
+        .addFile(FILE_A2)
+        .set("custom-key", "explicit-value")
+        .commit();
+
+    assertThat(table.currentSnapshot().summary()).containsEntry("custom-key", "explicit-value");
+  }
+
+  @TestTemplate
+  void rewriteDoesNotOverwriteComputedPropertiesWithCarriedForwardValues() {
+    carryForwardKeys(SnapshotSummary.ADDED_FILES_PROP);
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    table.newRewrite().deleteFile(FILE_A).addFile(FILE_A2).commit();
+
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.ADDED_FILES_PROP, "1");
+  }
+
+  @TestTemplate
+  void rewriteCarriesForwardFromParentAtCommitTime() {
+    carryForwardKeys("custom-key");
+    table.newAppend().appendFile(FILE_A).set("custom-key", "previous-value").commit();
+    RewriteFiles rewrite = table.newRewrite().deleteFile(FILE_A).addFile(FILE_A2);
+
+    table.newAppend().appendFile(FILE_B).set("custom-key", "concurrent-value").commit();
+    rewrite.commit();
+
+    assertThat(table.currentSnapshot().summary()).containsEntry("custom-key", "concurrent-value");
+  }
+
+  @TestTemplate
+  void rewriteOnBranchCarriesForwardFromBranchHead() {
+    carryForwardKeys("custom-key");
+    table.newAppend().appendFile(FILE_A).set("custom-key", "main-value").commit();
+    table.manageSnapshots().createBranch("branch", table.currentSnapshot().snapshotId()).commit();
+    table
+        .newAppend()
+        .appendFile(FILE_B)
+        .set("custom-key", "branch-value")
+        .toBranch("branch")
+        .commit();
+
+    table.newRewrite().deleteFile(FILE_B).addFile(FILE_A2).toBranch("branch").commit();
+
+    assertThat(table.snapshot("branch").summary()).containsEntry("custom-key", "branch-value");
+  }
+
+  @TestTemplate
+  void appendDoesNotCarryForwardProperties() {
+    carryForwardKeys("custom-key");
+    table.newAppend().appendFile(FILE_A).set("custom-key", "custom-value").commit();
+
+    table.newAppend().appendFile(FILE_B).commit();
+
+    assertThat(table.currentSnapshot().summary()).doesNotContainKey("custom-key");
+  }
+
+  private void carryForwardKeys(String keys) {
+    table.updateProperties().set(TableProperties.WRITE_SUMMARY_CARRY_FORWARD_KEYS, keys).commit();
+  }
 }
