@@ -23,6 +23,7 @@ import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.util.NaNUtil;
 
 public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
   private static final Set<Type.TypeID> INTEGRAL_TYPES =
@@ -49,6 +50,10 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
     this.literal = lit;
   }
 
+  static boolean isOrdered(Object value) {
+    return value != null && !NaNUtil.isNaN(value);
+  }
+
   @Override
   public Expression negate() {
     return new BoundLiteralPredicate<>(op().negate(), term(), literal);
@@ -73,21 +78,21 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
     Comparator<T> cmp = literal.comparator();
     switch (op()) {
       case LT:
-        return cmp.compare(value, literal.value()) < 0;
+        return isOrdered(value) && cmp.compare(value, literal.value()) < 0;
       case LT_EQ:
-        return cmp.compare(value, literal.value()) <= 0;
+        return isOrdered(value) && cmp.compare(value, literal.value()) <= 0;
       case GT:
-        return cmp.compare(value, literal.value()) > 0;
+        return isOrdered(value) && cmp.compare(value, literal.value()) > 0;
       case GT_EQ:
-        return cmp.compare(value, literal.value()) >= 0;
+        return isOrdered(value) && cmp.compare(value, literal.value()) >= 0;
       case EQ:
-        return cmp.compare(value, literal.value()) == 0;
+        return isOrdered(value) && cmp.compare(value, literal.value()) == 0;
       case NOT_EQ:
-        return cmp.compare(value, literal.value()) != 0;
+        return !isOrdered(value) || cmp.compare(value, literal.value()) != 0;
       case STARTS_WITH:
-        return String.valueOf(value).startsWith((String) literal.value());
+        return value != null && value.toString().startsWith(literal.value().toString());
       case NOT_STARTS_WITH:
-        return !String.valueOf(value).startsWith((String) literal.value());
+        return value == null || !value.toString().startsWith(literal.value().toString());
       default:
         throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + op());
     }

@@ -18,10 +18,14 @@
  */
 package org.apache.iceberg.expressions;
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+
 public class Not implements Expression {
   private final Expression child;
 
   Not(Expression child) {
+    Preconditions.checkArgument(
+        !(child instanceof ValueExpression), "Invalid operand, not a predicate: %s", child);
     this.child = child;
   }
 

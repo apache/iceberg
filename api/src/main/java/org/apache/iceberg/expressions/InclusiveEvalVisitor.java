@@ -64,6 +64,11 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
   }
 
   @Override
+  public <T> Boolean predicate(BoundValuePredicate<T> pred) {
+    return ROWS_MIGHT_MATCH;
+  }
+
+  @Override
   public Boolean alwaysTrue() {
     return ROWS_MIGHT_MATCH; // all rows match
   }

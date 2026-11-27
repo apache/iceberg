@@ -143,6 +143,11 @@ public class ResidualEvaluator implements Serializable {
     }
 
     @Override
+    public <T> Expression predicate(BoundValuePredicate<T> pred) {
+      return pred;
+    }
+
+    @Override
     public <T> Expression isNull(BoundReference<T> ref) {
       return (ref.eval(struct) == null) ? alwaysTrue() : alwaysFalse();
     }
@@ -165,37 +170,55 @@ public class ResidualEvaluator implements Serializable {
     @Override
     public <T> Expression lt(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.eval(struct), lit.value()) < 0) ? alwaysTrue() : alwaysFalse();
+      T value = ref.eval(struct);
+      return (BoundLiteralPredicate.isOrdered(value) && cmp.compare(value, lit.value()) < 0)
+          ? alwaysTrue()
+          : alwaysFalse();
     }
 
     @Override
     public <T> Expression ltEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.eval(struct), lit.value()) <= 0) ? alwaysTrue() : alwaysFalse();
+      T value = ref.eval(struct);
+      return (BoundLiteralPredicate.isOrdered(value) && cmp.compare(value, lit.value()) <= 0)
+          ? alwaysTrue()
+          : alwaysFalse();
     }
 
     @Override
     public <T> Expression gt(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.eval(struct), lit.value()) > 0) ? alwaysTrue() : alwaysFalse();
+      T value = ref.eval(struct);
+      return (BoundLiteralPredicate.isOrdered(value) && cmp.compare(value, lit.value()) > 0)
+          ? alwaysTrue()
+          : alwaysFalse();
     }
 
     @Override
     public <T> Expression gtEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.eval(struct), lit.value()) >= 0) ? alwaysTrue() : alwaysFalse();
+      T value = ref.eval(struct);
+      return (BoundLiteralPredicate.isOrdered(value) && cmp.compare(value, lit.value()) >= 0)
+          ? alwaysTrue()
+          : alwaysFalse();
     }
 
     @Override
     public <T> Expression eq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.eval(struct), lit.value()) == 0) ? alwaysTrue() : alwaysFalse();
+      T value = ref.eval(struct);
+      return (BoundLiteralPredicate.isOrdered(value) && cmp.compare(value, lit.value()) == 0)
+          ? alwaysTrue()
+          : alwaysFalse();
     }
 
     @Override
     public <T> Expression notEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.eval(struct), lit.value()) != 0) ? alwaysTrue() : alwaysFalse();
+      T value = ref.eval(struct);
+      return (!BoundLiteralPredicate.isOrdered(value) || cmp.compare(value, lit.value()) != 0)
+          ? alwaysTrue()
+          : alwaysFalse();
     }
 
     @Override
@@ -212,14 +235,16 @@ public class ResidualEvaluator implements Serializable {
 
     @Override
     public <T> Expression startsWith(BoundReference<T> ref, Literal<T> lit) {
-      return ((String) ref.eval(struct)).startsWith((String) lit.value())
+      T value = ref.eval(struct);
+      return value != null && ((String) value).startsWith((String) lit.value())
           ? alwaysTrue()
           : alwaysFalse();
     }
 
     @Override
     public <T> Expression notStartsWith(BoundReference<T> ref, Literal<T> lit) {
-      return ((String) ref.eval(struct)).startsWith((String) lit.value())
+      T value = ref.eval(struct);
+      return value != null && ((String) value).startsWith((String) lit.value())
           ? alwaysFalse()
           : alwaysTrue();
     }
@@ -303,6 +328,18 @@ public class ResidualEvaluator implements Serializable {
 
       // if binding didn't result in a Predicate, return the expression
       return bound;
+    }
+
+    @Override
+    public <T> Expression predicate(UnboundValuePredicate<T> pred) {
+      UnboundPredicate<T> termPredicate =
+          pred.asTermPredicate(spec.schema().asStruct(), caseSensitive);
+      if (termPredicate != null) {
+        Expression residual = predicate(termPredicate);
+        return residual == termPredicate ? pred : residual;
+      }
+
+      return pred;
     }
   }
 }
