@@ -1020,6 +1020,71 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result4.orphanFilesCount()).as("Action should find nothing").isEqualTo(0L);
   }
 
+  @TestTemplate
+  public void compareToFileListExcludesPathsOutsideLocationScope() throws IOException {
+    assumeThat(usePrefixListing)
+        .as("Should not test both prefix listing and Hadoop file listing (redundant)")
+        .isEqualTo(false);
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
+
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    String locationWithoutTrailingSlash = tableLocation.substring(0, tableLocation.length() - 1);
+    String siblingFilePath = locationWithoutTrailingSlash + "-orphan-sibling/data.parquet";
+    String exactLocationFilePath = locationWithoutTrailingSlash;
+    String inScopeOrphanFilePath = tableLocation + "data/in-scope-orphan.parquet";
+
+    Path dataPath = new Path(tableLocation + "/data");
+    FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
+    List<FilePathLastModifiedRecord> validFiles =
+        Arrays.stream(fs.listStatus(dataPath, HiddenPathFilter.get()))
+            .filter(FileStatus::isFile)
+            .map(
+                file ->
+                    new FilePathLastModifiedRecord(
+                        file.getPath().toString(), new Timestamp(file.getModificationTime())))
+            .collect(Collectors.toList());
+    assertThat(validFiles).as("Should be 1 valid file").hasSize(1);
+
+    List<FilePathLastModifiedRecord> fileList = Lists.newArrayList(validFiles);
+    fileList.add(new FilePathLastModifiedRecord(siblingFilePath, new Timestamp(0L)));
+    fileList.add(new FilePathLastModifiedRecord(exactLocationFilePath, new Timestamp(0L)));
+    fileList.add(new FilePathLastModifiedRecord(inScopeOrphanFilePath, new Timestamp(0L)));
+
+    waitUntilAfter(System.currentTimeMillis());
+
+    Dataset<Row> compareToFileList =
+        spark
+            .createDataFrame(fileList, FilePathLastModifiedRecord.class)
+            .withColumnRenamed("filePath", "file_path")
+            .withColumnRenamed("lastModified", "last_modified");
+
+    SparkActions actions = SparkActions.get();
+    for (String location : ImmutableList.of(locationWithoutTrailingSlash, tableLocation)) {
+      DeleteOrphanFiles.Result result =
+          actions
+              .deleteOrphanFiles(table)
+              .location(location)
+              .compareToFileList(compareToFileList)
+              .olderThan(System.currentTimeMillis())
+              .deleteWith(s -> {})
+              .execute();
+
+      assertThat(result.orphanFileLocations())
+          .as("Sibling prefix must not fall inside the scope of location %s", location)
+          .doesNotContain(siblingFilePath);
+      assertThat(result.orphanFileLocations())
+          .as("The location path itself must not fall inside the scope of location %s", location)
+          .doesNotContain(exactLocationFilePath);
+      assertThat(result.orphanFileLocations())
+          .as("Only the file nested under location %s should be reported as orphan", location)
+          .containsExactly(inScopeOrphanFilePath);
+    }
+  }
+
   protected long waitUntilAfter(long timestampMillis) {
     long current = System.currentTimeMillis();
     while (current <= timestampMillis) {
