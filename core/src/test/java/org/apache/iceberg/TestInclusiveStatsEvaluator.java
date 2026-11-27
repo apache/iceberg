@@ -21,8 +21,12 @@ package org.apache.iceberg;
 import static org.apache.iceberg.StatsTestUtil.contentStats;
 import static org.apache.iceberg.StatsTestUtil.fieldStats;
 import static org.apache.iceberg.StatsTestUtil.trackedFile;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.isNaN;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -281,6 +285,35 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
     assertThat(shouldRead(LOCATION_SCHEMA, notNull("location.alt"), file))
         .as("Should read: location.alt has a value in every row")
         .isTrue();
+  }
+
+  @Test
+  void notNaNForFieldsUnderOptionalStruct() {
+    // All observed child values are NaN, but rows with an absent parent match notNaN.
+    TrackedFile partial =
+        trackedFile(
+            "partially_present.avro",
+            5,
+            contentStats(
+                LOCATION_STATS_TYPE,
+                fieldStats(LOCATION_STATS_TYPE, 2, null, null, 3L, null, 3L),
+                fieldStats(LOCATION_STATS_TYPE, 3, null, null, 3L, 0L, 3L)));
+    assertThat(shouldRead(LOCATION_SCHEMA, notNaN("location.lat"), partial)).isTrue();
+    assertThat(shouldRead(LOCATION_SCHEMA, notNaN("location.lon"), partial)).isTrue();
+    assertThat(shouldRead(LOCATION_SCHEMA, not(isNaN("location.lat")), partial)).isTrue();
+    // Null parents cannot satisfy equality with a finite value, so keep pruning this file.
+    assertThat(shouldRead(LOCATION_SCHEMA, equal("location.lat", 1.0F), partial)).isFalse();
+
+    TrackedFile full =
+        trackedFile(
+            "fully_present.avro",
+            5,
+            contentStats(
+                LOCATION_STATS_TYPE,
+                fieldStats(LOCATION_STATS_TYPE, 2, null, null, 5L, null, 5L),
+                fieldStats(LOCATION_STATS_TYPE, 3, null, null, 5L, 0L, 5L)));
+    assertThat(shouldRead(LOCATION_SCHEMA, notNaN("location.lat"), full)).isFalse();
+    assertThat(shouldRead(LOCATION_SCHEMA, notNaN("location.lon"), full)).isFalse();
   }
 
   @Test

@@ -126,6 +126,17 @@ public class InclusiveStatsEvaluator {
     }
 
     @Override
+    public <T> Boolean notNaN(Bound<T> term) {
+      if (super.notNaN(term)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      // Rows with an absent ancestor are null, not NaN, and may match notNaN.
+      // A negative result from the parent visitor guarantees that the value count is known.
+      return stats.statsFor(term.ref().fieldId()).valueCount() < recordCount;
+    }
+
+    @Override
     protected <T> T lowerBound(BoundReference<T> ref) {
       FieldStats<T> fieldStats = stats.statsFor(ref.fieldId());
       return fieldStats != null ? fieldStats.lowerBound() : null;
