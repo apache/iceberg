@@ -213,6 +213,7 @@ public class TestFetchPlanningResultResponseParser {
     InjectableValues.Std injectableValues = new InjectableValues.Std();
     injectableValues.addValue("specsById", PARTITION_SPECS_BY_ID);
     injectableValues.addValue("caseSensitive", false);
+    injectableValues.addValue("scanFilter", Expressions.alwaysTrue());
     ObjectReader objectReader =
         MAPPER.readerFor(FetchPlanningResultResponse.class).with(injectableValues);
     FetchPlanningResultResponse fromResponse = objectReader.readValue(json);

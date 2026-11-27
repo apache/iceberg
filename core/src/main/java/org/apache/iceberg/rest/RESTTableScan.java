@@ -111,6 +111,7 @@ class RESTTableScan extends DataTableScan {
         ParserContext.builder()
             .add("specsById", table.specs())
             .add("caseSensitive", context().caseSensitive())
+            .add("scanFilter", filter())
             .build();
     this.catalogProperties = catalogProperties;
     this.hadoopConf = hadoopConf;
