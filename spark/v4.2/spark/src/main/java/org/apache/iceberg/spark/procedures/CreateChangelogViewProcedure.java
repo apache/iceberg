@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.procedures;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -34,23 +35,29 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.ChangelogIterator;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.util.ArrayUtil;
-import org.apache.spark.api.java.function.MapPartitionsFunction;
+import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.OrderUtils;
+import org.apache.spark.sql.catalyst.optimizer.ChangelogValueUtil;
+import org.apache.spark.sql.classic.ExpressionUtils;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
 import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
 import org.apache.spark.sql.connector.read.Scan;
+import org.apache.spark.sql.functions;
+import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
+import scala.jdk.javaapi.CollectionConverters;
 
 /**
  * A procedure that creates a view for changed rows.
@@ -252,32 +259,86 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
   private Dataset<Row> applyChangelogIterator(
       Dataset<Row> df, Column[] repartitionSpec, String[] identifierFields) {
-    Column[] sortSpec = sortSpec(df, repartitionSpec, false);
     StructType schema = df.schema();
-
-    return df.repartition(repartitionSpec)
-        .sortWithinPartitions(sortSpec)
-        .mapPartitions(
-            (MapPartitionsFunction<Row, Row>)
-                rowIterator ->
-                    ChangelogIterator.computeUpdates(rowIterator, schema, identifierFields),
-            Encoders.row(schema));
+    return applyIterator(
+        df,
+        repartitionSpec,
+        false,
+        rows -> ChangelogIterator.computeUpdates(rows, schema, identifierFields));
   }
 
   private Dataset<Row> applyCarryoverRemoveIterator(
       Dataset<Row> df, Column[] repartitionSpec, boolean netChanges) {
-    Column[] sortSpec = sortSpec(df, repartitionSpec, netChanges);
     StructType schema = df.schema();
+    return applyIterator(
+        df,
+        repartitionSpec,
+        netChanges,
+        rows ->
+            netChanges
+                ? ChangelogIterator.removeNetCarryovers(rows, schema)
+                : ChangelogIterator.removeCarryovers(rows, schema));
+  }
 
-    return df.repartition(repartitionSpec)
-        .sortWithinPartitions(sortSpec)
-        .mapPartitions(
-            (MapPartitionsFunction<Row, Row>)
-                rowIterator ->
-                    netChanges
-                        ? ChangelogIterator.removeNetCarryovers(rowIterator, schema)
-                        : ChangelogIterator.removeCarryovers(rowIterator, schema),
-            Encoders.row(schema));
+  private Dataset<Row> applyIterator(
+      Dataset<Row> df,
+      Column[] repartitionSpec,
+      boolean netChanges,
+      FlatMapFunction<Iterator<InternalRow>, InternalRow> transform) {
+    Dataset<Row> sorted = repartitionAndSort(df, repartitionSpec, netChanges);
+    JavaRDD<InternalRow> changes =
+        sorted.queryExecution().toRdd().toJavaRDD().mapPartitions(transform);
+    return spark().internalCreateDataFrame(changes.rdd(), df.schema(), false /* isStreaming */);
+  }
+
+  private Dataset<Row> repartitionAndSort(
+      Dataset<Row> df, Column[] repartitionSpec, boolean netChanges) {
+    String[] columnNames = df.columns();
+    Column[] originalColumns =
+        Arrays.stream(columnNames)
+            .map(CreateChangelogViewProcedure::delimitedName)
+            .map(df::col)
+            .toArray(Column[]::new);
+    Set<String> names =
+        Arrays.stream(columnNames)
+            .map(name -> name.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toSet());
+    List<Attribute> keys =
+        CollectionConverters.asJava(
+            df.select(repartitionSpec).queryExecution().analyzed().output());
+
+    Column[] sortKeys = new Column[repartitionSpec.length];
+    List<Column> projection = Lists.newArrayList(originalColumns);
+    for (int index = 0; index < repartitionSpec.length; index++) {
+      Attribute key = keys.get(index);
+      DataType type = key.dataType();
+      if (!ChangelogValueUtil.containsFloatingPoint(type)) {
+        sortKeys[index] = repartitionSpec[index];
+      } else {
+        Column canonicalized = ExpressionUtils.column(ChangelogValueUtil.canonicalize(key));
+        if (type.equals(DataTypes.FloatType) || type.equals(DataTypes.DoubleType)) {
+          // the key is cheap to recompute, so the sort can evaluate it instead of reading a column
+          sortKeys[index] = canonicalized;
+        } else {
+          String name = "__changelog_key_" + index;
+          while (!names.add(name.toLowerCase(Locale.ROOT))) {
+            name += "_";
+          }
+          projection.add(canonicalized.as(name));
+          sortKeys[index] = functions.col(name);
+        }
+      }
+    }
+
+    boolean addedHelperColumns = projection.size() > originalColumns.length;
+    // Spark's partition hash already treats signed zeros and NaN payloads as equal
+    Dataset<Row> partitioned = df.repartition(repartitionSpec);
+    if (addedHelperColumns) {
+      partitioned = partitioned.select(projection.toArray(new Column[0]));
+    }
+
+    Dataset<Row> sorted = partitioned.sortWithinPartitions(sortSpec(df, sortKeys, netChanges));
+    return addedHelperColumns ? sorted.select(originalColumns) : sorted;
   }
 
   /**

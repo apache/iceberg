@@ -20,9 +20,11 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -707,6 +709,25 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  void computeUpdatesWithMapValues() {
+    sql("CREATE TABLE %s (id INT, data MAP<STRING,STRING>) USING iceberg", tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, map('a', 'same', 'b', 'value')), (2, map('a', 'before'))",
+        tableName);
+    long startSnapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql(
+        "INSERT OVERWRITE %s VALUES (1, map('b', 'value', 'a', 'same')), (2, map('a', 'after'))",
+        tableName);
+
+    String viewName = createChangelog(startSnapshotId, "identifier_columns => array('id')");
+
+    assertEquals(
+        "Map columns should survive the repartition and sort, leaving only changed values as updates",
+        ImmutableList.of(row(2, "before", UPDATE_BEFORE), row(2, "after", UPDATE_AFTER)),
+        sql("SELECT id, data['a'], _change_type FROM %s ORDER BY id, _change_type DESC", viewName));
+  }
+
+  @TestTemplate
   public void testUpdateWithInComparableType() {
     sql(
         "CREATE TABLE %s (id INT NOT NULL, data MAP<STRING,STRING>, age INT) USING iceberg",
@@ -718,5 +739,186 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "Identifier field is required as table contains unorderable columns: [data]");
+  }
+
+  @TestTemplate
+  void computeUpdatesWithVariantValues() {
+    assumeThat(catalogName)
+        .as("Variant type requires Hive 4 which is not yet supported")
+        .isNotEqualTo("testhive")
+        .isNotEqualTo("spark_catalog");
+    sql(
+        "CREATE TABLE %s (id INT, data VARIANT) USING iceberg TBLPROPERTIES ('format-version'='3')",
+        tableName);
+    sql("INSERT INTO %s VALUES (1, parse_json('1')), (2, parse_json('1'))", tableName);
+    long startSnapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql("INSERT OVERWRITE %s VALUES (1, parse_json('1')), (2, parse_json('2'))", tableName);
+
+    withAdaptiveExecution(
+        false,
+        () -> {
+          String view = createChangelog(startSnapshotId, "identifier_columns => array('id')");
+          assertEquals(
+              "Only changed variants should produce update images",
+              ImmutableList.of(row(2, 1, UPDATE_BEFORE), row(2, 2, UPDATE_AFTER)),
+              sql(
+                  "SELECT id, CAST(data AS INT), _change_type FROM %s ORDER BY _change_type DESC",
+                  view));
+        });
+  }
+
+  @TestTemplate
+  void preserveSignedZeroChanges() {
+    long startSnapshotId = createSignedZeroChanges();
+    withAdaptiveExecution(
+        false,
+        () -> {
+          String view = createChangelog(startSnapshotId, "compute_updates => false");
+          assertSignedZeroChanges(view, "f, d", DELETE, INSERT);
+        });
+  }
+
+  @TestTemplate
+  void computeUpdatesWithSignedZeroChanges() {
+    long startSnapshotId = createSignedZeroChanges();
+    withAdaptiveExecution(
+        false,
+        () -> {
+          String view = createChangelog(startSnapshotId, "identifier_columns => array('id')");
+          assertSignedZeroChanges(view, "f, d", UPDATE_BEFORE, UPDATE_AFTER);
+        });
+  }
+
+  @TestTemplate
+  void preserveNestedSignedZeroChanges() {
+    sql(
+        "CREATE TABLE %s (id INT, data ARRAY<STRUCT<f:FLOAT,d:DOUBLE>>, __changelog_key_1 INT) USING iceberg",
+        tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, array(named_struct('f', 0.0F, 'd', -0.0D), null), 7), (2, null, 7), (3, array(null), 7)",
+        tableName);
+    long startSnapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql(
+        "INSERT OVERWRITE %s VALUES (1, array(named_struct('f', -0.0F, 'd', 0.0D), null), 7), (2, null, 7), (3, array(null), 7)",
+        tableName);
+
+    withAdaptiveExecution(
+        false,
+        () -> {
+          String view = createChangelog(startSnapshotId, "compute_updates => false");
+          assertSignedZeroChanges(view, "data[0].f, data[0].d", DELETE, INSERT);
+          assertThat(spark.table(view).columns())
+              .containsExactly(
+                  "id",
+                  "data",
+                  "__changelog_key_1",
+                  "_change_type",
+                  "_change_ordinal",
+                  "_commit_snapshot_id");
+          assertEquals(
+              "User column should be preserved",
+              ImmutableList.of(row(7), row(7)),
+              sql("SELECT __changelog_key_1 FROM %s", view));
+        });
+  }
+
+  @TestTemplate
+  void preserveSignedZeroChangesInMaps() {
+    sql(
+        "CREATE TABLE %s (id INT, data MAP<STRING,STRUCT<f:FLOAT,d:DOUBLE>>) USING iceberg",
+        tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, map('a', named_struct('f', 0.0F, 'd', -0.0D))), (2, map('a', named_struct('f', -0.0F, 'd', -0.0D), 'b', null))",
+        tableName);
+    long startSnapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql(
+        "INSERT OVERWRITE %s VALUES (1, map('a', named_struct('f', -0.0F, 'd', 0.0D))), (2, map('b', null, 'a', named_struct('f', -0.0F, 'd', -0.0D)))",
+        tableName);
+
+    withAdaptiveExecution(
+        false,
+        () -> {
+          String view = createChangelog(startSnapshotId, "identifier_columns => array('id')");
+          assertSignedZeroChanges(view, "data['a'].f, data['a'].d", UPDATE_BEFORE, UPDATE_AFTER);
+        });
+  }
+
+  @TestTemplate
+  void removeMixedSignedZeroCarryovers() {
+    long startSnapshotId = createMixedSignedZeroCarryovers();
+    for (boolean adaptive : List.of(false, true)) {
+      withAdaptiveExecution(
+          adaptive,
+          () -> {
+            String view = createChangelog(startSnapshotId, "compute_updates => false");
+            assertThat(sql("SELECT * FROM %s", view)).isEmpty();
+          });
+    }
+  }
+
+  @TestTemplate
+  void removeMixedSignedZeroNetCarryovers() {
+    long startSnapshotId = createMixedSignedZeroCarryovers();
+    withAdaptiveExecution(
+        false,
+        () -> {
+          String view = createChangelog(startSnapshotId, "net_changes => true");
+          assertThat(sql("SELECT * FROM %s", view)).isEmpty();
+        });
+  }
+
+  private void assertSignedZeroChanges(
+      String view, String projection, String before, String after) {
+    List<Object[]> rows = sql("SELECT id, %s, _change_type FROM %s", projection, view);
+    List<List<Object>> actual =
+        rows.stream()
+            .map(
+                result ->
+                    List.of(
+                        result[0],
+                        Float.floatToRawIntBits((Float) result[1]),
+                        Double.doubleToRawLongBits((Double) result[2]),
+                        result[3]))
+            .collect(Collectors.toList());
+    assertThat(actual)
+        .containsExactlyInAnyOrder(
+            List.of(1, Float.floatToRawIntBits(0.0F), Double.doubleToRawLongBits(-0.0D), before),
+            List.of(1, Float.floatToRawIntBits(-0.0F), Double.doubleToRawLongBits(0.0D), after));
+  }
+
+  private long createSignedZeroChanges() {
+    sql("CREATE TABLE %s (id INT, f FLOAT, d DOUBLE) USING iceberg", tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, 0.0F, -0.0D), (2, -0.0F, -0.0D), (3, 0.0F, 0.0D), (4, null, null), (5, cast('NaN' as float), cast('NaN' as double))",
+        tableName);
+    long startSnapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql(
+        "INSERT OVERWRITE %s VALUES (1, -0.0F, 0.0D), (2, -0.0F, -0.0D), (3, 0.0F, 0.0D), (4, null, null), (5, cast('NaN' as float), cast('NaN' as double))",
+        tableName);
+    return startSnapshotId;
+  }
+
+  private long createMixedSignedZeroCarryovers() {
+    sql("CREATE TABLE %s (data ARRAY<DOUBLE>) USING iceberg", tableName);
+    sql(
+        "INSERT INTO %s VALUES (array(0.0D)), (array(-0.0D)), (array(0.0D)), (array(-0.0D))",
+        tableName);
+    long startSnapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql(
+        "INSERT OVERWRITE %s VALUES (array(-0.0D)), (array(0.0D)), (array(-0.0D)), (array(0.0D))",
+        tableName);
+    return startSnapshotId;
+  }
+
+  private void withAdaptiveExecution(boolean enabled, Action action) {
+    withSQLConf(Map.of("spark.sql.adaptive.enabled", String.valueOf(enabled)), action);
+  }
+
+  private String createChangelog(long startSnapshotId, String options) {
+    return (String)
+        sql(
+                "CALL %s.system.create_changelog_view(table => '%s', options => map('start-snapshot-id', '%s'), %s)",
+                catalogName, tableName, startSnapshotId, options)
+            .get(0)[0];
   }
 }
