@@ -159,6 +159,15 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
         .containsEntry(TableCatalog.PROP_TABLE_TYPE, TableSummary.EXTERNAL_TABLE_TYPE);
   }
 
+  // SPARK-58933: the target IDENTIFIER expression of an INSERT must be resolved. Spark 4.2.0
+  // rejects this statement with UNSUPPORTED_INSERT.RDD_BASED.
+  @TestTemplate
+  public void insertIntoComputedIdentifier() {
+    sql("INSERT INTO IDENTIFIER(lower('%s')) VALUES (1, 'abc')", tableName);
+
+    assertThat(sql("SELECT * FROM %s", tableName)).containsExactly(row(1L, "abc"));
+  }
+
   @TestTemplate
   public void testMetricViewTypeRoundTrip()
       throws NoSuchNamespaceException, NoSuchViewException, ViewAlreadyExistsException {
