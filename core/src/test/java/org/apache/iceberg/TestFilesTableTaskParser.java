@@ -29,6 +29,10 @@ import java.util.Arrays;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsStorageCredentials;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.util.PartitionUtil;
@@ -78,6 +82,38 @@ public class TestFilesTableTaskParser {
     assertTaskEquals(task, deserializedTask);
   }
 
+  @Test
+  void parserWithStorageCredentials() {
+    TestCatalogUtil.TestFileIOWithStorageCredentials fileIO =
+        new TestCatalogUtil.TestFileIOWithStorageCredentials();
+    fileIO.initialize(ImmutableMap.of("k1", "v1", "k2", "v2"));
+    StorageCredential credential =
+        StorageCredential.create(
+            "s3://bucket",
+            ImmutableMap.of("s3.access-key-id", "key", "s3.secret-access-key", "secret"));
+    fileIO.setCredentials(ImmutableList.of(credential));
+
+    Schema schema = TestBase.SCHEMA;
+    Map<Integer, PartitionSpec> specsById =
+        PartitionUtil.indexSpecs(
+            Arrays.asList(PartitionSpec.builderFor(schema).bucket("data", 16).build()));
+    ManifestFile manifestFile = TestManifestFileParser.createManifestFile();
+    BaseFilesTable.ManifestReadTask task =
+        new BaseFilesTable.ManifestReadTask(
+            schema, fileIO, specsById, manifestFile, schema, Expressions.equal("id", 1));
+
+    String jsonStr = ScanTaskParser.toJson(task);
+    assertThat(jsonStr).contains("\"storage-credentials\":[{\"prefix\":\"s3://bucket\"");
+
+    BaseFilesTable.ManifestReadTask deserializedTask =
+        (BaseFilesTable.ManifestReadTask) ScanTaskParser.fromJson(jsonStr, false);
+    assertTaskEquals(task, deserializedTask);
+
+    assertThat(deserializedTask.io()).isInstanceOf(SupportsStorageCredentials.class);
+    assertThat(((SupportsStorageCredentials) deserializedTask.io()).credentials())
+        .containsExactly(credential);
+  }
+
   private BaseFilesTable.ManifestReadTask createTask() {
     Schema schema = TestBase.SCHEMA;
     HadoopFileIO fileIO = new HadoopFileIO();
@@ -122,9 +158,14 @@ public class TestFilesTableTaskParser {
         .as("Projected schema should match")
         .isEqualTo(expected.projection().asStruct());
 
-    HadoopFileIO expectedIO = (HadoopFileIO) expected.io();
-    HadoopFileIO actualIO = (HadoopFileIO) expected.io();
+    FileIO expectedIO = expected.io();
+    FileIO actualIO = actual.io();
     assertThat(actualIO.properties()).isEqualTo(expectedIO.properties());
+    if (expectedIO instanceof SupportsStorageCredentials) {
+      assertThat(actualIO).isInstanceOf(SupportsStorageCredentials.class);
+      assertThat(((SupportsStorageCredentials) actualIO).credentials())
+          .isEqualTo(((SupportsStorageCredentials) expectedIO).credentials());
+    }
 
     assertThat(actual.specsById()).isEqualTo(expected.specsById());
     assertThat(actual.residual().toString()).isEqualTo(expected.residual().toString());
