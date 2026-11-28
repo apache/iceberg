@@ -24,14 +24,20 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import org.junit.jupiter.api.TestTemplate;
@@ -75,6 +81,247 @@ public class TestManifestReader extends TestBase {
           .usingRecursiveComparison(FILE_COMPARISON_CONFIG)
           .isEqualTo(Lists.newArrayList(FILE_A, FILE_B, FILE_C));
     }
+  }
+
+  @TestTemplate
+  public void testReaderUsesBucketSpecificMetricsForFileFiltering() throws IOException {
+    assertReaderUsesBucketSpecificMetricsForFileFiltering(1);
+  }
+
+  @TestTemplate
+  public void testReaderUsesBucketSpecificMetricsForLargeInPredicate() throws IOException {
+    assertReaderUsesBucketSpecificMetricsForFileFiltering(249);
+  }
+
+  @TestTemplate
+  public void testDeleteReaderUsesBucketSpecificMetricsForFileFiltering() throws IOException {
+    assumeThat(formatVersion)
+        .as("Delete files only work for format version 2 or higher")
+        .isGreaterThanOrEqualTo(2);
+    BucketInCase bucketCase = bucketInCase(1);
+    PartitionSpec spec = evolveSpecToIdBucket();
+
+    DeleteFile impossibleMatch =
+        equalityDeletesWithIdBounds(
+            spec,
+            "/path/to/impossible-match-deletes.parquet",
+            bucketCase.partition(),
+            bucketCase.lower(),
+            bucketCase.upper());
+    DeleteFile actualMatch =
+        equalityDeletesWithIdBounds(
+            spec,
+            "/path/to/actual-match-deletes.parquet",
+            bucketCase.partition(),
+            bucketCase.ownValueOutsideBounds(),
+            bucketCase.ownValueOutsideBounds());
+    DeleteFile withoutStats =
+        FileMetadata.deleteFileBuilder(spec)
+            .ofEqualityDeletes(spec.schema().findField("id").fieldId())
+            .withPath("/path/to/no-stats-deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withPartition(partitionWithIdBucket(spec, bucketCase.partition()))
+            .withRecordCount(1)
+            .build();
+    // writeDeleteManifest always uses the original spec, so write with the evolved table spec.
+    ManifestFile manifest =
+        writeManifest(
+            1000L,
+            manifestEntry(Status.ADDED, 1000L, impossibleMatch),
+            manifestEntry(Status.ADDED, 1000L, actualMatch),
+            manifestEntry(Status.ADDED, 1000L, withoutStats));
+    assertThat(manifest.partitionSpecId()).isEqualTo(spec.specId());
+    Expression filter = Expressions.in("id", bucketCase.queryValues());
+
+    // A schema-only evaluator retains the delete file because a foreign-bucket literal falls
+    // inside its bounds.
+    assertThat(new InclusiveMetricsEvaluator(table.schema(), filter).eval(impossibleMatch))
+        .isTrue();
+
+    try (ManifestReader<DeleteFile> reader =
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, table.specs()).filterRows(filter)) {
+      assertThat(Streams.stream(reader).map(DeleteFile::location))
+          .containsExactlyInAnyOrder(actualMatch.location(), withoutStats.location());
+    }
+  }
+
+  @TestTemplate
+  public void testReaderUsesEachManifestSpecAfterPartitionEvolution() throws IOException {
+    BucketInCase bucketCase = bucketInCase(1);
+    PartitionSpec originalSpec = table.spec();
+    DataFile originalImpossibleMatch =
+        fileWithIdBounds(
+            originalSpec,
+            "/path/to/original-impossible-match.parquet",
+            bucketCase.partition(),
+            bucketCase.lower(),
+            bucketCase.upper());
+    ManifestFile originalManifest =
+        writeManifest(
+            1000L,
+            manifestFormat().addExtension("original"),
+            manifestEntry(Status.ADDED, 1000L, originalImpossibleMatch));
+
+    PartitionSpec evolvedSpec = evolveSpecToIdBucket();
+    DataFile evolvedImpossibleMatch =
+        fileWithIdBounds(
+            evolvedSpec,
+            "/path/to/evolved-impossible-match.parquet",
+            bucketCase.partition(),
+            bucketCase.lower(),
+            bucketCase.upper());
+    DataFile evolvedActualMatch =
+        fileWithIdBounds(
+            evolvedSpec,
+            "/path/to/evolved-actual-match.parquet",
+            bucketCase.partition(),
+            bucketCase.ownValueOutsideBounds(),
+            bucketCase.ownValueOutsideBounds());
+    ManifestFile evolvedManifest =
+        writeManifest(
+            1001L,
+            manifestFormat().addExtension("evolved"),
+            manifestEntry(Status.ADDED, 1001L, evolvedImpossibleMatch),
+            manifestEntry(Status.ADDED, 1001L, evolvedActualMatch));
+    assertThat(originalManifest.partitionSpecId()).isEqualTo(originalSpec.specId());
+    assertThat(evolvedManifest.partitionSpecId()).isEqualTo(evolvedSpec.specId());
+    Expression filter = Expressions.in("id", bucketCase.queryValues());
+
+    // The original spec does not partition by id, so its files are compared against every literal.
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(originalManifest, FILE_IO, table.specs()).filterRows(filter)) {
+      assertThat(Streams.stream(reader).map(DataFile::location))
+          .containsExactly(originalImpossibleMatch.location());
+    }
+
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(evolvedManifest, FILE_IO, table.specs()).filterRows(filter)) {
+      assertThat(Streams.stream(reader).map(DataFile::location))
+          .containsExactly(evolvedActualMatch.location());
+    }
+  }
+
+  private void assertReaderUsesBucketSpecificMetricsForFileFiltering(int foreignValueCount)
+      throws IOException {
+    BucketInCase bucketCase = bucketInCase(foreignValueCount);
+    PartitionSpec spec = evolveSpecToIdBucket();
+
+    DataFile impossibleMatch =
+        fileWithIdBounds(
+            spec,
+            "/path/to/impossible-match.parquet",
+            bucketCase.partition(),
+            bucketCase.lower(),
+            bucketCase.upper());
+    DataFile actualMatch =
+        fileWithIdBounds(
+            spec,
+            "/path/to/actual-match.parquet",
+            bucketCase.partition(),
+            bucketCase.ownValueOutsideBounds(),
+            bucketCase.ownValueOutsideBounds());
+    ManifestFile manifest = writeManifest(1000L, impossibleMatch, actualMatch);
+    Expression filter = Expressions.in("id", bucketCase.queryValues());
+
+    // A schema-only evaluator retains the file because a foreign-bucket literal falls inside its
+    // bounds. A large IN also exceeds the metrics evaluator's 200-value limit.
+    assertThat(new InclusiveMetricsEvaluator(table.schema(), filter).eval(impossibleMatch))
+        .isTrue();
+
+    InclusiveMetricsEvaluator partitionAwareEvaluator =
+        InclusiveMetricsEvaluator.forRowFilter(filter, spec, true);
+    assertThat(partitionAwareEvaluator.eval(actualMatch)).isTrue();
+    assertThat(partitionAwareEvaluator.eval(impossibleMatch)).isFalse();
+
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, FILE_IO, table.specs()).filterRows(filter)) {
+      assertThat(Streams.stream(reader).map(DataFile::location))
+          .containsExactly(actualMatch.location());
+    }
+  }
+
+  /**
+   * A file partition with lower and upper id bounds drawn from one bucket, a matching value outside
+   * those bounds, and an IN list that adds foreign-bucket values inside the bounds.
+   */
+  private record BucketInCase(
+      int partition, int lower, int upper, int ownValueOutsideBounds, List<Integer> queryValues) {}
+
+  private PartitionSpec evolveSpecToIdBucket() {
+    table.updateSpec().removeField("data_bucket").addField(Expressions.bucket("id", 16)).commit();
+    return table.spec();
+  }
+
+  private static BucketInCase bucketInCase(int foreignValueCount) {
+    Function<Integer, Integer> bucket =
+        Transforms.<Integer>bucket(16).bind(Types.IntegerType.get());
+
+    int partition = bucket.apply(100);
+    List<Integer> valuesInPartition = Lists.newArrayList();
+    for (int value = 0; valuesInPartition.size() < 302; value += 1) {
+      if (bucket.apply(value) == partition) {
+        valuesInPartition.add(value);
+      }
+    }
+
+    int lower = valuesInPartition.get(0);
+    int upper = valuesInPartition.get(300);
+    int ownValueOutsideBounds = valuesInPartition.get(301);
+    List<Integer> queryValues = Lists.newArrayList();
+    queryValues.add(ownValueOutsideBounds);
+    for (int value = lower + 1;
+        value < upper && queryValues.size() <= foreignValueCount;
+        value += 1) {
+      if (bucket.apply(value) != partition) {
+        queryValues.add(value);
+      }
+    }
+    assertThat(queryValues).hasSize(foreignValueCount + 1);
+
+    return new BucketInCase(partition, lower, upper, ownValueOutsideBounds, queryValues);
+  }
+
+  private static PartitionData partitionWithIdBucket(PartitionSpec spec, int partition) {
+    PartitionData partitionData = new PartitionData(spec.partitionType());
+    for (int pos = 0; pos < spec.fields().size(); pos += 1) {
+      if ("id".equals(spec.schema().findColumnName(spec.fields().get(pos).sourceId()))) {
+        partitionData.set(pos, partition);
+      }
+    }
+    return partitionData;
+  }
+
+  private static Metrics idBoundsMetrics(PartitionSpec spec, int lower, int upper) {
+    int idFieldId = spec.schema().findField("id").fieldId();
+    return new Metrics(
+        5L,
+        null,
+        ImmutableMap.of(idFieldId, 5L),
+        ImmutableMap.of(idFieldId, 0L),
+        null,
+        ImmutableMap.of(idFieldId, Conversions.toByteBuffer(Types.IntegerType.get(), lower)),
+        ImmutableMap.of(idFieldId, Conversions.toByteBuffer(Types.IntegerType.get(), upper)));
+  }
+
+  private static DeleteFile equalityDeletesWithIdBounds(
+      PartitionSpec spec, String path, int partition, int lower, int upper) {
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofEqualityDeletes(spec.schema().findField("id").fieldId())
+        .withPath(path)
+        .withFileSizeInBytes(10)
+        .withPartition(partitionWithIdBucket(spec, partition))
+        .withMetrics(idBoundsMetrics(spec, lower, upper))
+        .build();
+  }
+
+  private static DataFile fileWithIdBounds(
+      PartitionSpec spec, String path, int partition, int lower, int upper) {
+    return DataFiles.builder(spec)
+        .withPath(path)
+        .withFileSizeInBytes(10)
+        .withPartition(partitionWithIdBucket(spec, partition))
+        .withMetrics(idBoundsMetrics(spec, lower, upper))
+        .build();
   }
 
   @TestTemplate
