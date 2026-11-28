@@ -48,6 +48,14 @@ import org.apache.iceberg.util.Tasks;
 
 public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     implements RewriteManifests {
+  // file counts can't change, since replaced and created manifests must have the same files
+  private static final Set<String> ADJUSTABLE_TOTALS =
+      ImmutableSet.of(
+          SnapshotSummary.TOTAL_RECORDS_PROP,
+          SnapshotSummary.TOTAL_FILE_SIZE_PROP,
+          SnapshotSummary.TOTAL_POS_DELETES_PROP,
+          SnapshotSummary.TOTAL_EQ_DELETES_PROP);
+
   private final String tableName;
   private final Map<Integer, PartitionSpec> specsById;
   private final long manifestTargetSizeBytes;
@@ -67,6 +75,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   private Predicate<ManifestFile> predicate;
 
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
+  private final Map<String, Long> totalDeltas = Maps.newHashMap();
 
   BaseRewriteManifests(String tableName, TableOperations ops) {
     super(ops);
@@ -109,6 +118,21 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     summaryBuilder.setPartitionSummaryLimit(
         0); // do not include partition summaries because data did not change
     return summaryBuilder.build();
+  }
+
+  @Override
+  public RewriteManifests adjustTotal(String totalProperty, long delta) {
+    Preconditions.checkArgument(
+        ADJUSTABLE_TOTALS.contains(totalProperty),
+        "Cannot adjust %s: only record count and file size totals can change",
+        totalProperty);
+    totalDeltas.merge(totalProperty, delta, Long::sum);
+    return this;
+  }
+
+  @Override
+  protected Map<String, Long> totalDeltas() {
+    return totalDeltas;
   }
 
   @Override
