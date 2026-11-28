@@ -21,9 +21,11 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Map;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -72,6 +74,37 @@ public class TestFileScanTaskParser {
         ScanTaskParser.fromJson(fileScanTaskFieldIdPartitionMapJson(), caseSensitive);
 
     assertFileScanTaskEquals(expected, deserializedTask, spec, caseSensitive);
+  }
+
+  @Test
+  public void testFileScanTaskWithGlobalEqualityDeletesOfAnotherSpec() {
+    boolean caseSensitive = true;
+    PartitionSpec unpartitioned = PartitionSpec.builderFor(TestBase.SCHEMA).withSpecId(1).build();
+    Map<Integer, PartitionSpec> specsById =
+        ImmutableMap.of(
+            TestBase.SPEC.specId(), TestBase.SPEC, unpartitioned.specId(), unpartitioned);
+    DeleteFile globalDeletes =
+        FileMetadata.deleteFileBuilder(unpartitioned)
+            .ofEqualityDeletes(1)
+            .withPath("/path/to/global-eq-deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    FileScanTask fileScanTask =
+        new BaseFileScanTask(
+            TestBase.FILE_A,
+            new DeleteFile[] {TestBase.FILE_A2_DELETES, globalDeletes},
+            SchemaParser.toJson(TestBase.SCHEMA),
+            PartitionSpecParser.toJson(TestBase.SPEC),
+            ResidualEvaluator.unpartitioned(Expressions.alwaysTrue()));
+
+    assertThat(ScanTaskParser.toJson(fileScanTask))
+        .isEqualTo(fileScanTaskWithGlobalEqualityDeletesJson());
+
+    FileScanTask deserializedTask =
+        ScanTaskParser.fromJson(fileScanTaskWithGlobalEqualityDeletesJson(), caseSensitive);
+
+    assertFileScanTaskEquals(fileScanTask, deserializedTask, specsById, caseSensitive);
   }
 
   private FileScanTask createFileScanTask(PartitionSpec spec, boolean caseSensitive) {
@@ -129,6 +162,28 @@ public class TestFileScanTaskParser {
         + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}";
   }
 
+  private String fileScanTaskWithGlobalEqualityDeletesJson() {
+    return "{\"task-type\":\"file-scan-task\","
+        + "\"schema\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":["
+        + "{\"id\":3,\"name\":\"id\",\"required\":true,\"type\":\"int\"},"
+        + "{\"id\":4,\"name\":\"data\",\"required\":true,\"type\":\"string\"}]},"
+        + "\"spec\":{\"spec-id\":0,\"fields\":[{\"name\":\"data_bucket\","
+        + "\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]},"
+        + "\"data-file\":{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-a.parquet\","
+        + "\"file-format\":\"parquet\",\"partition\":[0],"
+        + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
+        + "\"start\":0,\"length\":10,"
+        + "\"delete-files\":[{\"spec-id\":0,\"content\":\"equality-deletes\","
+        + "\"file-path\":\"/path/to/data-a2-deletes.parquet\",\"file-format\":\"parquet\","
+        + "\"partition\":[0],\"file-size-in-bytes\":10,"
+        + "\"record-count\":1,\"equality-ids\":[1],\"sort-order-id\":0},"
+        + "{\"spec-id\":1,\"content\":\"equality-deletes\","
+        + "\"file-path\":\"/path/to/global-eq-deletes.parquet\",\"file-format\":\"parquet\","
+        + "\"partition\":[],\"file-size-in-bytes\":10,"
+        + "\"record-count\":1,\"equality-ids\":[1],\"sort-order-id\":0}],"
+        + "\"residual-filter\":true}";
+  }
+
   private String fileScanTaskFieldIdPartitionMapJson() {
     return "{\"task-type\":\"file-scan-task\","
         + "\"schema\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":["
@@ -151,11 +206,21 @@ public class TestFileScanTaskParser {
 
   private static void assertFileScanTaskEquals(
       FileScanTask expected, FileScanTask actual, PartitionSpec spec, boolean caseSensitive) {
-    TestContentFileParser.assertContentFileEquals(expected.file(), actual.file(), spec);
+    assertFileScanTaskEquals(expected, actual, ImmutableMap.of(spec.specId(), spec), caseSensitive);
+  }
+
+  private static void assertFileScanTaskEquals(
+      FileScanTask expected,
+      FileScanTask actual,
+      Map<Integer, PartitionSpec> specsById,
+      boolean caseSensitive) {
+    TestContentFileParser.assertContentFileEquals(
+        expected.file(), actual.file(), specsById.get(expected.file().specId()));
     assertThat(actual.deletes()).hasSameSizeAs(expected.deletes());
     for (int pos = 0; pos < expected.deletes().size(); ++pos) {
+      DeleteFile expectedDelete = expected.deletes().get(pos);
       TestContentFileParser.assertContentFileEquals(
-          expected.deletes().get(pos), actual.deletes().get(pos), spec);
+          expectedDelete, actual.deletes().get(pos), specsById.get(expectedDelete.specId()));
     }
 
     assertThat(actual.schema().asStruct()).isEqualTo(expected.schema().asStruct());

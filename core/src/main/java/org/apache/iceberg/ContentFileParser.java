@@ -30,7 +30,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 
 public class ContentFileParser {
-  private static final String SPEC_ID = "spec-id";
+  static final String SPEC_ID = "spec-id";
   private static final String CONTENT = "content";
   private static final String FILE_PATH = "file-path";
   private static final String FILE_FORMAT = "file-format";
