@@ -1274,7 +1274,7 @@ A snapshot consists of the following fields:
     | _optional_ | _optional_ | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created |
     |            |            | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
     |            |            | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
-    |            |            | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the manifest list key metadata |
+    |            |            | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the manifest list |
 
 === "v4"
     | v4         | Field                        | Description |
