@@ -39,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.auth.KeyedTokenAuthSession;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
@@ -50,7 +51,10 @@ import org.slf4j.LoggerFactory;
  * otherwise initialization will fail.
  */
 public class ResolvingFileIO
-    implements HadoopConfigurable, DelegateFileIO, SupportsStorageCredentials {
+    implements HadoopConfigurable,
+        DelegateFileIO,
+        SupportsStorageCredentials,
+        SupportsKeyedTokenAuthSession {
   private static final Logger LOG = LoggerFactory.getLogger(ResolvingFileIO.class);
   private static final int BATCH_SIZE = 100_000;
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
@@ -75,6 +79,7 @@ public class ResolvingFileIO
   private SerializableSupplier<Configuration> hadoopConf;
   // use modifiable collection for Kryo serde
   private List<StorageCredential> storageCredentials = Lists.newArrayList();
+  private KeyedTokenAuthSession authSession = null;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -227,6 +232,11 @@ public class ResolvingFileIO
               fileIO instanceof DelegateFileIO,
               "FileIO does not implement DelegateFileIO: " + fileIO.getClass().getName());
 
+          if (authSession != null
+              && fileIO instanceof SupportsKeyedTokenAuthSession fileIOWithSession) {
+            fileIOWithSession.setAuthSession(authSession);
+          }
+
           return (DelegateFileIO) fileIO;
         });
   }
@@ -289,5 +299,16 @@ public class ResolvingFileIO
   @Override
   public List<StorageCredential> credentials() {
     return ImmutableList.copyOf(storageCredentials);
+  }
+
+  @Override
+  public void setAuthSession(KeyedTokenAuthSession session) {
+    Preconditions.checkArgument(session != null, "Invalid auth session: null");
+    this.authSession = session;
+  }
+
+  @Override
+  public KeyedTokenAuthSession authSession() {
+    return authSession;
   }
 }

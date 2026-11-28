@@ -46,4 +46,10 @@ public final class AuthProperties {
 
   public static final String SIGV4_DELEGATE_AUTH_TYPE = "rest.auth.sigv4.delegate-auth-type";
   public static final String SIGV4_DELEGATE_AUTH_TYPE_DEFAULT = AUTH_TYPE_OAUTH2;
+
+  public static final String FILE_IO_SESSION_ENABLED = "rest.auth.file-io-session.enabled";
+
+  public static final boolean FILE_IO_SESSION_ENABLED_DEFAULT = false;
+
+  public static final String FILE_IO_SESSION_REQUIRED = "rest.auth.file-io-session.required";
 }

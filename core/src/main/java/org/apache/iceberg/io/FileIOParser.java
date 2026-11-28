@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.auth.KeyedTokenAuthSession;
 import org.apache.iceberg.util.JsonUtil;
 
 public class FileIOParser {
@@ -31,6 +32,7 @@ public class FileIOParser {
 
   private static final String FILE_IO_IMPL = "io-impl";
   private static final String PROPERTIES = "properties";
+  private static final String AUTH_SESSION_KEY = "auth-session-key";
 
   public static String toJson(FileIO io) {
     return toJson(io, false);
@@ -60,6 +62,13 @@ public class FileIOParser {
 
     generator.writeStringField(FILE_IO_IMPL, impl);
     JsonUtil.writeStringMap(PROPERTIES, properties, generator);
+    KeyedTokenAuthSession authSession =
+        io instanceof SupportsKeyedTokenAuthSession fileIOWithSession
+            ? fileIOWithSession.authSession()
+            : null;
+    if (authSession != null) {
+      generator.writeStringField(AUTH_SESSION_KEY, authSession.key());
+    }
 
     generator.writeEndObject();
   }
@@ -76,6 +85,20 @@ public class FileIOParser {
     Preconditions.checkArgument(json.isObject(), "Cannot parse FileIO from non-object: %s", json);
     String impl = JsonUtil.getString(FILE_IO_IMPL, json);
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, json);
-    return CatalogUtil.loadFileIO(impl, properties, conf);
+    String authSessionKey = JsonUtil.getStringOrNull(AUTH_SESSION_KEY, json);
+    FileIO fileIO = CatalogUtil.loadFileIO(impl, properties, conf);
+    if (authSessionKey != null) {
+      if (!(fileIO instanceof SupportsKeyedTokenAuthSession fileIOWithSession)) {
+        fileIO.close();
+        throw new IllegalArgumentException(
+            String.format(
+                "Cannot set auth session: %s does not implement SupportsKeyedTokenAuthSession",
+                impl));
+      }
+
+      fileIOWithSession.setAuthSession(KeyedTokenAuthSession.of(authSessionKey));
+    }
+
+    return fileIO;
   }
 }

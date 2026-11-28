@@ -39,8 +39,10 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.auth.KeyedTokenAuthSession;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -181,5 +183,61 @@ public class TestResolvingIO {
     assertThat(roundTripSerializer.apply(resolvingFileIO).credentials())
         .isEqualTo(storageCredentials)
         .isEqualTo(resolvingFileIO.credentials());
+  }
+
+  @Test
+  void delegateReceivesAuthSession() {
+    ResolvingFileIO resolvingFileIO = spy(new ResolvingFileIO());
+    resolvingFileIO.initialize(ImmutableMap.of());
+    KeyedTokenAuthSession session = KeyedTokenAuthSession.of("key");
+    resolvingFileIO.setAuthSession(session);
+    doReturn(SessionDelegateFileIO.class.getName()).when(resolvingFileIO).implFromLocation(any());
+
+    DelegateFileIO delegate = resolvingFileIO.io("mem://bucket/file");
+
+    assertThat(delegate).isInstanceOf(SessionDelegateFileIO.class);
+    assertThat(((SupportsKeyedTokenAuthSession) delegate).authSession()).isSameAs(session);
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  void resolvingFileIOWithAuthSessionSerialization(
+      TestHelpers.RoundTripSerializer<ResolvingFileIO> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
+    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
+    resolvingFileIO.initialize(ImmutableMap.of());
+    resolvingFileIO.setAuthSession(KeyedTokenAuthSession.of("key"));
+
+    assertThat(roundTripSerializer.apply(resolvingFileIO).authSession().key()).isEqualTo("key");
+  }
+
+  public static class SessionDelegateFileIO extends InMemoryFileIO
+      implements DelegateFileIO, SupportsKeyedTokenAuthSession {
+    private KeyedTokenAuthSession session = null;
+
+    @Override
+    public void setAuthSession(KeyedTokenAuthSession newSession) {
+      this.session = newSession;
+    }
+
+    @Override
+    public KeyedTokenAuthSession authSession() {
+      return session;
+    }
+
+    @Override
+    public Iterable<FileInfo> listPrefix(String prefix) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void deletePrefix(String prefix) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void deleteFiles(Iterable<String> pathsToDelete) {
+      throw new UnsupportedOperationException();
+    }
   }
 }
