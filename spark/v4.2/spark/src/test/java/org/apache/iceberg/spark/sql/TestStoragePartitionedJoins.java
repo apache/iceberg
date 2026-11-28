@@ -22,6 +22,7 @@ import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -35,8 +36,10 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -775,6 +778,69 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
             + "ORDER BY t1.id, t1.int_col, t1.dep, t2.id, t2.int_col, t2.dep",
         tableName,
         otherTableName);
+  }
+
+  // SPARK-60044: a planned k-way merge must keep the ordering it was planned with. The scan reports
+  // no ordering, so Spark derives [id, name] from the partition keys. The splits are sorted by the
+  // full key, so within id 1 the 'bb' split comes before the 'aa' one. Turning the key ordering
+  // off after planning must not change how the planned merge orders the rows.
+  @TestTemplate
+  public void plannedSortedMergeKeepsOrderingAfterConfigChange() {
+    sql(
+        "CREATE TABLE %s (id INT, name STRING, arrive_time TIMESTAMP) "
+            + "USING iceberg "
+            + "PARTITIONED BY (id, days(arrive_time), name) "
+            + "TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(TABLE_PROPERTIES));
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, 'bb', TIMESTAMP '2021-01-01 00:00:00'), "
+            + "(1, 'aa', TIMESTAMP '2022-01-01 00:00:00'), "
+            + "(2, 'cc', TIMESTAMP '2021-01-01 00:00:00')",
+        tableName);
+
+    // the query selects arrive_time so that its column stays in the scan output
+    String query =
+        String.format(
+            "SELECT id, name, arrive_time, "
+                + "ROW_NUMBER() OVER (PARTITION BY id ORDER BY name) AS rn FROM %s",
+            tableName);
+    List<Object[]> expected =
+        ImmutableList.of(
+            row(1, "aa", Timestamp.valueOf("2022-01-01 00:00:00"), 1),
+            row(1, "bb", Timestamp.valueOf("2021-01-01 00:00:00"), 2),
+            row(2, "cc", Timestamp.valueOf("2021-01-01 00:00:00"), 1));
+
+    for (String aqeEnabled : new String[] {"false", "true"}) {
+      Map<String, String> conf = Maps.newHashMap(ENABLED_SPJ_SQL_CONF);
+      conf.put(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), aqeEnabled);
+      conf.put(SQLConf.V2_BUCKETING_PARTITION_KEY_ORDERING_ENABLED().key(), "true");
+      conf.put(SQLConf.V2_BUCKETING_PRESERVE_ORDERING_ON_COALESCE_ENABLED().key(), "true");
+
+      withSQLConf(
+          conf,
+          () -> {
+            Dataset<Row> df = spark.sql(query);
+            // plan the query without running it, so the merge is decided under this config
+            String plan = df.queryExecution().executedPlan().toString();
+            assertThat(plan)
+                .as(
+                    "The window's ordering must come from a k-way merge, not a sort. "
+                        + "Otherwise the row check below passes without testing the merge")
+                .contains("SortedMerge")
+                .doesNotContain("Sort [");
+
+            withSQLConf(
+                ImmutableMap.of(
+                    SQLConf.V2_BUCKETING_PARTITION_KEY_ORDERING_ENABLED().key(), "false"),
+                () ->
+                    // runs the plan above, not a newly planned one
+                    assertEquals(
+                        "Planned k-way merge must keep its ordering with AQE " + aqeEnabled,
+                        expected,
+                        rowsToJava(df.collectAsList())));
+          });
+    }
   }
 
   private void checkJoin(String sourceColumnName, String sourceColumnType, String transform)
