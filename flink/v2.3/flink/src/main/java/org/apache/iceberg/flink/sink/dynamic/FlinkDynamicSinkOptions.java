@@ -69,6 +69,16 @@ public class FlinkDynamicSinkOptions {
           .withDescription(
               "Controls whether schema field name matching should be case-sensitive in Dynamic Sink.");
 
+  public static final ConfigOption<Boolean> AVRO_TIME_AS_NUMBER =
+      ConfigOptions.key("dynamic-sink.avro-time-as-number")
+          .booleanType()
+          .defaultValue(false)
+          .withDescription(
+              "Converts the Avro logical types time-millis and time-micros to Iceberg int and long "
+                  + "instead of time, for generators that derive the table schema from an Avro schema. "
+                  + "A Flink time holds milliseconds only, so the microseconds of a time-micros are lost "
+                  + "as a time and kept as a long.");
+
   public static final ConfigOption<String> GENERATOR_SLOT_SHARING_GROUP =
       ConfigOptions.key("dynamic-sink.generator-slot-sharing-group")
           .stringType()
