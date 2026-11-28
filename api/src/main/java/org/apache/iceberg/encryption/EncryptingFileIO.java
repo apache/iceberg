@@ -36,6 +36,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -249,6 +250,16 @@ public class EncryptingFileIO implements FileIO, Serializable {
     }
 
     @Override
+    public boolean supportsDirectoryListing(String prefix) {
+      return prefixIo.supportsDirectoryListing(prefix);
+    }
+
+    @Override
+    public Iterable<PrefixListingPage> listDirectory(String prefix) {
+      return prefixIo.listDirectory(prefix);
+    }
+
+    @Override
     public void deletePrefix(String prefix) {
       prefixIo.deletePrefix(prefix);
     }
@@ -270,6 +281,16 @@ public class EncryptingFileIO implements FileIO, Serializable {
     @Override
     public Iterable<FileInfo> listPrefix(String prefix) {
       return delegateFileIO.listPrefix(prefix);
+    }
+
+    @Override
+    public boolean supportsDirectoryListing(String prefix) {
+      return delegateFileIO.supportsDirectoryListing(prefix);
+    }
+
+    @Override
+    public Iterable<PrefixListingPage> listDirectory(String prefix) {
+      return delegateFileIO.listDirectory(prefix);
     }
 
     @Override

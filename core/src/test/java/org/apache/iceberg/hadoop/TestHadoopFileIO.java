@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -31,13 +32,17 @@ import java.util.UUID;
 import java.util.Vector;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.viewfs.ConfigUtil;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOParser;
+import org.apache.iceberg.io.FileInfo;
+import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -47,6 +52,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestHadoopFileIO {
   private final Random random = new Random(1);
@@ -84,6 +91,115 @@ public class TestHadoopFileIO {
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
     assertThat(Streams.stream(hadoopFileIO.listPrefix(parent.toUri().toString())).count())
         .isEqualTo(totalFiles);
+  }
+
+  @Test
+  void listDirectory() throws IOException {
+    Path parent = new Path(tempDir.toURI());
+    Path child = new Path(parent, "sub");
+    Path nested = new Path(child, "nested.txt");
+    Path immediate = new Path(parent, "file.txt");
+    fs.mkdirs(child);
+    fs.createNewFile(nested);
+    fs.createNewFile(immediate);
+
+    String prefix = parent + "/";
+    assertThat(hadoopFileIO.supportsDirectoryListing(prefix)).isTrue();
+    PrefixListingPage page = hadoopFileIO.listDirectory(prefix).iterator().next();
+
+    assertThat(page.files())
+        .extracting(file -> new Path(file.location()))
+        .containsExactly(immediate);
+    assertThat(page.subPrefixes()).containsExactly(child + "/");
+    PrefixListingPage childPage =
+        hadoopFileIO.listDirectory(page.subPrefixes().iterator().next()).iterator().next();
+    assertThat(childPage.files())
+        .extracting(file -> new Path(file.location()))
+        .containsExactly(nested);
+    assertThat(childPage.subPrefixes()).isEmpty();
+  }
+
+  @Test
+  void listDirectoryAcrossViewFsMountPoint() throws IOException {
+    Path directory = new Path(tempDir.toURI());
+    Path file = new Path(directory, "file.parquet");
+    fs.createNewFile(file);
+    Configuration conf = new Configuration();
+    String mountTable = UUID.randomUUID().toString();
+    ConfigUtil.addLink(conf, mountTable, "/mounted", directory.toUri());
+
+    try (FileSystem viewFs = new Path("viewfs://" + mountTable + "/").getFileSystem(conf);
+        HadoopFileIO fileIO = new HadoopFileIO(conf)) {
+      String prefix = viewFs.makeQualified(new Path("/")).toString();
+      String mountedPrefix = prefix + "mounted/";
+      PrefixListingPage page = fileIO.listDirectory(prefix).iterator().next();
+
+      assertThat(page.files()).isEmpty();
+      assertThat(page.subPrefixes()).containsExactly(mountedPrefix);
+
+      PrefixListingPage mountedPage =
+          fileIO.listDirectory(page.subPrefixes().iterator().next()).iterator().next();
+      assertThat(mountedPage.files())
+          .extracting(FileInfo::location)
+          .containsExactly(mountedPrefix + file.getName());
+      assertThat(mountedPage.subPrefixes()).isEmpty();
+    }
+  }
+
+  @Test
+  void listDirectoryResolvesViewFsFileMountMetadata() throws IOException {
+    File file = new File(tempDir, "file.parquet");
+    Files.write(file.toPath(), new byte[] {1, 2, 3});
+    FileStatus status = fs.getFileStatus(new Path(file.toURI()));
+    Configuration conf = new Configuration();
+    String mountTable = UUID.randomUUID().toString();
+    ConfigUtil.addLink(conf, mountTable, "/mounted", file.toURI());
+
+    try (FileSystem viewFs = new Path("viewfs://" + mountTable + "/").getFileSystem(conf);
+        HadoopFileIO fileIO = new HadoopFileIO(conf)) {
+      String prefix = viewFs.makeQualified(new Path("/")).toString();
+      PrefixListingPage page = fileIO.listDirectory(prefix).iterator().next();
+
+      assertThat(page.subPrefixes()).isEmpty();
+      assertThat(page.files())
+          .singleElement()
+          .satisfies(
+              fileInfo -> {
+                assertThat(fileInfo.location()).isEqualTo(prefix + "mounted");
+                assertThat(fileInfo.size()).isEqualTo(status.getLen());
+                assertThat(fileInfo.createdAtMillis()).isEqualTo(status.getModificationTime());
+              });
+    }
+  }
+
+  @Test
+  void rejectFileAsDirectory() throws IOException {
+    Path file = new Path(new Path(tempDir.toURI()), "file.txt");
+    fs.createNewFile(file);
+
+    assertThatThrownBy(() -> hadoopFileIO.listDirectory(file + "/").iterator())
+        .isInstanceOf(UncheckedIOException.class)
+        .hasCauseInstanceOf(FileNotFoundException.class)
+        .hasMessageContaining("Not a directory: %s/", file);
+  }
+
+  @Test
+  void listEmptyDirectory() {
+    PrefixListingPage page =
+        hadoopFileIO.listDirectory(tempDir.toURI().toString()).iterator().next();
+
+    assertThat(page.files()).isEmpty();
+    assertThat(page.subPrefixes()).isEmpty();
+  }
+
+  @ParameterizedTest
+  @NullAndEmptySource
+  @ValueSource(strings = {"file:/table", "file:/table/file.parquet"})
+  void rejectInvalidDirectoryPrefix(String prefix) {
+    assertThat(hadoopFileIO.supportsDirectoryListing(prefix)).isFalse();
+    assertThatThrownBy(() -> hadoopFileIO.listDirectory(prefix))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Directory prefix must end with '/': %s", prefix);
   }
 
   @Test

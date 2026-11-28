@@ -35,6 +35,7 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.junit.jupiter.api.Test;
@@ -83,6 +84,13 @@ public class TestEncryptingFileIO {
     when(delegate.listPrefix(prefix)).thenReturn(fileInfos);
     assertThat(fileIO.listPrefix(prefix)).isEqualTo(fileInfos);
 
+    String directory = prefix + "/";
+    List<PrefixListingPage> pages = List.of(PrefixListingPage.of(List.of(), List.of()));
+    when(delegate.supportsDirectoryListing(directory)).thenReturn(true);
+    when(delegate.listDirectory(directory)).thenReturn(pages);
+    assertThat(fileIO.supportsDirectoryListing(directory)).isTrue();
+    assertThat(fileIO.listDirectory(directory)).isSameAs(pages);
+
     fileIO.deletePrefix(prefix);
     verify(delegate).deletePrefix(prefix);
   }
@@ -113,6 +121,13 @@ public class TestEncryptingFileIO {
     Iterable<FileInfo> fileInfos = mock(Iterable.class);
     when(delegate.listPrefix(prefix)).thenReturn(fileInfos);
     assertThat(fileIO.listPrefix(prefix)).isEqualTo(fileInfos);
+
+    String directory = prefix + "/";
+    List<PrefixListingPage> pages = List.of(PrefixListingPage.of(List.of(), List.of()));
+    when(delegate.supportsDirectoryListing(directory)).thenReturn(true);
+    when(delegate.listDirectory(directory)).thenReturn(pages);
+    assertThat(fileIO.supportsDirectoryListing(directory)).isTrue();
+    assertThat(fileIO.listDirectory(directory)).isSameAs(pages);
 
     fileIO.deletePrefix(prefix);
     verify(delegate).deletePrefix(prefix);

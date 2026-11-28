@@ -45,6 +45,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestResolvingIO {
 
@@ -130,6 +132,13 @@ public class TestResolvingIO {
       assertThat(delegate.newInputFile(path.toString()).exists()).isTrue();
     }
 
+    String prefix = parent + "/";
+    assertThat(resolvingFileIO.supportsDirectoryListing(prefix)).isTrue();
+    assertThat(resolvingFileIO.supportsDirectoryListing(paths.get(0).toString())).isFalse();
+    assertThat(resolvingFileIO.listDirectory(prefix).iterator().next().files())
+        .extracting(file -> new Path(file.location()))
+        .containsExactlyInAnyOrderElementsOf(paths);
+
     paths.stream()
         .map(Path::toString)
         .forEach(
@@ -139,6 +148,31 @@ public class TestResolvingIO {
               resolvingFileIO.deletePrefix(path);
               assertThat(delegate.newInputFile(path).exists()).isFalse();
             });
+  }
+
+  @ParameterizedTest
+  @NullAndEmptySource
+  @ValueSource(strings = "file:/table")
+  void rejectInvalidDirectoryPrefixBeforeResolving(String prefix) {
+    try (ResolvingFileIO io = new ResolvingFileIO()) {
+      assertThat(io.supportsDirectoryListing(prefix)).isFalse();
+      assertThatThrownBy(() -> io.listDirectory(prefix))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Directory prefix must end with '/': %s", prefix);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void directoryListingSupportMatchesDelegate(boolean supported) {
+    String prefix = "file:/table/";
+    DelegateFileIO delegate = mock(DelegateFileIO.class);
+    doReturn(supported).when(delegate).supportsDirectoryListing(prefix);
+
+    try (ResolvingFileIO io = spy(new ResolvingFileIO())) {
+      doReturn(delegate).when(io).io(prefix);
+      assertThat(io.supportsDirectoryListing(prefix)).isEqualTo(supported);
+    }
   }
 
   @Test
