@@ -285,12 +285,15 @@ public class PartitionsTable extends BaseMetadataTable {
     @Override
     public int compare(StructLike o1, StructLike o2) {
       if (o1 instanceof StructProjection && o2 instanceof StructProjection) {
-        int cmp =
-            Integer.compare(
-                ((StructProjection) o1).projectedFields(),
-                ((StructProjection) o2).projectedFields());
-        if (cmp != 0) {
-          return cmp;
+        // Distinguish missing partition fields from fields with actual null values.
+        StructProjection projection1 = (StructProjection) o1;
+        StructProjection projection2 = (StructProjection) o2;
+        for (int pos = 0; pos < projection1.size(); pos += 1) {
+          int cmp =
+              Boolean.compare(projection1.isFieldProjected(pos), projection2.isFieldProjected(pos));
+          if (cmp != 0) {
+            return cmp;
+          }
         }
       }
 
