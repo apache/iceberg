@@ -36,6 +36,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -176,18 +177,18 @@ public class TestSnapshotProducer extends TestBase {
 
   @TestTemplate
   public void manifestNotCleanedUpWhenSnapshotNotLoadableAfterCommit() {
-    // Uses a custom TableOps that returns stale metadata (without the new snapshot) on the
-    // first refresh() after commit, simulating eventual consistency. Verifies that commit succeeds
-    // and that the committed data is visible once the table is refreshed again
+    // Uses a custom TableOps that returns stale metadata (without the new snapshot) from current()
+    // and the first refresh() after commit, simulating eventual consistency. Verifies that commit
+    // succeeds and that the committed data is visible once the table is refreshed again
     String tableName = "stale-table-on-first-refresh";
     TestTables.TestTableOperations ops = opsWithStaleRefreshAfterCommit(tableName, tableDir);
     TestTables.TestTable tableWithStaleRefresh =
         TestTables.create(
             tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, ops);
 
-    // the first refresh() after the commit will return stale metadata (without this snapshot), so
-    // SnapshotProducer will skip cleanup to avoid accidentally deleting files that are part of the
-    // committed snapshot but commit still succeeds
+    // current() and the first refresh() after the commit will return stale metadata (without this
+    // snapshot), so SnapshotProducer will skip cleanup to avoid accidentally deleting files that
+    // are part of the committed snapshot but commit still succeeds
     tableWithStaleRefresh.newAppend().appendFile(FILE_A).commit();
 
     // Refresh again to get the real metadata; the snapshot must be visible now
@@ -205,11 +206,11 @@ public class TestSnapshotProducer extends TestBase {
   }
 
   /**
-   * Creates a TableOperations that returns stale metadata (without the newly committed snapshot) on
-   * the first refresh() after a commit. This simulates eventual consistency where the committed
-   * snapshot is not yet visible. Used to verify that when the snapshot cannot be loaded after
-   * commit, cleanup is skipped to avoid accidentally deleting files that are part of the committed
-   * snapshot.
+   * Creates a TableOperations that returns stale metadata (without the newly committed snapshot)
+   * from current() and the first refresh() after a commit. This simulates eventual consistency
+   * where the committed snapshot is not yet visible. Used to verify that when the snapshot cannot
+   * be loaded after commit, cleanup is skipped to avoid accidentally deleting files that are part
+   * of the committed snapshot.
    */
   private static TestTables.TestTableOperations opsWithStaleRefreshAfterCommit(
       String name, File location) {
@@ -220,7 +221,8 @@ public class TestSnapshotProducer extends TestBase {
       public void commit(TableMetadata base, TableMetadata updatedMetadata) {
         super.commit(base, updatedMetadata);
         if (base != null) {
-          // return stale metadata on the first refresh() call
+          // return stale metadata from current() and the first refresh() call
+          this.current = base;
           this.metadataToReturnOnNextRefresh = base;
         }
       }
@@ -231,6 +233,68 @@ public class TestSnapshotProducer extends TestBase {
           this.current = metadataToReturnOnNextRefresh;
           this.metadataToReturnOnNextRefresh = null;
           return current;
+        }
+
+        return super.refresh();
+      }
+    };
+  }
+
+  @TestTemplate
+  public void cleanupUsesRefreshWhenCurrentMissesCommittedSnapshot() {
+    // Uses a custom TableOps whose current() returns stale metadata (without the new snapshot)
+    // after commit, while refresh() returns the committed metadata. Verifies that SnapshotProducer
+    // falls back to refresh(), finds the committed snapshot, and runs cleanup
+    String tableName = "stale-current-fresh-refresh";
+    AtomicInteger refreshesAfterCommit = new AtomicInteger();
+    TestTables.TestTableOperations ops =
+        opsWithStaleCurrentAfterCommit(tableName, tableDir, refreshesAfterCommit);
+    TestTables.TestTable tableWithStaleCurrent =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, ops);
+
+    // force one retry so that two manifest lists are written; the unused one is only deleted if
+    // the committed snapshot is found after commit
+    ops.failCommits(1);
+    tableWithStaleCurrent.newFastAppend().appendFile(FILE_A).commit();
+
+    assertThat(refreshesAfterCommit)
+        .as("current() does not contain the committed snapshot, so refresh() must be used")
+        .hasValue(1);
+    assertThat(listManifestLists(tableDir))
+        .as("Unused manifest list must be cleaned up")
+        .hasSize(1);
+
+    tableWithStaleCurrent.ops().refresh();
+    assertThat(tableWithStaleCurrent.currentSnapshot().manifestListLocation())
+        .isEqualTo(listManifestLists(tableDir).get(0).getPath());
+  }
+
+  /**
+   * Creates a TableOperations whose current() returns stale metadata (without the newly committed
+   * snapshot) after a commit, while refresh() returns the committed metadata. Used to verify that
+   * SnapshotProducer falls back to refresh() when current() does not contain the committed
+   * snapshot.
+   */
+  private static TestTables.TestTableOperations opsWithStaleCurrentAfterCommit(
+      String name, File location, AtomicInteger refreshesAfterCommit) {
+    return new TestTables.TestTableOperations(name, location) {
+      private boolean committed = false;
+
+      @Override
+      public void commit(TableMetadata base, TableMetadata updatedMetadata) {
+        super.commit(base, updatedMetadata);
+        if (base != null) {
+          // return stale metadata from current() until the next refresh()
+          this.current = base;
+          this.committed = true;
+        }
+      }
+
+      @Override
+      public TableMetadata refresh() {
+        if (committed) {
+          refreshesAfterCommit.incrementAndGet();
         }
 
         return super.refresh();
