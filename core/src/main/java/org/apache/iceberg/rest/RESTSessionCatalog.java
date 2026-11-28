@@ -60,6 +60,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
@@ -1169,7 +1170,16 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     @Override
     public Transaction replaceTransaction() {
       Endpoint.check(endpoints, Endpoint.V1_UPDATE_TABLE);
-      if (viewExists(context, ident)) {
+      boolean viewExists;
+      try {
+        viewExists = viewExists(context, ident);
+      } catch (ForbiddenException e) {
+        // view access may be denied even when table operations are allowed; if a view with the
+        // same name exists, the server will reject the replacement when the transaction commits
+        viewExists = false;
+      }
+
+      if (viewExists) {
         throw new AlreadyExistsException("View with same name already exists: %s", ident);
       }
 
