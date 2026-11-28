@@ -34,6 +34,57 @@ import org.junit.jupiter.api.Test;
 
 class TestCompareSchemasVisitor {
 
+  @Test
+  void testEmptyStructSame() {
+    // Empty structs (for example an Avro zero-field marker record) must compare SAME
+    // against the identical table schema instead of requesting a schema update.
+    assertThat(
+            CompareSchemasVisitor.visit(
+                new Schema(
+                    required(1, "id", StringType.get()),
+                    optional(2, "marker", StructType.of())),
+                new Schema(
+                    required(1, "id", StringType.get()),
+                    optional(2, "marker", StructType.of())),
+                CASE_SENSITIVE,
+                PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SAME);
+  }
+
+  @Test
+  void testNestedEmptyStructSame() {
+    assertThat(
+            CompareSchemasVisitor.visit(
+                new Schema(
+                    optional(
+                        1,
+                        "outer",
+                        StructType.of(optional(2, "marker", StructType.of())))),
+                new Schema(
+                    optional(
+                        1,
+                        "outer",
+                        StructType.of(optional(2, "marker", StructType.of())))),
+                CASE_SENSITIVE,
+                PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SAME);
+  }
+
+  @Test
+  void testEmptyStructAgainstNonEmptyTableStruct() {
+    // An empty input struct against a table struct with an extra optional field still
+    // needs a data conversion; the empty-struct case must not mask real differences.
+    assertThat(
+            CompareSchemasVisitor.visit(
+                new Schema(optional(1, "marker", StructType.of())),
+                new Schema(
+                    optional(
+                        1, "marker", StructType.of(optional(2, "extra", StringType.get())))),
+                CASE_SENSITIVE,
+                PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
+  }
+
   private static final boolean CASE_SENSITIVE = true;
   private static final boolean CASE_INSENSITIVE = false;
 
