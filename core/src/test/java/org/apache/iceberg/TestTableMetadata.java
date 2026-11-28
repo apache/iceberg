@@ -1736,6 +1736,104 @@ public class TestTableMetadata {
   }
 
   @Test
+  void setCurrentSchemaToReAddedHistoricalSchema() {
+    Schema original = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            original, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of());
+    TableMetadata updated =
+        base.updateSchema(
+            new Schema(
+                Types.NestedField.required(1, "x", Types.LongType.get()),
+                Types.NestedField.optional(2, "y", Types.StringType.get())));
+
+    TableMetadata reverted =
+        TableMetadata.buildFrom(updated).addSchema(original).setCurrentSchema(-1).build();
+
+    assertThat(reverted.currentSchemaId()).isEqualTo(base.currentSchemaId());
+    assertThat(reverted.changes()).hasSize(updated.changes().size() + 1);
+    assertThat(Iterables.getLast(reverted.changes()))
+        .isInstanceOfSatisfying(
+            MetadataUpdate.SetCurrentSchema.class,
+            update -> assertThat(update.schemaId()).isEqualTo(base.currentSchemaId()));
+  }
+
+  @Test
+  void setDefaultSpecToReAddedHistoricalSpec() {
+    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of());
+    TableMetadata updated =
+        base.updatePartitionSpec(PartitionSpec.builderFor(base.schema()).bucket("x", 4).build());
+
+    TableMetadata reverted =
+        TableMetadata.buildFrom(updated)
+            .addPartitionSpec(PartitionSpec.unpartitioned())
+            .setDefaultPartitionSpec(-1)
+            .build();
+
+    assertThat(reverted.defaultSpecId()).isEqualTo(base.defaultSpecId());
+    assertThat(reverted.changes()).hasSize(updated.changes().size() + 1);
+    assertThat(Iterables.getLast(reverted.changes()))
+        .isInstanceOfSatisfying(
+            MetadataUpdate.SetDefaultPartitionSpec.class,
+            update -> assertThat(update.specId()).isEqualTo(base.defaultSpecId()));
+  }
+
+  @Test
+  void setDefaultSortOrderToReAddedHistoricalSortOrder() {
+    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of());
+    TableMetadata updated =
+        base.replaceSortOrder(SortOrder.builderFor(base.schema()).asc("x").build());
+
+    TableMetadata reverted =
+        TableMetadata.buildFrom(updated)
+            .addSortOrder(SortOrder.unsorted())
+            .setDefaultSortOrder(-1)
+            .build();
+
+    assertThat(reverted.defaultSortOrderId()).isEqualTo(base.defaultSortOrderId());
+    assertThat(reverted.changes()).hasSize(updated.changes().size() + 1);
+    assertThat(Iterables.getLast(reverted.changes()))
+        .isInstanceOfSatisfying(
+            MetadataUpdate.SetDefaultSortOrder.class,
+            update -> assertThat(update.sortOrderId()).isEqualTo(base.defaultSortOrderId()));
+  }
+
+  @Test
+  void replayedChangesSetCurrentSchemaToReAddedSchema() {
+    Schema original = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            original, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of());
+    Schema first =
+        new Schema(
+            Types.NestedField.required(1, "x", Types.LongType.get()),
+            Types.NestedField.optional(2, "y", Types.StringType.get()));
+    Schema second =
+        new Schema(
+            Types.NestedField.required(1, "x", Types.LongType.get()),
+            Types.NestedField.optional(3, "z", Types.StringType.get()));
+
+    TableMetadata updated =
+        TableMetadata.buildFrom(base)
+            .addSchema(first)
+            .addSchema(second)
+            .addSchema(first)
+            .setCurrentSchema(-1)
+            .build();
+
+    TableMetadata.Builder replay = TableMetadata.buildFrom(base);
+    updated.changes().forEach(change -> change.applyTo(replay));
+
+    assertThat(replay.build().schema().asStruct()).isEqualTo(updated.schema().asStruct());
+  }
+
+  @Test
   public void testCreateV2MetadataThroughTableProperty() {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
