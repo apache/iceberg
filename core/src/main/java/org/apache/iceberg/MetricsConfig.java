@@ -260,7 +260,17 @@ public final class MetricsConfig implements Serializable {
     return from(props, schema, order, null);
   }
 
-  private static MetricsConfig from(
+  /**
+   * Generate a MetricsConfig for all columns based on overrides, schema, and sort order.
+   *
+   * @param props will be read for metrics overrides (write.metadata.metrics.column.*) and default
+   *     (write.metadata.metrics.default)
+   * @param schema table schema
+   * @param order sort order columns, will be promoted to truncate(16)
+   * @param spec partition spec
+   * @return metrics configuration
+   */
+  public static MetricsConfig from(
       Map<String, String> props, Schema schema, SortOrder order, PartitionSpec spec) {
     int maxDefaultColumns = maxInferredColumnDefaults(props);
 
