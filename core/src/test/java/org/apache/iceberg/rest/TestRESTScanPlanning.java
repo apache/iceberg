@@ -43,6 +43,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
@@ -58,6 +59,7 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -1567,6 +1569,79 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
         .containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
     assertThat(newScan.fileIO().get().properties().get(RESTCatalogProperties.REST_SCAN_PLAN_ID))
         .isNotEqualTo(planId);
+  }
+
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  void ioBuilderBuildsFileIOForRemotePlanning(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders,
+                  ParserContext parserContext) {
+                T response =
+                    super.execute(
+                        request, responseType, errorHandler, responseHeaders, parserContext);
+                if (response instanceof LoadTableResponse loadTableResponse) {
+                  return castResponse(
+                      responseType,
+                      LoadTableResponse.builder()
+                          .withTableMetadata(loadTableResponse.tableMetadata())
+                          .addAllConfig(loadTableResponse.config())
+                          .addConfig("table-config-key", "table-config-value")
+                          .build());
+                }
+
+                return maybeAddStorageCredential(response);
+              }
+            });
+
+    adapter.setPlanningBehavior(planMode.apply(TestPlanningBehavior.builder()).build());
+
+    SessionCatalog.SessionContext userContext =
+        new SessionCatalog.SessionContext("scan-session", "scan-user", Map.of(), Map.of());
+    List<SessionCatalog.SessionContext> ioBuilderContexts = Lists.newCopyOnWriteArrayList();
+    List<Map<String, String>> ioBuilderProperties = Lists.newCopyOnWriteArrayList();
+    RESTCatalog catalog =
+        new RESTCatalog(userContext, (config) -> adapter) {
+          @Override
+          protected RESTSessionCatalog newSessionCatalog(
+              Function<Map<String, String>, RESTClient> clientBuilder) {
+            return new RESTSessionCatalog(
+                clientBuilder,
+                (context, properties) -> {
+                  ioBuilderContexts.add(context);
+                  ioBuilderProperties.add(properties);
+                  return CatalogUtil.loadFileIO(InMemoryFileIO.class.getName(), properties, null);
+                });
+          }
+        };
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            RESTCatalogProperties.SCAN_PLANNING_MODE,
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
+
+    Table table = restTableFor(catalog, "io_builder_remote_planning");
+    Map<String, String> tableFileIOProperties = table.io().properties();
+    assertThat(tableFileIOProperties).containsEntry("table-config-key", "table-config-value");
+
+    TableScan tableScan = table.newScan();
+    assertThat(tableScan.planFiles()).hasSize(1);
+
+    Map<String, String> scanFileIOProperties =
+        ioBuilderProperties.get(ioBuilderProperties.size() - 1);
+    assertThat(ioBuilderContexts.get(ioBuilderContexts.size() - 1)).isSameAs(userContext);
+    assertThat(tableScan.fileIO().get().properties()).isEqualTo(scanFileIOProperties);
+    assertThat(scanFileIOProperties)
+        .containsAllEntriesOf(tableFileIOProperties)
+        .containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
   }
 
   @SuppressWarnings("unchecked")

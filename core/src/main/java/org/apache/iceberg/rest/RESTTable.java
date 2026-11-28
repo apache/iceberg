@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.rest;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
@@ -30,7 +32,9 @@ import org.apache.iceberg.SupportsDistributedScanPlanning;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.rest.credentials.Credential;
 
 class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
   private final RESTClient client;
@@ -40,7 +44,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
   private final TableIdentifier tableIdentifier;
   private final Set<Endpoint> supportedEndpoints;
   private final Map<String, String> catalogProperties;
-  private final Object hadoopConf;
+  private final BiFunction<List<Credential>, String, FileIO> scanFileIOBuilder;
 
   RESTTable(
       TableOperations ops,
@@ -52,7 +56,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
       ResourcePaths resourcePaths,
       Set<Endpoint> supportedEndpoints,
       Map<String, String> catalogProperties,
-      Object hadoopConf,
+      BiFunction<List<Credential>, String, FileIO> scanFileIOBuilder,
       Labels labels) {
     super(ops, name, reporter, labels);
     this.reporter = reporter;
@@ -62,7 +66,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
     this.resourcePaths = resourcePaths;
     this.supportedEndpoints = supportedEndpoints;
     this.catalogProperties = catalogProperties;
-    this.hadoopConf = hadoopConf;
+    this.scanFileIOBuilder = scanFileIOBuilder;
   }
 
   @Override
@@ -78,7 +82,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
         resourcePaths,
         supportedEndpoints,
         catalogProperties,
-        hadoopConf);
+        scanFileIOBuilder);
   }
 
   @Override

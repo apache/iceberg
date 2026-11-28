@@ -645,7 +645,16 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       trackFileIO(ops);
 
-      RESTTable table = restTableForScanPlanning(ops, identifier, tableClient, tableConf, labels);
+      RESTTable table =
+          restTableForScanPlanning(
+              ops,
+              identifier,
+              context,
+              tableClient,
+              tableConf,
+              loadContext,
+              remoteSigningConfig,
+              labels);
       if (table != null) {
         return table;
       }
@@ -661,8 +670,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private RESTTable restTableForScanPlanning(
       TableOperations ops,
       TableIdentifier finalIdentifier,
+      SessionContext context,
       RESTClient restClient,
       Map<String, String> tableConf,
+      LoadContext loadContext,
+      RemoteSigningConfig remoteSigningConfig,
       Labels labels) {
     String planningModeServerConfig = tableConf.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
     ScanPlanningMode serverScanPlanningMode =
@@ -698,6 +710,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           finalIdentifier,
           Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN);
 
+      Map<String, String> fileIOProperties =
+          tableFileIOProperties(finalIdentifier, tableConf, loadContext, remoteSigningConfig);
       return new RESTTable(
           ops,
           fullTableName(finalIdentifier),
@@ -708,7 +722,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           paths,
           endpoints,
           properties(),
-          conf,
+          (storageCredentials, planId) ->
+              newFileIO(
+                  context, scanFileIOProperties(fileIOProperties, planId), storageCredentials),
           labels);
     }
 
@@ -804,7 +820,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     trackFileIO(ops);
 
     RESTTable restTable =
-        restTableForScanPlanning(ops, ident, tableClient, tableConf, response.labels());
+        restTableForScanPlanning(
+            ops,
+            ident,
+            context,
+            tableClient,
+            tableConf,
+            LoadContext.empty(),
+            response.remoteSigningConfig(),
+            response.labels());
     if (restTable != null) {
       return restTable;
     }
@@ -1118,7 +1142,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       trackFileIO(ops);
 
       RESTTable restTable =
-          restTableForScanPlanning(ops, ident, tableClient, tableConf, response.labels());
+          restTableForScanPlanning(
+              ops,
+              ident,
+              context,
+              tableClient,
+              tableConf,
+              LoadContext.empty(),
+              response.remoteSigningConfig(),
+              response.labels());
       if (restTable != null) {
         return restTable;
       }
@@ -1369,6 +1401,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       return io;
     }
 
+    return newFileIO(
+        context,
+        tableFileIOProperties(tableIdentifier, tableConf, loadContext, remoteSigningConfig),
+        storageCredentials);
+  }
+
+  private Map<String, String> tableFileIOProperties(
+      TableIdentifier tableIdentifier,
+      Map<String, String> tableConf,
+      LoadContext loadContext,
+      RemoteSigningConfig remoteSigningConfig) {
     ImmutableMap.Builder<String, String> fullConf =
         ImmutableMap.<String, String>builder()
             .putAll(properties())
@@ -1382,7 +1425,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           RemoteSigningConfigParser.toJson(remoteSigningConfig));
     }
 
-    return newFileIO(context, fullConf.buildKeepingLast(), storageCredentials);
+    return fullConf.buildKeepingLast();
+  }
+
+  private static Map<String, String> scanFileIOProperties(
+      Map<String, String> tableFileIOProperties, String planId) {
+    if (null == planId) {
+      return tableFileIOProperties;
+    }
+
+    return ImmutableMap.<String, String>builder()
+        .putAll(tableFileIOProperties)
+        .put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId)
+        .buildKeepingLast();
   }
 
   /**
