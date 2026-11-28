@@ -685,6 +685,35 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
   @ParameterizedTest
   @EnumSource(PlanningMode.class)
+  void minRowsRequestedDoesNotCountFilesWithDeletes(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
+    configurePlanningBehavior(planMode);
+    Table table = createTableWithScanPlanning(restCatalog, "min_rows_with_deletes");
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_B_DELETES).commit();
+    setParserContext(table);
+
+    assertThat(table.newScan().minRowsRequested(1L).planFiles())
+        .extracting(task -> task.file().location())
+        .containsExactlyInAnyOrder(FILE_A.location(), FILE_B.location());
+  }
+
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  void minRowsRequestedDoesNotCountFilesWithResiduals(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
+    configurePlanningBehavior(planMode);
+    Table table = createTableWithScanPlanning(restCatalog, "min_rows_with_residuals");
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    setParserContext(table);
+
+    assertThat(table.newScan().filter(Expressions.equal("id", 1)).minRowsRequested(1L).planFiles())
+        .extracting(task -> task.file().location())
+        .containsExactlyInAnyOrder(FILE_A.location(), FILE_B.location());
+  }
+
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
   void remoteScanPlanningDeletesCancellation(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {

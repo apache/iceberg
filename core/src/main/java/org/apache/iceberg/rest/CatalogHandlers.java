@@ -30,8 +30,10 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -73,6 +75,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -1012,9 +1015,7 @@ public class CatalogHandlers {
       }
 
       Iterable<FileScanTask> limitedTasks =
-          null != minRowsRequested
-              ? Iterables.limit(planTasks, (int) Math.min(minRowsRequested, Integer.MAX_VALUE))
-              : planTasks;
+          null != minRowsRequested ? limitToRows(planTasks, minRowsRequested) : planTasks;
       Iterable<List<FileScanTask>> taskGroupings =
           Iterables.partition(limitedTasks, tasksPerPlanTask);
       int planTaskSequence = 0;
@@ -1037,6 +1038,34 @@ public class CatalogHandlers {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+  }
+
+  private static Iterable<FileScanTask> limitToRows(Iterable<FileScanTask> tasks, long minRows) {
+    return () ->
+        new Iterator<>() {
+          private final Iterator<FileScanTask> delegate = tasks.iterator();
+          private long remainingRows = minRows;
+
+          @Override
+          public boolean hasNext() {
+            return remainingRows > 0 && delegate.hasNext();
+          }
+
+          @Override
+          public FileScanTask next() {
+            if (!hasNext()) {
+              throw new NoSuchElementException();
+            }
+
+            FileScanTask task = delegate.next();
+            // only files whose rows are all returned have an exact row count
+            if (task.deletes().isEmpty() && task.residual().op() == Expression.Operation.TRUE) {
+              remainingRows -= Math.min(remainingRows, Math.max(0L, task.file().recordCount()));
+            }
+
+            return task;
+          }
+        };
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")
