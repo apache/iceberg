@@ -19,12 +19,13 @@
 package org.apache.iceberg.parquet;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Bound;
@@ -35,6 +36,7 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
@@ -49,10 +51,14 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 
 public class ParquetMetricsRowGroupFilter {
-  private static final int IN_PREDICATE_LIMIT = 200;
-
   private final Schema schema;
   private final Expression expr;
+
+  // sorted copies of IN literal sets, keyed by the identity of the bound predicate's set, so each
+  // set is sorted once and reused for every row group
+  @SuppressWarnings("IdentityHashMapUsage")
+  private final Map<Set<?>, List<?>> sortedInLiterals =
+      Collections.synchronizedMap(new IdentityHashMap<>());
 
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -427,30 +433,11 @@ public class ParquetMetricsRowGroupFilter {
           return ROWS_MIGHT_MATCH;
         }
 
-        Collection<T> literals = literalSet;
-
-        if (literals.size() > IN_PREDICATE_LIMIT) {
-          // skip evaluating the predicate if the number of values is too big
-          return ROWS_MIGHT_MATCH;
-        }
-
         T lower = min(colStats, id);
-        literals =
-            literals.stream()
-                .filter(v -> ref.comparator().compare(lower, v) <= 0)
-                .collect(Collectors.toList());
-        if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
-          return ROWS_CANNOT_MATCH;
-        }
-
         T upper = max(colStats, id);
-        literals =
-            literals.stream()
-                .filter(v -> ref.comparator().compare(upper, v) >= 0)
-                .collect(Collectors.toList());
-        if (literals
-            .isEmpty()) { // if all remaining values are greater than upper bound, rows cannot
-          // match.
+        Comparator<T> comparator = ref.comparator();
+        if (!anyInRange(sorted(literalSet, comparator), comparator, lower, upper)) {
+          // no value is within [lower, upper], rows cannot match.
           return ROWS_CANNOT_MATCH;
         }
       }
@@ -597,6 +584,32 @@ public class ParquetMetricsRowGroupFilter {
       Type type = schema.findType(id);
       return type instanceof Type.NestedType || type.isVariantType();
     }
+  }
+
+  @SuppressWarnings("unchecked")
+  private <T> List<T> sorted(Set<T> literalSet, Comparator<T> comparator) {
+    return (List<T>)
+        sortedInLiterals.computeIfAbsent(
+            literalSet,
+            set -> {
+              List<T> sorted = Lists.newArrayList(literalSet);
+              sorted.sort(comparator);
+              return sorted;
+            });
+  }
+
+  /** Return whether any of the sorted literals is within [lower, upper]. */
+  private static <T> boolean anyInRange(
+      List<T> sortedLiterals, Comparator<T> comparator, T lower, T upper) {
+    int pos = Collections.binarySearch(sortedLiterals, lower, comparator);
+    if (pos >= 0) {
+      return true;
+    }
+
+    // the first literal greater than lower is in range if it is not greater than upper
+    int next = -(pos + 1);
+    return next < sortedLiterals.size()
+        && (upper == null || comparator.compare(upper, sortedLiterals.get(next)) >= 0);
   }
 
   /**

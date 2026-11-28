@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.expressions;
 
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.Set;
 import org.apache.iceberg.transforms.Transform;
@@ -26,10 +25,14 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.NaNUtil;
 
 abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Boolean> {
-  private static final int IN_PREDICATE_LIMIT = 200;
-
   protected static final boolean ROWS_MIGHT_MATCH = true;
   protected static final boolean ROWS_CANNOT_MATCH = false;
+
+  private final SortedInLiterals sortedInLiterals;
+
+  protected InclusiveEvalVisitor(SortedInLiterals sortedInLiterals) {
+    this.sortedInLiterals = sortedInLiterals;
+  }
 
   /** Return true if null count is non-zero or is unknown, false if null count is 0. */
   protected abstract boolean mayContainNull(int id);
@@ -301,13 +304,6 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
       return ROWS_CANNOT_MATCH;
     }
 
-    Collection<T> literals = literalSet;
-
-    if (literals.size() > IN_PREDICATE_LIMIT) {
-      // skip evaluating the predicate if the number of values is too big
-      return ROWS_MIGHT_MATCH;
-    }
-
     T lower = evalLowerBound(term);
     if (null == lower || NaNUtil.isNaN(lower)) {
       // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
@@ -319,14 +315,8 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
 
     // rows might match if any literal falls within [lower, upper]; a null upper means no upper
     // bound
-    for (T literal : literals) {
-      if (comparator.compare(lower, literal) <= 0
-          && (null == upper || comparator.compare(upper, literal) >= 0)) {
-        return ROWS_MIGHT_MATCH;
-      }
-    }
-
-    return ROWS_CANNOT_MATCH;
+    return SortedInLiterals.anyInRange(
+        sortedInLiterals.sorted(literalSet, comparator), comparator, lower, upper);
   }
 
   @Override
