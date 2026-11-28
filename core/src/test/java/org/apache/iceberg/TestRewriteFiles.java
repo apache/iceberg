@@ -68,7 +68,8 @@ public class TestRewriteFiles extends TestBase {
                     table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B)),
                     branch))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Missing required files to delete: /path/to/data-a.parquet");
+        .hasMessageContaining("Missing required files to delete")
+        .hasMessageContaining("/path/to/data-a.parquet");
 
     assertThatThrownBy(
             () ->
@@ -83,7 +84,8 @@ public class TestRewriteFiles extends TestBase {
                             ImmutableSet.of(fileBDeletes())),
                     branch))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Missing required files to delete: %s", fileADeletes().location());
+        .hasMessageContaining("Missing required files to delete")
+        .hasMessageContaining(fileADeletes().location());
   }
 
   @TestTemplate
@@ -97,7 +99,8 @@ public class TestRewriteFiles extends TestBase {
                     table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Collections.emptySet()),
                     branch))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Missing required files to delete: /path/to/data-a.parquet");
+        .hasMessageContaining("Missing required files to delete")
+        .hasMessageContaining("/path/to/data-a.parquet");
 
     assertThatThrownBy(
             () ->
@@ -699,7 +702,8 @@ public class TestRewriteFiles extends TestBase {
                     table.newRewrite().rewriteFiles(Sets.newSet(FILE_C), Sets.newSet(FILE_D)),
                     branch))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Missing required files to delete: /path/to/data-c.parquet");
+        .hasMessageContaining("Missing required files to delete")
+        .hasMessageContaining("/path/to/data-c.parquet");
 
     assertThat(listManifestFiles()).hasSize(1);
   }
@@ -739,7 +743,8 @@ public class TestRewriteFiles extends TestBase {
                     table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_D)),
                     branch))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Missing required files to delete: /path/to/data-a.parquet");
+        .hasMessageContaining("Missing required files to delete")
+        .hasMessageContaining("/path/to/data-a.parquet");
 
     assertThat(listManifestFiles()).hasSize(3);
   }
@@ -1122,5 +1127,17 @@ public class TestRewriteFiles extends TestBase {
         ids(dvSnapshot.snapshotId()),
         files(dv),
         statuses(ADDED));
+  }
+
+  @TestTemplate
+  public void testConflictingDataSequenceNumbers() {
+    assertThatThrownBy(
+            () ->
+                table
+                    .newRewrite()
+                    .dataSequenceNumber(6L)
+                    .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_D), 7L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot change data sequence number for data files");
   }
 }

@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import java.util.List;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.util.PartitionSet;
 
@@ -116,11 +115,6 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
       deleteByRowFilter(Expressions.alwaysTrue());
     }
 
-    try {
-      return super.apply(base, snapshot);
-    } catch (ManifestFilterManager.DeleteException e) {
-      throw new ValidationException(
-          "Cannot commit file that conflicts with existing partition: %s", e.partition());
-    }
+    return super.apply(base, snapshot);
   }
 }

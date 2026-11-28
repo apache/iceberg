@@ -18,13 +18,17 @@
  */
 package org.apache.iceberg;
 
+import java.util.List;
 import java.util.Set;
+import org.apache.commons.compress.utils.Lists;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.DataFileSet;
 
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
   private final DataFileSet replacedDataFiles = DataFileSet.create();
+  private final List<DataFile> pendingDataFiles = Lists.newArrayList();
+  private Long dataFileSequenceNumber = null;
   private Long startingSnapshotId = null;
 
   BaseRewriteFiles(String tableName, TableOperations ops) {
@@ -59,7 +63,7 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
 
   @Override
   public RewriteFiles addFile(DataFile dataFile) {
-    add(dataFile);
+    pendingDataFiles.add(dataFile);
     return self();
   }
 
@@ -77,14 +81,19 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
 
   @Override
   public RewriteFiles dataSequenceNumber(long sequenceNumber) {
-    setNewDataFilesDataSequenceNumber(sequenceNumber);
+    Preconditions.checkArgument(
+        dataFileSequenceNumber == null || sequenceNumber == dataFileSequenceNumber,
+        "Cannot change data sequence number for data files: %s != %s",
+        dataFileSequenceNumber,
+        sequenceNumber);
+    this.dataFileSequenceNumber = sequenceNumber;
     return self();
   }
 
   @Override
   public RewriteFiles rewriteFiles(
       Set<DataFile> filesToDelete, Set<DataFile> filesToAdd, long sequenceNumber) {
-    setNewDataFilesDataSequenceNumber(sequenceNumber);
+    dataSequenceNumber(sequenceNumber);
     return rewriteFiles(filesToDelete, ImmutableSet.of(), filesToAdd, ImmutableSet.of());
   }
 
@@ -132,12 +141,28 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
   }
 
   @Override
+  public Snapshot apply() {
+    // using the configured sequence number, add all pending data files
+    if (dataFileSequenceNumber != null) {
+      pendingDataFiles.forEach(file -> add(file, dataFileSequenceNumber));
+    } else {
+      pendingDataFiles.forEach(this::add);
+    }
+
+    pendingDataFiles.clear();
+
+    // continue with the fully-configured commit
+    return super.apply();
+  }
+
+  @Override
   protected void validate(TableMetadata base, Snapshot parent) {
     validateReplacedAndAddedFiles();
     if (!replacedDataFiles.isEmpty()) {
       // if there are replaced data files, there cannot be any new row-level deletes for those data
       // files
-      validateNoNewDeletesForDataFiles(base, startingSnapshotId, replacedDataFiles, parent);
+      validateNoNewDeletesForDataFiles(
+          base, startingSnapshotId, replacedDataFiles, dataFileSequenceNumber, parent);
     }
   }
 

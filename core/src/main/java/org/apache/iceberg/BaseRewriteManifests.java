@@ -49,6 +49,7 @@ import org.apache.iceberg.util.Tasks;
 public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     implements RewriteManifests {
   private final String tableName;
+  private final ManifestWriteManager writeManager;
   private final Map<Integer, PartitionSpec> specsById;
   private final long manifestTargetSizeBytes;
 
@@ -71,6 +72,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   BaseRewriteManifests(String tableName, TableOperations ops) {
     super(ops);
     this.tableName = tableName;
+    this.writeManager = new ManifestWriteManager(ops, snapshotId());
     this.specsById = ops().current().specsById();
     this.manifestTargetSizeBytes =
         ops()
@@ -154,7 +156,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   private ManifestFile copyManifest(ManifestFile manifest) {
     TableMetadata current = ops().current();
     InputFile toCopy = ops().io().newInputFile(manifest);
-    EncryptedOutputFile newFile = newManifestOutputFile();
+    EncryptedOutputFile newFile = writeManager.newManifestOutputFile();
     return ManifestFiles.copyRewriteManifest(
         current.formatVersion(),
         manifest.partitionSpecId(),
@@ -229,7 +231,10 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   }
 
   private void reset() {
-    deleteUncommitted(newManifests, ImmutableSet.of(), true /* clear new manifests */);
+    if (deleteUncommitted(newManifests, ImmutableSet.of())) {
+      newManifests.clear();
+    }
+
     entryCount.set(0);
     keptManifests.clear();
     rewrittenManifests.clear();
@@ -344,10 +349,10 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   @Override
   protected void cleanUncommitted(Set<String> committed) {
-    deleteUncommitted(newManifests, committed, false);
+    deleteUncommitted(newManifests, committed);
     // clean up only rewrittenAddedManifests as they are always owned by the table
     // don't clean up addedManifests as they are added to the manifest list and are not compacted
-    deleteUncommitted(rewrittenAddedManifests, committed, false);
+    deleteUncommitted(rewrittenAddedManifests, committed);
   }
 
   long getManifestTargetSizeBytes() {
@@ -364,10 +369,10 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
     synchronized void addEntry(ManifestEntry<DataFile> entry) {
       if (writer == null) {
-        writer = newManifestWriter(spec);
+        writer = writeManager.newManifestWriter(spec);
       } else if (writer.length() >= getManifestTargetSizeBytes()) {
         close();
-        writer = newManifestWriter(spec);
+        writer = writeManager.newManifestWriter(spec);
       }
       writer.existing(entry);
     }

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -35,6 +36,7 @@ import org.apache.iceberg.util.DataFileSet;
 /** {@link AppendFiles Append} implementation that adds new manifest files for writes. */
 class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private final String tableName;
+  private final ManifestWriteManager writeManager;
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
   private final Map<Integer, DataFileSet> newDataFilesBySpec = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
@@ -45,6 +47,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   FastAppend(String tableName, TableOperations ops) {
     super(ops);
     this.tableName = tableName;
+    this.writeManager = new ManifestWriteManager(ops, snapshotId());
   }
 
   @Override
@@ -55,6 +58,12 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   @Override
   public AppendFiles set(String property, String value) {
     summaryBuilder.set(property, value);
+    return this;
+  }
+
+  @Override
+  public AppendFiles writeManifestsWith(ExecutorService pool, int parallelism) {
+    writeManager.writeWith(pool, parallelism);
     return this;
   }
 
@@ -87,7 +96,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     DataFileSet dataFiles =
         newDataFilesBySpec.computeIfAbsent(spec.specId(), ignored -> DataFileSet.create());
 
-    if (dataFiles.add(file)) {
+    if (dataFiles.add(Delegates.pendingDataFile(file, null))) {
       this.hasNewFiles = true;
       summaryBuilder.addedFile(spec, file);
     }
@@ -132,7 +141,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private ManifestFile copyManifest(ManifestFile manifest) {
     TableMetadata current = ops().current();
     InputFile toCopy = ops().io().newInputFile(manifest);
-    EncryptedOutputFile newManifestFile = newManifestOutputFile();
+    EncryptedOutputFile newManifestFile = writeManager.newManifestOutputFile();
     return ManifestFiles.copyAppendManifest(
         current.formatVersion(),
         manifest.partitionSpecId(),
@@ -166,7 +175,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
       manifests.addAll(snapshot.allManifests(ops().io()));
     }
 
-    summaryBuilder.merge(buildManifestCountSummary(manifests, 0));
+    updateManifestSummary(summaryBuilder, manifests);
 
     return manifests;
   }
@@ -183,12 +192,14 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   @Override
   protected void cleanUncommitted(Set<String> committed) {
     if (newManifests != null) {
-      deleteUncommitted(newManifests, committed, true /* clear manifests */);
+      if (deleteUncommitted(newManifests, committed)) {
+        newManifests.clear();
+      }
     }
 
     // clean up only rewrittenAppendManifests as they are always owned by the table
     // don't clean up appendManifests as they are added to the manifest list and are not compacted
-    deleteUncommitted(rewrittenAppendManifests, committed, false);
+    deleteUncommitted(rewrittenAppendManifests, committed);
   }
 
   /**
@@ -209,10 +220,28 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
 
     if (newManifests.isEmpty() && !newDataFilesBySpec.isEmpty()) {
       newDataFilesBySpec.forEach(
-          (specId, dataFiles) -> newManifests.addAll(writeDataManifests(dataFiles, spec(specId))));
+          (specId, dataFiles) ->
+              newManifests.addAll(writeManager.writeDataManifests(dataFiles, spec(specId))));
       hasNewFiles = false;
     }
 
     return newManifests;
+  }
+
+  private void updateManifestSummary(
+      SnapshotSummary.Builder builder, List<ManifestFile> manifests) {
+    int manifestsCreated = 0;
+    int manifestsKept = 0;
+    for (ManifestFile manifest : manifests) {
+      if (snapshotId() == manifest.snapshotId()) {
+        manifestsCreated += 1;
+      } else if (null != manifest.snapshotId()) {
+        manifestsKept += 1;
+      }
+    }
+
+    builder.set(SnapshotSummary.CREATED_MANIFESTS_COUNT, String.valueOf(manifestsCreated));
+    builder.set(SnapshotSummary.KEPT_MANIFESTS_COUNT, String.valueOf(manifestsKept));
+    builder.set(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
   }
 }

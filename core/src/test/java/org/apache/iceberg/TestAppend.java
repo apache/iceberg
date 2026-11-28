@@ -45,8 +45,7 @@ public class TestAppend extends AdaptiveMetadataTestBase {
     OutputFile output =
         io.newOutputFile("memory:/warehouse/table/metadata/append-manifest.parquet");
     ManifestFile manifest = writeLeafManifest(defaultTable, output, FILE_A, FILE_B);
-    AppendFiles append = defaultTable.newAppend().appendManifest(manifest);
-    assertThatThrownBy(append::commit)
+    assertThatThrownBy(() -> defaultTable.newAppend().appendManifest(manifest))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot append manifest files in v4");
   }
@@ -55,8 +54,7 @@ public class TestAppend extends AdaptiveMetadataTestBase {
   public void removeDataFile() {
     defaultTable.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
     MergingSnapshotProducer<?> producer = (MergeAppend) defaultTable.newAppend();
-    producer.delete(FILE_A);
-    assertThatThrownBy(producer::commit)
+    assertThatThrownBy(() -> producer.delete(FILE_A))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot remove data files in v4");
   }
@@ -65,8 +63,7 @@ public class TestAppend extends AdaptiveMetadataTestBase {
   public void addDeleteFile() {
     defaultTable.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
     MergingSnapshotProducer<?> producer = (MergeAppend) defaultTable.newAppend();
-    producer.add(FILE_A_DV);
-    assertThatThrownBy(producer::commit)
+    assertThatThrownBy(() -> producer.add(FILE_A_DV))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot add new delete files in v4");
   }
@@ -74,8 +71,7 @@ public class TestAppend extends AdaptiveMetadataTestBase {
   @Test
   public void removeDeleteFile() {
     MergingSnapshotProducer<?> producer = (MergeAppend) defaultTable.newAppend();
-    producer.delete(FILE_A_EQ_DELETES);
-    assertThatThrownBy(producer::commit)
+    assertThatThrownBy(() -> producer.delete(FILE_A_EQ_DELETES))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot remove delete files in v4");
   }

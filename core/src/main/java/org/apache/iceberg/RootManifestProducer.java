@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -36,12 +37,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 
 /** Responsible for producing v4 root manifest files for a commit. */
-class RootManifestProducer {
+class RootManifestProducer implements ProducerActions {
   private final TableOperations ops;
   private final FileIO io;
   private final long snapshotId;
   private final Map<String, String> writerProperties = Map.of();
-  private final List<TrackedFile> appendedDataFiles = Lists.newArrayList();
+  private final List<DataFile> appendedDataFiles = Lists.newArrayList();
 
   // internal state
   private final String commitUUID = UUID.randomUUID().toString();
@@ -57,8 +58,57 @@ class RootManifestProducer {
     this.snapshotId = snapshotId;
   }
 
-  void appendFile(DataFile dataFile) {
-    appendedDataFiles.add(TrackedFileAdapters.asTrackedFile(dataFile, ops.current().schema()));
+  @Override
+  public void appendDataFile(DataFile file) {
+    appendedDataFiles.add(file);
+  }
+
+  @Override
+  public void appendDataFileAtSeq(DataFile file, long dataSequenceNumber) {
+    throw new UnsupportedOperationException("Cannot append data files at a sequence number in v4");
+  }
+
+  @Override
+  public void appendManifest(ManifestFile manifest) {
+    throw new UnsupportedOperationException("Cannot append manifest files in v4");
+  }
+
+  @Override
+  public void addDeleteFile(DeleteFile file) {
+    throw new UnsupportedOperationException("Cannot add new delete files in v4");
+  }
+
+  @Override
+  public void addDeleteFileAtSeq(DeleteFile file, long dataSequenceNumber) {
+    throw new UnsupportedOperationException("Cannot add new delete files in v4");
+  }
+
+  @Override
+  public void deleteDataFile(DataFile file) {
+    throw new UnsupportedOperationException("Cannot remove data files in v4");
+  }
+
+  @Override
+  public void deleteDataFile(CharSequence location) {
+    throw new UnsupportedOperationException("Cannot remove data files in v4");
+  }
+
+  @Override
+  public void deleteDeleteFile(DeleteFile file) {
+    throw new UnsupportedOperationException("Cannot remove delete files in v4");
+  }
+
+  @Override
+  public void deleteByRowFilter(Expression expr) {
+    throw new UnsupportedOperationException("Cannot remove data files in v4");
+  }
+
+  @Override
+  public void caseSensitive(boolean isCaseSensitive) {}
+
+  @Override
+  public void deletePartition(int specId, StructLike partition) {
+    throw new UnsupportedOperationException("Cannot remove data files in v4");
   }
 
   TrackedFile apply(TableMetadata base, Snapshot parent, long attemptSequenceNumber) {
@@ -67,8 +117,10 @@ class RootManifestProducer {
     manifestLocations.clear();
     V4ManifestWriter rootWriter = newRootWriter(base, attemptSequenceNumber, base.nextRowId());
     try (rootWriter) {
-      for (TrackedFile added : appendedDataFiles) {
-        rootWriter.append(added);
+      TrackedFileAdapters.DataTrackedFile wrapper =
+          TrackedFileAdapters.forDataFile(ops.current().schema());
+      for (DataFile added : appendedDataFiles) {
+        rootWriter.append(wrapper.wrap(added));
       }
 
       if (root != null) {
@@ -107,6 +159,11 @@ class RootManifestProducer {
 
   Set<String> manifestLocations() {
     return ImmutableSet.copyOf(manifestLocations);
+  }
+
+  @Override
+  public void cleanUncommitted(Set<String> committed) {
+    // no leaf files are written yet so no uncommitted files are left
   }
 
   private EncryptedOutputFile newRootOutputFile() {

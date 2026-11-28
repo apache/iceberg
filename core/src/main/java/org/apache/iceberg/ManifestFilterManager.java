@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -43,7 +44,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.ManifestFileUtil;
 import org.apache.iceberg.util.Pair;
@@ -75,7 +75,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private final Set<F> deleteFiles = newFileSet();
   private final Set<String> manifestsWithDeletes = Sets.newHashSet();
   private final PartitionSet dropPartitions;
-  private final CharSequenceSet deletePaths = CharSequenceSet.empty();
+  private final Set<String> deletePaths = Sets.newHashSet();
   // count of manifests that were rewritten with different manifest entry status during filtering
   private final AtomicInteger replacedManifestsCount = new AtomicInteger(0);
 
@@ -124,6 +124,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
   protected Set<F> filesToBeDeleted() {
     return deleteFiles;
+  }
+
+  protected Set<String> locationsToBeDeleted() {
+    return deletePaths;
   }
 
   /**
@@ -192,7 +196,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     Preconditions.checkNotNull(path, "Cannot delete file path: null");
     invalidateFilteredCache();
     this.allDeletesReferenceManifests = false;
-    deletePaths.add(path);
+    deletePaths.add(path.toString());
   }
 
   boolean containsDeletes() {
@@ -290,10 +294,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                   .map(ContentFile::location)
                   .collect(Collectors.toList())));
 
-      CharSequenceSet deletedFilePaths =
-          deletedFiles.stream()
-              .map(ContentFile::location)
-              .collect(Collectors.toCollection(CharSequenceSet::empty));
+      Set<String> deletedFilePaths =
+          deletedFiles.stream().map(ContentFile::location).collect(Collectors.toSet());
 
       ValidationException.check(
           deletedFilePaths.containsAll(deletePaths),
@@ -302,7 +304,19 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     }
   }
 
+  int duplicateDeleteCount(List<ManifestFile> manifests) {
+    return manifests.stream()
+        .map(filteredManifestResults::get)
+        .filter(Objects::nonNull)
+        .mapToInt(Pair::second)
+        .sum();
+  }
+
   private Set<F> deletedFiles(ManifestFile[] manifests) {
+    return deletedFiles(Arrays.asList(manifests));
+  }
+
+  Set<F> deletedFiles(List<ManifestFile> manifests) {
     Set<F> deletedFiles = newFileSet();
 
     if (manifests != null) {
