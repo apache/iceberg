@@ -302,6 +302,38 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
   }
 
   @TestTemplate
+  public void testUpdateAndMergeAtSnapshotAreRejected() {
+    createAndInitTable("id INT, dep STRING", "{ \"id\": 1, \"dep\": \"a\" }");
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql("ALTER TABLE %s CREATE TAG hist", tableName);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "UPDATE %s.snapshot_id_%d SET dep = 'changed' WHERE id = 1",
+                    tableName, snapshotId))
+        .hasMessageContaining("Cannot update or merge into a table at a specific snapshot");
+    assertThatThrownBy(() -> sql("UPDATE %s.tag_hist SET dep = 'changed' WHERE id = 1", tableName))
+        .hasMessageContaining("Cannot update or merge into a table at a specific snapshot");
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "MERGE INTO %s.snapshot_id_%d t USING (SELECT 1 AS id) s ON t.id = s.id "
+                        + "WHEN MATCHED THEN UPDATE SET t.dep = 'merged'",
+                    tableName, snapshotId))
+        .hasMessageContaining("Cannot update or merge into a table at a specific snapshot");
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.currentSnapshot().snapshotId())
+        .as("A snapshot selector must not commit a new snapshot")
+        .isEqualTo(snapshotId);
+    assertEquals(
+        "Snapshot selector must not rewrite the current table",
+        ImmutableList.of(row(1, "a")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
   public void testUpdateNonExistingCustomBranch() {
     assumeThat(branch).as("Test only applicable to custom branch").isEqualTo("test");
     createAndInitTable("id INT, dep STRING");
