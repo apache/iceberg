@@ -32,17 +32,26 @@ import static org.apache.iceberg.TableProperties.UPDATE_MODE;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
 
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.IsolationLevel;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.write.RowLevelOperation;
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 import org.apache.spark.sql.connector.write.RowLevelOperationBuilder;
 import org.apache.spark.sql.connector.write.RowLevelOperationInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class SparkRowLevelOperationBuilder implements RowLevelOperationBuilder {
+  private static final Logger LOG = LoggerFactory.getLogger(SparkRowLevelOperationBuilder.class);
 
   private final SparkSession spark;
   private final Table table;
@@ -69,12 +78,59 @@ class SparkRowLevelOperationBuilder implements RowLevelOperationBuilder {
 
   @Override
   public RowLevelOperation build() {
-    return switch (mode) {
+    RowLevelOperationMode effectiveMode = mode;
+    if (mode == RowLevelOperationMode.MERGE_ON_READ && hasLiveFilesWithUnprojectedPartitions()) {
+      LOG.warn(
+          "Using copy-on-write for {} on table {}: live data files belong to partition specs "
+              + "with fields whose source columns were dropped",
+          info.command(),
+          table.name());
+      effectiveMode = RowLevelOperationMode.COPY_ON_WRITE;
+    }
+
+    return switch (effectiveMode) {
       case COPY_ON_WRITE ->
           new SparkCopyOnWriteOperation(spark, table, snapshot, branch, info, isolationLevel);
       case MERGE_ON_READ ->
           new SparkPositionDeltaOperation(spark, table, snapshot, branch, info, isolationLevel);
     };
+  }
+
+  // position deletes must match the partition of their data files, which cannot be derived
+  // from _partition for specs with fields that are excluded from the table partition type
+  private boolean hasLiveFilesWithUnprojectedPartitions() {
+    if (snapshot == null) {
+      return false;
+    }
+
+    Set<Integer> specIds = specsWithUnprojectedFields();
+    if (specIds.isEmpty()) {
+      return false;
+    }
+
+    for (ManifestFile manifest : snapshot.dataManifests(table.io())) {
+      if (specIds.contains(manifest.partitionSpecId())
+          && (manifest.hasAddedFiles() || manifest.hasExistingFiles())) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private Set<Integer> specsWithUnprojectedFields() {
+    Types.StructType partitionType = Partitioning.partitionType(table);
+    Set<Integer> specIds = Sets.newHashSet();
+
+    for (PartitionSpec spec : table.specs().values()) {
+      boolean projected =
+          spec.fields().stream().allMatch(field -> partitionType.field(field.fieldId()) != null);
+      if (!projected) {
+        specIds.add(spec.specId());
+      }
+    }
+
+    return specIds;
   }
 
   private RowLevelOperationMode mode(Map<String, String> properties, Command command) {

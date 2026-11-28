@@ -597,6 +597,37 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   }
 
   @TestTemplate
+  public void mergeAfterDroppingPartitionFieldAndSourceColumn() {
+    createAndInitTable(
+        "id INT, dep STRING, value INT",
+        "PARTITIONED BY (dep)",
+        "{ \"id\": 1, \"dep\": \"hr\", \"value\": 10 }\n"
+            + "{ \"id\": 2, \"dep\": \"it\", \"value\": 20 }");
+
+    sql("ALTER TABLE %s DROP PARTITION FIELD dep", tableName);
+    sql("ALTER TABLE %s DROP COLUMN dep", tableName);
+
+    createOrReplaceView(
+        "source",
+        "id INT, value INT",
+        "{ \"id\": 1, \"value\": 110 }\n" + "{ \"id\": 3, \"value\": 30 }");
+
+    sql(
+        "MERGE INTO %s AS t USING source AS s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET value = s.value "
+            + "WHEN NOT MATCHED THEN "
+            + "  INSERT *",
+        commitTarget());
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, 110), row(2, 20), row(3, 30)),
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
   public void testMergeWithOnlyUpdateClause() {
     createAndInitTable(
         "id INT, dep STRING",

@@ -67,6 +67,7 @@ import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.PositionDeltaWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.metrics.InMemoryMetricsReporter;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
@@ -515,11 +516,27 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
       for (int specId : specs.keySet()) {
         PartitionSpec spec = specs.get(specId);
-        StructProjection projection = StructProjection.create(partitionType, spec.partitionType());
-        partitionProjections.put(specId, projection);
+        // specs with fields missing from the table partition type cannot be projected
+        // row-level operations use copy-on-write for them, see SparkRowLevelOperationBuilder
+        if (spec.fields().stream()
+            .allMatch(field -> partitionType.field(field.fieldId()) != null)) {
+          StructProjection projection =
+              StructProjection.create(partitionType, spec.partitionType());
+          partitionProjections.put(specId, projection);
+        }
       }
 
       return partitionProjections;
+    }
+
+    protected StructProjection partitionProjection(
+        Map<Integer, StructProjection> partitionProjections, int specId) {
+      StructProjection partitionProjection = partitionProjections.get(specId);
+      Preconditions.checkState(
+          partitionProjection != null,
+          "Cannot write position deletes for spec %s: partition source columns were dropped",
+          specId);
+      return partitionProjection;
     }
 
     // use a fanout writer only if enabled and the input is unordered and the table is partitioned
@@ -642,7 +659,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
       PartitionSpec spec = specs.get(specId);
 
       InternalRow partition = metadata.getStruct(partitionOrdinal, partitionRowWrapper.size());
-      StructProjection partitionProjection = partitionProjections.get(specId);
+      StructProjection partitionProjection = partitionProjection(partitionProjections, specId);
       partitionProjection.wrap(partitionRowWrapper.wrap(partition));
 
       String file = id.getString(fileOrdinal);
@@ -737,7 +754,8 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
       PartitionSpec spec = specs.get(specId);
 
       InternalRow partition = meta.getStruct(partitionOrdinal, deletePartitionRowWrapper.size());
-      StructProjection partitionProjection = deletePartitionProjections.get(specId);
+      StructProjection partitionProjection =
+          partitionProjection(deletePartitionProjections, specId);
       partitionProjection.wrap(deletePartitionRowWrapper.wrap(partition));
 
       String file = id.getString(fileOrdinal);
