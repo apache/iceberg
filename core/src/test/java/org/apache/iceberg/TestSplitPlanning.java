@@ -166,6 +166,28 @@ public class TestSplitPlanning extends TestBase {
   }
 
   @TestTemplate
+  public void testSplitPlanningWithSharedEqualityDeletes() {
+    appendFiles(newFiles(2, 56 * 1024 * 1024));
+    DeleteFile eqDeletes =
+        FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+            .ofEqualityDeletes(1)
+            .withPath(FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()))
+            .withFileSizeInBytes(12 * 1024 * 1024)
+            .withRecordCount(2)
+            .build();
+    appendDeleteFiles(List.of(eqDeletes));
+
+    // the equality delete applies to both data files, so each task weighs 56MB + 12MB = 68MB
+    // and 2 tasks exceed the 128MB split size
+    assertThat(table.newScan().planTasks()).hasSize(2);
+
+    // when the delete is counted once per bin, both tasks fit: 68MB + 56MB = 124MB
+    TableScan scan =
+        table.newScan().option(TableProperties.SPLIT_SHARE_EQUALITY_DELETES_ENABLED, "true");
+    assertThat(scan.planTasks()).hasSize(1);
+  }
+
+  @TestTemplate
   public void testSplitPlanningWithNegativeValues() {
     assertThatThrownBy(
             () ->
