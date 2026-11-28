@@ -41,6 +41,25 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class TestRESTUtil {
 
   @Test
+  void resolvesCredentialEndpointWithLegacyFallback() {
+    Map<String, String> properties = ImmutableMap.of("uri", "https://catalog.example/v1");
+    assertThat(RESTUtil.resolveCredentialEndpoint(properties, "credentials"))
+        .isEqualTo("https://catalog.example/v1/credentials");
+    assertThat(RESTUtil.resolveCredentialEndpoint(properties, "https://legacy.example/credentials"))
+        .isEqualTo("https://legacy.example/credentials");
+    assertThat(RESTUtil.resolveCredentialEndpoint(properties, null)).isNull();
+    assertThat(
+            RESTUtil.resolveCredentialEndpoint(
+                ImmutableMap.of(
+                    "uri",
+                    "https://catalog.example/v1",
+                    RESTCatalogProperties.CREDENTIALS_ENDPOINT,
+                    "https://shared.example/credentials"),
+                "https://legacy.example/credentials"))
+        .isEqualTo("https://shared.example/credentials");
+  }
+
+  @Test
   public void testExtractPrefixMap() {
     Map<String, String> input =
         ImmutableMap.of(

@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.rest.ErrorHandlers;
@@ -36,6 +37,7 @@ import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
+import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -56,7 +58,12 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
 
   private VendedCredentialsProvider(Map<String, String> properties) {
     Preconditions.checkArgument(null != properties, "Invalid properties: null");
-    Preconditions.checkArgument(null != properties.get(URI), "Invalid credentials endpoint: null");
+    this.credentialsEndpoint =
+        RESTUtil.resolveCredentialEndpoint(
+            properties,
+            PropertyUtil.propertyAsString(
+                properties, URI, properties.get(AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT)));
+    Preconditions.checkArgument(null != credentialsEndpoint, "Invalid credentials endpoint: null");
     Preconditions.checkArgument(
         null != properties.get(CatalogProperties.URI), "Invalid catalog endpoint: null");
     this.properties = properties;
@@ -65,7 +72,6 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
             .cachedValueName(VendedCredentialsProvider.class.getName())
             .build();
     this.catalogEndpoint = properties.get(CatalogProperties.URI);
-    this.credentialsEndpoint = properties.get(URI);
   }
 
   @Override
