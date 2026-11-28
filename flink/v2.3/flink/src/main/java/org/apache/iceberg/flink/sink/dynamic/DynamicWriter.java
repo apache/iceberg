@@ -31,6 +31,7 @@ import org.apache.flink.api.connector.sink2.SinkWriter;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -130,8 +131,11 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                                 flinkWriteConf.dataFileFormat(), flinkWriteConf, table);
 
                         LOG.debug("Creating new writer factory for table '{}'", table.name());
+
+                        // The factory is cached; a full Table would keep every snapshot in memory.
+                        Table writeTable = SerializableTable.copyOf(table);
                         return new RowDataTaskWriterFactory(
-                            () -> table,
+                            () -> writeTable,
                             FlinkSchemaUtil.convert(element.schema()),
                             flinkWriteConf.targetDataFileSize(),
                             flinkWriteConf.dataFileFormat(),

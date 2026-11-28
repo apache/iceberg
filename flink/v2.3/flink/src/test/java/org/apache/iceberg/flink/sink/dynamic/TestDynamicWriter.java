@@ -25,11 +25,13 @@ import java.io.File;
 import java.net.URI;
 import java.util.Collection;
 import java.util.Map;
+import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -37,6 +39,7 @@ import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.data.RegistryBasedFileWriterFactory;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.SimpleDataUtil;
+import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
 import org.apache.iceberg.io.BaseTaskWriter;
 import org.apache.iceberg.io.FileWriterFactory;
@@ -324,6 +327,26 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
 
     // File names must be different
     assertThat(firstFile.getName()).isNotEqualTo(secondFile.getName());
+  }
+
+  @Test
+  void testCachedWriterFactoryDoesNotRetainTableMetadata() throws Exception {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    Table table1 = catalog.createTable(TABLE1, SimpleDataUtil.SCHEMA);
+
+    DynamicWriter dynamicWriter = createDynamicWriter(catalog);
+    dynamicWriter.write(getDynamicRecordInternal(table1), null);
+
+    RowDataTaskWriterFactory factory =
+        dynamicWriter.getTaskWriterFactories().values().iterator().next();
+    DynFields.BoundField<Supplier<Table>> tableSupplier =
+        DynFields.builder()
+            .hiddenImpl(RowDataTaskWriterFactory.class, "tableSupplier")
+            .build(factory);
+
+    // A cached factory holding the loaded table would keep all of its snapshots in memory.
+    assertThat(tableSupplier.get().get()).isInstanceOf(SerializableTable.class);
+    assertThat(dynamicWriter.prepareCommit()).hasSize(1);
   }
 
   private static @Nonnull DynamicWriter createDynamicWriter(

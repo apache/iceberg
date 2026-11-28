@@ -33,7 +33,9 @@ import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.Catalog;
@@ -220,10 +222,19 @@ class DynamicWriteResultAggregator
           // Make sure to append an identifier to avoid file clashes in case the factory was to get
           // re-created during a checkpoint, i.e. due to cache eviction.
           String fileSuffix = UUID.randomUUID().toString();
+          // Resolve the manifest dir now, so the cached factory can hold a table without snapshots.
+          Map<String, String> props = Maps.newHashMap(table.properties());
+          // some TableOperation reject an empty file name, derive the dir from a probe path
+          String probePath =
+              ((HasTableOperations) table).operations().metadataFileLocation("probe");
+          props.putIfAbsent(
+              ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION,
+              probePath.substring(0, probePath.lastIndexOf('/')));
+          Table manifestTable = SerializableTable.copyOf(table);
           ManifestOutputFileFactory outputFileFactory =
               FlinkManifestUtil.createOutputFileFactory(
-                  () -> table,
-                  table.properties(),
+                  () -> manifestTable,
+                  props,
                   flinkJobId,
                   operatorId,
                   subTaskId,
