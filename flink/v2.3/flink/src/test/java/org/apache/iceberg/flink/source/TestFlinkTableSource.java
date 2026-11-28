@@ -60,6 +60,28 @@ public class TestFlinkTableSource extends TableSourceTestBase {
   }
 
   @TestTemplate
+  public void testUnsafeNumericFilterPushDown() {
+    String table = "numeric_filter_regression";
+
+    sql("CREATE TABLE %s (i INT, f FLOAT)", table);
+
+    try {
+      sql("INSERT INTO %s VALUES (7, CAST(0.1 AS FLOAT)), " + "(6, CAST(0.0 AS FLOAT))", table);
+
+      List<Row> floatResult = sql("SELECT * FROM %s WHERE f > CAST(0.1 AS DOUBLE)", table);
+
+      assertThat(floatResult).containsExactlyInAnyOrder(Row.of(7, 0.1f));
+
+      List<Row> integerResult = sql("SELECT * FROM %s WHERE i > 6.5", table);
+
+      assertThat(integerResult).containsExactlyInAnyOrder(Row.of(7, 0.1f));
+
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", table);
+    }
+  }
+
+  @TestTemplate
   public void testNoFilterPushDown() {
     String sql = String.format("SELECT * FROM %s ", TABLE_NAME);
     List<Row> result = sql(sql);

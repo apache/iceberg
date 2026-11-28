@@ -34,6 +34,7 @@ import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.expressions.ValueLiteralExpression;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.functions.FunctionDefinition;
+import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.Expressions;
@@ -229,6 +230,56 @@ public class FlinkFilters {
         });
   }
 
+  private static boolean hasUnsafeNumericConversion(
+      FieldReferenceExpression field, ValueLiteralExpression literal) {
+    LogicalTypeRoot fieldType = field.getOutputDataType().getLogicalType().getTypeRoot();
+    LogicalTypeRoot literalType = literal.getOutputDataType().getLogicalType().getTypeRoot();
+
+    if (!isNumeric(fieldType) || !isNumeric(literalType)) {
+      return false;
+    }
+
+    if (fieldType == literalType) {
+      return false;
+    }
+
+    if (isSafeIntegerWidening(fieldType, literalType)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private static boolean isSafeIntegerWidening(
+      LogicalTypeRoot fieldType, LogicalTypeRoot literalType) {
+    if (fieldType == LogicalTypeRoot.BIGINT) {
+      return literalType == LogicalTypeRoot.INTEGER
+          || literalType == LogicalTypeRoot.SMALLINT
+          || literalType == LogicalTypeRoot.TINYINT;
+    }
+
+    if (fieldType == LogicalTypeRoot.INTEGER) {
+      return literalType == LogicalTypeRoot.SMALLINT || literalType == LogicalTypeRoot.TINYINT;
+    }
+
+    return fieldType == LogicalTypeRoot.SMALLINT && literalType == LogicalTypeRoot.TINYINT;
+  }
+
+  private static boolean isNumeric(LogicalTypeRoot type) {
+    switch (type) {
+      case TINYINT:
+      case SMALLINT:
+      case INTEGER:
+      case BIGINT:
+      case FLOAT:
+      case DOUBLE:
+      case DECIMAL:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   private static Optional<Expression> convertFieldAndLiteral(
       BiFunction<String, Object, Expression> expr, CallExpression call) {
     return convertFieldAndLiteral(expr, expr, call);
@@ -247,6 +298,10 @@ public class FlinkFilters {
     org.apache.flink.table.expressions.Expression right = args.get(1);
 
     if (left instanceof FieldReferenceExpression && right instanceof ValueLiteralExpression) {
+      if (hasUnsafeNumericConversion(
+          (FieldReferenceExpression) left, (ValueLiteralExpression) right)) {
+        return Optional.empty();
+      }
       String name = ((FieldReferenceExpression) left).getName();
       Optional<Object> lit = convertLiteral((ValueLiteralExpression) right);
       if (lit.isPresent()) {
@@ -254,6 +309,10 @@ public class FlinkFilters {
       }
     } else if (left instanceof ValueLiteralExpression
         && right instanceof FieldReferenceExpression) {
+      if (hasUnsafeNumericConversion(
+          (FieldReferenceExpression) right, (ValueLiteralExpression) left)) {
+        return Optional.empty();
+      }
       Optional<Object> lit = convertLiteral((ValueLiteralExpression) left);
       String name = ((FieldReferenceExpression) right).getName();
       if (lit.isPresent()) {
