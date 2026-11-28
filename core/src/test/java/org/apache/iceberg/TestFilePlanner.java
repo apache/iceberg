@@ -61,6 +61,7 @@ import org.mockito.Mockito;
 
 class TestFilePlanner {
   private static final long SEQUENCE_NUMBER = 7L;
+  private static final long SNAPSHOT_TIMESTAMP_MICROS = 1_700_000_000_123_000L;
   private static final long FIRST_ROW_ID = 1000L;
   private static final String TABLE_LOCATION = "s3://bucket/db/table";
   private static final DeletionVector DV =
@@ -819,6 +820,7 @@ class TestFilePlanner {
         written.getLength(),
         SNAPSHOT_ID,
         SEQUENCE_NUMBER,
+        SNAPSHOT_TIMESTAMP_MICROS,
         FIRST_ROW_ID,
         /* keyMetadata= */ null);
   }

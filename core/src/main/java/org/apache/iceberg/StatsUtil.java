@@ -56,6 +56,7 @@ class StatsUtil {
 
   private static final int LAST_UPDATED_SEQ_NUM_BASE_ID = 9_000;
   private static final int ROW_ID_BASE_ID = 9_200;
+  private static final int LAST_UPDATED_TIMESTAMP_BASE_ID = 9_400;
 
   // Offsets used for individual stats columns
   static final int LOWER_BOUND_OFFSET = 1;
@@ -83,7 +84,8 @@ class StatsUtil {
   private static final Map<Integer, Integer> METADATA_ID_TO_BASE_ID =
       ImmutableMap.of(
           MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(), LAST_UPDATED_SEQ_NUM_BASE_ID,
-          MetadataColumns.ROW_ID.fieldId(), ROW_ID_BASE_ID);
+          MetadataColumns.ROW_ID.fieldId(), ROW_ID_BASE_ID,
+          MetadataColumns.LAST_UPDATED_TIMESTAMP.fieldId(), LAST_UPDATED_TIMESTAMP_BASE_ID);
 
   /**
    * Return the base ID of the stats struct for the given field ID, or -1 if the ID is out of range.
@@ -116,6 +118,8 @@ class StatsUtil {
         return MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId();
       } else if (inBaseIdRange(ROW_ID_BASE_ID, statId)) {
         return MetadataColumns.ROW_ID.fieldId();
+      } else if (inBaseIdRange(LAST_UPDATED_TIMESTAMP_BASE_ID, statId)) {
+        return MetadataColumns.LAST_UPDATED_TIMESTAMP.fieldId();
       } else {
         throw new UnsupportedOperationException("Unsupported metadata stats field ID: " + statId);
       }

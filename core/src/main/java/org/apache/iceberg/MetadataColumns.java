@@ -106,6 +106,12 @@ public class MetadataColumns {
           "_last_updated_sequence_number",
           Types.LongType.get(),
           "Sequence number when the row was last updated");
+  public static final NestedField LAST_UPDATED_TIMESTAMP =
+      NestedField.optional(
+          Integer.MAX_VALUE - 109,
+          "_last_updated_timestamp",
+          Types.TimestampType.withZone(),
+          "Snapshot timestamp when the row was last updated");
 
   private static final Map<String, NestedField> META_COLUMNS =
       ImmutableMap.of(
@@ -114,7 +120,8 @@ public class MetadataColumns {
           IS_DELETED.name(), IS_DELETED,
           SPEC_ID.name(), SPEC_ID,
           ROW_ID.name(), ROW_ID,
-          LAST_UPDATED_SEQUENCE_NUMBER.name(), LAST_UPDATED_SEQUENCE_NUMBER);
+          LAST_UPDATED_SEQUENCE_NUMBER.name(), LAST_UPDATED_SEQUENCE_NUMBER,
+          LAST_UPDATED_TIMESTAMP.name(), LAST_UPDATED_TIMESTAMP);
 
   private static final Set<Integer> META_IDS =
       ImmutableSet.of(
@@ -124,7 +131,8 @@ public class MetadataColumns {
           SPEC_ID.fieldId(),
           PARTITION_COLUMN_ID,
           ROW_ID.fieldId(),
-          LAST_UPDATED_SEQUENCE_NUMBER.fieldId());
+          LAST_UPDATED_SEQUENCE_NUMBER.fieldId(),
+          LAST_UPDATED_TIMESTAMP.fieldId());
 
   public static Set<Integer> metadataFieldIds() {
     return META_IDS;

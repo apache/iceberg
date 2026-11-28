@@ -43,6 +43,8 @@ class TestV4ManifestWriter {
   private static final long COMMIT_SEQUENCE_NUMBER = 50L;
   private static final long COMMIT_FIRST_ROW_ID = 1_000L;
   private static final long RECORD_COUNT = 100L;
+  private static final long SNAPSHOT_TS = 1_700_000_000_123_456L;
+  private static final long COMMIT_SNAPSHOT_TS = 1_800_000_000_123_456L;
   private static final Schema SCHEMA =
       new Schema(
           1,
@@ -87,7 +89,8 @@ class TestV4ManifestWriter {
           null, // not modified
           COMMIT_FIRST_ROW_ID,
           null, // no change bitmaps
-          null);
+          null,
+          COMMIT_SNAPSHOT_TS);
 
   private static final DeletionVector DV_A =
       DeletionVectorStruct.builder()
@@ -107,7 +110,8 @@ class TestV4ManifestWriter {
 
   private static final TrackedFile FILE_A =
       new TrackedFileStruct(
-          new TrackingStruct(EntryStatus.EXISTING, 40L, 35L, 34L, null, 500L, null, null),
+          new TrackingStruct(
+              EntryStatus.EXISTING, 40L, 35L, 34L, null, 500L, null, null, SNAPSHOT_TS),
           FileContent.DATA,
           "s3://bucket/db/table/data/file-a.parquet",
           FileFormat.PARQUET,
@@ -126,7 +130,8 @@ class TestV4ManifestWriter {
 
   private static final TrackedFile FILE_A_WITH_DV =
       new TrackedFileStruct(
-          new TrackingStruct(EntryStatus.EXISTING, 40L, 35L, 34L, 41L, 500L, null, null),
+          new TrackingStruct(
+              EntryStatus.EXISTING, 40L, 35L, 34L, 41L, 500L, null, null, SNAPSHOT_TS),
           FileContent.DATA,
           "s3://bucket/db/table/data/file-a.parquet",
           FileFormat.PARQUET,
@@ -145,7 +150,8 @@ class TestV4ManifestWriter {
 
   private static final TrackedFile FILE_B =
       new TrackedFileStruct(
-          new TrackingStruct(EntryStatus.EXISTING, 41L, 36L, 36L, null, 600L, null, null),
+          new TrackingStruct(
+              EntryStatus.EXISTING, 41L, 36L, 36L, null, 600L, null, null, SNAPSHOT_TS),
           FileContent.DATA,
           "s3://bucket/db/table/data/file-b.parquet",
           FileFormat.PARQUET,
@@ -181,7 +187,8 @@ class TestV4ManifestWriter {
 
   private static final TrackedFile LEAF_MANIFEST =
       new TrackedFileStruct(
-          new TrackingStruct(EntryStatus.EXISTING, 40L, 35L, 35L, null, 500L, null, null),
+          new TrackingStruct(
+              EntryStatus.EXISTING, 40L, 35L, 35L, null, 500L, null, null, SNAPSHOT_TS),
           FileContent.DATA_MANIFEST,
           "s3://bucket/db/table/metadata/leaf-40-1.parquet",
           FileFormat.PARQUET,
@@ -200,7 +207,8 @@ class TestV4ManifestWriter {
 
   private static final TrackedFile LEAF_MANIFEST_WITH_MDV =
       new TrackedFileStruct(
-          new TrackingStruct(EntryStatus.EXISTING, 40L, 35L, 35L, 41L, 500L, null, null),
+          new TrackingStruct(
+              EntryStatus.EXISTING, 40L, 35L, 35L, 41L, 500L, null, null, SNAPSHOT_TS),
           FileContent.DATA_MANIFEST,
           "s3://bucket/db/table/metadata/leaf-40-1.parquet",
           FileFormat.PARQUET,
@@ -219,7 +227,8 @@ class TestV4ManifestWriter {
 
   private static final TrackedFile DELETE_MANIFEST =
       new TrackedFileStruct(
-          new TrackingStruct(EntryStatus.EXISTING, 40L, 35L, 35L, 41L, null, null, null),
+          new TrackingStruct(
+              EntryStatus.EXISTING, 40L, 35L, 35L, 41L, null, null, null, SNAPSHOT_TS),
           FileContent.DELETE_MANIFEST,
           "s3://bucket/db/table/metadata/leaf-40-1-deletes.parquet",
           FileFormat.PARQUET,
@@ -272,7 +281,8 @@ class TestV4ManifestWriter {
                   null, // not modified
                   COMMIT_FIRST_ROW_ID,
                   null, // no change bitmaps
-                  null));
+                  null,
+                  null)); // snapshot timestamp
     }
   }
 
@@ -312,7 +322,8 @@ class TestV4ManifestWriter {
                   null, // not modified
                   COMMIT_FIRST_ROW_ID,
                   null, // no change bitmaps
-                  null));
+                  null,
+                  null)); // snapshot timestamp
     }
   }
 
@@ -352,7 +363,8 @@ class TestV4ManifestWriter {
                   null, // added, not modified
                   COMMIT_FIRST_ROW_ID,
                   null, // no change bitmaps
-                  null));
+                  null,
+                  null)); // snapshot timestamp
     }
   }
 
@@ -393,7 +405,8 @@ class TestV4ManifestWriter {
                   COMMIT_SNAPSHOT_ID,
                   originalTracking.firstRowId(),
                   null, // no change bitmaps
-                  null));
+                  null,
+                  SNAPSHOT_TS));
     }
   }
 
@@ -434,7 +447,8 @@ class TestV4ManifestWriter {
                   originalTracking.modifiedSnapshotId(),
                   originalTracking.firstRowId(),
                   null, // no change bitmaps
-                  null));
+                  null,
+                  SNAPSHOT_TS));
     }
   }
 
@@ -476,7 +490,8 @@ class TestV4ManifestWriter {
                 originalTracking.modifiedSnapshotId(),
                 originalTracking.firstRowId(),
                 null, // no change bitmaps
-                null));
+                null,
+                SNAPSHOT_TS));
   }
 
   @Test
@@ -517,7 +532,8 @@ class TestV4ManifestWriter {
                 originalTracking.modifiedSnapshotId(),
                 originalTracking.firstRowId(),
                 null, // no change bitmaps
-                null));
+                null,
+                SNAPSHOT_TS));
   }
 
   @Test
@@ -562,7 +578,8 @@ class TestV4ManifestWriter {
                 null, // not modified
                 COMMIT_FIRST_ROW_ID,
                 null, // no change bitmaps
-                null));
+                null,
+                null)); // snapshot timestamp
   }
 
   @Test
@@ -623,7 +640,8 @@ class TestV4ManifestWriter {
                   null, // not modified
                   COMMIT_FIRST_ROW_ID,
                   null, // no change bitmaps
-                  null));
+                  null,
+                  null)); // snapshot timestamp
       assertThat(files.get(1).tracking())
           .usingComparator(V4TestComparators.TRACKING)
           .isEqualTo(
@@ -635,7 +653,8 @@ class TestV4ManifestWriter {
                   null, // not modified
                   COMMIT_FIRST_ROW_ID + FILE_A.recordCount(),
                   null, // no change bitmaps
-                  null));
+                  null,
+                  null)); // snapshot timestamp
     }
   }
 
@@ -678,7 +697,8 @@ class TestV4ManifestWriter {
                   null, // not modified
                   COMMIT_FIRST_ROW_ID,
                   null, // no change bitmaps
-                  null));
+                  null,
+                  null)); // snapshot timestamp
     }
   }
 
@@ -721,7 +741,8 @@ class TestV4ManifestWriter {
                   null, // not modified
                   COMMIT_FIRST_ROW_ID,
                   null, // no change bitmaps
-                  null));
+                  null,
+                  null)); // snapshot timestamp
     }
   }
 
@@ -762,7 +783,8 @@ class TestV4ManifestWriter {
                   originalTracking.modifiedSnapshotId(),
                   originalTracking.firstRowId(),
                   null, // no change bitmaps
-                  null));
+                  null,
+                  SNAPSHOT_TS));
     }
   }
 
@@ -804,7 +826,8 @@ class TestV4ManifestWriter {
                 originalTracking.modifiedSnapshotId(),
                 originalTracking.firstRowId(),
                 null, // no change bitmaps
-                null));
+                null,
+                SNAPSHOT_TS));
   }
 
   @Test
@@ -845,7 +868,8 @@ class TestV4ManifestWriter {
                 originalTracking.modifiedSnapshotId(),
                 originalTracking.firstRowId(),
                 null, // no change bitmaps
-                null));
+                null,
+                SNAPSHOT_TS));
   }
 
   @Test
@@ -885,7 +909,8 @@ class TestV4ManifestWriter {
                   originalTracking.modifiedSnapshotId(),
                   null,
                   null, // no change bitmaps
-                  null));
+                  null,
+                  SNAPSHOT_TS));
     }
   }
 
@@ -927,7 +952,8 @@ class TestV4ManifestWriter {
                 originalTracking.modifiedSnapshotId(),
                 null,
                 null, // no change bitmaps
-                null));
+                null,
+                SNAPSHOT_TS));
   }
 
   @Test
@@ -1099,7 +1125,8 @@ class TestV4ManifestWriter {
                   null, // not modified
                   COMMIT_FIRST_ROW_ID,
                   null, // no change bitmaps
-                  null));
+                  null,
+                  null)); // snapshot timestamp
       assertThat(files.get(3).tracking())
           .usingComparator(V4TestComparators.TRACKING)
           .as("Tracking should preserve LEAF_MANIFEST_WITH_DV metadata")
@@ -1153,7 +1180,8 @@ class TestV4ManifestWriter {
                   null, // not modified
                   COMMIT_FIRST_ROW_ID,
                   null, // no change bitmaps
-                  null));
+                  null,
+                  null)); // snapshot timestamp
       assertThat(files.get(1).tracking())
           .usingComparator(V4TestComparators.TRACKING)
           .isEqualTo(
@@ -1165,7 +1193,8 @@ class TestV4ManifestWriter {
                   null, // not modified
                   COMMIT_FIRST_ROW_ID + FILE_A.recordCount(),
                   null, // no change bitmaps
-                  null));
+                  null,
+                  null)); // snapshot timestamp
       assertThat(files.get(2).tracking())
           .usingComparator(V4TestComparators.TRACKING)
           .isEqualTo(
@@ -1177,7 +1206,8 @@ class TestV4ManifestWriter {
                   null, // not modified
                   COMMIT_FIRST_ROW_ID + FILE_A.recordCount() + leafRowsAssigned,
                   null, // no change bitmaps
-                  null));
+                  null,
+                  null)); // snapshot timestamp
     }
   }
 
@@ -1215,7 +1245,8 @@ class TestV4ManifestWriter {
                 null, // not modified
                 COMMIT_FIRST_ROW_ID,
                 null, // no change bitmaps
-                null));
+                null,
+                null)); // snapshot timestamp
 
     file = rawReadOne(in);
     assertThat(file)
@@ -1233,7 +1264,8 @@ class TestV4ManifestWriter {
                 null, // not modified
                 null, // inherit first row ID
                 null, // no change bitmaps
-                null));
+                null,
+                null)); // snapshot timestamp
   }
 
   @Test
@@ -1270,7 +1302,8 @@ class TestV4ManifestWriter {
                 null, // not modified
                 COMMIT_FIRST_ROW_ID,
                 null, // no change bitmaps
-                null));
+                null,
+                null)); // snapshot timestamp
 
     file = rawReadOne(in);
     assertThat(file)
@@ -1288,7 +1321,8 @@ class TestV4ManifestWriter {
                 null, // not modified
                 null, // inherit first row ID
                 null, // no change bitmaps
-                null));
+                null,
+                null)); // snapshot timestamp
   }
 
   @Test
@@ -1325,7 +1359,8 @@ class TestV4ManifestWriter {
                 null, // added, not modified
                 COMMIT_FIRST_ROW_ID,
                 null, // no change bitmaps
-                null));
+                null,
+                null)); // snapshot timestamp
 
     file = rawReadOne(in);
     assertThat(file)
@@ -1343,7 +1378,8 @@ class TestV4ManifestWriter {
                 null, // not modified
                 null, // inherit first row ID
                 null, // no change bitmaps
-                null));
+                null,
+                null)); // snapshot timestamp
   }
 
   @Test
@@ -1380,7 +1416,8 @@ class TestV4ManifestWriter {
                 null, // added, not modified
                 COMMIT_FIRST_ROW_ID,
                 null, // no change bitmaps
-                null));
+                null,
+                null)); // snapshot timestamp
 
     file = rawReadOne(in);
     assertThat(file)
@@ -1398,7 +1435,8 @@ class TestV4ManifestWriter {
                 null, // added, not modified
                 null, // inherit first row ID
                 null, // no change bitmaps
-                null));
+                null,
+                null)); // snapshot timestamp
   }
 
   @Test
@@ -1436,7 +1474,8 @@ class TestV4ManifestWriter {
                   COMMIT_SNAPSHOT_ID,
                   originalTracking.firstRowId(),
                   null, // no change bitmaps
-                  null));
+                  null,
+                  SNAPSHOT_TS));
     }
   }
 
@@ -1475,7 +1514,8 @@ class TestV4ManifestWriter {
                   originalTracking.modifiedSnapshotId(),
                   originalTracking.firstRowId(),
                   null, // no change bitmaps
-                  null));
+                  null,
+                  SNAPSHOT_TS));
     }
   }
 
@@ -1515,7 +1555,8 @@ class TestV4ManifestWriter {
                 originalTracking.modifiedSnapshotId(),
                 originalTracking.firstRowId(),
                 null, // no change bitmaps
-                null));
+                null,
+                SNAPSHOT_TS));
   }
 
   @Test
@@ -1554,7 +1595,8 @@ class TestV4ManifestWriter {
                 originalTracking.modifiedSnapshotId(),
                 originalTracking.firstRowId(),
                 null, // no change bitmaps
-                null));
+                null,
+                SNAPSHOT_TS));
   }
 
   @Test
@@ -1597,7 +1639,8 @@ class TestV4ManifestWriter {
                 null, // not modified
                 COMMIT_FIRST_ROW_ID,
                 null, // no change bitmaps
-                null));
+                null,
+                null)); // snapshot timestamp
   }
 
   @Test
