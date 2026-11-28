@@ -43,6 +43,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -86,6 +87,39 @@ public class TestEvaluator {
                       "s6",
                       Types.StructType.of(
                           Types.NestedField.required(23, "f", Types.FloatType.get()))))));
+
+  @Test
+  void decimalSetsCompareNumericalValues() {
+    StructType struct = StructType.of(optional(1, "value", Types.DecimalType.of(9, 2)));
+    for (Object[] values :
+        new Object[][] {
+          {new BigDecimal("1.1"), new BigDecimal("2.2")},
+          {"1.1", "2.2"}
+        }) {
+      Evaluator include = new Evaluator(struct, in("value", values));
+      Evaluator exclude = new Evaluator(struct, notIn("value", values));
+      for (String spelling : new String[] {"1.10", "1.100", "2.20", "2.200"}) {
+        TestHelpers.Row row = TestHelpers.Row.of(new BigDecimal(spelling));
+        assertThat(include.eval(row)).as("IN matches %s", spelling).isTrue();
+        assertThat(exclude.eval(row)).as("NOT IN excludes %s", spelling).isFalse();
+      }
+      TestHelpers.Row other = TestHelpers.Row.of(new BigDecimal("1.11"));
+      assertThat(include.eval(other)).isFalse();
+      assertThat(exclude.eval(other)).isTrue();
+    }
+  }
+
+  @Test
+  void decimalFractionalLiteralsAreNotRounded() {
+    StructType struct = StructType.of(optional(1, "value", Types.DecimalType.of(9, 2)));
+    TestHelpers.Row row = TestHelpers.Row.of(new BigDecimal("1.10"));
+    for (Object literal : new Object[] {"1.101", new BigDecimal("1.101")}) {
+      assertThat(new Evaluator(struct, equal("value", literal)).eval(row)).isFalse();
+      assertThat(new Evaluator(struct, in("value", literal, literal)).eval(row)).isFalse();
+      assertThat(new Evaluator(struct, lessThan("value", literal)).eval(row)).isTrue();
+      assertThat(new Evaluator(struct, greaterThan("value", literal)).eval(row)).isFalse();
+    }
+  }
 
   @Test
   public void testLessThan() {

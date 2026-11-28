@@ -497,8 +497,17 @@ class Literals {
     public <T> Literal<T> to(Type type) {
       switch (type.typeId()) {
         case DECIMAL:
-          // do not change decimal scale
-          return (Literal<T>) this;
+          int scale = ((Types.DecimalType) type).scale();
+          if (value().scale() == scale) {
+            return (Literal<T>) this;
+          }
+          try {
+            return (Literal<T>)
+                new DecimalLiteral(value().setScale(scale, RoundingMode.UNNECESSARY));
+          } catch (ArithmeticException e) {
+            // Preserve fractional bounds rather than rounding them to a different value.
+            return (Literal<T>) this;
+          }
         default:
           return null;
       }
@@ -585,9 +594,8 @@ class Literals {
           return (Literal<T>) new UUIDLiteral(UUID.fromString(value().toString()));
 
         case DECIMAL:
-          // do not change decimal scale
           BigDecimal decimal = new BigDecimal(value().toString());
-          return (Literal<T>) new DecimalLiteral(decimal);
+          return new DecimalLiteral(decimal).to(type);
 
         case FIXED:
           try {
