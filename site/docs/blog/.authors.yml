@@ -22,6 +22,10 @@ authors:
     name: Matt Butrovich
     description: Apache Iceberg Contributor, Apache DataFusion PMC Member
     avatar: https://github.com/mbutrovich.png
+  mxm:
+    name: Maximilian Michels
+    description: Apache Iceberg Committer
+    avatar: https://github.com/mxm.png
   nssalian:
     name: Neelesh Salian
     description: Apache Iceberg Contributor
