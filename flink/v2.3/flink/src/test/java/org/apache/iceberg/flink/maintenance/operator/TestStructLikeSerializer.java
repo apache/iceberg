@@ -109,6 +109,43 @@ class TestStructLikeSerializer {
   }
 
   @Test
+  void keyFingerprintIgnoresFieldNames() {
+    Types.StructType renamed =
+        Types.StructType.of(
+            Types.NestedField.required(1, "renamed_id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "renamed_data", Types.StringType.get()));
+
+    assertThat(StructLikeSerializer.keyFingerprint(renamed))
+        .isEqualTo(StructLikeSerializer.keyFingerprint(KEY_TYPE));
+  }
+
+  @Test
+  void keyFingerprintDiffersForDifferentFieldSets() {
+    Types.StructType subset =
+        Types.StructType.of(Types.NestedField.required(1, "id", Types.IntegerType.get()));
+    Types.StructType reordered =
+        Types.StructType.of(
+            Types.NestedField.optional(2, "data", Types.StringType.get()),
+            Types.NestedField.required(1, "id", Types.IntegerType.get()));
+
+    assertThat(StructLikeSerializer.keyFingerprint(subset))
+        .isNotEqualTo(StructLikeSerializer.keyFingerprint(KEY_TYPE));
+    assertThat(StructLikeSerializer.keyFingerprint(reordered))
+        .isNotEqualTo(StructLikeSerializer.keyFingerprint(KEY_TYPE));
+  }
+
+  @Test
+  void keyFingerprintDiffersForDifferentTypes() {
+    Types.StructType promoted =
+        Types.StructType.of(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    assertThat(StructLikeSerializer.keyFingerprint(promoted))
+        .isNotEqualTo(StructLikeSerializer.keyFingerprint(KEY_TYPE));
+  }
+
+  @Test
   void nullDiffersFromNonNull() {
     GenericRecord withNull = GenericRecord.create(KEY_TYPE);
     withNull.set(0, 1);
