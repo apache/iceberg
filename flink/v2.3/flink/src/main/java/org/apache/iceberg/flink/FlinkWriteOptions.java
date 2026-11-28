@@ -105,6 +105,19 @@ public class FlinkWriteOptions {
           .defaultValue(false);
 
   @Experimental
+  public static final ConfigOption<Boolean> DV_ONLY_ENABLE =
+      ConfigOptions.key("dv-only-enabled")
+          .booleanType()
+          .defaultValue(false)
+          .withDescription(
+              "Resolves equality deletes to deletion vectors inside the sink so that no equality "
+                  + "delete is ever committed. Requires equality field columns, format version 3 "
+                  + "or later, streaming execution with aligned exactly-once checkpoints, and a "
+                  + "branch without equality deletes or non-DV position delete files. Cannot be "
+                  + "combined with the convert-equality-deletes maintenance task or overwrite "
+                  + "mode.");
+
+  @Experimental
   public static final ConfigOption<Duration> TABLE_REFRESH_INTERVAL =
       ConfigOptions.key("table-refresh-interval").durationType().noDefaultValue();
 

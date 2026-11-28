@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import org.apache.flink.annotation.Internal;
 
@@ -29,7 +30,7 @@ import org.apache.flink.annotation.Internal;
  * primary keys always map to separate Flink state entries.
  */
 @Internal
-public record SerializedEqualityValues(byte[] data) {
+public record SerializedEqualityValues(byte[] data) implements Serializable {
 
   @Override
   public boolean equals(Object o) {

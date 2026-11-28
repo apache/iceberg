@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
  */
 class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<IcebergCommittable>>
     implements OneInputStreamOperator<
-        CommittableMessage<WriteResult>, CommittableMessage<IcebergCommittable>> {
+        CommittableMessage<SinkWriteResult>, CommittableMessage<IcebergCommittable>> {
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergWriteAggregator.class);
   private static final byte[] EMPTY_MANIFEST_DATA = new byte[0];
@@ -157,11 +157,21 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
   }
 
   @Override
-  public void processElement(StreamRecord<CommittableMessage<WriteResult>> element)
+  public void processElement(StreamRecord<CommittableMessage<SinkWriteResult>> element)
       throws Exception {
 
     if (element.isRecord() && element.getValue() instanceof CommittableWithLineage) {
-      results.add(((CommittableWithLineage<WriteResult>) element.getValue()).getCommittable());
+      SinkWriteResult result =
+          ((CommittableWithLineage<SinkWriteResult>) element.getValue()).getCommittable();
+      // Resolving the reported deletes and indexing the reported rows comes in a later change.
+      // Until then, writing the data files alone would silently drop them.
+      Preconditions.checkState(
+          result.deleteKeys().isEmpty() && result.liveRows().isEmpty(),
+          "The DV-only write path cannot commit yet: it still has to resolve %s delete key(s) and "
+              + "index %s row(s)",
+          result.deleteKeys().size(),
+          result.liveRows().size());
+      results.add(result.writeResult());
     }
   }
 }

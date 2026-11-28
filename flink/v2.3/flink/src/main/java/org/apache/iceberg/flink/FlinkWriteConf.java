@@ -256,6 +256,16 @@ public class FlinkWriteConf {
         .parse();
   }
 
+  @Experimental
+  public boolean dvOnlyMode() {
+    return confParser
+        .booleanConf()
+        .option(FlinkWriteOptions.DV_ONLY_ENABLE.key())
+        .flinkConfig(FlinkWriteOptions.DV_ONLY_ENABLE)
+        .defaultValue(FlinkWriteOptions.DV_ONLY_ENABLE.defaultValue())
+        .parse();
+  }
+
   /**
    * NOTE: This may be removed or changed in a future release. This value specifies the interval for
    * refreshing the table instances in sink writer subtasks. If not specified then the default
