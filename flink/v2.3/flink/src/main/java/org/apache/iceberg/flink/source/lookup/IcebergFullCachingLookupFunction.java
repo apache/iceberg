@@ -56,8 +56,10 @@ import org.slf4j.LoggerFactory;
  * <p>The cache is loaded from the current snapshot either when the function is opened or on the
  * first lookup, depending on {@link IcebergLookupOptions#FULL_CACHE_EAGER_LOAD}. When a {@link
  * CacheReloadTrigger} is configured, the cache is reloaded on the trigger's schedule: a reload that
- * finds no new snapshot keeps the loaded cache, and a reload that fails fails the next lookup
- * instead of serving the previously loaded cache.
+ * finds no new snapshot keeps the loaded cache, a reload that only appends rows or compacts the
+ * data files updates the loaded cache incrementally, and a reload that fails fails the next lookup
+ * instead of serving the previously loaded cache. An incremental update that fails is discarded and
+ * retried as a full load.
  */
 @Internal
 public class IcebergFullCachingLookupFunction extends LookupFunction {
@@ -89,6 +91,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
   private transient Counter missCounter;
   private transient Counter loadCounter;
   private transient Counter loadFailuresCounter;
+  private transient Counter incrementalLoadFailuresCounter;
   private transient volatile long currentSnapshotId;
   private transient volatile long cachedRecords;
   private transient volatile long latestLoadTimeMs;
@@ -122,6 +125,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
     this.missCounter = metricGroup.counter("missCount");
     this.loadCounter = metricGroup.counter("loadCount");
     this.loadFailuresCounter = metricGroup.counter("numLoadFailures");
+    this.incrementalLoadFailuresCounter = metricGroup.counter("numIncrementalLoadFailures");
     this.currentSnapshotId = IcebergLookupReader.NO_SNAPSHOT_ID;
     this.cachedRecords = 0L;
     this.latestLoadTimeMs = UNINITIALIZED;
@@ -242,18 +246,50 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
         projectedRowType.getFieldNames(),
         pushedFilters);
 
-    InMemoryLookupCache loaded = new InMemoryLookupCache();
-    long rowCnt = 0L;
-    long start = System.currentTimeMillis();
-    try (CloseableIterable<RowData> rows = reader.read(snapshotId)) {
-      for (RowData row : rows) {
-        if (closed) {
-          return;
-        }
+    if (cache != null
+        && reader.isAppendOnlyRange(currentSnapshotId, snapshotId)
+        && tryLoadDelta(currentSnapshotId, snapshotId)) {
+      return;
+    }
 
-        loaded.add(extractKey(row), rowSerializer.toBinaryRow(row).copy());
-        rowCnt++;
+    loadFull(snapshotId);
+  }
+
+  private boolean tryLoadDelta(long fromExclusive, long toInclusive) {
+    try {
+      loadDelta(fromExclusive, toInclusive);
+      return true;
+    } catch (Exception e) {
+      if (closed) {
+        return true;
       }
+
+      incrementalLoadFailuresCounter.inc();
+      LOG.warn(
+          "IcebergFullCachingLookupFunction incremental loading from snapshot {} to snapshot {} "
+              + "failed, falling back to a full load",
+          fromExclusive,
+          toInclusive,
+          e);
+      return false;
+    }
+  }
+
+  private void loadFull(long snapshotId) throws IOException {
+    load(snapshotId, reader.read(snapshotId), false);
+  }
+
+  private void loadDelta(long fromExclusive, long toInclusive) throws IOException {
+    load(toInclusive, reader.readDelta(fromExclusive, toInclusive), true);
+  }
+
+  private void load(long snapshotId, CloseableIterable<RowData> rows, boolean incremental)
+      throws IOException {
+    InMemoryLookupCache loaded = new InMemoryLookupCache();
+    long start = System.currentTimeMillis();
+    long rowCnt;
+    try (rows) {
+      rowCnt = fillCache(rows, loaded);
     }
 
     long loadTimeMs = System.currentTimeMillis() - start;
@@ -262,17 +298,38 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
       return;
     }
 
-    this.cache = loaded;
+    if (!incremental) {
+      this.cache = loaded;
+      this.cachedRecords = rowCnt;
+    } else if (rowCnt > 0) {
+      this.cache = cache.mergedWith(loaded);
+      this.cachedRecords = cachedRecords + rowCnt;
+    }
+
     this.currentSnapshotId = snapshotId;
-    this.cachedRecords = rowCnt;
     this.latestLoadTimeMs = loadTimeMs;
     loadCounter.inc();
 
     LOG.info(
-        "IcebergFullCachingLookupFunction loading finished, snapshot={}, rows={}, cost={} ms",
-        snapshot == null ? "none" : snapshotId,
+        "IcebergFullCachingLookupFunction {} loading finished, snapshot={}, rows={}, cost={} ms",
+        incremental ? "incremental" : "full",
+        snapshotId,
         rowCnt,
         loadTimeMs);
+  }
+
+  private long fillCache(CloseableIterable<RowData> rows, InMemoryLookupCache target) {
+    long rowCnt = 0L;
+    for (RowData row : rows) {
+      if (closed) {
+        break;
+      }
+
+      target.add(extractKey(row), rowSerializer.toBinaryRow(row).copy());
+      rowCnt++;
+    }
+
+    return rowCnt;
   }
 
   private BinaryRowData extractKey(RowData row) {

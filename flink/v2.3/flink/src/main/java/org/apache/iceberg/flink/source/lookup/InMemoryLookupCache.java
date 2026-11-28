@@ -37,6 +37,10 @@ class InMemoryLookupCache implements Closeable {
     this.cache = Maps.newHashMap();
   }
 
+  private InMemoryLookupCache(Map<BinaryRowData, List<RowData>> cache) {
+    this.cache = cache;
+  }
+
   @Nullable
   List<RowData> get(BinaryRowData key) {
     return cache.get(key);
@@ -65,5 +69,21 @@ class InMemoryLookupCache implements Closeable {
   @Override
   public void close() {
     cache.clear();
+  }
+
+  InMemoryLookupCache mergedWith(InMemoryLookupCache delta) {
+    Map<BinaryRowData, List<RowData>> merged = Maps.newHashMap(cache);
+    for (Map.Entry<BinaryRowData, List<RowData>> entry : delta.cache.entrySet()) {
+      merged.merge(entry.getKey(), entry.getValue(), InMemoryLookupCache::concat);
+    }
+
+    return new InMemoryLookupCache(merged);
+  }
+
+  private static List<RowData> concat(List<RowData> base, List<RowData> delta) {
+    List<RowData> rows = Lists.newArrayListWithCapacity(base.size() + delta.size());
+    rows.addAll(base);
+    rows.addAll(delta);
+    return rows;
   }
 }
