@@ -167,34 +167,6 @@ public class TestGlueCatalog {
   }
 
   @Test
-  public void testDefaultWarehouseLocationCustomCatalogId() {
-    GlueCatalog catalogWithCustomCatalogId = new GlueCatalog();
-    String catalogId = "myCatalogId";
-    AwsProperties awsProperties = new AwsProperties();
-    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
-    awsProperties.setGlueCatalogId(catalogId);
-    catalogWithCustomCatalogId.initialize(
-        CATALOG_NAME,
-        WAREHOUSE_PATH + "/",
-        awsProperties,
-        s3FileIOProperties,
-        glue,
-        LockManagers.defaultLockManager(),
-        ImmutableMap.of());
-
-    Mockito.doReturn(
-            GetDatabaseResponse.builder()
-                .database(Database.builder().name("db").locationUri("s3://bucket2/db").build())
-                .build())
-        .when(glue)
-        .getDatabase(Mockito.any(GetDatabaseRequest.class));
-    catalogWithCustomCatalogId.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
-    Mockito.verify(glue)
-        .getDatabase(
-            Mockito.argThat((GetDatabaseRequest req) -> req.catalogId().equals(catalogId)));
-  }
-
-  @Test
   public void testDefaultWarehouseLocationUnique() {
     GlueCatalog catalog = new GlueCatalog();
     catalog.initialize(

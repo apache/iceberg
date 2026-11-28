@@ -277,11 +277,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     try {
       GetTableResponse response =
           glue.getTable(
-              GetTableRequest.builder()
-                  .catalogId(awsProperties.glueCatalogId())
-                  .databaseName(databaseName)
-                  .name(tableName)
-                  .build());
+              GetTableRequest.builder().databaseName(databaseName).name(tableName).build());
       return response.table();
     } catch (EntityNotFoundException e) {
       return null;
@@ -311,7 +307,6 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       UpdateTableRequest.Builder updateTableRequest =
           UpdateTableRequest.builder()
               .overrideConfiguration(c -> c.addMetricPublisher(retryDetector))
-              .catalogId(awsProperties.glueCatalogId())
               .databaseName(databaseName)
               .skipArchive(awsProperties.glueCatalogSkipArchive())
               .tableInput(
@@ -335,7 +330,6 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       glue.createTable(
           CreateTableRequest.builder()
               .overrideConfiguration(c -> c.addMetricPublisher(retryDetector))
-              .catalogId(awsProperties.glueCatalogId())
               .databaseName(databaseName)
               .tableInput(
                   TableInput.builder()
