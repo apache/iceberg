@@ -27,7 +27,9 @@ import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.source.SparkTable;
+import org.apache.spark.sql.connector.catalog.CatalogV2Util;
 import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -43,7 +45,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     String[] database = {"default"};
     Identifier id = Identifier.of(database, randomName("table"));
     Transform[] transforms = {};
-    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
+    cat.createTable(id, createTableInfo(transforms));
     SparkTable table = (SparkTable) cat.loadTable(id);
 
     sql("INSERT INTO mycat.default.%s VALUES (1,1,1)", id.name());
@@ -73,7 +75,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     String[] database = {"default"};
     Identifier id = Identifier.of(database, randomName("table"));
     Transform[] transforms = {};
-    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
+    cat.createTable(id, createTableInfo(transforms));
     SparkTable table = (SparkTable) cat.loadTable(id);
 
     sql("INSERT INTO hadoop.default.%s VALUES (1,1,1)", id.name());
@@ -103,7 +105,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     String[] database = {"default"};
     Identifier id = Identifier.of(database, randomName("table"));
     Transform[] transforms = {};
-    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
+    cat.createTable(id, createTableInfo(transforms));
     SparkTable table = (SparkTable) cat.loadTable(id);
 
     sql("INSERT INTO hive.default.%s VALUES (1,1,1)", id.name());
@@ -137,7 +139,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     String[] database = {"default"};
     Identifier id = Identifier.of(database, randomName("table"));
     Transform[] transforms = {};
-    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
+    cat.createTable(id, createTableInfo(transforms));
     SparkTable table = (SparkTable) cat.loadTable(id);
 
     sql("INSERT INTO default.%s VALUES (1,1,1)", id.name());
@@ -170,7 +172,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     Identifier id = Identifier.of(database, "sessioncattest");
     Transform[] transforms = {};
     cat.dropTable(id);
-    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
+    cat.createTable(id, createTableInfo(transforms));
     SparkTable table = (SparkTable) cat.loadTable(id);
 
     sql("INSERT INTO default.sessioncattest VALUES (1,1,1)");
@@ -188,6 +190,14 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
         .as("trash file should be removed")
         .contains("file:" + location + trashFile);
     assertThat(results.orphanFilesCount()).as("trash file should be removed").isEqualTo(1L);
+  }
+
+  private TableInfo createTableInfo(Transform[] transforms) {
+    return new TableInfo.Builder()
+        .withColumns(CatalogV2Util.structTypeToV2Columns(SparkSchemaUtil.convert(SCHEMA)))
+        .withPartitions(transforms)
+        .withProperties(properties)
+        .build();
   }
 
   @AfterEach

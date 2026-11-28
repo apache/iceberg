@@ -35,6 +35,8 @@ import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
+import org.apache.spark.sql.connector.catalog.CatalogV2Util;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.junit.jupiter.api.AfterEach;
@@ -71,7 +73,13 @@ public class TestPathIdentifier extends TestBase {
     SparkTable table =
         (SparkTable)
             sparkCatalog.createTable(
-                identifier, SparkSchemaUtil.convert(SCHEMA), new Transform[0], ImmutableMap.of());
+                identifier,
+                new TableInfo.Builder()
+                    .withColumns(
+                        CatalogV2Util.structTypeToV2Columns(SparkSchemaUtil.convert(SCHEMA)))
+                    .withPartitions(new Transform[0])
+                    .withProperties(ImmutableMap.of())
+                    .build());
 
     assertThat(tableLocation.getAbsolutePath()).isEqualTo(table.table().location());
     assertThat(table.table()).isInstanceOf(BaseTable.class);
