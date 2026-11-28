@@ -76,6 +76,15 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
           "upper_bounds",
           "record_count");
 
+  private static final Set<String> DROPPABLE_STATS_COLUMNS =
+      ImmutableSet.of(
+          "column_sizes",
+          "value_counts",
+          "null_value_counts",
+          "nan_value_counts",
+          "lower_bounds",
+          "upper_bounds");
+
   private static final Schema STATUS_ONLY_PROJECTION =
       TypeUtil.select(
           ManifestEntry.getSchema(Types.StructType.of()),
@@ -365,6 +374,55 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   /**
+   * Returns a closeable iterable of files added in this manifest.
+   *
+   * <p>The returned iterable holds open resources and must be closed by the caller. Returned files
+   * are defensive copies.
+   *
+   * @return a closeable iterable of added files matching this reader's filters
+   */
+  public CloseableIterable<F> addedFiles() {
+    return filesByStatus(ManifestEntry.Status.ADDED);
+  }
+
+  /**
+   * Returns a closeable iterable of files deleted in this manifest.
+   *
+   * <p>The returned iterable holds open resources and must be closed by the caller. Returned files
+   * are defensive copies.
+   *
+   * @return a closeable iterable of deleted files matching this reader's filters
+   */
+  public CloseableIterable<F> deletedFiles() {
+    return filesByStatus(ManifestEntry.Status.DELETED);
+  }
+
+  private CloseableIterable<F> filesByStatus(ManifestEntry.Status status) {
+    return new StatusFilterIterable(status);
+  }
+
+  private class StatusFilterIterable extends CloseableGroup implements CloseableIterable<F> {
+    private final ManifestEntry.Status status;
+
+    private StatusFilterIterable(ManifestEntry.Status status) {
+      this.status = status;
+    }
+
+    @Override
+    public CloseableIterator<F> iterator() {
+      boolean dropStats = dropStats(columns);
+      CloseableIterable<ManifestEntry<F>> entries = entries();
+      addCloseable(entries);
+      CloseableIterable<ManifestEntry<F>> matching =
+          CloseableIterable.filter(entries, entry -> entry != null && entry.status() == status);
+      CloseableIterator<F> iter =
+          CloseableIterable.transform(matching, entry -> entry.file().copy(!dropStats)).iterator();
+      addCloseable(iter);
+      return iter;
+    }
+  }
+
+  /**
    * @return an Iterator of DataFile. Makes defensive copies of files before returning
    */
   @Override
@@ -414,16 +472,13 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   static boolean dropStats(Collection<String> columns) {
-    // Make sure we only drop all stats if we had projected all stats
-    // We do not drop stats even if we had partially added some stats columns, except for
-    // record_count column.
-    // Since we don't want to keep stats map which could be huge in size just because we select
-    // record_count, which
-    // is a primitive type.
+    // Make sure we only drop all stats if we had projected all stats.
+    // Do not drop stats when any column-level stats map was selected, except record_count which is
+    // a primitive field rather than a per-column map.
     if (columns != null && !columns.containsAll(ManifestReader.ALL_COLUMNS)) {
-      Set<String> intersection = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS);
-      return intersection.isEmpty() || intersection.equals(Sets.newHashSet("record_count"));
+      return Sets.intersection(Sets.newHashSet(columns), DROPPABLE_STATS_COLUMNS).isEmpty();
     }
+
     return false;
   }
 

@@ -206,6 +206,41 @@ public class TestManifestReaderStats extends TestBase {
     }
   }
 
+  @TestTemplate
+  void selectColumnSizesRetainsColumnSizes() throws IOException {
+    Map<Integer, Long> columnSizes = ImmutableMap.of(3, 42L);
+    DataFile fileWithColumnSizes =
+        DataFiles.builder(SPEC)
+            .withPath(FILE_PATH)
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withMetrics(
+                new Metrics(
+                    3L,
+                    columnSizes,
+                    VALUE_COUNT,
+                    NULL_VALUE_COUNTS,
+                    NAN_VALUE_COUNTS,
+                    LOWER_BOUNDS,
+                    UPPER_BOUNDS))
+            .build();
+    ManifestFile manifest = writeManifest(1000L, fileWithColumnSizes);
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, FILE_IO, table.specs())
+            .select(ImmutableList.of("file_path", "column_sizes"))) {
+      DataFile dataFile = reader.iterator().next();
+
+      assertThat(dataFile.location()).isEqualTo(FILE_PATH);
+      assertThat(dataFile.columnSizes()).isEqualTo(columnSizes);
+      assertThat(dataFile.valueCounts()).isNull();
+      assertThat(dataFile.nullValueCounts()).isNull();
+      assertThat(dataFile.nanValueCounts()).isNull();
+      assertThat(dataFile.lowerBounds()).isNull();
+      assertThat(dataFile.upperBounds()).isNull();
+      assertThat(dataFile.recordCount()).isEqualTo(3);
+    }
+  }
+
   private void assertFullStats(DataFile dataFile) {
     assertThat(dataFile.recordCount()).isEqualTo(3);
     assertThat(dataFile.columnSizes()).isNull();

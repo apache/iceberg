@@ -24,10 +24,19 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -308,5 +317,250 @@ public class TestManifestReader extends TestBase {
       assertThat(entry.status()).isEqualTo(Status.EXISTING);
       assertThat(entry.file().location()).isEqualTo(FILE_A.location());
     }
+  }
+
+  @TestTemplate
+  void addedAndDeletedDataFiles() throws IOException {
+    DataFile addedWithStats =
+        DataFiles.builder(SPEC).copy(FILE_WITH_STATS).withPartitionPath("data_bucket=0").build();
+    long seq = formatVersion == 1 ? 0L : 1L;
+    ManifestFile manifest =
+        writeManifest(
+            1000L,
+            manifestEntry(Status.ADDED, 800L, seq, seq, addedWithStats),
+            manifestEntry(Status.EXISTING, 900L, seq, seq, FILE_B),
+            manifestEntry(Status.DELETED, 1000L, seq, seq, FILE_C),
+            manifestEntry(Status.ADDED, 1000L, seq, seq, FILE_D));
+
+    List<DataFile> added;
+    try (CloseableIterable<DataFile> files =
+        ManifestFiles.read(manifest, FILE_IO, table.specs())
+            .select(ImmutableList.of("partition"))
+            .addedFiles()) {
+      added = Lists.newArrayList(files);
+    }
+
+    assertThat(added).hasSize(2);
+    assertThat(added.get(0).location()).isNull();
+    assertThat(added.get(0).columnSizes()).isNull();
+    assertThat(added.get(0).lowerBounds()).isNull();
+    assertThat(added.get(0).partition().get(0, Integer.class)).isEqualTo(0);
+    assertThat(added.get(1).partition().get(0, Integer.class)).isEqualTo(3);
+    assertThat(added.get(0).specId()).isEqualTo(table.spec().specId());
+    assertThat(added.get(0).recordCount()).isEqualTo(FILE_WITH_STATS.recordCount());
+
+    List<DataFile> deleted;
+    try (CloseableIterable<DataFile> files =
+        ManifestFiles.read(manifest, FILE_IO, table.specs()).deletedFiles()) {
+      deleted = Lists.newArrayList(files);
+    }
+
+    assertThat(deleted).extracting(DataFile::location).containsExactly(FILE_C.location());
+  }
+
+  @TestTemplate
+  void addedAndDeletedDeleteFiles() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    ManifestFile manifest =
+        writeManifest(
+            1000L,
+            manifestEntry(Status.ADDED, 1000L, FILE_A_DELETES),
+            manifestEntry(Status.EXISTING, 900L, FILE_B_DELETES),
+            manifestEntry(Status.DELETED, 1000L, FILE_A2_DELETES));
+
+    List<DeleteFile> added;
+    try (CloseableIterable<DeleteFile> files =
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, table.specs()).addedFiles()) {
+      added = Lists.newArrayList(files);
+    }
+
+    assertThat(added).extracting(DeleteFile::location).containsExactly(FILE_A_DELETES.location());
+
+    List<DeleteFile> deleted;
+    try (CloseableIterable<DeleteFile> files =
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, table.specs()).deletedFiles()) {
+      deleted = Lists.newArrayList(files);
+    }
+
+    assertThat(deleted)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A2_DELETES.location());
+  }
+
+  @TestTemplate
+  void addedFilesStreamLifecycle() throws IOException {
+    ManifestFile m1 =
+        writeManifest(
+            1000L, manifestFormat().addExtension("m1"), manifestEntry(Status.ADDED, 1000L, FILE_A));
+    ManifestFile m2 =
+        writeManifest(
+            1000L, manifestFormat().addExtension("m2"), manifestEntry(Status.ADDED, 1000L, FILE_B));
+
+    AtomicInteger openStreams = new AtomicInteger();
+    AtomicInteger maxOpen = new AtomicInteger();
+    Set<String> openedPaths = ConcurrentHashMap.newKeySet();
+    FileIO trackingIO = trackingFileIO(FILE_IO, openStreams, maxOpen, openedPaths);
+
+    try (CloseableIterable<DataFile> files =
+        CloseableIterable.concat(
+            Iterables.transform(
+                ImmutableList.of(m1, m2),
+                m -> ManifestFiles.read(m, trackingIO, table.specs()).addedFiles()))) {
+      for (DataFile file : files) {
+        assertThat(file.location()).isEqualTo(FILE_A.location());
+        break;
+      }
+    }
+
+    assertThat(openStreams.get()).isEqualTo(0);
+    assertThat(openedPaths).containsExactly(m1.path());
+
+    openedPaths.clear();
+    try (CloseableIterable<DataFile> files =
+        CloseableIterable.concat(
+            Iterables.transform(
+                ImmutableList.of(m1, m2),
+                m -> ManifestFiles.read(m, trackingIO, table.specs()).addedFiles()))) {
+      assertThat(Lists.newArrayList(files))
+          .extracting(DataFile::location)
+          .containsExactly(FILE_A.location(), FILE_B.location());
+    }
+
+    assertThat(openStreams.get()).isEqualTo(0);
+    assertThat(maxOpen.get()).isEqualTo(1);
+    assertThat(openedPaths).containsExactlyInAnyOrder(m1.path(), m2.path());
+  }
+
+  @TestTemplate
+  void closingStatusIterableDoesNotCloseSiblingIterable() throws IOException {
+    long seq = formatVersion == 1 ? 0L : 1L;
+    ManifestFile manifest =
+        writeManifest(
+            1000L,
+            manifestEntry(Status.ADDED, 1000L, seq, seq, FILE_A),
+            manifestEntry(Status.ADDED, 1000L, seq, seq, FILE_B),
+            manifestEntry(Status.DELETED, 1000L, seq, seq, FILE_C),
+            manifestEntry(Status.DELETED, 1000L, seq, seq, FILE_D));
+
+    AtomicInteger openStreams = new AtomicInteger();
+    FileIO trackingIO =
+        trackingFileIO(FILE_IO, openStreams, new AtomicInteger(), ConcurrentHashMap.newKeySet());
+
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, trackingIO, table.specs())) {
+      CloseableIterable<DataFile> added = reader.addedFiles();
+      CloseableIterable<DataFile> deleted = reader.deletedFiles();
+
+      CloseableIterator<DataFile> addedIter = added.iterator();
+      CloseableIterator<DataFile> deletedIter = deleted.iterator();
+
+      assertThat(addedIter.next().location()).isEqualTo(FILE_A.location());
+      assertThat(deletedIter.next().location()).isEqualTo(FILE_C.location());
+
+      added.close();
+      if (formatVersion < TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS) {
+        assertThat(openStreams.get()).isEqualTo(1);
+      }
+
+      assertThat(deletedIter.next().location()).isEqualTo(FILE_D.location());
+      deleted.close();
+      assertThat(openStreams.get()).isEqualTo(0);
+    }
+  }
+
+  @TestTemplate
+  void repeatedAddedFilesIterationPreservesFirstRowId() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    ManifestFile committedManifest = table.currentSnapshot().dataManifests(FILE_IO).get(0);
+    assertThat(committedManifest.firstRowId()).isEqualTo(0L);
+
+    try (CloseableIterable<DataFile> added =
+        ManifestFiles.read(committedManifest, FILE_IO, table.specs()).addedFiles()) {
+      assertThat(Lists.newArrayList(added))
+          .extracting(DataFile::firstRowId)
+          .containsExactly(0L, 1L);
+      assertThat(Lists.newArrayList(added))
+          .extracting(DataFile::firstRowId)
+          .containsExactly(0L, 1L);
+    }
+  }
+
+  private static FileIO trackingFileIO(
+      FileIO delegate, AtomicInteger openStreams, AtomicInteger maxOpen, Set<String> openedPaths) {
+    return new FileIO() {
+      @Override
+      public InputFile newInputFile(String path) {
+        InputFile inner = delegate.newInputFile(path);
+        return new InputFile() {
+          @Override
+          public long getLength() {
+            return inner.getLength();
+          }
+
+          @Override
+          public SeekableInputStream newStream() {
+            SeekableInputStream stream = inner.newStream();
+            openedPaths.add(path);
+            maxOpen.accumulateAndGet(openStreams.incrementAndGet(), Math::max);
+            AtomicBoolean closed = new AtomicBoolean(false);
+            return new SeekableInputStream() {
+              @Override
+              public long getPos() throws IOException {
+                return stream.getPos();
+              }
+
+              @Override
+              public void seek(long newPos) throws IOException {
+                stream.seek(newPos);
+              }
+
+              @Override
+              public int read() throws IOException {
+                return stream.read();
+              }
+
+              @Override
+              public int read(byte[] b, int off, int len) throws IOException {
+                return stream.read(b, off, len);
+              }
+
+              @Override
+              public void close() throws IOException {
+                try {
+                  stream.close();
+                } finally {
+                  if (closed.compareAndSet(false, true)) {
+                    openStreams.decrementAndGet();
+                  }
+                }
+              }
+            };
+          }
+
+          @Override
+          public String location() {
+            return inner.location();
+          }
+
+          @Override
+          public boolean exists() {
+            return inner.exists();
+          }
+        };
+      }
+
+      @Override
+      public OutputFile newOutputFile(String path) {
+        return delegate.newOutputFile(path);
+      }
+
+      @Override
+      public void deleteFile(String path) {
+        delegate.deleteFile(path);
+      }
+    };
   }
 }
