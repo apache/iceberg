@@ -290,14 +290,14 @@ public class TestFieldStatsStruct {
         StatsUtil.fieldStatsStruct(geoType, BASE_ID, MetricsModes.Full.get());
 
     // geometry and geography use bounding-box structs (x, y, z, m) for their bounds
-    PartitionData lowerBound =
-        new PartitionData(statsStruct.field("lower_bound").type().asStructType());
+    GeospatialBoundStruct lowerBound =
+        new GeospatialBoundStruct(statsStruct.field("lower_bound").type().asStructType());
     lowerBound.set(0, 1.0d);
     lowerBound.set(1, 2.0d);
     lowerBound.set(2, 3.0d);
     lowerBound.set(3, 4.0d);
-    PartitionData upperBound =
-        new PartitionData(statsStruct.field("upper_bound").type().asStructType());
+    GeospatialBoundStruct upperBound =
+        new GeospatialBoundStruct(statsStruct.field("upper_bound").type().asStructType());
     upperBound.set(0, 5.0d);
     upperBound.set(1, 6.0d);
     upperBound.set(2, 7.0d);

@@ -52,6 +52,7 @@ import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.OutputFile;
@@ -111,6 +112,13 @@ class TestV4ManifestReader {
       Types.StructType.of(STATS_TYPE.field("id"));
   private static final Types.StructType DATA_ONLY_STATS_TYPE =
       Types.StructType.of(STATS_TYPE.field("data"));
+
+  private static final Schema GEOMETRY_SCHEMA =
+      new Schema(optional(1, "geom", Types.GeometryType.crs84()));
+  private static final MetricsConfig GEOMETRY_METRICS_CONFIG =
+      MetricsTestUtil.from(ImmutableMap.of(), GEOMETRY_SCHEMA);
+  private static final Types.StructType GEOMETRY_STATS_TYPE =
+      StatsUtil.statsWriteSchema(GEOMETRY_SCHEMA, GEOMETRY_METRICS_CONFIG);
 
   private static final FieldStatsStruct<Integer> ID_STATS =
       new FieldStatsStruct<>(
@@ -2023,6 +2031,163 @@ class TestV4ManifestReader {
     List<String> locations = V4ManifestReader.readManifestLocations(manifest, IO);
 
     assertThat(locations).containsExactly(dataManifest.location(), deleteManifest.location());
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void readGeoBounds(FileFormat format) throws IOException {
+    GeospatialBound lowerA = GeospatialBound.createXYZM(1.0, 2.0, 3.0, 4.0);
+    GeospatialBound upperA = GeospatialBound.createXYZM(5.0, 6.0, 7.0, 8.0);
+    GeospatialBound lowerB = GeospatialBound.createXY(-10.0, -20.0);
+    GeospatialBound upperB = GeospatialBound.createXY(30.0, 40.0);
+
+    OutputFile out =
+        writeTrackedFiles(
+            IO,
+            format,
+            UNPARTITIONED_TYPE,
+            GEOMETRY_STATS_TYPE,
+            ImmutableList.of(
+                geometryFile("s3://bucket/table/geo-a.parquet", lowerA, upperA),
+                geometryFile("s3://bucket/table/geo-b.parquet", lowerB, upperB)));
+
+    List<TrackedFile> files =
+        read(
+            V4ManifestReader.builder(
+                    v4Manifest(out.location()), IO, GEOMETRY_SCHEMA, UNPARTITIONED_SPECS)
+                .metricsConfig(GEOMETRY_METRICS_CONFIG));
+
+    assertThat(files).hasSize(2);
+    assertGeoBounds(files.get(0), lowerA, upperA);
+    assertGeoBounds(files.get(1), lowerB, upperB);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void readGeoBoundProjectingOnlyM(FileFormat format) throws IOException {
+    GeospatialBound lower = GeospatialBound.createXYZM(1.0, 2.0, 3.0, 4.0);
+    GeospatialBound upper = GeospatialBound.createXYZM(5.0, 6.0, 7.0, 8.0);
+
+    OutputFile out =
+        writeTrackedFiles(
+            IO,
+            format,
+            UNPARTITIONED_TYPE,
+            GEOMETRY_STATS_TYPE,
+            ImmutableList.of(geometryFile("s3://bucket/table/geo.parquet", lower, upper)));
+
+    TrackedFile file =
+        readOne(
+            V4ManifestReader.builder(
+                    v4Manifest(out.location()), IO, GEOMETRY_SCHEMA, UNPARTITIONED_SPECS)
+                .metricsConfig(GEOMETRY_METRICS_CONFIG)
+                .select("content_stats.geom.lower_bound.m", "content_stats.geom.upper_bound.m"));
+
+    FieldStats<GeospatialBoundStruct> stats = file.contentStats().statsFor(1);
+    assertThat(stats.lowerBound().m()).isEqualTo(lower.m());
+    assertThat(stats.upperBound().m()).isEqualTo(upper.m());
+    assertThat(stats.lowerBound().z()).isNaN();
+    assertThatThrownBy(stats.lowerBound()::x)
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Double.doubleValue()");
+    assertThatThrownBy(stats.lowerBound()::y)
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Double.doubleValue()");
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void readGeoBoundProjectingXYM(FileFormat format) throws IOException {
+    GeospatialBound lower = GeospatialBound.createXYZM(1.0, 2.0, 3.0, 4.0);
+    GeospatialBound upper = GeospatialBound.createXYZM(5.0, 6.0, 7.0, 8.0);
+
+    OutputFile out =
+        writeTrackedFiles(
+            IO,
+            format,
+            UNPARTITIONED_TYPE,
+            GEOMETRY_STATS_TYPE,
+            ImmutableList.of(geometryFile("s3://bucket/table/geo.parquet", lower, upper)));
+
+    TrackedFile file =
+        readOne(
+            V4ManifestReader.builder(
+                    v4Manifest(out.location()), IO, GEOMETRY_SCHEMA, UNPARTITIONED_SPECS)
+                .metricsConfig(GEOMETRY_METRICS_CONFIG)
+                .select(
+                    "content_stats.geom.lower_bound.x",
+                    "content_stats.geom.lower_bound.y",
+                    "content_stats.geom.lower_bound.m",
+                    "content_stats.geom.upper_bound.x",
+                    "content_stats.geom.upper_bound.y",
+                    "content_stats.geom.upper_bound.m"));
+
+    assertGeoBounds(
+        file,
+        GeospatialBound.createXYM(lower.x(), lower.y(), lower.m()),
+        GeospatialBound.createXYM(upper.x(), upper.y(), upper.m()));
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void convertProjectedGeoBoundsToLegacyBounds(FileFormat format) throws IOException {
+    GeospatialBound lower = GeospatialBound.createXYZM(1.0, 2.0, 3.0, 4.0);
+    GeospatialBound upper = GeospatialBound.createXYZM(5.0, 6.0, 7.0, 8.0);
+
+    OutputFile out =
+        writeTrackedFiles(
+            IO,
+            format,
+            UNPARTITIONED_TYPE,
+            GEOMETRY_STATS_TYPE,
+            ImmutableList.of(geometryFile("s3://bucket/table/geo.parquet", lower, upper)));
+
+    TrackedFile file =
+        readOne(
+            V4ManifestReader.builder(
+                    v4Manifest(out.location()), IO, GEOMETRY_SCHEMA, UNPARTITIONED_SPECS)
+                .metricsConfig(GEOMETRY_METRICS_CONFIG)
+                .select(
+                    "content_stats.geom.lower_bound.x",
+                    "content_stats.geom.lower_bound.y",
+                    "content_stats.geom.lower_bound.m",
+                    "content_stats.geom.upper_bound.x",
+                    "content_stats.geom.upper_bound.y",
+                    "content_stats.geom.upper_bound.m"));
+
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED_SPECS);
+
+    assertThat(dataFile.lowerBounds())
+        .containsEntry(
+            1, GeospatialBound.createXYM(lower.x(), lower.y(), lower.m()).toByteBuffer());
+    assertThat(dataFile.upperBounds())
+        .containsEntry(
+            1, GeospatialBound.createXYM(upper.x(), upper.y(), upper.m()).toByteBuffer());
+  }
+
+  private static TrackedFile geometryFile(
+      String location, GeospatialBound lower, GeospatialBound upper) {
+    Types.StructType geomStatsType = GEOMETRY_STATS_TYPE.fieldType("geom").asStructType();
+    ContentStatsStruct stats = new ContentStatsStruct(GEOMETRY_STATS_TYPE);
+    stats.setStats(1, new FieldStatsStruct<>(geomStatsType, lower, upper, RECORD_COUNT, 0, 0, 0L));
+    return dataFileWithStats(location, stats);
+  }
+
+  private static void assertGeoBounds(
+      TrackedFile file, GeospatialBound lower, GeospatialBound upper) {
+    FieldStats<GeospatialBoundStruct> stats = file.contentStats().statsFor(1);
+    assertGeoBound(stats.lowerBound(), lower);
+    assertGeoBound(stats.upperBound(), upper);
+  }
+
+  private static void assertGeoBound(GeospatialBoundStruct actual, GeospatialBound expected) {
+    assertThat(actual)
+        .extracting(
+            GeospatialBoundStruct::x,
+            GeospatialBoundStruct::y,
+            GeospatialBoundStruct::z,
+            GeospatialBoundStruct::m)
+        .containsExactly(expected.x(), expected.y(), expected.z(), expected.m());
   }
 
   private static TrackedFile unpartitionedFileWithoutStats(String location) {

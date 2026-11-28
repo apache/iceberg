@@ -183,6 +183,8 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
   private static ByteBuffer geoBound(StructLike bound) {
     if (bound == null) {
       return null;
+    } else if (bound instanceof GeospatialBoundStruct geo) {
+      return GeospatialBound.createXYZM(geo.x(), geo.y(), geo.z(), geo.m()).toByteBuffer();
     }
 
     // field order is fixed by the stats schema: x, y, z, m
