@@ -163,6 +163,11 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
   }
 
   @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
+
+  @Override
   protected boolean supportsNamesWithSlashes() {
     return false;
   }
