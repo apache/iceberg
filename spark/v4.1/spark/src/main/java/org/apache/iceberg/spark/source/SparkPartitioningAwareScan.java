@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -41,6 +40,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.types.Types.NestedField;
@@ -169,9 +169,10 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
   protected Set<PartitionSpec> specs() {
     if (specs == null) {
-      // avoid calling equals/hashCode on specs as those methods are relatively expensive
-      IntStream specIds = tasks().stream().mapToInt(task -> task.spec().specId()).distinct();
-      this.specs = specIds.mapToObj(id -> table().specs().get(id)).collect(Collectors.toSet());
+      // Preserve the partition specs bound during scan planning.
+      Map<Integer, PartitionSpec> specsById = Maps.newHashMap();
+      tasks().forEach(task -> specsById.putIfAbsent(task.spec().specId(), task.spec()));
+      this.specs = Sets.newHashSet(specsById.values());
     }
 
     return specs;

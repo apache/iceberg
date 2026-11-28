@@ -219,6 +219,91 @@ public class TestScansAndSchemaEvolution {
   }
 
   @TestTemplate
+  public void testTaggedCurrentSnapshotAfterPartitionSourceDrop() throws IOException {
+    Table table = TestTables.create(temp, "test", SCHEMA, SPEC, formatVersion);
+
+    table.newAppend().appendFile(createDataFile("one")).commit();
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    table.manageSnapshots().createTag("historical", snapshotId).commit();
+
+    table.updateSpec().removeField("part").commit();
+    table.updateSchema().deleteColumn("part").commit();
+
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(snapshotId);
+
+    for (TableScan scan :
+        List.of(table.newScan().useRef("historical"), table.newScan().useSnapshot(snapshotId))) {
+      assertThat(scan.schema().findType("part")).isEqualTo(Types.StringType.get());
+
+      assertThat(scan.planFiles())
+          .hasSize(1)
+          .allSatisfy(
+              task -> {
+                assertThat(task.spec().partitionType().fields().get(0).type())
+                    .isEqualTo(Types.StringType.get());
+                assertThat(task.file().partition().get(0, Object.class).toString())
+                    .isEqualTo("one");
+              });
+    }
+  }
+
+  @TestTemplate
+  public void testTimeTravelAfterPartitionSourcePromotionAndDrop() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), required(2, "p", Types.IntegerType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("p").build();
+    Table table = TestTables.create(temp, "test", schema, spec, formatVersion);
+
+    DataFile file =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data.parquet")
+            .withFileSizeInBytes(100)
+            .withRecordCount(1)
+            .withPartitionPath("p=42")
+            .build();
+
+    table.newAppend().appendFile(file).commit();
+    long originalSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.updateSchema().updateColumn("p", Types.LongType.get()).commit();
+
+    DataFile promotedFile =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/promoted.parquet")
+            .withFileSizeInBytes(100)
+            .withRecordCount(1)
+            .withPartitionPath("p=43")
+            .build();
+
+    table.newAppend().appendFile(promotedFile).commit();
+    long promotedSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.manageSnapshots().createTag("promoted", promotedSnapshotId).commit();
+    table.updateSpec().removeField("p").commit();
+    table.updateSchema().deleteColumn("p").commit();
+
+    assertThat(table.newScan().useSnapshot(originalSnapshotId).planFiles())
+        .hasSize(1)
+        .allSatisfy(
+            task -> {
+              assertThat(task.spec().partitionType().fields().get(0).type())
+                  .isEqualTo(Types.IntegerType.get());
+              assertThat(task.file().partition().get(0, Object.class)).isEqualTo(42);
+            });
+
+    assertThat(table.newScan().useRef("promoted").planFiles())
+        .hasSize(2)
+        .allSatisfy(
+            task -> {
+              assertThat(task.spec().partitionType().fields().get(0).type())
+                  .isEqualTo(Types.LongType.get());
+              assertThat(task.file().partition().get(0, Object.class)).isInstanceOf(Long.class);
+            });
+  }
+
+  @TestTemplate
   public void testColumnAdd() throws IOException {
     Table table = TestTables.create(temp, "test", SCHEMA, SPEC, formatVersion);
 
