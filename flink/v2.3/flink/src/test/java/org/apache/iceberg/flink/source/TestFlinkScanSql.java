@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +28,7 @@ import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.types.Row;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 /** Test Flink SELECT SQLs. */
 public class TestFlinkScanSql extends TestFlinkSource {
@@ -42,6 +45,22 @@ public class TestFlinkScanSql extends TestFlinkSource {
         .getConfig()
         .getConfiguration()
         .set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
+  }
+
+  @Test
+  public void testDecimalLiteralAgainstDoubleColumn() {
+    SqlHelpers.sql(getTableEnv(), "CREATE TABLE t_double_decimal_filter (id INT, score DOUBLE)");
+
+    SqlHelpers.sql(
+        getTableEnv(),
+        "INSERT INTO t_double_decimal_filter VALUES " + "(1, 10.5), (2, 14.3), (3, 20.0)");
+
+    List<Row> rows =
+        SqlHelpers.sql(
+            getTableEnv(),
+            "SELECT id, score FROM t_double_decimal_filter " + "WHERE score <= 14.3 ORDER BY id");
+
+    assertThat(rows).containsExactly(Row.of(1, 10.5), Row.of(2, 14.3));
   }
 
   private TableEnvironment getTableEnv() {

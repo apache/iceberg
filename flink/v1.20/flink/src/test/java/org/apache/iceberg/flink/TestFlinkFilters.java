@@ -112,6 +112,63 @@ public class TestFlinkFilters {
   }
 
   @Test
+  public void testDecimalLiteralComparedWithFloatingPoint() {
+    BigDecimal decimal = new BigDecimal("14.3");
+
+    for (String field : List.of("field3", "field4")) {
+      Expression lessThanOrEqual =
+          resolve(Expressions.$(field).isLessOrEqual(Expressions.lit(decimal)));
+
+      assertThat(FlinkFilters.convert(lessThanOrEqual))
+          .as("DECIMAL literal must not be pushed down to " + field)
+          .isEmpty();
+
+      Expression greaterThanOrEqual =
+          resolve(Expressions.lit(decimal).isGreaterOrEqual(Expressions.$(field)));
+
+      assertThat(FlinkFilters.convert(greaterThanOrEqual))
+          .as("Reversed DECIMAL comparison must not be pushed down to " + field)
+          .isEmpty();
+    }
+  }
+
+  @Test
+  public void testMixedDecimalAndIntegerFilters() {
+    Expression decimalComparison =
+        resolve(Expressions.$("field4").isLessOrEqual(Expressions.lit(new BigDecimal("14.3"))));
+
+    Expression integerComparison = resolve(Expressions.$("field1").isEqual(Expressions.lit(1)));
+
+    assertThat(FlinkFilters.convert(decimalComparison)).isEmpty();
+    assertThat(FlinkFilters.convert(integerComparison)).isPresent();
+
+    Expression combined =
+        resolve(
+            Expressions.$("field4")
+                .isLessOrEqual(Expressions.lit(new BigDecimal("14.3")))
+                .and(Expressions.$("field1").isEqual(Expressions.lit(1))));
+
+    assertThat(FlinkFilters.convert(combined)).isEmpty();
+  }
+
+  @Test
+  public void testDecimalColumnPushdownRemainsSupported() {
+    BigDecimal decimal = new BigDecimal("14.30");
+
+    Expression expr = resolve(Expressions.$("field8").isLessOrEqual(Expressions.lit(decimal)));
+
+    Optional<org.apache.iceberg.expressions.Expression> actual = FlinkFilters.convert(expr);
+
+    assertThat(actual).isPresent();
+
+    org.apache.iceberg.expressions.Expression bound =
+        ((UnboundPredicate<?>) actual.get())
+            .bind(FlinkSchemaUtil.convert(RESOLVED_SCHEMA).asStruct(), false);
+
+    assertThat(bound).isInstanceOf(BoundLiteralPredicate.class);
+  }
+
+  @Test
   public void testEquals() {
     for (Pair<String, Object> pair : FIELD_VALUE_LIST) {
       UnboundPredicate<?> expected =
