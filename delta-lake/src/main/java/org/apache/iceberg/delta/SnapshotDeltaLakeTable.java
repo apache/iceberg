@@ -60,25 +60,28 @@ public interface SnapshotDeltaLakeTable
 
   /**
    * Sets the identifier of the newly created Iceberg table. This is required to be set before
-   * execute the action.
+   * executing the action.
    *
-   * @param identifier a table identifier (namespace, name) @Returns this for method chaining
+   * @param identifier a table identifier (namespace, name)
+   * @return this for method chaining
    */
   SnapshotDeltaLakeTable as(TableIdentifier identifier);
 
   /**
-   * Sets the catalog of the newly created Iceberg table. This is required to be set before execute
-   * the action
+   * Sets the catalog of the newly created Iceberg table. This is required to be set before
+   * executing the action.
    *
-   * @param catalog a catalog @Returns this for method chaining
+   * @param catalog a catalog
+   * @return this for method chaining
    */
   SnapshotDeltaLakeTable icebergCatalog(Catalog catalog);
 
   /**
-   * Sets the Hadoop configuration used to access delta lake table's logs and datafiles. This is
-   * required to be set before execute the action.
+   * Sets the Hadoop configuration used to access the Delta Lake table's logs and data files. This
+   * is required to be set before executing the action.
    *
-   * @param conf a Hadoop configuration @Returns this for method chaining
+   * @param conf a Hadoop configuration
+   * @return this for method chaining
    */
   SnapshotDeltaLakeTable deltaLakeConfiguration(Configuration conf);
 
@@ -86,7 +89,11 @@ public interface SnapshotDeltaLakeTable
   @Value.Immutable
   interface Result {
 
-    /** Returns the number of migrated data files. */
+    /**
+     * Returns the number of migrated data files.
+     *
+     * @return the number of migrated data files
+     */
     long snapshotDataFilesCount();
   }
 }

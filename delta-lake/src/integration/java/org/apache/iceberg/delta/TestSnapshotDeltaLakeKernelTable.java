@@ -128,7 +128,7 @@ public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTest
 
     // Act
     SnapshotDeltaLakeTable conversionAction =
-        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeKernelTable(
+        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
             spark, newTableIdentifier, sourceTableLocation);
     SnapshotDeltaLakeTable.Result result = conversionAction.execute();
 
@@ -153,7 +153,7 @@ public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTest
 
     // Act
     SnapshotDeltaLakeTable conversionAction =
-        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeKernelTable(
+        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
             spark, newTableIdentifier, sourceTableLocation);
     SnapshotDeltaLakeTable.Result result = conversionAction.execute();
 
@@ -197,7 +197,7 @@ public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTest
 
     // Act
     SnapshotDeltaLakeTable conversionAction =
-        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeKernelTable(
+        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
             spark, newTableIdentifier, sourceTableLocation);
     SnapshotDeltaLakeTable.Result result = conversionAction.execute();
 
@@ -221,7 +221,7 @@ public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTest
 
     // Act
     SnapshotDeltaLakeTable conversionAction =
-        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeKernelTable(
+        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
             spark, newTableIdentifier, sourceTableLocation);
     SnapshotDeltaLakeTable.Result result = conversionAction.execute();
 
@@ -264,7 +264,7 @@ public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTest
 
     // Act
     SnapshotDeltaLakeTable conversionAction =
-        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeKernelTable(
+        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
             spark, newTableIdentifier, sourceTableLocation);
     conversionAction.execute();
 
@@ -296,7 +296,7 @@ public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTest
 
     // Act & Assert
     SnapshotDeltaLakeTable conversionAction =
-        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeKernelTable(
+        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
             spark, newTableIdentifier, sourceTableLocation);
 
     assertThatThrownBy(conversionAction::execute)

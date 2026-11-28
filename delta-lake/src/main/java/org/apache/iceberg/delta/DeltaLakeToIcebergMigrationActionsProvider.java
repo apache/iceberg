@@ -19,9 +19,9 @@
 package org.apache.iceberg.delta;
 
 /**
- * An API that provide actions for migration from a delta lake table to an iceberg table. Query
- * engines can use {@code defaultActions()} to access default action implementations, or implement
- * this provider to supply a different implementation if necessary.
+ * An API that provides actions for migrating a Delta Lake table to an Iceberg table. Query engines
+ * can use {@link #defaultActions()} to access default action implementations, or implement this
+ * provider to supply a different implementation if necessary.
  */
 public interface DeltaLakeToIcebergMigrationActionsProvider {
 
@@ -32,11 +32,11 @@ public interface DeltaLakeToIcebergMigrationActionsProvider {
    * @return a {@link SnapshotDeltaLakeTable} action
    */
   default SnapshotDeltaLakeTable snapshotDeltaLakeTable(String sourceTableLocation) {
-    return new BaseSnapshotDeltaLakeTableAction(sourceTableLocation);
+    return new BaseSnapshotDeltaLakeKernelTableAction(sourceTableLocation);
   }
 
   /**
-   * Get the default implementation of {@link DeltaLakeToIcebergMigrationActionsProvider}
+   * Returns the default implementation of {@link DeltaLakeToIcebergMigrationActionsProvider}.
    *
    * @return an instance with access to all default actions
    */
