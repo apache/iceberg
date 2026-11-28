@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
+import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,7 @@ import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
+import org.apache.flink.util.InstantiationUtil;
 import org.apache.flink.util.function.SerializableSupplier;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
@@ -170,15 +172,19 @@ public class DataFileRewritePlanner
           groups);
       plannedGroupsCounter.inc(groups.size());
 
-      for (RewriteFileGroup group : groups) {
-        LOG.info(
-            DataFileRewritePlanner.MESSAGE_PREFIX + "Emitting {}",
-            tableName,
-            taskName,
-            taskIndex,
-            ctx.timestamp(),
-            group);
-        out.collect(new PlannedGroup(table, groupsPerCommit, group, branch));
+      if (!groups.isEmpty()) {
+        // The groups of a plan share the table, serialized once
+        byte[] tableBytes = InstantiationUtil.serializeObject(table);
+        for (RewriteFileGroup group : groups) {
+          LOG.info(
+              DataFileRewritePlanner.MESSAGE_PREFIX + "Emitting {}",
+              tableName,
+              taskName,
+              taskIndex,
+              ctx.timestamp(),
+              group);
+          out.collect(new PlannedGroup(tableBytes, groupsPerCommit, group, branch));
+        }
       }
     } catch (Exception e) {
       LOG.warn(
@@ -200,20 +206,35 @@ public class DataFileRewritePlanner
   }
 
   public static class PlannedGroup {
-    private final SerializableTable table;
+    // Kryo cannot serialize a FileIO that holds a lambda (S3FileIO does), so the table travels as
+    // Java-serialized bytes and is restored on first use
+    private final byte[] tableBytes;
     private final int groupsPerCommit;
     private final RewriteFileGroup group;
     private final String branch;
+    private transient SerializableTable table;
 
     private PlannedGroup(
-        SerializableTable table, int groupsPerCommit, RewriteFileGroup group, String branch) {
-      this.table = table;
+        byte[] tableBytes, int groupsPerCommit, RewriteFileGroup group, String branch) {
+      this.tableBytes = tableBytes;
       this.groupsPerCommit = groupsPerCommit;
       this.group = group;
       this.branch = branch;
     }
 
     SerializableTable table() {
+      if (table == null) {
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        try {
+          table =
+              InstantiationUtil.deserializeObject(
+                  tableBytes,
+                  classLoader != null ? classLoader : PlannedGroup.class.getClassLoader());
+        } catch (IOException | ClassNotFoundException e) {
+          throw new IllegalStateException("Failed to deserialize the table of a planned group", e);
+        }
+      }
+
       return table;
     }
 
