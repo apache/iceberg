@@ -100,4 +100,10 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement repairTable");
   }
+
+  /** Instantiates an action to rotate the encryption keys of a table. */
+  default RotateEncryptionKeys rotateEncryptionKeys(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement rotateEncryptionKeys");
+  }
 }
