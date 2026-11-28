@@ -318,8 +318,10 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
         .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(testTable))
         .commit();
 
-    assertThat(testTable.newPartitionStatisticsScan().scan())
-        .allMatch(s -> (s.dataRecordCount() != 0 && s.dataFileCount() != 0));
+    try (CloseableIterable<PartitionStatistics> scan =
+        testTable.newPartitionStatisticsScan().scan()) {
+      assertThat(scan).allMatch(s -> (s.dataRecordCount() != 0 && s.dataFileCount() != 0));
+    }
 
     testTable.newDelete().deleteFile(dataFile1).commit();
     testTable.newDelete().deleteFile(dataFile2).commit();
@@ -330,8 +332,10 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
         .commit();
 
     // stats must be decremented to zero as all the files removed from table.
-    assertThat(testTable.newPartitionStatisticsScan().scan())
-        .allMatch(s -> (s.dataRecordCount() == 0 && s.dataFileCount() == 0));
+    try (CloseableIterable<PartitionStatistics> scan =
+        testTable.newPartitionStatisticsScan().scan()) {
+      assertThat(scan).allMatch(s -> (s.dataRecordCount() == 0 && s.dataFileCount() == 0));
+    }
   }
 
   @Test
