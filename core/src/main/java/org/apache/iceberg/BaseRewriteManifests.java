@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
@@ -169,11 +170,14 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
     List<ManifestFile> currentManifests = base.currentSnapshot().allManifests(ops().io());
-    Set<ManifestFile> currentManifestSet = ImmutableSet.copyOf(currentManifests);
+    Map<String, ManifestFile> currentManifestsByPath = Maps.newHashMap();
+    for (ManifestFile manifest : currentManifests) {
+      currentManifestsByPath.put(manifest.path(), manifest);
+    }
 
-    validateDeletedManifests(currentManifestSet, base.currentSnapshot().snapshotId());
+    validateDeletedManifests(currentManifestsByPath, base.currentSnapshot().snapshotId());
 
-    if (requiresRewrite(currentManifestSet)) {
+    if (requiresRewrite(currentManifestsByPath)) {
       performRewrite(currentManifests);
     } else {
       keepActiveManifests(currentManifests);
@@ -203,7 +207,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
         tableName, operation(), snapshotId, sequenceNumber, snapshot.summary());
   }
 
-  private boolean requiresRewrite(Set<ManifestFile> currentManifests) {
+  private boolean requiresRewrite(Map<String, ManifestFile> currentManifestsByPath) {
     if (clusterByFunc == null) {
       // manifests are deleted and added directly so don't perform a rewrite
       return false;
@@ -214,8 +218,15 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
       return true;
     }
 
-    // if any processed manifest is not in the current manifest list, perform a full rewrite
-    return rewrittenManifests.stream().anyMatch(manifest -> !currentManifests.contains(manifest));
+    // if any processed manifest is not in the current manifest list, or inherits other metadata
+    // there, such as a manifest staged earlier in a transaction that retries, perform a full
+    // rewrite
+    return rewrittenManifests.stream()
+        .anyMatch(
+            manifest -> {
+              ManifestFile current = currentManifestsByPath.get(manifest.path());
+              return current == null || !inheritsSameMetadata(manifest, current);
+            });
   }
 
   private void keepActiveManifests(List<ManifestFile> currentManifests) {
@@ -284,17 +295,39 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   }
 
   private void validateDeletedManifests(
-      Set<ManifestFile> currentManifests, long currentSnapshotID) {
-    // directly deleted manifests must be still present in the current snapshot
-    deletedManifests.stream()
-        .filter(manifest -> !currentManifests.contains(manifest))
-        .findAny()
-        .ifPresent(
-            manifest -> {
-              throw new ValidationException(
-                  "Deleted manifest %s could not be found in the latest snapshot %d",
-                  manifest.path(), currentSnapshotID);
-            });
+      Map<String, ManifestFile> currentManifestsByPath, long currentSnapshotID) {
+    for (ManifestFile manifest : deletedManifests) {
+      // directly deleted manifests must be still present in the current snapshot
+      ManifestFile current = currentManifestsByPath.get(manifest.path());
+      ValidationException.check(
+          current != null,
+          "Deleted manifest %s could not be found in the latest snapshot %d",
+          manifest.path(),
+          currentSnapshotID);
+
+      // a replacement written from the entries of a manifest that inherits other metadata now would
+      // not have it
+      ValidationException.check(
+          inheritsSameMetadata(manifest, current),
+          "Deleted manifest %s changed in the latest snapshot %d: "
+              + "sequence number %s -> %s, min sequence number %s -> %s, first row ID %s -> %s",
+          manifest.path(),
+          currentSnapshotID,
+          manifest.sequenceNumber(),
+          current.sequenceNumber(),
+          manifest.minSequenceNumber(),
+          current.minSequenceNumber(),
+          manifest.firstRowId(),
+          current.firstRowId());
+    }
+  }
+
+  // a manifest staged earlier in a transaction keeps its path when the transaction retries but can
+  // inherit a new sequence number and first row ID
+  private static boolean inheritsSameMetadata(ManifestFile manifest, ManifestFile current) {
+    return manifest.sequenceNumber() == current.sequenceNumber()
+        && manifest.minSequenceNumber() == current.minSequenceNumber()
+        && Objects.equals(manifest.firstRowId(), current.firstRowId());
   }
 
   private void validateFilesCounts() {
