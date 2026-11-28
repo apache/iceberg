@@ -34,6 +34,7 @@ import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Scan;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.Catalog;
@@ -562,28 +563,52 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
    * atomicity, which is left to the implementation details of a REST server.
    */
   private static void commitTransaction(Catalog catalog, CommitTransactionRequest request) {
-    List<Transaction> transactions = Lists.newArrayList();
+    List<Pair<TableOperations, UpdateTableRequest>> validatedChanges = Lists.newArrayList();
 
     for (UpdateTableRequest tableChange : request.tableChanges()) {
       Table table = catalog.loadTable(tableChange.identifier());
       if (table instanceof BaseTable) {
+        TableOperations ops = ((BaseTable) table).operations();
         Transaction transaction =
-            Transactions.newTransaction(
-                tableChange.identifier().toString(), ((BaseTable) table).operations());
-        transactions.add(transaction);
+            Transactions.newTransaction(tableChange.identifier().toString(), ops);
 
         BaseTransaction.TransactionTable txTable =
             (BaseTransaction.TransactionTable) transaction.table();
 
         // this performs validations and makes temporary commits that are in-memory
         CatalogHandlers.commit(txTable.operations(), tableChange);
+        validatedChanges.add(Pair.of(ops, tableChange));
       } else {
         throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
       }
     }
 
-    // only commit if validations passed previously
-    transactions.forEach(Transaction::commitTransaction);
+    // only commit if validations passed previously; on a concurrent change, requirements are
+    // re-checked against the refreshed table before the updates are reapplied
+    List<TableIdentifier> committed = Lists.newArrayList();
+    for (Pair<TableOperations, UpdateTableRequest> change : validatedChanges) {
+      UpdateTableRequest tableChange = change.second();
+      try {
+        CatalogHandlers.commit(change.first(), tableChange);
+      } catch (CommitStateUnknownException e) {
+        throw e;
+      } catch (RuntimeException e) {
+        if (committed.isEmpty()) {
+          throw e;
+        }
+
+        // earlier tables are already committed, so the client must not treat this as a failure
+        // that it can retry or clean up after
+        throw new CommitStateUnknownException(
+            String.format(
+                "Failed to commit %s after committing %s", tableChange.identifier(), committed),
+            e);
+      }
+
+      if (!tableChange.updates().isEmpty()) {
+        committed.add(tableChange.identifier());
+      }
+    }
   }
 
   @Override
