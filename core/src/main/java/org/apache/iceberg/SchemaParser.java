@@ -197,7 +197,13 @@ public class SchemaParser {
 
   private static Literal<?> defaultFromJson(String defaultField, Type type, JsonNode json) {
     if (json.has(defaultField)) {
-      Object value = SingleValueParser.fromJson(type, json.get(defaultField));
+      JsonNode defaultJson = json.get(defaultField);
+      if (defaultJson.isTextual()
+          && (type.typeId() == Type.TypeID.FLOAT || type.typeId() == Type.TypeID.DOUBLE)) {
+        return nonFiniteDefaultFromJson(type, defaultJson);
+      }
+
+      Object value = SingleValueParser.fromJson(type, defaultJson);
       if (type instanceof Types.TimestampNanoType) {
         // Call Expressions.nanos instead of Expressions.lit to prevent overflow
         // https://github.com/apache/iceberg/issues/13160
@@ -208,6 +214,21 @@ public class SchemaParser {
     }
 
     return null;
+  }
+
+  // non-finite float and double defaults are written as strings; Expressions.lit rejects NaN
+  private static Literal<?> nonFiniteDefaultFromJson(Type type, JsonNode defaultJson) {
+    double value =
+        switch (defaultJson.textValue()) {
+          case "NaN" -> Double.NaN;
+          case "Infinity" -> Double.POSITIVE_INFINITY;
+          case "-Infinity" -> Double.NEGATIVE_INFINITY;
+          default ->
+              throw new IllegalArgumentException(
+                  String.format("Cannot parse default as a %s value: %s", type, defaultJson));
+        };
+
+    return type.typeId() == Type.TypeID.FLOAT ? Literal.of((float) value) : Literal.of(value);
   }
 
   private static Types.NestedField.Builder fieldBuilder(boolean isRequired, String name) {

@@ -544,4 +544,13 @@ public class TestExpressionParser {
     assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
         .isEqualTo(expected);
   }
+
+  @Test
+  public void floatPredicateWithInfiniteLiteral() {
+    String json = ExpressionParser.toJson(Expressions.lessThan("f", Double.POSITIVE_INFINITY));
+
+    assertThatThrownBy(() -> ExpressionParser.fromJson(json, SCHEMA))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse default as a float value: \"Infinity\"");
+  }
 }

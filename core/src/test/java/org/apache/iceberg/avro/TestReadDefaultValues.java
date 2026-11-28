@@ -19,15 +19,20 @@
 package org.apache.iceberg.avro;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SingleValueParser;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.FileAppender;
@@ -164,5 +169,52 @@ public class TestReadDefaultValues {
       // Existence of default value should not affect the read result
       AvroTestHelpers.assertEquals(readerSchema.asStruct(), expectedRecord, rows.get(0));
     }
+  }
+
+  @Test
+  public void nonFiniteInitialDefaultsFromRecoveredMetadata() throws IOException {
+    TableMetadata metadata;
+    try (InputStream in =
+        getClass().getClassLoader().getResourceAsStream("TableMetadataV3NonFiniteDefaults.json")) {
+      metadata =
+          TableMetadataParser.fromJson(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+    }
+
+    Schema writerSchema = metadata.schemasById().get(0);
+    Schema readerSchema = metadata.schemasById().get(2);
+
+    File testFile = temp.resolve("test" + System.nanoTime() + ".avro").toFile();
+    testFile.delete();
+
+    try (FileAppender<Record> writer =
+        Avro.write(Files.localOutput(testFile))
+            .schema(writerSchema)
+            .createWriterFunc(GenericAvroWriter::create)
+            .named("test")
+            .build()) {
+      Record record = new Record(AvroSchemaUtil.convert(writerSchema.asStruct()));
+      record.put(0, 1L);
+      writer.add(record);
+    }
+
+    List<Record> rows;
+    try (AvroIterable<Record> reader =
+        Avro.read(Files.localInput(testFile))
+            .project(readerSchema)
+            .createResolvingReader(GenericAvroReader::create)
+            .build()) {
+      rows = Lists.newArrayList(reader);
+    }
+
+    Record row = rows.get(0);
+    // f_nan has write-default -Infinity, so NaN shows the initial default was applied
+    assertThat((Float) row.get("f_nan")).isNaN();
+    assertThat(row.get("f_pos_inf")).isEqualTo(Float.POSITIVE_INFINITY);
+    assertThat(row.get("f_neg_inf")).isEqualTo(Float.NEGATIVE_INFINITY);
+    assertThat((Double) row.get("d_nan")).isNaN();
+    assertThat(row.get("d_pos_inf")).isEqualTo(Double.POSITIVE_INFINITY);
+    assertThat(row.get("d_neg_inf")).isEqualTo(Double.NEGATIVE_INFINITY);
+    assertThat(row.get("f_finite")).isEqualTo(1.5F);
+    assertThat(row.get("d_no_default")).isNull();
   }
 }

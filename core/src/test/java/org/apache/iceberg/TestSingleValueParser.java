@@ -114,6 +114,13 @@ public class TestSingleValueParser {
   }
 
   @Test
+  public void nonFiniteStringForDoubleValue() {
+    assertThatThrownBy(() -> SingleValueParser.fromJson(Types.DoubleType.get(), "\"NaN\""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse default as a double value: \"NaN\"");
+  }
+
+  @Test
   public void testInvalidFixed() {
     Type expectedType = Types.FixedType.ofLength(2);
     String defaultJson = "\"111ff\"";
