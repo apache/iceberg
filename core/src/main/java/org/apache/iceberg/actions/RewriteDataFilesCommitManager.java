@@ -21,9 +21,11 @@ package org.apache.iceberg.actions;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.RewriteFiles;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.DataFileSet;
@@ -95,8 +97,12 @@ public class RewriteDataFilesCommitManager {
 
     RewriteFiles rewrite = table.newRewrite().validateFromSnapshot(startingSnapshotId);
     if (useStartingSequenceNumber) {
-      long sequenceNumber = table.snapshot(startingSnapshotId).sequenceNumber();
-      rewrite.dataSequenceNumber(sequenceNumber);
+      Snapshot startingSnapshot = table.snapshot(startingSnapshotId);
+      ValidationException.check(
+          startingSnapshot != null,
+          "Cannot rewrite files: starting snapshot %s is no longer available",
+          startingSnapshotId);
+      rewrite.dataSequenceNumber(startingSnapshot.sequenceNumber());
     }
 
     rewrittenDataFiles.forEach(rewrite::deleteFile);
