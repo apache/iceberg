@@ -1030,7 +1030,10 @@ project(':iceberg-arrow') {
       exclude group: 'org.codehaus.jackson'
     }
 
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation project(':iceberg-data')
+    testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     // To run ArrowReaderTest test cases, :netty-common is needed.
     // We import :netty-common through :arrow-memory-netty
     // so that the same version as used by the :arrow-memory-netty module is picked.
