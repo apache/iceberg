@@ -70,7 +70,11 @@ public class InternalData {
   @SuppressWarnings("CatchBlockLogException")
   private static void register(String classToRegister) {
     try {
-      DynMethods.builder("register").impl(classToRegister).buildStaticChecked().invoke();
+      DynMethods.builder("register")
+          .loader(InternalData.class.getClassLoader())
+          .impl(classToRegister)
+          .buildStaticChecked()
+          .invoke();
     } catch (NoSuchMethodException | NoClassDefFoundError | ExceptionInInitializerError e) {
       // failing to load an optional format is normal and does not require a stack trace
       Throwable cause = e.getCause() != null ? e.getCause() : e;
