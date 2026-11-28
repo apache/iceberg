@@ -117,6 +117,18 @@ public class TestTables {
         temp, null, name, schema, spec, formatVersion, properties, SortOrder.unsorted(), null, ops);
   }
 
+  public static TestTable create(
+      File temp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      int formatVersion,
+      Map<String, String> properties,
+      TestTableOperations ops) {
+    return createTable(
+        temp, null, name, schema, spec, formatVersion, properties, SortOrder.unsorted(), null, ops);
+  }
+
   private static TestTable createTable(
       File temp,
       File metaTemp,
