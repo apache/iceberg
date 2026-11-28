@@ -23,6 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.File;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.expressions.Literal;
@@ -34,9 +35,13 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestSchemaUpdate {
+  @TempDir private File tableDir;
+
   private static final Schema SCHEMA =
       new Schema(
           required(1, "id", Types.IntegerType.get()),
@@ -82,6 +87,11 @@ public class TestSchemaUpdate {
   private static final Set<Integer> ALL_IDS = ImmutableSet.copyOf(TypeUtil.getProjectedIds(SCHEMA));
 
   private static final int SCHEMA_LAST_COLUMN_ID = 23;
+
+  @AfterEach
+  void cleanupTables() {
+    TestTables.clearTables();
+  }
 
   @Test
   public void testNoChanges() {
@@ -346,6 +356,8 @@ public class TestSchemaUpdate {
             Pair.of(Types.IntegerType.get(), Types.LongType.get()),
             Pair.of(Types.FloatType.get(), Types.DoubleType.get()),
             Pair.of(Types.DecimalType.of(9, 2), Types.DecimalType.of(18, 2)));
+    Set<Pair<Type.PrimitiveType, Type.PrimitiveType>> v3OnlyUpdates =
+        Sets.newHashSet(Pair.of(Types.DateType.get(), Types.TimestampType.withoutZone()));
 
     List<Type.PrimitiveType> primitives =
         Lists.newArrayList(
@@ -379,6 +391,10 @@ public class TestSchemaUpdate {
           Schema expected = new Schema(required(1, "col", toType));
           Schema result = new SchemaUpdate(fromSchema, 1).updateColumn("col", toType).apply();
           assertThat(result.asStruct()).isEqualTo(expected.asStruct());
+          continue;
+        }
+
+        if (v3OnlyUpdates.contains(Pair.of(fromType, toType))) {
           continue;
         }
 
@@ -2589,5 +2605,67 @@ public class TestSchemaUpdate {
             .apply();
 
     assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  void dateToTimestampPromotionRejectedBeforeV3() {
+    Schema schema = new Schema(optional(1, "d", Types.DateType.get()));
+    Table table = TestTables.create(tableDir, "test", schema, PartitionSpec.unpartitioned(), 2);
+
+    assertThatThrownBy(
+            () -> table.updateSchema().updateColumn("d", Types.TimestampType.withoutZone()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot change column type: d: date -> timestamp is only allowed in format version 3 or later, but table is format version 2");
+  }
+
+  @Test
+  void schemaUpdateUsesFormatVersionUpgradedInTransaction() {
+    Schema schema = new Schema(optional(1, "d", Types.DateType.get()));
+    Table table = TestTables.create(tableDir, "test", schema, PartitionSpec.unpartitioned(), 2);
+    Transaction txn = table.newTransaction();
+    txn.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+
+    assertThatThrownBy(
+            () -> txn.updateSchema().updateColumn("d", Types.TimestampType.withoutZone()))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Unsupported type promotion for format version 3: d: date -> timestamp");
+  }
+
+  @Test
+  void dateToTimestampPromotionUnsupportedInV3() {
+    Schema schema = new Schema(optional(1, "d", Types.DateType.get()));
+
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 1, 3).updateColumn("d", Types.TimestampType.withoutZone()))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Unsupported type promotion for format version 3: d: date -> timestamp");
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 1, 3)
+                    .updateColumn("d", Types.TimestampNanoType.withoutZone()))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Unsupported type promotion for format version 3: d: date -> timestamp_ns");
+  }
+
+  @Test
+  void dateToTimestamptzPromotionRejectedInV3() {
+    Schema schema = new Schema(optional(1, "d", Types.DateType.get()));
+
+    assertThatThrownBy(
+            () -> new SchemaUpdate(schema, 1, 3).updateColumn("d", Types.TimestampType.withZone()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: d: date -> timestamptz");
+  }
+
+  @Test
+  void unknownPromotionUnsupportedInV3() {
+    Schema schema = new Schema(optional(1, "u", Types.UnknownType.get()));
+
+    assertThatThrownBy(
+            () -> new SchemaUpdate(schema, 1, 3).updateColumn("u", Types.StringType.get()))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Unsupported type promotion for format version 3: u: unknown -> string");
   }
 }
