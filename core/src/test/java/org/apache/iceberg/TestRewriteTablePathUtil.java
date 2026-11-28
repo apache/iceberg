@@ -312,10 +312,13 @@ public class TestRewriteTablePathUtil extends TestBase {
     String targetRootManifest = targetPrefix + rootManifestPath;
     TableMetadata metadata =
         TableMetadata.newTableMetadata(
-            SCHEMA, PartitionSpec.unpartitioned(), sourcePrefix, ImmutableMap.of());
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            sourcePrefix,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, "1"));
     Snapshot snapshot =
         new BaseSnapshot(
-            1 /* sequenceNumber */,
+            0 /* sequenceNumber */,
             1L /* snapshotId */,
             null /* parentId */,
             System.currentTimeMillis(),
