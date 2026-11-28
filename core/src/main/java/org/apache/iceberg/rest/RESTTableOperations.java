@@ -18,12 +18,19 @@
  */
 package org.apache.iceberg.rest;
 
+import java.io.IOException;
+import java.net.ConnectException;
+import java.net.NoRouteToHostException;
+import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import javax.net.ssl.SSLHandshakeException;
+import org.apache.hc.client5.http.ConnectTimeoutException;
+import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.SnapshotRef;
@@ -34,6 +41,7 @@ import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -224,7 +232,11 @@ class RESTTableOperations implements TableOperations {
     // TODO: ensure that the HTTP client lib passes HTTP client errors to the error handler
     LoadTableResponse response;
     try {
-      response = client.post(path, request, LoadTableResponse.class, mutationHeaders, errorHandler);
+      response =
+          commitRequest(
+              () ->
+                  client.post(
+                      path, request, LoadTableResponse.class, mutationHeaders, errorHandler));
     } catch (CommitStateUnknownException e) {
       // Lightweight reconciliation for snapshot-add-only updates on transient unknown commit state
       if (updateType == UpdateType.SIMPLE && reconcileOnSimpleUpdate(updates, e)) {
@@ -238,6 +250,38 @@ class RESTTableOperations implements TableOperations {
     this.updateType = UpdateType.SIMPLE;
 
     updateCurrentMetadata(response);
+  }
+
+  /**
+   * Sends a commit request, reporting a transport failure as an unknown commit state.
+   *
+   * <p>If the connection fails once the request may have been sent (no response, a reset, a read
+   * timeout), the server may have applied the commit, so the outcome is unknown just as for a 5xx
+   * response. Failures that happen before anything is sent stay ordinary failures. Any other
+   * transport failure is treated as unknown: reporting a commit that was applied as failed invites
+   * a retry that applies it twice, while reporting one that wasn't as unknown at worst leaves
+   * orphan files.
+   */
+  static <T> T commitRequest(Supplier<T> request) {
+    try {
+      return request.get();
+    } catch (RESTException e) {
+      if (e.getCause() instanceof IOException && !failedBeforeSending(e.getCause())) {
+        throw new CommitStateUnknownException(e);
+      }
+
+      throw e;
+    }
+  }
+
+  /** Whether a transport failure happened before the request was written to a connection. */
+  private static boolean failedBeforeSending(Throwable failure) {
+    return failure instanceof ConnectException // including HttpHostConnectException
+        || failure instanceof ConnectTimeoutException // a SocketTimeoutException
+        || failure instanceof ConnectionRequestTimeoutException // waiting for a pooled connection
+        || failure instanceof UnknownHostException
+        || failure instanceof NoRouteToHostException
+        || failure instanceof SSLHandshakeException;
   }
 
   /**
