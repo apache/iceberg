@@ -143,8 +143,9 @@ public class ParquetSchemaUtil {
   public static MessageType pruneColumns(MessageType fileSchema, Schema expectedSchema) {
     // column order must match the incoming type, so it doesn't matter that the ids are unordered
     Set<Integer> selectedIds = Sets.newHashSet(TypeUtil.getProjectedIds(expectedSchema));
-    // retain one real leaf under each struct that projects only constants like default values,
-    // so its definition level still shows whether the struct is present
+    // retain one real leaf under each struct that projects no file columns, only constants like
+    // default values or no fields at all, so its definition level still shows whether the struct
+    // is present
     TypeWithSchemaVisitor.visit(
         expectedSchema.asStruct(), fileSchema, new PresenceColumnSelector(fileSchema, selectedIds));
     return (MessageType)
@@ -153,9 +154,9 @@ public class ParquetSchemaUtil {
   }
 
   /**
-   * Adds one leaf id under each projected struct whose fields are all constants and would otherwise
-   * retain no file leaf. That leaf's definition level is what still shows whether the struct is
-   * present.
+   * Adds one leaf id under each projected struct that would otherwise retain no file leaf, because
+   * its fields are all constants or it has no fields. That leaf's definition level is what still
+   * shows whether the struct is present.
    */
   private static class PresenceColumnSelector extends TypeWithSchemaVisitor<Void> {
     private final MessageType fileSchema;
@@ -168,8 +169,8 @@ public class ParquetSchemaUtil {
 
     @Override
     public Void struct(Types.StructType expected, GroupType struct, List<Void> fields) {
-      // nothing projected under this struct, so there is nothing to track
-      if (expected == null || expected.fields().isEmpty()) {
+      // the struct is not projected, so there is nothing to track
+      if (expected == null) {
         return null;
       }
 

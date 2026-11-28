@@ -1187,6 +1187,178 @@ public abstract class ReadFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
+  void testStructWithoutProjectedFields(FileFormat fileFormat) throws IOException {
+    assumeThat(fileFormat)
+        .as("ORC cannot read a struct without projected fields, see #19137")
+        .isNotEqualTo(FileFormat.ORC);
+
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.StructType writeStruct =
+        Types.StructType.of(Types.NestedField.optional(3, "inner", Types.IntegerType.get()));
+    Schema writeSchema = new Schema(idField, Types.NestedField.optional(2, "nested", writeStruct));
+
+    assumeSupportedTypes(fileFormat, writeSchema);
+
+    Record presentNested = GenericRecord.create(writeStruct);
+    presentNested.setField("inner", 10);
+    Record present = GenericRecord.create(writeSchema);
+    present.setField("id", 1L);
+    present.setField("nested", presentNested);
+
+    Record nullNested = GenericRecord.create(writeSchema);
+    nullNested.setField("id", 2L);
+    nullNested.setField("nested", null);
+
+    List<Record> genericRecords = List.of(present, nullNested);
+    writeGenericRecords(fileFormat, writeSchema, genericRecords);
+
+    // the only field of "nested" was dropped, so the struct projects no fields
+    Types.StructType readStruct = Types.StructType.of();
+    Schema expectedSchema =
+        new Schema(idField, Types.NestedField.optional(2, "nested", readStruct));
+
+    readAndAssertEngineRecords(
+        fileFormat,
+        expectedSchema,
+        genericRecords,
+        record -> {
+          Record expected = GenericRecord.create(expectedSchema);
+          expected.setField("id", record.getField("id"));
+          if (record.getField("nested") != null) {
+            expected.setField("nested", GenericRecord.create(readStruct));
+          }
+
+          return expected;
+        });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testArrayElementStructWithoutProjectedFields(FileFormat fileFormat) throws IOException {
+    assumeThat(fileFormat)
+        .as("ORC cannot read a struct without projected fields, see #19137")
+        .isNotEqualTo(FileFormat.ORC);
+
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.StructType writeElement =
+        Types.StructType.of(Types.NestedField.optional(4, "inner", Types.IntegerType.get()));
+    Schema writeSchema =
+        new Schema(
+            idField,
+            Types.NestedField.optional("arr")
+                .withId(2)
+                .ofType(Types.ListType.ofOptional(3, writeElement))
+                .build());
+
+    assumeSupportedTypes(fileFormat, writeSchema);
+
+    Record element = GenericRecord.create(writeElement);
+    element.setField("inner", 10);
+    Record withElements = GenericRecord.create(writeSchema);
+    withElements.setField("id", 1L);
+    withElements.setField("arr", Lists.newArrayList(element, null));
+
+    Record nullArr = GenericRecord.create(writeSchema);
+    nullArr.setField("id", 2L);
+    nullArr.setField("arr", null);
+
+    Record emptyArr = GenericRecord.create(writeSchema);
+    emptyArr.setField("id", 3L);
+    emptyArr.setField("arr", Lists.newArrayList());
+
+    List<Record> genericRecords = List.of(withElements, nullArr, emptyArr);
+    writeGenericRecords(fileFormat, writeSchema, genericRecords);
+
+    // the only field of the element struct was dropped, so the element projects no fields
+    Types.StructType readElement = Types.StructType.of();
+    Schema expectedSchema =
+        new Schema(
+            idField,
+            Types.NestedField.optional("arr")
+                .withId(2)
+                .ofType(Types.ListType.ofOptional(3, readElement))
+                .build());
+
+    readAndAssertEngineRecords(
+        fileFormat,
+        expectedSchema,
+        genericRecords,
+        record -> {
+          Record expected = GenericRecord.create(expectedSchema);
+          expected.setField("id", record.getField("id"));
+          List<?> arr = (List<?>) record.getField("arr");
+          if (arr != null) {
+            // a present element reads as an empty struct, a null element stays null
+            expected.setField(
+                "arr",
+                arr.stream()
+                    .map(item -> item == null ? null : GenericRecord.create(readElement))
+                    .toList());
+          }
+
+          return expected;
+        });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testMapValueStructWithoutProjectedFields(FileFormat fileFormat) throws IOException {
+    assumeThat(fileFormat)
+        .as("ORC cannot read a struct without projected fields, see #19137")
+        .isNotEqualTo(FileFormat.ORC);
+
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.StructType writeValue =
+        Types.StructType.of(Types.NestedField.optional(5, "inner", Types.IntegerType.get()));
+    Schema writeSchema =
+        new Schema(
+            idField,
+            Types.NestedField.optional("map")
+                .withId(2)
+                .ofType(Types.MapType.ofOptional(3, 4, Types.StringType.get(), writeValue))
+                .build());
+
+    assumeSupportedTypes(fileFormat, writeSchema);
+
+    Record present = GenericRecord.create(writeValue);
+    present.setField("inner", 10);
+    Map<String, Record> writtenMap = Maps.newLinkedHashMap();
+    writtenMap.put("k1", present);
+    writtenMap.put("k2", null);
+    Record row = GenericRecord.create(writeSchema);
+    row.setField("id", 1L);
+    row.setField("map", writtenMap);
+    List<Record> genericRecords = List.of(row);
+    writeGenericRecords(fileFormat, writeSchema, genericRecords);
+
+    // the only field of the value struct was dropped, so the value projects no fields
+    Types.StructType readValue = Types.StructType.of();
+    Schema expectedSchema =
+        new Schema(
+            idField,
+            Types.NestedField.optional("map")
+                .withId(2)
+                .ofType(Types.MapType.ofOptional(3, 4, Types.StringType.get(), readValue))
+                .build());
+
+    readAndAssertEngineRecords(
+        fileFormat,
+        expectedSchema,
+        genericRecords,
+        record -> {
+          Map<String, Record> expectedMap = Maps.newLinkedHashMap();
+          // a present value reads as an empty struct, a null value stays null
+          expectedMap.put("k1", GenericRecord.create(readValue));
+          expectedMap.put("k2", null);
+          Record expected = GenericRecord.create(expectedSchema);
+          expected.setField("id", record.getField("id"));
+          expected.setField("map", expectedMap);
+          return expected;
+        });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
   void testArrayElementDefault(FileFormat fileFormat) throws IOException {
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
