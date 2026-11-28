@@ -39,6 +39,10 @@ class CommitState {
 
   private final List<Envelope> commitBuffer = Lists.newArrayList();
   private final List<DataComplete> readyBuffer = Lists.newArrayList();
+  // Mirrors of the buffer sizes for the JMX gauges, which read from a different thread than the
+  // coordinator thread that mutates the buffers. Only the coordinator thread writes them.
+  private volatile int commitBufferSize = 0;
+  private volatile int readyBufferSize = 0;
   private int receivedPartitionCount = 0;
   private long startTime;
   private UUID currentCommitId;
@@ -50,6 +54,7 @@ class CommitState {
 
   void addResponse(Envelope envelope) {
     commitBuffer.add(envelope);
+    this.commitBufferSize = commitBuffer.size();
     if (!isCommitInProgress()) {
       DataWritten dataWritten = (DataWritten) envelope.event().payload();
       LOG.warn(
@@ -61,6 +66,7 @@ class CommitState {
   void addReady(Envelope envelope) {
     DataComplete dataComplete = (DataComplete) envelope.event().payload();
     readyBuffer.add(dataComplete);
+    this.readyBufferSize = readyBuffer.size();
     if (!isCommitInProgress()) {
       LOG.warn(
           "Received commit ready when no commit in progress, this can happen during recovery. Commit ID: {}",
@@ -94,12 +100,22 @@ class CommitState {
 
   void endCurrentCommit() {
     readyBuffer.clear();
+    this.readyBufferSize = 0;
     receivedPartitionCount = 0;
     currentCommitId = null;
   }
 
   void clearResponses() {
     commitBuffer.clear();
+    this.commitBufferSize = 0;
+  }
+
+  int commitBufferSize() {
+    return commitBufferSize;
+  }
+
+  int readyBufferSize() {
+    return readyBufferSize;
   }
 
   boolean isCommitTimedOut() {

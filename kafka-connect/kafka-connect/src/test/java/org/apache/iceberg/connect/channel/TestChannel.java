@@ -112,11 +112,17 @@ public class TestChannel extends ChannelTestBase {
   }
 
   private static class TestChannelImpl extends Channel {
+    private final ChannelMetrics channelMetrics = mock(ChannelMetrics.class);
     private final List<Envelope> received = Lists.newArrayList();
 
     TestChannelImpl(
         IcebergSinkConfig config, KafkaClientFactory clientFactory, SinkTaskContext context) {
       super("test", CONNECT_CONSUMER_GROUP_ID + "-test", config, clientFactory, context);
+    }
+
+    @Override
+    protected ChannelMetrics getChannelMetrics() {
+      return channelMetrics;
     }
 
     @Override
